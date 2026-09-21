@@ -22,6 +22,7 @@ defmodule TuistWeb.CoverageDetailLive do
   alias Tuist.FeatureFlags
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
+  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
@@ -63,8 +64,30 @@ defmodule TuistWeb.CoverageDetailLive do
       |> assign(:coverage_period, period)
       |> assign_subject(params, query)
 
-    {:noreply, assign_tab(socket, query)}
+    {:noreply, socket |> assign_tab(query) |> assign_file(query["coverage-file"])}
   end
+
+  # The file the page was asked to open: its coverage at the head commit (the
+  # reported one when the commit's skipped tests were all carried forward)
+  # and the tests behind it, across the commit's runs.
+  defp assign_file(socket, path) when path in [nil, ""],
+    do: socket |> assign(:coverage_file, nil) |> assign(:coverage_file_tests, nil)
+
+  defp assign_file(%{assigns: %{selected_project: project, subject: subject}} = socket, path) do
+    file = Commits.file_detail(project.id, subject.sha, path)
+
+    tests =
+      file &&
+        Evidence.covering(%{project_id: project.id, test_run_ids: Commits.run_ids(project.id, subject.sha)}, path)
+
+    socket
+    |> assign(:coverage_file, file)
+    |> assign(:coverage_file_tests, tests)
+  end
+
+  @doc false
+  def file_href(%{current_path: current_path, uri: uri}, path),
+    do: current_path <> "?" <> Query.put(uri.query, "coverage-file", path)
 
   def handle_event(
         "coverage_period_changed",

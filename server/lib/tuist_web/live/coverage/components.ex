@@ -113,6 +113,7 @@ defmodule TuistWeb.Coverage.Components do
   attr :rises, :list, required: true
   attr :falls, :list, required: true
   attr :least_covered, :list, required: true
+  attr :file_href, :any, default: nil
   attr :unmeasured, :list, required: true
   attr :unmeasured_count, :integer, default: 0
   attr :baseline, :map, default: nil
@@ -166,7 +167,12 @@ defmodule TuistWeb.Coverage.Components do
           <div data-part="header">
             <span data-part="title">{dgettext("dashboard_tests", "Least covered files")}</span>
           </div>
-          <.table :if={@least_covered != []} id="coverage-gap-files-table" rows={@least_covered}>
+          <.table
+            :if={@least_covered != []}
+            id="coverage-gap-files-table"
+            rows={@least_covered}
+            row_navigate={@file_href && fn file -> @file_href.(file.path) end}
+          >
             <:col :let={file} label={dgettext("dashboard_tests", "File")}>
               <.text_and_description_cell
                 label={Path.basename(file.path)}
@@ -361,6 +367,23 @@ defmodule TuistWeb.Coverage.Components do
   def change_color({:delta, delta}) when delta < 0, do: "destructive"
   def change_color({:delta, delta}) when delta > 0, do: "success"
   def change_color(_change), do: "neutral"
+
+  @doc "Line ranges (`[first, last]` or `{first, last}`) as `3–5, 9`; a dash for none."
+  def line_ranges_label(ranges) when ranges in [nil, []], do: "—"
+
+  def line_ranges_label(ranges) do
+    Enum.map_join(ranges, ", ", fn
+      [line, line] -> Integer.to_string(line)
+      {line, line} -> Integer.to_string(line)
+      [first, last] -> "#{first}–#{last}"
+      {first, last} -> "#{first}–#{last}"
+    end)
+  end
+
+  @doc "How a file reached a test's evidence: through the test itself, its suite's setup, or its target's floor."
+  def evidence_scope_label("test"), do: dgettext("dashboard_tests", "The test")
+  def evidence_scope_label("suite"), do: dgettext("dashboard_tests", "Its suite")
+  def evidence_scope_label(_scope), do: dgettext("dashboard_tests", "Its target")
 
   @doc """
   The figure a commit is shown with: its reported coverage when everything its

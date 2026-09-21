@@ -259,6 +259,40 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert lv |> element("#coverage-detail [data-part='badges']") |> render() =~ "Complete"
     end
 
+    test "opens a file of the commit with its uncovered lines and the tests behind it", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 1, 0])], %{
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1,
+            test_cases: [%{name: "testA()", test_suite_name: "ATests", status: "success", duration: 1}]
+          }
+        ],
+        coverage_evidence: %{
+          paths: ["Sources/A.swift"],
+          scopes: [%{kind: "test", module: "AppTests", suite: "ATests", name: "testA()", files: [0], lines: [[1, 3]]}]
+        }
+      })
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/b"
+      {:ok, lv, _html} = live(conn, path)
+      refute has_element?(lv, "#coverage-file")
+
+      {:ok, lv, _html} = live(conn, path <> "?coverage-file=Sources/A.swift")
+      assert has_element?(lv, "#widget-coverage-file-percentage", "100.0%")
+      assert has_element?(lv, "#coverage-file-uncovered-lines", "None")
+      assert has_element?(lv, "#coverage-file-tests-table", "testA()")
+      assert has_element?(lv, "#coverage-file-tests-table", "1–3")
+
+      {:ok, lv, _html} = live(conn, path <> "?coverage-file=Sources/B.swift")
+      assert has_element?(lv, "#coverage-file-no-tests")
+    end
+
     test "shows what the gates decided, and that they wait for the completion signal", %{
       conn: conn,
       organization: organization,

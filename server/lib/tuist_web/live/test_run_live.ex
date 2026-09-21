@@ -491,7 +491,7 @@ defmodule TuistWeb.TestRunLive do
   defp coverage_file_tests(_evidence, covering) do
     tests =
       Enum.map(covering.tests, fn test ->
-        %{id: test.test_case_id, name: test.name, suite: test.suite_name, module: test.module_name}
+        %{id: test.test_case_id, name: test.name, suite: test.suite_name, module: test.module_name, lines: test.lines}
       end)
 
     %{tests: tests, suites: covering.suites, targets: covering.targets}

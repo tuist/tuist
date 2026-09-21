@@ -958,6 +958,44 @@
   </.card>
 
   <.card
+    :if={@selected_tab == "overview" and @coverage_evidence}
+    title={dgettext("dashboard_tests", "Code it covers")}
+    icon="file"
+    data-part="test-case-coverage-card"
+    id="test-case-coverage"
+  >
+    <:actions>
+      <.button
+        label={dgettext("dashboard_tests", "View run")}
+        variant="secondary"
+        size="medium"
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{@coverage_evidence.test_run_id}"
+        }
+      />
+    </:actions>
+    <.card_section data-part="test-case-coverage-section">
+      <.table
+        id="test-case-coverage-table"
+        rows={Enum.map(@coverage_evidence.files, &Map.put(&1, :id, &1.path))}
+      >
+        <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+          <.text_and_description_cell
+            label={Path.basename(file.path)}
+            description={Path.dirname(file.path)}
+          />
+        </:col>
+        <:col :let={file} label={dgettext("dashboard_tests", "Executed by")}>
+          <.text_cell label={TuistWeb.Coverage.Components.evidence_scope_label(file.scope)} />
+        </:col>
+        <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
+          <.text_cell label={TuistWeb.Coverage.Components.line_ranges_label(file.lines)} />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.card
     :if={@selected_tab == "overview"}
     title={dgettext("dashboard_tests", "Test Case Runs")}
     icon="exchange"

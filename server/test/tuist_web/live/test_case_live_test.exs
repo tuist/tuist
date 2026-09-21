@@ -44,6 +44,45 @@ defmodule TuistWeb.TestCaseLiveTest do
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
     end
 
+    test "lists the code the test covered the last time a run recorded it", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [
+                %{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 1},
+                %{name: "testNone()", test_suite_name: "MathTests", status: "success", duration: 1}
+              ]
+            }
+          ]
+        )
+
+      Tuist.Tests.Coverage.Evidence.record(test_run, %{
+        paths: ["Sources/Math.swift", "Sources/Boot.swift"],
+        scopes: [
+          %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[3, 5, 9, 9]]},
+          %{kind: "target", module: "AppTests", suite: "", name: "", files: [0, 1]}
+        ]
+      })
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      id = fn name -> Enum.find(test_run.test_case_runs, &(&1.name == name)).test_case_id end
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{id.("testAdd()")}")
+      assert has_element?(lv, "#test-case-coverage-table", "Math.swift")
+      assert has_element?(lv, "#test-case-coverage-table", "3–5, 9")
+      assert has_element?(lv, "#test-case-coverage-table", "Its target")
+    end
+
     test "scopes test case runs to the selected project", %{
       conn: conn,
       account: account,

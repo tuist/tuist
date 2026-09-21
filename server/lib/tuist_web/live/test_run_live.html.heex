@@ -2455,6 +2455,9 @@
           <:col :let={test} label={dgettext("dashboard_tests", "Target")}>
             <.text_cell label={test.module} />
           </:col>
+          <:col :let={test} label={dgettext("dashboard_tests", "Lines it ran")}>
+            <.text_cell label={TuistWeb.Coverage.Components.line_ranges_label(test.lines)} />
+          </:col>
         </.table>
         <dl data-part="coverage-file-details">
           <div :if={@coverage_file_tests.tests == []}>
