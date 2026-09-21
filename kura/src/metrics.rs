@@ -150,6 +150,7 @@ pub struct MetricsInner {
     analytics_queue_capacity: Gauge,
     analytics_circuit_state: Family<AnalyticsRouteLabels, Gauge>,
     analytics_circuit_transitions: Family<AnalyticsCircuitTransitionLabels, Counter>,
+    analytics_client_timeout_ms: Family<AnalyticsClientTimeoutLabels, Gauge>,
     segment_generation_counts: Family<SegmentGenerationLabels, Gauge>,
     auth_decisions: Family<AuthDecisionLabels, Counter>,
     auth_decision_duration: Family<AuthDecisionStageLabels, Histogram>,
@@ -727,6 +728,7 @@ impl Metrics {
         let analytics_circuit_state = Family::<AnalyticsRouteLabels, Gauge>::default();
         let analytics_circuit_transitions =
             Family::<AnalyticsCircuitTransitionLabels, Counter>::default();
+        let analytics_client_timeout_ms = Family::<AnalyticsClientTimeoutLabels, Gauge>::default();
         let segment_generation_counts = Family::<SegmentGenerationLabels, Gauge>::default();
         let auth_decisions = Family::<AuthDecisionLabels, Counter>::default();
         let auth_decision_duration =
@@ -1438,6 +1440,11 @@ impl Metrics {
             analytics_circuit_transitions.clone(),
         );
         registry.register(
+            "kura_analytics_client_timeout_ms",
+            "Effective analytics reqwest client timeouts by knob (connect, request)",
+            analytics_client_timeout_ms.clone(),
+        );
+        registry.register(
             "kura_segment_generation_count",
             "Segments currently tracked by generation",
             segment_generation_counts.clone(),
@@ -1963,6 +1970,7 @@ impl Metrics {
                 analytics_queue_capacity,
                 analytics_circuit_state,
                 analytics_circuit_transitions,
+                analytics_client_timeout_ms,
                 segment_generation_counts,
                 auth_decisions,
                 auth_decision_duration,
@@ -2938,6 +2946,19 @@ impl Metrics {
             .inc();
     }
 
+    /// Publish the effective reqwest client timeouts for the analytics
+    /// pipeline. Called once at startup for each knob (`connect`,
+    /// `request`). Purely observational; the gauge lets ops confirm which
+    /// timeouts a pod is actually running with, so a config bump can be
+    /// verified from Prometheus alone.
+    pub fn set_analytics_client_timeout(&self, knob: &str, milliseconds: u64) {
+        self.analytics_client_timeout_ms
+            .get_or_create(&AnalyticsClientTimeoutLabels {
+                knob: knob.to_owned(),
+            })
+            .set(i64::try_from(milliseconds).unwrap_or(i64::MAX));
+    }
+
     pub fn update_segment_generation_count(&self, generation: &str, count: usize) {
         self.segment_generation_counts
             .get_or_create(&SegmentGenerationLabels {
@@ -3680,6 +3701,11 @@ struct AnalyticsCircuitTransitionLabels {
     pipeline: String,
     from: String,
     to: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct AnalyticsClientTimeoutLabels {
+    knob: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -4567,6 +4593,8 @@ mod tests {
         metrics.record_analytics_batch("xcode", "ok", Duration::from_millis(7));
         metrics.update_analytics_circuit_state("xcode", 1);
         metrics.record_analytics_circuit_transition("xcode", "closed", "open");
+        metrics.set_analytics_client_timeout("connect", 500);
+        metrics.set_analytics_client_timeout("request", 5_000);
         metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_process_resident_breakdown(768, 256);
@@ -4698,6 +4726,8 @@ mod tests {
         assert!(rendered.contains("kura_analytics_queue_capacity"));
         assert!(rendered.contains("kura_analytics_circuit_state"));
         assert!(rendered.contains("kura_analytics_circuit_transitions_total"));
+        assert!(rendered.contains("kura_analytics_client_timeout_ms{knob=\"connect\"} 500"));
+        assert!(rendered.contains("kura_analytics_client_timeout_ms{knob=\"request\"} 5000"));
         assert!(rendered.contains("kura_segment_generation_count"));
         assert!(rendered.contains("kura_process_resident_memory_bytes"));
         assert!(rendered.contains("kura_process_resident_anon_bytes"));

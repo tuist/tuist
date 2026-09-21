@@ -911,6 +911,7 @@ mod tests {
                 batch_timeout_ms: 5_000,
                 queue_capacity: 8,
                 request_timeout_ms: 5_000,
+                connect_timeout_ms: 500,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
             });
@@ -1035,6 +1036,7 @@ mod tests {
                     batch_timeout_ms: 5_000,
                     queue_capacity: 64,
                     request_timeout_ms: 5_000,
+                    connect_timeout_ms: 500,
                     circuit_breaker_failure_threshold: 2,
                     circuit_breaker_open_ms: 5_000,
                 },

@@ -96,6 +96,7 @@ const KURA_ANALYTICS_BATCH_SIZE: &str = "KURA_ANALYTICS_BATCH_SIZE";
 const KURA_ANALYTICS_BATCH_TIMEOUT_MS: &str = "KURA_ANALYTICS_BATCH_TIMEOUT_MS";
 const KURA_ANALYTICS_QUEUE_CAPACITY: &str = "KURA_ANALYTICS_QUEUE_CAPACITY";
 const KURA_ANALYTICS_REQUEST_TIMEOUT_MS: &str = "KURA_ANALYTICS_REQUEST_TIMEOUT_MS";
+const KURA_ANALYTICS_CONNECT_TIMEOUT_MS: &str = "KURA_ANALYTICS_CONNECT_TIMEOUT_MS";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
@@ -324,6 +325,12 @@ pub struct AnalyticsConfig {
     pub batch_timeout_ms: u64,
     pub queue_capacity: usize,
     pub request_timeout_ms: u64,
+    // 500 ms is fine for in-region deployments (Kura pod and server on
+    // the same continent) but sits right at the cross-Atlantic TCP
+    // handshake ceiling (2xRTT ~= 260 ms typical, more with jitter). Far-
+    // region pods set this via KURA_ANALYTICS_CONNECT_TIMEOUT_MS so they
+    // don't drop otherwise-recoverable analytics batches on connect.
+    pub connect_timeout_ms: u64,
     pub circuit_breaker_failure_threshold: usize,
     pub circuit_breaker_open_ms: u64,
 }
@@ -1471,6 +1478,22 @@ impl Config {
                 "{KURA_ANALYTICS_REQUEST_TIMEOUT_MS} must be greater than 0"
             ));
         }
+        let analytics_connect_timeout_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_ANALYTICS_CONNECT_TIMEOUT_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_ANALYTICS_CONNECT_TIMEOUT_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(500);
+        if analytics_connect_timeout_ms == 0 {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_CONNECT_TIMEOUT_MS} must be greater than 0"
+            ));
+        }
         let analytics_circuit_breaker_failure_threshold = optional_parsed_value(
             &mut lookup,
             KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
@@ -1515,6 +1538,7 @@ impl Config {
                     batch_timeout_ms: analytics_batch_timeout_ms,
                     queue_capacity: analytics_queue_capacity,
                     request_timeout_ms: analytics_request_timeout_ms,
+                    connect_timeout_ms: analytics_connect_timeout_ms,
                     circuit_breaker_failure_threshold: analytics_circuit_breaker_failure_threshold,
                     circuit_breaker_open_ms: analytics_circuit_breaker_open_ms,
                 }),
@@ -3349,6 +3373,7 @@ mod tests {
             (KURA_ANALYTICS_BATCH_TIMEOUT_MS, "1500"),
             (KURA_ANALYTICS_QUEUE_CAPACITY, "250"),
             (KURA_ANALYTICS_REQUEST_TIMEOUT_MS, "3000"),
+            (KURA_ANALYTICS_CONNECT_TIMEOUT_MS, "750"),
             (KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD, "3"),
             (KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS, "45000"),
             (
@@ -3369,6 +3394,7 @@ mod tests {
                 batch_timeout_ms: 1_500,
                 queue_capacity: 250,
                 request_timeout_ms: 3_000,
+                connect_timeout_ms: 750,
                 circuit_breaker_failure_threshold: 3,
                 circuit_breaker_open_ms: 45_000,
             })

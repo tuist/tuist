@@ -216,10 +216,16 @@ impl Analytics {
         };
 
         let client = Client::builder()
-            .connect_timeout(Duration::from_millis(500))
+            .connect_timeout(Duration::from_millis(config.connect_timeout_ms))
             .timeout(Duration::from_millis(config.request_timeout_ms))
             .build()
             .map_err(|error| format!("failed to build analytics client: {error}"))?;
+        // Publish the effective timeouts as gauges so operators can tell
+        // from Prometheus alone which knob a pod is running with. Set once
+        // at startup and never changes for the life of the process, so a
+        // gauge is enough (no need for a histogram or a per-request label).
+        metrics.set_analytics_client_timeout("connect", config.connect_timeout_ms);
+        metrics.set_analytics_client_timeout("request", config.request_timeout_ms);
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
         let (bazel_sender, bazel_receiver) = mpsc::channel(config.queue_capacity);
         let pending = Arc::new(AtomicUsize::new(0));
@@ -916,6 +922,7 @@ mod tests {
                 batch_timeout_ms: 5_000,
                 queue_capacity: 8,
                 request_timeout_ms: 5_000,
+                connect_timeout_ms: 500,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
             }),
@@ -1148,6 +1155,7 @@ mod tests {
                 batch_timeout_ms: 50,
                 queue_capacity: 100,
                 request_timeout_ms: 5_000,
+                connect_timeout_ms: 500,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
             }),
@@ -1200,6 +1208,7 @@ mod tests {
                 batch_timeout_ms: 5_000,
                 queue_capacity: 8,
                 request_timeout_ms: 5_000,
+                connect_timeout_ms: 500,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
             }),
@@ -1291,6 +1300,7 @@ mod tests {
                 batch_timeout_ms: 5_000,
                 queue_capacity: 8,
                 request_timeout_ms: 1_000,
+                connect_timeout_ms: 500,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 60_000,
             }),

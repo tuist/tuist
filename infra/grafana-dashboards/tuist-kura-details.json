@@ -7499,6 +7499,98 @@
           }
         }
       },
+      "panel-243": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod, knob) (kura_analytics_client_timeout_ms{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}} {{knob}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Effective analytics reqwest client timeouts by knob (connect, request), set once at startup from KURA_ANALYTICS_CONNECT_TIMEOUT_MS / KURA_ANALYTICS_REQUEST_TIMEOUT_MS. Use to confirm which timeouts a pod is actually running with; a low connect timeout on a cross-region pod correlates with error_connect on kura_analytics_batches_total.\n\nPrometheus name: `kura_analytics_client_timeout_ms` · labels: knob",
+          "id": 243,
+          "links": [],
+          "title": "analytics_client_timeout_ms",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ms"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
       "panel-171": {
         "kind": "Panel",
         "spec": {
@@ -26245,11 +26337,24 @@
                         "x": 16,
                         "y": 14
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-243"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 21
+                      }
                     }
                   ]
                 }
               },
-              "title": "Usage reporting & analytics (analytics webhook pipeline is unconfigured in hosted deployments) (9)"
+              "title": "Usage reporting & analytics (analytics webhook pipeline is unconfigured in hosted deployments) (10)"
             }
           },
           {
