@@ -22,9 +22,16 @@ mise run rack:fleet apply <device>
 mise run rack:fleet backup [device]         # startup config into the repo
 mise run rack:fleet drift                   # every switch; non-zero on drift
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
+mise run rack:fleet-test                    # the suite; needs no hardware
 ```
 
 `--site` selects the rack and defaults to `ber1`.
+
+Shell and `ssh`, like `rack:prep-switch` beside it. `fleet.sh` is the
+implementation and `mise/tasks/rack/fleet.sh` the operator entry point; the
+pieces worth testing on their own are in `lib/`. Rendering needs `jq`,
+normalising is `awk`, and the diff is `diff -u`, so there is no interpreter to
+install and nothing to build.
 
 ## What the site definition is for
 
@@ -73,6 +80,32 @@ the source for the diff. If the export turns out to be text, the better shape is
 a whole-config replace: idempotent by construction, and it collapses the change
 path and the disaster-recovery path into one piece of code, at the cost of a
 reboot per change that the A/B pair is exactly what makes affordable.
+
+## Does this make switch setup zero touch? No.
+
+Racking a switch today is still: plug a USB-C cable in, run `rack:prep-switch`,
+unplug it, then run `rack:fleet apply`. That is one physical touch per switch,
+which is one fewer than before but is not zero.
+
+Zero touch means DHCP Auto Install: the switch boots, DHCP hands it a TFTP
+server and a file name, and it fetches and applies its configuration with nobody
+in the room. Three things stand between here and there.
+
+- **The TFTP question above.** Auto Install consumes a configuration *file*. If
+  the exported file turns out to be opaque rather than text, there is nothing
+  for this renderer to hand it, and zero touch cannot be built on a rendered
+  desired state at all. That check gates both whole-config replace and zero
+  touch, which is why it is the first thing to close.
+- **Nothing serves the files yet.** Auto Install needs a DHCP server handing out
+  options 66 and 67 on the management segment, and something serving a config
+  per switch keyed by an identity the switch presents before it has one.
+- **The identity still has to come from somewhere.** The admin login and the
+  fleet SSH key are what `rack:prep-switch` installs over the console. An
+  Auto Install config could carry both, which is what would remove the cable.
+
+Pre-staging a switch at the bench and shipping it configured is the other half
+of the same answer, and both want this rendered desired state to exist first.
+Neither is built here.
 
 ## Apply ordering, which is enforced rather than written down
 
@@ -143,6 +176,16 @@ arbitrary line into its negation is the same class of guess.
 - **One authentication attempt per connection.** The switch closes on the first
   key the client offers, so an agent holding other keys locks you out of your
   own switch. `IdentitiesOnly=yes` and `IdentityAgent=none` are not optional.
+- **The coprocess descriptors do not survive a pipeline.** Bash closes a
+  coprocess's file descriptors in the subshell a pipeline creates, so nothing in
+  `lib/session.sh` may be piped or captured with `$(...)`. `switch_run` leaves
+  the output in `SWITCH_OUTPUT` and the caller writes that to a file. Piping it
+  fails with "Bad file descriptor" only once a switch is on the other end.
+- **Answer the pager on a separate window, never by editing the transcript.**
+  Removing the prompt from the buffer as it is answered leaves its padding
+  spaces behind, and the normaliser needs to see the prompt to know that those
+  spaces are an erased line rather than indentation. Getting this wrong makes
+  every diff show whitespace drift that is not there.
 - **The session table does not reap abandoned sessions.** `exit` from privileged
   mode drops to user EXEC and keeps the session open; only `logout` ends it.
   Leaking sessions wedges the SSH daemon: the switch keeps forwarding and keeps
@@ -152,10 +195,11 @@ arbitrary line into its negation is the same class of guess.
   raised, which is what `session.py` is built around.
 - **`show` output pages** with `Press any key to continue (Q to quit)`, and the
   pager erases itself with a carriage return.
-- **A bare CR arrives as CR NUL**, the telnet convention. `str.strip()` does not
-  touch NUL, so an unscrubbed pager line reads as a configuration command that
-  is not there. This is the single trap most likely to produce a convincing,
-  wrong diff.
+- **A bare CR arrives as CR NUL**, the telnet convention. Two traps follow.
+  NUL is not whitespace, so an unscrubbed pager line reads as a configuration
+  command that is not there; and awk truncates a record at NUL, which silently
+  drops whichever configuration line the pager erased itself in front of. Both
+  are why `tr -d '\000'` runs before every awk pass and not after.
 - **Port 80 and 443 answer even with `no ip http server`** in the running
   config. Do not read that line as "the web UI is off".
 - **Firmware lines are not interchangeable.** Hardware `1.20` takes `1.20.x`,

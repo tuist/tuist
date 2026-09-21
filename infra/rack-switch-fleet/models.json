@@ -1,0 +1,19 @@
+{
+  "sx3832": {
+    "product": "TP-Link Omada SX3832",
+    "banner": "!SX3832",
+    "verified": true,
+    "port_groups": [
+      { "prefix": "ten-gigabitEthernet", "unit": "1/0", "first": 1, "last": 32 }
+    ]
+  },
+  "tl-sg3452": {
+    "product": "TP-Link JetStream TL-SG3452",
+    "verified": false,
+    "banner": "!TL-SG3452",
+    "port_groups": [
+      { "prefix": "gigabitEthernet", "unit": "1/0", "first": 1, "last": 48 },
+      { "prefix": "ten-gigabitEthernet", "unit": "1/0", "first": 49, "last": 52 }
+    ]
+  }
+}

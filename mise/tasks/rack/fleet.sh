@@ -32,10 +32,10 @@
 
 set -euo pipefail
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "error: python3 is needed; install the Xcode command line tools" >&2
+if (( BASH_VERSINFO[0] < 4 )); then
+  echo "error: needs bash 4+ (macOS /bin/bash is 3.2); run through mise or install bash" >&2
   exit 1
 fi
 
 root="$(git rev-parse --show-toplevel)"
-exec python3 "$root/infra/rack-switch-fleet/fleet.py" "$@"
+exec "$root/infra/rack-switch-fleet/fleet.sh" "$@"
