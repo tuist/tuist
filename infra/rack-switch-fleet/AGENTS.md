@@ -227,25 +227,51 @@ is the same syntax as the configuration file, it ends with `end`, and it covers
 the globals, the management interface and every port. That is what makes a diff
 worth acting on rather than advisory.
 
-**Does the configuration round-trip as readable text?** Not yet known. The
-commands exist and their syntax was read off the device:
+**Does the configuration round-trip as readable text? Yes**, answered on
+2026-09-21 with `mise run rack:fleet probe-tftp ber1-tor-b`. The export is 2742
+bytes, 99% printable: the device's own configuration syntax, CRLF throughout,
+ending `end` plus one NUL byte. The commands are
 
 ```
 copy startup-config tftp ip-address <server> filename <name>
 copy tftp startup-config ip-address <server> filename <name>
 ```
 
-Whether the exported file is text or an opaque blob was not determined, because
-TFTP is always requested on port 69 and serving it needs root, which the session
-that built this did not have. `mise run rack:fleet probe-tftp ber1-tor-b`
-performs exactly that check: it serves TFTP, exports the startup config, and
-reports whether what came back is text.
+Three representations of that switch now agree. What this repository renders,
+what the switch prints for `show running-config`, and what it writes over TFTP
+all normalise to the same 81 lines.
 
-Until that answer exists this stays CLI-driven, with `show running-config` as
-the source for the diff. If the export turns out to be text, the better shape is
-a whole-config replace: idempotent by construction, and it collapses the change
-path and the disaster-recovery path into one piece of code, at the cost of a
-reboot per change that the A/B pair is exactly what makes affordable.
+So a whole-config replace is possible, and it is the better shape: idempotent by
+construction, and it collapses the change path and the disaster-recovery path
+into one piece of code, at the cost of a reboot per change that the A/B pair is
+what makes affordable. DHCP Auto Install has something to serve too.
+
+### What the byte comparison caught, and why replace is not built yet
+
+Comparing the export against the render byte for byte, rather than after
+normalising, turns up what a normalised diff hides by design. The render is
+missing exactly two lines the device holds: `system-time ntp`, and the
+`user name` line carrying the admin hash. Both are deliberately unmanaged, which
+is right for a file committed to git and **fatal for a file written over the
+switch's startup config**. Pushing the render as it stands deletes the account
+used to log in and leaves the console as the only way back.
+
+`lib/merge.awk` is the answer and it is done and tested. It carries each
+unmanaged line across from the switch's current export, re-inserting it in front
+of whichever configuration line followed it on the device, so ordering is
+derived rather than hard-coded and this file never has to know which lines those
+are. `fleet_device_file` then applies the CRLF and trailing NUL encoding read
+off a real export. The tests run against a redacted copy of that export and
+cover the login surviving, nothing being lost, the position being derived, and
+an unmanaged line at the end with nothing to anchor to.
+
+What is deliberately **not** built is the push: export, merge, `copy tftp
+startup-config`, reboot, re-read, diff. Two reasons, neither of them the merge.
+The reboot command has not been confirmed on the hardware, and the command that
+reboots a switch is not one to guess at from a code review. And every part of
+this tool that first met hardware untested had a bug in it, twice costing
+`ber1-tor-b` its SSH daemon; a path that overwrites a startup config and reboots
+is the last one to ship unrun. Build it against a switch somebody is driving.
 
 ## Does this make switch setup zero touch? No.
 
@@ -257,11 +283,11 @@ Zero touch means DHCP Auto Install: the switch boots, DHCP hands it a TFTP
 server and a file name, and it fetches and applies its configuration with nobody
 in the room. Three things stand between here and there.
 
-- **The TFTP question above.** Auto Install consumes a configuration *file*. If
-  the exported file turns out to be opaque rather than text, there is nothing
-  for this renderer to hand it, and zero touch cannot be built on a rendered
-  desired state at all. That check gates both whole-config replace and zero
-  touch, which is why it is the first thing to close.
+- ~~**The TFTP question above.**~~ Closed on 2026-09-21: the export is text, so
+  a rendered config is something Auto Install can be handed. It no longer blocks
+  this. Note though that an Auto Install config has to carry a login of its own,
+  because the switch it lands on has none yet, which is the same problem the
+  merge solves from the other direction.
 - **Nothing serves the files yet.** Auto Install needs a DHCP server handing out
   options 66 and 67 on the management segment, and something serving a config
   per switch keyed by an identity the switch presents before it has one.

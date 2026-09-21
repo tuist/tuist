@@ -589,3 +589,72 @@ mini_site() {
         select([.links[] | select(.purpose == "management" and .switch == "ber1-mgmt")] | length != 1)] | length' "$SITE_FILE"
     [ "$output" = "0" ]
 }
+
+# --- the file that would be pushed -------------------------------------------
+#
+# The TFTP export turned out to be text, so a whole-config replace is possible.
+# The fixture is a real export off ber1-tor-b with the hash replaced.
+
+export_fixture() { echo "$FLEET_ROOT/tests/fixtures/ber1-tor-b-tftp-export.cfg"; }
+
+@test "the exported file and the render describe the same configuration" {
+    desired="$BATS_TEST_TMPDIR/desired.cfg"
+    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    run fleet_diff "$desired" "$(export_fixture)" rendered exported
+    [ "$status" -eq 0 ]
+    [ "${#output}" -eq 0 ]
+}
+
+@test "pushing the render alone would delete the login, so the merge carries it" {
+    desired="$BATS_TEST_TMPDIR/desired.cfg"
+    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    run grep -c '^user name ' "$desired"
+    [ "$output" = "0" ]
+
+    merged="$BATS_TEST_TMPDIR/merged.cfg"
+    fleet_merge_unmanaged "$(export_fixture)" "$desired" > "$merged"
+    run grep -c '^user name tuist ' "$merged"
+    [ "$output" = "1" ]
+    run grep -c '^system-time ntp ' "$merged"
+    [ "$output" = "1" ]
+}
+
+@test "the merge loses nothing the switch is holding" {
+    desired="$BATS_TEST_TMPDIR/desired.cfg"
+    merged="$BATS_TEST_TMPDIR/merged.cfg"
+    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    fleet_merge_unmanaged "$(export_fixture)" "$desired" > "$merged"
+    run bash -c "diff <(grep -vE '^!|^[[:space:]]*#?[[:space:]]*\$' '$(export_fixture)') \
+                      <(grep -vE '^!|^[[:space:]]*#?[[:space:]]*\$' '$merged') | grep '^<' | wc -l | tr -d ' '"
+    [ "$output" = "0" ]
+}
+
+@test "an unmanaged line is put back where the device had it, not at a fixed offset" {
+    # Derived from the current config rather than hard-coded, so a firmware that
+    # cares about ordering keeps working without this code knowing the order.
+    current="$BATS_TEST_TMPDIR/current.cfg"
+    printf 'lldp\nsystem-time ntp UTC a b 12\nno system-time dst\nspanning-tree\n' > "$current"
+    printf 'lldp\nno system-time dst\nspanning-tree\nend\n' > "$BATS_TEST_TMPDIR/want.cfg"
+    run fleet_merge_unmanaged "$current" "$BATS_TEST_TMPDIR/want.cfg"
+    [ "${lines[0]}" = "lldp" ]
+    [ "${lines[1]}" = "system-time ntp UTC a b 12" ]
+    [ "${lines[2]}" = "no system-time dst" ]
+}
+
+@test "an unmanaged line with nothing after it still survives the merge" {
+    current="$BATS_TEST_TMPDIR/tail.cfg"
+    printf 'lldp\nuser name tuist privilege admin secret 5 $1$x\n' > "$current"
+    printf 'lldp\nend\n' > "$BATS_TEST_TMPDIR/want2.cfg"
+    run fleet_merge_unmanaged "$current" "$BATS_TEST_TMPDIR/want2.cfg"
+    [[ "$output" == *"user name tuist"* ]]
+    [ "${lines[-1]}" = "end" ]
+}
+
+@test "the device file encoding is CRLF with one trailing NUL" {
+    printf 'hostname "x"\nend\n' > "$BATS_TEST_TMPDIR/plain.cfg"
+    fleet_device_file < "$BATS_TEST_TMPDIR/plain.cfg" > "$BATS_TEST_TMPDIR/dev.cfg"
+    run bash -c "od -c '$BATS_TEST_TMPDIR/dev.cfg' | tr -s ' '"
+    [[ "$output" == *'\r \n'* ]]
+    run bash -c "tail -c1 '$BATS_TEST_TMPDIR/dev.cfg' | od -An -c | tr -d ' '"
+    [ "$output" = '\0' ]
+}

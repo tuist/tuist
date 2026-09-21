@@ -9,6 +9,7 @@ FLEET_MODELS="$FLEET_ROOT/models.json"
 FLEET_NODE_MODELS="$FLEET_ROOT/node_models.json"
 FLEET_AWK="$FLEET_ROOT/lib/normalize.awk"
 FLEET_TRANSCRIPT_AWK="$FLEET_ROOT/lib/transcript.awk"
+FLEET_MERGE_AWK="$FLEET_ROOT/lib/merge.awk"
 
 fleet_site_file() { echo "$FLEET_ROOT/sites/$1.json"; }
 
@@ -318,3 +319,17 @@ fleet_diff() {
   rm -f "$a" "$b"
   return $status
 }
+
+
+# The render plus whatever the switch holds that the render does not own. See
+# lib/merge.awk: pushing a render that omits the admin login deletes it.
+fleet_merge_unmanaged() {
+  local current="$1" rendered="$2"
+  tr -d '\000' < "$current" > "$current.stripped"
+  awk -f "$FLEET_MERGE_AWK" "$current.stripped" "$rendered"
+  rm -f "$current.stripped"
+}
+
+# The switch's own configuration-file encoding: CRLF throughout, one NUL after
+# the final `end`. Read off a real export rather than guessed.
+fleet_device_file() { awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }'; printf '\000'; }
