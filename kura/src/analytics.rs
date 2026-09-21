@@ -595,10 +595,12 @@ impl AnalyticsRuntime {
                 );
             }
             Err(error) => {
-                error!("failed to send {pipeline} analytics batch: {error}");
+                let kind = classify_reqwest_error(&error);
+                let chain = error_cause_chain(&error);
+                error!(pipeline, kind, "failed to send analytics batch: {chain}");
                 event_result(count, "delivery_error");
                 self.metrics
-                    .record_analytics_batch(pipeline, "error", duration);
+                    .record_analytics_batch(pipeline, error_result_label(kind), duration);
                 self.record_breaker_transition(
                     pipeline,
                     breaker.on_failure(
@@ -637,9 +639,74 @@ fn record_delivery_failure<F>(
 ) where
     F: FnOnce(u64, &str),
 {
-    error!("failed to send {pipeline} analytics batch with status {status}");
+    let label = status_result_label(status);
+    error!(
+        pipeline,
+        kind = label,
+        status = status.as_u16(),
+        "failed to send analytics batch"
+    );
     event_result(count, "delivery_error");
-    metrics.record_analytics_batch(pipeline, "error", duration);
+    metrics.record_analytics_batch(pipeline, label, duration);
+}
+
+/// Classify a reqwest transport error so operators can tell a DNS/connect
+/// failure apart from a body-write timeout without reading the log message.
+/// The set is intentionally small and bounded to keep Prometheus label
+/// cardinality on `kura_analytics_batches_total{result=...}` finite.
+fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
+    if error.is_timeout() {
+        "timeout"
+    } else if error.is_connect() {
+        "connect"
+    } else if error.is_body() {
+        "body"
+    } else if error.is_decode() {
+        "decode"
+    } else if error.is_request() {
+        "request"
+    } else {
+        "other"
+    }
+}
+
+fn error_result_label(kind: &str) -> &'static str {
+    // Return a `&'static str` so the metrics label is stable and never
+    // interpolated with user data.
+    match kind {
+        "timeout" => "error_timeout",
+        "connect" => "error_connect",
+        "body" => "error_body",
+        "decode" => "error_decode",
+        "request" => "error_request",
+        _ => "error_other",
+    }
+}
+
+fn status_result_label(status: StatusCode) -> &'static str {
+    if status.is_client_error() {
+        "error_status_4xx"
+    } else if status.is_server_error() {
+        "error_status_5xx"
+    } else {
+        "error_status_other"
+    }
+}
+
+/// Walk the error's `source` chain and join every layer's `Display` output
+/// with " -> ". reqwest's top-level message is `error sending request for
+/// url (...)`; the real cause (connection reset, DNS failure, TLS
+/// handshake, ...) lives further down and is what tells the operator what
+/// actually went wrong.
+fn error_cause_chain(error: &(dyn std::error::Error + 'static)) -> String {
+    use std::fmt::Write as _;
+    let mut out = error.to_string();
+    let mut cause = error.source();
+    while let Some(source) = cause {
+        let _ = write!(out, " -> {source}");
+        cause = source.source();
+    }
+    out
 }
 
 fn sign(secret: &str, body: &[u8]) -> String {
@@ -773,7 +840,8 @@ mod tests {
 
     use super::{
         Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent, CircuitBreaker,
-        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
+        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, error_cause_chain,
+        error_result_label, sign, status_result_label,
     };
 
     #[derive(Clone, Debug)]
@@ -1204,6 +1272,77 @@ mod tests {
         assert_eq!(
             analytics_endpoint("https://cache-eu.example.com"),
             "cache-eu.example.com"
+        );
+    }
+
+    #[test]
+    fn error_result_labels_are_stable_and_bounded() {
+        for kind in [
+            "timeout", "connect", "body", "decode", "request", "other", "made-up",
+        ] {
+            let label = error_result_label(kind);
+            assert!(
+                label.starts_with("error_"),
+                "label {label} should carry the `error_` prefix so Prometheus can regex it"
+            );
+        }
+        assert_eq!(error_result_label("timeout"), "error_timeout");
+        assert_eq!(error_result_label("connect"), "error_connect");
+        assert_eq!(error_result_label("something-new"), "error_other");
+    }
+
+    #[test]
+    fn status_result_labels_split_by_class() {
+        assert_eq!(
+            status_result_label(StatusCode::BAD_REQUEST),
+            "error_status_4xx"
+        );
+        assert_eq!(
+            status_result_label(StatusCode::INTERNAL_SERVER_ERROR),
+            "error_status_5xx"
+        );
+        assert_eq!(
+            status_result_label(StatusCode::PERMANENT_REDIRECT),
+            "error_status_other"
+        );
+    }
+
+    #[test]
+    fn cause_chain_joins_every_source() {
+        use std::fmt;
+
+        #[derive(Debug)]
+        struct Layer {
+            message: &'static str,
+            source: Option<Box<dyn std::error::Error + 'static>>,
+        }
+        impl fmt::Display for Layer {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(self.message)
+            }
+        }
+        impl std::error::Error for Layer {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                self.source.as_deref()
+            }
+        }
+
+        let leaf = Layer {
+            message: "connection reset by peer",
+            source: None,
+        };
+        let middle = Layer {
+            message: "tcp connect failed",
+            source: Some(Box::new(leaf)),
+        };
+        let top = Layer {
+            message: "error sending request",
+            source: Some(Box::new(middle)),
+        };
+
+        assert_eq!(
+            error_cause_chain(&top),
+            "error sending request -> tcp connect failed -> connection reset by peer"
         );
     }
 
