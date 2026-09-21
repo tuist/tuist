@@ -650,15 +650,32 @@ fn record_delivery_failure<F>(
     metrics.record_analytics_batch(pipeline, label, duration);
 }
 
-/// Classify a reqwest transport error so operators can tell a DNS/connect
-/// failure apart from a body-write timeout without reading the log message.
-/// The set is intentionally small and bounded to keep Prometheus label
-/// cardinality on `kura_analytics_batches_total{result=...}` finite.
+/// Classify a reqwest transport error so operators can tell a connect-time
+/// failure apart from a stalled-in-flight request without reading the log
+/// message. The set is intentionally small and bounded to keep Prometheus
+/// label cardinality on `kura_analytics_batches_total{result=...}` finite.
+///
+/// Precedence matters. In reqwest 0.13.x a TCP connect that exceeds the
+/// client's `connect_timeout` produces an error where both `is_connect()`
+/// and `is_timeout()` return true; a request that connects but exceeds
+/// the client's overall `timeout` returns `is_timeout()` alone. Checking
+/// `is_connect()` first therefore keeps `connect` and `timeout` as
+/// separate signals, which is the whole point of this metric split.
+///
+/// A note on the remaining buckets:
+/// - `body` fires for reqwest's body-side error kind (typically response
+///   body read failures). Outbound writes on the `Vec<u8>` body path
+///   here usually surface as `request` (or `timeout` if the overall
+///   budget expired), not `body`.
+/// - `decode` fires when a JSON/text decode of the response fails; this
+///   client only reads status, so it should stay empty.
+/// - `request` is the catch-all for everything that connected but
+///   otherwise misbehaved.
 fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
-    if error.is_timeout() {
-        "timeout"
-    } else if error.is_connect() {
+    if error.is_connect() {
         "connect"
+    } else if error.is_timeout() {
+        "timeout"
     } else if error.is_body() {
         "body"
     } else if error.is_decode() {
@@ -840,8 +857,8 @@ mod tests {
 
     use super::{
         Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent, CircuitBreaker,
-        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, error_cause_chain,
-        error_result_label, sign, status_result_label,
+        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, classify_reqwest_error,
+        error_cause_chain, error_result_label, sign, status_result_label,
     };
 
     #[derive(Clone, Debug)]
@@ -1273,6 +1290,64 @@ mod tests {
             analytics_endpoint("https://cache-eu.example.com"),
             "cache-eu.example.com"
         );
+    }
+
+    #[tokio::test]
+    async fn classifies_connect_timeout_separately_from_full_request_timeout() {
+        // 240.0.0.1/4 is IANA-reserved and unroutable, so a TCP connect to
+        // it never completes. A tiny connect_timeout forces the client to
+        // return the connect-timeout branch of `reqwest::Error`, which in
+        // reqwest 0.13.x is `is_connect() == true && is_timeout() == true`.
+        // The classifier's precedence must return `connect` here.
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_millis(20))
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("client should build");
+        let error = client
+            .post("http://240.0.0.1:9/webhooks/gradle-cache")
+            .body(Vec::<u8>::new())
+            .send()
+            .await
+            .expect_err("connect to unroutable address should fail");
+        assert_eq!(
+            classify_reqwest_error(&error),
+            "connect",
+            "a connect-timeout must classify as connect, not timeout; \
+             precedence order in classify_reqwest_error is load-bearing"
+        );
+
+        // A listener that accepts but never reads triggers reqwest's overall
+        // request timeout (not the connect timeout). `is_connect()` is
+        // false here, so the classifier falls through to `timeout`.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("listener should bind");
+        let addr = listener.local_addr().expect("listener has an address");
+        let accept_task = tokio::spawn(async move {
+            // Accept once and hold the socket so the client hangs on the
+            // full-request timeout rather than on connect.
+            let (socket, _) = listener.accept().await.expect("accept");
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            drop(socket);
+        });
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_millis(200))
+            .build()
+            .expect("client should build");
+        let error = client
+            .post(format!("http://{addr}/webhooks/gradle-cache"))
+            .body(Vec::<u8>::new())
+            .send()
+            .await
+            .expect_err("request beyond overall timeout should fail");
+        assert_eq!(
+            classify_reqwest_error(&error),
+            "timeout",
+            "a full-request timeout must classify as timeout, not connect"
+        );
+        accept_task.abort();
     }
 
     #[test]
