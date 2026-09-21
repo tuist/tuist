@@ -48,6 +48,21 @@ defmodule Atlas.Users do
           %User{}
           |> User.changeset(%{email: email, name: auth.info.name})
           |> Repo.insert()
+          |> tap(fn
+            {:ok, user} ->
+              Audit.record("user.created", %{
+                interface: "sso",
+                actor_id: user.id,
+                actor_email: user.email,
+                actor_name: user.name,
+                target_type: "user",
+                target_id: user.id,
+                target_label: user.email
+              })
+
+            _ ->
+              :ok
+          end)
 
         user ->
           user

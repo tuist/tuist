@@ -31,6 +31,7 @@ defmodule Atlas.MCP.Tools.FinanceDeleteTransactionAttachment do
       "additionalProperties" => false
     }
 
+  alias Atlas.Audit
   alias Atlas.Finance.Config
   alias Atlas.Finance.Providers.Qonto
   alias Atlas.MCP.Tool
@@ -44,6 +45,13 @@ defmodule Atlas.MCP.Tools.FinanceDeleteTransactionAttachment do
          {:ok, source} <- Config.fetch_source(source_key) do
       case Qonto.delete_attachment(source, attachment_id) do
         :ok ->
+          Audit.record("finance_transaction_attachment.deleted", %{
+            target_type: "finance_transaction_attachment",
+            target_id: attachment_id,
+            target_label: attachment_id,
+            metadata: %{"source_key" => source_key}
+          })
+
           {:ok, %{success: true, attachment_id: attachment_id, message: "Attachment deleted successfully."}}
 
         {:error, reason} ->
