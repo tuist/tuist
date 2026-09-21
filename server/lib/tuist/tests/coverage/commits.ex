@@ -46,6 +46,11 @@ defmodule Tuist.Tests.Coverage.Commits do
       else: :skipped
   end
 
+  @doc "Whether the commit already has a published coverage row."
+  def measured?(_project_id, sha) when sha in [nil, ""], do: false
+
+  def measured?(project_id, sha), do: not is_nil(summary(project_id, sha))
+
   def enqueue_recompute(_project_id, sha) when sha in [nil, ""], do: :skipped
   def enqueue_recompute(project_id, sha), do: CommitWorker.enqueue(project_id, sha)
 

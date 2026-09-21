@@ -2,11 +2,13 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Projects
+  alias Tuist.Tests
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.Coverage.History
   alias Tuist.Tests.Coverage.Reported
+  alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -189,6 +191,41 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, gap_files_count: 0, carried_from: ["base"]} =
              Reported.compute(project, "head")
+  end
+
+  test "a run that measured nothing refolds its commit, and only a measured one", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    # A scheme skipped whole never builds: its run reports no coverage at all,
+    # and it can land after the completion signal already folded the commit.
+    silent = fn sha ->
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1,
+          status: "success",
+          scheme: "TextScheme",
+          git_branch: "main",
+          git_commit_sha: sha,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: []
+        })
+
+      run
+    end
+
+    silent.("unmeasured")
+    refute_enqueued(worker: CommitWorker, args: %{project_id: project.id, git_commit_sha: "unmeasured"})
+
+    silent.("head")
+    assert_enqueued(worker: CommitWorker, args: %{project_id: project.id, git_commit_sha: "head"})
   end
 
   test "carries nothing for a test one of whose files changed", %{project: project, account: account} do

@@ -122,7 +122,16 @@ defmodule Tuist.Tests.Coverage do
   """
   def publish(test, coverage, shard_index, expected_shards \\ 1)
 
-  def publish(%Test{}, nil, _shard_index, _expected_shards), do: :ok
+  # A run that measured nothing still changes what its commit knows: a scheme
+  # selective testing skipped whole reports no coverage, and the commit's
+  # reported figure carries that scheme's tests forward only once it can see
+  # the run. It can land after the completion signal, so the commit is
+  # refolded here — but only when it is already measured, so a project that
+  # never reports coverage schedules nothing.
+  def publish(%Test{} = test, nil, _shard_index, _expected_shards) do
+    if Commits.measured?(test.project_id, test.git_commit_sha), do: Commits.enqueue_recompute(test)
+    :ok
+  end
 
   def publish(%Test{} = test, coverage, shard_index, expected_shards) do
     shard_index = shard_index || 0
