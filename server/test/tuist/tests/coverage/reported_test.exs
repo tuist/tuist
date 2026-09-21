@@ -118,6 +118,79 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              Reported.compute(project, "base")
   end
 
+  test "carries the tests of a scheme selective testing skipped whole", %{project: project, account: account} do
+    # Two schemes at the base, each running and enumerating its own test.
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+      %{
+        git_commit_sha: "base",
+        scheme: "AppScheme",
+        test_modules: modules([test_case("testAdd()", "MathTests")]),
+        enumerated_tests: [Enum.at(@tests, 0)],
+        coverage_evidence: %{
+          paths: ["Sources/Math.swift", "Tests/AppTests.swift"],
+          scopes: [
+            %{
+              kind: "test",
+              module: "AppTests",
+              suite: "MathTests",
+              name: "testAdd()",
+              files: [0, 1],
+              lines: [[1, 2], [1, 1]]
+            }
+          ]
+        }
+      }
+    )
+
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Text.swift", [1, 1, 1, 0])],
+      %{
+        git_commit_sha: "base",
+        scheme: "TextScheme",
+        test_modules: modules([test_case("testTrim()", "TextTests")]),
+        enumerated_tests: [Enum.at(@tests, 1)],
+        coverage_evidence: %{
+          paths: ["Sources/Text.swift"],
+          scopes: [
+            %{kind: "test", module: "AppTests", suite: "TextTests", name: "testTrim()", files: [0], lines: [[1, 2]]},
+            %{kind: "suite", module: "AppTests", suite: "TextTests", name: "", files: [0], lines: [[3, 3]]}
+          ]
+        }
+      }
+    )
+
+    # At the head only AppScheme ran. TextScheme was skipped whole, so it
+    # never built: its run carries no coverage and lists no candidates, and
+    # nothing at the commit says `testTrim()` exists.
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      head_files(),
+      %{
+        git_commit_sha: "head",
+        scheme: "AppScheme",
+        partial: true,
+        test_modules: modules([test_case("testAdd()", "MathTests")]),
+        enumerated_tests: [Enum.at(@tests, 0)]
+      }
+    )
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "head",
+      scheme: "TextScheme",
+      partial: true,
+      test_modules: []
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, gap_files_count: 0, carried_from: ["base"]} =
+             Reported.compute(project, "head")
+  end
+
   test "carries nothing for a test one of whose files changed", %{project: project, account: account} do
     base_run(project, account)
     head_run(project, account, head_files(git_blob_id: "blob-changed"))

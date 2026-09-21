@@ -39,6 +39,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.EnumeratedTest
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
 
   @chunk_size 2_000
@@ -61,7 +62,10 @@ defmodule Tuist.Tests.Coverage.Reported do
       run_ids = Enum.map(runs, & &1.test_run_id)
       observed = observed_files(project.id, run_ids, excluded)
 
-      case skipped_tests(project.id, run_ids) do
+      repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
+      schemes = runs |> Enum.map(& &1.scheme) |> Enum.uniq()
+
+      case skipped_tests(project, repository_id, sha, run_ids, schemes) do
         :not_enumerated ->
           result(observed, "observed", [], [], 0, [])
 
@@ -69,8 +73,6 @@ defmodule Tuist.Tests.Coverage.Reported do
           result(observed, "measured", [], [], 0, [])
 
         skipped ->
-          repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
-          schemes = runs |> Enum.map(& &1.scheme) |> Enum.uniq()
           carry(project, repository_id, sha, {run_ids, schemes}, observed, skipped, excluded)
       end
     end
@@ -181,21 +183,11 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # The enabled candidates of the commit's runs that none of them executed.
-  defp skipped_tests(project_id, run_ids) do
+  defp skipped_tests(project, repository_id, sha, run_ids, schemes) do
     candidates =
-      ClickHouseRepo.all(
-        from(e in EnumeratedTest,
-          where: e.project_id == ^project_id and e.test_run_id in ^run_ids,
-          group_by: e.test_case_id,
-          having: fragment("argMax(?, ?)", e.enabled, e.inserted_at),
-          select: %{
-            test_case_id: e.test_case_id,
-            module_name: fragment("argMax(?, ?)", e.module_name, e.inserted_at),
-            suite_name: fragment("argMax(?, ?)", e.suite_name, e.inserted_at),
-            name: fragment("argMax(?, ?)", e.name, e.inserted_at)
-          }
-        ),
-        settings: [select_sequential_consistency: 1]
+      Enum.uniq_by(
+        enumerated(project.id, run_ids) ++ inherited_candidates(project, repository_id, sha, run_ids, schemes),
+        & &1.test_case_id
       )
 
     if candidates == [] do
@@ -203,7 +195,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     else
       ran =
         from(r in TestCaseRun,
-          where: r.project_id == ^project_id and r.test_run_id in ^run_ids and not is_nil(r.test_case_id),
+          where: r.project_id == ^project.id and r.test_run_id in ^run_ids and not is_nil(r.test_case_id),
           distinct: true,
           select: r.test_case_id
         )
@@ -212,6 +204,80 @@ defmodule Tuist.Tests.Coverage.Reported do
 
       Enum.reject(candidates, &MapSet.member?(ran, &1.test_case_id))
     end
+  end
+
+  defp enumerated(_project_id, []), do: []
+
+  defp enumerated(project_id, run_ids) do
+    ClickHouseRepo.all(
+      from(e in EnumeratedTest,
+        where: e.project_id == ^project_id and e.test_run_id in ^run_ids,
+        group_by: e.test_case_id,
+        having: fragment("argMax(?, ?)", e.enabled, e.inserted_at),
+        select: %{
+          test_case_id: e.test_case_id,
+          module_name: fragment("argMax(?, ?)", e.module_name, e.inserted_at),
+          suite_name: fragment("argMax(?, ?)", e.suite_name, e.inserted_at),
+          name: fragment("argMax(?, ?)", e.name, e.inserted_at)
+        }
+      ),
+      settings: [select_sequential_consistency: 1]
+    )
+  end
+
+  # A scheme selective testing skipped entirely never builds, so its run
+  # carries no coverage and its client lists no candidates: nothing at the
+  # commit says those tests exist, let alone that they were skipped. Their
+  # candidates come from the nearest ancestor run of the same scheme, which
+  # is where their evidence comes from anyway. Every other guard still
+  # applies to each of them, so a test that must not be carried is still a
+  # gap rather than a silent omission.
+  defp silent_schemes(project_id, sha, run_ids, schemes) do
+    measured = MapSet.new(schemes)
+
+    from(t in Test,
+      where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.git_dirty == false,
+      distinct: true,
+      select: %{id: t.id, scheme: t.scheme}
+    )
+    |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+    |> Enum.reject(&(&1.scheme in [nil, ""] or MapSet.member?(measured, &1.scheme) or &1.id in run_ids))
+    |> Enum.map(& &1.scheme)
+    |> Enum.uniq()
+  end
+
+  defp inherited_candidates(_project, repository_id, _sha, _run_ids, _schemes) when repository_id in [nil, 0], do: []
+
+  defp inherited_candidates(project, repository_id, sha, run_ids, schemes) do
+    case silent_schemes(project.id, sha, run_ids, schemes) do
+      [] -> []
+      silent -> inherit(project, repository_id, sha, silent)
+    end
+  end
+
+  defp inherit(project, repository_id, sha, silent) do
+    depths =
+      repository_id
+      |> GitHistory.ancestors(sha)
+      |> Enum.reject(fn {_sha, depth} -> depth == 0 end)
+      |> Map.new()
+
+    wanted = MapSet.new(silent)
+
+    project.id
+    |> Commits.runs(Map.keys(depths))
+    |> Enum.filter(&MapSet.member?(wanted, &1.scheme))
+    |> Enum.group_by(& &1.scheme)
+    |> Enum.flat_map(fn {_scheme, scheme_runs} ->
+      scheme_runs
+      |> Enum.sort_by(&source_rank(%{depth: depths[&1.git_commit_sha], ran_at: &1.ran_at}))
+      |> Enum.find_value([], fn run ->
+        case enumerated(project.id, [run.test_run_id]) do
+          [] -> nil
+          candidates -> candidates
+        end
+      end)
+    end)
   end
 
   # The skipped tests whose coverage still applies, the lines they carry per
