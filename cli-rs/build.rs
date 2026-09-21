@@ -17,5 +17,10 @@ fn main() {
     // The Swift code finds ProjectDescription, templates and resource bundles next to the binary,
     // so the dylib ships beside the executable, as in the release bundle.
     println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
+    // Debug builds, test binaries included, can also load the library where SwiftPM
+    // built it. Release binaries rely on the bundle layout only.
+    if env::var("PROFILE").as_deref() == Ok("debug") {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir.display());
+    }
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }

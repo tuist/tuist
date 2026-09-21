@@ -4,6 +4,7 @@ This file provides guidance to AI agents when working with code in this reposito
 
 ## Repository Map
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
+- `cli-rs/` - Rust `tuist` front end (incurs) that links the Swift CLI - see `cli-rs/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `codebase-search/` - Bounded Rust service for hosted source-code search - see `codebase-search/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`

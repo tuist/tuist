@@ -72,6 +72,13 @@ case_ generate generated_app_with_framework_and_tests generate --no-open
 case_ invalid-manifest generated_invalid_manifest generate --no-open
 case_ graph-json generated_app_with_framework_and_tests graph --format json --no-open --output-path .
 case_ hash-cache generated_app_with_framework_and_tests hash cache
+case_ group-without-subcommand "" auth
+case_ unknown-subcommand "" auth logn
+case_ default-subcommand-help "" generate --no-open --help
+case_ nested-group-help "" test case --help
+case_ leading-flag "" --verbose version
+case_ hidden-command "" analytics-upload --help
+case_ plugin-task "" some-plugin-task
 
 echo
 if [ $failures -gt 0 ]; then

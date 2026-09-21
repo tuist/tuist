@@ -1,14 +1,11 @@
-use std::ffi::{CString, c_char, c_int};
+mod spec;
+mod swift;
 
-unsafe extern "C" {
-    fn tuist_run(argc: c_int, argv: *const *const c_char) -> c_int;
-}
-
-fn main() {
-    let arguments: Vec<CString> = std::env::args_os()
-        .map(|argument| CString::new(argument.into_encoded_bytes()).expect("argument contains a NUL byte"))
-        .collect();
-    let pointers: Vec<*const c_char> = arguments.iter().map(|argument| argument.as_ptr()).collect();
-    let code = unsafe { tuist_run(pointers.len() as c_int, pointers.as_ptr()) };
-    std::process::exit(code);
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // `tuist --mcp` is a long-lived tool server; every command it runs gets its own process.
+    if std::env::args().nth(1).as_deref() == Some("--mcp") {
+        swift::run_commands_in_children();
+    }
+    spec::build_cli().serve().await
 }

@@ -10,3 +10,8 @@ name = "tuist"
 path = "src/main.rs"
 
 [dependencies]
+async-trait = "0.1"
+incurs = { path = "../../incurs/crates/incurs" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "process", "rt-multi-thread"] }
