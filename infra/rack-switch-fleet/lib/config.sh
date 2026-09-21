@@ -116,15 +116,30 @@ fleet_check_node_interfaces() {
   fi
 }
 
-# Anything with an out-of-band interface needs exactly one management link, and
-# it goes to the management switch rather than through a ToR.
+# A node whose hardware declares an out-of-band interface needs exactly one
+# management link, and it goes to the management switch rather than through a
+# ToR. A node whose hardware declares none needs zero.
+#
+# The rule is scoped to the hardware rather than to "every node" because a Mac
+# mini has no out-of-band network path at all: Apple silicon has no BMC and no
+# AMT, so its recovery is a PDU outlet cycle and its console is a crash cart
+# wheeled to the box. Requiring a management link of one would be wrong, and
+# allowing one would record a cable that cannot exist. The minis are the bulk of
+# this rack, so this is the common case rather than the exception.
 fleet_check_management_links() {
   local site_file="$1" management_switch bad
   management_switch="$(jq -r '.devices[] | select(.role == "mgmt") | .name' "$site_file")"
-  bad="$(jq -r --arg mgmt "$management_switch" '
+  bad="$(jq -r --slurpfile hardware "$FLEET_NODE_MODELS" --arg mgmt "$management_switch" '
+    $hardware[0] as $hw |
     .nodes[]? |
+    ([($hw[.hardware // ""].interfaces // {}) | to_entries[] |
+      select(.value.out_of_band != null)] | length > 0) as $has_oob |
     [.links[] | select(.purpose == "management")] as $m |
-    if ($m | length) != 1 then "\(.name): \($m | length) management links, expected exactly 1"
+    if $has_oob | not then
+      if ($m | length) > 0
+      then "\(.name): a \($hw[.hardware].product) has no out-of-band interface, so it cannot have a management link"
+      else empty end
+    elif ($m | length) != 1 then "\(.name): \($m | length) management links, expected exactly 1"
     elif $m[0].switch != $mgmt then "\(.name): management link goes to \($m[0].switch), not \($mgmt)"
     else empty end
   ' "$site_file")"

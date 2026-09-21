@@ -13,8 +13,16 @@
         "speed": "2.5G",
         "note": "No AMT. Identical-looking socket next to the one that has it."
       },
-      "sfp28-1": { "media": "dac", "speed": "10G", "controller": "x710" },
-      "sfp28-2": { "media": "dac", "speed": "10G", "controller": "x710" }
+      "sfp28-1": {
+        "media": "dac",
+        "speed": "10G",
+        "controller": "x710"
+      },
+      "sfp28-2": {
+        "media": "dac",
+        "speed": "10G",
+        "controller": "x710"
+      }
     }
   },
   "appliance": {
@@ -26,6 +34,18 @@
         "speed": "1G",
         "out_of_band": "native",
         "note": "Its only port, so unlike an MS-01 there is no identical socket next to it to get wrong."
+      }
+    }
+  },
+  "mac-mini": {
+    "product": "Apple Mac mini",
+    "note": "Apple silicon has no BMC and no AMT, so this hardware has no out-of-band network path at all. Recovery is a PDU outlet cycle plus `pmset autorestart 1`, and its console is a crash-cart KVM wheeled to the box rather than a permanent link. That is why it declares no out-of-band interface: the absence is the fact, and it is what makes the switched PDU a recovery dependency rather than a convenience.",
+    "recovery": "power-cycle",
+    "interfaces": {
+      "en0": {
+        "media": "copper",
+        "speed": "10G",
+        "note": "Its only NIC, so a mini lands on exactly one ToR."
       }
     }
   }

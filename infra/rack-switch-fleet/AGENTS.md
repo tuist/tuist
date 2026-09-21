@@ -84,15 +84,40 @@ whoever edits the site next:
 
 - a link's NIC has to exist on that node's hardware
 - a management link has to land on an interface marked out-of-band
-- every node has exactly one management link, and it goes to `ber1-mgmt`
+- a node whose hardware declares an out-of-band interface has exactly one
+  management link, and it goes to `ber1-mgmt`; a node whose hardware declares
+  none has zero
 
-The last one matters because `ber1-mgmt` uplinks to `ber1-edge` directly and
-never through a ToR. A management link landing on a ToR would put out-of-band
-access behind the thing it exists to recover.
+The third matters because `ber1-mgmt` uplinks to `ber1-edge` directly and never
+through a ToR. A management link landing on a ToR would put out-of-band access
+behind the thing it exists to recover.
+
+### The hardware with no out-of-band path
+
+It is scoped to the hardware rather than to every node because **a Mac mini has
+no out-of-band network path at all.** Apple silicon has no BMC and no AMT. Its
+recovery is a PDU outlet cycle plus `pmset autorestart 1`, and its console is a
+crash-cart KVM wheeled to the box, not a permanent link. Requiring a management
+link of one would be wrong; allowing one would record a cable that cannot exist.
+Both are refused.
+
+That is worth stating as a fact rather than as an exemption. A mini's
+out-of-band is not a network path, it is an outlet, which is what makes the
+switched PDU a recovery dependency rather than a convenience: until it has a
+driver, a wedged mini in the colo has no remote recovery at all. Having the data
+say the hardware declares no out-of-band interface keeps that dependency
+visible.
+
+There are no minis in the site definition yet and there will eventually be forty
+or more, split A/B across the ToRs. They are the bulk of this rack, so the tests
+pin this rule down with a fixture mini rather than waiting for the first real
+one.
 
 Separate trap, same port: a host OS that bridges the LM port or changes its MAC
-kills AMT silently. That is not something this repository can check, but it is
-the same socket.
+kills AMT silently. That is not something this repository can check, but it does
+have an owner. The x86 prep track activates AMT with `rpc-go` after the OS
+install, and that stage can confirm AMT is actually reachable on the management
+VLAN before calling the node done, which a bridged or re-MACed LM port fails.
 
 Nothing may claim a port twice, no link may name a switch the site does not
 have, and no port may exceed what the model has. All three are checked on every

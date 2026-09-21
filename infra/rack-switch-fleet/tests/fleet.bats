@@ -436,7 +436,7 @@ STUB
     [[ "$output" == *"not ber1-mgmt"* ]]
 }
 
-@test "a node with no management link at all is rejected" {
+@test "a node with no management link at all is rejected, when its hardware has one" {
     site="$BATS_TEST_TMPDIR/nooob.json"
     jq '(.nodes[] | select(.name == "ber1-svc") | .links) |= map(select(.purpose != "management"))' \
         "$SITE_FILE" > "$site"
@@ -459,4 +459,51 @@ STUB
     run jq -r '[.nodes[] | select(.role == "console" or .role == "power") |
         select([.links[].switch] != ["ber1-mgmt"])] | length' "$SITE_FILE"
     [ "$output" = "0" ]
+}
+
+# --- hardware with no out-of-band path at all --------------------------------
+#
+# A Mac mini has no BMC and no AMT, so its recovery is a PDU outlet cycle and
+# its console is a crash cart wheeled to the box. There are none in the site
+# definition yet and there will eventually be forty-plus, so these pin the rule
+# down before the first one lands rather than after.
+
+mini_site() {
+    jq '.nodes += [{
+          "name": "ber1-runner-a01", "role": "runner", "hardware": "mac-mini",
+          "status": "installed", "note": "test fixture",
+          "links": [{"switch": "ber1-tor-a", "port": null, "media": "copper", "nic": "en0", "purpose": "data"}]
+        }]' "$SITE_FILE" > "$1"
+}
+
+@test "a Mac mini needs no management link, because it has no out-of-band path" {
+    site="$BATS_TEST_TMPDIR/mini.json"
+    mini_site "$site"
+    run fleet_check_management_links "$site"
+    [ "$status" -eq 0 ]
+    run fleet_check_node_interfaces "$site"
+    [ "$status" -eq 0 ]
+}
+
+@test "giving a Mac mini a management link is rejected, because the cable cannot exist" {
+    site="$BATS_TEST_TMPDIR/minioob.json"
+    mini_site "$BATS_TEST_TMPDIR/base.json"
+    jq '(.nodes[] | select(.name == "ber1-runner-a01") | .links) += [
+          {"switch": "ber1-mgmt", "port": null, "media": "copper", "nic": "en0", "purpose": "management"}
+        ]' "$BATS_TEST_TMPDIR/base.json" > "$site"
+    run fleet_check_management_links "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no out-of-band interface"* ]]
+}
+
+@test "the hardware that has no out-of-band path says how it is recovered instead" {
+    run jq -r '."mac-mini".recovery' "$FLEET_ROOT/node_models.json"
+    [ "$output" = "power-cycle" ]
+    run jq -r '[."mac-mini".interfaces | to_entries[] | select(.value.out_of_band != null)] | length' "$FLEET_ROOT/node_models.json"
+    [ "$output" = "0" ]
+}
+
+@test "a Mac mini has one NIC, so it can only land on one ToR" {
+    run jq -r '."mac-mini".interfaces | length' "$FLEET_ROOT/node_models.json"
+    [ "$output" = "1" ]
 }
