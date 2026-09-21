@@ -99,6 +99,7 @@ defmodule Tuist.Runners do
   """
 
   alias Tuist.Accounts
+  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Buildkite
@@ -1355,7 +1356,8 @@ defmodule Tuist.Runners do
   end
 
   defp cache_volume_name(fleet_name, node_name, candidate) do
-    if volume_affinity_enabled?(fleet_name) and VolumeAffinities.repository_volumes?(node_name) do
+    if FeatureFlags.runner_cache_volumes_per_repository_enabled?() and volume_affinity_enabled?(fleet_name) and
+         VolumeAffinities.repository_volumes?(node_name) do
       VolumeHeads.volume_name_for_repository(Map.get(candidate, :repository))
     else
       VolumeHeads.reserved_tuist_cache()

@@ -4,6 +4,7 @@ defmodule Tuist.RunnersTest do
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
@@ -531,6 +532,24 @@ defmodule Tuist.RunnersTest do
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
       stub_mac_node("mac-07", repository_volumes: true)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
+        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
+        {:ok, %{}}
+      end)
+
+      assert {:ok, _result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-volume" => "tuist-cache"}}
+    end
+
+    test "keeps every job on the account volume until repository volumes are enabled" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", repository: "acme/cli")
+      test_pid = self()
+      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
+      stub_mac_node("mac-07", repository_volumes: true)
+      stub(FeatureFlags, :runner_cache_volumes_per_repository_enabled?, fn -> false end)
+      stub(CacheGrant, :mint, fn _account_id -> nil end)
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
         send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
