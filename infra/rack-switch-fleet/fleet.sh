@@ -37,6 +37,7 @@ read_live_config() {
   key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
   raw="$(mktemp)"
   trap switch_close RETURN
+  trap 'switch_close; exit 130' INT TERM
   switch_open "$address" "$user" "$key"
   switch_run "$command"
   printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
@@ -228,6 +229,7 @@ cmd_apply() {
   raw="$(mktemp)"
   (
     trap switch_close EXIT
+    trap 'switch_close; exit 130' INT TERM
     switch_open "$address" "$user" "$key"
     while IFS= read -r command; do
       (( VERBOSE )) && echo "  $address > $command" >&2
@@ -326,6 +328,7 @@ cmd_probe_tftp() {
   echo "asking $name to send its startup config to $local_ip"
   (
     trap switch_close EXIT
+    trap 'switch_close; exit 130' INT TERM
     switch_open "$address" "$user" "$key" || exit 1
     switch_run "copy startup-config tftp ip-address $local_ip filename $filename" 180 || exit 1
     printf '%s\n' "$SWITCH_OUTPUT"

@@ -181,6 +181,14 @@ arbitrary line into its negation is the same class of guess.
   `lib/session.sh` may be piped or captured with `$(...)`. `switch_run` leaves
   the output in `SWITCH_OUTPUT` and the caller writes that to a file. Piping it
   fails with "Bad file descriptor" only once a switch is on the other end.
+- **A write to a dead coprocess must never be allowed to raise SIGPIPE.** A
+  shell killed by SIGPIPE does not run its EXIT trap, so the logout is skipped,
+  the switch keeps the session, and enough of those wedge its SSH daemon. That
+  is how this tool took `ber1-tor-b` down twice while it was being written.
+  SIGPIPE is ignored for as long as a session is open, every write checks its
+  status, and `switch_close` runs on INT and TERM as well as EXIT. Depending on
+  whether bash has reaped the coprocess yet, the same dead session shows up
+  either as SIGPIPE or as "Bad file descriptor", so both are handled.
 - **Bash deletes the coprocess array, and `NAME_PID` with it, the moment the
   coprocess is reaped.** A connection that fails fast therefore turns every
   `${SWITCH[0]}` into an unbound variable under `set -u`, which is what a

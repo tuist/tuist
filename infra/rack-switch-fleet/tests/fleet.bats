@@ -287,3 +287,34 @@ STUB
     [[ "$output" == *"Connection refused"* ]]
     [[ "$output" != *"unbound variable"* ]]
 }
+
+@test "a session that dies mid-command fails loudly instead of on SIGPIPE" {
+    # Writing to a coprocess whose ssh has exited raises SIGPIPE, and a shell
+    # killed by SIGPIPE never runs its EXIT trap. The logout is then skipped,
+    # the switch keeps the session, and enough of those wedge its SSH daemon.
+    stub="$BATS_TEST_TMPDIR/bin"
+    mkdir -p "$stub"
+    cat > "$stub/ssh" <<'STUB'
+#!/usr/bin/env bash
+sleep 0.5
+printf 'ber1-tor-b>'
+IFS= read -r _enable
+sleep 0.3
+printf '\r\nber1-tor-b#'
+echo "Connection to 192.0.2.1 closed by remote host." >&2
+exit 255
+STUB
+    chmod +x "$stub/ssh"
+
+    run bash -c "
+        set -euo pipefail
+        export PATH=\"$stub:\$PATH\"
+        source '$FLEET_ROOT/lib/session.sh'
+        trap switch_close EXIT
+        switch_open 192.0.2.1 tuist /dev/null
+        switch_run 'copy startup-config tftp ip-address 192.0.2.9 filename x.cfg'
+    "
+    [ "$status" -ne 0 ]
+    [ "$status" -ne 141 ]
+    [[ "$output" == *"closed the session"* ]]
+}

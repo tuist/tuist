@@ -24,6 +24,13 @@
 # rather than a read error. Every access goes through switch_alive, and ssh's
 # own diagnostics go to SWITCH_LOG so there is something to print once the
 # descriptors are gone. It deletes SWITCH_PID with it, so that is guarded too.
+#
+# Writing to a coprocess whose ssh has already exited raises SIGPIPE, and a
+# shell killed by SIGPIPE does not run its EXIT trap. That is worse than a lost
+# error message: the logout never happens, the switch keeps the session, and
+# enough of those wedge its SSH daemon. SIGPIPE is therefore ignored for as long
+# as a session is open, so a write to a dead ssh fails as an error that the
+# logout path can still run after.
 
 SWITCH_PAGER='Press any key to continue (Q to quit)'
 SWITCH_ADDRESS=""
@@ -41,6 +48,7 @@ switch_open() {
   SWITCH_ADDRESS="$address"
 
   SWITCH_LOG="$(mktemp)"
+  trap '' PIPE
   coproc SWITCH {
     ssh -tt \
       -i "${key/#\~/$HOME}" \
@@ -93,7 +101,7 @@ switch_drain() {
       scan+="$character"
       if [[ "$scan" == *"$SWITCH_PAGER"* ]]; then
         scan=""
-        switch_alive && printf ' ' >&"${SWITCH[1]}"
+        switch_alive && { printf ' ' 1>&"${SWITCH[1]}" 2>/dev/null || true; }
       elif (( ${#scan} > 200 )); then
         scan="${scan: -100}"
       fi
@@ -109,7 +117,16 @@ switch_drain() {
 
 switch_write() {
   switch_alive || { echo "error: $SWITCH_ADDRESS closed the session" >&2; return 1; }
-  printf '%s\r\n' "$1" >&"${SWITCH[1]}"
+  printf '%s\r\n' "$1" 1>&"${SWITCH[1]}" 2>/dev/null && return 0
+  echo "error: $SWITCH_ADDRESS closed the session while being sent '$1'" >&2
+  switch_report_ssh
+  return 1
+}
+
+# What ssh itself said, which is the only account of why a session ended.
+switch_report_ssh() {
+  [ -n "$SWITCH_LOG" ] && [ -s "$SWITCH_LOG" ] || return 0
+  sed 's/^/       ssh: /' "$SWITCH_LOG" >&2
 }
 
 switch_run() {
@@ -126,12 +143,17 @@ switch_run() {
 
 # End the session for real. See the session-table note at the top.
 switch_close() {
-  if [ -n "$SWITCH_LOG" ]; then rm -f "$SWITCH_LOG"; SWITCH_LOG=""; fi
-  [ -n "${SWITCH_PID:-}" ] || return 0
-  if switch_alive && kill -0 "${SWITCH_PID:-}" 2>/dev/null; then
-    switch_write 'end'    || true
+  if [ -z "${SWITCH_PID:-}" ] && ! switch_alive; then
+    trap - PIPE
+    if [ -n "$SWITCH_LOG" ]; then rm -f "$SWITCH_LOG"; SWITCH_LOG=""; fi
+    return 0
+  fi
+  # Always try, even when the session looks dead: leaving a session open is what
+  # wedges the switch, and `logout` is the only thing that frees one.
+  if switch_alive; then
+    switch_write 'end'    >/dev/null 2>&1 || true
     switch_drain 5 || true
-    switch_write 'logout' || true
+    switch_write 'logout' >/dev/null 2>&1 || true
     switch_drain 5 || true
   fi
   local waited=0
@@ -141,4 +163,6 @@ switch_close() {
   kill -9 "${SWITCH_PID:-}" 2>/dev/null || true
   wait "${SWITCH_PID:-}" 2>/dev/null || true
   SWITCH_PID=""
+  trap - PIPE
+  if [ -n "$SWITCH_LOG" ]; then rm -f "$SWITCH_LOG"; SWITCH_LOG=""; fi
 }
