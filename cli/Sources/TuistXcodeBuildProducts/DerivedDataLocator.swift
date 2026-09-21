@@ -1,4 +1,5 @@
 import Crypto
+import FileSystem
 import Foundation
 import Mockable
 import Path
@@ -12,14 +13,24 @@ public protocol DerivedDataLocating {
 }
 
 public struct DerivedDataLocator: DerivedDataLocating {
-    public init() {}
+    private let fileSystem: FileSysteming
+
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     public func locate(
         for projectPath: AbsolutePath
     ) async throws -> AbsolutePath {
         let root: AbsolutePath
         let usesHash: Bool
-        switch try await Environment.current.derivedDataLocation() {
+        let location: DerivedDataLocation
+        if let workspaceLocation = try await workspaceDerivedDataLocation(for: projectPath) {
+            location = workspaceLocation
+        } else {
+            location = try await Environment.current.derivedDataLocation()
+        }
+        switch location {
         case .default:
             root = try await Environment.current.derivedDataDirectory()
             usesHash = true
@@ -41,8 +52,7 @@ public struct DerivedDataLocator: DerivedDataLocating {
             }
         }
         if let buildDir = Environment.current.variables["BUILD_DIR"],
-           let buildRoot = Self.derivedDataRoot(from: buildDir),
-           buildRoot != root
+           let buildRoot = Self.derivedDataRoot(from: buildDir)
         {
             return buildRoot
         }
@@ -53,6 +63,35 @@ public struct DerivedDataLocator: DerivedDataLocating {
             return root.appending(component: "\(name)-\(hash)")
         } else {
             return root.appending(component: name)
+        }
+    }
+
+    private func workspaceDerivedDataLocation(for projectPath: AbsolutePath) async throws -> DerivedDataLocation? {
+        let workspacePath = projectPath.basename.hasSuffix(".xcodeproj")
+            ? projectPath.appending(component: "project.xcworkspace") : projectPath
+        let settingsPath = workspacePath.appending(
+            components: "xcuserdata", "\(NSUserName()).xcuserdatad", "WorkspaceSettings.xcsettings"
+        )
+        guard try await fileSystem.exists(settingsPath) else { return nil }
+        let settings: WorkspaceDerivedDataSettings = try await fileSystem.readPlistFile(at: settingsPath)
+        guard let customLocation = settings.customLocation, !customLocation.isEmpty else { return nil }
+        switch settings.locationStyle {
+        case "AbsolutePath":
+            return .custom(try AbsolutePath(validating: customLocation))
+        case "WorkspaceRelativePath":
+            return .relativeToWorkspace(try RelativePath(validating: customLocation))
+        default:
+            return nil
+        }
+    }
+
+    private struct WorkspaceDerivedDataSettings: Decodable {
+        let locationStyle: String?
+        let customLocation: String?
+
+        enum CodingKeys: String, CodingKey {
+            case locationStyle = "DerivedDataLocationStyle"
+            case customLocation = "DerivedDataCustomLocation"
         }
     }
 

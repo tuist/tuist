@@ -18,6 +18,7 @@ public protocol TargetRunning {
     ///   - workspacePath: The path to the `.xcworkspace` where the target is defined.
     ///   - schemeName: The name of the scheme where the target is defined.
     ///   - configuration: The configuration to use while building the target.
+    ///   - derivedDataPath: The DerivedData path used to build the target.
     ///   - version: Specific version, ignored if nil
     ///   - minVersion: Minimum version of the OS
     ///   - deviceName: The name of the simulator device to run the target on, if none provided uses a default device.
@@ -28,6 +29,7 @@ public protocol TargetRunning {
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
+        derivedDataPath: AbsolutePath?,
         minVersion: Version?,
         version: Version?,
         deviceName: String?,
@@ -86,6 +88,7 @@ public struct TargetRunner: TargetRunning {
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
+        derivedDataPath: AbsolutePath? = nil,
         minVersion: Version?,
         version: Version?,
         deviceName: String?,
@@ -98,7 +101,7 @@ public struct TargetRunner: TargetRunning {
         let xcodeBuildDirectory = try await xcodeProjectBuildDirectoryLocator.locate(
             destinationType: .simulator(platform),
             projectPath: workspacePath,
-            derivedDataPath: nil,
+            derivedDataPath: derivedDataPath,
             configuration: configuration
         )
         let runnablePath = xcodeBuildDirectory.appending(component: target.target.productNameWithExtension)
@@ -116,6 +119,7 @@ public struct TargetRunner: TargetRunning {
                 configuration: configuration,
                 appPath: runnablePath,
                 workspacePath: workspacePath,
+                derivedDataPath: derivedDataPath,
                 platform: platform,
                 minVersion: minVersion,
                 version: version,
@@ -150,6 +154,7 @@ public struct TargetRunner: TargetRunning {
         configuration: String,
         appPath: AbsolutePath,
         workspacePath: AbsolutePath,
+        derivedDataPath: AbsolutePath?,
         platform: Platform,
         minVersion: Version?,
         version: Version?,
@@ -157,7 +162,12 @@ public struct TargetRunner: TargetRunning {
         arguments: [String]
     ) async throws {
         let settings = try await xcodeBuildController
-            .showBuildSettings(.workspace(workspacePath), scheme: schemeName, configuration: configuration, derivedDataPath: nil)
+            .showBuildSettings(
+                .workspace(workspacePath),
+                scheme: schemeName,
+                configuration: configuration,
+                derivedDataPath: derivedDataPath
+            )
         let bundleId = settings[target.target.name]?.productBundleIdentifier ?? target.target.bundleId
 
         if deviceName?.lowercased().contains("macos") == true || target.target.destinations == [.mac] {
@@ -184,7 +194,7 @@ public struct TargetRunner: TargetRunning {
         public init() {}
 
         public var runTargetStub: (
-            (GraphTarget, AbsolutePath, String, String?, Version?, Version?, String?, [String]) throws
+            (GraphTarget, AbsolutePath, String, String?, AbsolutePath?, Version?, Version?, String?, [String]) throws
                 -> Void
         )?
         public func runTarget(
@@ -193,12 +203,23 @@ public struct TargetRunner: TargetRunning {
             workspacePath: AbsolutePath,
             schemeName: String,
             configuration: String?,
+            derivedDataPath: AbsolutePath?,
             minVersion: Version?,
             version: Version?,
             deviceName: String?,
             arguments: [String]
         ) throws {
-            try runTargetStub?(target, workspacePath, schemeName, configuration, minVersion, version, deviceName, arguments)
+            try runTargetStub?(
+                target,
+                workspacePath,
+                schemeName,
+                configuration,
+                derivedDataPath,
+                minVersion,
+                version,
+                deviceName,
+                arguments
+            )
         }
 
         public var assertCanRunTargetStub: ((Target) throws -> Void)?
