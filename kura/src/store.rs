@@ -90,9 +90,7 @@ const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
 // Flush threshold for stale backfill-index row retirement collected across
 // one bodies request (same shape as ACTION_CACHE_STALE_DELETE_BATCH).
 pub(crate) const BACKFILL_STALE_RETIRE_BATCH: usize = 1_024;
-// Reduce collisions between unrelated artifacts while keeping lock storage
-// fixed. Writes to the same artifact still share a lock through durable commit.
-const ARTIFACT_WRITE_LOCK_STRIPES: usize = 256;
+const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 // Coordinates a namespace delete against everything that writes into that
 // namespace. The delete resolves its tombstone with a read-compare-write that
 // spans the namespace scan, and its scan is a snapshot: an artifact applied
