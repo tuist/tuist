@@ -783,7 +783,7 @@ sum by (cluster, node) (
 ) > 0
 ```
 
-- Pending period: 10 minutes
+- Pending period: 20 minutes
 - Severity: critical
 - Already created: rule `ffuscyncueo74d`, folder `Alerts`, group `Runners`,
   receiver `Slack #notifications 2` — alongside the other runner-host alerts,
@@ -811,8 +811,8 @@ window stays non-zero for a full 10 minutes after the *last* dropped packet, so 
 4-minute burst held the condition for ~14 minutes and cleared a 10-minute pending
 period. Any burst of roughly a minute could page. With `[5m]` the same burst holds
 the condition for about 7 minutes and never reaches the pending period, while a
-genuinely stuck job, which drips for hours, still fires after 10 minutes exactly as
-before. The pending period now means "still dropping" rather than "dropped
+genuinely stuck job, which drips for hours, still fires after the pending period
+elapses. The pending period now means "still dropping" rather than "dropped
 recently".
 
 That matters because these nodes do **not** sit at exactly zero, contrary to what
@@ -834,6 +834,13 @@ an earlier version of this note claimed. Two distinct populations show up:
   through a NodePort/LoadBalancer. Note the `peer` rule already had to open
   `0.0.0.0/0` for exactly that reason, while `http` has no equivalent escape hatch
   beyond per-instance `ClientCIDRs`.
+
+  On 2026-09-21 a rollout burst on one kura-fleet node held the condition for
+  ~10 to 11 minutes at 0.07 to 0.11 packets/s, top of the benign band, and just
+  cleared what was then a 10-minute pending period. The bump to 20 keeps the
+  "duration discriminates" principle: real episodes last 30 minutes to 6 hours,
+  so 20 still catches every one, at the cost of 10 more minutes of detection lag
+  on the shortest variant.
 - **Sustained episodes, 0.8 to 5 packets/s, lasting 30 minutes to 6 hours.** These
   are the real thing and the rule *should* page on them. Treat a firing alert as a
   genuine mis-sourced host, not as noise. The impact is now measured rather than
