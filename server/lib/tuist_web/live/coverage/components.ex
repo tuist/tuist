@@ -362,7 +362,6 @@ defmodule TuistWeb.Coverage.Components do
   def change_color({:delta, delta}) when delta > 0, do: "success"
   def change_color(_change), do: "neutral"
 
-  @doc false
   @doc """
   The figure a commit is shown with: its reported coverage when everything its
   runs skipped was carried forward (what a full run would measure), and what
@@ -402,6 +401,7 @@ defmodule TuistWeb.Coverage.Components do
     )
   end
 
+  @doc false
   def completeness_label(%{measured: false}), do: dgettext("dashboard_tests", "Not measured")
   def completeness_label(%{complete: true, completeness: "signal"}), do: dgettext("dashboard_tests", "Complete")
   def completeness_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")
