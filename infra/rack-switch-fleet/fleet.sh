@@ -280,7 +280,8 @@ cmd_ports() {
     echo ""
   done
   local unassigned
-  unassigned="$(jq -r '.nodes[]? as $n | $n.links[] | select(.port == null) | "  \($n.name) -> \(.switch)"' "$(site_file)")"
+  unassigned="$(jq -r '.nodes[]? as $n | $n.links[] | select(.port == null) |
+    "  \($n.name)\(if $n.status == "planned" then " (planned)" else "" end) -> \(.switch)"' "$(site_file)")"
   if [ -n "$unassigned" ]; then
     echo "links with no port assigned yet:"
     printf '%s\n' "$unassigned"

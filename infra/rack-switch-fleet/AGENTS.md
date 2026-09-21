@@ -67,14 +67,34 @@ render, because a rack grows by editing this data.
 
 The model expresses a node's links individually rather than as "which ToR", so
 dual-homing is just a second link. `ber1-edge` has one DAC to each ToR.
-`ber1-svc` has one, to ToR B, and that is a live rack risk rather than a
-modelling choice: it holds DHCP, DNS, NTP and the tailnet subnet router, so
-losing ToR B takes those and half the runners at once. A seventh DAC fixes it
-and the fix is one line here. A Mac mini has a single NIC, so it lands on
-exactly one ToR; minis are split A/B the same way the power feeds are.
+
+Everything else is single-homed, and for two different reasons that the data has
+to keep apart.
+
+**By design:** the storage pair splits one node per ToR, matching the split
+across opposite ATS chains, so losing a ToR costs one storage node and never
+both. `ber1-store-a` is on ToR A and `ber1-store-b` on ToR B. That is redundancy
+that looks like an untidiness, so a later edit moving them onto one switch would
+remove it without appearing to remove anything; the tests fail if the two
+storage nodes ever share a ToR. Mac minis follow the same rule for the same
+reason: one NIC each, split A/B the way the power feeds are.
+
+**Not by design:** `ber1-svc` has one link, to ToR B, and it holds DHCP, DNS,
+NTP and the tailnet subnet router, so losing ToR B takes those and half the
+runners at once. A seventh DAC dual-homes it and the fix is one line here. That
+is a rack decision, not a modelling one.
+
+A node carries a `status`. `ber1-store-b` is `planned`: it is the one x86 node
+not yet bought, arriving November, and in the prep bay it is the empty slot in
+racknex #2 beside `ber1-svc`. Recording it as planned rather than leaving it out
+keeps its ToR assignment reviewable before the hardware exists.
 
 `mise run rack:fleet ports` prints the merged map, including the links still
-waiting for a port.
+waiting for a port and the ones belonging to a planned node.
+
+ToR B also carries a spare LR optic, pre-provisioned so WAN failover is a matter
+of moving the LC jumper rather than sourcing hardware. Its port is not recorded
+yet; the note on the device is.
 
 ## Three things that were checked on the hardware first
 

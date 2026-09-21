@@ -38,7 +38,8 @@
           "media": "dac",
           "description": "isl ber1-tor-a"
         }
-      }
+      },
+      "note": "Carries a spare LR optic, pre-provisioned so WAN failover is a matter of moving the LC jumper rather than sourcing hardware. Its port is not recorded yet."
     },
     {
       "name": "ber1-tor-a",
@@ -109,24 +110,21 @@
           "media": "dac",
           "nic": "x710"
         }
-      ]
+      ],
+      "status": "installed"
     },
     {
       "name": "ber1-store-a",
       "role": "storage",
-      "note": "Two of the six ordered DACs are allocated to storage, one per ToR.",
+      "note": "Single-homed to ToR A. The storage pair is split one node per ToR, the same way it is split across opposite ATS chains, so losing a ToR costs one storage node and not both. Moving these onto one switch would quietly remove that.",
       "links": [
         {
           "switch": "ber1-tor-a",
           "port": null,
           "media": "dac"
-        },
-        {
-          "switch": "ber1-tor-b",
-          "port": null,
-          "media": "dac"
         }
-      ]
+      ],
+      "status": "installed"
     },
     {
       "name": "ber1-svc",
@@ -138,10 +136,25 @@
           "port": null,
           "media": "dac"
         }
+      ],
+      "status": "installed"
+    },
+    {
+      "name": "ber1-store-b",
+      "role": "storage",
+      "status": "planned",
+      "note": "Not bought yet, arriving November, and the only one of the four x86 nodes still to come. Single-homed to ToR B as the other half of the storage pair. In the prep bay it is the empty slot in racknex #2 beside ber1-svc.",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": null,
+          "media": "dac"
+        }
       ]
     }
   ],
   "placement": {
-    "runner": "A Mac mini has one NIC, so it lands on exactly one ToR. Minis are split A/B across the two ToRs the same way the power feeds are, so losing a ToR costs half the fleet rather than all of it."
+    "runner": "A Mac mini has one NIC, so it lands on exactly one ToR. Minis are split A/B across the two ToRs the same way the power feeds are, so losing a ToR costs half the fleet rather than all of it.",
+    "storage": "One storage node per ToR, matching the split across opposite ATS chains. Losing a ToR must cost one storage node, never both, so ber1-store-a is on ToR A and ber1-store-b on ToR B. The fleet tests enforce it."
   }
 }

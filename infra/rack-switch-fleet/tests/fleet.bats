@@ -367,6 +367,30 @@ STUB
     [ "$output" = "ber1-tor-b" ]
 }
 
+@test "the storage pair is split one node per ToR" {
+    # Deliberate, and the same split as the ATS chains: losing a ToR must cost
+    # one storage node and never both. Tidying them onto one switch would remove
+    # the redundancy without looking like it removed anything, so it fails here.
+    run jq -r '[.nodes[] | select(.role == "storage") | .links[].switch] | sort | unique | length' "$SITE_FILE"
+    [ "$output" = "2" ]
+    run jq -r '[.nodes[] | select(.role == "storage")] | length' "$SITE_FILE"
+    [ "$output" = "2" ]
+    run jq -r '[.nodes[] | select(.role == "storage") | select((.links | length) != 1)] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+}
+
+@test "a node that is not bought yet is planned, not missing" {
+    run jq -r '.nodes[] | select(.name == "ber1-store-b") | .status' "$SITE_FILE"
+    [ "$output" = "planned" ]
+    run fleet_check_nodes "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "every node has a status the site understands" {
+    run jq -r '[.nodes[] | select(.status != "installed" and .status != "planned")] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+}
+
 @test "every node has a role the site defines" {
     run jq -r '[.node_roles | keys[]] as $known | [.nodes[] | select(.role as $r | $known | index($r) | not) | .name] | length' "$SITE_FILE"
     [ "$output" = "0" ]
