@@ -8,7 +8,6 @@ defmodule TuistWeb.DocsLive do
   alias Tuist.Docs
   alias Tuist.Docs.Paths
   alias Tuist.Docs.Sidebar
-  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.SocialCards
   alias TuistWeb.Marketing.StructuredMarkup
@@ -80,7 +79,7 @@ defmodule TuistWeb.DocsLive do
 
     case Docs.get_page(path) do
       nil ->
-        raise NotFoundError, dgettext("errors", "Page not found")
+        {:noreply, push_navigate(socket, to: Paths.root_path(socket.assigns.locale))}
 
       page ->
         head_title =
