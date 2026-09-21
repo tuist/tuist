@@ -14,7 +14,7 @@ cd "$REPO_ROOT"
 swift build --configuration "$CONFIGURATION" --replace-scm-with-registry --force-resolved-versions \
     --scratch-path "$SCRATCH" --product ProjectDescription \
     -Xswiftc -enable-library-evolution -Xswiftc -emit-module-interface
-INTERFACE_DIR=$(dirname "$(find -L "$SCRATCH" -name ProjectDescription.swiftinterface -path "*$CONFIGURATION*" | head -1)")
+INTERFACE_DIR=$(dirname "$(find -L "$SCRATCH" -name ProjectDescription.swiftinterface -ipath "*$CONFIGURATION*" | head -1)")
 PRODUCTS="$REPO_ROOT/.build/$CONFIGURATION"
 MODULE="$PRODUCTS/Modules/ProjectDescription.swiftmodule"
 ARCH=$(uname -m)
