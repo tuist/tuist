@@ -157,6 +157,35 @@ struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
     }
 }
 
+struct GenerateAcceptanceTestAppWithReferencedTestPlanInSubfolder {
+    /// A checked-in plan below the manifest directory spells its `containerPath` relative to the
+    /// project, not to its own location, because that is how Xcode resolves it. The plan must
+    /// therefore survive tree-shaking and stay attached to the scheme.
+    @Test(.withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
+    func app_with_referenced_test_plan_in_subfolder() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // Then
+        let xcodeproj = try XcodeProj(
+            pathString: fixtureDirectory.appending(component: "App.xcodeproj").pathString
+        )
+        let scheme = try #require(
+            xcodeproj.sharedData?.schemes.first { $0.name == "App" }
+        )
+        let planReferences = try #require(scheme.testAction?.testPlans).map(\.reference)
+        #expect(planReferences.contains("container:All.xctestplan"))
+        #expect(planReferences.contains("container:TestPlans/Subfolder.xctestplan"))
+
+        // And: both plans are visible in the navigator
+        let fileReferencePaths = xcodeproj.pbxproj.fileReferences.compactMap(\.path)
+        #expect(fileReferencePaths.contains { $0.hasSuffix("Subfolder.xctestplan") })
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithTests {
     @Test(.withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
     func ios_app_with_tests() async throws {
