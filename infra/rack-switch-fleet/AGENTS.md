@@ -181,6 +181,19 @@ arbitrary line into its negation is the same class of guess.
   `lib/session.sh` may be piped or captured with `$(...)`. `switch_run` leaves
   the output in `SWITCH_OUTPUT` and the caller writes that to a file. Piping it
   fails with "Bad file descriptor" only once a switch is on the other end.
+- **Bash deletes the coprocess array, and `NAME_PID` with it, the moment the
+  coprocess is reaped.** A connection that fails fast therefore turns every
+  `${SWITCH[0]}` into an unbound variable under `set -u`, which is what a
+  refused or wedged switch gives you instead of an error message. Every access
+  goes through `switch_alive`, ssh's diagnostics go to a log file so there is
+  something left to print once the descriptors are gone, and the dead-session
+  check runs before the first read rather than after it.
+- **`$?` after a failed `if` is not the condition's status.** An `if` with no
+  `else` exits 0, so a `read` timeout was indistinguishable from a successful
+  read and the drain gave up on its first interval with an empty buffer. Against
+  a real switch that made every command look like it produced nothing at all. A
+  fake switch that answers within one read interval hides this completely, which
+  is why the one in the tests waits before replying.
 - **Answer the pager on a separate window, never by editing the transcript.**
   Removing the prompt from the buffer as it is answered leaves its padding
   spaces behind, and the normaliser needs to see the prompt to know that those
