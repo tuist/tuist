@@ -4239,12 +4239,27 @@ impl Proxy {
                 self.consider_endpoint(&resolved, current_reachable);
             }
             crate::endpoint::Resolution::BeingPrepared => {
-                let _ = self.endpoint_preparing_since_ms.compare_exchange(
-                    0,
-                    now,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                );
+                // A streak keeps its own start so the window still caps it. A
+                // stamp already older than the window is a streak that ended —
+                // a preparation that outlived it, then `Unknown` answers that
+                // deliberately do not clear it — and this answer starts a new
+                // one. Without that the field keeps its stale timestamp for
+                // the life of the process, and every later preparation (the
+                // archive-and-return this exists for) falls back to the absent
+                // or refresh interval instead of re-arming the fast one.
+                let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
+                let mut observed = self.endpoint_preparing_since_ms.load(Ordering::Relaxed);
+                while observed == 0 || now.saturating_sub(observed) >= window {
+                    match self.endpoint_preparing_since_ms.compare_exchange(
+                        observed,
+                        now,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => break,
+                        Err(current) => observed = current,
+                    }
+                }
             }
             crate::endpoint::Resolution::Unknown => {}
         }
@@ -7676,6 +7691,40 @@ mod tests {
         assert_eq!(
             proxy.endpoint_resolution_interval(start + window),
             ENDPOINT_ABSENT_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_preparation_after_the_window_lapsed_re_arms_the_fast_interval() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let start = 1_000_000_u64;
+        let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
+
+        // A preparation that outlives its window, then answers the CLI could
+        // not give — the laptop went offline — which do not clear the stamp.
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+        proxy.record_resolution(
+            crate::endpoint::Resolution::Unknown,
+            start + window + 1,
+            || true,
+        );
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + window + 1),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+
+        // A genuinely new preparation, hours later.
+        let later = start + window * 100;
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, later, || true);
+        assert_eq!(
+            proxy.endpoint_resolution_interval(later),
+            ENDPOINT_PREPARING_INTERVAL
         );
     }
 

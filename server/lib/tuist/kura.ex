@@ -2232,6 +2232,16 @@ defmodule Tuist.Kura do
   already serving, and a fleet rollout outnumbers new instances by an order of
   magnitude, so counting those would measure the rollout gate instead.
 
+  "First" is the first deployment that *succeeded*, not the first row. A
+  runtime image bump landing while an instance is still coming up supersedes
+  the open deployment and schedules a second one (`schedule_runtime_rollout/0`,
+  `@version_rollout_statuses` includes `:provisioning`), and that second
+  deployment is the one that brings the instance into service. Disqualifying it
+  on the existence of the superseded row would drop the instance from the
+  measurement entirely, and it would drop it one-directionally: only instances
+  that were coming up during a rollout, which is itself a reason a cold start
+  is slow. The percentile would be pulled down exactly where a regression shows.
+
   Read from `kura_deployments` rather than from the `time_to_ready`
   distribution, which is per pod and only holds what the pod that activated the
   instance scraped.
@@ -2242,6 +2252,7 @@ defmodule Tuist.Kura do
     earlier_deployment =
       from(e in Deployment,
         where: e.kura_server_id == parent_as(:deployment).kura_server_id,
+        where: e.status == :succeeded,
         where: e.inserted_at < parent_as(:deployment).inserted_at,
         where:
           is_nil(parent_as(:lifecycle).last_returned_at) or
