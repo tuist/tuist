@@ -57,7 +57,9 @@ server:
 Managed environments enable `kuraController.analytics.enabled`. The chart
 syncs `CACHE_API_KEY/password` from the same secret store used by the server
 into `kura-shared-secrets` as `KURA_ANALYTICS_SIGNING_KEY`, alongside
-`KURA_ANALYTICS_SERVER_URL` pointing to the server's internal Service. Both
+`KURA_ANALYTICS_SERVER_URL` pointing to the server's internal Service in
+absolute form, so a Kura node outside the control plane's region does not
+spend a WAN round trip per search domain resolving it. Both
 values are needed: Kura otherwise accepts Bazel build events while leaving
 analytics delivery disabled. This also enables cache-operation analytics
 and Bazel test-artifact delivery.
