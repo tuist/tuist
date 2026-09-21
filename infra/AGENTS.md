@@ -129,6 +129,9 @@ SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarati
 ### `clickhouse/` — ClickHouse access recovery and migration runbook
 Recovery fallback for the restricted ClickHouse identity reconciled automatically by the server migration release task and Helm chart. See [`clickhouse/README.md`](clickhouse/README.md). The runbook for moving an environment's ClickHouse onto the in-cluster server is [`clickhouse/migration.md`](clickhouse/migration.md), and each of its steps runs as a one-off Job through `mise run clickhouse:migration` from `infra/`.
 
+### `rack-switch-prep/` — first-touch provisioning for BER1 rack switches
+Console-driven bring-up for the rack's TP-Link switches: hostname, fixed management address, SSH, config saved. Run as `mise run rack:prep-switch <switch>` with a USB-C cable to the switch's console port, because a factory switch sits on 192.168.0.1 with SSH off and collides with the gateway of whatever network it is unboxed on. `switches.json` is the inventory; see [`rack-switch-prep/AGENTS.md`](rack-switch-prep/AGENTS.md) for the console baud rate, the CLI's input quirks, and the firmware-line trap that bricks these units.
+
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
