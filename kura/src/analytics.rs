@@ -595,10 +595,12 @@ impl AnalyticsRuntime {
                 );
             }
             Err(error) => {
-                error!("failed to send {pipeline} analytics batch: {error}");
+                let kind = classify_reqwest_error(&error);
+                let chain = error_cause_chain(&error);
+                error!(pipeline, kind, "failed to send analytics batch: {chain}");
                 event_result(count, "delivery_error");
                 self.metrics
-                    .record_analytics_batch(pipeline, "error", duration);
+                    .record_analytics_batch(pipeline, error_result_label(kind), duration);
                 self.record_breaker_transition(
                     pipeline,
                     breaker.on_failure(
@@ -637,9 +639,91 @@ fn record_delivery_failure<F>(
 ) where
     F: FnOnce(u64, &str),
 {
-    error!("failed to send {pipeline} analytics batch with status {status}");
+    let label = status_result_label(status);
+    error!(
+        pipeline,
+        kind = label,
+        status = status.as_u16(),
+        "failed to send analytics batch"
+    );
     event_result(count, "delivery_error");
-    metrics.record_analytics_batch(pipeline, "error", duration);
+    metrics.record_analytics_batch(pipeline, label, duration);
+}
+
+/// Classify a reqwest transport error so operators can tell a connect-time
+/// failure apart from a stalled-in-flight request without reading the log
+/// message. The set is intentionally small and bounded to keep Prometheus
+/// label cardinality on `kura_analytics_batches_total{result=...}` finite.
+///
+/// Precedence matters. In reqwest 0.13.x a TCP connect that exceeds the
+/// client's `connect_timeout` produces an error where both `is_connect()`
+/// and `is_timeout()` return true; a request that connects but exceeds
+/// the client's overall `timeout` returns `is_timeout()` alone. Checking
+/// `is_connect()` first therefore keeps `connect` and `timeout` as
+/// separate signals, which is the whole point of this metric split.
+///
+/// A note on the remaining buckets:
+/// - `body` fires for reqwest's body-side error kind (typically response
+///   body read failures). Outbound writes on the `Vec<u8>` body path
+///   here usually surface as `request` (or `timeout` if the overall
+///   budget expired), not `body`.
+/// - `decode` fires when a JSON/text decode of the response fails; this
+///   client only reads status, so it should stay empty.
+/// - `request` is the catch-all for everything that connected but
+///   otherwise misbehaved.
+fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
+    if error.is_connect() {
+        "connect"
+    } else if error.is_timeout() {
+        "timeout"
+    } else if error.is_body() {
+        "body"
+    } else if error.is_decode() {
+        "decode"
+    } else if error.is_request() {
+        "request"
+    } else {
+        "other"
+    }
+}
+
+fn error_result_label(kind: &str) -> &'static str {
+    // Return a `&'static str` so the metrics label is stable and never
+    // interpolated with user data.
+    match kind {
+        "timeout" => "error_timeout",
+        "connect" => "error_connect",
+        "body" => "error_body",
+        "decode" => "error_decode",
+        "request" => "error_request",
+        _ => "error_other",
+    }
+}
+
+fn status_result_label(status: StatusCode) -> &'static str {
+    if status.is_client_error() {
+        "error_status_4xx"
+    } else if status.is_server_error() {
+        "error_status_5xx"
+    } else {
+        "error_status_other"
+    }
+}
+
+/// Walk the error's `source` chain and join every layer's `Display` output
+/// with " -> ". reqwest's top-level message is `error sending request for
+/// url (...)`; the real cause (connection reset, DNS failure, TLS
+/// handshake, ...) lives further down and is what tells the operator what
+/// actually went wrong.
+fn error_cause_chain(error: &(dyn std::error::Error + 'static)) -> String {
+    use std::fmt::Write as _;
+    let mut out = error.to_string();
+    let mut cause = error.source();
+    while let Some(source) = cause {
+        let _ = write!(out, " -> {source}");
+        cause = source.source();
+    }
+    out
 }
 
 fn sign(secret: &str, body: &[u8]) -> String {
@@ -773,7 +857,8 @@ mod tests {
 
     use super::{
         Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent, CircuitBreaker,
-        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
+        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, classify_reqwest_error,
+        error_cause_chain, error_result_label, sign, status_result_label,
     };
 
     #[derive(Clone, Debug)]
@@ -1204,6 +1289,135 @@ mod tests {
         assert_eq!(
             analytics_endpoint("https://cache-eu.example.com"),
             "cache-eu.example.com"
+        );
+    }
+
+    #[tokio::test]
+    async fn classifies_connect_timeout_separately_from_full_request_timeout() {
+        // 240.0.0.1/4 is IANA-reserved and unroutable, so a TCP connect to
+        // it never completes. A tiny connect_timeout forces the client to
+        // return the connect-timeout branch of `reqwest::Error`, which in
+        // reqwest 0.13.x is `is_connect() == true && is_timeout() == true`.
+        // The classifier's precedence must return `connect` here.
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_millis(20))
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("client should build");
+        let error = client
+            .post("http://240.0.0.1:9/webhooks/gradle-cache")
+            .body(Vec::<u8>::new())
+            .send()
+            .await
+            .expect_err("connect to unroutable address should fail");
+        assert_eq!(
+            classify_reqwest_error(&error),
+            "connect",
+            "a connect-timeout must classify as connect, not timeout; \
+             precedence order in classify_reqwest_error is load-bearing"
+        );
+
+        // A listener that accepts but never reads triggers reqwest's overall
+        // request timeout (not the connect timeout). `is_connect()` is
+        // false here, so the classifier falls through to `timeout`.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("listener should bind");
+        let addr = listener.local_addr().expect("listener has an address");
+        let accept_task = tokio::spawn(async move {
+            // Accept once and hold the socket so the client hangs on the
+            // full-request timeout rather than on connect.
+            let (socket, _) = listener.accept().await.expect("accept");
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            drop(socket);
+        });
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_millis(200))
+            .build()
+            .expect("client should build");
+        let error = client
+            .post(format!("http://{addr}/webhooks/gradle-cache"))
+            .body(Vec::<u8>::new())
+            .send()
+            .await
+            .expect_err("request beyond overall timeout should fail");
+        assert_eq!(
+            classify_reqwest_error(&error),
+            "timeout",
+            "a full-request timeout must classify as timeout, not connect"
+        );
+        accept_task.abort();
+    }
+
+    #[test]
+    fn error_result_labels_are_stable_and_bounded() {
+        for kind in [
+            "timeout", "connect", "body", "decode", "request", "other", "made-up",
+        ] {
+            let label = error_result_label(kind);
+            assert!(
+                label.starts_with("error_"),
+                "label {label} should carry the `error_` prefix so Prometheus can regex it"
+            );
+        }
+        assert_eq!(error_result_label("timeout"), "error_timeout");
+        assert_eq!(error_result_label("connect"), "error_connect");
+        assert_eq!(error_result_label("something-new"), "error_other");
+    }
+
+    #[test]
+    fn status_result_labels_split_by_class() {
+        assert_eq!(
+            status_result_label(StatusCode::BAD_REQUEST),
+            "error_status_4xx"
+        );
+        assert_eq!(
+            status_result_label(StatusCode::INTERNAL_SERVER_ERROR),
+            "error_status_5xx"
+        );
+        assert_eq!(
+            status_result_label(StatusCode::PERMANENT_REDIRECT),
+            "error_status_other"
+        );
+    }
+
+    #[test]
+    fn cause_chain_joins_every_source() {
+        use std::fmt;
+
+        #[derive(Debug)]
+        struct Layer {
+            message: &'static str,
+            source: Option<Box<dyn std::error::Error + 'static>>,
+        }
+        impl fmt::Display for Layer {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(self.message)
+            }
+        }
+        impl std::error::Error for Layer {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                self.source.as_deref()
+            }
+        }
+
+        let leaf = Layer {
+            message: "connection reset by peer",
+            source: None,
+        };
+        let middle = Layer {
+            message: "tcp connect failed",
+            source: Some(Box::new(leaf)),
+        };
+        let top = Layer {
+            message: "error sending request",
+            source: Some(Box::new(middle)),
+        };
+
+        assert_eq!(
+            error_cause_chain(&top),
+            "error sending request -> tcp connect failed -> connection reset by peer"
         );
     }
 
