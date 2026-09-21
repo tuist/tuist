@@ -37,7 +37,12 @@ defmodule Tuist.Tests.Coverage.Commits do
   dirty checkout.
   """
   def enqueue_recompute(%Test{git_commit_sha: sha, git_dirty: dirty} = test) do
-    if is_binary(sha) and sha != "" and not dirty, do: enqueue_recompute(test.project_id, sha), else: :skipped
+    # `dirty` is what the client said, and a client that says nothing said the
+    # checkout was clean: negating it outright turns that into a crash after
+    # the run's coverage is already stored.
+    if is_binary(sha) and sha != "" and dirty != true,
+      do: enqueue_recompute(test.project_id, sha),
+      else: :skipped
   end
 
   def enqueue_recompute(_project_id, sha) when sha in [nil, ""], do: :skipped
@@ -267,6 +272,21 @@ defmodule Tuist.Tests.Coverage.Commits do
   defp unmeasured_files_count(project_id, repository_id, sha, run_ids, excluded),
     do: length(unmeasured_paths(project_id, repository_id, sha, run_ids, excluded))
 
+  # Build manifests are source files no product compiles, so a listing entry
+  # for one is not a gap in the project's coverage. They are named, not
+  # guessed: these are Tuist's own manifests and SwiftPM's.
+  @manifest_globs [
+    "Project.swift",
+    "Workspace.swift",
+    "Tuist.swift",
+    "Package.swift",
+    "**/Project.swift",
+    "**/Workspace.swift",
+    "**/Package.swift",
+    "Tuist/**",
+    "**/Tuist/**"
+  ]
+
   # A listed file counts as unmeasured only when it shares an extension with
   # something the runs did measure: the listing holds the whole repository,
   # and a language no scheme compiles is not a gap in this project's coverage.
@@ -288,10 +308,12 @@ defmodule Tuist.Tests.Coverage.Commits do
         pattern = ExcludedPaths.pattern(Enum.map(extensions, &("**/*" <> &1)))
         listed = repository_id |> GitHistory.commit_files(sha, match: pattern) |> Enum.map(& &1.path)
         excluded_regex = ExcludedPaths.compile(excluded)
+        manifests = ExcludedPaths.compile(ExcludedPaths.pattern(@manifest_globs))
         measured = MapSet.new(measured)
 
         Enum.filter(listed, fn path ->
-          not MapSet.member?(measured, path) and not ExcludedPaths.excluded?(excluded_regex, path)
+          not MapSet.member?(measured, path) and not ExcludedPaths.excluded?(manifests, path) and
+            not ExcludedPaths.excluded?(excluded_regex, path)
         end)
       end
     else

@@ -101,7 +101,7 @@ defmodule Tuist.Tests.Coverage.Gates do
   checkout.
   """
   def enqueue(%Project{coverage_gates_enabled: true, id: project_id}, %Test{is_pull_request: true} = run) do
-    if is_binary(run.git_commit_sha) and run.git_commit_sha != "" and not run.git_dirty do
+    if is_binary(run.git_commit_sha) and run.git_commit_sha != "" and run.git_dirty != true do
       %{project_id: project_id, git_commit_sha: run.git_commit_sha, git_ref: run.git_ref, trigger: "run"}
       |> CoverageGateWorker.new()
       |> Oban.insert()

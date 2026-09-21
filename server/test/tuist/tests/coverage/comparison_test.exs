@@ -119,6 +119,26 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert {:ok, %{commit: "b", schemes: ["App", "Other"], partial_schemes: []}} = Comparison.baseline(project, pr)
     end
 
+    test "a run from a dirty checkout is compared as itself, not as its commit", %{
+      project: project,
+      account: account
+    } do
+      seed_history(account)
+      main_run(project, account, "a", base_files())
+      dirty = main_run(project, account, "b", base_files(), %{git_dirty: true})
+
+      comparison = Comparison.compare(project, dirty)
+
+      assert comparison.baseline == nil
+      assert comparison.baseline_reason.kind == :dirty_checkout
+      assert comparison.total_delta == nil
+      assert comparison.patch.status == :unavailable
+      assert comparison.patch.reason == :dirty_checkout
+
+      assert Comparison.reason_text(comparison.baseline_reason) ==
+               "the checkout had uncommitted changes, so this run measured code that is not the commit's"
+    end
+
     test "compares a commit on the base branch with its first parent, never with itself", %{
       project: project,
       account: account
@@ -257,8 +277,10 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert comparison.baseline_reason.kind == :measured_set_mismatch
       assert comparison.total_delta == nil
 
+      # `App` ran on both, so it compares; `Other` is the scheme the ancestor
+      # lacks, which is why the totals do not compare at all.
       assert Enum.map(comparison.schemes, &{&1.scheme, &1.coverage, &1.baseline_coverage, &1.delta}) == [
-               {"App", 50.0, nil, nil},
+               {"App", 50.0, 75.0, -25.0},
                {"Other", 25.0, nil, nil}
              ]
     end

@@ -107,9 +107,10 @@ defmodule Tuist.Tests.Coverage.Comparison do
   is not in the repository's graph), `:no_merge_base` (a pull request whose
   merge base is unknown), `:no_measured_commits` (no measured commit within
   the window at all), `:no_ancestor_commit` (some, but none on the ancestry
-  within the window's commits) and `:measured_set_mismatch` (the nearest
+  within the window's commits), `:measured_set_mismatch` (the nearest
   measured ancestor measured a different set of schemes, so a total would
-  compare unlike with unlike).
+  compare unlike with unlike) and `:dirty_checkout` (the run measured a
+  checkout with uncommitted changes, so it stands for no commit).
   """
   def baseline(%Project{} = project, %Test{} = run), do: baseline(project, from_run(project, run))
 
@@ -232,8 +233,17 @@ defmodule Tuist.Tests.Coverage.Comparison do
   """
   def compare(project, head, opts \\ [])
 
-  def compare(%Project{} = project, %Test{git_commit_sha: sha} = run, opts) when sha in [nil, ""] do
+  # A run with no commit, and a run from a dirty checkout, are compared as
+  # themselves: the dirty one measured code that is not its commit's, so it
+  # joins no commit and the commit's comparison would be about other runs.
+  def compare(%Project{} = project, %Test{git_commit_sha: sha, git_dirty: dirty} = run, opts)
+      when sha in [nil, ""] or dirty do
     excluded = ExcludedPaths.pattern_for_project(project)
+
+    reason =
+      if dirty,
+        do: %{kind: :dirty_checkout, commit: sha || ""},
+        else: %{kind: :no_history, commit: "", detail: run.history_fallback_reason}
 
     case Keyword.get_lazy(opts, :run_summary, fn -> Coverage.run_summary(run.project_id, run.id, excluded: excluded) end) do
       nil ->
@@ -244,12 +254,12 @@ defmodule Tuist.Tests.Coverage.Comparison do
           commit:
             commit_figure("", summary.partial, summary.covered_lines, summary.executable_lines, [run.scheme || ""], []),
           baseline: nil,
-          baseline_reason: %{kind: :no_history, commit: "", detail: run.history_fallback_reason},
+          baseline_reason: reason,
           total_delta: nil,
           schemes: [],
           targets: [],
           files: [],
-          patch: %{status: :unavailable, reason: :no_history, detail: run.history_fallback_reason},
+          patch: %{status: :unavailable, reason: reason.kind, detail: Map.get(reason, :detail)},
           gaps: []
         }
     end
@@ -298,7 +308,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
           baseline && Map.put(baseline, :coverage, Coverage.percentage(baseline.covered_lines, baseline.executable_lines)),
         baseline_reason: baseline_reason,
         total_delta: total_delta(commit, baseline, partial),
-        schemes: scheme_rows(project.id, sha, baseline && baseline.commit),
+        schemes: scheme_rows(project.id, sha, (baseline && baseline.commit) || scheme_baseline(baseline_reason)),
         targets: target_deltas(head_files, baseline_files, baseline, partial),
         files: file_deltas(head_files, baseline_files, baseline, partial)
       },
@@ -338,6 +348,13 @@ defmodule Tuist.Tests.Coverage.Comparison do
 
   # Each scheme's own total at the head and at the baseline: the rows shown
   # under "any scheme", where a pooled total would compare unlike sets.
+  # A measured set that does not match leaves the totals incomparable, but the
+  # schemes both commits did measure still compare: that is the whole point of
+  # saying which scheme is missing rather than drawing a drop. Every other
+  # reason has no ancestor to compare against.
+  defp scheme_baseline(%{kind: :measured_set_mismatch, commit: sha}), do: sha
+  defp scheme_baseline(_reason), do: nil
+
   defp scheme_rows(project_id, sha, baseline_sha) do
     head = totals_by_scheme(project_id, sha)
     baseline = if baseline_sha, do: totals_by_scheme(project_id, baseline_sha), else: %{}
@@ -502,6 +519,12 @@ defmodule Tuist.Tests.Coverage.Comparison do
       "commit `#{String.slice(sha, 0, 7)}` measured #{schemes_text(baseline)} where this commit measured #{schemes_text(schemes)}"
 
   def reason_text(%{kind: :partial_run}), do: "some tests were skipped"
+
+  def reason_text(%{kind: :dirty_checkout}),
+    do: "the checkout had uncommitted changes, so this run measured code that is not the commit's"
+
+  def reason_text(%{reason: :dirty_checkout}),
+    do: "the changed files are unknown, since the checkout had uncommitted changes"
 
   def reason_text(%{reason: :no_history} = reason),
     do: with_detail("the changed files are unknown, since the run's Git history was not collected", reason)

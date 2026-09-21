@@ -1,6 +1,8 @@
 defmodule Tuist.Tests.Coverage.CommitsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  import Ecto.Query
+
   alias Tuist.GitHistory
   alias Tuist.Projects
   alias Tuist.Tests.Coverage.Commits
@@ -119,6 +121,8 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
       %{path: "Sources/Untested.swift", git_blob_id: "u"},
       %{path: "Sources/Generated/API.swift", git_blob_id: "g"},
       %{path: "Tests/ATests.swift", git_blob_id: "t"},
+      %{path: "Project.swift", git_blob_id: "p"},
+      %{path: "Tuist/ProjectDescriptionHelpers/Helper.swift", git_blob_id: "h"},
       %{path: "README.md", git_blob_id: "r"}
     ])
 
@@ -133,9 +137,36 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
     # The same files the count is taken from, so the page can name them:
     # `README.md` shares no extension with anything measured, the generated
-    # file is excluded, and the test file was measured.
+    # file is excluded, the test file was measured, and the manifests are
+    # source no product compiles.
     assert Commits.unmeasured_files(project, "abc123") == ["Sources/Untested.swift"]
     assert Commits.unmeasured_files(project, "nothing") == []
+  end
+
+  test "a run that does not say whether its checkout was dirty is folded as a clean one", %{
+    project: project,
+    account: account
+  } do
+    run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{recompute: false})
+
+    assert {:ok, _job} = Commits.enqueue_recompute(%{run | git_dirty: nil})
+    assert Commits.enqueue_recompute(%{run | git_dirty: true}) == :skipped
+  end
+
+  test "a report that lands while the fold runs gets a job of its own", %{project: project, account: account} do
+    run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{recompute: false})
+    {:ok, pending} = Commits.enqueue_recompute(run)
+
+    # A second report while the first job is still pending folds with it.
+    {:ok, deduped} = Commits.enqueue_recompute(run)
+    assert deduped.id == pending.id
+
+    # Once that job is running, the fold it would be deduped into has already
+    # read the runs, so the report cannot wait for it.
+    Repo.update_all(from(j in Oban.Job, where: j.id == ^pending.id), set: [state: "executing"])
+    {:ok, own} = Commits.enqueue_recompute(run)
+    assert own.id != pending.id
+    assert own.state == "scheduled"
   end
 
   test "the worker republishes the commit and is scheduled once per commit", %{project: project, account: account} do
