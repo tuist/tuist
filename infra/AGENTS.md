@@ -132,6 +132,9 @@ Recovery fallback for the restricted ClickHouse identity reconciled automaticall
 ### `rack-switch-prep/` — first-touch provisioning for BER1 rack switches
 Console-driven bring-up for the rack's TP-Link switches: hostname, fixed management address, SSH, config saved. Run as `mise run rack:prep-switch <switch>` with a USB-C cable to the switch's console port, because a factory switch sits on 192.168.0.1 with SSH off and collides with the gateway of whatever network it is unboxed on. `switches.json` is the inventory; see [`rack-switch-prep/AGENTS.md`](rack-switch-prep/AGENTS.md) for the console baud rate, the CLI's input quirks, and the firmware-line trap that bricks these units.
 
+### `rack-environmental-monitoring.md` — BER1 rack temperature sensing and alerting
+Design for the three temperature/humidity probes that watch the BER1 rack, why they hang off the zero-U Eaton Rack PDU G4 (three daisy-chained probes) rather than the APC rack ATS (one Universal I/O port, one sensor), and how their SNMP readings reach Grafana Cloud over the tailnet path that already scrapes the Mac minis. Also covers why host thermal telemetry is not a substitute and reports nothing today, what the stack-thermal bench test has to record before any threshold is more than provisional, and the open questions for the facility.
+
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
