@@ -10,12 +10,14 @@ defmodule Tuist.Tests.Coverage.Evidence do
   They are stored in `coverage_files` beside the run's own coverage, told
   apart by the scope:
 
-  - `test`: what one test executed, `scope_id` `Module/Suite/name` (an empty
-    suite for a test outside any): the fields a test case's stable id is made
-    of (`Tuist.Tests.generate_test_case_id/4`), readable as they are;
+  - `test`: what one test executed, `scope_id` the module, the suite (empty
+    for a test outside any) and the name: the fields a test case's stable id
+    is made of (`Tuist.Tests.generate_test_case_id/4`), joined by a unit
+    separator so that any of them may hold a slash (`scope/1` takes an id
+    apart and spells it `Module/Suite/name` for reading);
   - `suite`: what ran around a suite's tests and belongs to none (class
-    `setUp`, a one-time bootstrap), `scope_id` `Module/Suite`; every test of
-    the suite may depend on it;
+    `setUp`, a one-time bootstrap), `scope_id` the module and the suite; every
+    test of the suite may depend on it;
   - `target`: everything the target's processes executed, `scope_id` the
     module: the floor for each of its tests, and all there is for the tests
     nothing could be attributed to (Swift Testing running in parallel).
@@ -37,6 +39,9 @@ defmodule Tuist.Tests.Coverage.Evidence do
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.TestCaseRun
 
+  # Joins a scope id's parts. A unit separator, because a slash would not
+  # survive a Bazel label (`//app/core:tests`) or a test name that holds one.
+  @separator "\x1F"
   @insert_chunk_size 5_000
   @scopes ~w(test suite target)
 
@@ -56,7 +61,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
       base = %{
         test_run_id: test_run_id,
         project_id: project_id,
-        build_system: "xcode",
+        build_system: to_string(Map.get(test, :build_system) || "xcode"),
         shard_index: shard_index || 0,
         partial: false,
         evidence_kind: "observed",
@@ -113,7 +118,9 @@ defmodule Tuist.Tests.Coverage.Evidence do
 
   @doc """
   The run's scopes of one kind (`test` by default) with how many files each
-  covers, those covering most first, and their total count.
+  covers, those covering most first, and their total count. Each comes apart
+  into `module_name`, `suite_name` and `name`, with `scope_id` spelled for
+  reading (`scope/1`).
   """
   def list_scopes(%{id: test_run_id, project_id: project_id}, opts \\ []) do
     kind = Keyword.get(opts, :kind, "test")
@@ -130,7 +137,19 @@ defmodule Tuist.Tests.Coverage.Evidence do
         )
       )
 
-    {scopes, ClickHouseRepo.aggregate(query, :count)}
+    {Enum.map(scopes, &Map.merge(&1, scope(&1.scope_id))), ClickHouseRepo.aggregate(query, :count)}
+  end
+
+  @doc "A scope of `list_scopes/2` as the API and the MCP tool return it."
+  def scope_payload(scope) do
+    %{
+      kind: scope.scope_kind,
+      scope_id: scope.scope_id,
+      module: scope.module_name,
+      suite: scope.suite_name,
+      name: scope.name,
+      files_count: scope.files_count
+    }
   end
 
   @doc """
@@ -190,8 +209,8 @@ defmodule Tuist.Tests.Coverage.Evidence do
 
     %{
       tests: by_kind |> Map.get("test", []) |> Enum.map(&test_identity(project_id, &1.scope_id)) |> Enum.sort(),
-      suites: by_kind |> Map.get("suite", []) |> Enum.map(& &1.scope_id) |> Enum.sort(),
-      targets: by_kind |> Map.get("target", []) |> Enum.map(& &1.scope_id) |> Enum.sort()
+      suites: by_kind |> Map.get("suite", []) |> Enum.map(&scope(&1.scope_id).scope_id) |> Enum.sort(),
+      targets: by_kind |> Map.get("target", []) |> Enum.map(&scope(&1.scope_id).scope_id) |> Enum.sort()
     }
   end
 
@@ -200,11 +219,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
   case's stable id. A name keeps its own slashes: only the first two split.
   """
   def test_identity(project_id, scope_id) do
-    [module_name, suite_name, name] =
-      case String.split(scope_id, "/", parts: 3) do
-        [module_name, suite_name, name] -> [module_name, suite_name, name]
-        parts -> Enum.take(parts ++ ["", "", ""], 3)
-      end
+    %{module_name: module_name, suite_name: suite_name, name: name} = scope(scope_id)
 
     %{
       test_case_id: Tests.generate_test_case_id(project_id, name, module_name, suite_name),
@@ -215,10 +230,28 @@ defmodule Tuist.Tests.Coverage.Evidence do
   end
 
   @doc false
-  def test_scope_id(module_name, suite_name, name), do: "#{module_name}/#{suite_name}/#{name}"
+  def test_scope_id(module_name, suite_name, name), do: Enum.join([module_name, suite_name, name], @separator)
 
   @doc false
-  def suite_scope_id(module_name, suite_name), do: "#{module_name}/#{suite_name}"
+  def suite_scope_id(module_name, suite_name), do: Enum.join([module_name, suite_name], @separator)
+
+  @doc """
+  The module, suite and name a stored scope id is made of (empty where the
+  scope has none), with `scope_id` spelled for reading, `Module/Suite/name`.
+  Only the spelled form uses slashes: it is for display and cannot be split
+  back, since a Bazel module is a label (`//app/core:tests`) and a test's name
+  may hold slashes too.
+  """
+  def scope(scope_id) do
+    [module_name, suite_name, name] = Enum.take(String.split(scope_id, @separator, parts: 3) ++ ["", ""], 3)
+
+    %{
+      scope_id: String.replace(scope_id, @separator, "/"),
+      module_name: module_name,
+      suite_name: suite_name,
+      name: name
+    }
+  end
 
   defp scope_rank("test"), do: 0
   defp scope_rank("suite"), do: 1
@@ -234,7 +267,10 @@ defmodule Tuist.Tests.Coverage.Evidence do
     ClickHouseRepo.one(
       from(r in TestCaseRun,
         where: r.project_id == ^project_id and r.test_run_id == ^test_run_id and r.status != "skipped",
-        where: fragment("concat(?, '/', ?, '/', ?)", r.module_name, r.suite_name, r.name) not in subquery(with_evidence),
+        where:
+          fragment("concat(?, ?, ?, ?, ?)", r.module_name, ^@separator, r.suite_name, ^@separator, r.name) not in subquery(
+            with_evidence
+          ),
         select: fragment("uniqExact(?, ?, ?)", r.module_name, r.suite_name, r.name)
       )
     ) || 0

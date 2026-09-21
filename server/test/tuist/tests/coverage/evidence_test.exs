@@ -94,6 +94,38 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     assert %{tests: [], suites: ["AppTests/MathTests"]} = Evidence.covering(test_run, "Sources/Bootstrap.swift")
   end
 
+  test "keeps a module and a name that hold slashes apart, as a Bazel label does", %{project: project, test_run: test_run} do
+    Evidence.record(test_run, %{
+      paths: ["app/core/math.cc"],
+      scopes: [
+        %{kind: "test", module: "//app/core:tests", suite: "Math/Add", name: "adds(1/2)", files: [0]},
+        %{kind: "suite", module: "//app/core:tests", suite: "Math/Add", name: "", files: [0]},
+        %{kind: "target", module: "//app/core:tests", suite: "", name: "", files: [0]}
+      ]
+    })
+
+    assert {[
+              %{
+                scope_id: "//app/core:tests/Math/Add/adds(1/2)",
+                module_name: "//app/core:tests",
+                suite_name: "Math/Add",
+                name: "adds(1/2)"
+              }
+            ], 1} =
+             Evidence.list_scopes(test_run)
+
+    assert [%{path: "app/core/math.cc", scope: "test"}] =
+             Evidence.files(test_run, "//app/core:tests", "Math/Add", "adds(1/2)")
+
+    assert %{
+             tests: [%{module_name: "//app/core:tests", suite_name: "Math/Add", name: "adds(1/2)", test_case_id: id}],
+             suites: ["//app/core:tests/Math/Add"],
+             targets: ["//app/core:tests"]
+           } = Evidence.covering(test_run, "app/core/math.cc")
+
+    assert id == Tests.generate_test_case_id(project.id, "adds(1/2)", "//app/core:tests", "Math/Add")
+  end
+
   test "stores the lines a scope ran, and none where the client knew only the file", %{test_run: test_run} do
     Evidence.record(test_run, %{
       paths: ["Sources/Math.swift", "Sources/Text.swift"],

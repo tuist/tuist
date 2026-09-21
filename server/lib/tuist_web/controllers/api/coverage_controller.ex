@@ -794,11 +794,18 @@ defmodule TuistWeb.API.CoverageController do
                    kind: %Schema{type: :string, enum: ["test", "suite", "target"]},
                    scope_id: %Schema{
                      type: :string,
-                     description: "`Module/Suite/name` for a test, `Module/Suite` for a suite, `Module` for a target."
+                     description:
+                       "The scope spelled for reading: `Module/Suite/name` for a test, `Module/Suite` for a suite, `Module` for a target. Not to be split: a module or a name may hold slashes; use the fields below."
                    },
+                   module: %Schema{
+                     type: :string,
+                     description: "The test target (Xcode), project (Gradle) or label (Bazel)."
+                   },
+                   suite: %Schema{type: :string, description: "Empty for a target and for a test outside any suite."},
+                   name: %Schema{type: :string, description: "The test's name; empty unless the scope is a test."},
                    files_count: %Schema{type: :integer}
                  },
-                 required: [:kind, :scope_id, :files_count]
+                 required: [:kind, :scope_id, :module, :suite, :name, :files_count]
                }
              },
              pagination_metadata: @pagination
@@ -818,7 +825,7 @@ defmodule TuistWeb.API.CoverageController do
 
       json(conn, %{
         summary: summary,
-        scopes: Enum.map(scopes, &%{kind: &1.scope_kind, scope_id: &1.scope_id, files_count: &1.files_count}),
+        scopes: Enum.map(scopes, &Evidence.scope_payload/1),
         pagination_metadata: %{
           current_page: page,
           page_size: page_size,

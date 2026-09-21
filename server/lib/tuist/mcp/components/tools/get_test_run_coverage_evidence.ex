@@ -57,11 +57,15 @@ defmodule Tuist.MCP.Components.Tools.GetTestRunCoverageEvidence do
               "kind" => %{"type" => "string"},
               "scope_id" => %{
                 "type" => "string",
-                "description" => "Module/Suite/name for a test, Module/Suite for a suite, Module for a target."
+                "description" =>
+                  "The scope spelled for reading: Module/Suite/name for a test, Module/Suite for a suite, Module for a target. Not to be split (a module or a name may hold slashes); use module, suite and name."
               },
+              "module" => %{"type" => "string"},
+              "suite" => %{"type" => "string"},
+              "name" => %{"type" => "string"},
               "files_count" => %{"type" => "integer"}
             },
-            "required" => ["kind", "scope_id", "files_count"],
+            "required" => ["kind", "scope_id", "module", "suite", "name", "files_count"],
             "additionalProperties" => false
           }
         },
@@ -108,7 +112,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRunCoverageEvidence do
           {:ok,
            %{
              summary: summary,
-             scopes: Enum.map(scopes, &%{kind: &1.scope_kind, scope_id: &1.scope_id, files_count: &1.files_count}),
+             scopes: Enum.map(scopes, &Evidence.scope_payload/1),
              total_count: count
            }}
       end
