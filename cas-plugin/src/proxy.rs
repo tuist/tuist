@@ -591,9 +591,16 @@ const STORE_BOUND_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 /// The per-generation limit for a store whose footprint may reach
 /// `store_size_limit` bytes. A pruned store settles at about twice its
-/// per-generation limit (the primary plus the upstream it demoted), which is
-/// why the runner image stages half of its CAS allowance the same way. Never 0,
+/// per-generation limit (the primary plus the upstream it demoted), so halving
+/// is what keeps the footprint within what the project asked for. Never 0,
 /// which `prune_store` reads as imposing no limit.
+///
+/// A Tuist runner does NOT halve the figure it stages for its compilation cache,
+/// and the difference is the reserve. A runner's cache image keeps room a job
+/// grows into, and its stores are pruned only at the two ends of a job, so they
+/// are budgeted to reach their whole figure and overshoot it in between. A
+/// machine running this proxy has no such reserve and is pruned on a timer, so
+/// here the project's limit is a footprint the store stays within.
 fn generation_limit(store_size_limit: u64) -> u64 {
     (store_size_limit / 2).max(1)
 }
@@ -8697,6 +8704,31 @@ mod tests {
             .collect();
         names.sort();
         names
+    }
+
+    /// The halving is the contract, not arithmetic: a project configures what the
+    /// store may OCCUPY. Cycles rather than one prune, because the footprint has
+    /// to stay within the limit while the store keeps being written to, which is
+    /// what a machine with no reserve for a store to overshoot into depends on.
+    #[test]
+    fn a_projects_store_size_limit_bounds_the_footprint_while_it_is_written_to() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const LIMIT: u64 = 8 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-footprint");
+        let state = path_state_for(&dir.path());
+
+        for cycle in 0..4 {
+            fill_to(state, &dir, directory_size(&dir.path()) + LIMIT / 2);
+            state.prune_ondisk(generation_limit(LIMIT)).unwrap();
+            let occupied = directory_size(&dir.path());
+            assert!(
+                occupied <= LIMIT,
+                "cycle {cycle}: the store occupies {occupied} bytes, past the \
+                 {LIMIT}-byte limit its project set"
+            );
+        }
     }
 
     #[test]
