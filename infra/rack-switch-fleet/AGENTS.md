@@ -55,11 +55,44 @@ it, so racking a machine is an edit to data rather than to a template. The site
 definition carries that join in two halves, and `fleet_port_map` reads them as
 one:
 
-- **`nodes`** is the rack's machines: a name, a role from `node_roles`, and one
-  `links` entry per cable, giving the switch and the port. A link whose `port`
-  is `null` is planned but not patched yet, which is most of them today.
-- **`devices[].ports`** carries only what is not a machine: the ISL and the
-  router uplink.
+- **`nodes`** is everything that occupies a port and has an identity: the x86
+  machines, but also the crash-cart KVMs, the ATS management card and the PDU.
+  Each has a name, a role from `node_roles`, a `hardware` key into
+  `node_models.json`, a `status`, and one `links` entry per cable giving the
+  switch, the port and the NIC it leaves from. A link whose `port` is `null` is
+  planned but not patched yet, which is most of them today.
+- **`devices[].ports`** carries only what is neither a machine nor an appliance:
+  the ISL and the router uplink.
+
+An appliance is a node like any other. Giving the PDU and the KVMs their own
+concept would put them back where the compute ports started, as port numbers
+typed into a template with no record of what is on the end.
+
+### Out-of-band, and the socket that looks identical
+
+Every x86 node reaches `ber1-mgmt` on copper, alongside its SFP+ DACs, and that
+link is its out-of-band path. Which socket matters: **AMT rides the MS-01's
+i226-LM only**, and the i226-V beside it is an identical-looking 2.5G port with
+no AMT at all. A management link recorded without its NIC is a link that gets
+patched into the wrong hole, and nothing reveals it until the node is the one
+that needs recovering.
+
+`node_models.json` is therefore hardware fact, the way `models.json` is for
+switches: it names each interface and marks the one that carries out-of-band.
+Three things are then checked on every render, so the distinction survives
+whoever edits the site next:
+
+- a link's NIC has to exist on that node's hardware
+- a management link has to land on an interface marked out-of-band
+- every node has exactly one management link, and it goes to `ber1-mgmt`
+
+The last one matters because `ber1-mgmt` uplinks to `ber1-edge` directly and
+never through a ToR. A management link landing on a ToR would put out-of-band
+access behind the thing it exists to recover.
+
+Separate trap, same port: a host OS that bridges the LM port or changes its MAC
+kills AMT silently. That is not something this repository can check, but it is
+the same socket.
 
 Nothing may claim a port twice, no link may name a switch the site does not
 have, and no port may exceed what the model has. All three are checked on every

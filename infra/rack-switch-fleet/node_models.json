@@ -1,0 +1,32 @@
+{
+  "ms-01": {
+    "product": "Minisforum MS-01",
+    "interfaces": {
+      "i226-lm": {
+        "media": "copper",
+        "speed": "2.5G",
+        "out_of_band": "amt",
+        "note": "The only port with AMT. A host OS that bridges it or changes its MAC kills out-of-band access without touching anything that looks related."
+      },
+      "i226-v": {
+        "media": "copper",
+        "speed": "2.5G",
+        "note": "No AMT. Identical-looking socket next to the one that has it."
+      },
+      "sfp28-1": { "media": "dac", "speed": "10G", "controller": "x710" },
+      "sfp28-2": { "media": "dac", "speed": "10G", "controller": "x710" }
+    }
+  },
+  "appliance": {
+    "product": "single-port rack appliance",
+    "note": "A KVM, a PDU or a transfer-switch card: one network port, and management is all it does.",
+    "interfaces": {
+      "mgmt": {
+        "media": "copper",
+        "speed": "1G",
+        "out_of_band": "native",
+        "note": "Its only port, so unlike an MS-01 there is no identical socket next to it to get wrong."
+      }
+    }
+  }
+}

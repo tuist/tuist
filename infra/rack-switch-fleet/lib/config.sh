@@ -6,6 +6,7 @@
 
 FLEET_ROOT="${FLEET_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 FLEET_MODELS="$FLEET_ROOT/models.json"
+FLEET_NODE_MODELS="$FLEET_ROOT/node_models.json"
 FLEET_AWK="$FLEET_ROOT/lib/normalize.awk"
 FLEET_TRANSCRIPT_AWK="$FLEET_ROOT/lib/transcript.awk"
 
@@ -60,7 +61,7 @@ fleet_port_map() {
     ' "$site_file"
     jq -r --arg s "$switch" '
       .nodes[]? as $n | $n.links[] | select(.switch == $s and .port != null) |
-      "\(.port)\tnode\t\($n.name)\t\($n.role)"
+      "\(.port)\t\(.purpose // "data")\t\($n.name)\t\($n.role)/\(.nic // "?")"
     ' "$site_file"
   } | sort -n -k1,1
 }
@@ -81,6 +82,55 @@ fleet_check_port_map() {
   duplicates="$(fleet_port_map "$site_file" "$switch" | cut -f1 | uniq -d)"
   if [ -n "$duplicates" ]; then
     echo "error: $switch has more than one thing on port(s): $(tr '\n' ' ' <<<"$duplicates")" >&2
+    return 1
+  fi
+}
+
+# A link has to name an interface the node's hardware actually has, and a
+# management link has to land on one that carries out-of-band.
+#
+# On an MS-01 the out-of-band interface is the i226-LM and the i226-V beside it
+# is an identical-looking socket with no AMT at all, so a management link
+# recorded without its NIC is a link that gets patched into the wrong hole.
+fleet_check_node_interfaces() {
+  local site_file="$1" bad
+  bad="$(jq -r --slurpfile hardware "$FLEET_NODE_MODELS" '
+    $hardware[0] as $hw |
+    .nodes[]? as $n |
+    ($hw[$n.hardware // ""] // null) as $model |
+    if $model == null then "\($n.name): unknown hardware \($n.hardware // "(none)")"
+    else
+      $n.links[] |
+      if ($model.interfaces[.nic // ""] // null) == null
+      then "\($n.name): no interface \(.nic // "(none)") on a \($model.product)"
+      elif .purpose == "management" and ($model.interfaces[.nic].out_of_band // null) == null
+      then "\($n.name): management link on \(.nic), which carries no out-of-band on a \($model.product)"
+      else empty
+      end
+    end
+  ' "$site_file")"
+  if [ -n "$bad" ]; then
+    echo "error: node links do not match their hardware:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
+}
+
+# Anything with an out-of-band interface needs exactly one management link, and
+# it goes to the management switch rather than through a ToR.
+fleet_check_management_links() {
+  local site_file="$1" management_switch bad
+  management_switch="$(jq -r '.devices[] | select(.role == "mgmt") | .name' "$site_file")"
+  bad="$(jq -r --arg mgmt "$management_switch" '
+    .nodes[]? |
+    [.links[] | select(.purpose == "management")] as $m |
+    if ($m | length) != 1 then "\(.name): \($m | length) management links, expected exactly 1"
+    elif $m[0].switch != $mgmt then "\(.name): management link goes to \($m[0].switch), not \($mgmt)"
+    else empty end
+  ' "$site_file")"
+  if [ -n "$bad" ]; then
+    echo "error: out-of-band paths are wrong:" >&2
+    printf '  %s\n' "$bad" >&2
     return 1
   fi
 }
@@ -122,6 +172,8 @@ fleet_render() {
   spec="$(fleet_model "$model")" || return 1
   fleet_check_ports "$device" "$spec" || return 1
   fleet_check_nodes "$site_file" || return 1
+  fleet_check_node_interfaces "$site_file" || return 1
+  fleet_check_management_links "$site_file" || return 1
   fleet_check_port_map "$site_file" "$name" "$spec" || return 1
 
   local vlan vlan_name netmask address baud

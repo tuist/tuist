@@ -395,3 +395,68 @@ STUB
     run jq -r '[.node_roles | keys[]] as $known | [.nodes[] | select(.role as $r | $known | index($r) | not) | .name] | length' "$SITE_FILE"
     [ "$output" = "0" ]
 }
+
+# --- out-of-band paths -------------------------------------------------------
+
+@test "a management link on the NIC without AMT is rejected" {
+    # The MS-01's i226-V sits next to the i226-LM, looks the same, and has no
+    # AMT. Recording a management link on it is how a node ends up patched into
+    # the wrong hole with nothing to show for it until the node needs recovering.
+    site="$BATS_TEST_TMPDIR/wrongnic.json"
+    jq '(.nodes[] | select(.name == "ber1-edge") | .links[] | select(.purpose == "management") | .nic) = "i226-v"' \
+        "$SITE_FILE" > "$site"
+    run fleet_check_node_interfaces "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"i226-v"* ]]
+    [[ "$output" == *"no out-of-band"* ]]
+}
+
+@test "a link on an interface the hardware does not have is rejected" {
+    site="$BATS_TEST_TMPDIR/ghostnic.json"
+    jq '(.nodes[] | select(.name == "ber1-edge") | .links[0].nic) = "sfp28-9"' "$SITE_FILE" > "$site"
+    run fleet_check_node_interfaces "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"sfp28-9"* ]]
+}
+
+@test "every node has exactly one management link, to the management switch" {
+    run fleet_check_management_links "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "an out-of-band path through a ToR is rejected" {
+    # ber1-mgmt uplinks to ber1-edge directly and never through a ToR, so a
+    # management link landing on a ToR would put out-of-band access behind the
+    # thing it exists to recover.
+    site="$BATS_TEST_TMPDIR/oobviator.json"
+    jq '(.nodes[] | select(.name == "ber1-svc") | .links[] | select(.purpose == "management") | .switch) = "ber1-tor-b"' \
+        "$SITE_FILE" > "$site"
+    run fleet_check_management_links "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not ber1-mgmt"* ]]
+}
+
+@test "a node with no management link at all is rejected" {
+    site="$BATS_TEST_TMPDIR/nooob.json"
+    jq '(.nodes[] | select(.name == "ber1-svc") | .links) |= map(select(.purpose != "management"))' \
+        "$SITE_FILE" > "$site"
+    run fleet_check_management_links "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"expected exactly 1"* ]]
+}
+
+@test "every x86 node reaches the management switch on copper" {
+    run jq -r '[.nodes[] | select(.hardware == "ms-01") |
+        select([.links[] | select(.switch == "ber1-mgmt" and .media == "copper")] | length != 1)] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+    run jq -r '[.nodes[] | select(.hardware == "ms-01")] | length' "$SITE_FILE"
+    [ "$output" = "4" ]
+}
+
+@test "the things on the management switch that are not machines are modelled" {
+    run jq -r '[.nodes[] | select(.role == "console" or .role == "power")] | length' "$SITE_FILE"
+    [ "$output" -ge 4 ]
+    run jq -r '[.nodes[] | select(.role == "console" or .role == "power") |
+        select([.links[].switch] != ["ber1-mgmt"])] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+}

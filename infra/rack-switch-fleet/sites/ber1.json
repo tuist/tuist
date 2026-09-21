@@ -90,6 +90,15 @@
     },
     "runner": {
       "description": "Mac mini running the runner fleet"
+    },
+    "console": {
+      "description": "crash-cart KVM reached over the network"
+    },
+    "power": {
+      "description": "PDU or transfer-switch management card"
+    },
+    "environment": {
+      "description": "temperature and humidity probe"
     }
   },
   "nodes": [
@@ -102,16 +111,26 @@
           "switch": "ber1-tor-b",
           "port": 25,
           "media": "dac",
-          "nic": "x710"
+          "nic": "sfp28-1",
+          "purpose": "data"
         },
         {
           "switch": "ber1-tor-a",
           "port": null,
           "media": "dac",
-          "nic": "x710"
+          "nic": "sfp28-2",
+          "purpose": "data"
+        },
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "i226-lm",
+          "purpose": "management"
         }
       ],
-      "status": "installed"
+      "status": "installed",
+      "hardware": "ms-01"
     },
     {
       "name": "ber1-store-a",
@@ -121,10 +140,20 @@
         {
           "switch": "ber1-tor-a",
           "port": null,
-          "media": "dac"
+          "media": "dac",
+          "purpose": "data",
+          "nic": "sfp28-1"
+        },
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "i226-lm",
+          "purpose": "management"
         }
       ],
-      "status": "installed"
+      "status": "installed",
+      "hardware": "ms-01"
     },
     {
       "name": "ber1-svc",
@@ -134,10 +163,20 @@
         {
           "switch": "ber1-tor-b",
           "port": null,
-          "media": "dac"
+          "media": "dac",
+          "purpose": "data",
+          "nic": "sfp28-1"
+        },
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "i226-lm",
+          "purpose": "management"
         }
       ],
-      "status": "installed"
+      "status": "installed",
+      "hardware": "ms-01"
     },
     {
       "name": "ber1-store-b",
@@ -148,13 +187,88 @@
         {
           "switch": "ber1-tor-b",
           "port": null,
-          "media": "dac"
+          "media": "dac",
+          "purpose": "data",
+          "nic": "sfp28-1"
+        },
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "i226-lm",
+          "purpose": "management"
+        }
+      ],
+      "hardware": "ms-01"
+    },
+    {
+      "name": "ber1-kvm-a",
+      "role": "console",
+      "hardware": "appliance",
+      "status": "installed",
+      "note": "Crash-cart KVM, one of a pair.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "mgmt",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-kvm-b",
+      "role": "console",
+      "hardware": "appliance",
+      "status": "installed",
+      "note": "Crash-cart KVM, one of a pair.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "mgmt",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-ats-nmc",
+      "role": "power",
+      "hardware": "appliance",
+      "status": "installed",
+      "note": "APC network management card in the ATS.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "mgmt",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-pdu",
+      "role": "power",
+      "hardware": "appliance",
+      "status": "planned",
+      "note": "Eaton zero-U switched PDU, selected 2026-09-21.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "mgmt",
+          "purpose": "management"
         }
       ]
     }
   ],
   "placement": {
     "runner": "A Mac mini has one NIC, so it lands on exactly one ToR. Minis are split A/B across the two ToRs the same way the power feeds are, so losing a ToR costs half the fleet rather than all of it.",
-    "storage": "One storage node per ToR, matching the split across opposite ATS chains. Losing a ToR must cost one storage node, never both, so ber1-store-a is on ToR A and ber1-store-b on ToR B. The fleet tests enforce it."
+    "storage": "One storage node per ToR, matching the split across opposite ATS chains. Losing a ToR must cost one storage node, never both, so ber1-store-a is on ToR A and ber1-store-b on ToR B. The fleet tests enforce it.",
+    "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band."
   }
 }
