@@ -284,6 +284,71 @@ defmodule Atlas.Audit do
   def resource_path("cross_domain_claim", _target_id, %{"account_id" => account_id}) when is_binary(account_id),
     do: "/commercial/sales/accounts/#{account_id}"
 
+  def resource_path("spec", _target_id, %{"number" => number}) when is_binary(number) and number != "",
+    do: "/engineering/specs/#{number}"
+
+  def resource_path("spec_comment", _target_id, %{"number" => number}) when is_binary(number) and number != "",
+    do: "/engineering/specs/#{number}"
+
+  def resource_path("postmortem", _target_id, %{"number" => number}) when is_binary(number) and number != "",
+    do: "/engineering/postmortems/#{number}"
+
+  def resource_path("engineering_project", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/engineering/projects/#{target_id}"
+
+  def resource_path("engineering_domain", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/engineering/domains/#{target_id}"
+
+  def resource_path("error_issue", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/engineering/errors/#{target_id}"
+
+  def resource_path("error_project", _target_id, %{"project_id" => project_id}) when is_binary(project_id),
+    do: "/engineering/projects/#{project_id}"
+
+  def resource_path("project_key", _target_id, %{"project_id" => project_id}) when is_binary(project_id),
+    do: "/engineering/projects/#{project_id}"
+
+  def resource_path("domain_key", _target_id, %{"domain_id" => domain_id}) when is_binary(domain_id),
+    do: "/engineering/domains/#{domain_id}"
+
+  def resource_path("alert_rule", _target_id, %{"project_id" => project_id}) when is_binary(project_id),
+    do: "/engineering/projects/#{project_id}"
+
+  def resource_path("insurance_policy", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/operations/hardware/insurance/#{target_id}"
+
+  def resource_path("financing", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/operations/hardware/financings/#{target_id}"
+
+  def resource_path("asset", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/operations/hardware/#{target_id}"
+
+  def resource_path("asset_data_center", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/operations/hardware/data-centers/#{target_id}"
+
+  def resource_path("user", target_id, _metadata) when is_binary(target_id) and target_id != "", do: "/admin/users"
+
+  def resource_path("role", _target_id, _metadata), do: "/admin/roles"
+
+  def resource_path("agent_identity", _target_id, _metadata), do: "/admin/identities"
+
+  def resource_path("inference_profile", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/admin/inference/profiles/#{target_id}"
+
+  def resource_path("inference_provider", _target_id, _metadata), do: "/admin/inference/providers"
+
+  def resource_path("inference_token", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/admin/inference/tokens/#{target_id}"
+
+  def resource_path("oauth_client", _target_id, _metadata), do: "/admin/mcps"
+
+  def resource_path("mcp_oauth_session", target_id, _metadata) when is_binary(target_id) and target_id != "",
+    do: "/admin/mcps"
+
+  def resource_path("letter", _target_id, _metadata), do: "/outbound/postal"
+
+  def resource_path("finance_transaction_attachment", _target_id, _metadata), do: "/commercial/finance"
+
   def resource_path(_target_type, _target_id, _metadata), do: nil
 
   def changeset_changes(%Ecto.Changeset{} = changeset) do

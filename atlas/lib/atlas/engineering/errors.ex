@@ -39,6 +39,7 @@ defmodule Atlas.Engineering.Errors do
 
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.HandleRegistry
+  alias Atlas.Audit
   alias Atlas.Engineering.Domains.Domain
   alias Atlas.Engineering.Errors.Availability
   alias Atlas.Engineering.Errors.Envelope
@@ -408,9 +409,27 @@ defmodule Atlas.Engineering.Errors do
   end
 
   def update_issue_status(%Issue{} = issue, status) when status in [:unresolved, :resolved, :ignored] do
+    previous_status = issue.status
+
     issue
     |> Issue.status_changeset(status)
     |> Repo.update()
+    |> tap(fn
+      {:ok, updated} when previous_status != status ->
+        Audit.record("error_issue.status_changed", %{
+          target_type: "error_issue",
+          target_id: updated.id,
+          target_label: updated.title,
+          metadata: %{
+            "project_id" => updated.project_id,
+            "from" => to_string(previous_status),
+            "to" => to_string(status)
+          }
+        })
+
+      _ ->
+        :ok
+    end)
   end
 
   @doc """
@@ -451,6 +470,22 @@ defmodule Atlas.Engineering.Errors do
         )
 
         Enum.map(issues, &%{&1 | status: :resolved, resolved_at: resolved_at})
+      end)
+      |> tap(fn
+        {:ok, resolved} when resolved != [] ->
+          Audit.record("error_issue.bulk_resolved", %{
+            target_type: "error_project",
+            target_id: project_id,
+            target_label: project_id,
+            metadata: %{
+              "project_id" => project_id,
+              "resolved_ids" => Enum.map(resolved, & &1.id),
+              "count" => length(resolved)
+            }
+          })
+
+        _ ->
+          :ok
       end)
     end
   end
@@ -533,7 +568,7 @@ defmodule Atlas.Engineering.Errors do
   Deletes every existing key for the project and mints a fresh one.
   Called when an operator suspects a Data Source Name has leaked.
   """
-  def rotate_project_key(%Project{id: id}) do
+  def rotate_project_key(%Project{id: id} = project) do
     existing_public_keys =
       ProjectKey
       |> where([k], k.project_id == ^id and is_nil(k.domain_id))
@@ -545,19 +580,38 @@ defmodule Atlas.Engineering.Errors do
         {_deleted, _} =
           Repo.delete_all(from(k in ProjectKey, where: k.project_id == ^id and is_nil(k.domain_id)))
 
-        case create_project_key(id, %{"name" => "default"}) do
+        case create_project_key(id, %{"name" => "default"}, audit: false) do
           {:ok, key} -> key
           {:error, changeset} -> Repo.rollback(changeset)
         end
       end)
 
     Enum.each(existing_public_keys, &invalidate_project_key_cache/1)
+
+    case result do
+      {:ok, %ProjectKey{} = key} ->
+        Audit.record("project_key.rotated", %{
+          target_type: "project_key",
+          target_id: key.id,
+          target_label: project_label(project),
+          metadata: %{
+            "project_id" => id,
+            "rotated_public_keys" => existing_public_keys
+          }
+        })
+
+      _ ->
+        :ok
+    end
+
     result
   end
 
   def rotate_project_key(_), do: {:error, :invalid_project}
 
-  def create_project_key(project_id, attrs \\ %{}) do
+  def create_project_key(project_id, attrs \\ %{}, opts \\ []) do
+    audit? = Keyword.get(opts, :audit, true)
+
     attrs =
       attrs
       |> Map.new(fn {k, v} -> {to_string(k), v} end)
@@ -570,12 +624,22 @@ defmodule Atlas.Engineering.Errors do
     |> ProjectKey.changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, %ProjectKey{public_key: public_key}} = ok ->
+      {:ok, %ProjectKey{public_key: public_key} = key} = ok ->
         # Positive-only cache: an earlier `:not_found` was ignored, so
         # no invalidation is needed. But if a caller previously fetched
         # a cached miss under any code path that DID cache it, this
         # keeps the invariant safe.
         invalidate_project_key_cache(public_key)
+
+        if audit? do
+          Audit.record("project_key.created", %{
+            target_type: "project_key",
+            target_id: key.id,
+            target_label: key.name,
+            metadata: %{"project_id" => project_id}
+          })
+        end
+
         ok
 
       other ->
@@ -665,7 +729,7 @@ defmodule Atlas.Engineering.Errors do
   Source Name has leaked. Does not touch the project-level DSN or any
   other domain's DSN.
   """
-  def rotate_domain_key(%Project{id: project_id}, %Domain{id: domain_id}) do
+  def rotate_domain_key(%Project{id: project_id} = project, %Domain{id: domain_id} = domain) do
     existing_public_keys =
       ProjectKey
       |> where([k], k.project_id == ^project_id and k.domain_id == ^domain_id)
@@ -681,19 +745,40 @@ defmodule Atlas.Engineering.Errors do
             )
           )
 
-        case create_domain_key(project_id, domain_id, %{"name" => "default"}) do
+        case create_domain_key(project_id, domain_id, %{"name" => "default"}, audit: false) do
           {:ok, key} -> key
           {:error, changeset} -> Repo.rollback(changeset)
         end
       end)
 
     Enum.each(existing_public_keys, &invalidate_project_key_cache/1)
+
+    case result do
+      {:ok, %ProjectKey{} = key} ->
+        Audit.record("domain_key.rotated", %{
+          target_type: "domain_key",
+          target_id: key.id,
+          target_label: domain_label(domain, project),
+          metadata: %{
+            "project_id" => project_id,
+            "domain_id" => domain_id,
+            "rotated_public_keys" => existing_public_keys
+          }
+        })
+
+      _ ->
+        :ok
+    end
+
     result
   end
 
   def rotate_domain_key(_, _), do: {:error, :invalid_pair}
 
-  def create_domain_key(project_id, domain_id, attrs \\ %{}) when is_binary(project_id) and is_binary(domain_id) do
+  def create_domain_key(project_id, domain_id, attrs \\ %{}, opts \\ [])
+      when is_binary(project_id) and is_binary(domain_id) do
+    audit? = Keyword.get(opts, :audit, true)
+
     attrs =
       attrs
       |> Map.new(fn {k, v} -> {to_string(k), v} end)
@@ -707,14 +792,32 @@ defmodule Atlas.Engineering.Errors do
     |> ProjectKey.changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, %ProjectKey{public_key: public_key}} = ok ->
+      {:ok, %ProjectKey{public_key: public_key} = key} = ok ->
         invalidate_project_key_cache(public_key)
+
+        if audit? do
+          Audit.record("domain_key.created", %{
+            target_type: "domain_key",
+            target_id: key.id,
+            target_label: key.name,
+            metadata: %{"project_id" => project_id, "domain_id" => domain_id}
+          })
+        end
+
         ok
 
       other ->
         other
     end
   end
+
+  defp project_label(%Project{name: name}) when is_binary(name) and name != "", do: name
+  defp project_label(%Project{id: id}), do: id
+
+  defp domain_label(%Domain{name: name}, project) when is_binary(name) and name != "",
+    do: "#{project_label(project)}/#{name}"
+
+  defp domain_label(%Domain{id: id}, project), do: "#{project_label(project)}/#{id}"
 
   @doc """
   Returns the distinct environments seen for events matching the

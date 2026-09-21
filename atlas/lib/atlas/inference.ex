@@ -5,6 +5,7 @@ defmodule Atlas.Inference do
 
   import Ecto.Query
 
+  alias Atlas.Audit
   alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.ModelIdentifier
   alias Atlas.Inference.Provider
@@ -118,6 +119,10 @@ defmodule Atlas.Inference do
     %ModelBinding{}
     |> ModelBinding.changeset(attrs)
     |> persist_model_binding(:insert)
+    |> tap(fn
+      {:ok, profile} -> audit_profile("inference_profile.created", profile)
+      _ -> :ok
+    end)
   end
 
   def create_profile(attrs), do: create_model_binding(attrs)
@@ -126,11 +131,22 @@ defmodule Atlas.Inference do
     binding
     |> ModelBinding.changeset(attrs)
     |> persist_model_binding(:update)
+    |> tap(fn
+      {:ok, profile} -> audit_profile("inference_profile.updated", profile)
+      _ -> :ok
+    end)
   end
 
   def update_profile(%ModelBinding{} = profile, attrs), do: update_model_binding(profile, attrs)
 
-  def delete_model_binding(%ModelBinding{} = binding), do: Repo.delete(binding)
+  def delete_model_binding(%ModelBinding{} = binding) do
+    binding
+    |> Repo.delete()
+    |> tap(fn
+      {:ok, profile} -> audit_profile("inference_profile.deleted", profile)
+      _ -> :ok
+    end)
+  end
 
   def list_providers do
     Provider
@@ -148,6 +164,10 @@ defmodule Atlas.Inference do
     %Provider{}
     |> Provider.changeset(attrs)
     |> Repo.insert()
+    |> tap(fn
+      {:ok, provider} -> audit_provider("inference_provider.created", provider)
+      _ -> :ok
+    end)
   end
 
   def list_tokens(%ModelBinding{id: binding_id}) do
@@ -289,8 +309,12 @@ defmodule Atlas.Inference do
     |> Ecto.Changeset.validate_required([:model_binding_id])
     |> Repo.insert()
     |> case do
-      {:ok, token} -> {:ok, {token, token_value}}
-      {:error, changeset} -> {:error, changeset}
+      {:ok, token} ->
+        audit_token("inference_token.created", token, binding)
+        {:ok, {token, token_value}}
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 
@@ -315,6 +339,10 @@ defmodule Atlas.Inference do
     token
     |> Token.changeset(%{enabled: false})
     |> Repo.update()
+    |> tap(fn
+      {:ok, updated} -> audit_token("inference_token.revoked", updated)
+      _ -> :ok
+    end)
   end
 
   def authenticate_token(token_value) when is_binary(token_value) do
@@ -1440,4 +1468,48 @@ defmodule Atlas.Inference do
   end
 
   defp decimal_value(_value), do: Decimal.new(0)
+
+  defp audit_profile(action, %ModelBinding{} = profile) do
+    Audit.record(action, %{
+      target_type: "inference_profile",
+      target_id: profile.id,
+      target_label: profile.name,
+      metadata: %{
+        "upstream_provider" => profile.upstream_provider,
+        "upstream_model" => profile.upstream_model,
+        "input_cost_per_million" => profile.input_cost_per_million,
+        "output_cost_per_million" => profile.output_cost_per_million,
+        "path" => "/admin/inference/profiles/#{profile.id}"
+      }
+    })
+  end
+
+  defp audit_provider(action, %Provider{} = provider) do
+    Audit.record(action, %{
+      target_type: "inference_provider",
+      target_id: provider.id,
+      target_label: provider.key,
+      metadata: %{
+        "base_url" => provider.base_url,
+        "credential_configured" => Provider.credential_configured?(provider),
+        "path" => "/admin/inference/providers",
+        "timeout" => provider.timeout
+      }
+    })
+  end
+
+  defp audit_token(action, %Token{} = token, binding \\ nil) do
+    profile = binding || Repo.get(ModelBinding, token.model_binding_id)
+
+    Audit.record(action, %{
+      target_type: "inference_token",
+      target_id: token.id,
+      target_label: token.name,
+      metadata: %{
+        "profile_id" => token.model_binding_id,
+        "profile_name" => profile && profile.name,
+        "path" => "/admin/inference/tokens/#{token.id}"
+      }
+    })
+  end
 end
