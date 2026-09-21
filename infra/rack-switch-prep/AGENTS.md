@@ -63,6 +63,27 @@ Two consequences of that route:
 Without `--import-key`, the switch is left password-only, which is why the
 credentials live in 1Password rather than in someone's notes.
 
+## Tests
+
+```
+mise run rack:prep-test
+```
+
+Everything reachable without a switch on the end of a cable: argument handling,
+the inventory lookup, each switch's own address and management VLAN reaching the
+command sequence, and the key validation. They run in CI on any change here or
+under `mise/tasks/rack/`.
+
+The reason this has tests at all is the ordering they pin down. This is the
+first thing that runs at a new site, on a machine that is not the one it was
+written on, sometimes by hands that have never seen it, and console bring-up is
+the step that cannot be retried cheaply from another continent. So `--import-key`
+is validated during argument parsing, before the console is found, before
+1Password is read and before the serial session is opened. It used to be checked
+where the key is used, which meant a rejected ed25519 key surfaced with remote
+hands already holding the cable. `--dry-run --import-key <key>` is now a
+complete preflight worth running before anyone travels.
+
 ## Hardware facts worth keeping
 
 - The console runs at **38400 8N1**, not the 115200 these usually default to.

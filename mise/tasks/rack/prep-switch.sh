@@ -81,6 +81,22 @@ mgmt_vlan="$(jq -r '.management.vlan' "$inventory")"
 credential_item="$(jq -r '.credential_item' <<<"$entry")"
 vault="$(jq -r '.credentials.vault' "$inventory")"
 
+# Checked here rather than where the key is used, which is after the console has
+# been found, 1Password read and the serial session opened. At a new site that
+# ordering means a rejected key surfaces with remote hands already holding the
+# cable. Doing it now also makes `--dry-run --import-key` a real preflight.
+if [ -n "$key_path" ]; then
+  key_path="${key_path/#\~/$HOME}"
+  if [ ! -f "$key_path" ]; then
+    echo "error: no such key file: $key_path" >&2
+    exit 1
+  fi
+  if grep -q "ssh-ed25519" "$key_path"; then
+    echo "error: this firmware accepts RSA/DSA keys only; ed25519 is rejected" >&2
+    exit 1
+  fi
+fi
+
 commands=(
   "configure"
   "hostname $switch"
@@ -95,6 +111,7 @@ commands=(
 if (( dry_run )); then
   echo "would apply to $switch ($model):"
   printf '  %s\n' "${commands[@]}"
+  [ -n "$key_path" ] && echo "would import the key at $key_path"
   exit 0
 fi
 
@@ -274,16 +291,6 @@ for command in "${commands[@]}"; do
 done
 
 if [ -n "$key_path" ]; then
-  key_path="${key_path/#\~/$HOME}"
-  if [ ! -f "$key_path" ]; then
-    echo "error: no such key file: $key_path" >&2
-    exit 1
-  fi
-  if grep -q "ssh-ed25519" "$key_path"; then
-    echo "error: this firmware accepts RSA/DSA keys only; ed25519 is rejected" >&2
-    exit 1
-  fi
-
   served_file="/private/tftpboot/fleet.pub"
   echo "sudo is needed to serve the key over TFTP on port 69:"
   sudo -v

@@ -16,7 +16,7 @@
 # macOS-only, which is fine for a tool run from an operator's laptop. The safety
 # property those cases exist for, that a pushed configuration always carries a
 # login, is checked separately and runs everywhere.
-name: Rack Switch Fleet
+name: Rack Switches
 
 on:
   push:
@@ -24,12 +24,14 @@ on:
       - main
     paths:
       - infra/rack-switch-fleet/**
+      - infra/rack-switch-prep/**
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/rack-switch-fleet/**
+      - infra/rack-switch-prep/**
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   merge_group: {}
@@ -38,7 +40,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: rack-switch-fleet-${{ github.head_ref || github.run_id }}
+  group: rack-switches-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -65,8 +67,13 @@ jobs:
       - name: The rendered configs match the site definition
         run: mise run rack:fleet render --check
 
-      - name: Test
+      - name: Test the fleet configuration
         run: mise run rack:fleet-test
+
+      # The console bring-up had no tests at all, and it is the one that runs
+      # first at a new site, on a machine that is not the one it was written on.
+      - name: Test the console bring-up
+        run: mise run rack:prep-test
 
       - name: Lint the shell
         run: |
