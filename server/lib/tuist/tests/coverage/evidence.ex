@@ -20,9 +20,11 @@ defmodule Tuist.Tests.Coverage.Evidence do
     module: the floor for each of its tests, and all there is for the tests
     nothing could be attributed to (Swift Testing running in parallel).
 
-  Evidence rows hold a path and nothing else: no counts, and no blob, which
-  is read off the run's own row for the path (`files/3`) or the commit's
-  listing. Every reader of coverage filters on the `run` scope, so these rows
+  Evidence rows hold a path and, when the client could tell them, the lines
+  the scope ran in it (`line_numbers`, with `covered_lines` their count; an
+  empty list means only the file is known). They hold no execution counts and
+  no blob, which is read off the run's own row for the path (`files/3`) or
+  the commit's listing. Every reader of coverage filters on the `run` scope, so these rows
   never reach a total. Like the run's coverage, a report replaces the shard's
   earlier one: readers use each shard's latest.
   """
@@ -284,22 +286,47 @@ defmodule Tuist.Tests.Coverage.Evidence do
 
     with true <- kind in @scopes and module_name != "",
          scope_id when is_binary(scope_id) <- scope_id(kind, module_name, suite_name, name) do
-      scope
-      |> value(:files, [])
-      |> Enum.filter(&(is_integer(&1) and &1 >= 0 and &1 < tuple_size(paths)))
-      |> Enum.uniq()
-      |> Enum.map(fn index ->
+      files = value(scope, :files, [])
+      lines = value(scope, :lines, nil) || []
+
+      files
+      |> Enum.zip(Stream.concat(lines, Stream.repeatedly(fn -> [] end)))
+      |> Enum.filter(fn {index, _ranges} -> is_integer(index) and index >= 0 and index < tuple_size(paths) end)
+      |> Enum.uniq_by(&elem(&1, 0))
+      |> Enum.map(fn {index, ranges} ->
+        line_numbers = line_numbers(ranges)
+
         Map.merge(base, %{
           id: UUIDv7.generate(),
           scope_kind: kind,
           scope_id: scope_id,
-          path: elem(paths, index)
+          path: elem(paths, index),
+          line_numbers: line_numbers,
+          covered_lines: length(line_numbers)
         })
       end)
     else
       _ -> []
     end
   end
+
+  # Inclusive ranges flattened: `[3, 5, 9, 9]` is lines 3 to 5 and line 9.
+  defp line_numbers(ranges) when is_list(ranges) do
+    ranges
+    |> Enum.chunk_every(2, 2, :discard)
+    |> Enum.flat_map(fn
+      [first, last]
+      when is_integer(first) and is_integer(last) and first > 0 and last >= first and last - first < 100_000 ->
+        Enum.to_list(first..last)
+
+      _ ->
+        []
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp line_numbers(_ranges), do: []
 
   defp scope_id("test", _module_name, _suite_name, ""), do: nil
   defp scope_id("test", module_name, suite_name, name), do: test_scope_id(module_name, suite_name, name)

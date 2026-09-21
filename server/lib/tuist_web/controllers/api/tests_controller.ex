@@ -435,7 +435,13 @@ defmodule TuistWeb.API.TestsController do
                      module: %Schema{type: :string, description: "The test target."},
                      suite: %Schema{type: :string, description: "Empty for a target and for a test outside any suite."},
                      name: %Schema{type: :string, description: "The test's name; empty unless the scope is a test."},
-                     files: %Schema{type: :array, items: %Schema{type: :integer}, description: "Indices into `paths`."}
+                     files: %Schema{type: :array, items: %Schema{type: :integer}, description: "Indices into `paths`."},
+                     lines: %Schema{
+                       type: :array,
+                       items: %Schema{type: :array, items: %Schema{type: :integer}},
+                       description:
+                         "The lines the scope ran in each of `files`, in the same order, as inclusive ranges flattened (`[3, 5, 9, 9]` is lines 3 to 5 and line 9); empty for a file without line evidence. Left out when the scope has none."
+                     }
                    },
                    required: [:kind, :module, :files]
                  }

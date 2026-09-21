@@ -68,15 +68,20 @@ struct CoverageObserverOutputTests {
         let data = profileRecord(index: 0, name: "add", firstCounter: 0, count: 2)
             + profileRecord(index: 1, name: "sign", firstCounter: 2, count: 3)
 
+        let functions = CoverageObserverOutput.functionCounters(
+            data: data, dataAddress: dataAddress, countersAddress: countersAddress, countersSize: 40
+        )
+        #expect(functions.map(\.first) == [0, 2])
+        #expect(functions.map(\.count) == [2, 3])
+        #expect(functions.map(\.reference) == ["add", "sign"].map(CoverageObserverOutput.nameReference))
         #expect(
-            CoverageObserverOutput.functionByCounter(
-                data: data, names: ["add", "sign"], dataAddress: dataAddress, countersAddress: countersAddress, countersSize: 40
-            ) == ["add", "add", "sign", "sign", "sign"]
+            CoverageObserverOutput.functionByCounter(functions: functions, names: ["add", "sign"], countersSize: 40)
+                == ["add", "add", "sign", "sign", "sign"]
         )
         #expect(
-            CoverageObserverOutput.functionByCounter(
-                data: Data(count: 10), names: [], dataAddress: dataAddress, countersAddress: countersAddress, countersSize: 16
-            ) == [nil, nil]
+            CoverageObserverOutput.functionCounters(
+                data: Data(count: 10), dataAddress: dataAddress, countersAddress: countersAddress, countersSize: 16
+            ).isEmpty
         )
     }
 }

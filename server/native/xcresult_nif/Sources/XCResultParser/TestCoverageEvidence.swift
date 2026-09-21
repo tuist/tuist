@@ -30,13 +30,30 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
         public var name: String
         /// Indices into ``TestCoverageEvidence/paths``, ascending.
         public var files: [Int]
+        /// The lines the scope ran in each of ``files``, in the same order, as inclusive ranges
+        /// flattened (`[3, 5, 9, 9]` is lines 3 to 5 and line 9); empty for a file without line
+        /// evidence. Nil when the scope has none at all, and then only ``files`` is known.
+        public var lines: [[Int]]?
 
-        public init(kind: Kind, module: String, suite: String, name: String, files: [Int]) {
+        public init(kind: Kind, module: String, suite: String, name: String, files: [Int], lines: [[Int]]? = nil) {
             self.kind = kind
             self.module = module
             self.suite = suite
             self.name = name
             self.files = files
+            self.lines = lines
+        }
+
+        public static func ranges(of lines: IndexSet) -> [Int] {
+            lines.rangeView.flatMap { [$0.lowerBound, $0.upperBound - 1] }
+        }
+
+        public static func lines(ofRanges ranges: [Int]) -> IndexSet {
+            var result = IndexSet()
+            for index in stride(from: 0, to: ranges.count - 1, by: 2) where ranges[index] <= ranges[index + 1] {
+                result.insert(integersIn: ranges[index] ... ranges[index + 1])
+            }
+            return result
         }
     }
 
@@ -78,9 +95,17 @@ public struct TestCoverageEvidence: Codable, Equatable, Sendable {
             }
         }
         let keptScopes = scopes.compactMap { scope -> Scope? in
+            var linesByFile: [Int: IndexSet] = [:]
+            for (position, file) in scope.files.enumerated() {
+                guard file < newIndex.count, let kept = newIndex[file] else { continue }
+                let ranges = scope.lines.flatMap { position < $0.count ? $0[position] : nil } ?? []
+                linesByFile[kept, default: IndexSet()].formUnion(Scope.lines(ofRanges: ranges))
+            }
+            guard !linesByFile.isEmpty else { return nil }
             var scope = scope
-            scope.files = Array(Set(scope.files.compactMap { $0 < newIndex.count ? newIndex[$0] : nil })).sorted()
-            return scope.files.isEmpty ? nil : scope
+            scope.files = linesByFile.keys.sorted()
+            scope.lines = scope.lines == nil ? nil : scope.files.map { Scope.ranges(of: linesByFile[$0] ?? IndexSet()) }
+            return scope
         }
         return TestCoverageEvidence(paths: keptPaths, scopes: keptScopes, unattributedTests: unattributedTests)
     }

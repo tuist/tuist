@@ -2,6 +2,8 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Evidence
@@ -90,6 +92,38 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
 
     assert id == Tests.generate_test_case_id(project.id, "resolves(a/b:)", "AppTests", "MathTests")
     assert %{tests: [], suites: ["AppTests/MathTests"]} = Evidence.covering(test_run, "Sources/Bootstrap.swift")
+  end
+
+  test "stores the lines a scope ran, and none where the client knew only the file", %{test_run: test_run} do
+    Evidence.record(test_run, %{
+      paths: ["Sources/Math.swift", "Sources/Text.swift"],
+      scopes: [
+        %{
+          kind: "test",
+          module: "AppTests",
+          suite: "MathTests",
+          name: "testAdd()",
+          files: [0, 1],
+          lines: [[3, 5, 9, 9], []]
+        },
+        %{kind: "target", module: "AppTests", suite: "", name: "", files: [0], lines: [[9, 3, -1, 2, 7]]}
+      ]
+    })
+
+    rows =
+      Tuist.ClickHouseRepo.all(
+        from(f in Tuist.Tests.CoverageFile,
+          where: f.test_run_id == ^test_run.id and f.scope_kind != "run",
+          select: {f.scope_kind, f.path, f.line_numbers, f.covered_lines},
+          order_by: [f.scope_kind, f.path]
+        )
+      )
+
+    assert rows == [
+             {"target", "Sources/Math.swift", [], 0},
+             {"test", "Sources/Math.swift", [3, 4, 5, 9], 4},
+             {"test", "Sources/Text.swift", [], 0}
+           ]
   end
 
   test "a later report replaces the shard's earlier one", %{test_run: test_run} do

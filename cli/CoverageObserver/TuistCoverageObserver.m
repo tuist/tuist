@@ -32,6 +32,8 @@
 
 enum { kRecordGap = 0, kRecordXCTest = 1, kRecordSwiftTesting = 2 };
 enum { kFlagOverlapped = 1 };
+// 1: each image's counter indices are followed by how much each counter moved.
+enum { kRecordVersion = 1 };
 
 typedef struct {
     uint64_t *counters;
@@ -45,6 +47,7 @@ static bool images_discovered;
 static char out_dir[PATH_MAX];
 static FILE *records;
 static uint32_t *scratch;
+static uint64_t *scratch_deltas;
 static size_t scratch_len;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static unsigned active_scopes;
@@ -104,6 +107,7 @@ static void discover_images(void) {
     }
     fclose(f);
     scratch = malloc(scratch_len * sizeof(uint32_t));
+    scratch_deltas = malloc(scratch_len * sizeof(uint64_t));
 }
 
 static void take_snapshot(void) {
@@ -118,10 +122,11 @@ static void write_string(const char *s) {
     if (len) fwrite(s, 1, len, records);
 }
 
-// Record: u8 kind, u8 flags, u16 zero, then the length-prefixed (u32) module, suite and name,
-// then u32 image count and per image u32 index, u32 count and count u32 counter indices: the
-// 8-byte counters that changed since the snapshot. Images nothing touched are left out, and so
-// is a gap in which nothing ran.
+// Record: u8 kind, u8 flags, u8 version, u8 zero, then the length-prefixed (u32) module, suite
+// and name, then u32 image count and per image u32 index, u32 count, count u32 counter indices
+// (the 8-byte counters that changed since the snapshot) and count u64 deltas (by how much).
+// The deltas are what tells which lines ran: a region's count is an expression over counters.
+// Images nothing touched are left out, and so is a gap in which nothing ran.
 static bool counters_changed(void) {
     for (unsigned i = 0; i < images_count; i++) {
         if (memcmp(images[i].counters, images[i].snapshot, images[i].counters_size) != 0) return true;
@@ -130,9 +135,9 @@ static bool counters_changed(void) {
 }
 
 static void write_record(uint8_t kind, uint8_t flags, const char *module, const char *suite, const char *name) {
-    if (!records || !scratch) return;
+    if (!records || !scratch || !scratch_deltas) return;
     if (kind == kRecordGap && !counters_changed()) return;
-    uint8_t header[4] = {kind, flags, 0, 0};
+    uint8_t header[4] = {kind, flags, kRecordVersion, 0};
     fwrite(header, 1, sizeof header, records);
     write_string(module);
     write_string(suite);
@@ -146,13 +151,17 @@ static void write_record(uint8_t kind, uint8_t flags, const char *module, const 
         const uint64_t *s = images[i].snapshot;
         uint32_t count = 0;
         for (size_t w = 0; w < words; w++) {
-            if (c[w] != s[w]) scratch[count++] = (uint32_t)w;
+            if (c[w] != s[w]) {
+                scratch[count] = (uint32_t)w;
+                scratch_deltas[count++] = c[w] - s[w];
+            }
         }
         if (count == 0) continue;
         uint32_t index = i;
         fwrite(&index, sizeof index, 1, records);
         fwrite(&count, sizeof count, 1, records);
         fwrite(scratch, sizeof(uint32_t), count, records);
+        fwrite(scratch_deltas, sizeof(uint64_t), count, records);
         touched_images++;
     }
     if (touched_images) {

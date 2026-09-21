@@ -128,10 +128,16 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             }
 
             var filesByFunction: [String: [String: Set<String>]] = [:]
+            var mappings: [String: VerifiedCoverageMapping] = [:]
+            let profileCounts = await profileCounts(profile: profile)
             for image in Set(outputs.flatMap { $0.images.values.map(\.path) }) {
-                filesByFunction[image] = await self.filesByFunction(image: image, profile: profile)
+                let table = await lcovTable(image: image, profile: profile)
+                filesByFunction[image] = table.filesByFunction
+                if let mapping = CoverageMapping(imagePath: image) {
+                    mappings[image] = VerifiedCoverageMapping(mapping: mapping, report: table, profileCounts: profileCounts)
+                }
             }
-            let evidence = Self.reduce(outputs: outputs, filesByFunction: filesByFunction)
+            let evidence = Self.reduce(outputs: outputs, filesByFunction: filesByFunction, mappings: mappings)
             guard !evidence.scopes.isEmpty else { return nil }
             try evidence.write(toResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))
             return evidence
@@ -148,7 +154,8 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
     /// everything its processes executed, overlapped tests included.
     static func reduce(
         outputs: [CoverageObserverOutput],
-        filesByFunction: [String: [String: Set<String>]]
+        filesByFunction: [String: [String: Set<String>]],
+        mappings: [String: VerifiedCoverageMapping] = [:]
     ) -> TestCoverageEvidence {
         struct Key: Hashable {
             let kind: TestCoverageEvidence.Kind
@@ -157,10 +164,19 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             let name: String
         }
         var files: [Key: Set<String>] = [:]
+        var lines: [Key: [String: IndexSet]] = [:]
         var overlapped: Set<Key> = []
+
+        func add(_ recordFiles: Set<String>, _ recordLines: [String: IndexSet], to key: Key) {
+            files[key, default: []].formUnion(recordFiles)
+            for (path, covered) in recordLines {
+                lines[key, default: [:]][path, default: IndexSet()].formUnion(covered)
+            }
+        }
 
         for output in outputs {
             for record in output.records {
+                let recordLines = output.lines(of: record, mappings: mappings)
                 var recordFiles: Set<String> = []
                 for (image, functions) in output.functions(of: record) {
                     guard let table = filesByFunction[image] else { continue }
@@ -169,20 +185,19 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                     }
                 }
                 if !record.module.isEmpty {
-                    files[Key(kind: .target, module: record.module, suite: "", name: ""), default: []].formUnion(recordFiles)
+                    add(recordFiles, recordLines, to: Key(kind: .target, module: record.module, suite: "", name: ""))
                 }
                 switch record.kind {
                 case .gap:
                     guard !record.suite.isEmpty else { continue }
-                    files[Key(kind: .suite, module: record.module, suite: record.suite, name: ""), default: []]
-                        .formUnion(recordFiles)
+                    add(recordFiles, recordLines, to: Key(kind: .suite, module: record.module, suite: record.suite, name: ""))
                 case .xctest, .swiftTesting:
                     let name = record.kind == .xctest ? testName(xctestSelector: record.name) : record.name
                     let key = Key(kind: .test, module: record.module, suite: record.suite, name: name)
                     if record.overlapped {
                         overlapped.insert(key)
                     } else {
-                        files[key, default: []].formUnion(recordFiles)
+                        add(recordFiles, recordLines, to: key)
                     }
                 }
             }
@@ -194,9 +209,14 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         let scopes = files
             .filter { !$0.value.isEmpty }
             .map { key, value in
-                TestCoverageEvidence.Scope(
+                let scopeFiles = value.sorted()
+                let scopeLines = lines[key] ?? [:]
+                return TestCoverageEvidence.Scope(
                     kind: key.kind, module: key.module, suite: key.suite, name: key.name,
-                    files: value.compactMap { indexByPath[$0] }.sorted()
+                    files: scopeFiles.compactMap { indexByPath[$0] },
+                    lines: scopeLines.isEmpty ? nil : scopeFiles.map {
+                        TestCoverageEvidence.Scope.ranges(of: scopeLines[$0] ?? IndexSet())
+                    }
                 )
             }
             .sorted { ($0.module, $0.suite, $0.name, $0.kind.rawValue) < ($1.module, $1.suite, $1.name, $1.kind.rawValue) }
@@ -214,18 +234,22 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
         return name.hasSuffix("()") ? name : name + "()"
     }
 
-    /// Reads LCOV a line at a time: `SF:<file>` opens a file's section and `FN:<line>,<function>`
-    /// lists a function of it, under the name the profile data refers to it by. The per-line
-    /// records, the bulk of the output, are dropped as they go by.
+    /// Reads LCOV a line at a time: `SF:<file>` opens a file's section, `FN:<line>,<function>`
+    /// lists a function of it, under the name the profile data refers to it by, and
+    /// `DA:<line>,<count>` an executable line. The rest is dropped as it goes by.
     struct LCOVFunctionTable {
         private(set) var filesByFunction: [String: Set<String>] = [:]
+        /// Per file, the executable lines and those that ran, as `llvm-cov` reports them.
+        private(set) var executableLines: [String: IndexSet] = [:]
+        private(set) var coveredLines: [String: IndexSet] = [:]
         private var file: String?
 
         /// Whether a line is one of the two kinds kept, told from its bytes so the rest (one line
         /// per executable line of the image) is never decoded.
         static func reads(_ line: [UInt8]) -> Bool {
             line.count > 3 && line[2] == 0x3A
-                && ((line[0] == 0x53 && line[1] == 0x46) || (line[0] == 0x46 && line[1] == 0x4E))
+                && ((line[0] == 0x53 && line[1] == 0x46) || (line[0] == 0x46 && line[1] == 0x4E)
+                    || (line[0] == 0x44 && line[1] == 0x41))
         }
 
         mutating func read(_ line: Substring) {
@@ -233,15 +257,20 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 file = String(line.dropFirst(3))
             } else if line.hasPrefix("FN:"), let file, let comma = line.firstIndex(of: ",") {
                 filesByFunction[String(line[line.index(after: comma)...]), default: []].insert(file)
+            } else if line.hasPrefix("DA:"), let file {
+                let fields = line.dropFirst(3).split(separator: ",", maxSplits: 2)
+                guard fields.count >= 2, let number = Int(fields[0]) else { return }
+                executableLines[file, default: IndexSet()].insert(number)
+                if fields[1] != "0" { coveredLines[file, default: IndexSet()].insert(number) }
             }
         }
     }
 
     // MARK: - Tools and files
 
-    private func filesByFunction(image: String, profile: AbsolutePath) async -> [String: Set<String>] {
+    private func lcovTable(image: String, profile: AbsolutePath) async -> LCOVFunctionTable {
+        var table = LCOVFunctionTable()
         do {
-            var table = LCOVFunctionTable()
             // Split on bytes: a chunk may end inside a multibyte character of a path. Dependency
             // checkouts are left out at the source: Git cannot vouch for them, so they never
             // become evidence, and they are most of a statically linked test bundle.
@@ -265,11 +294,47 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
                 pending += bytes[lineStart...]
             }
             table.read(Substring(String(decoding: pending, as: UTF8.self)))
-            return table.filesByFunction
         } catch {
             Logger.current.debug("llvm-cov could not read \(image): \(error.localizedDescription)")
+        }
+        return table
+    }
+
+    /// The run's counter values per function, from the merged profile as text: what the decoded
+    /// coverage mapping is checked with against `llvm-cov`'s report of the same profile.
+    private func profileCounts(profile: AbsolutePath) async -> [CoverageMapping.FunctionKey: [UInt64]] {
+        do {
+            let text = try await commandRunner
+                .run(arguments: ["/usr/bin/xcrun", "llvm-profdata", "merge", "--text", profile.pathString, "-o", "-"])
+                .concatenatedString()
+            return Self.profileCounts(text: text)
+        } catch {
+            Logger.current.debug("llvm-profdata could not read \(profile.pathString): \(error.localizedDescription)")
             return [:]
         }
+    }
+
+    /// A text profile lists each function as its name, `# Func Hash:` and the hash, `# Num
+    /// Counters:` and how many, `# Counter Values:` and one value per line.
+    static func profileCounts(text: String) -> [CoverageMapping.FunctionKey: [UInt64]] {
+        var result: [CoverageMapping.FunctionKey: [UInt64]] = [:]
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        var index = 0
+        while index + 5 < lines.count {
+            guard lines[index + 1].hasPrefix("# Func Hash:"), let hash = UInt64(lines[index + 2]),
+                  lines[index + 3].hasPrefix("# Num Counters:"), let count = Int(lines[index + 4]),
+                  index + 5 + count < lines.count
+            else {
+                index += 1
+                continue
+            }
+            let key = CoverageMapping.FunctionKey(
+                reference: CoverageObserverOutput.nameReference(String(lines[index])), hash: hash
+            )
+            result[key] = lines[(index + 6) ..< (index + 6 + count)].map { UInt64($0) ?? 0 }
+            index += 6 + count
+        }
+        return result
     }
 
     /// Xcode merges a run's profiles into `Build/ProfileData/<device>/Coverage.profdata`; the

@@ -602,6 +602,7 @@ extension TestSummary {
                     .init(
                         files: $0.files,
                         kind: .init(rawValue: $0.kind.rawValue) ?? .target,
+                        lines: $0.lines,
                         module: $0.module,
                         name: $0.name,
                         suite: $0.suite

@@ -19,12 +19,17 @@ struct CoverageObserverOutput {
         var name: String
         /// Counter indices per image index.
         var counters: [Int: [UInt32]]
+        /// How much each of `counters` moved, in the same order; empty for an observer that
+        /// does not report it.
+        var deltas: [Int: [UInt64]] = [:]
     }
 
     struct Image {
         var path: String
         /// The function each counter belongs to, by counter index; nil where no record claims it.
         var functionByCounter: [String?]
+        /// The counters each function owns, ascending by first counter.
+        var functions: [FunctionCounters] = []
     }
 
     var images: [Int: Image]
@@ -48,15 +53,15 @@ struct CoverageObserverOutput {
             else { continue }
             let data = try Data(contentsOf: directory.appendingPathComponent("\(index).data"))
             let names = (try? Data(contentsOf: directory.appendingPathComponent("\(index).names"))) ?? Data()
+            let functions = Self.functionCounters(
+                data: data, dataAddress: dataAddress, countersAddress: countersAddress, countersSize: countersSize
+            )
             images[index] = Image(
                 path: String(fields[4]),
                 functionByCounter: Self.functionByCounter(
-                    data: data,
-                    names: Self.parseNames(names),
-                    dataAddress: dataAddress,
-                    countersAddress: countersAddress,
-                    countersSize: countersSize
-                )
+                    functions: functions, names: Self.parseNames(names), countersSize: countersSize
+                ),
+                functions: functions.sorted { $0.first < $1.first }
             )
         }
         self.images = images
@@ -85,11 +90,12 @@ struct CoverageObserverOutput {
         var reader = ByteReader(data)
         var records: [Record] = []
         while !reader.isAtEnd {
-            guard let kindByte = reader.u8(), let flags = reader.u8(), reader.u8() != nil, reader.u8() != nil,
+            guard let kindByte = reader.u8(), let flags = reader.u8(), let version = reader.u8(), reader.u8() != nil,
                   let module = reader.string(), let suite = reader.string(), let name = reader.string(),
                   let imageCount = reader.u32()
             else { break }
             var counters: [Int: [UInt32]] = [:]
+            var deltas: [Int: [UInt64]] = [:]
             var complete = true
             for _ in 0 ..< imageCount {
                 guard let index = reader.u32(), let count = reader.u32(), let indices = reader.u32Array(Int(count)) else {
@@ -97,10 +103,18 @@ struct CoverageObserverOutput {
                     break
                 }
                 counters[Int(index)] = indices
+                if version >= 1 {
+                    guard let moved = reader.u64Array(Int(count)) else {
+                        complete = false
+                        break
+                    }
+                    deltas[Int(index)] = moved
+                }
             }
             guard complete, let kind = RecordKind(rawValue: kindByte) else { break }
             records.append(Record(
-                kind: kind, overlapped: flags & 1 == 1, module: module, suite: suite, name: name, counters: counters
+                kind: kind, overlapped: flags & 1 == 1, module: module, suite: suite, name: name, counters: counters,
+                deltas: deltas
             ))
         }
         return records
@@ -134,32 +148,34 @@ struct CoverageObserverOutput {
         return digest.prefix(8).enumerated().reduce(UInt64(0)) { $0 | UInt64($1.element) << (8 * UInt64($1.offset)) }
     }
 
+    /// The counters one function owns: `count` of them from `first`, in the image's counters
+    /// section. `reference` and `hash` are what the coverage mapping knows the function by.
+    struct FunctionCounters: Equatable {
+        var reference: UInt64
+        var hash: UInt64
+        var first: Int
+        var count: Int
+    }
+
     /// `__llvm_prf_data` is an array of fixed-size records: `u64 NameRef, u64 FuncHash,
     /// iptr CounterPtr, …, u32 NumCounters` at a layout that changed across LLVM versions (a
     /// bitmap pointer was added, and the counter pointer became relative to the record). Each
     /// known layout is tried and the one whose records land inside the counters section wins.
-    static func functionByCounter(
+    static func functionCounters(
         data: Data,
-        names: [String],
         dataAddress: UInt64,
         countersAddress: UInt64,
         countersSize: Int
-    ) -> [String?] {
+    ) -> [FunctionCounters] {
         let totalCounters = countersSize / 8
-        var byReference: [UInt64: String] = [:]
-        for name in names {
-            byReference[nameReference(name)] = name
-        }
-
         let layouts: [(recordSize: Int, countOffset: Int)] = [(64, 48), (56, 40), (48, 40)]
         for layout in layouts where data.count % layout.recordSize == 0 && !data.isEmpty {
             for relative in [true, false] {
-                var result: [String?] = Array(repeating: nil, count: totalCounters)
+                var result: [FunctionCounters] = []
                 var claimed = 0
                 var valid = true
                 for record in 0 ..< data.count / layout.recordSize {
                     let offset = record * layout.recordSize
-                    let reference: UInt64 = data.load(at: offset)
                     let counterPointer = Int64(bitPattern: data.load(at: offset + 16) as UInt64)
                     let count = Int(data.load(at: offset + layout.countOffset) as UInt32)
                     if count == 0, counterPointer == 0 { continue }
@@ -170,28 +186,42 @@ struct CoverageObserverOutput {
                     guard distance >= 0, distance % 8 == 0, count <= 1 << 24 else { valid = false; break }
                     let first = Int(distance / 8)
                     guard first + count <= totalCounters else { valid = false; break }
-                    let name = byReference[reference]
-                    for counter in first ..< first + count {
-                        result[counter] = name
-                    }
+                    result.append(FunctionCounters(
+                        reference: data.load(at: offset), hash: data.load(at: offset + 8), first: first, count: count
+                    ))
                     claimed += count
                 }
                 if valid, claimed > 0, claimed * 2 >= totalCounters { return result }
             }
         }
-        return Array(repeating: nil, count: totalCounters)
+        return []
+    }
+
+    static func functionByCounter(functions: [FunctionCounters], names: [String], countersSize: Int) -> [String?] {
+        var byReference: [UInt64: String] = [:]
+        for name in names {
+            byReference[nameReference(name)] = name
+        }
+        var result: [String?] = Array(repeating: nil, count: countersSize / 8)
+        for function in functions {
+            let name = byReference[function.reference]
+            for counter in function.first ..< function.first + function.count {
+                result[counter] = name
+            }
+        }
+        return result
     }
 
     /// zlib stream (two header bytes, then raw DEFLATE, which is what Foundation inflates).
-    private static func inflate(_ data: Data) -> Data? {
+    static func inflate(_ data: Data) -> Data? {
         guard data.count > 2 else { return nil }
         return try? (data.dropFirst(2) as NSData).decompressed(using: .zlib) as Data
     }
 }
 
-private struct ByteReader {
+struct ByteReader {
     private let data: Data
-    private var position: Int
+    private(set) var position: Int
 
     init(_ data: Data) {
         self.data = data
@@ -215,6 +245,12 @@ private struct ByteReader {
     mutating func u32Array(_ count: Int) -> [UInt32]? {
         guard count >= 0, position + count * 4 <= data.endIndex else { return nil }
         return (0 ..< count).compactMap { _ in u32() }
+    }
+
+    mutating func u64Array(_ count: Int) -> [UInt64]? {
+        guard count >= 0, position + count * 8 <= data.endIndex else { return nil }
+        defer { position += count * 8 }
+        return (0 ..< count).map { data.load(at: position - data.startIndex + $0 * 8) }
     }
 
     mutating func bytes(_ count: Int) -> Data? {
@@ -242,7 +278,7 @@ private struct ByteReader {
 }
 
 extension Data {
-    fileprivate func load<T: FixedWidthInteger>(at offset: Int) -> T {
+    func load<T: FixedWidthInteger>(at offset: Int) -> T {
         var value: T = 0
         let start = startIndex + offset
         guard offset >= 0, start + MemoryLayout<T>.size <= endIndex else { return 0 }

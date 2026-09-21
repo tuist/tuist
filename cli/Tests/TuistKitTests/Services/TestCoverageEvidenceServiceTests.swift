@@ -92,12 +92,15 @@ struct TestCoverageEvidenceServiceTests {
         }
 
         #expect(table.filesByFunction == ["add": ["/src/Math.swift", "/src/Shared.h"], "a,b": ["/src/Shared.h"]])
+        #expect(table.executableLines == ["/src/Math.swift": IndexSet([2])])
+        #expect(table.coveredLines == ["/src/Math.swift": IndexSet([2])])
         for (line, kept) in [
             ("SF:/src/Math.swift", true),
             ("FN:2,add", true),
             ("FNDA:1,add", false),
             ("FNF:3", false),
-            ("DA:2,1", false),
+            ("DA:2,1", true),
+            ("LF:3", false),
             ("FN:", false),
         ] {
             #expect(TestCoverageEvidenceService.LCOVFunctionTable.reads(Array(line.utf8)) == kept)

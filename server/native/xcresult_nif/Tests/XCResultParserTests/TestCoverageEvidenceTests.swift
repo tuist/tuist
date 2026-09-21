@@ -31,6 +31,24 @@ struct TestCoverageEvidenceTests {
         ))
     }
 
+    @Test func keepsEachFilesLinesAndMergesThoseOfOneFileUnderTwoSpellings() {
+        let evidence = TestCoverageEvidence(
+            paths: evidence.paths,
+            scopes: [.init(
+                kind: .test, module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0, 1, 2, 4],
+                lines: [[3, 5], [5, 6, 9, 9], [1, 1], []]
+            )]
+        )
+
+        #expect(evidence.inRepository(manifest: manifest).scopes == [
+            .init(
+                kind: .test, module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0, 1],
+                lines: [[3, 6, 9, 9], []]
+            ),
+        ])
+        #expect(TestCoverageEvidence.Scope.lines(ofRanges: [3, 5, 9, 9, 7]) == IndexSet([3, 4, 5, 9]))
+    }
+
     @Test func reachesTheSummaryOnlyWithTheManifestBesideIt() throws {
         let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
