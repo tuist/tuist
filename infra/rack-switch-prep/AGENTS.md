@@ -84,6 +84,13 @@ where the key is used, which meant a rejected ed25519 key surfaced with remote
 hands already holding the cable. `--dry-run --import-key <key>` is now a
 complete preflight worth running before anyone travels.
 
+The general form is worth keeping when anything else is added here: **validate
+what is cheaply knowable before doing what is expensive, and weight "expensive"
+by who pays for it.** A wasted second on the author's laptop and a wasted trip
+to a datacentre are the same code path with very different costs, and the only
+way to see the difference while writing it is to ask where the procedure will
+actually run.
+
 ## Hardware facts worth keeping
 
 - The console runs at **38400 8N1**, not the 115200 these usually default to.
