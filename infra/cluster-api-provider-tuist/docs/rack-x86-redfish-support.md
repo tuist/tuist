@@ -1,8 +1,38 @@
 # Design: Redfish out-of-band management for rack x86, single-board pilot
 
-Status: pilot spec. Nothing has been ordered and no rack hardware was touched.
-Every price below is a snapshot, dated and sourced. The pilot is one board on a
-bench, and its output is a set of answers, not a deployment.
+Status: pilot spec, **deferred and re-targeted 2026-09-21**. Nothing has been
+ordered and no rack hardware was touched. Every price below is a snapshot,
+dated and sourced.
+
+**Decision (Marek, 2026-09-21): do not buy a dedicated bench board. Buy this
+build as `ber1-store-b` instead, when that node is bought (~November, before
+the Scaleway warm-standby retirement).**
+
+The spec below is unchanged and still describes what the pilot must answer and
+how. What changed is the hardware it runs on, and the reason is cost per
+answer. A bench board is 2,056.58 EUR for a machine the rack does not otherwise
+need. `store-b` is a machine the rack needs anyway, so the same board, CPU, PSU
+and case cost **222.03 EUR more than the MS-01 it replaces** with non-ECC
+memory, or 1,456.37 EUR more with ECC. Either is less than the bench board, and
+one of them is an order of magnitude less. See "Costed against the MS-01" below.
+
+Consequences to hold onto, because this is the cheaper option and not the
+free one:
+
+- **Bench it before it is racked.** The one property the bench board had that
+  `store-b` does not is that nothing in Berlin was at risk. Several pilot
+  questions can require a CMOS clear. Every destructive question in the list
+  below must be answered while the box is still on a desk, before it holds
+  anything, which is the same doctrine the AMISCE plan uses.
+- **Answers arrive in November, not now.** If a BER2 or hardware decision needs
+  them sooner, that is what this defers.
+- **It re-introduces the asymmetric pair.** `store-a` stays an MS-01, so the
+  rf=2 pair is two platforms, and BER1 runs two spares pools rather than the
+  four-identical-boxes property the rack was designed around. The already-paid
+  racknex kit also stays half-empty.
+- **The "nothing is wasted" property survives, and improves.** If BIOS
+  attributes turn out to be absent or read-only, the money bought a working
+  storage node rather than a dev box.
 
 ## The question this pilot exists to answer
 
@@ -230,10 +260,48 @@ broadly stocked. No line looked at risk of a multi-week wait on 2026-09-21, but
 re-check the board and CPU at order time.
 
 **Buy the board that would be standardised on, not a representative sample.**
-Same price either way. If the pilot succeeds this unit becomes `ber1-svc` or
-`ber1-edge` later; if it fails it is a dev box with ECC and 10 GbE. Nothing is
-wasted in either branch, which is the main reason this is worth doing now
-rather than at BER2 under time pressure.
+Same price either way, and under the 2026-09-21 decision this unit is
+`ber1-store-b` rather than a bench board, so it is the standard part by
+construction.
+
+## Costed against the MS-01 it replaces
+
+`store-b` was planned as a fourth MS-01. All prices Geizhals 2026-09-21 except
+the barebone, which Minisforum sells direct and which is a 2026-09-12 figure
+worth re-checking before ordering.
+
+Two lines are identical either way and cancel out of the decision: the PM9A3
+7.68 TB U.2 (3,520.40 EUR) and the 990 Pro 1 TB boot drive (203.90 EUR),
+3,724.30 EUR together. Everything below is the machine around them.
+
+| | MS-01 | this build, ECC | this build, non-ECC |
+|---|---|---|---|
+| Barebone, or board + CPU + cooler | 709.00 | 596.15 | 596.15 |
+| 64 GB memory | 858.00 (SO-DIMM) | 2,172.34 (ECC UDIMM) | 938.00 (UDIMM) |
+| PSU | incl. | 104.89 | 104.89 |
+| Chassis / rack mount | 0 (racknex kit already bought) | 124.99 | 124.99 |
+| U.2 carrier | 0 (own bay) | ~25.00 (PCIe to SFF-8643) | ~25.00 |
+| Machine subtotal | **1,567.00** | **3,023.37** | **1,789.03** |
+| Total with both drives | **5,291.30** | **6,747.67** | **5,513.33** |
+| Delta | | **+1,456.37** | **+222.03** |
+
+**Ninety percent of the ECC premium is memory, not platform.** Strip memory out
+and this build is 851.03 EUR against 709.00 EUR for an MS-01 barebone, so the
+machine itself is **142.03 EUR** dearer. The remaining 1,314.34 EUR is the DRAM
+supercycle taxing ECC UDIMM at 33.94 EUR/GB against 13.41 EUR/GB for SO-DIMM.
+
+**Open question for the November order: ECC or not.** The ECC requirement for
+this role was retired when content-hashing of the volume plane merged
+(PR #13190, 2026-09-16), and the data is a reconstructible cache, so non-ECC is
+defensible and saves 1,234.34 EUR. Against that, ECC UDIMM with EDAC counters
+is one of the two reasons this board class was picked at all, and dropping it
+leaves only the BMC. Decide it when the order is placed, not here.
+
+**Nothing from the MS-01 fleet offsets this.** The 990 Pro and the PM9A3 carry
+over and are already counted as the common lines above. Nothing else does: the
+MS-01 takes DDR5 **SO-DIMM** and this board takes **288-pin UDIMM**, which
+cannot mate, and the barebone and racknex kit are chassis-specific. So the
+delta above is already the reuse-maximised figure.
 
 ## Deliverable 2: the question list
 
@@ -563,9 +631,12 @@ BER2 trigger as everything else here.
 
 ## Practical: where the board lives
 
-- **On a bench, not in the rack.** The pilot includes experiments that can
-  require a CMOS clear, and the whole point of doing this on a spare board is
-  that nothing in Berlin is at risk. No rack hardware is touched.
+- **On a bench first, and racked only afterwards.** The pilot includes
+  experiments that can require a CMOS clear. Under the 2026-09-21 decision this
+  board is `ber1-store-b` rather than a spare, so "nothing in Berlin is at
+  risk" is no longer free: it holds only for as long as the box is still on a
+  desk. Answer every destructive question before it is racked and before it
+  holds anything. No existing rack hardware is touched either way.
 - **Powered from a normal wall outlet**, ideally through a switched plug so the
   Q3a mains-loss test is a command rather than a trip to the socket. The
   existing `shelly` driver is exactly this and already works, which makes the
