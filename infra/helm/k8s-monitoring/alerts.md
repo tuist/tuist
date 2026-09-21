@@ -835,12 +835,59 @@ an earlier version of this note claimed. Two distinct populations show up:
   `0.0.0.0/0` for exactly that reason, while `http` has no equivalent escape hatch
   beyond per-instance `ClientCIDRs`.
 
-  On 2026-09-21 a rollout burst on one kura-fleet node held the condition for
-  ~10 to 11 minutes at 0.07 to 0.11 packets/s, top of the benign band, and just
-  cleared what was then a 10-minute pending period. The bump to 20 keeps the
-  "duration discriminates" principle: real episodes last 30 minutes to 6 hours,
-  so 20 still catches every one, at the cost of 10 more minutes of detection lag
-  on the shortest variant.
+  On 2026-09-21 a burst on `tuist-tuist-kura-fleet-6vx2l-plpvc` held the
+  condition for ~10 to 11 minutes at 0.07 to 0.11 packets/s, top of the benign
+  band, and just cleared what was then a 10-minute pending period. The bump to
+  20 keeps the "duration discriminates" principle: real episodes last 30 minutes
+  to 6 hours, so 20 still catches every one, at the cost of 10 more minutes of
+  detection lag on the shortest variant. This is a tolerance patch — the
+  underlying mechanism is still not fully proven, and the bump only buys margin
+  above the benign band as we currently observe it.
+
+  Two candidate mechanisms surfaced while investigating 2026-09-21 and are not
+  yet distinguished by evidence: (a) `sampleRuntimeStatuses` in the kura
+  controller (`infra/kura-controller/controllers/kurainstance_controller.go`
+  around line 2259) polls `/status/rollout` on every kura pod every reconcile,
+  including not-ready pods, and a freshly-rolled controller pod sweeps every
+  instance at startup; (b) a brand-new tenant StatefulSet is provisioned and
+  its client sees drops during whatever CIDR/identity propagation window is
+  actually at play. In this incident a brand-new `kura-acorns-scw-fr-par-0/1`
+  landed on the firing node in the same minute the burst started (pod AGE 36m
+  at t = 36m past burst start), so (b) is not just a hypothesis. The runbook's
+  earlier speculation about a Cilium destination-side policy warmup does not
+  hold: the CNI plugin performs a synchronous endpoint build and waits for the
+  first regeneration before returning, so the container cannot receive traffic
+  before its ingress policy datapath exists.
+
+  A ReadinessGate on the pod spec is NOT the fix, for two reasons. Cilium 1.18
+  does not publish a Kubernetes `PodCondition` any ReadinessGate could gate on
+  — the `endpointStatus` flag was removed in 1.16 and the chart rejects it.
+  And the headless Service on line 627 sets `publishNotReadyAddresses: true`
+  (as does the account peer Service on line 648), so a Ready gate would not
+  hold peer/discovery traffic out of the endpoint slice even if the condition
+  existed.
+
+  The block on doing better than this tolerance patch is an observability gap:
+  `hubble_drop_total{cluster="tuist-production"}` currently reports only
+  `reason="UNSUPPORTED_L3_PROTOCOL"` — Policy denied drops do not appear at
+  all, so we cannot attribute the source of the packets during a burst. Until
+  hubble is emitting Policy denied with source/destination labels, treat any
+  fire as an unknown and go to the observation plan below rather than blaming
+  a specific mechanism.
+
+  Observation plan for the next burst: pin the affected node from the alert
+  labels; on the destination Cilium agent (`kubectl -n kube-system exec
+  cilium-<pod-on-node> -- cilium bpf policy get <endpoint-id>` and
+  `cilium endpoint list --output json`) capture endpoint identity and policy
+  map state at the moment of the burst; on the same node, snapshot pod ages
+  (`kubectl get pods -n kura --field-selector=spec.nodeName=<node> -o wide`)
+  to identify any StatefulSet that came up inside the burst window; snapshot
+  kura-controller ReplicaSet ages (`kubectl get pods -n kura -l
+  app.kubernetes.io/name=kura-controller -o wide`) to identify a concurrent
+  controller rollout; grab the affected kura pod's live NetworkPolicy
+  (`kubectl -n kura get networkpolicy <name> -o yaml`) so `namespaceSelector`
+  and `ipBlock` rules can be diffed against the actual source of the dropped
+  packets. The Hubble visibility gap is worth closing in its own PR.
 - **Sustained episodes, 0.8 to 5 packets/s, lasting 30 minutes to 6 hours.** These
   are the real thing and the rule *should* page on them. Treat a firing alert as a
   genuine mis-sourced host, not as noise. The impact is now measured rather than
