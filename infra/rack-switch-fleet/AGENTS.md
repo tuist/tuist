@@ -173,10 +173,40 @@ out to be the stronger argument. Both are managed, so both keep a link to
 `ber1-mgmt`; the PDU also speaks a REST API, which is what a power driver should
 target, and that is recorded on the hardware rather than left to memory.
 
-What is deliberately not modelled yet is which outlet feeds which node. Three
-transfer switches and two PDUs mean there is a chain structure under the
-outlets, and inventing one would repeat the mistake this port map exists to fix.
-When it is recorded it should carry the same A/B property as the ToR split.
+### Outlets are not modelled here, because they already are somewhere else
+
+Which outlet feeds which node is deliberately absent, and not for want of a
+source. It belongs to another system:
+[`RackHost`](../cluster-api-provider-tuist/AGENTS.md) carries a `power` block of
+driver, host and outlet, rendered from `rackFleet.hosts[].power` in
+`infra/helm/tuist/values-managed-*.yaml` by
+`infra/helm/tuist/templates/rack-fleet.yaml`, and the CAPI provider reads it to
+power-cycle a wedged host through `internal/power`. A Mac mini's outlet is
+recorded there today.
+
+So the question has an answer, and answering it again here would create a second
+one. That matters more than a gap would: an acknowledged gap eventually gets
+filled, and filling this one would leave two places to look and two chances to
+disagree.
+
+Two things follow. `internal/power` ships only a `shelly` driver, a prototype
+stand-in, so the rack's Eaton PDUs have none yet and a wedged mini in the colo
+has no remote recovery at all until they do. And whoever extends the chart side
+should carry the A/B property across: a mini's outlet and its ToR should not
+both land on the same side, or the split that the storage pair and the power
+feeds already keep is quietly undone for compute.
+
+### The seam between two inventories
+
+This file's site definition and `rackFleet.hosts` describe overlapping things.
+This one owns switches, cabling and appliances; that one owns the Mac minis with
+their serials, addresses, rack positions and outlets. A mini therefore appears
+in both when it is racked, as a link here and as a host there.
+
+That is tolerable while one covers the network and the other covers compute
+lifecycle, and it is written down here so it is a known seam rather than a
+surprise. It is not something to fix by merging them, least of all under time
+pressure.
 
 ToR B also carries a spare LR optic, pre-provisioned so WAN failover is a matter
 of moving the LC jumper rather than sourcing hardware. Its port is not recorded
