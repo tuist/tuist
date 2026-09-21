@@ -5,7 +5,8 @@ use std::path::PathBuf;
 // Override the directory with TUIST_EMBED_LIB_DIR; defaults to `<repo>/.build/<profile>`.
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let swift_config = env::var("TUIST_EMBED_SWIFT_CONFIGURATION").unwrap_or_else(|_| "debug".into());
+    let swift_config =
+        env::var("TUIST_EMBED_SWIFT_CONFIGURATION").unwrap_or_else(|_| "debug".into());
     let lib_dir = env::var("TUIST_EMBED_LIB_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| manifest_dir.join("..").join(".build").join(&swift_config));

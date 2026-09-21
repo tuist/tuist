@@ -65,18 +65,17 @@ fn default_true() -> bool {
 pub fn build_cli() -> Cli {
     let spec: Spec = serde_json::from_str(SPEC_JSON).expect("checked-in spec is valid JSON");
     let root = spec.command;
-    let mut cli = Cli::create(root.command_name.clone())
-        .root(
-            CommandDef::build(root.command_name.clone(), SwiftCommand)
-                .description(root.summary.clone().unwrap_or_default())
-                .raw()
-                .hidden()
-                .done(),
-        );
+    let mut cli = Cli::create(root.command_name.clone()).root(
+        CommandDef::build(root.command_name.clone(), SwiftCommand)
+            .description(root.summary.clone().unwrap_or_default())
+            .raw()
+            .hidden()
+            .done(),
+    );
     if let Some(summary) = &root.summary {
         cli = cli.description(summary.clone());
     }
-    add_subcommands(cli, &root, &[root.command_name.clone()], true)
+    add_subcommands(cli, &root, std::slice::from_ref(&root.command_name), true)
 }
 
 fn add_subcommands(mut cli: Cli, parent: &SpecCommand, path: &[String], visible: bool) -> Cli {
@@ -85,7 +84,10 @@ fn add_subcommands(mut cli: Cli, parent: &SpecCommand, path: &[String], visible:
         command_path.push(command.command_name.clone());
         let visible = visible && command.should_display;
         if command.subcommands.is_empty() {
-            cli = cli.command(command.command_name.clone(), leaf(command, &command_path, visible));
+            cli = cli.command(
+                command.command_name.clone(),
+                leaf(command, &command_path, visible),
+            );
         } else {
             let mut group = Cli::create(command.command_name.clone());
             if let Some(summary) = &command.summary {
@@ -123,9 +125,20 @@ fn usage(command: &SpecCommand, path: &[String]) -> String {
         .iter()
         .filter(|argument| argument.kind == "positional")
         .map(|argument| {
-            let name = argument.value_name.clone().unwrap_or_else(|| "value".into());
-            let name = if argument.is_repeating { format!("{name}...") } else { name };
-            if argument.is_optional { format!("[<{name}>]") } else { format!("<{name}>") }
+            let name = argument
+                .value_name
+                .clone()
+                .unwrap_or_else(|| "value".into());
+            let name = if argument.is_repeating {
+                format!("{name}...")
+            } else {
+                name
+            };
+            if argument.is_optional {
+                format!("[<{name}>]")
+            } else {
+                format!("<{name}>")
+            }
         })
         .collect();
     let mut lines = vec![format!(

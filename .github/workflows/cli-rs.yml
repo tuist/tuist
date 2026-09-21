@@ -1,0 +1,65 @@
+name: CLI (Rust front end)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cli-rs/**"
+      - "cli/Sources/TuistEmbed/**"
+      - "cli/Sources/TuistCLICore/**"
+      - "cli/Sources/tuist/**"
+      - "Package.swift"
+      - "Package.resolved"
+      - ".github/workflows/cli-rs.yml"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "cli-rs/**"
+      - "cli/Sources/TuistEmbed/**"
+      - "cli/Sources/TuistCLICore/**"
+      - "cli/Sources/tuist/**"
+      - "Package.swift"
+      - "Package.resolved"
+      - ".github/workflows/cli-rs.yml"
+
+permissions:
+  contents: read
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
+
+concurrency:
+  group: cli-rs-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  cli-rs:
+    name: Build, parity, and MCP
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-rs-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-rs-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+      - uses: ./.github/actions/mise
+        with:
+          install_args: rust
+          working_directory: cli-rs
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cli-rs-${{ runner.os }}
+          workspaces: |
+            cli-rs -> target
+      - name: Resolve registry replacements
+        run: swift package resolve --replace-scm-with-registry
+      - name: Build, lint, test, and compare with the Swift CLI
+        run: cli-rs/scripts/ci.sh
