@@ -515,8 +515,9 @@ Configure it with:
 - optional `KURA_ANALYTICS_BATCH_TIMEOUT_MS` default `5000`
 - optional `KURA_ANALYTICS_QUEUE_CAPACITY` default `1000`
 - optional `KURA_ANALYTICS_REQUEST_TIMEOUT_MS` default `5000`, which spans the
-  connect; the connect budget itself is the 3s every Kura client uses, lowered
-  to the request timeout when that is set below it
+  connect; the connect budget itself is the control plane's 3s, shared with
+  Bazel test-artifact delivery and lowered to the request timeout when that is
+  set below it
 - optional `KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD` default `5`
 - optional `KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS` default `30000`
 

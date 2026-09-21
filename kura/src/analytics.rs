@@ -15,7 +15,7 @@ use tokio::{
     sync::mpsc,
     time::{Instant, MissedTickBehavior, interval},
 };
-use tracing::{error, warn};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
@@ -30,28 +30,6 @@ const GRADLE_WEBHOOK_PATH: &str = "/webhooks/gradle-cache";
 const REAPI_CACHE_WEBHOOK_PATH: &str = "/webhooks/reapi-cache";
 const BAZEL_INVOCATIONS_WEBHOOK_PATH: &str = "/webhooks/bazel-invocations";
 const MAX_BAZEL_INVOCATION_BATCH_SIZE: usize = 32;
-
-/// The connect budget for the analytics client, matching every other Kura HTTP
-/// client.
-///
-/// Connect spans DNS, and a node in a region far from the control plane pays a
-/// WAN round trip per lookup plus one for the handshake, so the 500ms this used
-/// to hardcode could not be met from outside the control plane's own region: a
-/// remote node failed every batch at connect while its control-plane client,
-/// pointed at the same host with a 3s budget, kept succeeding.
-fn connect_timeout_ms(request_timeout_ms: u64) -> u64 {
-    let connect_timeout_ms = crate::control_plane_http::CONNECT_TIMEOUT_SECS * 1_000;
-    if connect_timeout_ms < request_timeout_ms {
-        return connect_timeout_ms;
-    }
-
-    // reqwest's request timeout spans the connect, so a budget at or above it
-    // can never be reached and the handshake is given up on early.
-    warn!(
-        "the analytics request timeout ({request_timeout_ms}ms) is not above the {connect_timeout_ms}ms connect budget, which it spans; using {request_timeout_ms}ms for the connect."
-    );
-    request_timeout_ms
-}
 
 #[derive(Clone)]
 pub struct Analytics {
@@ -237,11 +215,7 @@ impl Analytics {
             return Ok(None);
         };
 
-        let client = Client::builder()
-            .connect_timeout(Duration::from_millis(connect_timeout_ms(
-                config.request_timeout_ms,
-            )))
-            .timeout(Duration::from_millis(config.request_timeout_ms))
+        let client = crate::control_plane_http::analytics_client_builder(config.request_timeout_ms)
             .build()
             .map_err(|error| format!("failed to build analytics client: {error}"))?;
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
@@ -918,8 +892,7 @@ mod tests {
     use super::{
         Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent, CircuitBreaker,
         CircuitState, GRADLE_WEBHOOK_PATH, ReapiCacheAnalyticsEvent, analytics_endpoint,
-        classify_reqwest_error, connect_timeout_ms, error_cause_chain, error_result_label, sign,
-        status_result_label,
+        classify_reqwest_error, error_cause_chain, error_result_label, sign, status_result_label,
     };
 
     #[derive(Clone, Debug)]
@@ -1359,29 +1332,6 @@ mod tests {
             analytics_endpoint("https://cache-eu.example.com"),
             "cache-eu.example.com"
         );
-    }
-
-    #[test]
-    fn connect_budget_matches_the_other_kura_clients() {
-        assert_eq!(
-            connect_timeout_ms(5_000),
-            crate::control_plane_http::CONNECT_TIMEOUT_SECS * 1_000,
-            "the analytics connect budget must match the control-plane one; a tighter \
-             budget cannot be met from a region away from the control plane, where \
-             connect spends a WAN round trip per DNS lookup before the handshake"
-        );
-    }
-
-    #[test]
-    fn connect_budget_stays_within_a_shorter_request_timeout() {
-        // reqwest's request timeout spans the connect, so an operator who sets
-        // a request timeout below the connect budget would otherwise get a
-        // budget that can never be reached.
-        let budget = crate::control_plane_http::CONNECT_TIMEOUT_SECS * 1_000;
-        assert_eq!(connect_timeout_ms(1_000), 1_000);
-        assert_eq!(connect_timeout_ms(budget), budget);
-        assert_eq!(connect_timeout_ms(budget - 1), budget - 1);
-        assert_eq!(connect_timeout_ms(budget + 1), budget);
     }
 
     #[test]
