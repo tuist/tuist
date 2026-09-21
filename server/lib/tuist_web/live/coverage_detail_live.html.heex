@@ -266,11 +266,11 @@
             dgettext(
               "dashboard_tests",
               "%{covered} of %{executable} executable lines ran at least once.",
-              covered: format_number((@summary && @summary.covered_lines) || 0),
-              executable: format_number((@summary && @summary.executable_lines) || 0)
+              covered: format_number(displayed_lines(@summary).covered_lines),
+              executable: format_number(displayed_lines(@summary).executable_lines)
             )
           }
-          value={format_number((@summary && @summary.covered_lines) || 0)}
+          value={format_number(displayed_lines(@summary).covered_lines)}
         />
         <.widget
           :if={not diff?(@comparison)}

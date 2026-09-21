@@ -75,7 +75,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         |> Enum.sort()
 
       repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
-      reported = Reported.compute(project, sha, runs: runs, excluded: excluded)
+      reported = project |> Reported.compute(sha, runs: runs, excluded: excluded) |> Map.delete(:files)
 
       row = %{
         project_id: project.id,

@@ -370,6 +370,18 @@ defmodule TuistWeb.Coverage.Components do
   def displayed_coverage(%{reported: %{kind: "reported", coverage: coverage}}), do: coverage
   def displayed_coverage(%{coverage: coverage}), do: coverage
 
+  @doc "The line totals behind `displayed_coverage/1`, from a commit's published summary (nil when there is none)."
+  def displayed_lines(%{
+        reported_kind: "reported",
+        reported_covered_lines: covered,
+        reported_executable_lines: executable
+      }), do: %{covered_lines: covered, executable_lines: executable}
+
+  def displayed_lines(%{covered_lines: covered, executable_lines: executable}),
+    do: %{covered_lines: covered, executable_lines: executable}
+
+  def displayed_lines(_summary), do: %{covered_lines: 0, executable_lines: 0}
+
   @doc "What the page says about a commit some scheme of which only ran selectively."
   def partial_run_title(%{reported: %{kind: "reported"} = reported} = commit) do
     dgettext(

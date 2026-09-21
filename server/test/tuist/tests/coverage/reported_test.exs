@@ -103,7 +103,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account)
     head_run(project, account, head_files())
 
-    assert Reported.compute(project, "head") == %{
+    assert project |> Reported.compute("head") |> Map.delete(:files) == %{
              kind: "reported",
              covered_lines: 5,
              executable_lines: 7,
@@ -204,6 +204,10 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              comparison.commit
 
     assert comparison.total_delta == 0.0
+
+    # Text.swift, which only the skipped test covers, did not fall.
+    assert Enum.reject(comparison.files, &(&1.delta == 0.0)) == []
+    assert Enum.reject(comparison.targets, &(&1.delta == 0.0)) == []
 
     assert %{status: :passed, value: 0.0} =
              Enum.find(

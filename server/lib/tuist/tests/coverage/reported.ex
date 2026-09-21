@@ -98,8 +98,35 @@ defmodule Tuist.Tests.Coverage.Reported do
     result(files, kind, skipped, carried_tests, gap_files, shas)
   end
 
+  @doc """
+  The commit's files with their reported line totals, by path, as
+  `Tuist.Tests.Coverage.Commits.merged_files/3` lists the measured ones: what
+  the comparison reads when the commit's reported coverage is exact, so its
+  targets and files compare as a full run's would. `measured` are the
+  commit's measured files; a file only an ancestor compiled takes its targets
+  from there.
+  """
+  def merged_files(%Project{} = project, sha, measured, opts \\ []) do
+    case compute(project, sha, opts) do
+      %{kind: "reported", files: files} ->
+        by_path = Map.new(measured, &{&1.path, &1})
+
+        files
+        |> Enum.map(fn {path, file} ->
+          by_path
+          |> Map.get(path, %{path: path, targets: Map.get(file, :targets, [])})
+          |> Map.merge(Map.take(file, [:git_blob_id, :covered_lines, :executable_lines]))
+        end)
+        |> Enum.sort_by(& &1.path)
+
+      _ ->
+        measured
+    end
+  end
+
   defp result(files, kind, skipped, carried_tests, gap_files, shas) do
     %{
+      files: files,
       kind: kind,
       covered_lines: files |> Map.values() |> Enum.map(& &1.covered_lines) |> Enum.sum(),
       executable_lines: files |> Map.values() |> Enum.map(& &1.executable_lines) |> Enum.sum(),
@@ -457,6 +484,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
             {Map.put(files, file.path, %{
                git_blob_id: file.git_blob_id,
+               targets: file.targets,
                covered_lines: carried,
                executable_lines: file.executable_lines
              }), if(carried < file.covered_lines, do: gaps + 1, else: gaps)}
