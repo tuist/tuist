@@ -85,11 +85,23 @@ $packages
   shutdown: reboot
   late-commands:
     - curtin in-target --target=/target -- systemctl enable ssh
-    # Ubuntu leaves the first user needing a password for sudo. Fleet machines are
-    # driven over SSH by automation that has a key and no password, so drop the
-    # same NOPASSWD file the Linux self-join relies on.
-    - |
-      printf '%s ALL=(ALL) NOPASSWD:ALL\n' $install_user > /target/etc/sudoers.d/90-$install_user
-    - chmod 440 /target/etc/sudoers.d/90-$install_user
+  # Passwordless sudo is applied by cloud-init on the installed system's first
+  # boot rather than by a late-command in the installer: a late-command that does
+  # not run leaves no trace a non-root account can read, which is exactly the
+  # state it leaves behind when it fails. The marker file makes success visible.
+  user-data:
+    write_files:
+      - path: /etc/sudoers.d/90-$install_user
+        owner: "root:root"
+        permissions: "0440"
+        content: |
+          $install_user ALL=(ALL) NOPASSWD:ALL
+      - path: /etc/tuist-rack-node
+        owner: "root:root"
+        permissions: "0444"
+        content: |
+          node=$node
+          role=$(jq -r '.role' <<<"$entry")
+          built=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 }
