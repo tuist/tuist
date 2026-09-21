@@ -36,6 +36,18 @@ given a partitioning plan, so its box is converted after install by
 pushes a conversion stage into the release-then-reinstall lifecycle the other
 Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 
+A sixth kind for the BER1 rack's **x86** nodes is neither designed nor
+justified yet, because it depends on hardware the rack does not have. The
+rack's MS-01 mini PCs have no BMC, so their firmware settings can only be
+written by an in-band AMI binary that loads an out-of-tree kernel module. On a
+board with a BMC the same job is an authenticated Redfish call.
+`docs/rack-x86-redfish-support.md` specs a one-board bench pilot to find out
+whether that is actually true of the board class we would standardise on, and
+what a `redfish` driver in `internal/power` plus a `RackX86Machine` reusing
+`controllers/linux` would cost. **It is a question, not a plan:** if BIOS
+attributes turn out to be absent or read-only on that firmware, the pilot says
+so and most of the argument for the hardware change goes with it.
+
 ## CRDs
 
 | Kind | Purpose |
@@ -655,6 +667,9 @@ infra/cluster-api-provider-tuist/
 │       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers (the rack's remote reboot)
+│   │   └── redfishprobe/  # PROBE, not a driver, and not registered: does a
+│   │                      # BMC fit behind power.Driver? See
+│   │                      # docs/rack-x86-redfish-support.md
 │   ├── scaleway/     # Scaleway SDK wrapper
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
