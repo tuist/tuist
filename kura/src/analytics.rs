@@ -215,9 +215,7 @@ impl Analytics {
             return Ok(None);
         };
 
-        let client = Client::builder()
-            .connect_timeout(Duration::from_millis(500))
-            .timeout(Duration::from_millis(config.request_timeout_ms))
+        let client = crate::control_plane_http::analytics_client_builder(config.request_timeout_ms)
             .build()
             .map_err(|error| format!("failed to build analytics client: {error}"))?;
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
@@ -893,8 +891,8 @@ mod tests {
 
     use super::{
         Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent, CircuitBreaker,
-        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, classify_reqwest_error,
-        error_cause_chain, error_result_label, sign, status_result_label,
+        CircuitState, GRADLE_WEBHOOK_PATH, ReapiCacheAnalyticsEvent, analytics_endpoint,
+        classify_reqwest_error, error_cause_chain, error_result_label, sign, status_result_label,
     };
 
     #[derive(Clone, Debug)]
@@ -1333,6 +1331,23 @@ mod tests {
         assert_eq!(
             analytics_endpoint("https://cache-eu.example.com"),
             "cache-eu.example.com"
+        );
+    }
+
+    #[test]
+    fn keeps_an_absolute_host_absolute() {
+        // The chart renders the analytics URL in absolute form so a node does
+        // not expand a cluster-local name against every search domain first.
+        // That only helps if the trailing dot survives to the resolver.
+        let url = reqwest::Url::parse(&format!(
+            "{}{}",
+            "http://tuist-tuist-server.tuist.svc.cluster.local.:80", GRADLE_WEBHOOK_PATH
+        ))
+        .expect("an absolute host must parse");
+
+        assert_eq!(
+            url.host_str(),
+            Some("tuist-tuist-server.tuist.svc.cluster.local.")
         );
     }
 
