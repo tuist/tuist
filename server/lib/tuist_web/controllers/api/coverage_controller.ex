@@ -316,6 +316,12 @@ defmodule TuistWeb.API.CoverageController do
             "Ranges of executable lines no test ran, as `[first, last]` pairs; null when the lines are unknown.",
           items: %Schema{type: :array, items: %Schema{type: :integer}}
         },
+        carried_lines: %Schema{
+          type: :array,
+          items: %Schema{type: :integer},
+          description:
+            "On a commit whose skipped tests were all carried forward: the lines that count as covered through a skipped test alone. Their count in `lines` stays 0, since no run of the commit executed them; `covered_lines` and `uncovered_ranges` count them as covered. Empty otherwise."
+        },
         functions: %Schema{
           type: :array,
           items: %Schema{

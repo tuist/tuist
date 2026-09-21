@@ -160,6 +160,12 @@ defmodule Tuist.MCP.Components.Tools.CoverageSchemas do
               "Ranges of executable lines no test ran, as [first, last] pairs; null when the lines are unknown.",
             "items" => %{"type" => "array", "items" => %{"type" => "integer"}}
           },
+          "carried_lines" => %{
+            "type" => "array",
+            "items" => %{"type" => "integer"},
+            "description" =>
+              "On a commit whose skipped tests were all carried forward: lines covered through a skipped test alone (count 0 in lines, counted as covered in covered_lines and uncovered_ranges). Empty otherwise."
+          },
           "functions" => %{
             "type" => "array",
             "items" => %{

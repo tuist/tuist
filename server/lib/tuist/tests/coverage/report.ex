@@ -126,6 +126,7 @@ defmodule Tuist.Tests.Coverage.Report do
     |> Map.merge(%{
       lines: Enum.map(detail.lines, &Tuple.to_list/1),
       uncovered_ranges: detail.uncovered_ranges && Enum.map(detail.uncovered_ranges, &Tuple.to_list/1),
+      carried_lines: Map.get(detail, :carried_lines, []),
       functions: detail.functions
     })
   end

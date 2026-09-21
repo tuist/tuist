@@ -75,7 +75,7 @@ defmodule Tuist.Tests.Coverage.Commits do
         |> Enum.sort()
 
       repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
-      reported = project |> Reported.compute(sha, runs: runs, excluded: excluded) |> Map.delete(:files)
+      reported = project |> Reported.compute(sha, runs: runs, excluded: excluded) |> Map.drop([:files, :carried_lines])
 
       row = %{
         project_id: project.id,
@@ -406,8 +406,35 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  @doc "The commit's targets with their file count and line totals, least covered first."
+  @doc """
+  The commit's targets with their file count and line totals, least covered
+  first. On a commit whose skipped tests were all carried forward they are
+  over its reported coverage, as its files are (`measured: true` keeps to
+  what its runs measured).
+  """
   def targets(project_id, sha, opts \\ []) do
+    case carried_files(project_id, sha, opts) do
+      nil -> measured_targets(project_id, sha, opts)
+      files -> targets_of(files)
+    end
+  end
+
+  defp targets_of(files) do
+    files
+    |> Enum.flat_map(fn file -> Enum.map(file.targets, &{&1, file}) end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Enum.map(fn {name, target_files} ->
+      %{
+        name: name,
+        files_count: length(target_files),
+        covered_lines: target_files |> Enum.map(& &1.covered_lines) |> Enum.sum(),
+        executable_lines: target_files |> Enum.map(& &1.executable_lines) |> Enum.sum()
+      }
+    end)
+    |> Enum.sort_by(&{&1.covered_lines / max(&1.executable_lines, 1), &1.name})
+  end
+
+  defp measured_targets(project_id, sha, opts) do
     case run_ids(project_id, sha) do
       [] ->
         []
@@ -431,8 +458,38 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  @doc "One page of the commit's files, least covered first, and the number of files."
+  @doc """
+  One page of the commit's files, least covered first, and the number of
+  files; over its reported coverage on a commit whose skipped tests were all
+  carried forward, as `targets/3`.
+  """
   def list_files(project_id, sha, page, page_size, opts \\ []) do
+    case carried_files(project_id, sha, opts) do
+      nil ->
+        list_measured_files(project_id, sha, page, page_size, opts)
+
+      files ->
+        {files
+         |> Enum.sort_by(&{&1.covered_lines / max(&1.executable_lines, 1), &1.path})
+         |> Enum.slice((page - 1) * page_size, page_size), length(files)}
+    end
+  end
+
+  # The files of a commit whose reported coverage is exact, or nil: what the
+  # lists read instead of the measured files, so a file only a skipped test
+  # covers is not listed as uncovered.
+  defp carried_files(project_id, sha, opts) do
+    with false <- Keyword.get(opts, :measured, false),
+         %{reported_kind: "reported", partial_schemes: [_ | _]} <- summary(project_id, sha),
+         %Project{} = project <- Tuist.Projects.get_project_by_id(project_id) do
+      excluded = Coverage.excluded(project_id, opts)
+      Reported.merged_files(project, sha, merged_files(project_id, sha, excluded: excluded), excluded: excluded)
+    else
+      _ -> nil
+    end
+  end
+
+  defp list_measured_files(project_id, sha, page, page_size, opts) do
     case run_ids(project_id, sha) do
       [] ->
         {[], 0}
@@ -492,22 +549,66 @@ defmodule Tuist.Tests.Coverage.Commits do
     end
   end
 
-  @doc "One file's merged coverage at the commit (`Tuist.Tests.Coverage.file_detail/3` over its runs), or nil."
-  def file_detail(project_id, sha, path) do
-    case run_ids(project_id, sha) do
-      [] ->
-        nil
+  @doc """
+  One file's merged coverage at the commit
+  (`Tuist.Tests.Coverage.file_detail/3` over its runs), or nil. On a commit
+  whose skipped tests were all carried forward, `carried_lines` lists the
+  lines that count as covered through a skipped test alone (their count stays
+  0: no run here executed them), and a file no run at the commit compiled is
+  read from the run its lines were carried from.
+  """
+  def file_detail(project_id, sha, path, opts \\ []) do
+    carried = carried_file(project_id, sha, path, opts)
+    ids = run_ids(project_id, sha)
 
-      ids ->
-        from(f in Coverage.report_files_for_runs(project_id, ids),
-          where: f.path == ^path and not f.is_test,
-          order_by: [desc: f.inserted_at]
-        )
-        |> ClickHouseRepo.all()
-        |> case do
-          [] -> nil
-          rows -> Coverage.detail(path, rows)
-        end
+    case file_rows(project_id, ids, path) do
+      [] when is_nil(carried) -> nil
+      [] -> carried.source_run_ids |> unbuilt_rows(project_id, path) |> detail_with_carried(path, carried)
+      rows -> detail_with_carried(rows, path, carried)
     end
+  end
+
+  defp file_rows(_project_id, [], _path), do: []
+
+  defp file_rows(project_id, ids, path) do
+    ClickHouseRepo.all(
+      from(f in Coverage.report_files_for_runs(project_id, ids),
+        where: f.path == ^path and not f.is_test,
+        order_by: [desc: f.inserted_at]
+      )
+    )
+  end
+
+  # Nothing at the commit executed a file it did not compile.
+  defp unbuilt_rows(source_run_ids, project_id, path) do
+    project_id
+    |> file_rows(source_run_ids, path)
+    |> Enum.map(&%{&1 | execution_counts: Enum.map(&1.execution_counts, fn _ -> 0 end), covered_lines: 0})
+  end
+
+  defp carried_file(project_id, sha, path, opts) do
+    with false <- Keyword.get(opts, :measured, false),
+         %{reported_kind: "reported", partial_schemes: [_ | _]} <- summary(project_id, sha),
+         %Project{} = project <- Tuist.Projects.get_project_by_id(project_id) do
+      Reported.file(project, sha, path)
+    else
+      _ -> nil
+    end
+  end
+
+  defp detail_with_carried([], _path, _carried), do: nil
+  defp detail_with_carried(rows, path, nil), do: Coverage.detail(path, rows)
+
+  defp detail_with_carried(rows, path, carried) do
+    detail = Coverage.detail(path, rows)
+    carried_set = MapSet.new(carried.carried_lines)
+    only_carried = for {line, 0} <- detail.lines, MapSet.member?(carried_set, line), do: line
+    effective = Enum.map(detail.lines, fn {line, count} -> {line, if(line in only_carried, do: 1, else: count)} end)
+
+    Map.merge(detail, %{
+      carried_lines: only_carried,
+      covered_lines: Enum.count(effective, fn {_line, count} -> count > 0 end),
+      uncovered_ranges: detail.uncovered_ranges && Coverage.uncovered_ranges(effective)
+    })
   end
 end

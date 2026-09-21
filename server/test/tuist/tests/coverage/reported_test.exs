@@ -2,6 +2,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Projects
+  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.Coverage.History
@@ -103,7 +104,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     base_run(project, account)
     head_run(project, account, head_files())
 
-    assert project |> Reported.compute("head") |> Map.delete(:files) == %{
+    assert project |> Reported.compute("head") |> Map.drop([:files, :carried_lines]) == %{
              kind: "reported",
              covered_lines: 5,
              executable_lines: 7,
@@ -229,6 +230,41 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     head_run(project, account, head_files(git_blob_id: "blob-changed"))
     assert [%{git_commit_sha: "base"}] = History.branch_points(project, "main")
+  end
+
+  test "a carried commit lists its files and targets, and details a file, over its reported coverage", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+
+    head_run(project, account, [
+      file("Sources/Math.swift", [1, 1, 0]),
+      file("Tests/AppTests.swift", [1, 0], is_test: true)
+    ])
+
+    assert {[
+              %{path: "Sources/Math.swift", covered_lines: 2},
+              %{path: "Sources/Text.swift", covered_lines: 3, executable_lines: 4}
+            ], 2} =
+             Commits.list_files(project.id, "head", 1, 10)
+
+    assert {[%{path: "Sources/Math.swift"}], 1} = Commits.list_files(project.id, "head", 1, 10, measured: true)
+    assert [%{name: "App", files_count: 2, covered_lines: 5, executable_lines: 7}] = Commits.targets(project.id, "head")
+
+    # No run at the commit compiled Text.swift: its lines come from the run the
+    # skipped test last executed in, none of them executed here.
+    assert %{
+             lines: [{1, 0}, {2, 0}, {3, 0}, {4, 0}],
+             carried_lines: [1, 2, 3],
+             covered_lines: 3,
+             executable_lines: 4,
+             uncovered_ranges: [{4, 4}]
+           } = Commits.file_detail(project.id, "head", "Sources/Text.swift")
+
+    assert %{carried_lines: [], covered_lines: 2} = Commits.file_detail(project.id, "head", "Sources/Math.swift")
+    assert Commits.file_detail(project.id, "head", "Sources/Text.swift", measured: true) == nil
   end
 
   test "a selective commit with a gap is still not compared", %{project: project, account: account} do

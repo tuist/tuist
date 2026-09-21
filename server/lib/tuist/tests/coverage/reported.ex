@@ -95,7 +95,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     kind = if length(carried_tests) == length(skipped) and gap_files == 0, do: "reported", else: "partial"
     shas = sources |> Map.values() |> Enum.map(& &1.sha) |> Enum.uniq() |> Enum.sort()
-    result(files, kind, skipped, carried_tests, gap_files, shas)
+    files |> result(kind, skipped, carried_tests, gap_files, shas) |> Map.put(:carried_lines, carried_lines)
   end
 
   @doc """
@@ -124,9 +124,30 @@ defmodule Tuist.Tests.Coverage.Reported do
     end
   end
 
+  @doc """
+  One file of a commit whose skipped tests were all carried forward: the
+  lines carried into it (those no run at the commit covered itself), and,
+  for a file no run at the commit compiled, the runs its executable lines are
+  read from. Nil when the commit's reported coverage is not exact or the file
+  is not part of it.
+  """
+  def file(%Project{} = project, sha, path, opts \\ []) do
+    case compute(project, sha, opts) do
+      %{kind: "reported", files: %{^path => file}} = reported ->
+        %{
+          carried_lines: reported.carried_lines |> Map.get(path, MapSet.new()) |> Enum.sort(),
+          source_run_ids: Map.get(file, :source_run_ids, [])
+        }
+
+      _ ->
+        nil
+    end
+  end
+
   defp result(files, kind, skipped, carried_tests, gap_files, shas) do
     %{
       files: files,
+      carried_lines: %{},
       kind: kind,
       covered_lines: files |> Map.values() |> Enum.map(& &1.covered_lines) |> Enum.sum(),
       executable_lines: files |> Map.values() |> Enum.map(& &1.executable_lines) |> Enum.sum(),
@@ -439,6 +460,7 @@ defmodule Tuist.Tests.Coverage.Reported do
         %{line_numbers: executable, git_blob_id: git_blob_id} ->
           Map.put(files, path, %{
             git_blob_id: git_blob_id,
+            source_run_ids: [sources[path].run_id],
             covered_lines: MapSet.size(MapSet.intersection(carried_lines[path], executable)),
             executable_lines: MapSet.size(executable)
           })
@@ -484,6 +506,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
             {Map.put(files, file.path, %{
                git_blob_id: file.git_blob_id,
+               source_run_ids: basis_run_ids,
                targets: file.targets,
                covered_lines: carried,
                executable_lines: file.executable_lines
