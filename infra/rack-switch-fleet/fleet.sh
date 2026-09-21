@@ -462,7 +462,7 @@ cmd_replace() {
   tftp_stop
 
   fleet_merge_unmanaged "$current" "$rendered" > "$merged"
-  if ! grep -q '^user name ' "$merged"; then
+  if ! fleet_has_login "$merged"; then
     echo "error: the merged configuration has no login in it. Refusing to push a file that" >&2
     echo "       would lock everyone out of $name." >&2
     return 1

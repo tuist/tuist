@@ -737,6 +737,10 @@ STUB
 }
 
 @test "replace pushes a file that keeps the login and carries the change" {
+    # The TFTP plumbing is macOS-only: route -n get, ipconfig getifaddr and a
+    # launchd tftpd. The safety property it guards is covered everywhere by the
+    # fleet_has_login tests below.
+    [ "$(uname -s)" = "Darwin" ] || skip "replace's TFTP path is macOS-only"
     stub="$BATS_TEST_TMPDIR/bin"
     fake_switch_bin "$stub"
     root="$BATS_TEST_TMPDIR/tftp"; mkdir -p "$root"
@@ -770,8 +774,7 @@ STUB
 }
 
 @test "replace refuses to push a file with no login in it" {
-    # The guard of last resort: if the merge ever fails to carry the account
-    # across, pushing the result locks everyone out of the switch.
+    [ "$(uname -s)" = "Darwin" ] || skip "replace's TFTP path is macOS-only"
     stub="$BATS_TEST_TMPDIR/bin"
     fake_switch_bin "$stub"
     root="$BATS_TEST_TMPDIR/tftp2"; mkdir -p "$root"
@@ -838,4 +841,31 @@ STUB
     [ "$output" = "lldp" ]
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_removed_lines '$current' '$merged' | grep '^undeclared' | cut -f2"
     [ "$output" = "radius-server host 10.0.0.5 key x" ]
+}
+
+
+@test "a file with no login is refused, and one with a login is not" {
+    # The guard of last resort, tested on its own: if the merge ever fails to
+    # carry the account across, pushing the result locks everyone out of the
+    # switch. Runs everywhere, unlike the TFTP path that calls it.
+    with="$BATS_TEST_TMPDIR/with-login.cfg"
+    without="$BATS_TEST_TMPDIR/without-login.cfg"
+    grep -v '^!' "$(export_fixture)" > "$with"
+    grep -v '^!' "$(export_fixture)" | grep -v '^user name ' > "$without"
+
+    run fleet_has_login "$with"
+    [ "$status" -eq 0 ]
+    run fleet_has_login "$without"
+    [ "$status" -ne 0 ]
+}
+
+@test "the merge of a render into a real export always yields a file with a login" {
+    desired="$BATS_TEST_TMPDIR/d.cfg"
+    merged="$BATS_TEST_TMPDIR/m.cfg"
+    current="$BATS_TEST_TMPDIR/c.cfg"
+    grep -v '^!' "$(export_fixture)" > "$current"
+    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    fleet_merge_unmanaged "$current" "$desired" > "$merged"
+    run fleet_has_login "$merged"
+    [ "$status" -eq 0 ]
 }

@@ -375,3 +375,9 @@ fleet_removed_lines() {
   done < <(comm -23 "$have" "$want")
   rm -f "$have" "$want"
 }
+
+
+# A configuration file with no login in it locks everyone out of the switch it
+# is pushed to. Its own function so the guard is testable without the macOS-only
+# TFTP plumbing around it.
+fleet_has_login() { grep -q '^user name ' "$1"; }

@@ -9,6 +9,13 @@
 #
 # It needs no hardware: everything runs against a committed transcript taken off
 # a live switch and against a fake switch on PATH.
+#
+# Linux, not macOS, because the guards worth running on every pull request are
+# pure data and cost seconds here. The handful of cases that drive the TFTP path
+# skip themselves: `route -n get`, `ipconfig getifaddr` and a launchd `tftpd` are
+# macOS-only, which is fine for a tool run from an operator's laptop. The safety
+# property those cases exist for, that a pushed configuration always carries a
+# login, is checked separately and runs everywhere.
 name: Rack Switch Fleet
 
 on:
