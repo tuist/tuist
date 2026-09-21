@@ -56,6 +56,10 @@ render_autoinstall() {
   fi
   password_hash="$(openssl passwd -6 "$password")"
 
+  local role built
+  role="$(jq -r '.role' <<<"$entry")"
+  built="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
   mkdir -p "$outdir"
   : > "$outdir/meta-data"
   : > "$outdir/vendor-data"
@@ -85,23 +89,13 @@ $packages
   shutdown: reboot
   late-commands:
     - curtin in-target --target=/target -- systemctl enable ssh
-  # Passwordless sudo is applied by cloud-init on the installed system's first
-  # boot rather than by a late-command in the installer: a late-command that does
-  # not run leaves no trace a non-root account can read, which is exactly the
-  # state it leaves behind when it fails. The marker file makes success visible.
-  user-data:
-    write_files:
-      - path: /etc/sudoers.d/90-$install_user
-        owner: "root:root"
-        permissions: "0440"
-        content: |
-          $install_user ALL=(ALL) NOPASSWD:ALL
-      - path: /etc/tuist-rack-node
-        owner: "root:root"
-        permissions: "0444"
-        content: |
-          node=$node
-          role=$(jq -r '.role' <<<"$entry")
-          built=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    # Ubuntu leaves the first user needing a password for sudo, and the fleet is
+    # driven over SSH by automation that has a key and no password.
+    - |
+      printf '%s ALL=(ALL) NOPASSWD:ALL\n' $install_user > /target/etc/sudoers.d/90-$install_user
+    - chmod 440 /target/etc/sudoers.d/90-$install_user
+    - |
+      printf 'node=%s\nrole=%s\nbuilt=%s\n' '$node' '$role' '$built' > /target/etc/tuist-rack-node
+    - chmod 444 /target/etc/tuist-rack-node
 EOF
 }

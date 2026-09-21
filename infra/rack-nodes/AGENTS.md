@@ -6,18 +6,30 @@ and, once its disk layout is settled, the storage pair.
 ## How a node gets built
 
 ```
-mise run rack:write-install-usb /dev/disk4      # once, any node
-mise run rack:install-node ber1-edge            # per node
+mise run rack:write-install-usb /dev/disk4 --node ber1-edge
 ```
 
-The stick carries only the Ubuntu installer. What a machine becomes is decided
-by the autoinstall config rendered from `nodes.json` and served over HTTP, so one
-stick builds every node and a node's definition changes in this repo rather than
-on removable media.
+`--node` bakes the node's autoinstall config into the image, so the machine
+installs itself from the moment it boots the stick: no GRUB editing, no
+keystrokes, and nothing served over the network. A node's definition lives in
+`nodes.json`, so changing one means rewriting the stick.
 
-At the installer's GRUB menu, append the printed
-`autoinstall "ds=nocloud-net;s=http://…/"` to the `linux` line and press Ctrl-X.
-That edit is the only hand step; everything after it is unattended.
+`mise run rack:install-node <node>` serves the same config over HTTP instead,
+for a machine booting a plain installer stick or a KVM's virtual media. It needs
+the printed `autoinstall "ds=nocloud-net;s=http://…/"` appended to the `linux`
+line at the GRUB menu by hand.
+
+An install is finished when `/etc/tuist-rack-node` exists on the machine:
+
+```
+ssh tuist@<node> 'cat /etc/tuist-rack-node; sudo -n true && echo sudo ok'
+```
+
+Both come from the installer's late-commands. A machine that answers SSH without
+that file was installed from an older image, or the late-commands did not run.
+
+The MS-01s are set to boot USB ahead of the NVMe, so **a stick left in a built
+node reinstalls it on the next reboot**. Pull it when the install is done.
 
 ## Ubuntu 24.04 LTS, deliberately
 
