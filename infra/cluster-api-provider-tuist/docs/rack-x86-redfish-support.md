@@ -4,35 +4,56 @@ Status: pilot spec, **deferred and re-targeted 2026-09-21**. Nothing has been
 ordered and no rack hardware was touched. Every price below is a snapshot,
 dated and sourced.
 
-**Decision (Marek, 2026-09-21): do not buy a dedicated bench board. Buy this
-build as `ber1-store-b` instead, when that node is bought (~November, before
-the Scaleway warm-standby retirement).**
+**Decision (Marek, 2026-09-21): do not buy a dedicated bench board. Build this
+as `ber1-svc`, and move that role's already-bought MS-01 into the spares pool.**
 
 The spec below is unchanged and still describes what the pilot must answer and
-how. What changed is the hardware it runs on, and the reason is cost per
-answer. A bench board is 2,056.58 EUR for a machine the rack does not otherwise
-need. `store-b` is a machine the rack needs anyway, so the same board, CPU, PSU
-and case cost **222.03 EUR more than the MS-01 it replaces** with non-ECC
-memory, or 1,456.37 EUR more with ECC. Either is less than the bench board, and
-one of them is an order of magnitude less. See "Costed against the MS-01" below.
+how. Only the hardware it runs on changed, twice on the same day: first from a
+bench board to `store-b`, then from `store-b` to `svc` once it was established
+that **`svc` is still boxed and nothing is racked until mid-October**.
+
+`svc` wins on three things that `store-b` cannot offer, at the same money:
+
+- **It does not touch the storage pair.** `store-a` and `store-b` stay
+  identical MS-01s, so the rf=2 pair keeps its symmetry. This was the single
+  largest objection to putting the board in the `store-b` slot.
+- **It funds the spares pool.** The freed MS-01 becomes the spare chassis that
+  is recorded as required and unfunded, and which is the compensating control
+  for a fleet with no hot-swap and no redundant PSU.
+- **The answers arrive before mid-October rather than in November**, and the
+  box is on a desk for all of that window, which is exactly when destructive
+  firmware questions are free to ask.
+
+It also puts the board on the role already designated for this: the AMISCE
+validation doctrine sends everything destructive to `ber1-svc` as the least
+critical box, and sends `ber1-edge` last and probably never.
 
 Consequences to hold onto, because this is the cheaper option and not the
 free one:
 
-- **Bench it before it is racked.** The one property the bench board had that
-  `store-b` does not is that nothing in Berlin was at risk. Several pilot
-  questions can require a CMOS clear. Every destructive question in the list
-  below must be answered while the box is still on a desk, before it holds
-  anything, which is the same doctrine the AMISCE plan uses.
-- **Answers arrive in November, not now.** If a BER2 or hardware decision needs
-  them sooner, that is what this defers.
-- **It re-introduces the asymmetric pair.** `store-a` stays an MS-01, so the
-  rf=2 pair is two platforms, and BER1 runs two spares pools rather than the
-  four-identical-boxes property the rack was designed around. The already-paid
-  racknex kit also stays half-empty.
-- **The "nothing is wasted" property survives, and improves.** If BIOS
-  attributes turn out to be absent or read-only, the money bought a working
-  storage node rather than a dev box.
+- **The bench window closes at mid-October racking.** Every destructive
+  question in the list below has to be answered while the box is still on a
+  desk. After that `svc` is serving DHCP, DNS and NTP, and "least critical"
+  stops meaning what it means today.
+- **Question 6 is circular on this role.** `svc` is the rack's PXE server, so
+  a one-time PXE boot override cannot be tested against itself. Bench it with
+  a separate PXE source.
+- **BER1 still ends up running two platforms**, so two spares pools rather
+  than the four-identical-boxes property the rack was designed around. The
+  freed MS-01 covers the MS-01 pool; this board has no spare and will not get
+  one.
+- **The fallback is free.** If the parts slip or the answers are bad, rack the
+  MS-01 as `svc` exactly as planned and the only loss is time. That MS-01 is
+  already paid for either way.
+
+### Why not `ber1-edge`
+
+Edge is where out-of-band access looks most valuable and is worth the least. A
+BMC sits on the management VLAN, which reaches an operator through a subnet
+router and the WAN, and the WAN is edge. **Edge down means its own BMC is
+unreachable**, which is the same circular limitation AMT already has, so the
+money would not buy the failure mode it appears to buy. Fixing that needs a
+second uplink or an LTE out-of-band path, which is a different purchase.
 
 ## The question this pilot exists to answer
 
@@ -261,10 +282,46 @@ re-check the board and CPU at order time.
 
 **Buy the board that would be standardised on, not a representative sample.**
 Same price either way, and under the 2026-09-21 decision this unit is
-`ber1-store-b` rather than a bench board, so it is the standard part by
+`ber1-svc` rather than a bench board, so it is the standard part by
 construction.
 
-## Costed against the MS-01 it replaces
+The table above is the full-fat bench configuration and is kept because it
+prices every line the board needs. **The build to actually order is the
+`ber1-svc` one below**, which is smaller and cheaper: 16 GB instead of 64 GB, a
+4-core CPU, a rackmount case instead of a benchtable, and no new boot drive.
+
+## Costed as `ber1-svc`
+
+This is the build to order. All prices Geizhals 2026-09-21.
+
+| Line | Part | Price |
+|---|---|---|
+| Board | ASRock Rack B650D4U-2L2T/BCM | 339.00 EUR |
+| CPU | AMD EPYC 4124P, 4C/8T, tray | 143.00 EUR |
+| Cooler | Thermalright Peerless Assassin 120 SE | 29.15 EUR |
+| Memory | 1x 16 GB DDR5-5600 UDIMM (`LD5U16G56C46ST-BGS`) | 213.37 EUR |
+| PSU | be quiet! Pure Power 13 M 750W | 104.89 EUR |
+| Case | Inter-Tech 3U-30765, 3HE | 124.99 EUR |
+| Boot | reuse this role's already-bought 990 Pro 1 TB | 0.00 EUR |
+| | **Total** | **954.40 EUR** |
+
+Against that, the MS-01 this displaces (709.00 EUR, already paid) becomes the
+spare chassis the spares pool needs and does not have, so the **net cost of
+switching is 245.40 EUR**.
+
+Three notes on the line items. The CPU is the 4-core EPYC 4124P rather than the
+8-core 4344P, because DHCP, DNS and NTP do not need eight cores and Redfish
+behaviour does not depend on the part; the 4344P is 228.00 EUR if uniformity
+with a future storage node matters more. The memory is a single DIMM, which is
+1DPC and therefore the full 5600 MHz. It is **non-ECC**, which is right for
+this role and saves 282.50 EUR over the ECC UDIMM, at the cost of leaving the
+BMC as the only reason this board class was chosen; the pilot questions do not
+depend on it either way.
+
+## The alternative that was considered: `ber1-store-b`
+
+Kept because it is the comparison that justifies the choice, and because it is
+the fallback if `svc` turns out to be the wrong role.
 
 `store-b` was planned as a fourth MS-01. All prices Geizhals 2026-09-21 except
 the barebone, which Minisforum sells direct and which is a 2026-09-12 figure
@@ -290,18 +347,33 @@ and this build is 851.03 EUR against 709.00 EUR for an MS-01 barebone, so the
 machine itself is **142.03 EUR** dearer. The remaining 1,314.34 EUR is the DRAM
 supercycle taxing ECC UDIMM at 33.94 EUR/GB against 13.41 EUR/GB for SO-DIMM.
 
-**Open question for the November order: ECC or not.** The ECC requirement for
-this role was retired when content-hashing of the volume plane merged
-(PR #13190, 2026-09-16), and the data is a reconstructible cache, so non-ECC is
-defensible and saves 1,234.34 EUR. Against that, ECC UDIMM with EDAC counters
-is one of the two reasons this board class was picked at all, and dropping it
-leaves only the BMC. Decide it when the order is placed, not here.
+**If this route is ever taken, ECC or not is the open question.** The ECC
+requirement for the storage role was retired when content-hashing of the volume
+plane merged (PR #13190, 2026-09-16), and the data is a reconstructible cache,
+so non-ECC is defensible and saves 1,234.34 EUR. Against that, ECC UDIMM with
+EDAC counters is one of the two reasons this board class was picked at all, and
+dropping it leaves only the BMC.
 
 **Nothing from the MS-01 fleet offsets this.** The 990 Pro and the PM9A3 carry
 over and are already counted as the common lines above. Nothing else does: the
 MS-01 takes DDR5 **SO-DIMM** and this board takes **288-pin UDIMM**, which
 cannot mate, and the barebone and racknex kit are chassis-specific. So the
 delta above is already the reuse-maximised figure.
+
+### Head to head
+
+Net of what each option gives back, the two are the same money:
+
+| | `store-b` route | `svc` route |
+|---|---|---|
+| ASRock machine | 1,789.03 | 954.40 |
+| 4th MS-01 for `store-b` | not bought | 1,567.00 |
+| Spare MS-01 gained | none | (709.00) |
+| **Net** | **1,789.03** | **1,812.40** |
+
+A 23.37 EUR difference decides nothing, so the choice was made on the three
+properties in the decision block above: pair symmetry, a funded spares pool,
+and answers before mid-October instead of in November.
 
 ## Deliverable 2: the question list
 
@@ -631,12 +703,15 @@ BER2 trigger as everything else here.
 
 ## Practical: where the board lives
 
-- **On a bench first, and racked only afterwards.** The pilot includes
-  experiments that can require a CMOS clear. Under the 2026-09-21 decision this
-  board is `ber1-store-b` rather than a spare, so "nothing in Berlin is at
-  risk" is no longer free: it holds only for as long as the box is still on a
-  desk. Answer every destructive question before it is racked and before it
-  holds anything. No existing rack hardware is touched either way.
+- **On a bench first, racked mid-October.** The pilot includes experiments that
+  can require a CMOS clear. Under the 2026-09-21 decision this board is
+  `ber1-svc` rather than a spare, so "nothing in Berlin is at risk" is not
+  free: it holds only while the box is still on a desk, and that window closes
+  at mid-October racking. Answer every destructive question before then. No
+  existing rack hardware is touched either way, and if the window is missed the
+  already-bought MS-01 racks as `svc` exactly as originally planned.
+- **Bring a separate PXE source to the bench.** `svc` is the rack's PXE server,
+  so question 6 cannot be tested against the box under test.
 - **Powered from a normal wall outlet**, ideally through a switched plug so the
   Q3a mains-loss test is a command rather than a trip to the socket. The
   existing `shelly` driver is exactly this and already works, which makes the
