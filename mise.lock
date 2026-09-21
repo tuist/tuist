@@ -31,9 +31,11 @@ backend = "aqua:FiloSottile/age"
 
 [tools.age."platforms.linux-arm64"]
 url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/FiloSottile/age/releases/assets/214229067"
 
 [tools.age."platforms.linux-arm64-musl"]
 url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/FiloSottile/age/releases/assets/214229067"
 
 [tools.age."platforms.linux-x64"]
 checksum = "blake3:8441277927f75428a6d22897a5cc05e8cdc03562d7a203b2bb9a7c6cd1d0c3bd"
@@ -41,6 +43,7 @@ url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-li
 
 [tools.age."platforms.linux-x64-musl"]
 url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz"
+url_api = "https://api.github.com/repos/FiloSottile/age/releases/assets/214229061"
 
 [tools.age."platforms.macos-arm64"]
 checksum = "blake3:5c7e92baa305e64738b31e6ed9725d6cecdb8915af6e1b6c59bb4d7890efaaca"
@@ -48,9 +51,11 @@ url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-da
 
 [tools.age."platforms.macos-x64"]
 url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-darwin-amd64.tar.gz"
+url_api = "https://api.github.com/repos/FiloSottile/age/releases/assets/214229064"
 
 [tools.age."platforms.windows-x64"]
 url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-windows-amd64.zip"
+url_api = "https://api.github.com/repos/FiloSottile/age/releases/assets/214229068"
 
 [[tools.aube]]
 version = "1.6.2"
@@ -92,9 +97,11 @@ backend = "aqua:bats-core/bats-core"
 
 [tools.bats."platforms.linux-arm64"]
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.12.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.12.0"
 
 [tools.bats."platforms.linux-arm64-musl"]
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.12.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.12.0"
 
 [tools.bats."platforms.linux-x64"]
 checksum = "blake3:836a0963444ede10131984991c0f92219c84418b57c242b4ff5bc80d83daa9a3"
@@ -102,6 +109,7 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.12.0.tar.gz"
 
 [tools.bats."platforms.linux-x64-musl"]
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.12.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.12.0"
 
 [tools.bats."platforms.macos-arm64"]
 checksum = "blake3:836a0963444ede10131984991c0f92219c84418b57c242b4ff5bc80d83daa9a3"
@@ -109,6 +117,7 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.12.0.tar.gz"
 
 [tools.bats."platforms.macos-x64"]
 url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.12.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.12.0"
 
 [[tools.caddy]]
 version = "2.11.4"
@@ -153,9 +162,79 @@ url_api = "https://api.github.com/repos/caddyserver/caddy/releases/assets/436912
 version = "1.20.2"
 backend = "core:elixir"
 
+[tools.elixir."platforms.linux-arm64"]
+checksum = "sha256:8ed70a989bf543c3e1607aae2b42729d2d58af9ce7abee6545fbacdead929e18"
+url = "https://builds.hex.pm/builds/elixir/v1.20.2.zip"
+
+[tools.elixir."platforms.linux-arm64-musl"]
+checksum = "sha256:8ed70a989bf543c3e1607aae2b42729d2d58af9ce7abee6545fbacdead929e18"
+url = "https://builds.hex.pm/builds/elixir/v1.20.2.zip"
+
+[tools.elixir."platforms.linux-x64"]
+checksum = "sha256:8ed70a989bf543c3e1607aae2b42729d2d58af9ce7abee6545fbacdead929e18"
+url = "https://builds.hex.pm/builds/elixir/v1.20.2.zip"
+
+[tools.elixir."platforms.linux-x64-musl"]
+checksum = "sha256:8ed70a989bf543c3e1607aae2b42729d2d58af9ce7abee6545fbacdead929e18"
+url = "https://builds.hex.pm/builds/elixir/v1.20.2.zip"
+
+[tools.elixir."platforms.macos-arm64"]
+checksum = "sha256:8ed70a989bf543c3e1607aae2b42729d2d58af9ce7abee6545fbacdead929e18"
+url = "https://builds.hex.pm/builds/elixir/v1.20.2.zip"
+
+[tools.elixir."platforms.macos-x64"]
+checksum = "sha256:8ed70a989bf543c3e1607aae2b42729d2d58af9ce7abee6545fbacdead929e18"
+url = "https://builds.hex.pm/builds/elixir/v1.20.2.zip"
+
+[tools.elixir."platforms.windows-x64"]
+checksum = "sha256:8ed70a989bf543c3e1607aae2b42729d2d58af9ce7abee6545fbacdead929e18"
+url = "https://builds.hex.pm/builds/elixir/v1.20.2.zip"
+
 [[tools.erlang]]
 version = "29.0.3"
 backend = "core:erlang"
+
+[tools.erlang."platforms.linux-arm64-musl"]
+checksum = "sha256:f920c660b16794bcb7270d1cbf680f7747c719650bcd6ac449508a32c2a8972a"
+url = "https://github.com/erlang/otp/releases/download/OTP-29.0.3/otp_src_29.0.3.tar.gz"
+url_api = "https://api.github.com/repos/erlang/otp/releases/assets/464470013"
+install = "source"
+
+[tools.erlang."platforms.linux-x64-musl"]
+checksum = "sha256:f920c660b16794bcb7270d1cbf680f7747c719650bcd6ac449508a32c2a8972a"
+url = "https://github.com/erlang/otp/releases/download/OTP-29.0.3/otp_src_29.0.3.tar.gz"
+url_api = "https://api.github.com/repos/erlang/otp/releases/assets/464470013"
+install = "source"
+
+[tools.erlang."platforms.macos-arm64"]
+checksum = "sha256:bfb187843b00fdff9a9eb79f15f17ffcd48d89150212f77206279fcd51136706"
+url = "https://github.com/erlef/otp_builds/releases/download/OTP-29.0.3/otp-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/erlef/otp_builds/releases/assets/464419851"
+
+[tools.erlang."platforms.macos-x64"]
+checksum = "sha256:9fb73031da37363200df4459ef57e16bb4e00134ec94bfb92b7a1b4db640dcca"
+url = "https://github.com/erlef/otp_builds/releases/download/OTP-29.0.3/otp-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/erlef/otp_builds/releases/assets/464426319"
+
+[tools.erlang."platforms.windows-x64"]
+checksum = "sha256:11a7bda6cb602641cb13d319967c72add457e0ea0bc467d3dc2159a937d8ab6a"
+url = "https://github.com/erlang/otp/releases/download/OTP-29.0.3/otp_win64_29.0.3.zip"
+url_api = "https://api.github.com/repos/erlang/otp/releases/assets/464473205"
+
+[[tools.erlang]]
+version = "29.0.3"
+backend = "core:erlang"
+
+[tools.erlang.options]
+precompiled_os = "ubuntu-24.04"
+
+[tools.erlang."platforms.linux-arm64"]
+checksum = "sha256:6e14bbb367fae27c7a686719bc15bc2a0482df94decc60d453bf82bcc85b2a4c"
+url = "https://builds.hex.pm/builds/otp/arm64/ubuntu-24.04/OTP-29.0.3.tar.gz"
+
+[tools.erlang."platforms.linux-x64"]
+checksum = "sha256:07c6b118ea17000e85b646418a4eec8c20fc2b04118b4b756695b4568e3d0526"
+url = "https://builds.hex.pm/builds/otp/amd64/ubuntu-24.04/OTP-29.0.3.tar.gz"
 
 [[tools.git-cliff]]
 version = "2.6.0"
@@ -187,6 +266,7 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6
 
 [tools.git-cliff."platforms.windows-x64"]
 url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/194142188"
 
 [[tools."github:pomerium/cli"]]
 version = "0.32.2"
@@ -233,9 +313,11 @@ backend = "aqua:gradle/gradle"
 
 [tools.gradle."platforms.linux-arm64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+url_api = "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/223109593"
 
 [tools.gradle."platforms.linux-arm64-musl"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+url_api = "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/223109593"
 
 [tools.gradle."platforms.linux-x64"]
 checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9"
@@ -243,6 +325,7 @@ url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/
 
 [tools.gradle."platforms.linux-x64-musl"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+url_api = "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/223109593"
 
 [tools.gradle."platforms.macos-arm64"]
 checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9"
@@ -250,9 +333,11 @@ url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/
 
 [tools.gradle."platforms.macos-x64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+url_api = "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/223109593"
 
 [tools.gradle."platforms.windows-x64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
+url_api = "https://api.github.com/repos/gradle/gradle-distributions/releases/assets/223109593"
 
 [[tools.helm]]
 version = "4.2.0"
@@ -289,6 +374,9 @@ url = "https://get.helm.sh/helm-v4.2.0-windows-amd64.tar.gz"
 [[tools.java]]
 version = "21.0.2"
 backend = "core:java"
+
+[tools.java.options]
+shorthand_vendor = "openjdk"
 
 [tools.java."platforms.linux-arm64"]
 checksum = "sha256:08db1392a48d4eb5ea5315cf8f18b89dbaf36cda663ba882cf03c704c9257ec2"
@@ -604,6 +692,7 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/swiftlint_lin
 
 [tools.swiftlint."platforms.linux-x64-musl"]
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/swiftlint_linux.zip"
+url_api = "https://api.github.com/repos/realm/SwiftLint/releases/assets/246629281"
 
 [tools.swiftlint."platforms.macos-arm64"]
 checksum = "blake3:6164196a72866dbd8b324acd6fc73099e2d128d1a996b6807b8bae28f18176f1"
@@ -611,6 +700,7 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 
 [tools.swiftlint."platforms.macos-x64"]
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
+url_api = "https://api.github.com/repos/realm/SwiftLint/releases/assets/246629280"
 
 [[tools.tuist]]
 version = "4.211.0-canary.2"
