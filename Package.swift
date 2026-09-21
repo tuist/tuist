@@ -479,9 +479,14 @@ var targets: [Target] = [
     // MARK: Cross-platform targets
     .executableTarget(
         name: "tuist",
-        dependencies: tuistDependencies,
+        dependencies: ["TuistCLICore", pathDependency],
         path: "cli/Sources/tuist",
         exclude: ["AGENTS.md"]
+    ),
+    .target(
+        name: "TuistCLICore",
+        dependencies: tuistDependencies,
+        path: "cli/Sources/TuistCLICore"
     ),
     .executableTarget(
         name: "swifterpm",
@@ -1290,6 +1295,11 @@ targets.append(contentsOf: [
 
 targets.append(contentsOf: [
     .target(
+        name: "TuistEmbed",
+        dependencies: ["TuistCLICore"],
+        path: "cli/Sources/TuistEmbed"
+    ),
+    .target(
         name: "TuistHAR",
         dependencies: [
             "TuistConstants",
@@ -1840,6 +1850,11 @@ products.append(
 
 #if os(macOS)
 products.append(contentsOf: [
+    .library(
+        name: "TuistEmbed",
+        type: .dynamic,
+        targets: ["TuistEmbed"]
+    ),
     .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
     .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
     .library(

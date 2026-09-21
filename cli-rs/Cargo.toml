@@ -1,0 +1,12 @@
+[package]
+name = "tuist-rs"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[[bin]]
+name = "tuist"
+path = "src/main.rs"
+
+[dependencies]
