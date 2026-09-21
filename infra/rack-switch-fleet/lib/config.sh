@@ -43,6 +43,62 @@ fleet_clean()     { tr -d '\000' | awk -v mode=clean     -f "$FLEET_AWK"; }
 # happened to erase itself in front of.
 fleet_strip_transcript() { tr -d '\000' | awk -v command="$1" -f "$FLEET_TRANSCRIPT_AWK"; }
 
+# Every port of a switch that something is known to be plugged into, as
+# "port<TAB>purpose<TAB>peer<TAB>detail", in port order.
+#
+# This is the join between the rack's machines and its switch ports: node links
+# come from `nodes`, and the ports that face something which is not a node (the
+# ISL, the router uplink) come from the switch's own entry. Reading both into
+# one map is what lets a port's configuration be derived from the role of
+# whatever is on the other end, so racking a machine is a data edit.
+fleet_port_map() {
+  local site_file="$1" switch="$2"
+  {
+    jq -r --arg s "$switch" '
+      .devices[] | select(.name == $s) | (.ports // {}) | to_entries[] |
+      "\(.key)\t\(.value.purpose)\t\(.value.peer)\t\(.value.media)"
+    ' "$site_file"
+    jq -r --arg s "$switch" '
+      .nodes[]? as $n | $n.links[] | select(.switch == $s and .port != null) |
+      "\(.port)\tnode\t\($n.name)\t\($n.role)"
+    ' "$site_file"
+  } | sort -n -k1,1
+}
+
+# Nothing may claim a port twice, and nothing may claim a port the switch does
+# not have. A rack grows by editing this data, so the data has to be checked.
+fleet_check_port_map() {
+  local site_file="$1" switch="$2" spec="$3" available port duplicates
+  available="$(jq -r '[.port_groups[] | range(.first; .last + 1)] | map(tostring) | join(" ")' <<<"$spec")"
+  while IFS=$'\t' read -r port _purpose peer _detail; do
+    [ -n "$port" ] || continue
+    case " $available " in
+      *" $port "*) ;;
+      *) echo "error: $switch port $port (to $peer) does not exist on a $(jq -r '.product' <<<"$spec")" >&2
+         return 1;;
+    esac
+  done < <(fleet_port_map "$site_file" "$switch")
+  duplicates="$(fleet_port_map "$site_file" "$switch" | cut -f1 | uniq -d)"
+  if [ -n "$duplicates" ]; then
+    echo "error: $switch has more than one thing on port(s): $(tr '\n' ' ' <<<"$duplicates")" >&2
+    return 1
+  fi
+}
+
+# Every link has to point at a switch the site actually has.
+fleet_check_nodes() {
+  local site_file="$1" bad
+  bad="$(jq -r '
+    [.devices[].name] as $switches |
+    .nodes[]? as $n | $n.links[] | select(.switch as $s | $switches | index($s) | not) |
+    "\($n.name) -> \(.switch)"
+  ' "$site_file")"
+  if [ -n "$bad" ]; then
+    echo "error: node links point at switches this site does not have: $bad" >&2
+    return 1
+  fi
+}
+
 # The site's wiring record has to describe ports the model actually has.
 fleet_check_ports() {
   local device="$1" spec="$2" name model port available
@@ -65,6 +121,8 @@ fleet_render() {
   model="$(jq -r '.model' <<<"$device")"
   spec="$(fleet_model "$model")" || return 1
   fleet_check_ports "$device" "$spec" || return 1
+  fleet_check_nodes "$site_file" || return 1
+  fleet_check_port_map "$site_file" "$name" "$spec" || return 1
 
   local vlan vlan_name netmask address baud
   vlan="$(jq -r '.management.vlan' "$site_file")"

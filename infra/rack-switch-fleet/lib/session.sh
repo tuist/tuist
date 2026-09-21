@@ -134,9 +134,10 @@ switch_run() {
   switch_write "$command"
   switch_drain "$timeout"
   SWITCH_OUTPUT="$SWITCH_BUFFER"
-  if [[ "$SWITCH_OUTPUT" == *"Error:"* || "$SWITCH_OUTPUT" == *"Bad command"* ]]; then
+  if [[ "$SWITCH_OUTPUT" == *"Error:"* || "$SWITCH_OUTPUT" == *"Bad command"* \
+     || "$SWITCH_OUTPUT" == *"Failed to"* ]]; then
     echo "error: $SWITCH_ADDRESS rejected '$command':" >&2
-    printf '%s\n' "$SWITCH_OUTPUT" | grep -E 'Error|Bad command' >&2 || true
+    printf '%s\n' "$SWITCH_OUTPUT" | grep -E 'Error|Bad command|Failed to' >&2 || true
     return 1
   fi
 }

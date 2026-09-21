@@ -32,12 +32,6 @@
       "apply_order": 1,
       "apply_note": "No WAN path lands here, so a bad change costs one half of the rack's redundancy rather than the site's connectivity. Always the first switch changed, and the only one used to try a change out.",
       "ports": {
-        "25": {
-          "purpose": "uplink",
-          "peer": "ber1-edge",
-          "media": "dac",
-          "description": "uplink ber1-edge"
-        },
         "32": {
           "purpose": "isl",
           "peer": "ber1-tor-a",
@@ -82,5 +76,72 @@
       "apply_note": "There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.",
       "ports": {}
     }
-  ]
+  ],
+  "node_roles": {
+    "edge": {
+      "description": "WAN termination and the path every other node reaches the internet through"
+    },
+    "storage": {
+      "description": "bulk storage"
+    },
+    "services": {
+      "description": "DHCP, DNS, NTP and the tailnet subnet router"
+    },
+    "runner": {
+      "description": "Mac mini running the runner fleet"
+    }
+  },
+  "nodes": [
+    {
+      "name": "ber1-edge",
+      "role": "edge",
+      "note": "Dual-homed, one SFP+ DAC to each ToR, on an Intel X710 that takes TL-SM5220 DACs.",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": 25,
+          "media": "dac",
+          "nic": "x710"
+        },
+        {
+          "switch": "ber1-tor-a",
+          "port": null,
+          "media": "dac",
+          "nic": "x710"
+        }
+      ]
+    },
+    {
+      "name": "ber1-store-a",
+      "role": "storage",
+      "note": "Two of the six ordered DACs are allocated to storage, one per ToR.",
+      "links": [
+        {
+          "switch": "ber1-tor-a",
+          "port": null,
+          "media": "dac"
+        },
+        {
+          "switch": "ber1-tor-b",
+          "port": null,
+          "media": "dac"
+        }
+      ]
+    },
+    {
+      "name": "ber1-svc",
+      "role": "services",
+      "note": "Single-homed to ToR B today, which puts DHCP, DNS, NTP, the tailnet subnet router and half the runners behind one switch. A seventh DAC would dual-home it; add the second link here when it arrives.",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": null,
+          "media": "dac"
+        }
+      ]
+    }
+  ],
+  "placement": {
+    "runner": "A Mac mini has one NIC, so it lands on exactly one ToR. Minis are split A/B across the two ToRs the same way the power feeds are, so losing a ToR costs half the fleet rather than all of it."
+  }
 }

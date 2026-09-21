@@ -318,3 +318,56 @@ STUB
     [ "$status" -ne 141 ]
     [[ "$output" == *"closed the session"* ]]
 }
+
+# --- the port map, the join between machines and switch ports ----------------
+
+@test "the port map merges node links with the switch's own ports" {
+    run fleet_port_map "$SITE_FILE" ber1-tor-b
+    [[ "$output" == *"25"*"node"*"ber1-edge"*"edge"* ]]
+    [[ "$output" == *"32"*"isl"*"ber1-tor-a"* ]]
+}
+
+@test "two things on one port are rejected" {
+    site="$BATS_TEST_TMPDIR/clash.json"
+    jq '.nodes[0].links[0].port = 32' "$SITE_FILE" > "$site"
+    run fleet_check_port_map "$site" ber1-tor-b "$(fleet_model sx3832)"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"more than one thing on port"* ]]
+}
+
+@test "a node link to a port the switch does not have is rejected" {
+    site="$BATS_TEST_TMPDIR/toobig.json"
+    jq '.nodes[0].links[0].port = 99' "$SITE_FILE" > "$site"
+    run fleet_check_port_map "$site" ber1-tor-b "$(fleet_model sx3832)"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"does not exist"* ]]
+}
+
+@test "a node link to a switch this site does not have is rejected" {
+    site="$BATS_TEST_TMPDIR/ghost.json"
+    jq '.nodes[0].links[0].switch = "us1-tor-a"' "$SITE_FILE" > "$site"
+    run fleet_check_nodes "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"us1-tor-a"* ]]
+}
+
+@test "a planned link with no port yet is allowed, and not in the port map" {
+    run jq -r '[.nodes[].links[] | select(.port == null)] | length' "$SITE_FILE"
+    [ "$output" -gt 0 ]
+    run fleet_check_nodes "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}
+
+@test "the model expresses a dual-homed node and a single-homed one" {
+    # ber1-edge reaches both ToRs; ber1-svc reaches only ToR B, which is the
+    # rack risk the note on it records. Adding its second link is a data edit.
+    run jq -r '[.nodes[] | select(.name == "ber1-edge") | .links[].switch] | sort | join(",")' "$SITE_FILE"
+    [ "$output" = "ber1-tor-a,ber1-tor-b" ]
+    run jq -r '[.nodes[] | select(.name == "ber1-svc") | .links[].switch] | join(",")' "$SITE_FILE"
+    [ "$output" = "ber1-tor-b" ]
+}
+
+@test "every node has a role the site defines" {
+    run jq -r '[.node_roles | keys[]] as $known | [.nodes[] | select(.role as $r | $known | index($r) | not) | .name] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+}

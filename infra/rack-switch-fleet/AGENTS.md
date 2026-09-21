@@ -21,6 +21,8 @@ mise run rack:fleet apply <device> --dry-run
 mise run rack:fleet apply <device>
 mise run rack:fleet backup [device]         # startup config into the repo
 mise run rack:fleet drift                   # every switch; non-zero on drift
+mise run rack:fleet ports [device]          # what is plugged into each port
+mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
 mise run rack:fleet-test                    # the suite; needs no hardware
 ```
@@ -45,6 +47,34 @@ Port naming is a property of the hardware rather than of the rack, so it lives
 in `models.py`. A model whose port naming has not been read off a live unit is
 marked `verified: false`: it renders, so the design can be reviewed, but `apply`
 refuses it. `tl-sg3452` is currently unverified.
+
+## Ports, and the machines on the other end
+
+A port's configuration should follow from the role of whatever is plugged into
+it, so racking a machine is an edit to data rather than to a template. The site
+definition carries that join in two halves, and `fleet_port_map` reads them as
+one:
+
+- **`nodes`** is the rack's machines: a name, a role from `node_roles`, and one
+  `links` entry per cable, giving the switch and the port. A link whose `port`
+  is `null` is planned but not patched yet, which is most of them today.
+- **`devices[].ports`** carries only what is not a machine: the ISL and the
+  router uplink.
+
+Nothing may claim a port twice, no link may name a switch the site does not
+have, and no port may exceed what the model has. All three are checked on every
+render, because a rack grows by editing this data.
+
+The model expresses a node's links individually rather than as "which ToR", so
+dual-homing is just a second link. `ber1-edge` has one DAC to each ToR.
+`ber1-svc` has one, to ToR B, and that is a live rack risk rather than a
+modelling choice: it holds DHCP, DNS, NTP and the tailnet subnet router, so
+losing ToR B takes those and half the runners at once. A seventh DAC fixes it
+and the fix is one line here. A Mac mini has a single NIC, so it lands on
+exactly one ToR; minis are split A/B the same way the power feeds are.
+
+`mise run rack:fleet ports` prints the merged map, including the links still
+waiting for a port.
 
 ## Three things that were checked on the hardware first
 
@@ -212,8 +242,16 @@ arbitrary line into its negation is the same class of guess.
   Leaking sessions wedges the SSH daemon: the switch keeps forwarding and keeps
   answering ping, the web UI stays up, and port 22 simply stops completing a
   handshake. It did not recover within an hour. Recovery is the web UI or a
-  reboot. Hence one session per run and a logout that runs even when the work
-  raised, which is what `session.py` is built around.
+  reboot, or `clear line`. Hence one session per run and a logout that runs even
+  when the work raised.
+- **`show users` lists the terminal lines and `clear line <tid>` frees one**,
+  which is the recovery that does not involve power, and
+  `mise run rack:fleet sessions <device> [tid]` is the front end for it. It only
+  helps while the daemon still accepts a connection, so run it after any failed
+  run rather than waiting until nothing can get in.
+- **A failed transfer says `Failed to initialize TFTP.`**, which contains
+  neither "Error" nor "Bad command". Matching only on those made a copy that
+  reached no server look like a success.
 - **`show` output pages** with `Press any key to continue (Q to quit)`, and the
   pager erases itself with a carriage return.
 - **A bare CR arrives as CR NUL**, the telnet convention. Two traps follow.

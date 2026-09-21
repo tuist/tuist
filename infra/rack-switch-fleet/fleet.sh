@@ -267,6 +267,59 @@ cmd_backup() {
   done
 }
 
+# What is plugged into each port, read off the site definition rather than a
+# switch. Wiring a rack is easier to check against a list than against a diagram.
+cmd_ports() {
+  local name="${1:-}" device port purpose peer detail
+  for device in $(devices "$name"); do
+    echo "$device"
+    while IFS=$'\t' read -r port purpose peer detail; do
+      [ -n "$port" ] || continue
+      printf '  %-4s %-8s %-14s %s\n' "$port" "$purpose" "$peer" "$detail"
+    done < <(fleet_port_map "$(site_file)" "$device")
+    echo ""
+  done
+  local unassigned
+  unassigned="$(jq -r '.nodes[]? as $n | $n.links[] | select(.port == null) | "  \($n.name) -> \(.switch)"' "$(site_file)")"
+  if [ -n "$unassigned" ]; then
+    echo "links with no port assigned yet:"
+    printf '%s\n' "$unassigned"
+  fi
+}
+
+# The switch's terminal lines, and how to free one.
+#
+# This firmware does not reap a session a client abandoned, and it only frees
+# one on `logout`, so a crashed run leaks a line. Enough of those and the SSH
+# daemon stops accepting connections altogether while the switch keeps
+# forwarding. `clear line <tid>` is the way out that does not involve power.
+cmd_sessions() {
+  local name="${1:-}" tid="${2:-}"
+  [ -n "$name" ] || { echo "usage: rack:fleet sessions <device> [tid-to-clear]" >&2; return 2; }
+  local address user key raw
+  address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
+  [ -n "$address" ] || { echo "error: $name is not in $SITE" >&2; return 1; }
+  user="$(jq -r '.credentials.username' "$(site_file)")"
+  key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
+  raw="$(mktemp)"
+  (
+    trap switch_close EXIT
+    trap 'switch_close; exit 130' INT TERM
+    switch_open "$address" "$user" "$key" || exit 1
+    if [ -n "$tid" ]; then
+      switch_run "clear line $tid" || exit 1
+      echo "cleared line $tid on $name"
+    fi
+    switch_run "show users" || exit 1
+    printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
+  ) || { rm -f "$raw"; return 1; }
+  tr -d '\000\r' < "$raw" | sed -n '/tid/,$p' | sed '/^[[:space:]]*$/d;$d'
+  rm -f "$raw"
+  echo ""
+  echo "One of those is this command. Free a leaked line with:"
+  echo "  mise run rack:fleet sessions $name <tid>"
+}
+
 # Answer the open question: is the exported config text, or is it opaque?
 #
 # If it is text, a change becomes `copy tftp startup-config` of a file rendered
@@ -383,7 +436,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|diff|apply|backup|drift|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|diff|apply|backup|drift|ports|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   case "$command" in
@@ -391,6 +444,8 @@ main() {
     diff)       cmd_diff "$@";;
     apply)      cmd_apply "$@";;
     backup)     cmd_backup "$@";;
+    sessions)   cmd_sessions "$@";;
+    ports)      cmd_ports "$@";;
     drift)      cmd_drift "$@";;
     probe-tftp) cmd_probe_tftp "$@";;
     *) echo "unknown command: $command" >&2; return 2;;
