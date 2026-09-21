@@ -286,16 +286,9 @@ defmodule Tuist.Tests.Coverage.Comparison do
       end
 
     partial = summary.partial_schemes != []
-
-    # A commit whose skipped tests were all carried forward is compared target
-    # by target and file by file with what a full run would have measured, not
-    # with what its runs happened to execute: a file only a skipped test covers
-    # did not fall. Its own totals and its patch stay what was measured.
     measured_files = Commits.merged_files(project.id, sha, excluded: excluded)
     carried? = partial and Map.get(summary, :reported_kind) == "reported"
-
-    head_files =
-      if carried?, do: Reported.merged_files(project, sha, measured_files, excluded: excluded), else: measured_files
+    head_files = head_files(project, sha, measured_files, carried?, excluded)
 
     baseline_files = if baseline, do: Commits.merged_files(project.id, baseline.commit, excluded: excluded), else: []
     baseline = baseline && with_retained_totals(baseline, baseline_files)
@@ -324,12 +317,23 @@ defmodule Tuist.Tests.Coverage.Comparison do
         baseline_reason: baseline_reason,
         total_delta: total_delta(commit, baseline, partial),
         schemes: scheme_rows(project.id, sha, (baseline && baseline.commit) || scheme_baseline(baseline_reason)),
-        targets: target_deltas(head_files, baseline_files, baseline, partial and not carried?),
-        files: file_deltas(head_files, baseline_files, baseline, partial and not carried?)
+        targets: target_deltas(head_files, baseline_files, baseline, selective?(partial, carried?)),
+        files: file_deltas(head_files, baseline_files, baseline, selective?(partial, carried?))
       },
       patch(project, head, measured_files)
     )
   end
+
+  # A commit whose skipped tests were all carried forward is compared target
+  # by target and file by file with what a full run would have measured, not
+  # with what its runs happened to execute: a file only a skipped test covers
+  # did not fall. Its own totals and its patch stay what was measured.
+  defp head_files(project, sha, measured_files, true, excluded),
+    do: Reported.merged_files(project, sha, measured_files, excluded: excluded)
+
+  defp head_files(_project, _sha, measured_files, false, _excluded), do: measured_files
+
+  defp selective?(partial, carried?), do: partial and not carried?
 
   # The whole is compared when the head measured every scheme fully, or when
   # what its runs skipped was carried forward in full: reported coverage is
