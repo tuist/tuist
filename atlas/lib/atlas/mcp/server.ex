@@ -199,6 +199,11 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.MarkFinancingPaidOff
   alias Atlas.MCP.Tools.MatchFinancingPayment
   alias Atlas.MCP.Tools.NotifyGTMOpportunity
+  alias Atlas.MCP.Tools.PagesDeleteSite
+  alias Atlas.MCP.Tools.PagesFinalizeDeploy
+  alias Atlas.MCP.Tools.PagesGetSite
+  alias Atlas.MCP.Tools.PagesListSites
+  alias Atlas.MCP.Tools.PagesStartDeploy
   alias Atlas.MCP.Tools.PlaceAssetInService
   alias Atlas.MCP.Tools.PrepareGTMOpportunityOutreach
   alias Atlas.MCP.Tools.QueryTuistClickhouse
@@ -457,6 +462,11 @@ defmodule Atlas.MCP.Server do
     AddSpecComment,
     UpdateSpecComment,
     DeleteSpecComment,
+    PagesListSites,
+    PagesGetSite,
+    PagesStartDeploy,
+    PagesFinalizeDeploy,
+    PagesDeleteSite,
     ListEngineeringDomains,
     GetEngineeringDomain,
     CreateEngineeringDomain,

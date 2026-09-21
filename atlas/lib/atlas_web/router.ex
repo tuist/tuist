@@ -233,6 +233,8 @@ defmodule AtlasWeb.Router do
       live "/engineering/specs/new", SpecLive.Form, :new
       live "/engineering/specs/:number", SpecLive.Show
       live "/engineering/specs/:number/edit", SpecLive.Form, :edit
+      live "/engineering/pages", PagesLive.Index, :index
+      live "/engineering/pages/:id", PagesLive.Show, :show
     end
 
     live_session :scoped_finance,

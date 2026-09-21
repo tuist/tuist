@@ -37,6 +37,7 @@ alias Atlas.Engineering.Errors, as: EngineeringErrors
 alias Atlas.Engineering.Errors.Issue, as: ErrorsIssue
 alias Atlas.Engineering.Errors.IssueAccount, as: ErrorsIssueAccount
 alias Atlas.Engineering.Errors.SummaryRun, as: ErrorsSummaryRun
+alias Atlas.Engineering.Pages
 alias Atlas.Engineering.Postmortems
 alias Atlas.Engineering.Projects, as: EngineeringProjects
 alias Atlas.Engineering.Projects.Project, as: EngineeringProject
@@ -6153,4 +6154,25 @@ if spec_author && seed_project do
       {:ok, _spec} = Specs.create_spec(payload, spec_author)
     end
   end)
+end
+
+# Seed one placeholder Pages site so the LiveView index has something to render
+# in local dev. The site is created without a live deploy: it shows the empty
+# state until someone uploads files to it.
+if spec_author do
+  case Pages.get_page_by_slug("example") do
+    nil ->
+      {:ok, _page} =
+        Pages.create_page(
+          %{
+            "slug" => "example",
+            "title" => "Example",
+            "description" => "Placeholder site. Drop a folder to publish."
+          },
+          spec_author
+        )
+
+    _existing ->
+      :ok
+  end
 end
