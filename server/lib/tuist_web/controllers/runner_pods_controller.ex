@@ -163,10 +163,12 @@ defmodule TuistWeb.RunnerPodsController do
   defp schedule_orphan_recovery(workflow_job_id, pod_name) do
     # `pod_name` binds the recovery to this attempt: a delayed run must
     # not act on a row that a replacement Pod has since claimed.
-    %{workflow_job_id: workflow_job_id, pod_name: pod_name}
-    |> OrphanedRunnersWorker.new()
-    |> Oban.insert()
-    |> case do
+    result =
+      %{workflow_job_id: workflow_job_id, pod_name: pod_name}
+      |> OrphanedRunnersWorker.new()
+      |> Oban.insert()
+
+    case result do
       {:ok, _job} ->
         :ok
 
@@ -181,6 +183,21 @@ defmodule TuistWeb.RunnerPodsController do
 
         :error
     end
+  rescue
+    # Oban raises RuntimeError when it is not yet started (boot window) or has
+    # already stopped (shutdown window). This happens because Oban starts after
+    # the Phoenix endpoint and stops before it, to avoid a VerifiedRoutes
+    # persistent-term error (Sentry TUIST-3R9). Treat it the same as an
+    # {:error, reason} result: log and continue. The 1-minute OrphanedRunners
+    # sweep is the backstop.
+    e in RuntimeError ->
+      Logger.warning("runners: failed to schedule orphan recovery on pod stop",
+        pod: pod_name,
+        workflow_job_id: workflow_job_id,
+        reason: inspect(e)
+      )
+
+      :error
   end
 
   defp parse_pod_name(%{"pod_name" => pod_name}) when is_binary(pod_name) and pod_name != "", do: {:ok, pod_name}
