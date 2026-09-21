@@ -530,7 +530,7 @@ defmodule Tuist.Gradle do
     case Map.get(event, :observed_at_ms) do
       value when is_integer(value) and value >= 0 ->
         case DateTime.from_unix(value, :millisecond) do
-          {:ok, dt} -> DateTime.to_naive(dt) |> NaiveDateTime.truncate(:second)
+          {:ok, dt} -> dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
           _ -> fallback
         end
 
