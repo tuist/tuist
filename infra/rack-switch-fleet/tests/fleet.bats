@@ -224,9 +224,13 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
     mkdir -p "$stub"
     cat > "$stub/ssh" <<STUB
 #!/usr/bin/env bash
-# A switch that echoes like the real one: prompt, echoed command, output.
+# A switch that echoes like the real one: prompt, echoed command, output. It
+# waits before answering, because a switch that replies within one read
+# interval hides a drain that gives up on its first timeout.
+sleep 1
 printf 'ber1-tor-b>'
 while IFS= read -r line; do
+    sleep 1
     line="\${line%\$'\r'}"
     printf '%s\r\n' "\$line"
     case "\$line" in
@@ -258,4 +262,28 @@ STUB
     run fleet_diff "$desired" "$BATS_TEST_TMPDIR/live" rendered live
     [ "$status" -eq 0 ]
     [ "${#output}" -eq 0 ]
+}
+
+@test "a connection that fails fast reports why, instead of an unbound variable" {
+    # Bash deletes the coprocess array as soon as the coprocess is reaped, so a
+    # dead ssh turns every ${SWITCH[0]} into an unbound variable under set -u.
+    stub="$BATS_TEST_TMPDIR/bin"
+    mkdir -p "$stub"
+    cat > "$stub/ssh" <<'STUB'
+#!/usr/bin/env bash
+echo "ssh: connect to host 192.0.2.1 port 22: Connection refused" >&2
+exit 255
+STUB
+    chmod +x "$stub/ssh"
+
+    run bash -c "
+        set -euo pipefail
+        export PATH=\"$stub:\$PATH\"
+        source '$FLEET_ROOT/lib/session.sh'
+        switch_open 192.0.2.1 tuist /dev/null
+    "
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"accepted no session"* ]]
+    [[ "$output" == *"Connection refused"* ]]
+    [[ "$output" != *"unbound variable"* ]]
 }

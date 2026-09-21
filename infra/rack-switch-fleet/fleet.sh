@@ -309,7 +309,9 @@ cmd_probe_tftp() {
   local size printable ratio destination
   size="$(wc -c < "$served" | tr -d ' ')"
   if [ "$size" = "0" ]; then
-    echo "error: the switch wrote nothing; the transfer did not complete" >&2
+    echo "error: the switch wrote nothing, so the transfer did not complete." >&2
+    echo "       TFTP replies from a fresh port, so check the macOS firewall is not" >&2
+    echo "       blocking incoming UDP for tftpd." >&2
     sudo rm -f "$served"
     return 1
   fi

@@ -18,6 +18,12 @@
 # The coprocess file descriptors do not survive into a pipeline's subshell, so
 # nothing here may be piped or captured with $(...). switch_run leaves what the
 # switch printed in SWITCH_OUTPUT and the caller writes that to a file.
+#
+# Bash also deletes the coprocess array the moment the coprocess is reaped, so a
+# connection that fails fast turns every ${SWITCH[0]} into an unbound variable
+# rather than a read error. Every access goes through switch_alive, and ssh's
+# own diagnostics go to SWITCH_LOG so there is something to print once the
+# descriptors are gone. It deletes SWITCH_PID with it, so that is guarded too.
 
 SWITCH_PAGER='Press any key to continue (Q to quit)'
 SWITCH_ADDRESS=""
@@ -25,11 +31,16 @@ SWITCH_ADDRESS=""
 SWITCH_PID=""
 SWITCH_BUFFER=""
 SWITCH_OUTPUT=""
+SWITCH_LOG=""
+
+# False once the coprocess is gone, which bash signals by deleting the array.
+switch_alive() { [ -n "${SWITCH[0]:-}" ]; }
 
 switch_open() {
   local address="$1" user="$2" key="$3"
   SWITCH_ADDRESS="$address"
 
+  SWITCH_LOG="$(mktemp)"
   coproc SWITCH {
     ssh -tt \
       -i "${key/#\~/$HOME}" \
@@ -41,13 +52,19 @@ switch_open() {
       -o StrictHostKeyChecking=accept-new \
       -o BatchMode=yes \
       -o ConnectTimeout=10 \
-      "$user@$address" 2>&1
+      "$user@$address" 2>"$SWITCH_LOG"
   }
   switch_drain 8
-  if ! kill -0 "$SWITCH_PID" 2>/dev/null; then
-    echo "error: $address accepted no session: ${SWITCH_BUFFER:-no output}" >&2
-    echo "       if it answers ping but not SSH its session table is wedged; the web UI" >&2
-    echo "       still works and a reboot clears it" >&2
+  if ! switch_alive || ! kill -0 "${SWITCH_PID:-}" 2>/dev/null; then
+    echo "error: $address accepted no session." >&2
+    if [ -s "$SWITCH_LOG" ]; then
+      sed 's/^/       ssh: /' "$SWITCH_LOG" >&2
+    else
+      echo "       ssh said nothing${SWITCH_BUFFER:+, the switch said: $SWITCH_BUFFER}" >&2
+    fi
+    echo "       If it answers ping but not SSH its session table is wedged; the web UI" >&2
+    echo "       still works and a reboot clears it." >&2
+    switch_close
     return 1
   fi
   switch_run enable
@@ -58,9 +75,17 @@ switch_open() {
 switch_drain() {
   local timeout="${1:-120}" deadline character tail status scan=""
   SWITCH_BUFFER=""
+  switch_alive || return 0
   deadline=$(( SECONDS + timeout ))
   while (( SECONDS < deadline )); do
-    if IFS= read -r -N1 -t 0.4 character <&"${SWITCH[0]}"; then
+    switch_alive || return 0
+    # `status` is read explicitly rather than from $? after an `if`: an `if`
+    # whose condition is false and which has no `else` exits 0, so the timeout
+    # read as success and the drain returned an empty buffer the moment the
+    # switch took longer than one interval to answer.
+    status=0
+    IFS= read -r -N1 -t 0.4 character <&"${SWITCH[0]}" || status=$?
+    if (( status == 0 )); then
       SWITCH_BUFFER+="$character"
       # The pager is detected on a separate window, never by editing the
       # transcript: the prompt is what tells the normaliser that the padding
@@ -68,13 +93,12 @@ switch_drain() {
       scan+="$character"
       if [[ "$scan" == *"$SWITCH_PAGER"* ]]; then
         scan=""
-        printf ' ' >&"${SWITCH[1]}"
+        switch_alive && printf ' ' >&"${SWITCH[1]}"
       elif (( ${#scan} > 200 )); then
         scan="${scan: -100}"
       fi
       continue
     fi
-    status=$?
     (( status > 128 )) || return 0
     tail="${SWITCH_BUFFER##*$'\n'}"
     tail="${tail//$'\r'/}"
@@ -83,7 +107,10 @@ switch_drain() {
   return 0
 }
 
-switch_write() { printf '%s\r\n' "$1" >&"${SWITCH[1]}"; }
+switch_write() {
+  switch_alive || { echo "error: $SWITCH_ADDRESS closed the session" >&2; return 1; }
+  printf '%s\r\n' "$1" >&"${SWITCH[1]}"
+}
 
 switch_run() {
   local command="$1" timeout="${2:-120}"
@@ -99,18 +126,19 @@ switch_run() {
 
 # End the session for real. See the session-table note at the top.
 switch_close() {
-  [ -n "$SWITCH_PID" ] || return 0
-  if kill -0 "$SWITCH_PID" 2>/dev/null; then
+  if [ -n "$SWITCH_LOG" ]; then rm -f "$SWITCH_LOG"; SWITCH_LOG=""; fi
+  [ -n "${SWITCH_PID:-}" ] || return 0
+  if switch_alive && kill -0 "${SWITCH_PID:-}" 2>/dev/null; then
     switch_write 'end'    || true
     switch_drain 5 || true
     switch_write 'logout' || true
     switch_drain 5 || true
   fi
   local waited=0
-  while kill -0 "$SWITCH_PID" 2>/dev/null && (( waited < 5 )); do
+  while [ -n "${SWITCH_PID:-}" ] && kill -0 "${SWITCH_PID:-}" 2>/dev/null && (( waited < 5 )); do
     sleep 1; waited=$(( waited + 1 ))
   done
-  kill -9 "$SWITCH_PID" 2>/dev/null || true
-  wait "$SWITCH_PID" 2>/dev/null || true
+  kill -9 "${SWITCH_PID:-}" 2>/dev/null || true
+  wait "${SWITCH_PID:-}" 2>/dev/null || true
   SWITCH_PID=""
 }
