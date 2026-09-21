@@ -18,8 +18,9 @@
 # override: OP_ACCOUNT). Pass --create-credentials on a switch's first run to
 # generate it. --import-key installs the fleet SSH key so the switch can be
 # driven without a password afterwards; it asks for sudo, because the switch
-# fetches the key over TFTP and TFTP is always port 69. See infra/rack-switch-prep/AGENTS.md for what the script does not
-# do, and for the console baud rate and firmware-line traps.
+# fetches the key over TFTP and TFTP is always port 69. See
+# infra/rack-switch-prep/AGENTS.md for what the script leaves to a fleet change,
+# and for the console baud rate and firmware-line traps.
 
 set -euo pipefail
 
