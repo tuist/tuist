@@ -110,28 +110,21 @@ backend = "aqua:shellspec/shellspec"
 
 [tools.shellspec."platforms.linux-arm64"]
 url = "https://github.com/shellspec/shellspec/archive/refs/tags/0.28.1.tar.gz"
-url_api = "https://api.github.com/repos/shellspec/shellspec/tarball/0.28.1"
 
 [tools.shellspec."platforms.linux-arm64-musl"]
 url = "https://github.com/shellspec/shellspec/archive/refs/tags/0.28.1.tar.gz"
-url_api = "https://api.github.com/repos/shellspec/shellspec/tarball/0.28.1"
 
 [tools.shellspec."platforms.linux-x64"]
 url = "https://github.com/shellspec/shellspec/archive/refs/tags/0.28.1.tar.gz"
-url_api = "https://api.github.com/repos/shellspec/shellspec/tarball/0.28.1"
 
 [tools.shellspec."platforms.linux-x64-musl"]
 url = "https://github.com/shellspec/shellspec/archive/refs/tags/0.28.1.tar.gz"
-url_api = "https://api.github.com/repos/shellspec/shellspec/tarball/0.28.1"
 
 [tools.shellspec."platforms.macos-arm64"]
 url = "https://github.com/shellspec/shellspec/archive/refs/tags/0.28.1.tar.gz"
-url_api = "https://api.github.com/repos/shellspec/shellspec/tarball/0.28.1"
 
 [tools.shellspec."platforms.macos-x64"]
 url = "https://github.com/shellspec/shellspec/archive/refs/tags/0.28.1.tar.gz"
-url_api = "https://api.github.com/repos/shellspec/shellspec/tarball/0.28.1"
 
 [tools.shellspec."platforms.windows-x64"]
 url = "https://github.com/shellspec/shellspec/archive/refs/tags/0.28.1.tar.gz"
-url_api = "https://api.github.com/repos/shellspec/shellspec/tarball/0.28.1"

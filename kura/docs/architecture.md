@@ -67,6 +67,8 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 
 ## Storage Planes
 
+Foreground artifact writes use 1,024 fixed lock stripes to reduce collisions between unrelated keys. A write keeps its artifact and namespace guards until segment bytes and metadata are durable. The separate 32-slot positioned-write limit remains the bound on concurrent segment writes. Manifest caching and upload admission use short synchronous mutex sections; neither creates a background commit queue.
+
 Kura splits durable state into two planes so that the hot path is simple and the cold path can compact freely:
 
 1. **RocksDB** holds metadata: artifact manifests, keyvalue payloads, multipart upload state, namespace tombstones, segment lifecycle records, and the **arrival feed** the pull links read. A local write and its feed row are committed together, so what a sibling can pull is durable as soon as the write is acknowledged. The `outbox` column family of the push path that pull replaced stays declared, empty: the store opens with an explicit descriptor list, and a rollback to a binary that expects it must still open the database; whatever rows a node upgraded straight from a pushing release carries are swept at open.
@@ -85,6 +87,8 @@ This is deliberately not a durable outbox. A result carries at most two matching
 The same Build Event Protocol stream carries custom build metadata. Kura retains at most 20 pairs per in-flight invocation, limits keys to 50 bytes and values to 500 bytes, and deterministically keeps the first valid keys when a client sends more. Metadata used for branch, commit, or continuous-integration provenance is stored in its dedicated invocation field and omitted from the custom map. The bounded map leaves Kura through the existing invocation analytics queue and is not written to Kura's local storage.
 
 ## Memory Pressure And Shedding
+
+The listener accepts transport frames up to 256 kibibytes; stream and connection windows, concurrent-stream limits, send-buffer limits, and response-chunk reservations remain independently bounded. This is a local serving choice: stored bytes and peer messages retain their existing formats.
 
 Kura treats memory as an admission-controlled shared resource, not just a set of independent caches:
 

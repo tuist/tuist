@@ -79,7 +79,7 @@ pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 // from a peer on a pre-pull release, which is the only sender left.
 pub const REPLICATION_BATCH_MAX_ITEMS: usize = 512;
 pub const REPLICATION_BATCH_MAX_BYTES: u64 = 8 * 1024 * 1024;
-pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 128 * 1024;
+pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 64 * 1024;
 pub const RESPONSE_STREAM_MIN_CHUNK_BYTES: usize = 8 * 1024;
 pub const RESPONSE_STREAM_ENCODING_OVERHEAD_BYTES: usize = 16;

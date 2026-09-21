@@ -314,11 +314,6 @@ async fn initialize_and_serve(
     });
     bootstrap.attach_state(&state);
     state.sync_runtime_metrics().await;
-    if state.config.reapi_coalesced_durability {
-        warn!(
-            "experimental REAPI coalesced durability is enabled; acknowledged manifests may be lost within the WAL sync window after a crash"
-        );
-    }
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
     info!(
         event.name = "kura.request_observability.configured",
