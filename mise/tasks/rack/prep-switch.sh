@@ -9,7 +9,7 @@
 # it is how remote hands will recover a switch in the colo.
 #
 # This names the switch, gives it the fixed management address from
-# infra/rack-switch-prep/switches.json, enables SSH, saves to startup config and
+# infra/rack-switch-fleet/sites/<site>.json, enables SSH, saves to startup config and
 # reads the device back to verify. It handles a factory-fresh unit and an
 # already-configured one, so re-running it converges.
 #
@@ -21,7 +21,7 @@
 #        mise run rack:prep-switch ber1-mgmt --create-credentials
 #        mise run rack:prep-switch ber1-tor-a --import-key ~/.ssh/ber1-switch-rsa.pub
 #
-# The admin login comes from the 1Password item named in switches.json (account
+# The admin login comes from the 1Password item named in the site definition (account
 # override: OP_ACCOUNT); --create-credentials generates it on a switch's first
 # run. --import-key installs the fleet SSH key so the switch can be driven
 # without a password afterwards: the switch fetches it over TFTP from this
@@ -59,25 +59,32 @@ while (( $# )); do
 done
 
 root="$(git rev-parse --show-toplevel)"
-inventory="$root/infra/rack-switch-prep/switches.json"
+site="${RACK_SITE:-ber1}"
+inventory="$root/infra/rack-switch-fleet/sites/$site.json"
 
-if [ -z "$switch" ] || ! jq -e --arg s "$switch" '.switches[$s]' "$inventory" >/dev/null; then
-  echo "usage: mise run rack:prep-switch <switch> [flags]" >&2
-  echo "known switches: $(jq -r '.switches | keys | join(", ")' "$inventory")" >&2
+if [ ! -f "$inventory" ]; then
+  echo "error: no site definition at $inventory" >&2
   exit 2
 fi
 
-entry="$(jq -r --arg s "$switch" '.switches[$s]' "$inventory")"
+if [ -z "$switch" ] || ! jq -e --arg s "$switch" '.devices[] | select(.name == $s)' "$inventory" >/dev/null; then
+  echo "usage: mise run rack:prep-switch <switch> [flags]" >&2
+  echo "known switches in $site: $(jq -r '[.devices[].name] | join(", ")' "$inventory")" >&2
+  exit 2
+fi
+
+entry="$(jq -r --arg s "$switch" '.devices[] | select(.name == $s)' "$inventory")"
 model="$(jq -r '.model' <<<"$entry")"
-mgmt_ip="$(jq -r '.mgmt_ip' <<<"$entry")"
-mgmt_mask="$(jq -r '.mgmt_mask' <<<"$entry")"
+mgmt_ip="$(jq -r '.mgmt_address' <<<"$entry")"
+mgmt_mask="$(jq -r '.management.netmask' "$inventory")"
+mgmt_vlan="$(jq -r '.management.vlan' "$inventory")"
 credential_item="$(jq -r '.credential_item' <<<"$entry")"
-vault="$(jq -r '.vault' "$inventory")"
+vault="$(jq -r '.credentials.vault' "$inventory")"
 
 commands=(
   "configure"
   "hostname $switch"
-  "interface vlan 1"
+  "interface vlan $mgmt_vlan"
   "ip address $mgmt_ip $mgmt_mask"
   "exit"
   "ip ssh server"

@@ -1,0 +1,86 @@
+{
+  "site": "ber1",
+  "location": "Berlin, rack 1",
+  "credentials": {
+    "vault": "pqwnigzdk46jpjvofoqpeuhmgq",
+    "username": "tuist",
+    "ssh_key": "~/.ssh/ber1-switch-rsa"
+  },
+  "management": {
+    "vlan": 1,
+    "vlan_name": "System-VLAN",
+    "prefix": "192.168.0.0/24",
+    "netmask": "255.255.255.0",
+    "gateway": "192.168.0.1"
+  },
+  "services": {
+    "telnet": false,
+    "http": false,
+    "snmp": false,
+    "lldp": true,
+    "cloud_controller": false,
+    "spanning_tree": "rstp"
+  },
+  "devices": [
+    {
+      "name": "ber1-tor-b",
+      "role": "tor",
+      "model": "sx3832",
+      "mgmt_address": "192.168.0.12",
+      "credential_item": "ber1-tor-b switch admin",
+      "console_baud": 38400,
+      "apply_order": 1,
+      "apply_note": "No WAN path lands here, so a bad change costs one half of the rack's redundancy rather than the site's connectivity. Always the first switch changed, and the only one used to try a change out.",
+      "ports": {
+        "25": {
+          "purpose": "uplink",
+          "peer": "ber1-edge",
+          "media": "dac",
+          "description": "uplink ber1-edge"
+        },
+        "32": {
+          "purpose": "isl",
+          "peer": "ber1-tor-a",
+          "media": "dac",
+          "description": "isl ber1-tor-a"
+        }
+      }
+    },
+    {
+      "name": "ber1-tor-a",
+      "role": "tor",
+      "model": "sx3832",
+      "mgmt_address": "192.168.0.11",
+      "credential_item": "ber1-tor-a switch admin",
+      "console_baud": 38400,
+      "apply_order": 2,
+      "apply_note": "Carries the WAN optic and the router uplink, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.",
+      "ports": {
+        "24": {
+          "purpose": "wan",
+          "peer": "router",
+          "media": "copper",
+          "description": "router uplink (WAN)",
+          "protected": true
+        },
+        "32": {
+          "purpose": "isl",
+          "peer": "ber1-tor-b",
+          "media": "dac",
+          "description": "isl ber1-tor-b"
+        }
+      }
+    },
+    {
+      "name": "ber1-mgmt",
+      "role": "mgmt",
+      "model": "tl-sg3452",
+      "mgmt_address": "192.168.0.13",
+      "credential_item": "ber1-mgmt switch admin",
+      "console_baud": 38400,
+      "apply_order": 3,
+      "apply_note": "There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.",
+      "ports": {}
+    }
+  ]
+}
