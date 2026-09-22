@@ -1,5 +1,5 @@
 {
-  "originHash" : "18e9ea039f71b2de37db0d9738d818cc172d2583b0fc62df11e2fe031c3e44ef",
+  "originHash" : "8ef7eaf829a8c9379da3077bd61e2c29bb8d33aebf6c943cc56951cc727a0547",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -23,7 +23,7 @@
       "identity" : "apple.swift-argument-parser",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-argument-parser",
+      "originalLocation" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
         "version" : "1.8.2"
       }
@@ -95,7 +95,7 @@
       "identity" : "apple.swift-http-types",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-http-types.git",
+      "originalLocation" : "https://github.com/apple/swift-http-types",
       "state" : {
         "version" : "1.8.0"
       }
@@ -104,7 +104,7 @@
       "identity" : "apple.swift-log",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-log.git",
+      "originalLocation" : "https://github.com/apple/swift-log",
       "state" : {
         "version" : "1.13.2"
       }
@@ -202,7 +202,7 @@
       "identity" : "apple.swift-system",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-system",
+      "originalLocation" : "https://github.com/apple/swift-system.git",
       "state" : {
         "version" : "1.8.1"
       }
@@ -264,6 +264,14 @@
       "location" : "",
       "state" : {
         "version" : "0.4.5"
+      }
+    },
+    {
+      "identity" : "facebook.zstd",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.5.7"
       }
     },
     {
