@@ -233,6 +233,16 @@ fleet_check_ports() {
 }
 
 # A device's whole desired configuration, as configuration-file text.
+# A prefix length as the dotted mask the switch CLI takes: 10 is 255.192.0.0.
+fleet_prefix_mask() {
+  local bits="$1" mask="" octet
+  for _ in 1 2 3 4; do
+    if (( bits >= 8 )); then octet=255; bits=$(( bits - 8 )); else octet=$(( 256 - (1 << (8 - bits)) )); bits=0; fi
+    mask+="${mask:+.}$octet"
+  done
+  echo "$mask"
+}
+
 fleet_render() {
   local site_file="$1" name="$2" device spec model
   device="$(fleet_device "$site_file" "$name")" || return 1
@@ -271,6 +281,21 @@ fleet_render() {
   printf '%s\n#\n' "$snmp"
   printf '%s\n#\n' "$http"
   printf '%s\n#\n' "$lldp"
+  # A switch behind the edge node sends the edge's routes through it. The switch
+  # prints static routes here, between lldp and the controller lines, and the
+  # diff is order-sensitive.
+  if [ "$(jq -r '.behind_edge // false' <<<"$device")" = "true" ]; then
+    local edge_address route
+    edge_address="$(jq -r '.management.edge.address // empty' "$site_file")"
+    if [ -z "$edge_address" ]; then
+      echo "error: $name is behind_edge but the site has no management.edge.address" >&2
+      return 1
+    fi
+    while read -r route; do
+      printf 'ip route %s %s %s\n' "${route%/*}" "$(fleet_prefix_mask "${route#*/}")" "$edge_address"
+    done < <(jq -r '.management.edge.routes[]' "$site_file")
+    printf '#\n'
+  fi
   if [ "$cloud" = "false" ]; then
     printf 'no controller cloud-based\nno controller cloud-based privacy-policy\n#\n'
   fi

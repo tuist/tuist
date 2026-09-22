@@ -1478,6 +1478,132 @@ cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
     [ "$output" = "0" ]
 }
 
+# --- the path from switches behind the edge node to the tailnet --------------
+
+@test "a prefix length becomes the mask the switch CLI takes" {
+    run fleet_sh "for b in 0 10 24 32; do fleet_prefix_mask \$b; done"
+    [ "${lines[0]}" = "0.0.0.0" ]
+    [ "${lines[1]}" = "255.192.0.0" ]
+    [ "${lines[2]}" = "255.255.255.0" ]
+    [ "${lines[3]}" = "255.255.255.255" ]
+}
+
+@test "a switch behind the edge routes the tailnet through it, where the switch prints routes" {
+    # Read off ber1-mgmt: static routes come after lldp and before the
+    # controller lines, and the diff is order-sensitive.
+    run fleet_render "$SITE_FILE" ber1-mgmt
+    [ "$status" -eq 0 ]
+    route="$(grep -n '^ip route 100.64.0.0 255.192.0.0 192.168.0.10$' <<<"$output" | cut -d: -f1)"
+    lldp="$(grep -nx 'lldp' <<<"$output" | cut -d: -f1)"
+    cloud="$(grep -nx 'no controller cloud-based' <<<"$output" | cut -d: -f1)"
+    [ -n "$route" ]
+    [ "$lldp" -lt "$route" ]
+    [ "$route" -lt "$cloud" ]
+}
+
+@test "a switch that is not behind the edge carries no such route" {
+    for device in ber1-tor-a ber1-tor-b; do
+        run fleet_render "$SITE_FILE" "$device"
+        [ "$status" -eq 0 ]
+        [[ "$output" != *"ip route"* ]]
+    done
+}
+
+@test "the fleet reaches a switch behind the edge through the edge node" {
+    stub="$BATS_TEST_TMPDIR/jump"
+    mkdir -p "$stub"
+    cat > "$stub/ssh" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$FAKE_ARGS"
+sleep 0.2
+printf 'sw>'
+while IFS= read -r line; do
+    line="${line%$'\r'}"
+    printf '%s\r\n' "$line"
+    [ "$line" = logout ] && exit 0
+    printf '\r\nsw#'
+done
+STUB
+    chmod +x "$stub/ssh"
+    args="$BATS_TEST_TMPDIR/jump-args"
+    run bash -c "
+        set -uo pipefail
+        export PATH=\"$stub:\$PATH\" FAKE_ARGS='$args'
+        source '$FLEET_ROOT/lib/session.sh'
+        SWITCH_JUMPS[192.0.2.13]='tuist@edge'
+        trap switch_close EXIT
+        switch_open 192.0.2.13 tuist /dev/null
+    "
+    run grep -c '^ProxyCommand=ssh -o BatchMode=yes -o ConnectTimeout=10 -W %h:%p tuist@edge$' "$args"
+    [ "$output" = "1" ]
+    # and a switch not behind it is dialled directly
+    run bash -c "
+        set -uo pipefail
+        export PATH=\"$stub:\$PATH\" FAKE_ARGS='$args'
+        source '$FLEET_ROOT/lib/session.sh'
+        trap switch_close EXIT
+        switch_open 192.0.2.12 tuist /dev/null
+    "
+    run grep -c 'ProxyCommand' "$args"
+    [ "$output" = "0" ]
+}
+
+@test "the jump comes from the site definition, for the devices behind the edge" {
+    run jq -r '.management.edge.ssh as $j | .devices[] | select(.behind_edge and $j) | "\(.mgmt_address) \($j)"' "$SITE_FILE"
+    [ "$output" = "192.168.0.13 tuist@ber1-edge" ]
+}
+
+# An edge node answering over the ssh stub like ber1-edge: two uplinks carrying
+# default routes, and the port ber1-mgmt hangs off.
+edge_stub() {
+    local dir="$1"
+    mkdir -p "$dir"
+    cat > "$dir/ssh" <<'STUB'
+#!/usr/bin/env bash
+while [ $# -gt 0 ]; do
+    case "$1" in -o) shift 2;; -*) shift;; *) break;; esac
+done
+shift
+case "$*" in
+    true) exit 0;;
+    "ip route show default | awk '{print \$5}'") printf 'enp2s0f0np0\nenp2s0f1np1\n';;
+    "ip link show dev enp87s0") echo "3: enp87s0: <UP>";;
+    *) exit 1;;
+esac
+STUB
+    chmod +x "$dir/ssh"
+}
+
+@test "the edge path refuses the edge node's uplink" {
+    bin="$BATS_TEST_TMPDIR/edge1"
+    edge_stub "$bin"
+    run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp2s0f1np1 --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"default route"* ]]
+}
+
+@test "the edge path translates only the switches behind it, and advertises nothing" {
+    bin="$BATS_TEST_TMPDIR/edge2"
+    edge_stub "$bin"
+    run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp87s0 --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ip addr replace 192.168.0.10/32 dev enp87s0"* ]]
+    [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.13 } masquerade'* ]]
+    [[ "$output" != *"advertise-routes"* ]]
+    [[ "$output" == *"dry run, nothing changed"* ]]
+}
+
+@test "the edge path says so when the edge node cannot be reached" {
+    bin="$BATS_TEST_TMPDIR/edge3"
+    mkdir -p "$bin"
+    printf '#!/usr/bin/env bash\nexit 255\n' > "$bin/ssh"
+    chmod +x "$bin/ssh"
+    run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp87s0 --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cannot reach tuist@ber1-edge"* ]]
+}
+
 # --- zero touch: serving DHCP and TFTP on an isolated segment ----------------
 
 ztp_stub() {

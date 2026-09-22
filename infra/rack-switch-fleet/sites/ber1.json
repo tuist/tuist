@@ -11,7 +11,14 @@
     "vlan_name": "System-VLAN",
     "prefix": "192.168.0.0/24",
     "netmask": "255.255.255.0",
-    "gateway": "192.168.0.1"
+    "gateway": "192.168.0.1",
+    "edge": {
+      "ssh": "tuist@ber1-edge",
+      "address": "192.168.0.10",
+      "routes": [
+        "100.64.0.0/10"
+      ]
+    }
   },
   "services": {
     "telnet": false,
@@ -78,7 +85,8 @@
       "apply_order": 3,
       "apply_note": "There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.",
       "ports": {},
-      "mac": "a8:29:48:fe:b4:be"
+      "mac": "a8:29:48:fe:b4:be",
+      "behind_edge": true
     }
   ],
   "node_roles": {

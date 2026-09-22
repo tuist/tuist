@@ -50,19 +50,28 @@ SWITCH_CONFIRM=$'(Y/N)'
 # connection budget and would be this tool's fault rather than the firmware's.
 # FLEET_DEBUG_SESSIONS=1 prints it.
 SWITCH_CLOSED_BY=""
+# Switches reached through another machine rather than directly, by management
+# address: an ssh destination that relays the connection. The rack's edge node
+# is one, for a switch whose only uplink is its management port. Filled in by
+# the caller from the site definition.
+declare -gA SWITCH_JUMPS=()
 
 
 # False once the coprocess is gone, which bash signals by deleting the array.
 switch_alive() { [ -n "${SWITCH[0]:-}" ]; }
 
 switch_open() {
-  local address="$1" user="$2" key="$3"
+  local address="$1" user="$2" key="$3" jump relay=()
   SWITCH_ADDRESS="$address"
+  jump="${SWITCH_JUMPS[$address]:-}"
+  # The relay authenticates as the operator to the jump host, never with the
+  # switch key, which stays on this machine.
+  [ -n "$jump" ] && relay=(-o "ProxyCommand=ssh -o BatchMode=yes -o ConnectTimeout=10 -W %h:%p $jump")
 
   SWITCH_LOG="$(mktemp)"
   trap '' PIPE
   coproc SWITCH {
-    ssh -tt \
+    ssh -tt "${relay[@]}" \
       -i "${key/#\~/$HOME}" \
       -o IdentitiesOnly=yes \
       -o IdentityAgent=none \

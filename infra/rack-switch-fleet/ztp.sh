@@ -75,12 +75,16 @@ fi
 # A command on whichever machine serves: this one, or the --via host.
 on_server() {
   if [ -n "$via" ]; then
-    ssh -o BatchMode=yes -o ConnectTimeout=10 "$via" "$1"
+    ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$via" "$1"
   else
     bash -c "$1"
   fi
 }
 server="${via:-this machine}"
+if [ -n "$via" ] && ! on_server true 2>/dev/null; then
+  echo "error: cannot reach $via over SSH" >&2
+  exit 1
+fi
 
 # --- refuse to become a rogue DHCP server ------------------------------------
 
