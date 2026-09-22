@@ -1415,14 +1415,17 @@ cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
       echo "ip ssh download v2 fleet.pub ip-address 192.168.50.1"; } > "$unsealed"
     bin="$BATS_TEST_TMPDIR/seal1"
     apply_stub "$bin"
+    # preflight writes a backup, so it runs from a copy rather than over the
+    # committed one
+    copy="$BATS_TEST_TMPDIR/fleet-copy"
+    cp -R "$FLEET_ROOT" "$copy"
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_BEFORE="$rendered" FAKE_AFTER="$rendered" \
-        FAKE_STARTUP="$unsealed" FAKE_REJECT="" "$FLEET_ROOT/fleet.sh" preflight ber1-tor-b
+        FAKE_STARTUP="$unsealed" FAKE_REJECT="" "$copy/fleet.sh" preflight ber1-tor-b
     [ "$status" -ne 0 ]
     [[ "$output" == *"mise run rack:fleet save ber1-tor-b"* ]]
     # and the backup it writes does not carry the password
-    run grep -c NotARealPassword1 "$FLEET_ROOT/backups/ber1/ber1-tor-b.cfg"
+    run grep -c NotARealPassword1 "$copy/backups/ber1/ber1-tor-b.cfg"
     [ "$output" = "0" ]
-    git -C "$FLEET_ROOT" checkout -- backups/ber1/ber1-tor-b.cfg
 }
 
 @test "save writes the running configuration only once it matches the render" {

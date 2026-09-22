@@ -116,6 +116,34 @@ download line: the switch has the password login only, and
 `rack:prep-switch ber1-mgmt --import-key ~/.ssh/ber1-switch-rsa.pub` over the
 console finishes the job. Record which it was.
 
+**Done on 2026-09-22, end to end.** Served from `ber1-edge` (the cable was in
+`enp87s0`, the i226-V port, that time), Auto Install fetched `ber1-mgmt.cfg`,
+saved it and rebooted, and the switch came up at 192.168.0.13 matching the
+render and reachable with the fleet key. What it took, in order:
+
+1. The switch ignored every DHCP offer until they were sent by unicast; see
+   the SG3452 entry under the traps below. `rack:ztp --via` now does that.
+2. This unit was not factory fresh: someone had once added the `tuist` login
+   (with `ber1-tor-b`'s password) and the fleet key over the console, and its
+   management VLAN was on DHCP. Auto Install was `Stop` with auto-save and
+   auto-reboot enabled, so it was started over SSH with
+   `boot autoinstall start`. Whether a factory-fresh SG3452 starts it on its
+   own is still open, and so is whether the served key download ran, since
+   the key was already there.
+3. Auto Install saves the fetched file verbatim, so the startup configuration
+   held the login in plaintext and the key download, which then failed at
+   every boot. `mise run rack:fleet save ber1-mgmt` sealed it, and `preflight`
+   now refuses a switch in that state.
+4. The switch now carries its own `ber1-mgmt switch admin` login, which
+   `--create-credentials` made.
+
+On its site address the switch sits on a segment only `ber1-edge` reaches, so
+the fleet tools got to it through the edge node: a macvlan on the served port
+in a network namespace holding 192.168.0.250, and `ssh` with
+`ProxyCommand=ssh tuist@<ber1-edge> sudo ip netns exec <ns> nc %h %p`, which
+keeps the fleet key on the laptop. Giving the rack a routed path to the
+management segment is convergence work on the edge node, not this directory's.
+
 ### Group C: the live ToRs, where care is needed
 
 Both switches were left with wedged SSH daemons, so **reboot both first**; that
