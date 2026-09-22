@@ -32,6 +32,105 @@ const GUARDIAN_SECRET: &str = "tuist-guardian-secret";
 
 use std::sync::Mutex;
 
+#[tokio::test]
+async fn renamed_account_authorizes_current_grants_without_changing_stored_artifacts() {
+    use axum::body::Body;
+    use axum::http::Request;
+    use tower::ServiceExt;
+
+    let base = spawn_tuist_auth_mock(
+        |_headers, payload| {
+            let project = if payload["token"] == "original-token" {
+                "original/ios"
+            } else {
+                "renamed/ios"
+            };
+            (
+                StatusCode::OK,
+                introspection_payload(cache_grants_payload(&[], &[], &[project], &[project])),
+            )
+        },
+        |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+    )
+    .await;
+    let engine = engine_introspection_only(&base);
+    let context = crate::test_support::test_context_with_auth(
+        |config| config.tenant_id = "original".into(),
+        Some(engine.clone()),
+    )
+    .await;
+    let app = crate::http::router(context.state.clone());
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/cache/gradle/rename-key?tenant_id=original&namespace_id=ios")
+                .header("authorization", "Bearer original-token")
+                .body(Body::from("cached bytes"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(response.status().is_success());
+    context.state.update_account_handle(Some("renamed-again"));
+    // An old control plane omitting the additive field must not undo a learned rename.
+    context.state.update_account_handle(None);
+    assert_eq!(
+        context.state.account_handle.load().as_str(),
+        "renamed-again"
+    );
+    // Return to the handle for which our credential has grants; no disk/key rewrite occurs.
+    context.state.update_account_handle(Some("renamed"));
+    for handle in ["renamed", "original"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/cache/gradle/rename-key?tenant_id={handle}&namespace_id=ios"
+                    ))
+                    .header("authorization", "Bearer valid-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            crate::test_support::response_text(response).await,
+            "cached bytes"
+        );
+    }
+    assert_eq!(context.state.config.tenant_id, "original");
+    for (handle, namespace) in [("unrelated", "ios"), ("renamed", "other-project")] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/api/cache/gradle/rename-key?tenant_id={handle}&namespace_id={namespace}"
+                    ))
+                    .header("authorization", "Bearer valid-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+    let mut grpc = ctx();
+    grpc.transport = "grpc".into();
+    grpc.tenant_id = Some("renamed".into());
+    grpc.namespace_id = Some("ios".into());
+    grpc.authorization = Some("Bearer valid-token".into());
+    context.state.canonicalize_auth_context(&mut grpc);
+    assert!(matches!(
+        engine.evaluate_access(&grpc).await,
+        AccessDecision::Allow
+    ));
+}
+
 async fn spawn_tuist_auth_mock<FIntrospect, FCache>(
     introspect_handler: FIntrospect,
     cache_access_handler: FCache,

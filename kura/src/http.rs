@@ -1452,7 +1452,7 @@ async fn request_context_from_http(
     request: HttpRequestFacts<'_>,
 ) -> AuthRequestContext {
     let metadata = http_request_metadata(state, request.route, request.method, request.query).await;
-    AuthRequestContext {
+    let mut context = AuthRequestContext {
         transport: "http".into(),
         method: request.method.to_owned(),
         operation: metadata.operation,
@@ -1461,7 +1461,9 @@ async fn request_context_from_http(
         namespace_id: metadata.namespace_id,
         authorization: request.authorization,
         headers: BTreeMap::new(),
-    }
+    };
+    state.canonicalize_auth_context(&mut context);
+    context
 }
 
 struct HttpRequestFacts<'a> {

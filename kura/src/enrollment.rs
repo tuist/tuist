@@ -35,6 +35,7 @@ const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
 
 pub struct EnrollmentOutcome {
     pub tenant_id: String,
+    pub account_handle: Option<String>,
     pub peers: Vec<String>,
     pub managed_peers: Vec<String>,
     pub renew_after_seconds: u64,
@@ -54,6 +55,8 @@ fn default_renew_after_seconds() -> u64 {
 #[derive(Deserialize)]
 struct EnrollmentResponse {
     tenant_id: String,
+    #[serde(default)]
+    account_handle: Option<String>,
     certificate: String,
     ca_certificate: String,
     #[serde(default)]
@@ -213,6 +216,7 @@ async fn enroll(inputs: &EnrollmentInputs) -> Result<EnrollmentOutcome, String> 
 
     Ok(EnrollmentOutcome {
         tenant_id: body.tenant_id,
+        account_handle: body.account_handle,
         peers: body.peers,
         managed_peers: body.managed_peers,
         renew_after_seconds: body.renew_after_seconds,

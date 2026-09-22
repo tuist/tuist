@@ -291,7 +291,8 @@ impl ReapiService {
         let Some(auth) = self.state.auth.as_ref() else {
             return Ok(());
         };
-        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata);
+        let mut context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata);
+        self.state.canonicalize_auth_context(&mut context);
         match auth.evaluate_access(&context).await {
             AccessDecision::Allow => Ok(()),
             AccessDecision::Deny(deny) => {
@@ -4082,7 +4083,7 @@ pub(super) async fn authorize_build_event_request(
         return Err(Status::unavailable("server is draining"));
     }
 
-    let account_handle = usage_tenant_id(metadata, &state.config.tenant_id);
+    let account_handle = usage_tenant_id(metadata, &state.account_handle.load());
     let Some(auth) = state.auth.as_ref() else {
         return Ok(account_handle);
     };
@@ -4091,10 +4092,11 @@ pub(super) async fn authorize_build_event_request(
         operation: "build_event_stream",
         namespace_id: Some(project_handle),
     };
-    let context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
+    let mut context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
+    state.canonicalize_auth_context(&mut context);
 
     match auth.evaluate_access(&context).await {
-        AccessDecision::Allow => Ok(account_handle),
+        AccessDecision::Allow => Ok(context.server_tenant_id),
         AccessDecision::Deny(deny) => Err(grpc_status_from_http_status(deny.status, &deny.message)),
     }
 }

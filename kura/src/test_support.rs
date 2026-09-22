@@ -184,6 +184,7 @@ where
         config.sync_peer_serving_max_inflight,
     ));
     let state = Arc::new(AppState {
+        account_handle: arc_swap::ArcSwap::from_pointee(config.tenant_id.clone()),
         config,
         _data_dir_lock: data_dir_lock,
         store,

@@ -3,8 +3,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
 
   alias Boruta.BasicAuth
   alias Boruta.Oauth.Authorization.Client
-  alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
@@ -22,6 +22,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
             |> put_status(:created)
             |> json(%{
               tenant_id: enrollment.tenant_id,
+              account_handle: enrollment.account_handle,
               certificate: enrollment.certificate_pem,
               ca_certificate: enrollment.ca_certificate_pem,
               not_after: enrollment.not_after,
@@ -79,6 +80,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
 
         json(conn, %{
           mesh_member: view.mesh_member,
+          account_handle: account.name,
           peers: view.peers,
           replication_pull: Mesh.replication_pull?(account),
           heartbeat_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
@@ -116,6 +118,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
       {:ok, account, credential_kind} ->
         json(conn, %{
           peers: Mesh.self_hosted_peer_urls(account),
+          account_handle: account.name,
           peer_roles: peer_roles(account, credential_kind),
           replication_pull: Mesh.replication_pull?(account),
           refresh_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
@@ -186,7 +189,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
   end
 
   defp tenant_mismatch?(%{"tenant_id" => tenant_id}, account) when is_binary(tenant_id) do
-    String.downcase(tenant_id) != String.downcase(account.name)
+    String.downcase(tenant_id) != Identity.tenant_id(account)
   end
 
   defp tenant_mismatch?(_params, _account), do: false
@@ -236,7 +239,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
              source: %{type: "basic", value: client_secret},
              grant_type: "kura_registration"
            ),
-         %{} = account <- Accounts.get_account_by_handle(tenant_id) do
+         %{} = account <- Identity.account(tenant_id) do
       {:ok, account}
     else
       _ -> {:error, :unauthorized}

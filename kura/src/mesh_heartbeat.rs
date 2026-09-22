@@ -118,6 +118,8 @@ struct MeshHeartbeat<'a> {
 
 #[derive(Deserialize)]
 struct MeshHeartbeatResponse {
+    #[serde(default)]
+    account_handle: Option<String>,
     // Deliberately NOT defaulted: `false` is the destructive value (it
     // triggers a recovery re-enrollment, which mints fresh certificates), so
     // a response that merely lacks the field — shape drift, an intermediary
@@ -135,6 +137,8 @@ struct MeshHeartbeatResponse {
 
 #[derive(Deserialize)]
 struct MeshPeersResponse {
+    #[serde(default)]
+    account_handle: Option<String>,
     #[serde(default)]
     peers: Vec<String>,
     #[serde(default)]
@@ -178,6 +182,7 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
                         "mesh heartbeat recovered"
                     );
                 }
+                state.update_account_handle(payload.account_handle.as_deref());
                 apply_peers(&state, payload.peers).await;
                 apply_roles(&state, payload.peer_roles);
                 if !payload.mesh_member {
@@ -226,6 +231,7 @@ async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
                         "mesh peer synchronization recovered"
                     );
                 }
+                state.update_account_handle(payload.account_handle.as_deref());
                 apply_peers(&state, payload.peers).await;
                 apply_roles(&state, payload.peer_roles);
                 // First successful fetch lifts the boot serving gate.
@@ -415,6 +421,52 @@ fn http_client() -> reqwest::Client {
 mod tests {
     use super::*;
     use crate::test_support::test_context;
+
+    #[tokio::test]
+    async fn managed_sync_learns_auth_handle_without_changing_the_storage_tenant() {
+        use axum::{Json, Router, extract::Query, routing::get};
+        use std::collections::HashMap;
+
+        let ctx = test_context(|config| config.tenant_id = "original".into()).await;
+        ctx.state.runtime.require_peer_view();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    PEERS_PATH,
+                    get(|Query(query): Query<HashMap<String, String>>| async move {
+                        assert_eq!(query.get("tenant_id").unwrap(), "original");
+                        Json(serde_json::json!({"account_handle": "renamed", "peers": []}))
+                    }),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        let sync = tokio::spawn(run_peers_sync(
+            ctx.state.clone(),
+            MeshPeersSyncConfig {
+                peers_url: format!("http://{address}{PEERS_PATH}"),
+                client_id: "test-client".into(),
+                client_secret: "test-secret".into(),
+                tenant_id: "original".into(),
+                interval: Duration::from_secs(60),
+            },
+        ));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while ctx.state.runtime.peer_view_pending() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(ctx.state.account_handle.load().as_str(), "renamed");
+        assert_eq!(ctx.state.config.tenant_id, "original");
+        sync.abort();
+        server.abort();
+    }
 
     #[tokio::test]
     async fn apply_peers_swaps_dynamic_peers_only_on_change() {

@@ -112,6 +112,8 @@ pub struct AppState {
     // heartbeat / peers-sync cadence and merged into the discovery targets
     // on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
+    /// Current authorization handle, independent of the immutable storage tenant.
+    pub account_handle: ArcSwap<String>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub readiness: Mutex<ReadinessState>,
     /// Process-wide byte budget shared by every transient disk writer.
@@ -243,6 +245,32 @@ impl Drop for BackfillBodiesPeerSlot {
 }
 
 impl AppState {
+    pub fn update_account_handle(&self, handle: Option<&str>) {
+        if let Some(handle) = handle.filter(|handle| !handle.is_empty())
+            && self.account_handle.load().as_str() != handle
+        {
+            self.account_handle.store(Arc::new(handle.to_owned()));
+        }
+    }
+
+    pub fn canonicalize_auth_context(&self, context: &mut crate::auth::RequestContext) {
+        let handle = self.account_handle.load();
+        if context.server_tenant_id == handle.as_str() {
+            return;
+        }
+        // The original handle remains reserved to this account. Authorize
+        // requests using it against the current account's token scopes while
+        // every store operation continues using config.tenant_id.
+        if context
+            .tenant_id
+            .as_deref()
+            .is_some_and(|tenant| tenant.trim().eq_ignore_ascii_case(&self.config.tenant_id))
+        {
+            context.tenant_id = Some(handle.as_str().to_owned());
+        }
+        context.server_tenant_id = handle.as_str().to_owned();
+    }
+
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
         self.client.load()

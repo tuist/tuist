@@ -21,6 +21,7 @@ defmodule Tuist.Kura.Mesh do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -80,8 +81,8 @@ defmodule Tuist.Kura.Mesh do
     end)
   end
 
-  defp peer_ca_secret_path(%Account{name: name}) do
-    "/api/v1/namespaces/#{@kura_namespace}/secrets/kura-#{String.downcase(name)}-peer-ca"
+  defp peer_ca_secret_path(%Account{} = account) do
+    "/api/v1/namespaces/#{@kura_namespace}/secrets/kura-#{Identity.tenant_id(account)}-peer-ca"
   end
 
   defp decode_pem(value) when is_binary(value), do: Base.decode64(value)
@@ -100,7 +101,8 @@ defmodule Tuist.Kura.Mesh do
 
       {:ok,
        %{
-         tenant_id: account.name,
+         tenant_id: Identity.tenant_id(account),
+         account_handle: account.name,
          certificate_pem: certificate.certificate_pem,
          ca_certificate_pem: certificate.ca_certificate_pem,
          not_after: certificate.not_after,
@@ -188,7 +190,7 @@ defmodule Tuist.Kura.Mesh do
     |> Kura.server_regions_for_account()
     |> Enum.map(fn region_id ->
       case Regions.get(region_id) do
-        %Regions{} = region -> Regions.peer_public_url(account.name, region)
+        %Regions{} = region -> Regions.peer_public_url(Identity.tenant_id(account), region)
         _ -> nil
       end
     end)

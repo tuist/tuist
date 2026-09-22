@@ -2,6 +2,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.SelfHostedClients
@@ -13,6 +14,78 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     |> X509.PrivateKey.new_ec()
     |> X509.CSR.new("/CN=node")
     |> X509.CSR.to_pem()
+  end
+
+  test "managed discovery resolves the permanent tenant after repeated account renames", %{conn: conn, account: account} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+    tenant = account.kura_tenant_id
+    {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+    {:ok, renamed} = Accounts.update_account(renamed, %{name: "twice-#{account.id}"})
+
+    response =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{tenant}")
+      |> json_response(200)
+
+    assert response["account_handle"] == renamed.name
+
+    conn
+    |> recycle()
+    |> basic_auth("static-kura-client", "wrong")
+    |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{tenant}")
+    |> json_response(401)
+
+    conn
+    |> recycle()
+    |> basic_auth("static-kura-client", "static-kura-secret")
+    |> get(~p"/_internal/kura/mesh/peers?tenant_id=missing-tenant")
+    |> json_response(401)
+  end
+
+  test "self-hosted enrollment retains its tenant and CA lookup after rename", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    tenant = account.kura_tenant_id
+    {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+    ca_key = X509.PrivateKey.new_ec(:secp256r1)
+    ca_cert = X509.Certificate.self_signed(ca_key, "/CN=original peer CA", template: :root_ca)
+
+    expect(Client, :get, fn path, _opts ->
+      assert path == "/api/v1/namespaces/kura/secrets/kura-#{tenant}-peer-ca"
+
+      {:ok,
+       %{
+         "data" => %{
+           "ca.pem" => Base.encode64(X509.Certificate.to_pem(ca_cert)),
+           "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
+         }
+       }}
+    end)
+
+    enrollment =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/enroll", %{csr: csr_pem(), node_url: "https://renamed-node.test:7443"})
+      |> json_response(201)
+
+    assert enrollment["tenant_id"] == tenant
+    assert enrollment["account_handle"] == renamed.name
+    assert enrollment["ca_certificate"] == X509.Certificate.to_pem(ca_cert)
+
+    response =
+      conn
+      |> recycle()
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://renamed-node.test:7443"})
+      |> json_response(200)
+
+    assert response["account_handle"] == renamed.name
   end
 
   defp basic_auth(conn, client_id, secret) do

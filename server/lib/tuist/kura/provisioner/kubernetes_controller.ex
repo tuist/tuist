@@ -16,6 +16,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.EgressLimits
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -52,8 +53,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @kura_segment_ring_floor_segments 5
   @kura_segment_ring_floor_bytes @kura_segment_ring_floor_segments * @kura_max_segment_bytes
   @impl true
-  def provision(%{name: handle}, %Regions{} = region, %Server{}) do
-    {:ok, instance_name(handle, region)}
+  def provision(account, %Regions{} = region, %Server{}) do
+    {:ok, instance_name(Identity.tenant_id(account), region)}
   end
 
   @impl true
@@ -352,7 +353,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp render_manifest(name, image_tag, account, region, server, external_peers, entitlements) do
-    account_handle = dns_handle(account.name)
+    account_handle = Identity.tenant_id(account)
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
     claim = storage_claim(account, region, server)
     egress = effective_egress(account, region, entitlements)
