@@ -13,7 +13,7 @@ defmodule Tuist.Marketing.Blog.CoverArtwork do
       the post hero and the "Read next" cards. Every fill and stroke that
       matches a ramp value keeps its light hex and gains a `data-fill` /
       `data-stroke` attribute, so the theme-following CSS rules (see
-      marketing_new.css) repaint it per scheme; the hex fallback keeps a
+      marketing.css) repaint it per scheme; the hex fallback keeps a
       copied SVG rendering on its own.
     * `svg(basename, :og)` — the dark variant behind the Open Graph image,
       with the dark-scheme values baked in because no stylesheet travels

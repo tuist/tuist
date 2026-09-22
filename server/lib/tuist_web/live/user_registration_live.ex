@@ -9,6 +9,7 @@ defmodule TuistWeb.UserRegistrationLive do
   alias Tuist.Accounts
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias TuistWeb.GoogleOneTap
   alias TuistWeb.SignupProtection
   alias TuistWeb.Turnstile
 
@@ -23,6 +24,7 @@ defmodule TuistWeb.UserRegistrationLive do
   def noora_registration(assigns) do
     ~H"""
     <div :if={!@success} id="signup">
+      <GoogleOneTap.prompt current_user={assigns[:current_user]} live />
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="features">

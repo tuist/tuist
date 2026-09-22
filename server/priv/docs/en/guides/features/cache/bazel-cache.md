@@ -9,12 +9,6 @@
 
 Tuist exposes a [Remote Execution API](https://github.com/bazelbuild/remote-apis) cache that Bazel connects to as a remote cache. When an action's outputs are already in the cache, Bazel skips the action and pulls the result from Tuist's cache, saving compilation time across your team and CI environments.
 
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link> with Bazel selected as the build system
-> - The Tuist command-line interface, authenticated with `tuist auth login`
-
 ## Setup {#setup}
 
 From the root of the Bazel workspace, run:

@@ -6,12 +6,14 @@ defmodule TuistWeb.API.TestsController do
   alias Tuist.Tests
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
+  alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.Tests.StressNewTestsResult
   alias TuistWeb.API.Schemas.Tests.Test
+  alias TuistWeb.API.Schemas.Tests.XcodeCoverage
   alias TuistWeb.Authentication
 
   require Logger
@@ -318,6 +320,7 @@ defmodule TuistWeb.API.TestsController do
            },
            build_system: BuildSystem.schema(),
            stress_new_tests: StressNewTestsResult,
+           xcode_coverage: XcodeCoverage,
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",
@@ -550,6 +553,8 @@ defmodule TuistWeb.API.TestsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    body_params = RemoteURL.strip_credentials_from_params(body_params)
+
     run_params =
       body_params
       |> Map.put(:project, selected_project)
@@ -841,7 +846,8 @@ defmodule TuistWeb.API.TestsController do
           shard_index: Map.get(params, :shard_index),
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
           skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
-          stress_new_tests: Map.get(params, :stress_new_tests)
+          stress_new_tests: Map.get(params, :stress_new_tests),
+          xcode_coverage: Map.get(params, :xcode_coverage)
         })
     end
   end

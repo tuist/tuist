@@ -23,12 +23,14 @@ on:
       - infra/hetzner-robot-controller/**
       - infra/mdm/**
       - infra/helm/mdm/**
+      - infra/runner-image/**
       - .github/workflows/cache-release.yml
       - .github/workflows/gradle-release.yml
       - .github/workflows/noora-release.yml
       - .github/workflows/skills-release.yml
       - .github/workflows/hetzner-robot-controller-release.yml
       - .github/workflows/mdm-deployment.yml
+      - .github/workflows/runner-image-release.yml
       # Management-cluster state has its own apply workflow and must not
       # redeploy the customer-facing server.
       - infra/k8s/clusters/**
@@ -38,6 +40,9 @@ on:
       # deployable server artifact.
       - infra/helm/k8s-monitoring/**/*.md
       - .github/workflows/server-production-deployment.yml
+  # Dispatched by runner-image-release.yml once it tags a runner image, so
+  # the fleet rolls onto it through the canary cascade.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -87,6 +92,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 5
     # release:check only needs the git-cliff + jq installed below, but `mise run`
@@ -118,10 +124,6 @@ jobs:
       xcresult-processor-image-should-release: ${{ steps.check.outputs.xcresult-processor-image-should-release }}
       xcresult-processor-image-next-version: ${{ steps.check.outputs.xcresult-processor-image-next-version }}
       xcresult-processor-image-next-version-number: ${{ steps.check.outputs.xcresult-processor-image-next-version-number }}
-      runner-image-should-release: ${{ steps.check.outputs.runner-image-should-release }}
-      runner-image-next-version: ${{ steps.check.outputs.runner-image-next-version }}
-      runner-image-next-version-number: ${{ steps.check.outputs.runner-image-next-version-number }}
-      runner-image-matrix: ${{ steps.runner-image-matrix.outputs.matrix }}
       linux-runner-image-should-release: ${{ steps.check.outputs.linux-runner-image-should-release }}
       linux-runner-image-next-version: ${{ steps.check.outputs.linux-runner-image-next-version }}
       linux-runner-image-next-version-number: ${{ steps.check.outputs.linux-runner-image-next-version-number }}
@@ -153,14 +155,6 @@ jobs:
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
         run: mise run release:check
-      # The runner-image build matrix is data-driven from
-      # infra/runner-image/profiles.json so the active Xcode list lives
-      # under the component's own path. Editing the list both triggers a
-      # runner-image release (path is in components.json's include_paths)
-      # and reshapes the build matrix below — no workflow edit needed.
-      - id: runner-image-matrix
-        run: |
-          echo "matrix=$(jq -c '{xcode: .}' infra/runner-image/profiles.json)" >> "$GITHUB_OUTPUT"
       - id: deployable
         # A change to any of these paths deploys the server; the build gate
         # of the production cascade ORs this with the fleet/runtime
@@ -960,8 +954,8 @@ jobs:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Job-level, matching runner-image-build: Tart reads these for both
-      # the clone of the base and the push at the end.
+      # Job-level, matching runner-image-release.yml's build: Tart reads
+      # these for both the clone of the base and the push at the end.
       TART_REGISTRY_HOSTNAME: ghcr.io
       TART_REGISTRY_USERNAME: tuist-bot
       TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
@@ -1096,10 +1090,9 @@ jobs:
 
       # Overrides the action's default of 4. This job sits on the production
       # cascade's critical path and the push is most of its wall clock, and
-      # unlike the runner-image matrix it uploads alone rather than as one leg
-      # of a five-way fan-out, so it has the whole rate-limit budget to
-      # itself. Push throughput measured close to linear in this value from 1
-      # to 4 with no GHCR throttling; if that stops holding, lower it back
+      # it uploads alone, so it has the whole rate-limit budget to itself.
+      # Push throughput measured close to linear in this value from 1 to 4
+      # with no GHCR throttling; if that stops holding, lower it back
       # rather than reaching for a larger chunk size.
       - name: Push image to GHCR
         timeout-minutes: 90
@@ -1127,212 +1120,6 @@ jobs:
         run: |
           rm -f /tmp/release.tar.gz
           tart delete tuist-xcresult-processor 2>/dev/null || true
-
-  runner-image-build:
-    # One job per active profile, fanned out across whatever
-    # vm-image-builder hosts are available. GitHub schedules them
-    # respecting the label set — with 2 builders, 2 profiles build
-    # in parallel; adding more hosts scales linearly without any
-    # workflow change.
-    #
-    # The active-profile list is the single source of truth in
-    # infra/runner-image/profiles.json; check-releases reads it into
-    # the `runner-image-matrix` output and the matrix below expands it.
-    # Keep it aligned with `runnersFleet.xcodeVersions` in
-    # values-managed-common.yaml — every Xcode that ships a pool needs
-    # a runner image published for it. That alignment is a deploy
-    # concern now, not a build trigger: only changes under
-    # infra/runner-image/** (profiles.json included) release the image.
-    #
-    # To refresh an out-of-rotation profile (one not in profiles.json),
-    # use `gh workflow run runner-image.yml -f xcode_version=26.X.Y` —
-    # that path keeps publishing tags without going through the full
-    # release flow.
-    name: Build runner image (Xcode ${{ matrix.xcode }})
-    needs: check-releases
-    if: needs.check-releases.outputs.runner-image-should-release == 'true'
-    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 150
-    strategy:
-      # If any profile build fails, abort sibling builds so the chart
-      # pin doesn't move to a partially-published set.
-      fail-fast: true
-      matrix: ${{ fromJSON(needs.check-releases.outputs.runner-image-matrix) }}
-    env:
-      MISE_GITHUB_TOKEN: ${{ github.token }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TART_REGISTRY_HOSTNAME: ghcr.io
-      TART_REGISTRY_USERNAME: tuist-bot
-      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-
-      # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
-      # authenticates with the tuist-bot token. `crane auth login`
-      # writes creds to ~/.docker/config.json, which Tart reads via
-      # the Docker credential-helper protocol for both pull (Packer's
-      # clone of the base) and push at the end. See runner-image.yml
-      # for the long explanation of why crane and not `tart login`.
-      - name: Log in to GHCR (crane)
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
-
-      - name: Initialize Packer
-        working-directory: infra/runner-image
-        run: packer init -upgrade runner.pkr.hcl
-
-      - uses: ./.github/actions/reclaim-tart-disk
-
-      # Every binary runner.pkr.hcl provisions. Shared with runner-image.yml
-      # because each `provisioner "file"` there is a mandatory input, and one
-      # built in only one of the two callers fails the other — on this path,
-      # taking down the whole release cascade. See the action.
-      - uses: ./.github/actions/build-runner-image-binaries
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build profile
-        id: build
-        working-directory: infra/runner-image
-        run: |
-          set -euo pipefail
-          XCODE="${{ matrix.xcode }}"
-          BASE_TAG="${XCODE//./-}"
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
-          PROFILE="macos-${BASE_TAG}"
-          echo "Building profile ${PROFILE} from base ${BASE_IMAGE}"
-          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "base_image=${BASE_IMAGE}" \
-            -var "output_image=tuist-runner" \
-            runner.pkr.hcl
-          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
-
-      - name: Restore nvram.bin if missing
-        env:
-          XCODE: ${{ matrix.xcode }}
-        # See `runner-image.yml` for the rationale: packer-plugin-tart
-        # v1.20.0 sometimes drops `nvram.bin` from the built bundle,
-        # so the subsequent `tart push` fails after a successful disk
-        # upload. Restore the file from a fresh clone of the base.
-        run: |
-          set -euo pipefail
-          BUNDLE="$HOME/.tart/vms/tuist-runner"
-          echo "pre-push bundle contents:"
-          ls -la "$BUNDLE"
-          if [ ! -f "$BUNDLE/nvram.bin" ]; then
-            BASE_TAG="${XCODE//./-}"
-            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
-            echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
-            tart delete nvram-restore 2>/dev/null || true
-            tart clone "$BASE_IMAGE" nvram-restore
-            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
-            tart delete nvram-restore
-            echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
-          fi
-
-      - name: Push profile to GHCR
-        timeout-minutes: 90
-        env:
-          # See runner-image.yml's matching step for the rationale —
-          # tart's auto-prune races mid-push (cirruslabs/tart#860).
-          TART_NO_AUTO_PRUNE: "1"
-        uses: ./.github/actions/tart-push
-        with:
-          local-name: tuist-runner
-          remote-names: |
-            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ needs.check-releases.outputs.runner-image-next-version-number }}
-            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}
-
-      - name: Cleanup
-        if: always()
-        run: tart delete tuist-runner 2>/dev/null || true
-
-  release-runner-image:
-    # Runs once every active profile is in GHCR with a fresh
-    # `:macos-<dashes>-<semver>` tag (from runner-image-build): generates
-    # release notes + CHANGELOG, renders the image list for the GitHub
-    # Release body, and uploads artifacts. The `runner-image@<semver>` tag
-    # (created by tag-infra-releases) is the source of truth the chart's
-    # `runnersFleet.runnerImageSemver` resolves to at deploy time, so no
-    # values file is rewritten here. Lightweight, runs on ubuntu; downstream
-    # jobs key off this job's outputs + result.
-    name: Release runner image
-    needs: [check-releases, runner-image-build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      MISE_GITHUB_TOKEN: ${{ github.token }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-      images: ${{ steps.images.outputs.images }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: ./.github/actions/mise
-        with:
-          install_args: "--locked git-cliff"
-
-      - name: Render active profile image refs
-        # The active Xcode list is the single source of truth in
-        # infra/runner-image/profiles.json — the same list the build
-        # matrix expands. The Release body lists exactly the tags the
-        # build published. `jq` is preinstalled on ubuntu-latest.
-        id: images
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          {
-            echo "images<<EOF"
-            jq -r '.[]' infra/runner-image/profiles.json |
-              while IFS= read -r v; do
-                tag=$(echo "$v" | tr '.' '-')
-                echo "- \`ghcr.io/tuist/tuist-runner:macos-${tag}-${VERSION}\`"
-              done
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Get release notes
-        id: release-notes
-        # Keep this include path aligned with `runner-image` in
-        # `mise/tasks/release/components.json`. The active Xcode list
-        # lives under this path (profiles.json), so promoting or
-        # removing a version still triggers a runner-image release.
-        run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
-
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/runner-image/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/runner-image/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          fi
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update CHANGELOG.md
-        working-directory: infra/runner-image
-        run: |
-          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
-
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runner-image-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      # server-deployment.yml resolves the runner image semver at deploy
-      # time from this run's `runner-image@<semver>` tag (created by
-      # tag-infra-releases), so the chart's runnersFleet.runnerImageSemver
-      # needs no value written into the managed values files.
-
-      - name: Upload runner-image artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: runner-image-artifacts
-          path: |
-            infra/runner-image/CHANGELOG.md
-          retention-days: 1
 
   release-linux-runner-image:
     name: Release Linux runner image
@@ -1436,7 +1223,6 @@ jobs:
         release-stable-egress-controller,
         release-egress-tree-agent,
         release-xcresult-processor-image,
-        release-runner-image,
         release-linux-runner-image,
         tag-infra-releases,
       ]
@@ -1451,7 +1237,6 @@ jobs:
         needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
         needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
-        needs.check-releases.outputs.runner-image-should-release == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true'
       )
     runs-on: tuist-linux
@@ -1591,14 +1376,6 @@ jobs:
           name: xcresult-processor-image-artifacts
           path: infra/xcresult-processor-image
 
-      - name: Download runner-image artifacts
-        # Carries only runner-image/CHANGELOG.md now; the chart pin is gone.
-        if: needs.check-releases.outputs.runner-image-should-release == 'true' && needs.release-runner-image.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: runner-image-artifacts
-          path: infra
-
       - name: Download linux-runner-image artifacts
         # Carries only linux-runner-image/CHANGELOG.md now; the chart pin is gone.
         if: needs.check-releases.outputs.linux-runner-image-should-release == 'true' && needs.release-linux-runner-image.result == 'success'
@@ -1717,21 +1494,6 @@ jobs:
 
             ${{ needs.release-xcresult-processor-image.outputs.release-notes }}
 
-      - name: Create runner-image GitHub Release
-        if: needs.tag-infra-releases.outputs.runner-image-tagged == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          target_commitish: ${{ github.sha }}
-          name: Runner Image ${{ needs.check-releases.outputs.runner-image-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.runner-image-next-version }}
-          body: |
-            Active runner image tags:
-            ${{ needs.release-runner-image.outputs.images }}
-
-            ${{ needs.release-runner-image.outputs.release-notes }}
-
       - name: Create linux-runner-image GitHub Release
         if: needs.tag-infra-releases.outputs.linux-runner-image-tagged == 'true'
         uses: softprops/action-gh-release@v2
@@ -1796,7 +1558,6 @@ jobs:
         release-stable-egress-controller,
         release-egress-tree-agent,
         release-xcresult-processor-image,
-        release-runner-image,
         release-linux-runner-image,
         release-kura-prepare,
         release-kura-binaries,
@@ -1816,7 +1577,6 @@ jobs:
       stable-egress-controller-tagged: ${{ steps.tag.outputs.stable-egress-controller-tagged }}
       egress-tree-agent-tagged: ${{ steps.tag.outputs.egress-tree-agent-tagged }}
       xcresult-processor-image-tagged: ${{ steps.tag.outputs.xcresult-processor-image-tagged }}
-      runner-image-tagged: ${{ steps.tag.outputs.runner-image-tagged }}
       linux-runner-image-tagged: ${{ steps.tag.outputs.linux-runner-image-tagged }}
       kura-tagged: ${{ steps.tag.outputs.kura-tagged }}
     env:
@@ -1840,8 +1600,6 @@ jobs:
         # push would confirm nothing. An untagged component simply stays on
         # its previous version, which is the correct reading of a release
         # that never published.
-        env:
-          RUNNER_IMAGE_XCODE_PROFILES: ${{ needs.check-releases.outputs.runner-image-matrix }}
         run: |
           set -euo pipefail
           git config user.name "github-actions"
@@ -1890,15 +1648,6 @@ jobs:
             echo "${key}-tagged=${tagged}" >> "$GITHUB_OUTPUT"
           }
 
-          # The macOS runner image fans one semver out into a
-          # `macos-<xcode-dashes>-<semver>` tag per Xcode profile, and the
-          # chart pulls each pool's own tag, so all of them have to exist
-          # before the semver is worth tagging.
-          runner_image_tags() {
-            version="$1"
-            echo "$RUNNER_IMAGE_XCODE_PROFILES" \
-              | jq -r --arg v "$version" '.xcode[] | "macos-" + (. | gsub("\\."; "-")) + "-" + $v'
-          }
           tag_release capi-scaleway \
             "${{ needs.check-releases.outputs.capi-scaleway-should-release }}" \
             "${{ needs.release-capi-scaleway.result }}" \
@@ -1924,20 +1673,6 @@ jobs:
             "${{ needs.release-xcresult-processor-image.result }}" \
             "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}" \
             tuist/tuist-xcresult-processor
-          runner_image_profile_tags=()
-          if [ "${{ needs.check-releases.outputs.runner-image-should-release }}" = "true" ]; then
-            mapfile -t runner_image_profile_tags < <(runner_image_tags "${{ needs.check-releases.outputs.runner-image-next-version-number }}")
-            if [ "${#runner_image_profile_tags[@]}" -eq 0 ]; then
-              echo "::error::Could not derive the runner-image profile tags from the build matrix; refusing to guess which images to verify."
-              exit 1
-            fi
-          fi
-          tag_release runner-image \
-            "${{ needs.check-releases.outputs.runner-image-should-release }}" \
-            "${{ needs.release-runner-image.result }}" \
-            "${{ needs.check-releases.outputs.runner-image-next-version }}" \
-            tuist/tuist-runner \
-            "${runner_image_profile_tags[@]}"
           tag_release linux-runner-image \
             "${{ needs.check-releases.outputs.linux-runner-image-should-release }}" \
             "${{ needs.release-linux-runner-image.result }}" \
@@ -1968,8 +1703,8 @@ jobs:
   #
   # Manual re-promotes / rollbacks of a pinned SHA go through
   # server-deployment.yml's own workflow_dispatch (deploy any environment,
-  # optionally with a pre-built image_tag), so this cascade has no dispatch of
-  # its own.
+  # optionally with a pre-built image_tag). This cascade's own dispatch only
+  # redeploys main's head.
   # --------------------------------------------------------------------------
   build:
     name: Build deployment images
@@ -1979,7 +1714,6 @@ jobs:
       needs.check-releases.result == 'success' &&
       (
         needs.check-releases.outputs.deployable-changed == 'true' ||
-        needs.check-releases.outputs.runner-image-should-release == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
         needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
@@ -2124,7 +1858,7 @@ jobs:
     name: Acceptance Tests
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     # A degraded remote cache can force a correct cold build, which must still
     # have enough time to complete before production promotion.
     timeout-minutes: 45

@@ -6,14 +6,14 @@
 # explicit infra/performance-test preview profile can re-add a dedicated
 # Kura MachineDeployment when it ships.
 #
-# The app worker pool replica count is managed by the preview-deploy /
-# preview-sweep workflows, not by this manifest.
+# The app worker pool replica count is managed by the preview-deploy
+# workflow, not by this manifest.
 #
 # DO NOT `kubectl apply` THIS FILE AFTER INITIAL BOOTSTRAP.
 # The `replicas: 1` on the worker MachineDeployment will fight the
-# preview-deploy workflow, which scales the pool 0→1 on PR open and
-# back on the hourly sweep. A re-apply resets replicas to 1 and
-# leaves any in-flight scale-down in an inconsistent state. To make
+# preview-deploy workflow, which scales the pool 0→1 on PR open. A
+# re-apply resets replicas to 1 and leaves any in-flight scale-down
+# in an inconsistent state. To make
 # topology changes (CP machine type, K8s version, etc.), edit the
 # Cluster CR in place via `kubectl edit` and let the topology
 # controller reconcile only the diff. Long-term fix: server-side

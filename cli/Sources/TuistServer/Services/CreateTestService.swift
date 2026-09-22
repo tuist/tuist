@@ -295,6 +295,7 @@ import TuistHTTP
                             status: status,
                             stress_new_tests: stressNewTests,
                             test_modules: testModules,
+                            xcode_coverage: xcodeCoveragePayload(testSummary.coverage),
                             xcode_version: xcodeVersion
                         )
                     )
@@ -478,6 +479,34 @@ import TuistHTTP
     // run page reads failures from. Without it a stressed test keeps its status and duration
     // and loses what it said when it broke.
 
+    private func xcodeCoveragePayload(_ report: XcodeCoverageReport?) -> Components.Schemas.XcodeCoverage? {
+        report.map { report in
+            Components.Schemas.XcodeCoverage(
+                files: report.files.map { file in
+                    Components.Schemas.XcodeCoverage.filesPayloadPayload(
+                        covered_lines: file.coveredLines,
+                        executable_lines: file.executableLines,
+                        execution_counts: file.executionCounts,
+                        functions: file.functions.map { function in
+                            Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload(
+                                covered_lines: function.coveredLines,
+                                executable_lines: function.executableLines,
+                                execution_count: function.executionCount,
+                                line_number: function.lineNumber,
+                                name: function.name
+                            )
+                        },
+                        git_blob_id: file.gitBlobId,
+                        is_test: file.isTest,
+                        line_numbers: file.lineNumbers,
+                        path: file.path,
+                        targets: file.targets
+                    )
+                },
+                partial: report.partial
+            )
+        }
+    }
 #endif
 
 struct StressRepetitionKey: Hashable {

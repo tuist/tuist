@@ -371,6 +371,9 @@ mod cold_replay_benchmark {
     #[test]
     #[ignore = "cold remote replay benchmark; run explicitly in release mode"]
     fn cold_remote_replay() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let source_dir = TempCasDir::new("cold-benchmark-source");
         let source = path_state_for(&source_dir.path());
         let (server, keys) = dataset(128, source);

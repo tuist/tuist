@@ -169,6 +169,7 @@ final class TestServiceTests: TuistUnitTestCase {
         given(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -194,6 +195,9 @@ final class TestServiceTests: TuistUnitTestCase {
         given(xcResultService)
             .parseTestStatuses(path: .any)
             .willReturn(TestResultStatuses(testCases: []))
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -1794,6 +1798,9 @@ final class TestServiceTests: TuistUnitTestCase {
             )
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
         given(xcResultService)
@@ -1958,6 +1965,9 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(nil)
@@ -4054,6 +4064,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
             xcResultService.reset()
             given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
                 .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
             given(xcResultService)
@@ -4064,6 +4077,7 @@ final class TestServiceTests: TuistUnitTestCase {
             given(uploadResultBundleService)
                 .uploadTestSummary(
                     testSummary: .any,
+                    resultBundlePath: .any,
                     projectDerivedDataDirectory: .any,
                     config: .any,
                     shardPlanId: .any,
@@ -4875,6 +4889,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
                 TestSummary(
@@ -4973,6 +4990,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
                 TestSummary(
@@ -5054,6 +5074,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
@@ -5140,6 +5163,9 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
@@ -6106,6 +6132,9 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcResultService.reset()
         given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(
                 TestSummary(
@@ -7038,6 +7067,30 @@ struct TestServiceSchemePlanningTests {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_warns_without_failing_when_test_hashes_fail_to_upload() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+        fixture.cacheStorage.reset()
+        given(fixture.cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willProduce { items, _ in
+                throw CacheUploadError(failures: items.keys.map {
+                    CacheUploadFailure(item: $0, reason: "request timed out")
+                })
+            }
+
+        try await fixture.run(path: temporaryDirectory)
+
+        #expect(AlertController.current.warnings().map { $0.message.plain() }.sorted() == [
+            "Failed to upload AppSnapshotTests with hash app-snapshot-tests-hash: request timed out",
+            "Failed to upload AppTests with hash app-tests-hash: request timed out",
+            "Failed to upload FeatureTests with hash feature-tests-hash: request timed out",
+        ])
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

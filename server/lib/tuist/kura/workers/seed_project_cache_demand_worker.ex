@@ -22,14 +22,12 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
 
   ## What this must not disturb
 
-  **Archival.** A row written here is an ordinary `last_cache_demand_at`
-  timestamp, so an account that never builds is archived after a full
-  inactivity window like any other. A probation rule keyed on bytes moved
-  since an instance entered service would instead archive a seeded instance in
-  a fortnight and hold the account-region out of provisioning. None is in the
-  tree (#12609, which proposed one, was closed unmerged); if one lands it has
-  to start its clock at the account's first endpoint resolution, because an
-  instance seeded here has moved no bytes by construction.
+  **Archival.** A seeded instance that stores nothing is reclaimed once it has
+  been in service for `Tuist.Environment.kura_unused_days/0`
+  (`Tuist.Kura.Lifecycle`). The account's first cache request returns it, so
+  reclaiming it early costs one provision. The seed declines while that hold is
+  in place (`Tuist.Kura.Demand.unused_hold?/1`); otherwise every new project
+  would provision the reclaimed instance again.
 
   **Placement.** The job carries `origin`, the coarse location label of the
   request that created the project (never an address). The seed is placed
@@ -43,10 +41,11 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   it moves the account once its own runs say otherwise. A seed without an
   origin, or one declined for capacity, records nothing.
 
-  **Capacity.** A seed is speculative, so a region over its pressure line
-  declines and the refusal is counted rather than retried. The account is
-  still provisioned the ordinary way once it asks for the cache, where the
-  scheduler decides admission from each pod's ephemeral-storage request.
+  **Capacity.** A seed is speculative, so a region under capacity pressure
+  (`Tuist.Kura.Capacity.under_pressure?/1`) declines and the refusal is counted
+  rather than retried. The account is still provisioned the ordinary way once
+  it asks for the cache, where the scheduler decides admission from each pod's
+  ephemeral-storage request.
   """
   use Oban.Worker,
     queue: :default,
@@ -91,18 +90,29 @@ defmodule Tuist.Kura.Workers.SeedProjectCacheDemandWorker do
   end
 
   defp seed_region(%Account{} = account, %{plan: plan, service_region: service_region}, origin) do
-    if Capacity.under_pressure?(service_region) do
-      Telemetry.seed_declined(plan, service_region, :capacity_pressure)
+    cond do
+      Demand.unused_hold?(account) ->
+        Telemetry.seed_declined(plan, service_region, :unused)
 
-      Logger.info(
-        "[Kura.SeedProjectCacheDemand] did not seed account #{account.id} into #{service_region}: the region is over its pressure line"
-      )
+        Logger.info(
+          "[Kura.SeedProjectCacheDemand] did not seed account #{account.id}: its instance was reclaimed for never storing anything"
+        )
 
-      :ok
-    else
-      record_guess(account, service_region, origin)
-      {:ok, _count} = Demand.upsert(account.id, service_region, DateTime.utc_now())
-      :ok
+        :ok
+
+      Capacity.under_pressure?(service_region) ->
+        Telemetry.seed_declined(plan, service_region, :capacity_pressure)
+
+        Logger.info(
+          "[Kura.SeedProjectCacheDemand] did not seed account #{account.id} into #{service_region}: the region is under capacity pressure"
+        )
+
+        :ok
+
+      true ->
+        record_guess(account, service_region, origin)
+        {:ok, _count} = Demand.upsert(account.id, service_region, DateTime.utc_now())
+        :ok
     end
   end
 

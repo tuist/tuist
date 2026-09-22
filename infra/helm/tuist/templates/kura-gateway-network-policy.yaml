@@ -1,8 +1,9 @@
 {{- if and .Values.kuraController.enabled .Values.kuraController.privateGateway.enabled }}
 # Host-network nginx connects as a node identity, including when proxying to
 # another host. Kubernetes ipBlock/namespace selectors cannot express that in
-# Cilium. Grant only the cache port on gateway-backed Kura pods; nginx enforces
-# the private client CIDRs and Kura continues to authenticate every request.
+# Cilium. Grant only the cache ports on gateway-backed Kura pods (the co-hosted
+# port and the gRPC-only gateway port); nginx enforces the private client CIDRs
+# and Kura continues to authenticate every request.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -20,5 +21,7 @@ spec:
       toPorts:
         - ports:
             - port: "4000"
+              protocol: TCP
+            - port: "4001"
               protocol: TCP
 {{- end }}

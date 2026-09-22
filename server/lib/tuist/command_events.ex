@@ -501,13 +501,22 @@ defmodule Tuist.CommandEvents do
     |> Keyword.get(:metadata_queries_bypass_dynamic_repo, false)
   end
 
+  # `project_id in ^project_ids` binds one HTTP parameter per ID, and ClickHouse
+  # rejects requests with more than `http_max_fields` (1,000 by default since
+  # 26.3). Each chunk travels as one `Array(Int64)` parameter instead, sized to
+  # stay under `http_max_field_value_size` (128 KiB) even for 19-digit IDs.
   def get_project_last_interaction_data(project_ids) do
-    from(ce in Event,
-      where: ce.project_id in ^project_ids,
-      group_by: ce.project_id,
-      select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
-    )
-    |> ClickHouseRepo.all()
+    project_ids
+    |> Enum.chunk_every(5_000)
+    |> Enum.flat_map(fn ids_chunk ->
+      ClickHouseRepo.all(
+        from(ce in Event,
+          where: fragment("? IN (?)", ce.project_id, type(^ids_chunk, {:array, :integer})),
+          group_by: ce.project_id,
+          select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
+        )
+      )
+    end)
     |> Map.new(fn %{project_id: id, last_interacted_at: time} -> {id, time} end)
   end
 

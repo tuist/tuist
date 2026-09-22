@@ -302,8 +302,13 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
-      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+      stub(Runners, :volume_owner_for_sa, fn "tuist-runners", "pod-1" ->
+        {:ok, %{account_id: 77, volume_name: "tuist-cache"}}
+      end)
+
+      stub(Runners, :volume_master_upload_url, fn 77, "tuist-cache", ^digest, nil ->
+        {:ok, "https://bucket.example.com/put", nil}
+      end)
 
       body =
         conn
@@ -314,13 +319,39 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["upload_url"] == "https://bucket.example.com/put"
     end
 
+    test "mints the URL and pre-flights the promote in the volume stamped on the Pod", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      volume = "repo-eae044a4c27633ea"
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :volume_owner_for_sa, fn "tuist-runners", "pod-1" -> {:ok, %{account_id: 77, volume_name: volume}} end)
+
+      expect(Runners, :fast_forward_viable?, fn 77, ^volume, 0, nil -> true end)
+
+      expect(Runners, :volume_master_upload_url, fn 77, ^volume, ^digest, nil ->
+        {:ok, "https://bucket.example.com/put", nil}
+      end)
+
+      conn
+      |> put_req_header("authorization", "Bearer valid-token")
+      |> post("/api/internal/runners/volume-head/upload-url", %{
+        "tree_digest" => digest,
+        "base_generation" => 0,
+        "volume_name" => "tuist-cache"
+      })
+      |> json_response(200)
+    end
+
     test "422 when the digest is rejected", %{conn: conn} do
       stub(K8sClient, :create_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
-      stub(Runners, :volume_master_upload_url, fn 77, "bad" -> :error end)
+      stub(Runners, :volume_owner_for_sa, fn _ns, _sa -> {:ok, %{account_id: 77, volume_name: "tuist-cache"}} end)
+      stub(Runners, :volume_master_upload_url, fn 77, "tuist-cache", "bad", nil -> :error end)
 
       body =
         conn
@@ -343,11 +374,11 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
-      stub(Runners, :fast_forward_viable?, fn 77, 4, nil -> false end)
+      stub(Runners, :volume_owner_for_sa, fn _ns, _sa -> {:ok, %{account_id: 77, volume_name: "tuist-cache"}} end)
+      stub(Runners, :fast_forward_viable?, fn 77, "tuist-cache", 4, nil -> false end)
       # The whole point: no URL is minted, so the runner never uploads an image
       # for a promote that is certain to be rejected.
-      stub(Runners, :volume_master_upload_url, fn _account_id, _digest ->
+      stub(Runners, :volume_master_upload_url, fn _account_id, _volume_name, _digest, _content_digest ->
         flunk("minted an upload URL for a promote that cannot win")
       end)
 
@@ -370,9 +401,12 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
-      stub(Runners, :fast_forward_viable?, fn 77, 4, nil -> true end)
-      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+      stub(Runners, :volume_owner_for_sa, fn _ns, _sa -> {:ok, %{account_id: 77, volume_name: "tuist-cache"}} end)
+      stub(Runners, :fast_forward_viable?, fn 77, "tuist-cache", 4, nil -> true end)
+
+      stub(Runners, :volume_master_upload_url, fn 77, "tuist-cache", ^digest, nil ->
+        {:ok, "https://bucket.example.com/put", nil}
+      end)
 
       body =
         conn
@@ -393,15 +427,17 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
+      stub(Runners, :volume_owner_for_sa, fn _ns, _sa -> {:ok, %{account_id: 77, volume_name: "tuist-cache"}} end)
 
       # A runner image predating the pre-flight must keep its upload-then-arbitrate
       # path rather than have a missing base read as the cold base 0 and 409.
-      stub(Runners, :fast_forward_viable?, fn _account_id, _base, _unverifiable ->
+      stub(Runners, :fast_forward_viable?, fn _account_id, _volume_name, _base, _unverifiable ->
         flunk("pre-checked a runner that sent no base generation")
       end)
 
-      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+      stub(Runners, :volume_master_upload_url, fn 77, "tuist-cache", ^digest, nil ->
+        {:ok, "https://bucket.example.com/put", nil}
+      end)
 
       assert %{"upload_url" => "https://bucket.example.com/put"} =
                conn
@@ -418,13 +454,16 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
+      stub(Runners, :volume_owner_for_sa, fn _ns, _sa -> {:ok, %{account_id: 77, volume_name: "tuist-cache"}} end)
 
       # The pre-flight decides whether the multi-GB upload happens at all, so a
       # cold promote that can retire a poisoned HEAD has to be judged on the same
       # inputs as the bump — otherwise it 409s here and the bump is never reached.
-      stub(Runners, :fast_forward_viable?, fn 77, 0, ^poisoned -> true end)
-      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+      stub(Runners, :fast_forward_viable?, fn 77, "tuist-cache", 0, ^poisoned -> true end)
+
+      stub(Runners, :volume_master_upload_url, fn 77, "tuist-cache", ^digest, nil ->
+        {:ok, "https://bucket.example.com/put", nil}
+      end)
 
       assert %{"upload_url" => "https://bucket.example.com/put"} =
                conn
@@ -436,6 +475,58 @@ defmodule TuistWeb.RunnersControllerTest do
                })
                |> json_response(200)
     end
+
+    test "echoes the signed checksum when the mint carried a content digest", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      content_digest = String.duplicate("c", 64)
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :volume_owner_for_sa, fn _ns, _sa -> {:ok, %{account_id: 77, volume_name: "tuist-cache"}} end)
+
+      stub(Runners, :volume_master_upload_url, fn 77, "tuist-cache", ^digest, ^content_digest ->
+        {:ok, "https://bucket.example.com/put", "zMzMzA=="}
+      end)
+
+      # The guest must send exactly the value the URL's signature covers, so the
+      # server echoes the base64 it signed rather than leaving the guest to
+      # recompute it.
+      assert %{"upload_url" => "https://bucket.example.com/put", "checksum_sha256" => "zMzMzA=="} =
+               conn
+               |> put_req_header("authorization", "Bearer valid-token")
+               |> post("/api/internal/runners/volume-head/upload-url", %{
+                 "tree_digest" => digest,
+                 "content_digest" => content_digest
+               })
+               |> json_response(200)
+    end
+
+    test "omits the checksum field when nothing was signed", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :volume_owner_for_sa, fn _ns, _sa -> {:ok, %{account_id: 77, volume_name: "tuist-cache"}} end)
+
+      stub(Runners, :volume_master_upload_url, fn 77, "tuist-cache", ^digest, nil ->
+        {:ok, "https://bucket.example.com/put", nil}
+      end)
+
+      # An absent field (not a null) so an old guest's response parsing sees the
+      # same body shape it always did, and a new guest sends no checksum header
+      # on a URL whose signature does not cover one.
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => digest})
+        |> json_response(200)
+
+      refute Map.has_key?(body, "checksum_sha256")
+    end
   end
 
   describe "POST /api/internal/runners/volume-head" do
@@ -444,13 +535,34 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
+      stub(Runners, :volume_owner_for_sa, fn "tuist-runners", "pod-1" ->
+        {:ok, %{account_id: 77, volume_name: "tuist-cache"}}
+      end)
+
       {:ok, conn: put_req_header(conn, "authorization", "Bearer valid-token")}
+    end
+
+    test "advances the HEAD of the volume stamped on the Pod, not one named in the body", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      volume = "repo-eae044a4c27633ea"
+
+      stub(Runners, :volume_owner_for_sa, fn "tuist-runners", "pod-1" -> {:ok, %{account_id: 77, volume_name: volume}} end)
+
+      expect(Runners, :report_volume_head, fn 77, ^volume, "node-1", ^digest, 0, nil, nil -> {:ok, 1} end)
+
+      conn
+      |> post("/api/internal/runners/volume-head", %{
+        "tree_digest" => digest,
+        "node_name" => "node-1",
+        "base_generation" => 0,
+        "volume_name" => "tuist-cache"
+      })
+      |> json_response(200)
     end
 
     test "returns the accepted generation on a fast-forward", %{conn: conn} do
       digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, "node-1", ^digest, 5, nil -> {:ok, 6} end)
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", "node-1", ^digest, 5, nil, nil -> {:ok, 6} end)
 
       body =
         conn
@@ -466,7 +578,7 @@ defmodule TuistWeb.RunnersControllerTest do
 
     test "409 when the fast-forward is rejected as stale", %{conn: conn} do
       digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, _base, nil -> :conflict end)
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", _node, ^digest, _base, nil, nil -> :conflict end)
 
       body =
         conn
@@ -478,7 +590,7 @@ defmodule TuistWeb.RunnersControllerTest do
 
     test "parses a string base_generation and defaults a missing one to 0", %{conn: conn} do
       digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, base, nil -> {:ok, base + 1} end)
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", _node, ^digest, base, nil, nil -> {:ok, base + 1} end)
 
       # A string body value is parsed to an integer.
       assert %{"generation" => 4} =
@@ -494,7 +606,7 @@ defmodule TuistWeb.RunnersControllerTest do
     end
 
     test "422 when the digest is invalid", %{conn: conn} do
-      stub(Runners, :report_volume_head, fn 77, _node, "bad", _base, nil -> :error end)
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", _node, "bad", _base, nil, nil -> :error end)
 
       body =
         conn
@@ -511,7 +623,7 @@ defmodule TuistWeb.RunnersControllerTest do
       # This is what lets a cold promote retire a HEAD whose object no host can
       # verify. Dropping it here would leave the account wedged with the symptom
       # visible only in host logs.
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, 0, ^poisoned -> {:ok, 9} end)
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", _node, ^digest, 0, ^poisoned, nil -> {:ok, 9} end)
 
       assert %{"generation" => 9} =
                conn
@@ -528,7 +640,7 @@ defmodule TuistWeb.RunnersControllerTest do
       # Attribution must never cost a promote: the body comes from a VM running
       # customer job code, and the column is a varchar(255), so an over-long or
       # otherwise malformed name reads as unreported instead of raising on insert.
-      stub(Runners, :report_volume_head, fn 77, "", ^digest, 0, nil -> {:ok, 1} end)
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", "", ^digest, 0, nil, nil -> {:ok, 1} end)
 
       for name <- [String.duplicate("n", 400), "node 1", ~s(a","tree_digest":"x), 42, nil] do
         assert %{"generation" => 1} =
@@ -544,7 +656,7 @@ defmodule TuistWeb.RunnersControllerTest do
 
     test "reads a non-string unverifiable digest as no report", %{conn: conn} do
       digest = String.duplicate("a", 40)
-      stub(Runners, :report_volume_head, fn 77, _node, ^digest, 0, nil -> {:ok, 1} end)
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", _node, ^digest, 0, nil, nil -> {:ok, 1} end)
 
       assert %{"generation" => 1} =
                conn
@@ -552,6 +664,39 @@ defmodule TuistWeb.RunnersControllerTest do
                  "tree_digest" => digest,
                  "base_generation" => 0,
                  "unverifiable_digest" => 42
+               })
+               |> json_response(200)
+    end
+
+    test "carries the guest's content digest through to the bump", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      content_digest = String.duplicate("c", 64)
+
+      # This is what converging hosts later verify the downloaded object
+      # against, so dropping it here would silently disable the byte-level
+      # check fleet-wide.
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", _node, ^digest, 0, nil, ^content_digest -> {:ok, 1} end)
+
+      assert %{"generation" => 1} =
+               conn
+               |> post("/api/internal/runners/volume-head", %{
+                 "tree_digest" => digest,
+                 "base_generation" => 0,
+                 "content_digest" => content_digest
+               })
+               |> json_response(200)
+    end
+
+    test "reads a non-string content digest as no report", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      stub(Runners, :report_volume_head, fn 77, "tuist-cache", _node, ^digest, 0, nil, nil -> {:ok, 1} end)
+
+      assert %{"generation" => 1} =
+               conn
+               |> post("/api/internal/runners/volume-head", %{
+                 "tree_digest" => digest,
+                 "base_generation" => 0,
+                 "content_digest" => 42
                })
                |> json_response(200)
     end

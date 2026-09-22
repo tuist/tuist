@@ -1,7 +1,7 @@
-# Narrowly-scoped ServiceAccount for the preview-deploy and preview-sweep
-# GitHub workflows. Lives in the management cluster (not the workload
-# cluster) because the Cluster / MachineDeployment CRs the workflows patch
-# to scale the worker pool live there.
+# Narrowly-scoped ServiceAccount for the preview-deploy GitHub workflow.
+# Lives in the management cluster (not the workload cluster) because the
+# Cluster / MachineDeployment CRs the workflow patches to scale the worker
+# pool live there.
 #
 # Permissions are intentionally minimal:
 #   - get / patch the `tuist-preview` Cluster (to bump

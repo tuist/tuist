@@ -212,9 +212,7 @@ impl BazelTestArtifactDelivery {
             return Ok(None);
         };
 
-        let client = Client::builder()
-            .connect_timeout(Duration::from_millis(500))
-            .timeout(Duration::from_millis(config.request_timeout_ms))
+        let client = crate::control_plane_http::analytics_client_builder(config.request_timeout_ms)
             .build()
             .map_err(|error| format!("failed to build Bazel test-artifact client: {error}"))?;
         let (sender, receiver) = mpsc::channel(

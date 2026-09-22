@@ -3,8 +3,12 @@
 This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
+- `RunnerShadowController` exposes a bounded read-only demand snapshot only to
+  the configured runners-controller principal via `RunnerControllerAuth`.
+  It contains cross-account identifiers and must use `private, no-store`.
 - `BuildController.timeline/2` returns full build step metadata without logs, scoped to the authorized project/build. Bandit negotiates HTTP compression; the response uses `private, no-store`.
 - Handle request/response flow and rendering for controller actions.
+- Google One Tap uses a same-origin start request and a CSRF-protected completion request in `AuthController`. Marketing HTML is shared-cached, so the start request cannot present the page's session-bound CSRF token; the router routes it through the `:same_origin_csrf_exemption` pipeline (`TuistWeb.Plugs.SameOriginCSRFExemptionPlug`), which accepts it when the browser-set `Sec-Fetch-Site` or `Origin` header proves same-origin, and its JSON returns a fresh `csrf_token` for the credential form alongside the nonce. Up to ten pending one-hour challenges support independent browser tabs. The submitted nonce selects and consumes only its matching session challenge before handling the verified identity through the existing sign-in flow. Preserve the Google Workspace hosted-domain claim when building the authentication result.
 - Delegate business logic to `server/lib/tuist` contexts.
 - Keep the machine-readable auth.md document, discovery metadata, and agent-auth response envelopes synchronized when the protocol surface changes.
 

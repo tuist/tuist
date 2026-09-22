@@ -169,6 +169,137 @@ defmodule Tuist.Kura.Workers.ClaimSizingWorkerTest do
     assert %ClaimProposal{status: :open} = ClaimProposals.open_proposal_for(account)
   end
 
+  test "a growth waiting behind older shrinks is applied first", %{account: account} do
+    # A shrink costs nothing while it waits; a growth leaves the account
+    # evicting content it still needs. With one apply left in the hour, it
+    # goes to the growth the sweep opens now, not the shrink opened earlier.
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    for _ <- 1..4 do
+      other = AccountsFixtures.organization_fixture().account
+
+      Repo.insert!(%ClaimProposal{
+        account_id: other.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "8Gi",
+        recommended_claim_size: "16Gi",
+        status: :applied,
+        resolved_by: "automatic",
+        resolved_at: DateTime.add(now, -600, :second)
+      })
+    end
+
+    Repo.insert!(%ClaimProposal{
+      account_id: AccountsFixtures.organization_fixture().account.id,
+      region: "us-east",
+      direction: :shrink,
+      current_claim_size: "50Gi",
+      recommended_claim_size: "25Gi",
+      inserted_at: DateTime.add(now, -3_600, :second)
+    })
+
+    account_id = account.id
+
+    expect(Kura, :apply_claim_proposal, fn %ClaimProposal{direction: :grow, account_id: ^account_id}, "automatic" ->
+      {:ok, %{claim_size: "20Gi", raised: [], lowered: []}}
+    end)
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+  end
+
+  test "growths the cluster refuses do not keep other proposals from being tried" do
+    # Six open growths every region refuses, ahead of an older shrink that
+    # could release the room they need. Refusals spend no budget, so the pass
+    # goes on to the shrink instead of retrying the same growths forever.
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    for _ <- 1..5 do
+      Repo.insert!(%ClaimProposal{
+        account_id: AccountsFixtures.organization_fixture().account.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "16Gi",
+        recommended_claim_size: "32Gi"
+      })
+    end
+
+    shrink =
+      Repo.insert!(%ClaimProposal{
+        account_id: AccountsFixtures.organization_fixture().account.id,
+        region: "us-east",
+        direction: :shrink,
+        current_claim_size: "50Gi",
+        recommended_claim_size: "25Gi",
+        inserted_at: DateTime.add(now, -3_600, :second)
+      })
+
+    test_pid = self()
+
+    stub(Kura, :apply_claim_proposal, fn
+      %ClaimProposal{direction: :grow}, "automatic" ->
+        {:error, {"us-east", :capacity_exhausted}}
+
+      %ClaimProposal{id: id}, "automatic" ->
+        send(test_pid, {:applied, id})
+        {:ok, %{claim_size: "25Gi", raised: [], lowered: []}}
+    end)
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+
+    shrink_id = shrink.id
+    assert_received {:applied, ^shrink_id}
+  end
+
+  test "only applies that land spend the unattended budget" do
+    # One apply left this hour: the refused growth does not spend it, the
+    # first shrink does, and the second shrink waits for the next hour.
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    for _ <- 1..4 do
+      Repo.insert!(%ClaimProposal{
+        account_id: AccountsFixtures.organization_fixture().account.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "8Gi",
+        recommended_claim_size: "16Gi",
+        status: :applied,
+        resolved_by: "automatic",
+        resolved_at: DateTime.add(now, -600, :second)
+      })
+    end
+
+    [first, second] =
+      for offset <- [-7_200, -3_600] do
+        Repo.insert!(%ClaimProposal{
+          account_id: AccountsFixtures.organization_fixture().account.id,
+          region: "us-east",
+          direction: :shrink,
+          current_claim_size: "50Gi",
+          recommended_claim_size: "25Gi",
+          inserted_at: DateTime.add(now, offset, :second)
+        })
+      end
+
+    test_pid = self()
+
+    stub(Kura, :apply_claim_proposal, fn
+      %ClaimProposal{direction: :grow}, "automatic" ->
+        {:error, {"us-east", :capacity_exhausted}}
+
+      %ClaimProposal{id: id}, "automatic" ->
+        send(test_pid, {:applied, id})
+        {:ok, %{claim_size: "25Gi", raised: [], lowered: []}}
+    end)
+
+    assert :ok = perform_job(ClaimSizingWorker, %{})
+
+    first_id = first.id
+    second_id = second.id
+    assert_received {:applied, ^first_id}
+    refute_received {:applied, ^second_id}
+  end
+
   test "operator applies do not consume the unattended budget", %{account: account} do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
