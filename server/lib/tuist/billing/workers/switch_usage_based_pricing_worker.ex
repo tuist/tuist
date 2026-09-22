@@ -1,18 +1,22 @@
 defmodule Tuist.Billing.Workers.SwitchUsageBasedPricingWorker do
   @moduledoc """
-  Moves Pro subscriptions onto the usage-based meters as they renew.
+  Moves Pro subscriptions onto the usage-based meters.
 
-  Dormant until `:usage_based_pricing_switch` is enabled, for an account or
-  for everyone. That flag is what paces the migration: it goes on once the
-  accounts it covers have had their notice, and until then this runs daily
-  and switches nobody. It is also off in any environment whose meter Prices
-  are still reporting-only, because a switched subscription would carry
-  nothing to bill.
+  `:usage_based_pricing_switch` decides who and when: an account is
+  switched once the flag is enabled for it, or for everyone, and not
+  before. That is what paces the migration, one account or one wave at a
+  time, without a deploy. Enabling it for an account just after its renewal
+  is what keeps the accounting whole, since the usage Price leaves without
+  being settled for the period it is removed in.
 
-  Each account is switched in the two days after its period rolls over, so
-  the usage Price it carried was invoiced by that renewal and the meters
-  start the new period at zero. The switch itself is idempotent, so seeing a
-  subscription twice inside that window changes nothing the second time.
+  Nothing happens either while the environment's meter Prices are still
+  reporting-only, because a switched subscription would carry nothing to
+  bill.
+
+  Running daily over the accounts the flag covers makes this a convergence
+  loop rather than a one-off migration: a subscription that already carries
+  the meters is left alone, and one that somehow lost an item gets it back
+  on the next run.
   """
   use Oban.Worker, max_attempts: 3
 
@@ -26,8 +30,7 @@ defmodule Tuist.Billing.Workers.SwitchUsageBasedPricingWorker do
     if Billing.usage_meter_price_ids() == [] do
       :ok
     else
-      DateTime.utc_now()
-      |> Billing.accounts_due_for_usage_based_pricing_switch()
+      Billing.accounts_with_pro_subscriptions()
       |> Enum.filter(&FeatureFlags.usage_based_pricing_switch_enabled?/1)
       |> Enum.map(&switch/1)
       |> report()

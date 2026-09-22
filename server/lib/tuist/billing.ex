@@ -24,7 +24,6 @@ defmodule Tuist.Billing do
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
   @usage_meter_event_names ["cache_egress_megabytes", "cache_requests", "passing_test_cases"]
-  @switch_renewal_window_days 2
 
   @payment_thresholds %{remote_cache_hits: 200}
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
@@ -719,24 +718,16 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  The accounts whose Pro subscription renewed within the last two days and
-  is therefore due to be switched onto the usage-based meters.
-
-  A switch belongs right after a renewal: the hit Price it removes was
-  invoiced by that renewal, and the meters start the new period at zero.
-  The window spans two days so a missed daily run still catches it, and the
-  switch is idempotent, so seeing a subscription twice costs nothing.
+  The accounts carrying an active Pro subscription, which are the ones the
+  switch to usage-based pricing applies to. Whether a given one is switched
+  is decided per account by `:usage_based_pricing_switch`.
 
   Only Pro subscriptions. Enterprise terms are contracted per account, and
   open source accounts pay nothing, so neither is migrated by a schedule.
   """
-  def accounts_due_for_usage_based_pricing_switch(%DateTime{} = now) do
-    renewed_since = DateTime.add(now, -@switch_renewal_window_days * 24 * 60 * 60, :second)
-
+  def accounts_with_pro_subscriptions do
     from(s in Subscription,
       where: s.status == "active" and s.plan == :pro,
-      where: not is_nil(s.current_period_start),
-      where: s.current_period_start >= ^renewed_since and s.current_period_start <= ^now,
       preload: :account
     )
     |> Repo.all()
@@ -749,9 +740,11 @@ defmodule Tuist.Billing do
   flag turned on for the account so the nightly sync reports those meters.
 
   Runner and prepaid items are left alone, as is a meter item the
-  subscription already carries: deleting a metered item discards the usage
-  that accrued on it this cycle. Run this at a renewal, when the usage Price
-  it removes has already been invoiced.
+  subscription already carries. Deleting a metered item discards the usage
+  that accrued on it this cycle, so switching mid-cycle forgives the hits
+  the account ran up in it and hands the meters a full allowance for what
+  is left. Enabling the flag for an account just after its renewal keeps
+  both sides whole.
   """
   def switch_to_usage_based_pricing(%Account{} = account) do
     case {usage_meter_price_ids(), get_current_active_subscription(account)} do
@@ -789,9 +782,9 @@ defmodule Tuist.Billing do
         {:ok, :unchanged}
 
       items ->
-        # The meters start from zero on a subscription that has just
-        # renewed, and the usage Price being removed was invoiced by that
-        # renewal. Proration would settle both against the same period.
+        # Neither side of the swap is settled against the period it lands
+        # in: the usage Price leaves without a mid-cycle invoice, and the
+        # meters begin at zero from here.
         Stripe.Subscription.update(subscription_id, %{items: items, proration_behavior: "none"})
     end
   end

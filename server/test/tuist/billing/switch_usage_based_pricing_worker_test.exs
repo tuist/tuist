@@ -12,13 +12,13 @@ defmodule Tuist.Billing.Workers.SwitchUsageBasedPricingWorkerTest do
     account = Accounts.get_account_from_user(AccountsFixtures.user_fixture(customer_id: "customer_id"))
 
     stub(Billing, :usage_meter_price_ids, fn -> ["meter.egress", "meter.requests", "meter.tests"] end)
-    stub(Billing, :accounts_due_for_usage_based_pricing_switch, fn _now -> [account] end)
+    stub(Billing, :accounts_with_pro_subscriptions, fn -> [account] end)
     stub(FeatureFlags, :usage_based_pricing_switch_enabled?, fn _account -> true end)
 
     %{account: account}
   end
 
-  test "switches an account whose subscription just renewed", %{account: account} do
+  test "switches an account the flag covers", %{account: account} do
     account_id = account.id
 
     expect(Billing, :switch_to_usage_based_pricing, fn %{id: ^account_id} -> {:ok, :switched} end)
