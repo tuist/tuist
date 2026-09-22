@@ -38,3 +38,8 @@ This area owns Phoenix controllers for HTML and API endpoints.
   workflow credential as an agent or user-supplied scope/branch identity.
 - Missing cache-volume metadata returns `delete` until the authenticated agent
   reports state `deleted`, then `forget` to release its durable local journal.
+
+- `API.RunnerVolumesController` exposes dashboard volume data and clearing via
+  `Runners.CacheVolumes.Query`. Reads require runners-read; clearing requires
+  account-update. Keep the runners feature flag and no-store responses. This
+  public controller must not expose privileged agent allocation/report methods.

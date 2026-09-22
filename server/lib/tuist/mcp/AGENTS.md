@@ -37,3 +37,8 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - The Bazel comparison prompt honors step-list coverage: trace profiles contain all recorded intervals; retained summaries have at most 32 actions plus setup. Recommend step detail tools for published action outcomes/logs and invocation logs for broader output; unknown or absent diagnostics never imply success.
 
 - Numeric retained Bazel IDs stay readable across profile publication; missing indexed rows report unavailable rather than an empty available timeline. Gradle step tools include zero-duration cache and skip outcomes.
+
+- Runner-volume tools share `Runners.CacheVolumes.Query` with the public API and
+  derive schemas from `API.Schemas.RunnerVolumes`. Reads require runners-read;
+  clearing requires account-update and carries destructive annotations. Keep
+  account scoping, unknown values and the runners feature gate intact.

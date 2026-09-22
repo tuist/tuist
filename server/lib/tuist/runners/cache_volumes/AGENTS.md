@@ -42,3 +42,9 @@ these schemas persist volume identities and per-job uses.
 - Job history left-joins existing job and workflow names by account, run and job identity. Missing or pruned metadata must not hide volume history; keep the job ID as the UI fallback.
 
 - Account usage analytics reuse the volume mount aggregation without a volume filter, retaining account and date scoping. Compute hit rate from total hits divided by known outcomes, not averages of volume or time-bucket rates. Unknown outcomes do not count as misses.
+
+- `Query` is the public HTTP/MCP/CLI read and clear boundary. Reuse lifecycle and
+  analytics queries, account-scope every lookup, and serialize an explicit allowlist
+  without node, pod, Ceph or credential details. HTTP/MCP use runners-read for data
+  and account-update for clearing. Limit pages to 100 rows and ranges to 90 days;
+  never coerce unknown byte counts or hit outcomes to zero.

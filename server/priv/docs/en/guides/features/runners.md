@@ -40,6 +40,51 @@ Adopting them is usually a one-line change to a job:
 <!-- -->
 :::
 
+## Manage cache volumes programmatically {#manage-cache-volumes}
+
+The Linux volumes dashboard is also available through the authenticated API,
+<.localized_link href="/guides/features/agentic-coding/mcp">MCP tools</.localized_link>,
+and `tuist runner volume`. These interfaces expose volume inventory and details,
+storage and activity over a selected period, job history, and clearing saved contents.
+They use the same account access rules as the dashboard: runner access for reads
+and account administration for clearing.
+
+```sh
+# Account can also come from the project's configured full handle.
+tuist runner volume list --account acme --search gradle --sort-by used_space --sort-order desc --page-size 20 --json
+tuist runner volume show VOLUME_UUID --account acme
+tuist runner volume jobs VOLUME_UUID --account acme --page 2
+tuist runner volume for-job JOB_ID --account acme
+tuist runner volume analytics --account acme --volume VOLUME_UUID --start 2026-09-01T00:00:00Z --end 2026-09-08T00:00:00Z --json
+tuist runner volume clear VOLUME_UUID --account acme --yes
+```
+
+Omit `--volume` for account-wide analytics. The default range is the last seven
+days; an explicit range must be ordered, at most 90 days, and end no later than
+now. Pagination starts at 1 and accepts up to 100 rows per page. Use the Tuist job
+identifier shown in the dashboard for `for-job`, including for Buildkite and GitLab.
+`--path` selects a project's configuration and server URL. `--json` includes
+pagination metadata; unknown optional values are omitted by the CLI's JSON encoder.
+
+The API paths below are relative to `/api/accounts/{account_handle}/runners`:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/volumes` | Inventory; `search`, `sort_by`, `sort_order`, `page`, `page_size` |
+| GET | `/volumes/{volume_id}` | Volume details |
+| GET | `/volumes/{volume_id}/jobs` | Job history; `page`, `page_size` |
+| GET | `/jobs/{workflow_job_id}/volumes` | Volumes mounted by a job |
+| GET | `/volumes/analytics` | Optional `volume_id`, `start`, `end` |
+| POST | `/volumes/{volume_id}/clear` | Clear saved contents |
+
+API and MCP responses retain `null` for unknown measurements. Cache status `saved`
+means changes were saved for future jobs; it does not describe the job's result.
+Hit rates exclude unknown outcomes and compare against the preceding equal-length period.
+Storage trends compare the selected range end with its start.
+Clearing cannot be undone. Running jobs retain their private copies but cannot save
+changes to the cleared volume, and later jobs start empty. The CLI requires `--yes`
+to confirm this action.
+
 ## Concurrency limits {#concurrency-limits}
 
 Each account has independent vCPU and memory concurrency limits for macOS and Linux. Before Tuist admits a job, it checks the job's <.localized_link href="/guides/features/runners/profiles#machine-shapes">machine shape</.localized_link> against all jobs currently running on that platform. The job starts only when both its vCPU and memory fit within the remaining capacity; otherwise it stays queued until capacity becomes available. Work on one platform never consumes the other platform's capacity.

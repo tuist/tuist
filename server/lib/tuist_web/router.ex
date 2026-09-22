@@ -680,6 +680,12 @@ defmodule TuistWeb.Router do
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
         get "/workflows", RunnersController, :index_workflows
         get "/profiles", RunnersController, :index_profiles
+        get "/volumes", RunnerVolumesController, :list
+        get "/volumes/analytics", RunnerVolumesController, :analytics
+        get "/volumes/:volume_id", RunnerVolumesController, :show
+        get "/volumes/:volume_id/jobs", RunnerVolumesController, :jobs
+        post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
+        get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
 
       scope "/webhooks" do

@@ -809,6 +809,250 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunnerVolumeAnalytics:
+      additionalProperties: false
+      properties:
+        activity:
+          additionalProperties: false
+          properties:
+            hit_rate:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            job_runs:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            points:
+              items:
+                additionalProperties: false
+                properties:
+                  at:
+                    format: date-time
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  hit_rate:
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  job_runs:
+                    nullable: false
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - at
+                  - hit_rate
+                  - job_runs
+                title: RunnerVolumeActivityPoint
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          required:
+            - hit_rate
+            - job_runs
+            - points
+          title: RunnerVolumeActivity
+          type: object
+          x-struct:
+          x-validate:
+        period:
+          additionalProperties: false
+          properties:
+            end:
+              format: date-time
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            start:
+              format: date-time
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - end
+            - start
+          title: RunnerVolumePeriod
+          type: object
+          x-struct:
+          x-validate:
+        previous_activity:
+          additionalProperties: false
+          properties:
+            hit_rate:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            job_runs:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            points:
+              items:
+                additionalProperties: false
+                properties:
+                  at:
+                    format: date-time
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  hit_rate:
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  job_runs:
+                    nullable: false
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - at
+                  - hit_rate
+                  - job_runs
+                title: RunnerVolumeActivityPoint
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          required:
+            - hit_rate
+            - job_runs
+            - points
+          title: RunnerVolumeActivity
+          type: object
+          x-struct:
+          x-validate:
+        storage:
+          items:
+            additionalProperties: false
+            properties:
+              at:
+                format: date-time
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              capacity_bytes:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              unmeasured_capacity_copies:
+                nullable: false
+                type: integer
+                x-struct:
+                x-validate:
+              unmeasured_copies:
+                nullable: false
+                type: integer
+                x-struct:
+                x-validate:
+              used_bytes:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              volumes:
+                nullable: false
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - at
+              - capacity_bytes
+              - unmeasured_capacity_copies
+              - unmeasured_copies
+              - used_bytes
+              - volumes
+            title: RunnerVolumeStoragePoint
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        trends:
+          additionalProperties: false
+          properties:
+            hit_rate_percentage_points:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            used_bytes:
+              additionalProperties: false
+              properties:
+                change:
+                  nullable: true
+                  type: number
+                  x-struct:
+                  x-validate:
+                percent:
+                  nullable: true
+                  type: number
+                  x-struct:
+                  x-validate:
+              required:
+                - change
+                - percent
+              title: RunnerVolumeTrend
+              type: object
+              x-struct:
+              x-validate:
+            volumes:
+              additionalProperties: false
+              properties:
+                change:
+                  nullable: true
+                  type: number
+                  x-struct:
+                  x-validate:
+                percent:
+                  nullable: true
+                  type: number
+                  x-struct:
+                  x-validate:
+              required:
+                - change
+                - percent
+              title: RunnerVolumeTrend
+              type: object
+              x-struct:
+              x-validate:
+          required:
+            - hit_rate_percentage_points
+            - used_bytes
+            - volumes
+          title: RunnerVolumeTrends
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - activity
+        - period
+        - previous_activity
+        - storage
+        - trends
+      title: RunnerVolumeAnalytics
+      type: object
+      x-struct:
+      x-validate:
     DeviceCodeAuthenticationTokens:
       description: Token to authenticate the user with.
       properties:
@@ -829,6 +1073,28 @@ components:
           x-struct:
           x-validate:
       title: DeviceCodeAuthenticationTokens
+      type: object
+      x-struct:
+      x-validate:
+    RunnerVolumePeriod:
+      additionalProperties: false
+      properties:
+        end:
+          format: date-time
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        start:
+          format: date-time
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - end
+        - start
+      title: RunnerVolumePeriod
       type: object
       x-struct:
       x-validate:
@@ -2267,6 +2533,62 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheActionItem
       x-validate:
+    RunnerVolumeTrends:
+      additionalProperties: false
+      properties:
+        hit_rate_percentage_points:
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        used_bytes:
+          additionalProperties: false
+          properties:
+            change:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            percent:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+          required:
+            - change
+            - percent
+          title: RunnerVolumeTrend
+          type: object
+          x-struct:
+          x-validate:
+        volumes:
+          additionalProperties: false
+          properties:
+            change:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+            percent:
+              nullable: true
+              type: number
+              x-struct:
+              x-validate:
+          required:
+            - change
+            - percent
+          title: RunnerVolumeTrend
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - hit_rate_percentage_points
+        - used_bytes
+        - volumes
+      title: RunnerVolumeTrends
+      type: object
+      x-struct:
+      x-validate:
     CreateShardPlanParams:
       properties:
         build_run_id:
@@ -2803,6 +3125,179 @@ components:
       type: integer
       x-struct:
       x-validate:
+    RunnerJobVolumes:
+      additionalProperties: false
+      properties:
+        volumes:
+          items:
+            additionalProperties: false
+            properties:
+              usage:
+                additionalProperties: false
+                properties:
+                  cache_hit:
+                    nullable: true
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  cache_status:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  cache_status_description:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  capacity_bytes:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  id:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  job_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  mounted_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  used_bytes:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workflow_job_id:
+                    nullable: false
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workflow_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  workflow_run_id:
+                    nullable: false
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - cache_hit
+                  - cache_status
+                  - cache_status_description
+                  - capacity_bytes
+                  - id
+                  - job_name
+                  - mounted_at
+                  - used_bytes
+                  - workflow_job_id
+                  - workflow_name
+                  - workflow_run_id
+                title: RunnerVolumeJob
+                type: object
+                x-struct:
+                x-validate:
+              volume:
+                additionalProperties: false
+                properties:
+                  architecture:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  capacity_bytes:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  id:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  key:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  last_used_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  platform:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  provider:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  repository:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  unmeasured_capacity_copies:
+                    nullable: false
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  unmeasured_copies:
+                    nullable: false
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  used_bytes:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - architecture
+                  - capacity_bytes
+                  - id
+                  - key
+                  - last_used_at
+                  - platform
+                  - provider
+                  - repository
+                  - unmeasured_capacity_copies
+                  - unmeasured_copies
+                  - used_bytes
+                title: RunnerVolume
+                type: object
+                x-struct:
+                x-validate:
+            required:
+              - usage
+              - volume
+            title: RunnerJobVolume
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - volumes
+      title: RunnerJobVolumes
+      type: object
+      x-struct:
+      x-validate:
     WebhookEndpoint:
       properties:
         event_types:
@@ -2850,6 +3345,179 @@ components:
         - inserted_at
         - updated_at
       title: WebhookEndpoint
+      type: object
+      x-struct:
+      x-validate:
+    RunnerVolumeJobs:
+      additionalProperties: false
+      properties:
+        jobs:
+          items:
+            additionalProperties: false
+            properties:
+              cache_hit:
+                nullable: true
+                type: boolean
+                x-struct:
+                x-validate:
+              cache_status:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              cache_status_description:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              capacity_bytes:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              id:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              job_name:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              mounted_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              used_bytes:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              workflow_job_id:
+                nullable: false
+                type: integer
+                x-struct:
+                x-validate:
+              workflow_name:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              workflow_run_id:
+                nullable: false
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - cache_hit
+              - cache_status
+              - cache_status_description
+              - capacity_bytes
+              - id
+              - job_name
+              - mounted_at
+              - used_bytes
+              - workflow_job_id
+              - workflow_name
+              - workflow_run_id
+            title: RunnerVolumeJob
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        pagination_metadata:
+          additionalProperties: false
+          properties:
+            current_page:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            has_next_page:
+              type: boolean
+              x-struct:
+              x-validate:
+            has_previous_page:
+              type: boolean
+              x-struct:
+              x-validate:
+            page_size:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            total_count:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            total_pages:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - current_page
+            - has_next_page
+            - has_previous_page
+            - page_size
+            - total_count
+            - total_pages
+          title: RunnerVolumePagination
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - jobs
+        - pagination_metadata
+      title: RunnerVolumeJobs
+      type: object
+      x-struct:
+      x-validate:
+    RunnerVolumePagination:
+      additionalProperties: false
+      properties:
+        current_page:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        has_next_page:
+          type: boolean
+          x-struct:
+          x-validate:
+        has_previous_page:
+          type: boolean
+          x-struct:
+          x-validate:
+        page_size:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        total_count:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        total_pages:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - current_page
+        - has_next_page
+        - has_previous_page
+        - page_size
+        - total_count
+        - total_pages
+      title: RunnerVolumePagination
       type: object
       x-struct:
       x-validate:
@@ -3138,6 +3806,81 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestCaseRunsList
       x-validate:
+    RunnerVolume:
+      additionalProperties: false
+      properties:
+        architecture:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        capacity_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        key:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        last_used_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        platform:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        provider:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        repository:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        unmeasured_capacity_copies:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        unmeasured_copies:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        used_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - architecture
+        - capacity_bytes
+        - id
+        - key
+        - last_used_at
+        - platform
+        - provider
+        - repository
+        - unmeasured_capacity_copies
+        - unmeasured_copies
+        - used_bytes
+      title: RunnerVolume
+      type: object
+      x-struct:
+      x-validate:
     PreviewIndexPage:
       default: 1
       description: The page number to return.
@@ -3368,6 +4111,51 @@ components:
         - in_progress_count
         - last_run_at
       title: RunnerWorkflow
+      type: object
+      x-struct:
+      x-validate:
+    RunnerVolumeStoragePoint:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        capacity_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        unmeasured_capacity_copies:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        unmeasured_copies:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        used_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        volumes:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - at
+        - capacity_bytes
+        - unmeasured_capacity_copies
+        - unmeasured_copies
+        - used_bytes
+        - volumes
+      title: RunnerVolumeStoragePoint
       type: object
       x-struct:
       x-validate:
@@ -5204,6 +5992,81 @@ components:
       type: integer
       x-struct:
       x-validate:
+    RunnerVolumeJob:
+      additionalProperties: false
+      properties:
+        cache_hit:
+          nullable: true
+          type: boolean
+          x-struct:
+          x-validate:
+        cache_status:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        cache_status_description:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        capacity_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        job_name:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        mounted_at:
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        used_bytes:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        workflow_job_id:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        workflow_name:
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        workflow_run_id:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - cache_hit
+        - cache_status
+        - cache_status_description
+        - capacity_bytes
+        - id
+        - job_name
+        - mounted_at
+        - used_bytes
+        - workflow_job_id
+        - workflow_name
+        - workflow_run_id
+      title: RunnerVolumeJob
+      type: object
+      x-struct:
+      x-validate:
     DurationMetrics:
       description: Time-bucketed duration metrics for build or test runs. The bucket granularity (hour, day, or month) is derived from the requested time range.
       properties:
@@ -5592,6 +6455,58 @@ components:
       type: string
       x-struct:
       x-validate:
+    RunnerVolumeActivity:
+      additionalProperties: false
+      properties:
+        hit_rate:
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        job_runs:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+        points:
+          items:
+            additionalProperties: false
+            properties:
+              at:
+                format: date-time
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              hit_rate:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              job_runs:
+                nullable: false
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - at
+              - hit_rate
+              - job_runs
+            title: RunnerVolumeActivityPoint
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - hit_rate
+        - job_runs
+        - points
+      title: RunnerVolumeActivity
+      type: object
+      x-struct:
+      x-validate:
     TestSuiteRunsPageSize:
       default: 20
       description: The maximum number of suite runs to return in a single page.
@@ -5608,6 +6523,166 @@ components:
         - miss
       title: CacheTaskStatus
       type: string
+      x-struct:
+      x-validate:
+    RunnerJobVolume:
+      additionalProperties: false
+      properties:
+        usage:
+          additionalProperties: false
+          properties:
+            cache_hit:
+              nullable: true
+              type: boolean
+              x-struct:
+              x-validate:
+            cache_status:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            cache_status_description:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            capacity_bytes:
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
+            id:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            job_name:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            mounted_at:
+              format: date-time
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            used_bytes:
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
+            workflow_job_id:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            workflow_name:
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            workflow_run_id:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - cache_hit
+            - cache_status
+            - cache_status_description
+            - capacity_bytes
+            - id
+            - job_name
+            - mounted_at
+            - used_bytes
+            - workflow_job_id
+            - workflow_name
+            - workflow_run_id
+          title: RunnerVolumeJob
+          type: object
+          x-struct:
+          x-validate:
+        volume:
+          additionalProperties: false
+          properties:
+            architecture:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            capacity_bytes:
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
+            id:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            key:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            last_used_at:
+              format: date-time
+              nullable: true
+              type: string
+              x-struct:
+              x-validate:
+            platform:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            provider:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            repository:
+              nullable: false
+              type: string
+              x-struct:
+              x-validate:
+            unmeasured_capacity_copies:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            unmeasured_copies:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            used_bytes:
+              nullable: true
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - architecture
+            - capacity_bytes
+            - id
+            - key
+            - last_used_at
+            - platform
+            - provider
+            - repository
+            - unmeasured_capacity_copies
+            - unmeasured_copies
+            - used_bytes
+          title: RunnerVolume
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - usage
+        - volume
+      title: RunnerJobVolume
+      type: object
       x-struct:
       x-validate:
     GenerationsIndexAfter:
@@ -6233,6 +7308,33 @@ components:
       type: string
       x-struct:
       x-validate:
+    RunnerVolumeActivityPoint:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+        hit_rate:
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        job_runs:
+          nullable: false
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - at
+        - hit_rate
+        - job_runs
+      title: RunnerVolumeActivityPoint
+      type: object
+      x-struct:
+      x-validate:
     GenerateShardUploadURLParams:
       properties:
         artifact:
@@ -6283,6 +7385,26 @@ components:
       minimum: 1
       title: TestModuleRunsPage
       type: integer
+      x-struct:
+      x-validate:
+    RunnerVolumeTrend:
+      additionalProperties: false
+      properties:
+        change:
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+        percent:
+          nullable: true
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - change
+        - percent
+      title: RunnerVolumeTrend
+      type: object
       x-struct:
       x-validate:
     BuildStatus:
@@ -6506,6 +7628,25 @@ components:
         - tokens
         - meta
       title: AccountTokens
+      type: object
+      x-struct:
+      x-validate:
+    RunnerVolumeCleared:
+      additionalProperties: false
+      properties:
+        cleared:
+          type: boolean
+          x-struct:
+          x-validate:
+        id:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - cleared
+        - id
+      title: RunnerVolumeCleared
       type: object
       x-struct:
       x-validate:
@@ -8191,6 +9332,137 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunnerVolumeList:
+      additionalProperties: false
+      properties:
+        pagination_metadata:
+          additionalProperties: false
+          properties:
+            current_page:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            has_next_page:
+              type: boolean
+              x-struct:
+              x-validate:
+            has_previous_page:
+              type: boolean
+              x-struct:
+              x-validate:
+            page_size:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            total_count:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+            total_pages:
+              nullable: false
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - current_page
+            - has_next_page
+            - has_previous_page
+            - page_size
+            - total_count
+            - total_pages
+          title: RunnerVolumePagination
+          type: object
+          x-struct:
+          x-validate:
+        volumes:
+          items:
+            additionalProperties: false
+            properties:
+              architecture:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              capacity_bytes:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              id:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              key:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              last_used_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              platform:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              provider:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              repository:
+                nullable: false
+                type: string
+                x-struct:
+                x-validate:
+              unmeasured_capacity_copies:
+                nullable: false
+                type: integer
+                x-struct:
+                x-validate:
+              unmeasured_copies:
+                nullable: false
+                type: integer
+                x-struct:
+                x-validate:
+              used_bytes:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - architecture
+              - capacity_bytes
+              - id
+              - key
+              - last_used_at
+              - platform
+              - provider
+              - repository
+              - unmeasured_capacity_copies
+              - unmeasured_copies
+              - used_bytes
+            title: RunnerVolume
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - pagination_metadata
+        - volumes
+      title: RunnerVolumeList
+      type: object
+      x-struct:
+      x-validate:
     ProjectFullToken:
       description: A new project token.
       properties:
@@ -8475,6 +9747,340 @@ paths:
       summary: Create a test case run attachment and get a presigned upload URL.
       tags:
         - Tests
+  /api/accounts/{account_handle}/runners/volumes/analytics:
+    get:
+      callbacks: {}
+      operationId: getRunnerVolumeAnalytics
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: end
+          required: false
+          schema:
+            format: date-time
+            nullable: false
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: start
+          required: false
+          schema:
+            format: date-time
+            nullable: false
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: volume_id
+          required: false
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  activity:
+                    additionalProperties: false
+                    properties:
+                      hit_rate:
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      job_runs:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      points:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            at:
+                              format: date-time
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            hit_rate:
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            job_runs:
+                              nullable: false
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - at
+                            - hit_rate
+                            - job_runs
+                          title: RunnerVolumeActivityPoint
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                    required:
+                      - hit_rate
+                      - job_runs
+                      - points
+                    title: RunnerVolumeActivity
+                    type: object
+                    x-struct:
+                    x-validate:
+                  period:
+                    additionalProperties: false
+                    properties:
+                      end:
+                        format: date-time
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                      start:
+                        format: date-time
+                        nullable: false
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - end
+                      - start
+                    title: RunnerVolumePeriod
+                    type: object
+                    x-struct:
+                    x-validate:
+                  previous_activity:
+                    additionalProperties: false
+                    properties:
+                      hit_rate:
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      job_runs:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      points:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            at:
+                              format: date-time
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            hit_rate:
+                              nullable: true
+                              type: number
+                              x-struct:
+                              x-validate:
+                            job_runs:
+                              nullable: false
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - at
+                            - hit_rate
+                            - job_runs
+                          title: RunnerVolumeActivityPoint
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                    required:
+                      - hit_rate
+                      - job_runs
+                      - points
+                    title: RunnerVolumeActivity
+                    type: object
+                    x-struct:
+                    x-validate:
+                  storage:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        at:
+                          format: date-time
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        capacity_bytes:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        unmeasured_capacity_copies:
+                          nullable: false
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        unmeasured_copies:
+                          nullable: false
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        used_bytes:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        volumes:
+                          nullable: false
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - at
+                        - capacity_bytes
+                        - unmeasured_capacity_copies
+                        - unmeasured_copies
+                        - used_bytes
+                        - volumes
+                      title: RunnerVolumeStoragePoint
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  trends:
+                    additionalProperties: false
+                    properties:
+                      hit_rate_percentage_points:
+                        nullable: true
+                        type: number
+                        x-struct:
+                        x-validate:
+                      used_bytes:
+                        additionalProperties: false
+                        properties:
+                          change:
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          percent:
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                        required:
+                          - change
+                          - percent
+                        title: RunnerVolumeTrend
+                        type: object
+                        x-struct:
+                        x-validate:
+                      volumes:
+                        additionalProperties: false
+                        properties:
+                          change:
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                          percent:
+                            nullable: true
+                            type: number
+                            x-struct:
+                            x-validate:
+                        required:
+                          - change
+                          - percent
+                        title: RunnerVolumeTrend
+                        type: object
+                        x-struct:
+                        x-validate:
+                    required:
+                      - hit_rate_percentage_points
+                      - used_bytes
+                      - volumes
+                    title: RunnerVolumeTrends
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - activity
+                  - period
+                  - previous_activity
+                  - storage
+                  - trends
+                title: RunnerVolumeAnalytics
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get account or volume storage, activity and trends for a time range.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/generations/{generation_id}:
     get:
       callbacks: {}
@@ -9747,6 +11353,95 @@ paths:
       summary: Update a test case.
       tags:
         - Test Cases
+  /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear:
+    post:
+      callbacks: {}
+      operationId: clearRunnerVolume
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: volume_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  cleared:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  id:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - cleared
+                  - id
+                title: RunnerVolumeCleared
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Clear saved volume contents. Running jobs retain their copies but cannot save them.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts:
     get:
       callbacks: {}
@@ -13599,6 +15294,151 @@ paths:
       summary: Updates an organization
       tags:
         - Organizations
+  /api/accounts/{account_handle}/runners/volumes/{volume_id}:
+    get:
+      callbacks: {}
+      operationId: getRunnerVolume
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: volume_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  architecture:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  capacity_bytes:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  id:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  key:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  last_used_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  platform:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  provider:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  repository:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                  unmeasured_capacity_copies:
+                    nullable: false
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  unmeasured_copies:
+                    nullable: false
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  used_bytes:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - architecture
+                  - capacity_bytes
+                  - id
+                  - key
+                  - last_used_at
+                  - platform
+                  - provider
+                  - repository
+                  - unmeasured_capacity_copies
+                  - unmeasured_copies
+                  - used_bytes
+                title: RunnerVolume
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get runner volume details.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/steps/{step_id}:
     get:
       callbacks: {}
@@ -16290,6 +18130,249 @@ paths:
       summary: List cacheable tasks for a given build.
       tags:
         - Builds
+  /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes:
+    get:
+      callbacks: {}
+      operationId: listRunnerJobVolumes
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: workflow_job_id
+          required: true
+          schema:
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  volumes:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        usage:
+                          additionalProperties: false
+                          properties:
+                            cache_hit:
+                              nullable: true
+                              type: boolean
+                              x-struct:
+                              x-validate:
+                            cache_status:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            cache_status_description:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            capacity_bytes:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            id:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            job_name:
+                              nullable: true
+                              type: string
+                              x-struct:
+                              x-validate:
+                            mounted_at:
+                              format: date-time
+                              nullable: true
+                              type: string
+                              x-struct:
+                              x-validate:
+                            used_bytes:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            workflow_job_id:
+                              nullable: false
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            workflow_name:
+                              nullable: true
+                              type: string
+                              x-struct:
+                              x-validate:
+                            workflow_run_id:
+                              nullable: false
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - cache_hit
+                            - cache_status
+                            - cache_status_description
+                            - capacity_bytes
+                            - id
+                            - job_name
+                            - mounted_at
+                            - used_bytes
+                            - workflow_job_id
+                            - workflow_name
+                            - workflow_run_id
+                          title: RunnerVolumeJob
+                          type: object
+                          x-struct:
+                          x-validate:
+                        volume:
+                          additionalProperties: false
+                          properties:
+                            architecture:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            capacity_bytes:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            id:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            key:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            last_used_at:
+                              format: date-time
+                              nullable: true
+                              type: string
+                              x-struct:
+                              x-validate:
+                            platform:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            provider:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            repository:
+                              nullable: false
+                              type: string
+                              x-struct:
+                              x-validate:
+                            unmeasured_capacity_copies:
+                              nullable: false
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            unmeasured_copies:
+                              nullable: false
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            used_bytes:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - architecture
+                            - capacity_bytes
+                            - id
+                            - key
+                            - last_used_at
+                            - platform
+                            - provider
+                            - repository
+                            - unmeasured_capacity_copies
+                            - unmeasured_copies
+                            - used_bytes
+                          title: RunnerVolume
+                          type: object
+                          x-struct:
+                          x-validate:
+                      required:
+                        - usage
+                        - volume
+                      title: RunnerJobVolume
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - volumes
+                title: RunnerJobVolumes
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the volumes mounted by a runner job.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/cache/clean:
     put:
       callbacks: {}
@@ -25490,6 +27573,227 @@ paths:
       summary: Creates an organization
       tags:
         - Organizations
+  /api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs:
+    get:
+      callbacks: {}
+      operationId: listRunnerVolumeJobs
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            maximum: 100000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: volume_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  jobs:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        cache_hit:
+                          nullable: true
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        cache_status:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cache_status_description:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        capacity_bytes:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        id:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        job_name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        mounted_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        used_bytes:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        workflow_job_id:
+                          nullable: false
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        workflow_name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        workflow_run_id:
+                          nullable: false
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - cache_hit
+                        - cache_status
+                        - cache_status_description
+                        - capacity_bytes
+                        - id
+                        - job_name
+                        - mounted_at
+                        - used_bytes
+                        - workflow_job_id
+                        - workflow_name
+                        - workflow_run_id
+                      title: RunnerVolumeJob
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    additionalProperties: false
+                    properties:
+                      current_page:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      has_next_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      page_size:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_count:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_pages:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - current_page
+                      - has_next_page
+                      - has_previous_page
+                      - page_size
+                      - total_count
+                      - total_pages
+                    title: RunnerVolumePagination
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - jobs
+                  - pagination_metadata
+                title: RunnerVolumeJobs
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List the jobs that used a runner volume.
+      tags:
+        - Runners
   /api/auth/apple:
     post:
       callbacks: {}
@@ -26453,6 +28757,252 @@ paths:
       summary: List recorded Gradle build steps without logs.
       tags:
         - Builds
+  /api/accounts/{account_handle}/runners/volumes:
+    get:
+      callbacks: {}
+      operationId: listRunnerVolumes
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            maximum: 100000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: search
+          required: false
+          schema:
+            maxLength: 200
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            enum:
+              - volume
+              - repository
+              - used_space
+              - capacity
+              - last_used
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: sort_order
+          required: false
+          schema:
+            enum:
+              - asc
+              - desc
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  pagination_metadata:
+                    additionalProperties: false
+                    properties:
+                      current_page:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      has_next_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      page_size:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_count:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_pages:
+                        nullable: false
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - current_page
+                      - has_next_page
+                      - has_previous_page
+                      - page_size
+                      - total_count
+                      - total_pages
+                    title: RunnerVolumePagination
+                    type: object
+                    x-struct:
+                    x-validate:
+                  volumes:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        architecture:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        capacity_bytes:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        id:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        key:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        last_used_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        platform:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        provider:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        repository:
+                          nullable: false
+                          type: string
+                          x-struct:
+                          x-validate:
+                        unmeasured_capacity_copies:
+                          nullable: false
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        unmeasured_copies:
+                          nullable: false
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        used_bytes:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - architecture
+                        - capacity_bytes
+                        - id
+                        - key
+                        - last_used_at
+                        - platform
+                        - provider
+                        - repository
+                        - unmeasured_capacity_copies
+                        - unmeasured_copies
+                        - used_bytes
+                      title: RunnerVolume
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - pagination_metadata
+                  - volumes
+                title: RunnerVolumeList
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: List, search and sort runner volumes.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites:
     get:
       callbacks: {}
