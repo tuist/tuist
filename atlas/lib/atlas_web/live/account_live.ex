@@ -19,6 +19,7 @@ defmodule AtlasWeb.AccountLive do
   alias Atlas.Audit
   alias Atlas.Letters
   alias Atlas.LLMs
+  alias Atlas.Nudges
   alias Atlas.Slack
   alias Atlas.Users
   alias AtlasWeb.AccountLive.FeatureUsageView
@@ -2811,6 +2812,69 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
+        title={gettext("Account nudges")}
+        icon="bell"
+        data-part="account-nudges-card"
+      >
+        <.card_section data-part="account-nudges-section">
+          <p data-part="account-nudges-description">
+            {gettext(
+              "Signals detect moments worth reaching out about and post a card in Slack for a human to claim, edit, and send. Cards live on the account here too."
+            )}
+          </p>
+
+          <div
+            :if={@nudges != []}
+            id="account-nudges-list"
+            data-part="account-nudges-list"
+          >
+            <div
+              :for={nudge <- @nudges}
+              id={"account-nudge-#{nudge.id}"}
+              data-part="account-nudge"
+            >
+              <div data-part="account-nudge-content">
+                <div data-part="account-nudge-heading">
+                  <span data-part="account-nudge-title">{nudge.title}</span>
+                  <.badge
+                    label={nudge.signal}
+                    color="information"
+                    style="light-fill"
+                  />
+                  <.badge
+                    label={nudge_state_label(nudge.state)}
+                    color={nudge_state_color(nudge.state)}
+                    style="light-fill"
+                  />
+                </div>
+                <p data-part="account-nudge-rationale">{nudge.rationale}</p>
+                <p :if={nudge.dismissed_reason} data-part="account-nudge-dismissal">
+                  <span>{gettext("Dismissed:")}</span>
+                  {nudge.dismissed_reason}
+                </p>
+              </div>
+              <div data-part="account-nudge-controls">
+                <span data-part="account-nudge-timestamp">
+                  {format_nudge_timestamp(nudge.inserted_at)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <.account_empty_state
+            :if={@nudges == []}
+            id="account-nudges-empty"
+            title={gettext("No nudges yet")}
+            subtitle={
+              gettext(
+                "Signals will drop a card here (and in Slack) when the account crosses a threshold worth reaching out about."
+              )
+            }
+          />
+        </.card_section>
+      </.card>
+
+      <.card
         :if={false}
         title={gettext("Customer Outcomes")}
         icon="checkup_list"
@@ -3894,6 +3958,7 @@ defmodule AtlasWeb.AccountLive do
     |> assign(:account, account)
     |> assign(:ready_to_sign_tax_certificate_requests, ready_to_sign_tax_certificate_requests(account))
     |> assign(:feature_interests, Accounts.list_feature_interests_for_account(account))
+    |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
     |> clear_feature_interest_modal()
     |> clear_feature_interest_notes_modal()
     |> assign(:linked_slack_channel, linked_slack_channel)
@@ -4091,6 +4156,24 @@ defmodule AtlasWeb.AccountLive do
   end
 
   defp pending_outcome_proposals(_account), do: []
+
+  defp nudge_state_label("pending_post"), do: gettext("Posting to Slack…")
+  defp nudge_state_label("proposed"), do: gettext("Open")
+  defp nudge_state_label("claimed"), do: gettext("Claimed")
+  defp nudge_state_label("dismissed"), do: gettext("Dismissed")
+  defp nudge_state_label("expired"), do: gettext("Expired")
+  defp nudge_state_label(state), do: state
+
+  defp nudge_state_color("pending_post"), do: "neutral"
+  defp nudge_state_color("proposed"), do: "information"
+  defp nudge_state_color("claimed"), do: "success"
+  defp nudge_state_color("dismissed"), do: "neutral"
+  defp nudge_state_color("expired"), do: "neutral"
+  defp nudge_state_color(_state), do: "neutral"
+
+  defp format_nudge_timestamp(nil), do: "-"
+  defp format_nudge_timestamp(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
+  defp format_nudge_timestamp(%NaiveDateTime{} = ndt), do: Calendar.strftime(ndt, "%b %d, %Y")
 
   defp outcome_proposal_subject(%OutcomeProposal{proposal_type: "new_outcome", title: title}), do: title
 
