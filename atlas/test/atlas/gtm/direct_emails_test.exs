@@ -3,6 +3,8 @@ defmodule Atlas.GTM.DirectEmailsTest do
   use Oban.Testing, repo: Atlas.Repo
 
   alias Atlas.Accounts.Account
+  alias Atlas.Audit
+  alias Atlas.Audit.Activity
   alias Atlas.GTM.Delivery
   alias Atlas.GTM.DirectEmails
   alias Atlas.GTM.Workers.DeliverDirectEmail
@@ -143,5 +145,18 @@ defmodule Atlas.GTM.DirectEmailsTest do
 
     assert {:ok, %{delivery: delivery}} = DirectEmails.queue(@attrs)
     assert DirectEmails.get_delivery(delivery.id).id == delivery.id
+  end
+
+  test "audits a queued notice with no account as null rather than the string nil" do
+    assert {:ok, %{delivery: delivery}} = DirectEmails.queue(@attrs)
+
+    activity = Repo.get_by!(Activity, action: "gtm_direct_email.queued", target_id: delivery.id)
+
+    assert Map.fetch!(activity.metadata, "account_id") == nil
+    assert Map.fetch!(activity.metadata, "account_key") == nil
+    assert activity.metadata["subject"] == "Your Tuist pricing is changing"
+
+    refute Map.has_key?(activity.metadata, "path")
+    assert is_nil(Audit.serialize(activity).target.path)
   end
 end
