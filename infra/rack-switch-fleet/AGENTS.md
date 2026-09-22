@@ -269,9 +269,52 @@ git.
 
 So the constraint is not that nobody automates switches. It is that this class
 of switch is not built to be automated, and the one path the vendor leaves open
-when you decline its controller is the least robust one it has. Worth weighing
-when the next rack's switches are chosen: a unit with NETCONF or gNMI would make
-most of this file unnecessary.
+when you decline its controller is the least robust one it has.
+
+### What a switch with an API would cost instead
+
+Worth weighing when the next rack's switches are bought, because a unit with
+NETCONF would make most of this file unnecessary. The shape has to stay the
+same: the Mac minis are 10GBASE-T, so this is a multi-gigabit copper switch with
+SFP+ uplinks, not a datacentre SFP28 box.
+
+| | Ports | Management | Price |
+|---|---|---|---|
+| TP-Link SX3832, what we have | 24x 10GBASE-T, 8x SFP+ | SSH CLI, or the Omada controller | **EUR 1,035** each, bought 2026-09-15 |
+| FS S5860-24XMG | 24x multigig 10GBASE-T, 4x SFP+, 4x SFP28 | PicOS: NETCONF, RESTCONF, Ansible, OpenFlow | **USD 2,749** |
+| Juniper EX4400-24MP | 24x multigig, 100G uplinks | Junos: NETCONF, gNMI, mature ZTP | **GBP 15,460** list |
+
+So an API costs roughly **two and a half times** what we paid, not ten times.
+The Juniper number is list, for a PoE++ unit with an 1800 W budget this rack has
+no use for, and is here only to mark the far end. The FS box is the like for
+like comparison and the one to price properly if this comes up again.
+
+One thing to check before choosing it: our SFP+ ports carry six DACs across the
+pair, four of them on ToR B, and the FS has four SFP+ plus four SFP28 rather
+than eight SFP+. That is enough, since SFP28 takes a 10G DAC, but it is exactly
+enough rather than comfortably.
+
+### Would an API switch make bring-up zero touch?
+
+Not by itself, and the distinction matters. Zero touch comes from ZTP, not from
+NETCONF: the switch boots, DHCP hands it a config location, it fetches and
+applies. NETCONF is what you get *afterwards*, and it is the part that would
+delete this file's SSH machinery and its connection budget.
+
+Both halves are worth separating because **this switch already has the ZTP
+half**. TP-Link calls it DHCP Auto Install, and the TFTP check settled the
+question it was blocked on: the config export is text, so a rendered config is
+something Auto Install could be handed. Nobody has tried it.
+
+What Junos and PicOS offer over that is not the feature but its maturity. ZTP on
+those is a mainstream path that thousands of deployments use; DHCP Auto Install
+here is a feature on a unit whose SSH daemon stops accepting connections after
+eight of them, which is not encouraging about the parts nobody exercises.
+
+So: a NETCONF switch would very likely give zero touch, because of its ZTP
+rather than its NETCONF, and would also remove the reason this tool has to nurse
+a CLI. Trying Auto Install on what we already own is the cheap experiment, and
+it should happen before anyone spends on the theory.
 
 Nothing specific to the SX3832 turned up in a search, though TP-Link has a
 documented history of JetStream firmware leaving switches unmanageable until
