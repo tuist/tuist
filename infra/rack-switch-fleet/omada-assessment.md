@@ -6,78 +6,77 @@ feature set and wants to own the configuration, which fights a git-rendered
 desired state". The first half of that is checkable and the second half is not
 an argument. This is the check.
 
-**Short version: the capability objection does not survive contact with the
-vendor's own feature list.** Everything this repository renders is configurable
-in controller mode. What is not settled is whether it can be driven from git
-through a supported API, and that is now the question worth answering rather
-than the one that was assumed. Nothing below has been run: there is no
-controller deployed and no prototype results, and the capability table is a
-documentation review rather than a measurement.
+**Short version: on controller 6.3, the Open API can write everything this
+repository renders.** On 5.15 it could not: spanning-tree mode and LAGs were
+writable only for switch stacks. So the controller path is a documented vendor
+API, not a community provider on an undocumented one. What is still open is
+what adoption does to a switch that already has a configuration, and that needs
+a switch nobody depends on.
 
-## What we actually render, against what controller mode supports
+Measured 2026-09-22 by running both controllers locally
+(`mbentley/omada-controller:5.15`, which reports 5.15.24.19, and `:6.3`, which
+reports 6.3.0.45) and reading the OpenAPI document each one serves at
+`/v3/api-docs`, which is what `/doc.html` renders. No switch has been adopted,
+so this is what the vendor documents, not yet what an SX3832 accepts.
 
-Sourced from TP-Link's own [list of switch functions available under the Omada
-SDN Controller](https://support.omadanetworks.com/us/document/13032/). Not
-verified on an SX3832: this is a documentation review, and the prototype below
-is what would make it evidence.
+## What we render, against what the Open API can write
 
-| What `configs/ber1/*.cfg` sets | Controller mode | Note |
-|---|---|---|
-| Management address, `interface vlan 1` | **Yes** | "System IP (Static/DHCP)" |
-| Management VLAN | **Yes** | listed explicitly |
-| Hostname | **Yes** | "Device Description" |
-| `spanning-tree mode rstp` | **Yes** | STP, RSTP and MSTP all listed |
-| Per-port `spanning-tree` | **Yes** | port configuration is covered |
-| `lldp` | **Yes** | LLDP-MED |
-| VLANs (when the rack has a plan) | **Yes** | 4K VLANs |
-| Port roles, LAG, isolation | **Yes** | |
-| `telnet disable`, `no ip http server` | **Not listed** | neither is offered in controller mode, which is the same outcome by a different route |
-| `no snmp-server` | **Not listed** | worth confirming |
-| `no controller cloud-based` | n/a | meaningless once adopted |
-| `serial_port baud_rate` | **Not listed** | console only, and console bring-up stays either way |
+Paths are under `/openapi/v1/{omadacId}/sites/{siteId}`. `{mac}` is the
+switch's MAC address.
 
-So the config this repository renders is almost entirely expressible. The one
-material change is that **SSH becomes read-only**: "Switch supports SSH access
-in controller mode, but it only supports using the showing commands." That
-deletes `apply` and `replace` and leaves the driver doing what it is best at,
-reading. It also removes the write path whose every bug this PR has been fixing.
+| What `configs/ber1/*.cfg` sets | 6.3 write endpoint | Read back through the API | 5.15 |
+|---|---|---|---|
+| `hostname` | `PATCH switches/{mac}/general-config`, `name` | yes | same |
+| Management address, `interface vlan 1` | `POST switches/{mac}/networks/{networkId}`, `ip` | yes, `GET switches/{mac}/networks` | same |
+| Management VLAN | same path, `mvlan` | yes | same |
+| `spanning-tree`, `spanning-tree mode rstp` | `PUT switches/{mac}/config/loopback`, `stp: 2`, plus priority and timers | **no** | stacks only |
+| Per-port `spanning-tree` | `spanningTreeEnable` on a `lan-profiles` entry, or per port through `PATCH switches/{mac}/ports/{port}` | through the profile; per-port settings **no** | profile only |
+| `lldp` | `PATCH lldp`, site-wide | yes | same |
+| `no snmp-server` | `PATCH setting/service/snmp`, site-wide | yes | same |
+| VLANs, when the rack has a plan | `lan-networks`, with membership on the profile or the port | yes | profile only |
+| LAG | `PATCH switches/{mac}/ports/{port}`, `operation: aggregating` with `lagSetting` | membership, as `lagPort` in `GET switches/{mac}` | stacks only |
+| Port isolation | `portIsolationEnable` on the profile or the port | through the profile | profile only |
+| `telnet disable`, `no ip http server` | none | | neither is offered in controller mode, which is the same outcome by a different route |
+| `no controller cloud-based` | n/a | | meaningless once adopted |
+| `serial_port baud_rate`, `no system-time dst`, `no service reset-disable` | none | | device-local; what adoption does to them is part of the adoption question |
+
+Three things follow.
+
+**The controller version is part of the answer.** 5.15 could not set RSTP or a
+LAG on a standalone switch; 6.3 can. The wrapped chart deploys 6.3.0.45 by
+default, and `infra/helm/omada/values.yaml` pins that tag so the controller
+that runs is the one that was measured. An upgrade means measuring again.
+
+**Verification does not come with it.** Spanning-tree mode and per-port
+spanning-tree settings can be written for a standalone switch but not read
+back: only stacks return them. Everything else reads back. So the verify half
+of a controller-driven loop still needs `show running-config`, which controller
+mode leaves available over SSH, read-only, and which is what `fleet.sh` already
+does. The split this points to is the controller writing and the existing
+driver reading and diffing.
+
+**The community evidence was about the community.** The Terraform provider not
+implementing spanning tree, and calling the web API the only surface with full
+coverage, described that provider's scope. The vendor's Open API has spanning
+tree on 6.3.
+
+The one material change to how the switches are driven is that **SSH becomes
+read-only**: "Switch supports SSH access in controller mode, but it only
+supports using the showing commands." That deletes `apply` and `replace`, and
+it removes the write path whose every bug this PR has been fixing.
 
 ## The blockers that are real
 
-Capability is not the problem. These are.
-
-**The write API's coverage is unestablished, which is not the same as absent.**
-Being precise about what was actually checked, because the difference decides
-whether the next step is a prototype or a purchase:
-
-- The Open API guide that was read covers site creation. It links an "Online API
-  Document" with the endpoint specifications, and **that was not reached**. So
-  nothing here shows the vendor lacks switch write endpoints; it shows the
-  introductory material does not describe them.
-- The community
-  [Terraform provider](https://github.com/wncservices/terraform-provider-omada)
-  states that "the web API is the only surface with full configuration
-  coverage", reads switch ports from the web API while writing them through the
-  Open API, and does not implement spanning tree, PoE, per-port QoS or storm
-  control. It is v0.6.x and reserves breaking changes for v1.0.0.
-
-A provider not implementing something is evidence about that provider's scope
-and effort, not about the vendor's endpoints. Treat the second bullet as a lower
-bound on what is reachable, not an upper one.
-
-**What would settle it** is reading the Online API Document for switch
-endpoints, and then the prototype below, which exercises one write for real. If
-the Open API turns out to cover what the table needs, the choice is between a
-bespoke SSH driver and a documented vendor API, which is an easy choice. If it
-only covers part, the choice is between the driver and a community provider on
-an undocumented API the vendor can change, which is smaller code and a larger
-blast radius. Those are different decisions and the evidence so far does not
-distinguish them.
+The API is no longer one of them. These are.
 
 **Adoption behaviour is unknown.** What happens to the configuration already on
 `ber1-tor-a` and `ber1-tor-b` when the controller adopts them, whether it is
 preserved, replaced or merged, and whether the management address survives, has
 not been established. That is the first thing the prototype answers.
+
+**Model support is assumed, not tried.** The firmware carries controller
+settings, since `no controller cloud-based` is in the running configuration,
+which suggests the SX3832 and SG3452 can be adopted. Nothing has been adopted.
 
 **The controller is another thing to run.** A
 [Helm chart exists](https://github.com/mbentley/docker-omada-controller/blob/master/helm/omada-controller-helm/README.md),
@@ -92,22 +91,24 @@ Smallest path that answers the real questions. `ber1-mgmt` is the target: it is
 an SG3452 sitting in storage, it is not carrying traffic, and nothing depends on
 it. Not the ToRs.
 
-1. **Stand the controller up** from the Helm chart, in staging, reachable from
-   the management network. No switches adopted yet.
+1. **Stand the controller up**, reachable from the management network, either
+   from the Helm chart in staging or with
+   `docker run mbentley/omada-controller:6.3.0.45` on a laptop that is on the
+   rack LAN. No switches adopted yet.
 2. **Back up `ber1-mgmt` first** with `mise run rack:fleet backup ber1-mgmt`, so
    there is a known-good standalone configuration to return to.
 3. **Adopt it** and record what changed: does the management address survive,
    is the prior configuration preserved or replaced, what does
    `show running-config` look like afterwards, and does SSH go read-only as
    documented.
-4. **Make one change from committed data.** The smallest representative one is
-   the management VLAN or a port description, applied through the Open API with
-   client credentials, from a value in `sites/ber1.json`.
-5. **Read it back** through the API and over SSH, and diff against the rendered
-   desired state. That is the same verification loop this tool already does, so
-   the comparison is like for like.
-6. **Answer the coverage question with evidence**: which of the table's rows can
-   be written through the Open API rather than only the UI or the web API.
+4. **Make two changes from committed data**, through the Open API with client
+   credentials, from values in `sites/ber1.json`: a port description, which the
+   API can read back, and spanning-tree mode, which it cannot.
+5. **Read them back**, through the API where it can and over SSH where it
+   cannot, and diff against the rendered desired state. That is the same
+   verification loop this tool already does, so the comparison is like for like.
+6. **Mark the table with what the switch accepted.** An endpoint existing is not
+   the same as an SG3452 or an SX3832 honouring it.
 
 If that works, the switch half of this directory becomes a renderer plus a
 verifier, and the SSH driver keeps only what the controller cannot do: console
@@ -135,12 +136,18 @@ implement it**: `apply` saves before verifying, and `replace` overwrites the
 startup configuration outright. Worth testing on `ber1-tor-b` before it is
 relied on, and worth having before any change is made to `ber1-tor-a` again.
 
+Under the controller the same shape would need a different timer. The Open API's
+`reboot-schedules` are daily, weekly or monthly, with no one-shot form, so the
+nearest equivalent is a daily schedule a few minutes out, deleted on success.
+What a controller-managed switch reloads when that fires is part of the adoption
+question.
+
 ## Coordination, if this becomes a controller
 
-The per-rack lock is a directory under `TMPDIR`. It serialises runs on one
-machine that share a `TMPDIR` and nothing else: two operators on two laptops, or
-a laptop and a CI job, do not see each other's lock. That is honest for what it
-is, and it is not a distributed lock.
+The per-rack lock is a directory under `/tmp`. It serialises runs on one machine
+and nothing else: two operators on two laptops, or a laptop and a CI job, do not
+see each other's lock. That is honest for what it is, and it is not a
+distributed lock.
 
 A `Lease` is the right shape once there is something in the cluster to hold one,
 and it costs no switch connections. Two properties matter more than the

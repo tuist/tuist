@@ -26,7 +26,6 @@ same time. Only group C needs care.
   from a prepped switch's `copy startup-config tftp` export: the value after
   `secret 5`. `rack:ztp --dry-run` refuses without it and says the same.
 - `ber1-mgmt` out of storage, for group B.
-- Cluster access, for group A.
 
 ### Group A: answers the biggest open question, and needs no switches at all
 
@@ -46,6 +45,16 @@ capability table in [omada-assessment.md](omada-assessment.md). That decides
 whether the controller path is a documented vendor API or an undocumented
 community one, which are different decisions, and it decides how much of this
 directory survives.
+
+**Done on 2026-09-22**, with the controller run locally in Docker rather than on
+staging, since the spec needs no cluster:
+`docker run -p 8043:8043 mbentley/omada-controller:6.3.0.45`, then
+`curl -k https://localhost:8043/v3/api-docs`. On 6.3 every rendered setting has
+a write endpoint; on 5.15 spanning-tree mode and LAGs were stacks-only, so the
+chart now pins 6.3.0.45. Spanning-tree state is write-only, so verification
+stays on SSH. It is a documented vendor API. The table is in
+[omada-assessment.md](omada-assessment.md); what remains is its prototype, which
+needs `ber1-mgmt`.
 
 ### Group B: zero touch, on the bench, with a switch nobody depends on
 
@@ -80,7 +89,7 @@ also resets the connection budget, which is about seven per boot and decides how
 much fits. `locate` and `ports` cost nothing, `preflight` one, `recover` two,
 `replace` two and a reboot.
 
-**Done on 2026-09-23.** `ber1-tor-b` came back on DHCP at 192.168.0.82 as
+**Done on 2026-09-22.** `ber1-tor-b` came back on DHCP at 192.168.0.82 as
 predicted; `locate` found it, `recover` put it back and saved, and its startup
 configuration now carries the static address. `ber1-tor-a` confirmed clean.
 Kept below as the procedure for the next switch that moves.
@@ -751,8 +760,8 @@ arbitrary line into its negation is the same class of guess.
 
 ## Why not the Omada SDN controller
 
-**This is under active reassessment and the original reasoning does not hold.**
-See [omada-assessment.md](omada-assessment.md).
+**The original reasoning does not hold on either count.** See
+[omada-assessment.md](omada-assessment.md).
 
 The decision was recorded as "controller mode limits the feature set and wants
 to own the configuration". Checked against TP-Link's own list of what a
@@ -760,15 +769,15 @@ controller-managed switch can do, everything this directory renders is
 supported: management address and VLAN, hostname, RSTP, per-port spanning tree,
 LLDP, VLANs, port configuration. The capability objection was wrong.
 
-What is not yet established is the write API's coverage, which is not the same
-as it being absent. The Open API guide that was read covers site creation and
-links an endpoint document that was not reached, so nothing shows the vendor
-lacks switch write endpoints. The community Terraform provider does not
-implement spanning tree and calls the undocumented web API the only surface with
-full coverage, but a provider's scope is evidence about that provider. Reading
-the endpoint document, and then the prototype, is what would settle it.
+The write API was the other open question, and it is answered: on controller
+6.3 the Open API has a write endpoint for everything rendered here, measured
+from the document a running controller serves. On 5.15 spanning-tree mode and
+LAGs were writable only for stacks, so the version matters and the chart pins
+it. Spanning-tree state is write-only through the API, which keeps SSH as the
+verifier.
 
-The assessment also carries the prototype that would settle it, and a
+What is not answered is what adoption does to a configured switch. The
+assessment carries the prototype that would settle it, and a
 confirmed-commit shape using the switch's own `reboot-schedule` that would give
 this tool automatic recovery from a change that cuts off the path used to make
 it. Neither needs new hardware.

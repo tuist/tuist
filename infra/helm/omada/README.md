@@ -17,19 +17,17 @@ spanning tree, LLDP, VLANs, port configuration. Under the controller, SSH also
 becomes read-only, which would delete the fleet's `apply` and `replace` and
 leave its driver doing the reading it is better at.
 
-## The question this deployment is for
+## What its API can do
 
-Whether any of that can be driven from git through a supported API. That is
-unestablished, and it cannot be established from outside: the Open API's
-endpoint documentation is served by the controller itself, at
-`https://<controller>:8043/doc.html`. So the first thing to do once this is
-running is read that, and enumerate which switch settings have write endpoints.
+On 6.3 the Open API has a write endpoint for every setting the fleet renders on
+a standalone switch. On 5.15 it did not: spanning-tree mode and LAGs were
+writable only for stacks. That is why `values.yaml` pins the image tag. Two
+settings, spanning-tree mode and per-port spanning-tree settings, can be written
+but not read back, so verification still reads `show running-config` over SSH.
 
-Community evidence is not encouraging and is not conclusive either. The
-Terraform provider says the undocumented web API is the only surface with full
-coverage and does not implement spanning tree; the mature Python client is
-read-mostly for switches and says it will move to the Open API "eventually".
-Neither establishes what the vendor offers. See
+The endpoint documentation is served by the controller itself, at
+`https://<controller>:8043/doc.html`, with the raw document at `/v3/api-docs`.
+The measurement and the per-setting table are in
 [omada-assessment.md](../../rack-switch-fleet/omada-assessment.md).
 
 ## Adoption across subnets

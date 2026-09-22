@@ -1373,7 +1373,7 @@ STUB
     [[ "$output" == *"dnsmasq"* ]]
 }
 
-# --- reading show users, from real output on 2026-09-23 ----------------------
+# --- reading show users, from real output on 2026-09-22 ----------------------
 
 @test "the current connection is the newest task, not the first one listed" {
     # Preflight on ber1-tor-b listed tSsh00 (a line recover leaked) and tSsh02

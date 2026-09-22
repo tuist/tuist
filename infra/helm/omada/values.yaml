@@ -1,8 +1,13 @@
 # Defaults shared by every environment. Anything environment-specific, and
 # anything that decides blast radius, lives in values-<env>.yaml.
 omada-controller-helm:
+  # Pinned to the controller whose Open API was measured in
+  # infra/rack-switch-fleet/omada-assessment.md. Switch write coverage changed
+  # between releases (5.15 could not set RSTP or a LAG on a standalone switch),
+  # so an upgrade means measuring again.
   image:
     repository: mbentley/omada-controller
+    tag: "6.3.0.45"
     pullPolicy: IfNotPresent
 
   # The controller keeps its own database on disk. Losing it loses adoption
