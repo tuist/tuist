@@ -2,6 +2,7 @@
 """Run promtool against the exact expression shipped in the Grafana artifact."""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -76,3 +77,39 @@ with tempfile.TemporaryDirectory(prefix="kura-alert-") as temporary:
     fixture.write_text(json.dumps({"rule_files": [str(rules)], "evaluation_interval": "1m", "tests": tests}))
     subprocess.run(["promtool", "check", "rules", str(rules)], check=True)
     subprocess.run(["promtool", "test", "rules", str(fixture)], check=True)
+
+    # Use Alertmanager's routing engine rather than a reimplementation of its
+    # sibling/continue semantics. No notifications are sent by this command.
+    policy = json.loads((directory / "kura-availability-notification-policy.json").read_text())
+
+    def alertmanager_route(route):
+        converted = {key: value for key, value in route.items() if key not in ("object_matchers", "routes")}
+        if "object_matchers" in route:
+            converted["matchers"] = [f"{key}{operator}{json.dumps(value)}" for key, operator, value in route["object_matchers"]]
+        if "routes" in route:
+            converted["routes"] = [alertmanager_route(child) for child in route["routes"]]
+        return converted
+
+    routing = root / "routing.json"
+    routing.write_text(json.dumps({
+        "route": {"receiver": "Slack #notifications 2", "routes": [alertmanager_route(policy)]},
+        "receivers": [{"name": name} for name in ("Slack #notifications 2", "Slack #notifications-non-prod", "Incidents")],
+    }))
+    base_labels = {"alertname": rule["title"], "grafana_folder": "Alerts"}
+    for name, labels, receivers in [
+        ("production", {"cluster": "tuist-production"}, "Slack #notifications 2,Incidents"),
+        ("staging", {"cluster": "tuist-staging"}, "Slack #notifications-non-prod"),
+        ("canary", {"cluster": "tuist-canary"}, "Slack #notifications-non-prod"),
+        ("missing_cluster", {}, "Slack #notifications-non-prod"),
+        ("unknown_cluster", {"cluster": "other"}, "Slack #notifications-non-prod"),
+        ("env_only", {"env": "production"}, "Slack #notifications-non-prod"),
+        ("staging_with_production_env", {"cluster": "tuist-staging", "env": "production"}, "Slack #notifications-non-prod"),
+        ("unrelated_rule", {"alertname": "Unrelated", "cluster": "tuist-production"}, "Slack #notifications 2"),
+        ("unrelated_folder", {"grafana_folder": "Other", "cluster": "tuist-production"}, "Slack #notifications 2"),
+    ]:
+        print(f"Routing: {name}", flush=True)
+        subprocess.run([
+            os.environ.get("AMTOOL", "amtool"), "config", "routes", "test",
+            f"--config.file={routing}", f"--verify.receivers={receivers}",
+            *(f"{key}={json.dumps(value)}" for key, value in {**base_labels, **labels}.items()),
+        ], check=True)

@@ -2,7 +2,7 @@
   {
     "uid": "kura-instance-no-ready-replicas",
     "orgID": 1,
-    "folderUID": "REPLACE_WITH_ALERTS_FOLDER_UID",
+    "folderUID": "df5dn1g4rckxsf",
     "ruleGroup": "Cache",
     "title": "Kura instance has no ready replicas",
     "condition": "B",
@@ -14,12 +14,12 @@
           "from": 600,
           "to": 0
         },
-        "datasourceUid": "REPLACE_WITH_PROMETHEUS_DATASOURCE_UID",
+        "datasourceUid": "grafanacloud-prom",
         "model": {
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "REPLACE_WITH_PROMETHEUS_DATASOURCE_UID"
+            "uid": "grafanacloud-prom"
           },
           "expr": "(max by (cluster, namespace, statefulset) (kube_statefulset_replicas{namespace=\"kura\"}) > bool 0) * on (cluster, namespace, statefulset) (max by (cluster, namespace, statefulset) (kube_statefulset_status_replicas_ready{namespace=\"kura\"}) == bool 0)",
           "instant": true,

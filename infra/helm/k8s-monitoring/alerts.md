@@ -3636,17 +3636,60 @@ Details` sync row), which have no rule yet.
 
 ### Kura instance has no ready replicas
 
-**Prepared, not live:** the paused Grafana provisioning payload is
+**Validated, awaiting Grafana write access (2026-09-22):** the paused Grafana provisioning payload is
 [`kura-availability-alert-rules.json`](kura-availability-alert-rules.json).
-Merging this file does not install or enable it. Replace the folder and
-Prometheus datasource UID placeholders with this stack's existing values,
-preview the expression against production incident history, verify the IRM
-`affected_service=Cache` option and environment routing, then provision and
-unpause the rule. Do not add `notification_settings`; let the existing policy
-tree route by the series' environment labels. Confirm non-production alerts
-cannot open a production status-page incident before enabling IRM escalation.
-The public status API reports component ID `Cache` (verified 2026-09-22);
+Merging this file does not install or enable it. The live stack's folder
+(`df5dn1g4rckxsf`) and Prometheus datasource (`grafanacloud-prom`) are resolved.
+IRM's label definitions confirm the exact `affected_service=Cache` option;
 component values are case-sensitive, so lowercase `cache` will not match it.
+The first notification-policy write returned HTTP 403 despite the caller's
+reported write permissions. Neither the rule nor the routing was installed.
+
+The companion
+[`kura-availability-notification-policy.json`](kura-availability-notification-policy.json)
+is **one subtree, not a replacement for the whole notification policy**. Insert
+it before the current root's children, preserving the root and other routes:
+
+- Match only this alert title in the `Alerts` folder.
+- `cluster=tuist-production` goes to both `Slack #notifications 2` and
+  `Incidents`; the first child uses `continue: true` to reach the second.
+- Staging, canary, unknown clusters and missing cluster labels go only to
+  `Slack #notifications-non-prod`. An `env=production` label alone cannot page.
+- Other alerts retain their current routes. This does not globally change
+  canary routing or the five rules already pinned to `Incidents`.
+
+Do not add `notification_settings` to the rule. Its expression retains the
+cluster label used by this policy; `env` is intentionally not required.
+Non-production alerts never select the production receiver, its Atlas webhook,
+or IRM through this subtree. `affected_service` labels select a component;
+they do not by themselves configure IRM escalation or declare an incident.
+
+Historical preview against the live datasource covered 13:00–18:00 UTC on
+2026-09-22 at one-minute resolution. The query detected up to 23 unavailable
+production StatefulSets; staging and canary stayed at zero. A two-minute
+subquery minimum also detected the outage, but is not an exact replay of
+Grafana's evaluation state. All three environments were zero at the final
+instant check. This is a zero-Ready-replica signal, not a complete public
+cache health check: an auth-backend failure can occur while pods stay Ready.
+
+After restoring Grafana write authorization:
+
+1. Read and save the current notification policy; merge the subtree into that
+   fresh policy without overwriting concurrent or unrelated changes.
+2. Provision the rule paused, using this payload. Read both resources back and
+   verify the matchers, receiver names and absence of `notification_settings`.
+3. Validate routing using Alertmanager's engine (without delivering synthetic
+   notifications), then unpause only this rule. Confirm live evaluation health
+   and inspect the existing IRM integration's escalation behavior before
+   claiming an end-to-end public incident drill succeeded.
+4. To roll back, pause the rule first, then remove only this matching subtree
+   from the current policy. Do not restore a stale whole-tree backup over
+   changes made by other operators.
+
+Run `python3 infra/helm/k8s-monitoring/test-kura-availability-alert.py` with
+`promtool` and `amtool` on PATH (or set `AMTOOL` to the latter's path). The
+script tests the exact query and pending period plus nine routing cases using
+Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 
 ```promql
 (max by (cluster, namespace, statefulset) (
