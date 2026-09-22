@@ -899,3 +899,49 @@ STUB
     run fleet_removed_lines "$current" "$merged"
     [ "${#output}" -eq 0 ]
 }
+
+# --- the join to the cluster's own inventory ---------------------------------
+
+mini_referencing() {
+    jq --arg h "$2" '.nodes += [{
+          "name": "ber1-runner-a01", "role": "runner", "hardware": "mac-mini",
+          "status": "installed", "rack_host": $h,
+          "links": [{"switch": "ber1-tor-a", "port": null, "media": "copper", "nic": "en0", "purpose": "data"}]
+        }]' "$SITE_FILE" > "$1"
+}
+
+@test "a node may reference a RackHost that exists" {
+    site="$BATS_TEST_TMPDIR/ref.json"
+    mini_referencing "$site" ber1-proto-01
+    run fleet_check_rack_hosts "$site"
+    [ "$status" -eq 0 ]
+}
+
+@test "a reference to a RackHost that does not exist is rejected" {
+    site="$BATS_TEST_TMPDIR/ghost.json"
+    mini_referencing "$site" ber1-ghost-99
+    run fleet_check_rack_hosts "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-ghost-99"* ]]
+}
+
+@test "a node that references a RackHost may not restate what RackHost owns" {
+    # Serial, address, rack position and outlet live in rackFleet.hosts and the
+    # controller acts on those. A second copy here is a second chance to
+    # disagree, and this side is the one nothing would notice was stale.
+    for field in serial address rack power; do
+        site="$BATS_TEST_TMPDIR/dup-$field.json"
+        mini_referencing "$BATS_TEST_TMPDIR/base-ref.json" ber1-proto-01
+        jq --arg f "$field" '(.nodes[-1] | .[$f]) = "whatever"' "$BATS_TEST_TMPDIR/base-ref.json" > "$site"
+        run fleet_check_rack_hosts "$site"
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"$field"* ]]
+    done
+}
+
+@test "nothing in the site definition references a RackHost yet, and that validates" {
+    run jq -r '[.nodes[] | select(.rack_host != null)] | length' "$SITE_FILE"
+    [ "$output" = "0" ]
+    run fleet_check_rack_hosts "$SITE_FILE"
+    [ "$status" -eq 0 ]
+}

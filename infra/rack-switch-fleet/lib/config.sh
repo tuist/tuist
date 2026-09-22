@@ -19,6 +19,12 @@ FLEET_MERGE_AWK="$FLEET_ROOT/lib/merge.awk"
 # configuration that switch has never had, and ber1-mgmt is a different model
 # entirely, so neither's unmanaged set is known. `replace` therefore reports
 # every line it would remove rather than trusting this list to be complete.
+# Where the compute half of the rack's inventory lives. A node that is a
+# cluster-managed machine points at its RackHost by name rather than restating
+# it, so the two inventories are connected by reference and not by two people
+# keeping two records in step.
+FLEET_RACK_VALUES="${FLEET_RACK_VALUES:-$FLEET_ROOT/../helm/tuist/values-managed-staging.yaml}"
+
 FLEET_UNMANAGED='^user name |^system-time ntp '
 export FLEET_UNMANAGED
 
@@ -234,6 +240,7 @@ fleet_render() {
   spec="$(fleet_model "$model")" || return 1
   fleet_check_ports "$device" "$spec" || return 1
   fleet_check_nodes "$site_file" || return 1
+  fleet_check_rack_hosts "$site_file" || return 1
   fleet_check_node_interfaces "$site_file" || return 1
   fleet_check_management_links "$site_file" || return 1
   fleet_check_sensor_chains "$site_file" || return 1
@@ -387,3 +394,44 @@ fleet_removed_lines() {
 # is pushed to. Its own function so the guard is testable without the macOS-only
 # TFTP plumbing around it.
 fleet_has_login() { grep -q '^user name ' "$1"; }
+
+
+# Fields RackHost owns. A node that references one must not restate them: two
+# records of a serial or an outlet is two chances to disagree, and the one in
+# the cluster is the one the controller acts on.
+FLEET_RACKHOST_OWNED="serial address rack position_u power outlet"
+
+# A node may name a RackHost, and if it does that host has to exist and the node
+# has to leave the host's own fields to it.
+fleet_check_rack_hosts() {
+  local site_file="$1" values="${2:-$FLEET_RACK_VALUES}" declared known bad=""
+  declared="$(jq -r '[.nodes[]? | select(.rack_host != null)] | length' "$site_file")"
+  [ "$declared" = "0" ] && return 0
+
+  if [ ! -f "$values" ]; then
+    echo "error: $declared node(s) reference a RackHost but $values is not there" >&2
+    return 1
+  fi
+  known="$(mktemp)"
+  yq -r '[.rackFleet.hosts[]?.name] | .[]' "$values" 2>/dev/null > "$known" || true
+
+  local name host field
+  while IFS=$'\t' read -r name host; do
+    [ -n "$name" ] || continue
+    if ! grep -Fxq -- "$host" "$known"; then
+      bad="$bad$name references RackHost $host, which is not in $(basename "$values")"$'\n' 
+    fi
+    for field in $FLEET_RACKHOST_OWNED; do
+      if [ "$(jq -r --arg n "$name" --arg f "$field" '.nodes[] | select(.name == $n) | has($f)' "$site_file")" = "true" ]; then
+        bad="$bad$name sets $field, which belongs to RackHost $host"$'\n' 
+      fi
+    done
+  done < <(jq -r '.nodes[]? | select(.rack_host != null) | "\(.name)\t\(.rack_host)"' "$site_file")
+  rm -f "$known"
+
+  if [ -n "$bad" ]; then
+    echo "error: node references into the cluster inventory are wrong:" >&2
+    printf '%s' "$bad" | sed '/^$/d;s/^/  /' >&2
+    return 1
+  fi
+}

@@ -16,6 +16,7 @@ a group and belongs in a reviewed change rather than in a per-device bring-up.
 ```
 mise run rack:fleet render                  # write the desired configs
 mise run rack:fleet render --check          # fail if they are out of date
+mise run rack:fleet preflight <device>      # users, drift and a backup, in ONE connection
 mise run rack:fleet diff [device]           # live switch against the render
 mise run rack:fleet apply <device> --dry-run
 mise run rack:fleet apply <device>
@@ -208,17 +209,56 @@ should carry the A/B property across: a mini's outlet and its ToR should not
 both land on the same side, or the split that the storage pair and the power
 feeds already keep is quietly undone for compute.
 
-### The seam between two inventories
+### The seam between two inventories, and how it is joined
 
 This file's site definition and `rackFleet.hosts` describe overlapping things.
 This one owns switches, cabling and appliances; that one owns the Mac minis with
-their serials, addresses, rack positions and outlets. A mini therefore appears
-in both when it is racked, as a link here and as a host there.
+their serials, addresses, rack positions and outlets, which the CAPI provider
+reconciles as `RackHost`. A mini appears in both when it is racked.
 
-That is tolerable while one covers the network and the other covers compute
-lifecycle, and it is written down here so it is a known seam rather than a
-surprise. It is not something to fix by merging them, least of all under time
-pressure.
+They are joined by reference rather than by copy. A node may carry
+`rack_host: <name>`, and then it may not restate anything `RackHost` owns:
+serial, address, rack, position, power or outlet. Both halves are checked on
+every render, so a reference to a host that does not exist fails, and so does a
+node that keeps its own copy of a serial. Two records of an outlet is two
+chances to disagree, and this side is the one nothing would notice had gone
+stale, because the controller acts on the other.
+
+So when the first mini is racked it gets a node here for its cable and its ToR,
+pointing at its `RackHost` for everything else. Not a second description of the
+machine.
+
+## Would this be better as Kubernetes objects?
+
+Partly, and the part that is cheap has been done: the join above is the
+reference-not-copy shape a `RackSwitch` and a `RackSite` would give, without the
+machinery. The rest is a real design direction and not a refactor to reach for
+yet, for two reasons this rack has demonstrated rather than predicted.
+
+**A reconcile loop cannot afford this hardware.** The switch allows seven SSH
+connections per boot and does not recycle the slots. A controller that observes
+on a timer exhausts a switch in under a day and then cannot reach it to fix
+anything, and the failure looks like a healthy switch, because it keeps
+forwarding. Anything automated here has to be parsimonious in a way the usual
+reconcile pattern is not, which is a constraint on the controller's design
+rather than an argument against having one.
+
+**The controller would sit inside the failure domain it manages.** The cluster's
+own nodes are in this rack, behind these switches, on a management path that
+runs through them. A controller that reboots `ber1-tor-a` reboots its own route
+to `ber1-tor-a`. That is workable with care, and it is the reason the console
+path and the operator CLI stay whichever way the rest goes.
+
+What would genuinely be better as objects is observation and status: desired
+against applied revision, drift, reachability, last verification. Those are
+reads, they suit a status subresource, and they are what someone actually wants
+on a dashboard. Changes should stay explicitly approved and tied to a revision
+either way: automatic drift correction would undo an incident workaround, and
+each correction here costs a reboot.
+
+The sensible order, if it is picked up: keep this driver, model observation
+first, leave changes manual, and only then consider a controller that sequences
+them.
 
 ToR B also carries a spare LR optic, pre-provisioned so WAN failover is a matter
 of moving the LC jumper rather than sourcing hardware. Its port is not recorded
@@ -359,23 +399,23 @@ Worth expecting rather than discovering.
 The whole path has been exercised against a fake switch, so the bugs left are
 the ones only real hardware shows. Do it in this order:
 
-1. `mise run rack:fleet sessions ber1-tor-b`. A cold-booted switch should show
-   one line, which is this command. More than that means something leaked and
-   the session table is filling.
-2. `mise run rack:fleet diff ber1-tor-b`. Expect it to match the render. If it
-   does not, read the diff before doing anything else: the switch has changed
-   under us, or the render has.
-3. `mise run rack:fleet backup ber1-tor-b`. A fresh backup in the repository
-   before the first write, because this is the change that could need undoing.
-4. `mise run rack:fleet replace ber1-tor-b --dry-run`. Read the merged file it
+1. `mise run rack:fleet preflight ber1-tor-b`. One connection, and it answers
+   all three of the questions worth asking first: which terminal lines are in
+   use and how many connections this boot has left, whether the switch matches
+   the render, and a fresh backup in the repository before the first write. Read
+   the diff if it is not clean, before doing anything else: either the switch
+   changed under us or the render did.
+2. `mise run rack:fleet replace ber1-tor-b --dry-run`. Read the merged file it
    names, and check the `user name` line is in it. If there is a "would LOSE
    these, and the render says nothing about them" block, stop and read it: that
    is configuration the switch has which the render does not model. The other
    block, the one headed by the render saying the opposite, is the change
    itself. This is the last cheap step.
-5. `mise run rack:fleet replace ber1-tor-b --reboot`.
-6. `mise run rack:fleet sessions ber1-tor-b` again, to confirm the reboot did
-   not leave lines behind.
+3. `mise run rack:fleet replace ber1-tor-b --reboot`.
+
+That is four connections of the seven, and the reboot in the last step resets
+the count anyway. Running `sessions`, `diff` and `backup` separately instead
+costs three more and is the thing to avoid.
 
 Only `ber1-tor-b`. `ber1-tor-a` carries the WAN and `ber1-mgmt` is the only path
 to out-of-band, and neither should see a first run of anything.
