@@ -38,6 +38,37 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether the account is on usage-based pricing: the usage page shows its
+  cache and test insights charges, and the nightly Stripe sync reports the
+  cache egress, cache request, and passing test case meters for it
+  instead of the remote cache hit meter. Off unless the
+  `:usage_based_pricing` FunWithFlags toggle is enabled for the account.
+  """
+  def usage_based_pricing_enabled?(account) do
+    FunWithFlags.enabled?(:usage_based_pricing, for: account)
+  end
+
+  @doc """
+  Whether the switch worker may move this account's subscription onto the
+  usage-based meters at its next renewal. Off unless
+  `:usage_based_pricing_switch` is enabled for the account or for everyone,
+  which is what paces the migration: an account is only switched once its
+  notice period has passed.
+  """
+  def usage_based_pricing_switch_enabled?(account) do
+    FunWithFlags.enabled?(:usage_based_pricing_switch, for: account)
+  end
+
+  @doc """
+  Whether the pricing page shows usage-based pricing. Anonymous visitors see
+  it once the `:usage_based_pricing_page` flag is enabled for everyone; a
+  signed-in user sees it once the flag is enabled for them, so the page can be
+  previewed before it goes public.
+  """
+  def usage_based_pricing_page_enabled?(nil), do: FunWithFlags.enabled?(:usage_based_pricing_page)
+  def usage_based_pricing_page_enabled?(user), do: FunWithFlags.enabled?(:usage_based_pricing_page, for: user)
+
+  @doc """
   Whether dispatch stamps a job's repository cache volume on its Pod. Canary and
   production require an explicit `:runner_cache_volumes_per_repository` toggle,
   so a deploy never starts stamping while replicas of the previous version are
