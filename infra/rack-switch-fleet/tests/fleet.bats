@@ -1269,6 +1269,150 @@ run_recover() {
     [ "$1" -lt "$2" ]
 }
 
+# --- apply is a confirmed commit ----------------------------------------------
+
+# A switch that holds FAKE_BEFORE as its running configuration until it has been
+# read once, then FAKE_AFTER, which is what the verification in the second
+# session sees. The count lives in a file because each session is its own ssh.
+apply_stub() {
+    local dir="$1"
+    mkdir -p "$dir"
+    cat > "$dir/ssh" <<'STUB'
+#!/usr/bin/env bash
+echo "SESSION" >> "$FAKE_LOG"
+sleep 0.2
+printf 'sw>'
+while IFS= read -r line; do
+    line="${line%$'\r'}"
+    echo "CMD $line" >> "$FAKE_LOG"
+    sleep 0.1
+    printf '%s\r\n' "$line"
+    if [ -n "$FAKE_REJECT" ] && [ "$line" = "$FAKE_REJECT" ]; then
+        printf '\r\nError: Bad command\r\n\r\nsw#'
+        continue
+    fi
+    case "$line" in
+        logout) exit 0;;
+        "show running-config")
+            reads=$(( $(cat "$FAKE_LOG.reads" 2>/dev/null || echo 0) + 1 ))
+            echo "$reads" > "$FAKE_LOG.reads"
+            if [ "$reads" -eq 1 ]; then cat "$FAKE_BEFORE"; else cat "$FAKE_AFTER"; fi | sed 's/$/\r/';;
+        "show startup-config") sed 's/$/\r/' "$FAKE_STARTUP";;
+        "reboot-schedule in "*) printf ' Reboot system in 5 minutes. Continue? (Y/N):'; continue;;
+        Y) printf ' Reboot Schedule Settings\r\n Save before reboot: No\r\n';;
+        "reboot-schedule cancel") printf ' Reboot schedule is cancelled.\r\n';;
+    esac
+    printf '\r\nsw#'
+done
+STUB
+    chmod +x "$dir/ssh"
+    : > "$dir/log"
+}
+
+# run_apply <bindir> <running before> <running after> <startup> [command to reject]
+run_apply() {
+    run env PATH="$1:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" FAKE_LOG="$1/log" \
+        FAKE_BEFORE="$2" FAKE_AFTER="$3" FAKE_STARTUP="$4" FAKE_REJECT="${5:-}" \
+        "$FLEET_ROOT/fleet.sh" apply ber1-tor-b --yes
+}
+
+# The render with lldp missing, which apply plans as a single command.
+apply_fixtures() {
+    rendered="$BATS_TEST_TMPDIR/rendered.cfg"
+    drifted="$BATS_TEST_TMPDIR/drifted.cfg"
+    fleet_render "$SITE_FILE" ber1-tor-b > "$rendered"
+    grep -vx 'lldp' "$rendered" > "$drifted"
+}
+
+# Line number in the fake switch's log of the first command matching $2.
+cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
+
+@test "apply arms the rollback timer before changing anything, and cancels it only once verified" {
+    apply_fixtures
+    bin="$BATS_TEST_TMPDIR/ap1"
+    apply_stub "$bin"
+    run_apply "$bin" "$drifted" "$rendered" "$drifted"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"applied, verified against the rendered configuration, and saved"* ]]
+    arm="$(cmd_line "$bin" 'reboot-schedule in 5$')"
+    change="$(cmd_line "$bin" 'lldp$')"
+    cancel="$(cmd_line "$bin" 'reboot-schedule cancel$')"
+    save="$(cmd_line "$bin" 'copy running-config startup-config$')"
+    verify="$(grep -n '^CMD show running-config$' "$bin/log" | sed -n 2p | cut -d: -f1)"
+    [ "$arm" -lt "$change" ]
+    [ "$change" -lt "$verify" ]
+    [ "$verify" -lt "$cancel" ]
+    [ "$cancel" -lt "$save" ]
+    # arming asks (Y/N) and was answered
+    run grep -c '^CMD Y$' "$bin/log"
+    [ "$output" = "1" ]
+}
+
+@test "apply saves nothing and leaves the timer armed when the switch does not verify" {
+    apply_fixtures
+    bin="$BATS_TEST_TMPDIR/ap2"
+    apply_stub "$bin"
+    run_apply "$bin" "$drifted" "$drifted" "$drifted"
+    [ "$status" -eq 13 ]
+    [[ "$output" == *"reboots on its saved configuration"* ]]
+    run grep -c '^CMD reboot-schedule cancel$' "$bin/log"
+    [ "$output" = "0" ]
+    run grep -c '^CMD copy running-config startup-config$' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "apply leaves the timer armed when the switch rejects a command halfway" {
+    apply_fixtures
+    bin="$BATS_TEST_TMPDIR/ap3"
+    apply_stub "$bin"
+    run_apply "$bin" "$drifted" "$rendered" "$drifted" "lldp"
+    [ "$status" -eq 12 ]
+    run grep -c '^CMD reboot-schedule cancel$' "$bin/log"
+    [ "$output" = "0" ]
+    run grep -c '^CMD copy running-config startup-config$' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "apply changes nothing when the rollback timer cannot be armed" {
+    apply_fixtures
+    bin="$BATS_TEST_TMPDIR/ap4"
+    apply_stub "$bin"
+    run_apply "$bin" "$drifted" "$rendered" "$drifted" "reboot-schedule in 5"
+    [ "$status" -eq 16 ]
+    [[ "$output" == *"nothing was changed"* ]]
+    run grep -c '^CMD lldp$' "$bin/log"
+    [ "$output" = "0" ]
+    run grep -c '^CMD copy running-config startup-config$' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "a global line apply will not remove is reported as global" {
+    # Tab is whitespace to `read`, so an empty leading context used to vanish and
+    # shift the command into its place: `[no lldp] ` instead of `[global] no lldp`.
+    apply_fixtures
+    printf 'no lldp\n' >> "$drifted"
+    bin="$BATS_TEST_TMPDIR/ap6"
+    apply_stub "$bin"
+    run env PATH="$bin:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" FAKE_LOG="$bin/log" \
+        FAKE_BEFORE="$drifted" FAKE_AFTER="$rendered" FAKE_STARTUP="$drifted" FAKE_REJECT="" \
+        "$FLEET_ROOT/fleet.sh" apply ber1-tor-b --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[global] no lldp"* ]]
+}
+
+@test "apply refuses a switch with unsaved changes, which a rollback would discard" {
+    apply_fixtures
+    bin="$BATS_TEST_TMPDIR/ap5"
+    apply_stub "$bin"
+    run_apply "$bin" "$drifted" "$rendered" "$rendered"
+    [ "$status" -eq 11 ]
+    [[ "$output" == *"unsaved changes"* ]]
+    run grep -c '^CMD reboot-schedule' "$bin/log"
+    [ "$output" = "0" ]
+    run grep -c '^CMD lldp$' "$bin/log"
+    [ "$output" = "0" ]
+}
+
 # --- zero touch: serving DHCP and TFTP on an isolated segment ----------------
 
 ztp_stub() {

@@ -16,6 +16,9 @@ SITE="ber1"
 VERBOSE=0
 RUNNING_CONFIG="show running-config"
 STARTUP_CONFIG="show startup-config"
+# Long enough to apply and verify, short enough that a change which cut off the
+# management path is undone before anyone has to go and find a console cable.
+ROLLBACK_MINUTES=5
 
 site_file() { fleet_site_file "$SITE"; }
 
@@ -200,8 +203,12 @@ cmd_apply() {
 
   if [ -s "$removals" ]; then
     echo "$name carries configuration the render does not describe:"
-    while IFS=$'\t' read -r context command; do
-      echo "  [${context:-global}] $command"
+    # Split by hand: tab is whitespace to `read`, which drops an empty leading
+    # field and would print a global line's command as its context.
+    local line context
+    while IFS= read -r line; do
+      context="${line%%$'\t'*}"
+      echo "  [${context:-global}] ${line#*$'\t'}"
     done < "$removals"
     echo "Turning an arbitrary line into its 'no' form is a guess, so these are left alone."
     echo "Fold them into the site definition, or clear them by hand."
@@ -239,34 +246,60 @@ cmd_apply() {
   user="$(jq -r '.credentials.username' "$(site_file)")"
   key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
 
-  local after
-  after="$(mktemp)"
-  local raw
-  raw="$(mktemp)"
+  # A confirmed commit. Before anything changes the switch is told to reboot in
+  # ROLLBACK_MINUTES without saving, so a change that cuts off this session, or
+  # one that does not verify, is undone by the switch itself: it comes back on
+  # its saved configuration. The timer is cancelled only once the running
+  # configuration matches the render, and only then is it saved.
+  local startup after raw status=0
+  startup="$(mktemp)"; after="$(mktemp)"; raw="$(mktemp)"
   (
     trap switch_close EXIT
     trap 'switch_close; exit 130' INT TERM
-    switch_open "$address" "$user" "$key"
+    switch_open "$address" "$user" "$key" || exit 10
+    # Rolling back returns the switch to its saved configuration, so anything
+    # unsaved on it would be thrown away along with the change.
+    switch_run "$STARTUP_CONFIG" || exit 10
+    printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
+    fleet_strip_transcript "$STARTUP_CONFIG" < "$raw" > "$startup"
+    fleet_diff "$live" "$startup" "running/$name" "startup/$name" >/dev/null || exit 11
+    switch_run "configure" || exit 10
+    switch_run_confirm "reboot-schedule in $ROLLBACK_MINUTES" "Y" 30 || exit 16
+    switch_run "end" || exit 12
     while IFS= read -r command; do
       (( VERBOSE )) && echo "  $address > $command" >&2
-      switch_run "$command"
+      switch_run "$command" || exit 12
     done < "$commands"
-    switch_run "copy running-config startup-config"
-    switch_run "$RUNNING_CONFIG"
+    switch_run "$RUNNING_CONFIG" || exit 12
     printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
-  )
-  fleet_strip_transcript "$RUNNING_CONFIG" < "$raw" > "$after"
-  rm -f "$raw"
+    fleet_strip_transcript "$RUNNING_CONFIG" < "$raw" > "$after"
+    echo ""
+    fleet_diff "$desired" "$after" "rendered/$name" "live/$name" || exit 13
+    switch_run "configure" || exit 14
+    switch_run_confirm "reboot-schedule cancel" "Y" 30 || exit 14
+    switch_run "end" || exit 14
+    switch_run "copy running-config startup-config" || exit 15
+  ) || status=$?
+  rm -f "$desired" "$live" "$additions" "$removals" "$commands" "$startup" "$after" "$raw"
 
-  echo ""
-  if fleet_diff "$desired" "$after" "rendered/$name" "live/$name"; then
-    echo "$name: applied and verified against the rendered configuration"
-    rm -f "$desired" "$live" "$additions" "$removals" "$commands" "$after"
-    return 0
-  fi
-  echo "$name: applied, but the switch still does not match the render"
-  rm -f "$desired" "$live" "$additions" "$removals" "$commands" "$after"
-  return 1
+  local rollback="$name reboots on its saved configuration within $ROLLBACK_MINUTES minutes of the start"
+  case "$status" in
+    0)  echo "$name: applied, verified against the rendered configuration, and saved";;
+    10) echo "error: $name: nothing was changed" >&2;;
+    11) echo "error: $name has unsaved changes. Rolling back returns it to its saved configuration," >&2
+        echo "       which would discard them. Save or discard them first; nothing was changed." >&2;;
+    16) echo "error: $name: the rollback timer could not be confirmed, so nothing was changed." >&2
+        echo "       If it was armed after all, $rollback, unchanged." >&2;;
+    12) echo "error: the change did not complete. $rollback." >&2;;
+    13) echo "error: $name does not match the render after applying, so nothing was saved." >&2
+        echo "       $rollback." >&2;;
+    14) echo "error: $name matched the render but the rollback timer could not be cancelled." >&2
+        echo "       $rollback, dropping the change; apply again once it is back." >&2;;
+    15) echo "error: $name matches the render and the timer is cancelled, but saving failed." >&2
+        echo "       The running configuration is right and unsaved; apply again to save it." >&2;;
+    *)  echo "error: $name: interrupted; if the timer was armed, $rollback." >&2;;
+  esac
+  return $status
 }
 
 cmd_backup() {

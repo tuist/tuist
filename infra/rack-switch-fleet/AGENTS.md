@@ -112,12 +112,11 @@ leak left, and freed it.
 **Required, on ber1-tor-a.** `mise run rack:fleet preflight ber1-tor-a`, and
 nothing else. It was left correct and saved; this confirms it.
 
-**Then at most one experiment**, because each wants a boot's worth of budget.
-The rollback capability is the higher value: whether `reboot-schedule` gives
-this hardware a confirmed commit, which is what would make changing
-`ber1-tor-a` safe without someone watching. The alternative is the
-connection-limit question, eight connections ten minutes apart on a fresh boot,
-which separates a leak from a rate limiter.
+**Both experiments ran on 2026-09-22.** The rollback one showed that
+`reboot-schedule` gives this hardware a confirmed commit, and `apply` now uses it;
+see "Apply is a confirmed commit" below. The connection-limit one, one session
+every ten minutes on a fresh boot, separates a leak from a rate limiter; see the
+connection budget notes for its result.
 
 Read any unfamiliar command's syntax without probing a complete command with
 `?`, which has twice executed something.
@@ -131,7 +130,7 @@ mise run rack:fleet preflight <device>      # users, drift and a backup, in ONE 
 mise run rack:fleet publish <device>        # put what preflight saw into the RackSwitch status
 mise run rack:fleet diff [device]           # live switch against the render
 mise run rack:fleet apply <device> --dry-run
-mise run rack:fleet apply <device>
+mise run rack:fleet apply <device>          # rolls itself back unless it verifies
 mise run rack:fleet backup [device]         # startup config into the repo
 mise run rack:fleet drift                   # every switch; non-zero on drift
 mise run rack:fleet replace <device>        # push the whole config, needs a reboot
@@ -494,14 +493,37 @@ console path and the operator CLI stay whichever way the rest goes.
 
 Correcting drift automatically is cheaper than it looks, and an earlier version
 of this file said otherwise. `apply` sends the missing commands to the running
-configuration and saves, with **no reboot**; only `replace` costs one. So the
-objection is not the reboot. It is that observing is what burns the budget, and
+configuration and saves, with **no reboot** unless the change fails; only
+`replace` always costs one. So the objection is not the reboot. It is that observing is what burns the budget, and
 that a change made during an incident is one somebody meant, which is why
 changes stay tied to an approved revision rather than being reconciled.
 
 If it is picked up: keep this driver, keep changes manual, and only then
 consider a controller that sequences them, with a `Lease` for the coordination
 the per-rack lock does today.
+
+## Apply is a confirmed commit
+
+Before sending anything, `apply` arms `reboot-schedule in 5` without
+`save_before_reboot`. It then applies to the running configuration only, reads
+it back, and diffs it against the render. Only a clean diff cancels the timer,
+and only then is the configuration saved. A change that cuts off the session, a
+command the switch rejects, or a result that does not verify all end the same
+way: the timer fires and the switch comes back on its saved configuration within
+five minutes, with nobody at a console.
+
+Rolling back means returning to the saved configuration, so `apply` refuses a
+switch whose running configuration differs from its startup configuration: the
+rollback would throw those unsaved changes away along with its own. It costs no
+extra connection, since the startup configuration is read in the session that
+applies.
+
+Measured on `ber1-tor-b` on 2026-09-22 before it was built: an unsaved change
+was discarded when the timer fired, three minutes to the second after arming,
+and `reboot-schedule cancel` stopped a second timer from firing. Then `apply`
+itself restored a saved `no lldp` drift through this path in fifteen seconds.
+`replace` does not use it: it writes the startup configuration and reboots on
+purpose, so there is no saved state to fall back to.
 
 ## Apply ordering, which is enforced rather than written down
 
@@ -753,6 +775,11 @@ arbitrary line into its negation is the same class of guess.
   are why `tr -d '\000'` runs before every awk pass and not after.
 - **Port 80 and 443 answer even with `no ip http server`** in the running
   config. Do not read that line as "the web UI is off".
+- **`reboot-schedule in <minutes>` asks `(Y/N)`; `reboot-schedule cancel` does
+  not.** A pending timer does not appear in `show running-config`, so it never
+  shows up as drift. Use the relative `in` form only: the clock comes back as
+  2006-01-01 after a reboot while NTP is not syncing, so `at <time>` fires at the
+  wrong moment.
 - **Firmware lines are not interchangeable.** Hardware `1.20` takes `1.20.x`,
   `V1.6` takes `1.0.x`, and the `V1.6` builds carry higher dates and lower
   version numbers, so "newest" is the wrong instinct and flashing across lines
@@ -777,7 +804,4 @@ it. Spanning-tree state is write-only through the API, which keeps SSH as the
 verifier.
 
 What is not answered is what adoption does to a configured switch. The
-assessment carries the prototype that would settle it, and a
-confirmed-commit shape using the switch's own `reboot-schedule` that would give
-this tool automatic recovery from a change that cuts off the path used to make
-it. Neither needs new hardware.
+assessment carries the prototype that would settle it, on `ber1-mgmt`.

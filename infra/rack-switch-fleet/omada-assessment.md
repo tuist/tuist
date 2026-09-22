@@ -117,11 +117,10 @@ bring-up, backups, and recovery when the controller is unavailable.
 If it does not, the finding is worth as much: it is the evidence the original
 decision was missing.
 
-## Rollback on this hardware, which is also unverified
+## Rollback on this hardware, now measured and built
 
-Separately from Omada, a confirmed-commit shape may already be available. The
-switch has `reboot-schedule`, and the controller feature list confirms "Reboot
-Schedule". The sequence to test is:
+Separately from Omada, the switch has a confirmed-commit shape of its own in
+`reboot-schedule`. The sequence:
 
 1. Save a known-good startup configuration.
 2. Arm a scheduled reboot far enough out to cover the change and its check.
@@ -130,11 +129,11 @@ Schedule". The sequence to test is:
 5. On success, cancel the timer and save. On failure or on losing the session,
    the timer fires and the switch returns to the known-good configuration.
 
-That is automatic recovery from a change that cuts off the path used to make it,
-which is the failure this tool currently has no answer to. **The PR does not
-implement it**: `apply` saves before verifying, and `replace` overwrites the
-startup configuration outright. Worth testing on `ber1-tor-b` before it is
-relied on, and worth having before any change is made to `ber1-tor-a` again.
+That is automatic recovery from a change that cuts off the path used to make it.
+Measured on `ber1-tor-b` on 2026-09-22: an unsaved change was discarded when the
+timer fired, and a cancelled timer did not fire. `apply` now works this way; see
+"Apply is a confirmed commit" in [AGENTS.md](AGENTS.md). `replace` still
+overwrites the startup configuration outright.
 
 Under the controller the same shape would need a different timer. The Open API's
 `reboot-schedules` are daily, weekly or monthly, with no one-shot form, so the
