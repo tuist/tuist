@@ -25,6 +25,7 @@ type Metadata struct {
 	State       string    `json:"state"`
 	Slot        int       `json:"slot"`
 	Generation  int       `json:"generation"`
+	ColdBoot    bool      `json:"cold_boot,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	Error       string    `json:"error,omitempty"`
@@ -38,7 +39,7 @@ func (m Metadata) Info(workerRunning bool) protocol.SandboxInfo {
 	return protocol.SandboxInfo{
 		ID: m.ID, State: m.State, Template: m.Template, TemplateTag: m.Tag,
 		VCPUs: m.VCPUs, MemoryMB: m.MemoryMB, WorkspaceGB: m.WorkspaceGB, Hostname: m.Hostname,
-		WorkerRunning: workerRunning, Generation: m.Generation, CreatedAt: m.CreatedAt, Error: m.Error,
+		WorkerRunning: workerRunning, ColdBoot: m.ColdBoot, Generation: m.Generation, CreatedAt: m.CreatedAt, Error: m.Error,
 	}
 }
 

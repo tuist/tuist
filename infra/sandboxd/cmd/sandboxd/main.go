@@ -152,7 +152,7 @@ func main() {
 	}
 	manager := sandbox.New(sandbox.Config{
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
-		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, BootTimeout: bootTimeout,
+		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, DefaultTemplateTag: defaultTemplate.Tag, BootTimeout: bootTimeout,
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,

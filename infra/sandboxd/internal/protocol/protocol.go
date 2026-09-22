@@ -63,18 +63,22 @@ type TemplateInfo struct {
 }
 
 type SandboxInfo struct {
-	ID            string    `json:"id"`
-	State         string    `json:"state"`
-	Template      string    `json:"template"`
-	TemplateTag   string    `json:"template_tag"`
-	VCPUs         int       `json:"vcpus"`
-	MemoryMB      int       `json:"memory_mb"`
-	WorkspaceGB   int       `json:"workspace_gb"`
-	Hostname      string    `json:"hostname"`
-	WorkerRunning bool      `json:"worker_running"`
-	Generation    int       `json:"generation"`
-	CreatedAt     time.Time `json:"created_at"`
-	Error         string    `json:"error,omitempty"`
+	ID            string `json:"id"`
+	State         string `json:"state"`
+	Template      string `json:"template"`
+	TemplateTag   string `json:"template_tag"`
+	VCPUs         int    `json:"vcpus"`
+	MemoryMB      int    `json:"memory_mb"`
+	WorkspaceGB   int    `json:"workspace_gb"`
+	Hostname      string `json:"hostname"`
+	WorkerRunning bool   `json:"worker_running"`
+	// ColdBoot marks a paused sandbox whose next resume boots the kernel on
+	// its own disks instead of restoring memory, because the daemon lost the
+	// VM while it was running and the disks moved on since the last snapshot.
+	ColdBoot   bool      `json:"cold_boot,omitempty"`
+	Generation int       `json:"generation"`
+	CreatedAt  time.Time `json:"created_at"`
+	Error      string    `json:"error,omitempty"`
 }
 
 type Hello struct {

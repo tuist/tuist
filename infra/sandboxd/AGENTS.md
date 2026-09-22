@@ -125,6 +125,13 @@ Pod, each sandbox gets its own netns `sbx-<id12>`:
 A resume recreates exactly the same names and addresses; the guest flushes
 its ARP cache on `configure`.
 
+The daemon's own listeners (metrics, admin API) bind to the pod IP, and the
+pod namespace drops everything the slot network sends to local processes
+(`INPUT -s 172.31.0.0/16 -j DROP`) and between sandboxes (`FORWARD -s
+172.31.0.0/16 -d 172.31.0.0/16 -j DROP`), both inserted ahead of the
+forwarding accepts. A guest can only reach what lies beyond the pod, under
+the pod's NetworkPolicy; its control channel is vsock, never the network.
+
 ## Host to guest: vsock
 
 `sbx-agent` listens on vsock port 5000 (guest CID 3). The host connects
@@ -277,14 +284,14 @@ agent so the manager runs end to end without KVM).
 | `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
 | `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
 | `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
-| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template; the tag may be omitted when exactly one is present. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node, since older versions stay on disk across template upgrades. |
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
 | `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
-| `SHUTDOWN_TIMEOUT` | `60s` | Budget for pausing idle sandboxes on SIGTERM; size the pod's grace period above it. |
+| `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |
 | `METRICS_ADDR` | `:9470` | `/metrics` and `/healthz`. |
 | `ADMIN_ADDR` | | Unauthenticated bring-up API (staging only, behind NetworkPolicy). |
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
@@ -328,13 +335,27 @@ link with the sandbox's own memory file.
 ### Startup and recovery
 
 Every jail directory is read back on startup. Since nothing survives a pod
-restart, a sandbox recorded as `running` becomes `paused` when its `mem`
-and `snapshot` exist (that snapshot is its last pause, or the template
-snapshot for generation 0; writes the guest made after it to the rootfs
-are then visible to a restored memory image that does not know about
-them) and `error` otherwise. Jail directories without `metadata.json` (an
-interrupted create or template build), `*.building` shape directories and
-every `sbx-*` netns are removed.
+restart, a sandbox recorded as `running` lost its VM. Its disks have moved
+on since whatever memory image sits beside them (its last pause, or the
+template memfile for generation 0), and Firecracker treats the disks as
+part of a snapshot, so that image is never restored: the sandbox becomes
+`paused` with `cold_boot` set when its rootfs, workspace and kernel are
+present, and `error` otherwise. The next `resume` of a `cold_boot` sandbox
+boots the kernel on its own disks instead of loading a snapshot (processes
+are gone, files survive with the guest replaying its journals as after a
+power loss), discards the stale `mem` and `snapshot`, and clears the flag;
+the next pause writes a fresh pair. A cleanly paused sandbox keeps its
+memory image, because the pause path pauses the VM, snapshots, then kills
+it, so nothing touches the disks afterwards. Jail directories without
+`metadata.json` (an interrupted create or template build), `*.building`
+shape directories and every `sbx-*` netns are removed.
+
+On SIGTERM the daemon stops every running worker (SIGTERM, then SIGKILL
+after `STOP_WORKER_GRACE`; the SDK worker force-stops its work item and
+Anthropic re-queues the session on its next event) and pauses every running
+sandbox within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
+cold booting. Whatever is still running at the deadline takes the cold-boot
+path on recovery.
 
 Lifecycle commands (`create`, `resume`, `pause`, `delete`) run detached
 from the WebSocket that delivered them, with their own timeouts, so a

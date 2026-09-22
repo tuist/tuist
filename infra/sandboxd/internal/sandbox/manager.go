@@ -39,9 +39,13 @@ type Config struct {
 	UIDBase         int
 	DNS             []string
 	DefaultTemplate string
-	BootTimeout     time.Duration
-	WorkerPath      string
-	StopWorkerGrace time.Duration
+	// DefaultTemplateTag is the tag creates use for the default template
+	// when the caller names none, so older template versions left on disk
+	// never make the default ambiguous.
+	DefaultTemplateTag string
+	BootTimeout        time.Duration
+	WorkerPath         string
+	StopWorkerGrace    time.Duration
 }
 
 type Deps struct {
@@ -165,11 +169,7 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	if args.Hostname == "" {
 		args.Hostname = m.namespace(args.SandboxID)
 	}
-	name := args.Template
-	if name == "" {
-		name = m.cfg.DefaultTemplate
-	}
-	tmpl, err := m.store.Resolve(name, args.TemplateTag)
+	tmpl, err := m.resolveTemplate(args.Template, args.TemplateTag)
 	if err != nil {
 		return res, err
 	}
@@ -268,13 +268,24 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 	return protocol.CreateResult{BootMs: time.Since(bootStart).Milliseconds()}, nil
 }
 
-// restore spawns Firecracker for sb, loads /snapshot + /mem with resume and
-// brings the guest agent up to date. beforeAgent runs after the load and
-// before the agent handshake.
-func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, beforeAgent func(*firecracker.Client, vm.Instance) error, formatWorkspace bool) (vm.Instance, vsock.Agent, error) {
-	sb.mu.Lock()
-	meta := sb.meta
-	sb.mu.Unlock()
+// resolveTemplate applies the daemon's defaults to a caller's template
+// choice: an empty name is the default template, and an empty tag on the
+// default template is the configured tag rather than "whatever single
+// version is on disk", which stops being unique after a template upgrade.
+func (m *Manager) resolveTemplate(name, tag string) (template.Template, error) {
+	if name == "" {
+		name = m.cfg.DefaultTemplate
+	}
+	if tag == "" && name == m.cfg.DefaultTemplate {
+		tag = m.cfg.DefaultTemplateTag
+	}
+	return m.store.Resolve(name, tag)
+}
+
+// spawn sets up the sandbox's network namespace and starts a Firecracker
+// process for it. The returned fail func tears both down again and decorates
+// the error with the tail of the Firecracker log.
+func (m *Manager) spawn(ctx context.Context, sb *Sandbox, meta Metadata) (vm.Instance, func(error) (vm.Instance, vsock.Agent, error), error) {
 	ns := m.namespace(meta.ID)
 	uid := m.cfg.UIDBase + meta.Slot
 	if err := m.net.Setup(ctx, ns, meta.Slot); err != nil {
@@ -295,19 +306,12 @@ func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, be
 		_ = m.net.Teardown(context.Background(), ns, meta.Slot)
 		return nil, nil, fmt.Errorf("%w: %s", err, vm.LogTail(filepath.Join(sb.root, vm.LogFileName), 2048))
 	}
-	api := inst.API()
-	if err := api.LoadSnapshot(ctx, firecracker.SnapshotLoadParams{
-		SnapshotPath: inst.GuestPath(firecracker.SnapshotPath),
-		MemBackend:   firecracker.MemoryBackend{BackendType: "File", BackendPath: inst.GuestPath(firecracker.MemPath)},
-		ResumeVM:     true,
-	}); err != nil {
-		return fail(err)
-	}
-	if beforeAgent != nil {
-		if err := beforeAgent(api, inst); err != nil {
-			return fail(err)
-		}
-	}
+	return inst, fail, nil
+}
+
+// attach brings the guest agent up to date after a restore or a boot (clock,
+// hostname, DNS, workspace) and starts watching the process.
+func (m *Manager) attach(ctx context.Context, sb *Sandbox, inst vm.Instance, meta Metadata, formatWorkspace bool, fail func(error) (vm.Instance, vsock.Agent, error)) (vm.Instance, vsock.Agent, error) {
 	agent := m.agent(inst.VsockPath())
 	if _, err := vsock.WaitReady(ctx, agent, m.cfg.BootTimeout); err != nil {
 		return fail(err)
@@ -329,6 +333,79 @@ func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, be
 	sb.mu.Unlock()
 	go m.watch(sb, inst, epoch)
 	return inst, agent, nil
+}
+
+// restore spawns Firecracker for sb, loads /snapshot + /mem with resume and
+// brings the guest agent up to date. beforeAgent runs after the load and
+// before the agent handshake.
+func (m *Manager) restore(ctx context.Context, sb *Sandbox, log *slog.Logger, beforeAgent func(*firecracker.Client, vm.Instance) error, formatWorkspace bool) (vm.Instance, vsock.Agent, error) {
+	sb.mu.Lock()
+	meta := sb.meta
+	sb.mu.Unlock()
+	inst, fail, err := m.spawn(ctx, sb, meta)
+	if err != nil {
+		return nil, nil, err
+	}
+	api := inst.API()
+	if err := api.LoadSnapshot(ctx, firecracker.SnapshotLoadParams{
+		SnapshotPath: inst.GuestPath(firecracker.SnapshotPath),
+		MemBackend:   firecracker.MemoryBackend{BackendType: "File", BackendPath: inst.GuestPath(firecracker.MemPath)},
+		ResumeVM:     true,
+	}); err != nil {
+		return fail(err)
+	}
+	if beforeAgent != nil {
+		if err := beforeAgent(api, inst); err != nil {
+			return fail(err)
+		}
+	}
+	return m.attach(ctx, sb, inst, meta, formatWorkspace, fail)
+}
+
+// boot starts the sandbox from its kernel and its own disks without any
+// memory image: the cold path for a sandbox whose last snapshot no longer
+// matches its disks. Processes are gone; files survive, with the guest
+// replaying its journals on mount as after a power loss.
+func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.Instance, vsock.Agent, error) {
+	sb.mu.Lock()
+	meta := sb.meta
+	sb.mu.Unlock()
+	inst, fail, err := m.spawn(ctx, sb, meta)
+	if err != nil {
+		return nil, nil, err
+	}
+	api := inst.API()
+	steps := []struct {
+		name string
+		fn   func() error
+	}{
+		{"machine-config", func() error {
+			return api.PutMachineConfig(ctx, firecracker.MachineConfig{VCPUCount: meta.VCPUs, MemSizeMiB: meta.MemoryMB, SMT: false, TrackDirtyPages: false})
+		}},
+		{"boot-source", func() error {
+			return api.PutBootSource(ctx, firecracker.BootSource{KernelImagePath: inst.GuestPath(firecracker.KernelPath), BootArgs: firecracker.BootArgs(m.cfg.DNS, meta.Hostname)})
+		}},
+		{"rootfs drive", func() error {
+			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.RootDriveID, PathOnHost: inst.GuestPath(firecracker.RootfsPath), IsRootDevice: true})
+		}},
+		{"workspace drive", func() error {
+			return api.PutDrive(ctx, firecracker.Drive{DriveID: firecracker.WorkspaceDriveID, PathOnHost: inst.GuestPath(firecracker.WorkspacePath)})
+		}},
+		{"network-interface", func() error {
+			return api.PutNetworkInterface(ctx, firecracker.NetworkInterface{IfaceID: firecracker.IfaceID, GuestMAC: firecracker.GuestMAC, HostDevName: firecracker.TapName})
+		}},
+		{"vsock", func() error {
+			return api.PutVsock(ctx, firecracker.Vsock{GuestCID: firecracker.GuestCID, UDSPath: inst.GuestPath(firecracker.VsockPath)})
+		}},
+		{"instance start", func() error { return api.InstanceStart(ctx) }},
+	}
+	for _, step := range steps {
+		if err := step.fn(); err != nil {
+			return fail(fmt.Errorf("%s: %w", step.name, err))
+		}
+	}
+	log.Info("sandbox cold booting on its own disks", "sandbox", meta.ID, "generation", meta.Generation)
+	return m.attach(ctx, sb, inst, meta, false, fail)
 }
 
 // watch turns an unexpected Firecracker exit into the error state.
@@ -412,18 +489,38 @@ func (m *Manager) Resume(ctx context.Context, id string) (res protocol.ResumeRes
 	if state != protocol.StatePaused {
 		return res, fmt.Errorf("%w: %s is %s", ErrNotPaused, id, state)
 	}
-	for _, name := range []string{firecracker.MemPath, firecracker.SnapshotPath, firecracker.RootfsPath, firecracker.WorkspacePath, firecracker.KernelPath} {
+	sb.mu.Lock()
+	coldBoot := sb.meta.ColdBoot
+	sb.mu.Unlock()
+	required := []string{firecracker.RootfsPath, firecracker.WorkspacePath, firecracker.KernelPath}
+	if !coldBoot {
+		required = append(required, firecracker.MemPath, firecracker.SnapshotPath)
+	}
+	for _, name := range required {
 		if !vm.Exists(filepath.Join(sb.root, name)) {
 			return res, fmt.Errorf("sandbox %s is missing %s", id, name)
 		}
 	}
 	log := m.log.With("sandbox", id)
-	inst, _, err := m.restore(ctx, sb, log, nil, false)
+	var inst vm.Instance
+	if coldBoot {
+		inst, _, err = m.boot(ctx, sb, log)
+	} else {
+		inst, _, err = m.restore(ctx, sb, log, nil, false)
+	}
 	if err != nil {
 		return res, err
 	}
+	if coldBoot {
+		// The old memory image can never be valid again; the next pause
+		// writes a fresh pair.
+		for _, stale := range []string{firecracker.MemPath, firecracker.SnapshotPath} {
+			_ = os.Remove(filepath.Join(sb.root, stale))
+		}
+	}
 	sb.mu.Lock()
 	sb.meta.State = protocol.StateRunning
+	sb.meta.ColdBoot = false
 	sb.meta.Error = ""
 	err = sb.meta.Save(sb.root)
 	sb.mu.Unlock()
@@ -751,7 +848,7 @@ func (m *Manager) Templates() []protocol.TemplateInfo {
 
 // BuildTemplate builds a shape snapshot on demand (admin API, prebuild).
 func (m *Manager) BuildTemplate(ctx context.Context, name, tag string, shape template.Shape) error {
-	tmpl, err := m.store.Resolve(name, tag)
+	tmpl, err := m.resolveTemplate(name, tag)
 	if err != nil {
 		return err
 	}
@@ -815,17 +912,22 @@ func (m *Manager) Recover(ctx context.Context) error {
 				meta.Error = fmt.Sprintf("slot %d: %v", meta.Slot, err)
 			}
 		}
-		hasSnapshot := vm.Exists(filepath.Join(root, firecracker.MemPath)) && vm.Exists(filepath.Join(root, firecracker.SnapshotPath))
+		hasDisks := vm.Exists(filepath.Join(root, firecracker.RootfsPath)) && vm.Exists(filepath.Join(root, firecracker.WorkspacePath)) && vm.Exists(filepath.Join(root, firecracker.KernelPath))
 		switch meta.State {
 		case protocol.StatePaused, protocol.StateError:
 		default:
-			if hasSnapshot {
-				m.log.Warn("sandbox was running when the daemon stopped; treating its last snapshot as its state", "sandbox", meta.ID, "generation", meta.Generation)
+			// The VM was running when the daemon stopped, so its disks have
+			// moved on since whatever memory image is on disk; restoring that
+			// image against them would hand the guest a stale page cache and
+			// journal. The sandbox comes back with a cold boot instead.
+			if hasDisks {
+				m.log.Warn("sandbox was running when the daemon stopped; it will cold boot on its next resume", "sandbox", meta.ID, "generation", meta.Generation)
 				meta.State = protocol.StatePaused
+				meta.ColdBoot = true
 				meta.Error = ""
 			} else {
 				meta.State = protocol.StateError
-				meta.Error = "daemon restarted while running and no snapshot exists"
+				meta.Error = "daemon restarted while running and the sandbox disks are missing"
 			}
 		}
 		if err := meta.Save(root); err != nil {
@@ -855,19 +957,31 @@ func (m *Manager) Recover(ctx context.Context) error {
 
 // Shutdown pauses every running sandbox without a worker, concurrently,
 // until ctx expires.
+// Shutdown pauses every running sandbox within the deadline so a daemon
+// restart restores memory rather than cold booting. A running worker is
+// stopped first: its SIGTERM handler force-stops the work item, and
+// Anthropic re-queues the session on its next event. Sandboxes that cannot
+// be paused in time stay running and are marked for a cold boot on
+// recovery.
 func (m *Manager) Shutdown(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, info := range m.List() {
-		if info.State != protocol.StateRunning || info.WorkerRunning {
+		if info.State != protocol.StateRunning {
 			continue
 		}
 		wg.Add(1)
-		go func(id string) {
+		go func(id string, workerRunning bool) {
 			defer wg.Done()
+			if workerRunning {
+				if err := m.StopWorker(ctx, id); err != nil && !errors.Is(err, ErrNoWorker) {
+					m.log.Error("stopping worker on shutdown", "sandbox", id, "error", err)
+					return
+				}
+			}
 			if _, err := m.Pause(ctx, id); err != nil {
 				m.log.Error("pausing sandbox on shutdown", "sandbox", id, "error", err)
 			}
-		}(info.ID)
+		}(info.ID, info.WorkerRunning)
 	}
 	done := make(chan struct{})
 	go func() {

@@ -469,7 +469,7 @@ func TestRecover(t *testing.T) {
 			}
 		}
 	}
-	write("wasrunning", Metadata{ID: "wasrunning", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StateRunning, Slot: 3, Generation: 2}, "mem", "snapshot", "mem.new")
+	write("wasrunning", Metadata{ID: "wasrunning", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, Hostname: "sbx-wasrunning", State: protocol.StateRunning, Slot: 3, Generation: 2}, "mem", "snapshot", "mem.new", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("nosnapshot", Metadata{ID: "nosnapshot", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StateRunning, Slot: 1})
 	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1}, "mem", "snapshot")
 	write("tmpl-default-t1-2x4096", Metadata{}, "mem")
@@ -485,8 +485,14 @@ func TestRecover(t *testing.T) {
 	if len(byID) != 3 {
 		t.Fatalf("recovered %v", byID)
 	}
-	if byID["wasrunning"].State != protocol.StatePaused || byID["wasrunning"].Generation != 2 {
+	// A sandbox that was running when the daemon died has disks newer than
+	// its last memory image, so it comes back paused but marked for a cold
+	// boot rather than a memory restore.
+	if byID["wasrunning"].State != protocol.StatePaused || !byID["wasrunning"].ColdBoot || byID["wasrunning"].Generation != 2 {
 		t.Fatalf("wasrunning %+v", byID["wasrunning"])
+	}
+	if byID["waspaused"].ColdBoot {
+		t.Fatalf("a cleanly paused sandbox must keep its memory image: %+v", byID["waspaused"])
 	}
 	if byID["nosnapshot"].State != protocol.StateError || byID["nosnapshot"].Error == "" {
 		t.Fatalf("nosnapshot %+v", byID["nosnapshot"])
@@ -501,7 +507,7 @@ func TestRecover(t *testing.T) {
 		t.Fatal("stale mem.new should be removed")
 	}
 	meta, _ := LoadMetadata(vm.RootDir(h.jailBase, "wasrunning"))
-	if meta.State != protocol.StatePaused {
+	if meta.State != protocol.StatePaused || !meta.ColdBoot {
 		t.Fatalf("recovered state must be persisted: %+v", meta)
 	}
 	calls := strings.Join(h.net.Snapshot(), "\n")
@@ -526,9 +532,75 @@ func TestRecover(t *testing.T) {
 	if _, err := h.m.Resume(context.Background(), "waspaused"); err != nil {
 		t.Fatalf("resume recovered sandbox: %v", err)
 	}
+	// The cold-boot sandbox boots from its kernel and disks: no snapshot is
+	// loaded, the stale memory image is discarded and the flag clears.
+	if _, err := h.m.Resume(context.Background(), "wasrunning"); err != nil {
+		t.Fatalf("cold boot recovered sandbox: %v", err)
+	}
+	booted := h.launcher.Last()
+	root := vm.RootDir(h.jailBase, "wasrunning")
+	if vm.Exists(filepath.Join(root, "mem")) || vm.Exists(filepath.Join(root, "snapshot")) {
+		t.Fatal("stale memory image must be removed after a cold boot")
+	}
+	meta, _ = LoadMetadata(root)
+	if meta.State != protocol.StateRunning || meta.ColdBoot {
+		t.Fatalf("cold boot must clear the flag: %+v", meta)
+	}
+	var loaded, started bool
+	for _, call := range booted.Calls() {
+		switch call.Path {
+		case "/snapshot/load":
+			loaded = true
+		case "/actions":
+			started = true
+		}
+	}
+	if loaded || !started {
+		t.Fatalf("cold boot must InstanceStart without loading a snapshot (loaded=%v started=%v)", loaded, started)
+	}
+	if _, err := h.m.Pause(context.Background(), "wasrunning"); err != nil {
+		t.Fatalf("pause after cold boot: %v", err)
+	}
+	if !vm.Exists(filepath.Join(root, "mem")) || !vm.Exists(filepath.Join(root, "snapshot")) {
+		t.Fatal("pause after a cold boot must write a fresh memory image")
+	}
 }
 
-func TestShutdownPausesIdleSandboxes(t *testing.T) {
+func TestCreateUsesConfiguredDefaultTemplateTag(t *testing.T) {
+	h := newHarness(t)
+	// A second, newer version of the default template left beside the first
+	// (a template upgrade) must not make the default ambiguous.
+	newer := filepath.Join(h.dataDir, "templates", "default", "t2")
+	if err := os.MkdirAll(newer, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{template.KernelFile, template.RootfsFile} {
+		if err := os.WriteFile(filepath.Join(newer, f), []byte("newer "+f), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "ambiguous", VCPUs: 2, MemoryMB: 4096}); err == nil {
+		t.Fatal("without a configured tag two versions on disk must be ambiguous")
+	}
+	h.m.cfg.DefaultTemplateTag = "t2"
+	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "configured", VCPUs: 2, MemoryMB: 4096}); err != nil {
+		t.Fatalf("create with the configured default tag: %v", err)
+	}
+	info, _ := h.m.Status(context.Background(), "configured")
+	if info.TemplateTag != "t2" {
+		t.Fatalf("expected the configured tag t2, got %+v", info)
+	}
+	// An explicit tag still wins.
+	if _, err := h.m.Create(context.Background(), protocol.CreateArgs{SandboxID: "explicit", TemplateTag: "t1", VCPUs: 2, MemoryMB: 4096}); err != nil {
+		t.Fatalf("create with an explicit tag: %v", err)
+	}
+	info, _ = h.m.Status(context.Background(), "explicit")
+	if info.TemplateTag != "t1" {
+		t.Fatalf("expected the explicit tag t1, got %+v", info)
+	}
+}
+
+func TestShutdownStopsWorkersAndPausesEverything(t *testing.T) {
 	h := newHarness(t)
 	h.create(t, "idle", 0)
 	h.create(t, "busy", 0)
@@ -543,8 +615,8 @@ func TestShutdownPausesIdleSandboxes(t *testing.T) {
 	if idle.State != protocol.StatePaused {
 		t.Fatalf("idle sandbox should be paused: %+v", idle)
 	}
-	if busy.State != protocol.StateRunning || !busy.WorkerRunning {
-		t.Fatalf("busy sandbox should keep running: %+v", busy)
+	if busy.State != protocol.StatePaused || busy.WorkerRunning {
+		t.Fatalf("busy sandbox should have its worker stopped and be paused: %+v", busy)
 	}
 }
 
