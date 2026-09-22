@@ -134,6 +134,37 @@ The server checks used isolated local PostgreSQL and ClickHouse test databases.
 These checks do not establish real Route53 propagation, public resolver steering,
 ACME issuance, ingress reloads, or client HTTP/gRPC behavior against the new name.
 
+## Repeatable staging probes
+
+`staging_probe.py` requires Python 3, curl, and grpcurl. It refuses non-staging
+hostnames and requires the hostname to match the test account. Use a short-lived,
+project-scoped cache token in a local file with permissions `0600`; do not commit
+it or put its value in command arguments. Each invocation emits JSONL with UTC
+timestamps, transport status, latency, target IP where available, and verified
+artifact digests. HTTP probes use the Gradle cache route; gRPC probes perform
+REAPI `BatchUpdateBlobs`/`BatchReadBlobs`, checking both RPC result codes and bytes.
+These protocol probes complement actual client builds; they do not replace them.
+
+```bash
+python3 infra/cache-dns/staging_probe.py roundtrip \
+  --host kura-spec95-e2e-staging.cache.tuist.dev \
+  --account kura-spec95-e2e --project probe \
+  --token-file /path/to/local-token \
+  --write-ip PARIS_BOX_IP --read-ip MONTREAL_BOX_IP
+```
+
+Omit both IP flags to exercise real DNS. Pin both to the same box to prove each
+region serves the stable SNI independently, or use different boxes to verify
+replication. Run `ready` without a token for TLS/readiness checks. Use
+`--repeat N --interval 5` to collect continuous traffic evidence during lifecycle
+operations. The harness stops on an error so a failed request cannot disappear
+inside an otherwise green summary; capture stderr and the process exit status too.
+For the regional baseline, pass the other region's hostname as `--read-host`;
+stable-name probes deliberately use the same hostname on both boxes.
+
+See [the staging validation record](staging-validation.md) for completed checks,
+the exact deployment revision, and outstanding prerequisites.
+
 ## Deferred staging validation
 
 No step in this list is executed by the local checks.
