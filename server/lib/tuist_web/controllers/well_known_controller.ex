@@ -70,17 +70,15 @@ defmodule TuistWeb.WellKnownController do
   client picks one per its own policy (latency probe, region hint,
   first-listed). Empty list means "not offered."
 
-  `live_url_template` lets the CLI print a browser link immediately after the
-  run is minted, without a round-trip. `{account}`, `{project}`, and
-  `{run_id}` are the only substitutions the client performs.
+  The run's browser link is not advertised here. The protocol reserved the
+  templated form in favour of `BatchAck.dashboard_url`, so the server hands
+  the client a finished URL once the run is durable rather than a shape the
+  client has to fill in.
   """
   def once_discovery(conn, _params) do
     origin = RequestOrigin.from_conn(conn)
 
-    json(conn, %{
-      events: events_endpoints(origin),
-      live_url_template: origin <> "/{account}/{project}/once/runs/{run_id}"
-    })
+    json(conn, %{events: events_endpoints(origin)})
   end
 
   # The Once event protocol speaks gRPC over HTTP/2. This deployment fronts it

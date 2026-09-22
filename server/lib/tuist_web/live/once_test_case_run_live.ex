@@ -15,6 +15,7 @@ defmodule TuistWeb.OnceTestCaseRunLive do
   alias Tuist.OnceEvents.TestCaseRun
   alias Tuist.Repo
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Errors.NotFoundError
 
   def mount(
         %{"once_run_id" => run_id, "case_id" => case_id},
@@ -25,7 +26,7 @@ defmodule TuistWeb.OnceTestCaseRunLive do
       Repo.one(from(r in Run, where: r.project_id == ^project.id and r.run_id == ^run_id))
 
     if is_nil(run) do
-      raise TuistWeb.Errors.NotFoundError,
+      raise NotFoundError,
             "Could not find Once test run #{inspect(run_id)}"
     end
 
@@ -33,12 +34,12 @@ defmodule TuistWeb.OnceTestCaseRunLive do
       Repo.one(from(c in TestCaseRun, where: c.once_run_id == ^run.id and c.id == ^case_id))
 
     if is_nil(test_case) do
-      raise TuistWeb.Errors.NotFoundError,
+      raise NotFoundError,
             "Could not find Once test case #{inspect(case_id)}"
     end
 
     if connected?(socket) do
-      OnceEvents.subscribe_run(run.run_id)
+      OnceEvents.subscribe_run(run.project_id, run.run_id)
     end
 
     {:ok,
@@ -91,8 +92,7 @@ defmodule TuistWeb.OnceTestCaseRunLive do
     |> DateFormatter.format_with_timezone(tz || "Etc/UTC")
   end
 
-  def format_datetime(%DateTime{} = dt, tz),
-    do: DateFormatter.format_with_timezone(dt, tz || "Etc/UTC")
+  def format_datetime(%DateTime{} = dt, tz), do: DateFormatter.format_with_timezone(dt, tz || "Etc/UTC")
 
   def test_run_path(assigns, run) do
     ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/once/test-runs/#{run.run_id}"

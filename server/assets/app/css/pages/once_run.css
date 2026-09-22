@@ -87,8 +87,8 @@
 
       & > [data-part="header"] {
         display: flex;
-        align-items: baseline;
         justify-content: space-between;
+        align-items: baseline;
         gap: var(--noora-spacing-3);
 
         & > [data-part="label"],
@@ -115,8 +115,12 @@
               font: var(--noora-font-weight-regular) var(--noora-font-body-small);
             }
 
-            & > [data-part="chip"][data-color="in"] { color: var(--noora-chart-purple, #7c5cff); }
-            & > [data-part="chip"][data-color="out"] { color: var(--noora-chart-blue, #4c8dff); }
+            & > [data-part="chip"][data-color="in"] {
+              color: var(--noora-chart-purple, #7c5cff);
+            }
+            & > [data-part="chip"][data-color="out"] {
+              color: var(--noora-chart-blue, #4c8dff);
+            }
           }
         }
       }
@@ -175,8 +179,8 @@
 
     & > [data-part="flame-legend"] {
       display: flex;
-      align-items: center;
       flex-wrap: wrap;
+      align-items: center;
       gap: var(--noora-spacing-4);
 
       & > [data-part="chip"] {
@@ -187,10 +191,10 @@
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
         & > [data-part="dot"] {
-          width: 8px;
-          height: 8px;
           border-radius: 4px;
           background: var(--noora-surface-label-tertiary);
+          width: 8px;
+          height: 8px;
         }
       }
 
@@ -203,8 +207,8 @@
 
     & > [data-part="flame-axis"] {
       position: relative;
-      height: 18px;
       border-bottom: 1px dashed var(--noora-surface-border-primary);
+      height: 18px;
 
       & > span {
         position: absolute;
@@ -226,40 +230,64 @@
 
         & > [data-part="flame-lane"] {
           position: relative;
-          height: 12px;
-          background: var(--noora-surface-background-tertiary);
           border-radius: 2px;
+          background: var(--noora-surface-background-tertiary);
+          height: 12px;
 
           & > [data-part="bar"] {
             position: absolute;
             top: 1px;
             bottom: 1px;
-            min-width: 1px;
+            opacity: 0.9;
             border-radius: 1px;
             background: var(--noora-surface-label-tertiary);
-            opacity: 0.9;
+            min-width: 1px;
           }
 
           & > [data-part="bar"][data-cached="true"] {
             opacity: 0.55;
           }
 
-          & > [data-part="bar"][data-category="Compilation"] { background: var(--noora-chart-purple, #7c5cff); }
-          & > [data-part="bar"][data-category="Linking"] { background: var(--noora-chart-blue, #4c8dff); }
-          & > [data-part="bar"][data-category="Scripts"] { background: var(--noora-chart-green, #2ecc71); }
-          & > [data-part="bar"][data-category="File preparation"] { background: var(--noora-chart-teal, #26c6da); }
-          & > [data-part="bar"][data-category="Fetching"] { background: var(--noora-chart-orange, #ff9f43); }
-          & > [data-part="bar"][data-category="Other"] { background: var(--noora-chart-neutral, #94a3b8); }
+          & > [data-part="bar"][data-category="Compilation"] {
+            background: var(--noora-chart-purple, #7c5cff);
+          }
+          & > [data-part="bar"][data-category="Linking"] {
+            background: var(--noora-chart-blue, #4c8dff);
+          }
+          & > [data-part="bar"][data-category="Scripts"] {
+            background: var(--noora-chart-green, #2ecc71);
+          }
+          & > [data-part="bar"][data-category="File preparation"] {
+            background: var(--noora-chart-teal, #26c6da);
+          }
+          & > [data-part="bar"][data-category="Fetching"] {
+            background: var(--noora-chart-orange, #ff9f43);
+          }
+          & > [data-part="bar"][data-category="Other"] {
+            background: var(--noora-chart-neutral, #94a3b8);
+          }
         }
       }
     }
 
-    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Compilation"] > [data-part="dot"] { background: var(--noora-chart-purple, #7c5cff); }
-    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Linking"] > [data-part="dot"] { background: var(--noora-chart-blue, #4c8dff); }
-    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Scripts"] > [data-part="dot"] { background: var(--noora-chart-green, #2ecc71); }
-    & > [data-part="flame-legend"] > [data-part="chip"][data-category="File preparation"] > [data-part="dot"] { background: var(--noora-chart-teal, #26c6da); }
-    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Fetching"] > [data-part="dot"] { background: var(--noora-chart-orange, #ff9f43); }
-    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Other"] > [data-part="dot"] { background: var(--noora-chart-neutral, #94a3b8); }
+    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Compilation"] > [data-part="dot"] {
+      background: var(--noora-chart-purple, #7c5cff);
+    }
+    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Linking"] > [data-part="dot"] {
+      background: var(--noora-chart-blue, #4c8dff);
+    }
+    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Scripts"] > [data-part="dot"] {
+      background: var(--noora-chart-green, #2ecc71);
+    }
+    & > [data-part="flame-legend"] > [data-part="chip"][data-category="File preparation"] > [data-part="dot"] {
+      background: var(--noora-chart-teal, #26c6da);
+    }
+    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Fetching"] > [data-part="dot"] {
+      background: var(--noora-chart-orange, #ff9f43);
+    }
+    & > [data-part="flame-legend"] > [data-part="chip"][data-category="Other"] > [data-part="dot"] {
+      background: var(--noora-chart-neutral, #94a3b8);
+    }
   }
 
   & [data-part="steps-card-section"] {
@@ -281,10 +309,10 @@
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
         & > [data-part="dot"] {
-          width: 8px;
-          height: 8px;
           border-radius: 4px;
           background: var(--noora-surface-label-tertiary);
+          width: 8px;
+          height: 8px;
         }
       }
     }
@@ -307,28 +335,28 @@
       gap: var(--noora-spacing-4);
 
       & > [data-part="lane-label"] {
+        overflow: hidden;
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-        overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       & > [data-part="lane-track"] {
         position: relative;
-        height: 18px;
-        background: var(--noora-surface-background-tertiary);
         border-radius: 6px;
+        background: var(--noora-surface-background-tertiary);
+        height: 18px;
       }
 
       & > [data-part="lane-track"] > [data-part="bar"] {
         position: absolute;
         top: 2px;
         bottom: 2px;
-        min-width: 2px;
+        opacity: 0.9;
         border-radius: 3px;
         background: var(--noora-surface-label-tertiary);
-        opacity: 0.9;
+        min-width: 2px;
       }
 
       & > [data-part="lane-track"] > [data-part="bar"][data-cached="true"] {
@@ -355,12 +383,24 @@
       background: var(--noora-chart-neutral, #94a3b8);
     }
 
-    & [data-part="steps-legend"] > [data-part="chip"][data-category="Compilation"] > [data-part="dot"] { background: var(--noora-chart-purple, #7c5cff); }
-    & [data-part="steps-legend"] > [data-part="chip"][data-category="Linking"] > [data-part="dot"] { background: var(--noora-chart-blue, #4c8dff); }
-    & [data-part="steps-legend"] > [data-part="chip"][data-category="Scripts"] > [data-part="dot"] { background: var(--noora-chart-green, #2ecc71); }
-    & [data-part="steps-legend"] > [data-part="chip"][data-category="File preparation"] > [data-part="dot"] { background: var(--noora-chart-teal, #26c6da); }
-    & [data-part="steps-legend"] > [data-part="chip"][data-category="Fetching"] > [data-part="dot"] { background: var(--noora-chart-orange, #ff9f43); }
-    & [data-part="steps-legend"] > [data-part="chip"][data-category="Other"] > [data-part="dot"] { background: var(--noora-chart-neutral, #94a3b8); }
+    & [data-part="steps-legend"] > [data-part="chip"][data-category="Compilation"] > [data-part="dot"] {
+      background: var(--noora-chart-purple, #7c5cff);
+    }
+    & [data-part="steps-legend"] > [data-part="chip"][data-category="Linking"] > [data-part="dot"] {
+      background: var(--noora-chart-blue, #4c8dff);
+    }
+    & [data-part="steps-legend"] > [data-part="chip"][data-category="Scripts"] > [data-part="dot"] {
+      background: var(--noora-chart-green, #2ecc71);
+    }
+    & [data-part="steps-legend"] > [data-part="chip"][data-category="File preparation"] > [data-part="dot"] {
+      background: var(--noora-chart-teal, #26c6da);
+    }
+    & [data-part="steps-legend"] > [data-part="chip"][data-category="Fetching"] > [data-part="dot"] {
+      background: var(--noora-chart-orange, #ff9f43);
+    }
+    & [data-part="steps-legend"] > [data-part="chip"][data-category="Other"] > [data-part="dot"] {
+      background: var(--noora-chart-neutral, #94a3b8);
+    }
   }
 
   @media (max-width: 768px) {

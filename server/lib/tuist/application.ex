@@ -638,7 +638,8 @@ defmodule Tuist.Application do
   defp once_events_grpc_children do
     if String.downcase(System.get_env("TUIST_ONCE_EVENTS_GRPC") || "off") == "on" do
       port =
-        System.get_env("TUIST_ONCE_EVENTS_GRPC_PORT")
+        "TUIST_ONCE_EVENTS_GRPC_PORT"
+        |> System.get_env()
         |> case do
           nil -> 4001
           "" -> 4001

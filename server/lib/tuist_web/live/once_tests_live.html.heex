@@ -4,10 +4,26 @@
       id="tests-analytics-date-range-picker"
       name="analytics-date-range"
       presets={[
-        %{id: "last-24-hours", label: dgettext("dashboard_tests", "Last 24 hours"), period: {24, :hour}},
-        %{id: "last-7-days", label: dgettext("dashboard_tests", "Last 7 days"), period: {7, :day}},
-        %{id: "last-30-days", label: dgettext("dashboard_tests", "Last 30 days"), period: {30, :day}},
-        %{id: "last-12-months", label: dgettext("dashboard_tests", "Last 12 months"), period: {12, :month}},
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_tests", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
         %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
       ]}
       selected_preset={@analytics_preset}
@@ -64,7 +80,9 @@
         phx_click="select_widget"
         phx_value_widget="flaky_test_run_count"
         selected={@analytics_selected_widget == "flaky_test_run_count"}
-        trend_value={if @flaky_test_runs_analytics.ok?, do: @flaky_test_runs_analytics.result.trend}
+        trend_value={
+          if @flaky_test_runs_analytics.ok?, do: @flaky_test_runs_analytics.result.trend
+        }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={@flaky_test_runs_analytics.ok? && @flaky_test_runs_analytics.result.count == 0}
@@ -79,7 +97,9 @@
         phx_click="select_widget"
         phx_value_widget="failed_test_run_count"
         selected={@analytics_selected_widget == "failed_test_run_count"}
-        trend_value={if @failed_test_runs_analytics.ok?, do: @failed_test_runs_analytics.result.trend}
+        trend_value={
+          if @failed_test_runs_analytics.ok?, do: @failed_test_runs_analytics.result.trend
+        }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={@failed_test_runs_analytics.ok? && @failed_test_runs_analytics.result.count == 0}
@@ -475,18 +495,18 @@
           <.text_cell
             icon="history"
             label={
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(run.duration_ms || 0)
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                run.duration_ms || 0
+              )
             }
           />
         </:col>
         <:col :let={run} label={dgettext("dashboard_tests", "Ran at")}>
-          <.text_cell
-            sublabel={
-              if run.finished_at,
-                do: Tuist.Utilities.DateFormatter.from_now(run.finished_at),
-                else: "—"
-            }
-          />
+          <.text_cell sublabel={
+            if run.finished_at,
+              do: Tuist.Utilities.DateFormatter.from_now(run.finished_at),
+              else: "—"
+          } />
         </:col>
       </.table>
     </.card_section>

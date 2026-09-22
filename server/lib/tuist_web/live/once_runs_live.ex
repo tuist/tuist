@@ -23,19 +23,14 @@ defmodule TuistWeb.OnceRunsLive do
 
   @page_size 20
 
-  def mount(
-        _params,
-        _session,
-        %{assigns: %{selected_project: project, selected_account: account}} = socket
-      ) do
+  def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     {resource, resource_kind, kind_filter, base_path, show_analytics?} =
       case socket.assigns[:live_action] do
         :tests ->
           {dgettext("dashboard_projects", "Test Runs"), :tests, "test", "once/test-runs", true}
 
         :build_runs ->
-          {dgettext("dashboard_projects", "Build Runs"), :builds, "build", "once/build-runs",
-           false}
+          {dgettext("dashboard_projects", "Build Runs"), :builds, "build", "once/build-runs", false}
 
         _ ->
           {dgettext("dashboard_projects", "Builds"), :builds, "build", "once/builds", true}
@@ -112,16 +107,14 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign_async([:invocation_summary, :invocation_analytics], fn ->
         {:ok,
          %{
-           invocation_summary:
-             invocation_summary_with_trends(project.id, analytics_period, commands),
+           invocation_summary: invocation_summary_with_trends(project.id, analytics_period, commands),
            invocation_analytics: Analytics.invocation_analytics(project.id, analytics_opts)
          }}
       end)
       |> assign_async(:configuration_insights_analytics, fn ->
         {:ok,
          %{
-           configuration_insights_analytics:
-             Analytics.build_duration_analytics_by_version(project.id, analytics_opts)
+           configuration_insights_analytics: Analytics.build_duration_analytics_by_version(project.id, analytics_opts)
          }}
       end)
 
@@ -294,7 +287,7 @@ defmodule TuistWeb.OnceRunsLive do
             legend_color="primary"
             description={dgettext("dashboard_tests", "Test coverage isn't reported yet.")}
             value={nil}
-            trend_value={nil}
+            trend_value={0}
             trend_label={@analytics_trend_label}
             empty={true}
           />
@@ -579,9 +572,7 @@ defmodule TuistWeb.OnceRunsLive do
           </div>
           <.empty_card_section
             :if={Enum.empty?(@invocations)}
-            title={
-              invocations_empty_state_title(@active_filters, @has_any_invocations)
-            }
+            title={invocations_empty_state_title(@active_filters, @has_any_invocations)}
             data-part="empty-bazel-invocations-card-section"
           >
             <:image>

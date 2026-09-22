@@ -21,17 +21,9 @@ defmodule TuistWeb.OnceTestsLive do
 
   @recent_run_limit 40
 
-  def mount(
-        _params,
-        _session,
-        %{assigns: %{selected_project: project, selected_account: account}} = socket
-      ) do
+  def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     socket =
-      socket
-      |> assign(
-        :head_title,
-        "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
-      )
+      assign(socket, :head_title, "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist")
 
     if connected?(socket) do
       OnceEvents.subscribe_project(project.id)

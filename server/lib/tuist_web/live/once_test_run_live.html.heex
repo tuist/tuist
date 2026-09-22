@@ -155,13 +155,13 @@
       <.tab_menu_horizontal_item
         label={dgettext("dashboard_tests", "Test Cases")}
         selected={@selected_tab == "test-cases"}
-        patch={"?tab=test-cases"}
+        patch="?tab=test-cases"
         replace={true}
       />
       <.tab_menu_horizontal_item
         label={dgettext("dashboard_tests", "Test Targets")}
         selected={@selected_tab == "test-targets"}
-        patch={"?tab=test-targets"}
+        patch="?tab=test-targets"
         replace={true}
       />
     </.tab_menu_horizontal>
@@ -219,6 +219,12 @@
             />
           </:col>
         </.table>
+        <.pagination_group
+          :if={@test_cases_total_pages > 1}
+          current_page={@test_cases_page}
+          number_of_pages={@test_cases_total_pages}
+          page_patch={page_patch(@uri, "test-cases-page")}
+        />
       </.card_section>
       <.empty_card_section
         :if={@test_cases.ok? and Enum.empty?(@test_cases.result)}
@@ -288,6 +294,12 @@
             />
           </:col>
         </.table>
+        <.pagination_group
+          :if={@test_suites_total_pages > 1}
+          current_page={@test_suites_page}
+          number_of_pages={@test_suites_total_pages}
+          page_patch={page_patch(@uri, "test-targets-page")}
+        />
       </.card_section>
       <.empty_card_section
         :if={@test_suites.ok? and Enum.empty?(@test_suites.result)}
