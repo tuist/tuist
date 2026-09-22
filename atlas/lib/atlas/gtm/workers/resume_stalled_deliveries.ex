@@ -2,8 +2,9 @@ defmodule Atlas.GTM.Workers.ResumeStalledDeliveries do
   @moduledoc """
   Re-queues email delivery work that stopped part way through.
 
-  `DeliverBroadcast` and `DeliverAutomatedEmail` retry through Oban, but once a
-  job exhausts its attempts Oban discards it and nothing picks the work back up.
+  `DeliverBroadcast`, `DeliverAutomatedEmail`, and `DeliverDirectEmail` retry
+  through Oban, but once a job exhausts its attempts Oban discards it and
+  nothing picks the work back up.
   A provider outage lasting longer than the backoff window therefore leaves a
   broadcast sitting in `sending` with undelivered recipients forever. This
   worker runs on a schedule and enqueues those jobs again.
@@ -22,6 +23,7 @@ defmodule Atlas.GTM.Workers.ResumeStalledDeliveries do
   alias Atlas.GTM.Broadcasts
   alias Atlas.GTM.Workers.DeliverAutomatedEmail
   alias Atlas.GTM.Workers.DeliverBroadcast
+  alias Atlas.GTM.Workers.DeliverDirectEmail
 
   require Logger
 
@@ -56,14 +58,20 @@ defmodule Atlas.GTM.Workers.ResumeStalledDeliveries do
     stale_before
     |> Broadcasts.list_resumable_automated_deliveries()
     |> Enum.count(fn delivery ->
-      %{"delivery_id" => delivery.id}
-      |> DeliverAutomatedEmail.new()
+      delivery
+      |> resume_job()
       |> insert_job()
     end)
   end
 
-  # Both workers are unique on their args, so a job that is still queued or
-  # running is returned as a conflict rather than duplicated. Only genuinely
+  # Deliveries that carry no broadcast are performed by the worker that matches
+  # their kind. Routing every one of them to `DeliverAutomatedEmail` would
+  # cancel a direct email instead of resuming it.
+  defp resume_job(%{kind: "direct", id: id}), do: DeliverDirectEmail.new(%{"delivery_id" => id})
+  defp resume_job(%{id: id}), do: DeliverAutomatedEmail.new(%{"delivery_id" => id})
+
+  # Every delivery worker is unique on its args, so a job that is still queued
+  # or running is returned as a conflict rather than duplicated. Only genuinely
   # new jobs are counted as resumed.
   defp insert_job(changeset) do
     case Oban.insert(changeset) do
