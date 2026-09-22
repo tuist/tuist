@@ -176,6 +176,41 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorkerTest do
     assert :ok == perform(project, "signal")
   end
 
+  test "leads with the reported figure when the commit's coverage was carried forward" do
+    carried = %{
+      commit: %{partial: true, coverage: 0.0, reported: %{kind: "reported", coverage: 52.0, carried_tests_count: 5}},
+      patch: %{status: :available, executable_lines: 0},
+      gaps: [],
+      schemes: []
+    }
+
+    verdict = %{conclusion: :success, checks: []}
+
+    compared =
+      CoverageGateWorker.summary(
+        Map.merge(carried, %{
+          total_delta: 0.0,
+          baseline: %{commit: "743e9901e5c6", coverage: 52.0, reported_kind: "measured"}
+        }),
+        verdict,
+        "https://example.com"
+      )
+
+    # Not the 0.0% it measured, which would read as a catastrophe beside a
+    # gate that just passed.
+    assert compared =~ "52.0% (0.0% measured, 5 tests carried forward)"
+    assert compared =~ "against 52.0% at `743e990`"
+
+    uncompared =
+      CoverageGateWorker.summary(
+        Map.merge(carried, %{total_delta: nil, baseline: nil, baseline_reason: %{kind: :no_history}}),
+        verdict,
+        "https://example.com"
+      )
+
+    assert uncompared =~ "52.0% (0.0% measured, 5 tests carried forward), no baseline:"
+  end
+
   test "posts nothing when the gates are off or the commit was never measured", %{project: project, account: account} do
     reject(&Client.create_check_run/1)
     assert :ok == perform(project, "signal", "unmeasured")

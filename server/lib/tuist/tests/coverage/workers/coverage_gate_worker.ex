@@ -19,6 +19,7 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
   alias Tuist.GitHub.Client
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
   alias Tuist.Tests.Coverage.Gates
@@ -150,6 +151,28 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
     """)
   end
 
+  # A commit compared through its reported coverage is judged on that figure,
+  # so that is the one the check leads with. Its measured figure is whatever
+  # the runs that did execute happened to cover, and for a commit whose every
+  # scheme was skipped it is 0%, which reads as a catastrophe beside a gate
+  # that has just passed.
+  defp total_text(%{commit: %{partial: true, coverage: coverage, reported: %{kind: "reported"} = reported}} = comparison) do
+    carried =
+      "#{reported.coverage}% (#{coverage}% measured, #{reported.carried_tests_count} " <>
+        "#{if reported.carried_tests_count == 1, do: "test", else: "tests"} carried forward)"
+
+    case comparison do
+      %{total_delta: delta, baseline: baseline} when is_float(delta) ->
+        "#{carried}, #{signed(delta)}% against #{reported_baseline(baseline)}% at `#{short(baseline.commit)}`"
+
+      %{baseline_reason: reason} when not is_nil(reason) ->
+        "#{carried}, no baseline: #{Comparison.reason_text(reason)}"
+
+      _ ->
+        carried
+    end
+  end
+
   defp total_text(%{commit: %{partial: true, coverage: coverage}, total_delta: nil, baseline: baseline})
        when not is_nil(baseline), do: "#{coverage}% (some tests were skipped, not compared)"
 
@@ -158,6 +181,14 @@ defmodule Tuist.Tests.Coverage.Workers.CoverageGateWorker do
 
   defp total_text(%{commit: %{coverage: coverage}, total_delta: delta, baseline: baseline}),
     do: "#{coverage}% (#{signed(delta)}% against #{baseline.coverage}% at `#{short(baseline.commit)}`)"
+
+  defp reported_baseline(%{
+         reported_kind: "reported",
+         reported_covered_lines: covered,
+         reported_executable_lines: executable
+       }), do: Coverage.percentage(covered, executable)
+
+  defp reported_baseline(baseline), do: baseline.coverage
 
   defp scheme_total(%{coverage: nil}), do: "—"
   defp scheme_total(%{partial: true, coverage: coverage}), do: "#{coverage}% (partial)"
