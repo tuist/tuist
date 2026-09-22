@@ -1153,48 +1153,111 @@ mini_referencing() {
     [[ "$output" == *"--from"* ]]
 }
 
-@test "recover sets the site address in one session and saves in the next" {
-    # Two sessions is the point: changing the address drops the session that
-    # changed it, and a save that never ran is how a switch comes back on DHCP
-    # after the next reboot.
-    stub="$BATS_TEST_TMPDIR/recbin"
-    mkdir -p "$stub"
-    log="$BATS_TEST_TMPDIR/recover.log"
-    : > "$log"
-    cat > "$stub/ssh" <<STUB
-#!/usr/bin/env bash
-echo "SESSION \$*" >> "$log"
-sleep 0.3
-printf 'sw>'
-while IFS= read -r line; do
-    line="\${line%\$'\r'}"
-    echo "CMD \$line" >> "$log"
-    sleep 0.1
-    printf '%s\r\n' "\$line"
-    case "\$line" in logout) exit 0;; esac
-    printf '\r\nsw#'
-done
-STUB
-    cat > "$stub/nc" <<'STUB'
+
+
+# --- recover must not save when recovery did not happen ----------------------
+
+# A switch that answers, reports the name it is told to, and shows the running
+# config it is given. Everything comes through the environment so the heredoc
+# interpolates nothing.
+recover_stub() {
+    local dir="$1"
+    mkdir -p "$dir"
+    cat > "$dir/nc" <<'STUB'
 #!/usr/bin/env bash
 exit 0
 STUB
-    chmod +x "$stub/ssh" "$stub/nc"
+    cat > "$dir/ssh" <<'STUB'
+#!/usr/bin/env bash
+echo "SESSION $*" >> "$FAKE_LOG"
+sleep 0.2
+printf 'sw>'
+while IFS= read -r line; do
+    line="${line%$'\r'}"
+    echo "CMD $line" >> "$FAKE_LOG"
+    sleep 0.1
+    printf '%s\r\n' "$line"
+    if [ -n "$FAKE_REJECT" ] && [ "$line" = "$FAKE_REJECT" ]; then
+        printf '\r\nError: Bad command\r\n\r\nsw#'
+        continue
+    fi
+    case "$line" in
+        logout) exit 0;;
+        "show system-info") printf ' System Name          - %s\r\n' "$FAKE_NAME";;
+        "show running-config") printf '%s\r\n' "$FAKE_RUNNING";;
+    esac
+    printf '\r\nsw#'
+done
+STUB
+    chmod +x "$dir/ssh" "$dir/nc"
+    : > "$dir/log"
+}
 
-    run env PATH="$stub:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" \
+# run_recover <bindir> <name the switch reports> <its running config> [command to reject]
+run_recover() {
+    run env PATH="$1:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" \
+        FAKE_LOG="$1/log" FAKE_NAME="$2" FAKE_RUNNING="$3" FAKE_REJECT="${4:-}" \
         "$FLEET_ROOT/fleet.sh" recover ber1-tor-b --from 192.0.2.50 --yes
+}
+
+@test "recover aborts when the switch refuses configure, and saves nothing" {
+    # The failure that started this: the outer `|| true` swallowed a refused
+    # `configure` as though it were the expected post-address disconnect, and
+    # recovery went on to save whatever was already on the switch.
+    bin="$BATS_TEST_TMPDIR/rc1"
+    recover_stub "$bin"
+    run_recover "$bin" ber1-tor-b "  ip address 192.168.0.12 255.255.255.0" "configure"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"refused 'configure'"* ]]
+    [[ "$output" == *"nothing was changed"* ]]
+    run grep -c 'CMD ip address' "$bin/log"
+    [ "$output" = "0" ]
+    run grep -c 'CMD copy running-config startup-config' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "recover aborts when the interface cannot be selected, and saves nothing" {
+    bin="$BATS_TEST_TMPDIR/rc2"
+    recover_stub "$bin"
+    run_recover "$bin" ber1-tor-b "  ip address 192.168.0.12 255.255.255.0" "interface vlan 1"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"interface vlan 1"* ]]
+    run grep -c 'CMD copy running-config startup-config' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "recover refuses to save when something else owns the target address" {
+    # Something answering is not proof the right switch is there.
+    bin="$BATS_TEST_TMPDIR/rc3"
+    recover_stub "$bin"
+    run_recover "$bin" some-other-switch "  ip address 192.168.0.12 255.255.255.0"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not ber1-tor-b"* ]]
+    run grep -c 'CMD copy running-config startup-config' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "recover refuses to save when the address did not actually take" {
+    bin="$BATS_TEST_TMPDIR/rc4"
+    recover_stub "$bin"
+    run_recover "$bin" ber1-tor-b "  ip address 192.168.0.99 255.255.255.0"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"does not carry"* ]]
+    run grep -c 'CMD copy running-config startup-config' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "recover saves once the switch is the right one at the right address" {
+    bin="$BATS_TEST_TMPDIR/rc5"
+    recover_stub "$bin"
+    run_recover "$bin" ber1-tor-b "  ip address 192.168.0.12 255.255.255.0"
     [ "$status" -eq 0 ]
     [[ "$output" == *"back at 192.168.0.12 and saved"* ]]
-
-    # session one talks to where it is, session two to where it belongs
-    run grep -c '^SESSION' "$log"
+    run grep -c 'CMD ip address 192.168.0.12 255.255.255.0' "$bin/log"
+    [ "$output" = "1" ]
+    run grep -c 'CMD copy running-config startup-config' "$bin/log"
+    [ "$output" = "1" ]
+    # one session to move it, one to verify and save
+    run grep -c '^SESSION' "$bin/log"
     [ "$output" = "2" ]
-    run bash -c "grep '^SESSION' '$log' | head -1 | grep -c 192.0.2.50"
-    [ "$output" = "1" ]
-    run bash -c "grep '^SESSION' '$log' | tail -1 | grep -c 192.168.0.12"
-    [ "$output" = "1" ]
-    run bash -c "grep -c 'CMD ip address 192.168.0.12 255.255.255.0' '$log'"
-    [ "$output" = "1" ]
-    run bash -c "grep -c 'CMD copy running-config startup-config' '$log'"
-    [ "$output" = "1" ]
 }

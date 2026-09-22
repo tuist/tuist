@@ -576,14 +576,26 @@ cmd_recover() {
     [ "$answer" = "y" ] || [ "$answer" = "Y" ] || return 130
   fi
 
+  # Only the address command is allowed to fail, because it is the one that
+  # drops the session. A refused login, `configure` or `interface` means nothing
+  # was changed, and carrying on from there would save whatever is already on
+  # the switch, which is the state recovery exists to correct.
   echo "session 1: setting the address, which will drop this session"
+  local setup=0
   (
     trap switch_close EXIT
-    switch_open "$from" "$user" "$key" || exit 1
-    switch_run "configure" 30 || exit 1
-    switch_run "interface vlan $vlan" 30 || exit 1
-    switch_run "ip address $address $netmask" 20 || true
-  ) || true
+    switch_open "$from" "$user" "$key" || exit 10
+    switch_run "configure" 30 || exit 11
+    switch_run "interface vlan $vlan" 30 || exit 12
+    switch_run "ip address $address $netmask" 20 || exit 0
+  ) || setup=$?
+  case "$setup" in
+    0)  ;;
+    10) echo "error: could not open a session to $name at $from; nothing was changed" >&2; return 1;;
+    11) echo "error: $from refused 'configure'; nothing was changed" >&2; return 1;;
+    12) echo "error: $from refused 'interface vlan $vlan'; nothing was changed" >&2; return 1;;
+    *)  echo "error: $from failed ($setup) before the address was set; nothing was changed" >&2; return 1;;
+  esac
 
   echo "waiting for $name at $address"
   local waited=0
@@ -592,22 +604,39 @@ cmd_recover() {
     sleep 3; waited=$(( waited + 3 ))
   done
   if (( waited >= 60 )); then
-    echo "error: $name never answered at $address. Its running config may have the new" >&2
+    echo "error: $name never answered at $address. Its running config may carry the new" >&2
     echo "       address without the save, so a reboot returns it to where it was." >&2
     return 1
   fi
 
-  echo "session 2: saving, so a reboot keeps it"
+  # Something answering at the right address is not proof the right switch is
+  # there, nor that the address was actually set rather than already taken by
+  # something else. Both are checked before anything is written to flash, in the
+  # same session as the save so it costs one connection rather than two.
+  echo "session 2: confirming identity and address, then saving"
   local status=0
   (
     trap switch_close EXIT
-    switch_open "$address" "$user" "$key" || exit 1
-    switch_run "copy running-config startup-config" 60 || exit 1
+    switch_open "$address" "$user" "$key" || exit 10
+    switch_run "show system-info" 30 || exit 11
+    printf '%s' "$SWITCH_OUTPUT" | tr -d '\r' | grep -qE "System Name[[:space:]]*-[[:space:]]*$name([[:space:]]|\$)" || exit 20
+    switch_run "$RUNNING_CONFIG" 90 || exit 12
+    printf '%s' "$SWITCH_OUTPUT" | tr -d '\r' | grep -qF "ip address $address $netmask" || exit 21
+    switch_run "copy running-config startup-config" 60 || exit 13
   ) || status=$?
-  if (( status )); then
-    echo "error: $name is at $address but the save failed; a reboot will undo it" >&2
-    return "$status"
-  fi
+  case "$status" in
+    0)  ;;
+    20) echo "error: something answers at $address but it is not $name. Nothing was saved." >&2
+        echo "       Check what owns that address before going further." >&2
+        return 1;;
+    21) echo "error: $name is reachable at $address but its running config does not carry" >&2
+        echo "       'ip address $address $netmask'. The change did not take. Nothing was saved." >&2
+        return 1;;
+    13) echo "error: $name is at $address but the save failed; a reboot will undo it" >&2
+        return 1;;
+    *)  echo "error: could not verify $name at $address ($status); nothing was saved" >&2
+        return 1;;
+  esac
   echo "$name is back at $address and saved. Confirm with:"
   echo "  mise run rack:fleet preflight $name"
 }
