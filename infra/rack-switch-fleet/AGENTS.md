@@ -302,9 +302,34 @@ applies. NETCONF is what you get *afterwards*, and it is the part that would
 delete this file's SSH machinery and its connection budget.
 
 Both halves are worth separating because **this switch already has the ZTP
-half**. TP-Link calls it DHCP Auto Install, and the TFTP check settled the
-question it was blocked on: the config export is text, so a rendered config is
-something Auto Install could be handed. Nobody has tried it.
+half**, and the commands have now been read off the unit rather than assumed:
+
+```
+boot autoinstall persistent-mode   # run it again on the next boot
+boot autoinstall auto-save         # save what is downloaded as the startup config
+boot autoinstall auto-reboot       # reboot once it completes
+boot autoinstall retry-count <n>
+boot autoinstall start             # begin now
+show boot autoinstall              # mode, persistent, save, reboot, retry, state
+```
+
+Defaults on a prepped switch: Auto Save enabled, Auto Reboot enabled, retry
+count 1, persistent mode disabled, mode Stop.
+
+**Starting it puts VLAN 1 on DHCP**, and the state becomes "Waiting for restart
+timeout". That is the feature working, since a switch hunting for a provisioning
+server has to get an address from one, but it means a switch with Auto Install
+running is not at the address the site definition gives it. Find it by MAC in
+the ARP table.
+
+The TFTP check settled what the path was blocked on: the export is text, so a
+rendered config is something Auto Install could be handed. What has **not** been
+done is an end-to-end test, and it should not be improvised on this network. It
+needs a DHCP server handing out options 66 and 67, and the only DHCP server on
+the rack's current LAN is the household router; standing up a second one there
+is a rogue DHCP server on a network people live on. The test wants an isolated
+segment, our own DHCP and TFTP, and a switch nobody depends on, which is what
+`ber1-mgmt` is while it sits in storage.
 
 What Junos and PicOS offer over that is not the feature but its maturity. ZTP on
 those is a mainstream path that thousands of deployments use; DHCP Auto Install

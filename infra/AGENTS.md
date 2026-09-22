@@ -2,6 +2,33 @@
 
 Deployment assets for the Tuist stack — both the managed cluster we operate and the self-host chart our customers install.
 
+## What we are aiming at
+
+Two properties, stated because they decide arguments that would otherwise be
+settled by whatever is quickest that week.
+
+**As Kubernetes-native as the hardware allows.** Inventory, desired state and
+observed status belong in objects, reconciled where a controller can safely
+reconcile and rendered from one source where it cannot. The point is not
+Kubernetes for its own sake; it is that a thing described in one place, with its
+status next to it, is a thing the next person can find. The rack's machines are
+`RackHost`, its switches are `RackSwitch`, and where two inventories describe
+overlapping things they are joined by reference rather than kept in step by
+hand.
+
+**As zero-touch as the hardware allows.** A machine or a switch arriving in a
+rack should reach a working state without somebody holding a cable. Where that
+is not yet true, the manual step is a gap to close and is written down as one
+rather than accepted as the procedure.
+
+"As the hardware allows" is doing real work in both. A switch whose only
+programmatic surface is an SSH CLI that stops accepting connections after a
+handful cannot carry a reconcile loop, and saying so is not a failure to aim at
+the principle; it is the principle meeting a vendor. When that happens, record
+what the constraint costs, keep the manual path honest, and let it inform what
+gets bought next. See [`rack-switch-fleet/AGENTS.md`](rack-switch-fleet/AGENTS.md)
+for a worked example of both halves, including the price of the alternative.
+
 ## Layout
 
 ### `helm/tuist/` — main Tuist Helm chart
