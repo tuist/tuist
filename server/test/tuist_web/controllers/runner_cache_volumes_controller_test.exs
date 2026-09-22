@@ -35,7 +35,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     expect(CacheVolumes, :report, fn "node", ^id, _ -> {:error, :not_found} end)
     result = Controller.report(conn(), %{"node_name" => "node", "id" => id})
     assert result.status == 200
-    assert Jason.decode!(result.resp_body) == %{"action" => "delete"}
+    assert JSON.decode!(result.resp_body) == %{"action" => "delete"}
     assert get_resp_header(result, "cache-control") == ["no-store"]
   end
 
@@ -49,7 +49,7 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     for state <- ["allocated", "active", "sealed", "deleted"] do
       result = Controller.report(conn(), %{"node_name" => "node", "id" => id, "state" => state})
       assert result.status == 200
-      assert Jason.decode!(result.resp_body) == %{"action" => if(state == "deleted", do: "forget", else: "delete")}
+      assert JSON.decode!(result.resp_body) == %{"action" => if(state == "deleted", do: "forget", else: "delete")}
       assert get_resp_header(result, "cache-control") == ["no-store"]
     end
   end

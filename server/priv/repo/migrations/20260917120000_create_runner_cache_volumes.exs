@@ -2,6 +2,9 @@ defmodule Tuist.Repo.Migrations.CreateRunnerCacheVolumes do
   @moduledoc false
   use Ecto.Migration
 
+  @disable_ddl_transaction true
+  @disable_migration_lock true
+
   def change do
     create table(:runner_cache_volumes, primary_key: false) do
       add(:id, :uuid, primary_key: true)
@@ -22,11 +25,12 @@ defmodule Tuist.Repo.Migrations.CreateRunnerCacheVolumes do
       unique_index(
         :runner_cache_volumes,
         [:account_id, :repository_id, :key, :architecture, :uid],
-        name: :runner_cache_volumes_identity
+        name: :runner_cache_volumes_identity,
+        concurrently: true
       )
     )
 
-    create(index(:runner_cache_volumes, [:account_id, :last_used_at]))
+    create(index(:runner_cache_volumes, [:account_id, :last_used_at], concurrently: true))
 
     create table(:runner_cache_volume_uses, primary_key: false) do
       add(:id, :uuid, primary_key: true)
@@ -55,9 +59,14 @@ defmodule Tuist.Repo.Migrations.CreateRunnerCacheVolumes do
       timestamps(type: :timestamptz)
     end
 
-    create(unique_index(:runner_cache_volume_uses, [:volume_id, :generation, :pod_uid]))
-    create(index(:runner_cache_volume_uses, [:volume_id, :inserted_at]))
-    create(index(:runner_cache_volume_uses, [:node_name, :deleted_at]))
-    create(index(:runner_cache_volume_uses, [:parent_id]))
+    create(
+      unique_index(:runner_cache_volume_uses, [:volume_id, :generation, :pod_uid],
+        concurrently: true
+      )
+    )
+
+    create(index(:runner_cache_volume_uses, [:volume_id, :inserted_at], concurrently: true))
+    create(index(:runner_cache_volume_uses, [:node_name, :deleted_at], concurrently: true))
+    create(index(:runner_cache_volume_uses, [:parent_id], concurrently: true))
   end
 end

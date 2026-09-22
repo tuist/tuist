@@ -460,8 +460,7 @@ defmodule TuistWeb.RunnerVolumesLive do
     last = List.last(points)
     label = dgettext("dashboard_runners", "since last period")
 
-    if first && last && DateTime.compare(first.at, start) == :eq && DateTime.compare(last.at, finish) == :eq &&
-         not is_nil(first[metric]) && not is_nil(last[metric]) do
+    if storage_boundary?(first, metric, start) and storage_boundary?(last, metric, finish) do
       previous = Map.fetch!(first, metric)
       change = Map.fetch!(last, metric) - previous
 
@@ -474,6 +473,12 @@ defmodule TuistWeb.RunnerVolumesLive do
     else
       %{value: 0, value_label: nil, label: label}
     end
+  end
+
+  defp storage_boundary?(nil, _metric, _at), do: false
+
+  defp storage_boundary?(point, metric, at) do
+    DateTime.compare(point.at, at) == :eq and not is_nil(point[metric])
   end
 
   def relative_time(nil), do: "—"

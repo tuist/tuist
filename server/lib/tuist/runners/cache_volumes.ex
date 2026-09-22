@@ -106,29 +106,7 @@ defmodule Tuist.Runners.CacheVolumes do
         "cache-volume:#{job.account_id}:#{attrs.pod_uid}"
       ])
 
-      count =
-        Repo.aggregate(
-          from(u in Usage,
-            join: v in Volume,
-            on: v.id == u.volume_id,
-            where: v.account_id == ^job.account_id and u.pod_uid == ^attrs.pod_uid
-          ),
-          :count
-        )
-
-      existing =
-        Repo.exists?(
-          from(u in Usage,
-            join: v in Volume,
-            on: v.id == u.volume_id,
-            where:
-              v.account_id == ^job.account_id and v.repository_id == ^identity.repository_id and
-                v.key == ^attrs.key and v.architecture == ^attrs.architecture and v.uid == ^attrs.uid and
-                u.pod_uid == ^attrs.pod_uid and u.generation == v.generation
-          )
-        )
-
-      if count >= 8 and not existing, do: Repo.rollback(:capacity)
+      ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
       timestamp = DateTime.truncate(now, :second)
       fields = Map.take(attrs, [:key, :architecture, :uid])
@@ -201,6 +179,33 @@ defmodule Tuist.Runners.CacheVolumes do
         uid: volume.uid
       }
     end)
+  end
+
+  defp ensure_job_capacity!(job, identity, attrs) do
+    count =
+      Repo.aggregate(
+        from(u in Usage,
+          join: v in Volume,
+          on: v.id == u.volume_id,
+          where: v.account_id == ^job.account_id and u.pod_uid == ^attrs.pod_uid
+        ),
+        :count
+      )
+
+    if count >= 8 and not existing_allocation?(job, identity, attrs), do: Repo.rollback(:capacity)
+  end
+
+  defp existing_allocation?(job, identity, attrs) do
+    Repo.exists?(
+      from(u in Usage,
+        join: v in Volume,
+        on: v.id == u.volume_id,
+        where:
+          v.account_id == ^job.account_id and v.repository_id == ^identity.repository_id and
+            v.key == ^attrs.key and v.architecture == ^attrs.architecture and v.uid == ^attrs.uid and
+            u.pod_uid == ^attrs.pod_uid and u.generation == v.generation
+      )
+    )
   end
 
   # Cross-account maintenance. The same row lock guards mounts, expiration and
@@ -280,19 +285,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   defp report_locked(volume, usage, params) do
     now = DateTime.utc_now()
-    state = params["state"]
-    if state not in ["active", "sealed"], do: Repo.rollback(:invalid_report)
-    if !(is_boolean(params["gone"]) and is_boolean(params["warm"])), do: Repo.rollback(:invalid_report)
-
-    metrics =
-      for field <- ~w(size_bytes capacity_bytes attach_ms)a, into: %{} do
-        value = Map.get(params, Atom.to_string(field))
-
-        if !(is_nil(value) or (is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000)),
-          do: Repo.rollback(:invalid_report)
-
-        {field, value}
-      end
+    metrics = report_metrics!(params)
 
     if usage.deleted_at, do: Repo.rollback(:deleted)
 
@@ -303,24 +296,44 @@ defmodule Tuist.Runners.CacheVolumes do
       Repo.update!(Ecto.Changeset.change(volume, last_used_at: now))
     end
 
+    usage = update_reported_usage(usage, params, metrics, now)
+    report_action(volume, usage, params, valid, now)
+  end
+
+  defp report_metrics!(params) do
+    if params["state"] not in ["active", "sealed"], do: Repo.rollback(:invalid_report)
+    if not (is_boolean(params["gone"]) and is_boolean(params["warm"])), do: Repo.rollback(:invalid_report)
+
+    for field <- ~w(size_bytes capacity_bytes attach_ms)a, into: %{} do
+      value = Map.get(params, Atom.to_string(field))
+      if not valid_metric?(value), do: Repo.rollback(:invalid_report)
+      {field, value}
+    end
+  end
+
+  defp valid_metric?(nil), do: true
+  defp valid_metric?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000
+
+  defp update_reported_usage(usage, params, metrics, now) do
     if is_nil(usage.last_reported_at) or usage.size_bytes != metrics.size_bytes or
          usage.capacity_bytes != metrics.capacity_bytes do
       record_measurement(usage, metrics, now, false)
     end
 
-    usage =
-      Repo.update!(
-        Ecto.Changeset.change(
-          usage,
-          Map.merge(metrics, %{
-            last_reported_at: now,
-            warm: params["warm"],
-            attached_at: usage.attached_at || now,
-            status: if(usage.status == "allocated", do: "attached", else: usage.status)
-          })
-        )
+    Repo.update!(
+      Ecto.Changeset.change(
+        usage,
+        Map.merge(metrics, %{
+          last_reported_at: now,
+          warm: params["warm"],
+          attached_at: usage.attached_at || now,
+          status: if(usage.status == "allocated", do: "attached", else: usage.status)
+        })
       )
+    )
+  end
 
+  defp report_action(volume, usage, params, valid, now) do
     cond do
       not params["gone"] ->
         %{action: "hold"}
@@ -329,10 +342,7 @@ defmodule Tuist.Runners.CacheVolumes do
         %{action: "delete"}
 
       usage.status == "published" ->
-        # Keep old parents until every referencing clone has finished. This
-        # prevents deletion racing an allocated clone on a different host.
-        referenced = Repo.exists?(from(u in Usage, where: u.parent_id == ^usage.id and is_nil(u.finished_at)))
-        if volume.head_id == usage.id or referenced, do: %{action: "keep"}, else: %{action: "delete"}
+        published_action(volume, usage)
 
       usage.status == "discarded" ->
         %{action: "delete"}
@@ -341,23 +351,34 @@ defmodule Tuist.Runners.CacheVolumes do
         discard(usage, now)
 
       true ->
-        completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
+        completion_action(volume, usage, params["state"], now)
+    end
+  end
 
-        cond do
-          is_nil(completion) and DateTime.diff(now, usage.inserted_at) < 24 * 60 * 60 ->
-            %{action: "wait"}
+  defp published_action(volume, usage) do
+    # Keep old parents until every referencing clone has finished. This prevents
+    # deletion racing an allocated clone on a different host.
+    referenced = Repo.exists?(from(u in Usage, where: u.parent_id == ^usage.id and is_nil(u.finished_at)))
+    if volume.head_id == usage.id or referenced, do: %{action: "keep"}, else: %{action: "delete"}
+  end
 
-          is_nil(completion) or completion.conclusion != "success" ->
-            discard(usage, now)
+  defp completion_action(volume, usage, state, now) do
+    completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
 
-          state == "active" ->
-            %{action: "seal"}
+    cond do
+      is_nil(completion) and DateTime.diff(now, usage.inserted_at) < 24 * 60 * 60 ->
+        %{action: "wait"}
 
-          state == "sealed" ->
-            Repo.update!(Ecto.Changeset.change(usage, status: "published", finished_at: now))
-            Repo.update!(Ecto.Changeset.change(volume, head_id: usage.id))
-            %{action: "keep"}
-        end
+      is_nil(completion) or completion.conclusion != "success" ->
+        discard(usage, now)
+
+      state == "active" ->
+        %{action: "seal"}
+
+      state == "sealed" ->
+        Repo.update!(Ecto.Changeset.change(usage, status: "published", finished_at: now))
+        Repo.update!(Ecto.Changeset.change(volume, head_id: usage.id))
+        %{action: "keep"}
     end
   end
 

@@ -24,6 +24,8 @@ This directory contains database migrations and other private assets.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration.
+- Runner cache migrations create indexes concurrently with DDL transactions and
+  migration locks disabled; verify both forward migration and rollback.
 - Runner cache size measurements reference uses and cascade with their retention;
   historical observations must not be overwritten by subsequent agent reports.
 - Declare table engines in new ClickHouse migrations through
