@@ -404,7 +404,7 @@ func (m *Manager) boot(ctx context.Context, sb *Sandbox, log *slog.Logger) (vm.I
 			return fail(fmt.Errorf("%s: %w", step.name, err))
 		}
 	}
-	log.Info("sandbox cold booting on its own disks", "sandbox", meta.ID, "generation", meta.Generation)
+	log.Info("sandbox cold booting on its own disks", "generation", meta.Generation)
 	return m.attach(ctx, sb, inst, meta, false, fail)
 }
 
