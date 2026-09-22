@@ -319,3 +319,65 @@ are still exported.
 The archive contains everything needed to understand the account's complete data footprint within Tuist.
 
 - **Pending Bazel profiles** (`bazel_profile_uploads`, PostgreSQL): One bounded gzip body (at most 32 MiB), state (`pending`, `processed`, `rejected`, or `failed`), rejection reason, project/invocation identifiers and timestamps per invocation. A job on the bounded Bazel artifact processor queue parses and sanitizes the raw profile; the request process only validates the envelope and digest. Raw bytes, which may include command lines, paths and credentials, are deleted after successful processing or terminal validation rejection, or exhausted processing retries. A new upload may replace a rejected or failed body and clear its error for another processing attempt; pending or processed duplicates leave the row unchanged. The existing batched daily Bazel ingestion cleanup removes staging/status rows older than 90 days. Export by `project_id`, including pending bodies and their invocation IDs.
+
+## Linux runner cache volumes (opt-in)
+
+- **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
+  immutable GitHub repository ID and full name, user-chosen key, architecture,
+  execution UID, generation, published head use UUID,
+  last use, logical deletion and creation/update timestamps. Identity is unique
+  per account/repository/key/architecture/UID. Kept until account deletion.
+- **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
+  foreign key, generation, parent use UUID, workflow run/job IDs, pod name/UID,
+  node name, publication permission, lifecycle status, warm/cold result, logical
+  filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
+  physical-deletion and creation/update timestamps. Export via the volume's
+  account ID. Daily cleanup removes history 90 days after acknowledged physical
+  deletion; unacknowledged resources remain tracked.
+- **Size history** (`runner_cache_volume_measurements`, PostgreSQL): append-only
+  observations linked to a use, containing logical filesystem used/capacity
+  bytes, server observation timestamp and a deletion acknowledgement flag.
+  The first report and changes in size or capacity create entries; identical
+  heartbeat reports do not. Unknown measurements remain null. Acknowledged
+  removal records zero retained bytes and capacity, without rewriting earlier
+  observations. Export by joining measurements to uses and account-owned
+  volumes. Entries cascade with usage cleanup 90 days after acknowledged
+  deletion and with account deletion. These observations support storage
+  visibility; they are not a billing ledger or measurements of unique physical
+  allocation. Observation time is report receipt time, not the exact time data
+  was written, and changes before reporting cannot be reconstructed.
+- **Cache contents** (Ceph RBD): one image per use, named
+  `<pool>/<namespace>/tuist-<use UUID>`, with protected `@cache` snapshots for
+  published images. Includes anything workflows write: dependencies, private
+  package metadata, and potentially personal data or inadvertently cached
+  credentials. Logical filesystem usage can count shared blocks more than once.
+- **Host journal and scratch** (`cacheVolumes.hostPath`, default
+  `/var/lib/tuist-runner-cache`): `state/<use UUID>.json` records account ID, opaque
+  scope, parent/use UUIDs, pod identity, state, permission, execution UID and
+  measurements. `pods/<pod UID>/<scope>` mounts the private image; arbitrary
+  scratch files can also exist beneath the pod subtree. No tokens are persisted.
+
+For export, query volumes by account ID and join usage rows, then collect Ceph
+images/snapshots and any active host scratch data. Fence writers or snapshot
+consistent data before exporting; do not attach an actively written filesystem
+on another host. Cache contents are disposable and already reclaimed data cannot
+be recovered. Volume deletion increments the generation immediately and prevents
+old writers publishing; agents acknowledge physical reclamation separately.
+
+Volume cache data expires after seven consecutive days without a successful job
+mount. `last_used_at` records the first confirmed attachment for each use;
+allocation attempts, periodic reports and publication do not refresh it. A
+five-minute sweep invalidates expired generations and queues storage cleanup;
+allocation and report paths also enforce the deadline. Reusing an evicted
+identity starts a fresh generation with no last-use timestamp until mounted.
+Identity and usage history follow the metadata retention described above.
+Active clones survive until
+both their Kubernetes pod and kubelet directory are absent. Account deletion
+cascades central volume/use rows; agents then delete their orphaned images after
+these fences. Offline agents or permanently lost host journals require operator
+reconciliation with Ceph and must not be treated as completed erasure. For an
+immediate erasure request, capture resource identities before account deletion,
+fence writers, reclaim images/snapshots and scratch/journals on every affected
+host, and verify physical removal. The
+[runbook](../infra/runners-controller/cache-volumes.md) describes recovery and
+storage boundaries. This feature creates no S3 objects.

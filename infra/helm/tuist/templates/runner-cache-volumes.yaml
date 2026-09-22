@@ -1,0 +1,203 @@
+{{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") }}
+{{- $namespace := .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}-{{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-{{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}-{{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+spec:
+  # The agent must bind each caller to a pod on its own node.
+  internalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/component: runner-cache-volumes
+  ports:
+    - port: 8090
+      targetPort: 8090
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: runner-cache-volumes
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: runner-cache-volumes
+    spec:
+      serviceAccountName: {{ $name }}
+      nodeSelector:
+        kubernetes.io/os: linux
+        node.cluster.x-k8s.io/pool: {{ include "tuist.runnersFleetLinuxName" . | quote }}
+      tolerations:
+        - key: tuist.dev/runner-tier
+          operator: Exists
+        - key: tuist.dev/reserved-for
+          operator: Exists
+      containers:
+        - name: agent
+          image: "{{ .Values.runnersFleetLinux.cacheVolumes.image.repository }}:{{ required "cacheVolumes.image.tag is required" .Values.runnersFleetLinux.cacheVolumes.image.tag }}"
+          command: [/usr/local/bin/cache-volumes]
+          args:
+            - --namespace={{ $namespace }}
+            - --authorize-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/cache-volumes/authorize
+            - --max-slots={{ .Values.runnersFleetLinux.cacheVolumes.maxSlots }}
+            - --rbd-pool={{ required "cacheVolumes.ceph.pool is required" .Values.runnersFleetLinux.cacheVolumes.ceph.pool }}
+            - --rbd-namespace={{ .Values.runnersFleetLinux.cacheVolumes.ceph.namespace }}
+            - --rbd-client={{ .Values.runnersFleetLinux.cacheVolumes.ceph.client }}
+            - --volume-gb={{ .Values.runnersFleetLinux.cacheVolumes.volumeGB }}
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - containerPort: 8090
+          securityContext:
+            runAsUser: 0
+            privileged: true
+            readOnlyRootFilesystem: true
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 512Mi}
+          readinessProbe:
+            tcpSocket: {port: 8090}
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+              mountPropagation: Bidirectional
+            - name: ceph
+              mountPath: /etc/ceph
+              readOnly: true
+            - name: devices
+              mountPath: /dev
+            - name: temporary
+              mountPath: /tmp
+            - name: run
+              mountPath: /run
+            - name: host-root-device
+              mountPath: /host-root-device
+              readOnly: true
+            - name: kubelet-pods
+              mountPath: /kubelet-pods
+              readOnly: true
+      volumes:
+        - name: ceph
+          secret:
+            secretName: {{ required "cacheVolumes.ceph.existingSecret is required" .Values.runnersFleetLinux.cacheVolumes.ceph.existingSecret }}
+        - name: devices
+          hostPath: {path: /dev, type: Directory}
+        - name: temporary
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: cache
+          hostPath:
+            path: {{ .Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}
+            type: Directory
+        # Only the device ID is read; this file identifies the root filesystem.
+        - name: host-root-device
+          hostPath:
+            path: /etc/hostname
+            type: File
+        - name: kubelet-pods
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: runner-cache-volumes
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              tuist.dev/runner: "true"
+      ports:
+        - {protocol: TCP, port: 8090}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-egress
+  namespace: {{ $namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      tuist.dev/runner: "true"
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: runner-cache-volumes
+      ports:
+        - {protocol: TCP, port: 8090}
+{{- end }}

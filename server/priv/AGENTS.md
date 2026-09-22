@@ -24,6 +24,8 @@ This directory contains database migrations and other private assets.
 - If you change stored customer data, update `server/data-export.md`.
 - Use `:timestamptz` for migration timestamps (per Credo rules).
 - Migration filename versions must be unique within each repository. Check for collisions against main when adding migrations, and update explicit test file references if renaming a migration.
+- Runner cache size measurements reference uses and cascade with their retention;
+  historical observations must not be overwritten by subsequent agent reports.
 - Bound ClickHouse `INSERT SELECT` backfills with explicit read/insert thread,
   block-size, and query-memory settings, including catch-up passes. Copying
   one partition at a time alone does not bound their peak memory usage.

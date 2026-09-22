@@ -902,3 +902,60 @@ func TestReservationValueFallsBackToADigestForUnusableNames(t *testing.T) {
 		t.Fatalf("ReservationValue must be deterministic")
 	}
 }
+
+func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	pod := build(t, pool)
+	found := false
+	for _, v := range pod.Spec.Volumes {
+		if v.Name == "cache-volumes" {
+			found = true
+			if v.HostPath == nil || v.HostPath.Path != "/var/lib/cache/pods" {
+				t.Fatalf("wrong source: %+v", v)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("missing volume")
+	}
+	check := func(c corev1.Container, want bool) {
+		t.Helper()
+		found := false
+		for _, m := range c.VolumeMounts {
+			if m.Name == "cache-volumes" {
+				found = true
+				if m.SubPathExpr != "$(TUIST_CACHE_VOLUME_UID)" || m.MountPath != workPath+"/_tuist_cache" {
+					t.Fatalf("unscoped cache mount in %s: %+v", c.Name, m)
+				}
+			}
+		}
+		if found != want {
+			t.Fatalf("cache visibility in %s = %t", c.Name, found)
+		}
+	}
+	for _, c := range pod.Spec.Containers {
+		check(c, c.Name == "runner")
+	}
+	for _, c := range pod.Spec.InitContainers {
+		check(c, c.Name == "dind")
+	}
+	for _, c := range append(pod.Spec.Containers, pod.Spec.InitContainers...) {
+		if c.Name == "runner" || c.Name == "dind" {
+			found := false
+			for _, e := range c.Env {
+				if e.Name == "TUIST_CACHE_VOLUME_UID" && e.ValueFrom.FieldRef.FieldPath == "metadata.uid" {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("missing UID subpath source")
+			}
+		}
+	}
+	pool.Spec.RuntimeClass = "runc"
+	if _, err := Build(pool, "p", "sa", "url", "", "", "", "", ""); err == nil {
+		t.Fatal("accepted cache mounts outside Kata")
+	}
+}

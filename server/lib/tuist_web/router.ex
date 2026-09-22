@@ -946,6 +946,8 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/runners/dispatch", RunnersController, :dispatch
+    post "/runners/cache-volumes/authorize", RunnerCacheVolumesController, :authorize
+    post "/runners/cache-volumes/report", RunnerCacheVolumesController, :report
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
     get "/runners/desired_replicas", RunnersController, :desired_replicas
@@ -1350,6 +1352,8 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :account}
       ] do
       live "/runners/profiles", RunnerProfilesLive
+      live "/runners/volumes", RunnerVolumesLive
+      live "/runners/volumes/:id", RunnerVolumesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive

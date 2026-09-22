@@ -93,3 +93,67 @@ Every job starts with an empty image store, so an image your workflow uses is pu
           cache-from: type=gha
           cache-to: type=gha,mode=max
 ```
+
+## Persistent dependency directories (opt-in) {#persistent-dependency-directories}
+
+On fleets with Linux cache volumes enabled, attach a persistent directory with a
+key and a path. Each job gets a private writable copy of the latest published
+cache, including concurrent jobs and pull requests.
+
+```yaml
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: tuist-linux
+    container: eclipse-temurin:21-jdk
+    env:
+      GRADLE_USER_HOME: ${{ github.workspace }}/.gradle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/tuist/.github/actions/cache-volume@main
+        with:
+          key: gradle-dependencies-v1
+          path: .gradle
+      - run: ./gradlew test
+```
+
+Pin the action to a reviewed commit in production. Attach before another step
+writes to that directory; nonempty paths are never replaced. The action supports
+absolute, relative and `~/` paths and exposes a `cache-hit` output. No additional
+workflow permissions or privileged container options are required. Avoid
+restoring an archive into the same directory.
+
+Successful default-branch push, scheduled and manual jobs publish
+cache updates after teardown. PRs read the shared cache but their changes are
+discarded. Simultaneous successful writers publish independently; the last
+publication wins without merging their changes. Volumes are scoped by account,
+repository, key, architecture and execution UID. Root containers and non-root
+native jobs have separate volumes.
+
+Open **Runners → Volumes** to see account-wide used space and cache hit rate,
+with charts and comparisons for the selected period. Search and sort volumes
+by name, repository, used space, capacity or last use. Each volume shows its
+repository, platform, last use and capacity, plus storage charts, hit rate,
+job runs and paginated job history with job and workflow names.
+Storage totals include copies awaiting deletion and identify missing measurements.
+They sum logical filesystem usage across copies, which can count shared data
+multiple times; they do not represent billable storage or unique physical bytes.
+Account administrators can clear a volume. Clearing makes subsequent jobs start cold;
+running jobs finish with their private copies, which cannot republish deleted
+data. Physical storage removal waits for agents to confirm it.
+
+Volumes are automatically evicted after **7 days of inactivity**. Each successful
+job mount updates **Last used** and starts a new seven-day window. Allocation
+attempts and background storage reports do not extend it. A volume used at least
+once within each seven-day window remains available. After seven consecutive
+days without a mount, its cache is invalidated and queued for physical deletion;
+the next job starts with an empty volume. Cleanup is checked every five minutes,
+and actual removal waits for running jobs and storage-agent acknowledgement.
+
+Unavailable storage falls
+back to empty job-local directories before attachment; storage failures after
+attachment can fail a build. Cache data is disposable, and workflows admitted to
+the repository can read it, including forks. Never cache credentials or
+irreplaceable state. This is separate from Tuist's Gradle build-task output cache.

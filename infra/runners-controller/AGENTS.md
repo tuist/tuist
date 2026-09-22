@@ -1263,3 +1263,15 @@ catalog from two sides.
 
 Follow-up: bake `e2fsprogs` into a custom `tuist-dind` image so
 the `apk add` on every Pod startup goes away.
+
+## Linux cache volumes
+
+Optional Ceph RBD snapshot clones are implemented in
+[`internal/cachevolumes`](internal/cachevolumes/AGENTS.md) and `cmd/cache-volumes`.
+The agent uses the dedicated Docker `cache-volumes` target with Ceph tools; its
+image tag is explicit in Helm. See [workflow setup and rollout](cache-volumes.md).
+RunnerPool `cacheVolumeRoot`/`cacheVolumeURL` enable UID-scoped host mounts in
+runner and DinD, guarded by Kata and the storage-readiness node label. Incoming
+mount propagation must work through Kata; keep disabled until staging proves it.
+Mount revision changes use the existing bounded idle rollout. No account-wide
+cache root or infrastructure credential crosses into workflow containers.

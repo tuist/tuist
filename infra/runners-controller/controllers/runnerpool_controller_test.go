@@ -1933,3 +1933,40 @@ func TestReconcile_FinalizerWriteDoesNotClaimSpec(t *testing.T) {
 		t.Fatalf("RunnerPool spec written back via %d full Update(s); the finalizer must be patched so helm keeps ownership of spec.autoscaling.minWarmPoolFloor", poolUpdates)
 	}
 }
+
+func TestReconcile_CacheMountRollPreservesClaimedPods(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("p", 2, 4)
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	node.Labels["tuist.dev/linux-cache-volumes"] = "ready"
+	idle := warmLinuxRunnerPod("p-runner-idle", pool.Spec.Image, pool.Name, "")
+	busy := warmLinuxRunnerPod("p-runner-busy", pool.Spec.Image, pool.Name, "")
+	busy.Labels["tuist.dev/runner-pool-owner"] = "account"
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pool, node, idle, busy).WithStatusSubresource(&tuistv1.RunnerPool{}).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch", DindImage: "docker:dind"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(busy), &corev1.Pod{}); err != nil {
+		t.Fatalf("claimed Pod was disrupted: %v", err)
+	}
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(idle), &corev1.Pod{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("idle Pod not rolled: %v", err)
+	}
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatal(err)
+	}
+	if len(pods.Items) != 2 {
+		t.Fatalf("wanted replacement and claimed Pod, got %d", len(pods.Items))
+	}
+	for _, pod := range pods.Items {
+		if pod.Name != busy.Name {
+			if pod.Annotations["tuist.dev/cache-volume-revision"] != podtemplate.CacheVolumeRevision(pool) {
+				t.Fatal("replacement did not get desired cache configuration")
+			}
+		}
+	}
+}

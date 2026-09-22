@@ -153,6 +153,12 @@ if [ -n "\${TUIST_CACHE_ENDPOINT:-}" ]; then
     echo "::warning::Could not publish the runner cache endpoint to the job environment"
   fi
 fi
+for _var in TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
+  _value="\${!_var:-}"
+  if [ -n "\${_value}" ]; then
+    printf '%s=%s\\n' "\${_var}" "\${_value}" >> "\${GITHUB_ENV}"
+  fi
+done
 exit 0
 HOOK
 chmod +x "${JOB_STARTED_HOOK}"

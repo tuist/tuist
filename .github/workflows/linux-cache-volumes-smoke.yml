@@ -1,0 +1,68 @@
+name: Linux Cache Volumes Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Profile on a cache-enabled staging fleet
+        type: string
+        default: tuist-staging-linux
+      cache_key:
+        description: Same key for a default-branch cold run followed by a warm run
+        type: string
+        default: volume-smoke-v2
+      expect_warm:
+        description: Require a published snapshot (wait for prior job teardown)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/cache-volume
+        id: cache
+        with:
+          key: ${{ inputs.cache_key }}-native
+          path: .volume-smoke
+      - name: Verify native snapshot
+        env:
+          EXPECT_WARM: ${{ inputs.expect_warm }}
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          test -L .volume-smoke
+          if [ "$EXPECT_WARM" = true ]; then
+            test "$CACHE_HIT" = true
+            test "$(cat .volume-smoke/smoke)" = retained
+          fi
+          printf retained > .volume-smoke/smoke
+  container:
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 10
+    container: ubuntu:22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/cache-volume
+        id: cache
+        with:
+          key: ${{ inputs.cache_key }}-container
+          path: .volume-smoke
+      - name: Verify container snapshot
+        shell: bash
+        env:
+          EXPECT_WARM: ${{ inputs.expect_warm }}
+          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          test -L .volume-smoke
+          if [ "$EXPECT_WARM" = true ]; then
+            test "$CACHE_HIT" = true
+            test "$(cat .volume-smoke/smoke)" = retained
+          fi
+          printf retained > .volume-smoke/smoke

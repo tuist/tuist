@@ -89,6 +89,12 @@ jobs:
             echo "${IMAGE}:latest"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+          {
+            echo "cache_tags<<EOF"
+            echo "${{ env.REGISTRY }}/tuist/tuist-runner-cache-volumes:sha-${GIT_SHA}"
+            echo "${{ env.REGISTRY }}/tuist/tuist-runner-cache-volumes:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -98,3 +104,16 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=runners-controller
           cache-to: type=gha,mode=max,scope=runners-controller
+
+      - name: Build storage agent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          target: cache-volumes
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.cache_tags }}
+          cache-from: type=gha,scope=runner-cache-volumes
+          cache-to: type=gha,mode=max,scope=runner-cache-volumes

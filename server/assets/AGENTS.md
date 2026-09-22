@@ -62,3 +62,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - Timeline step and target counts use Noora’s shared `formatNumber` (10,000+ uses K/M/B/T), matching dashboard charts and server-rendered counts.
 
 - Runner integration cards share the Buildkite/GitLab settings layout in `app/css/pages/integrations.css`. Shared connection-modal spacing must target both modal IDs; connected GitLab forms use the same field and action spacing as Buildkite. The GitLab connection modal has a responsive 520px width so its description cannot stretch the two-field form, with its Connect action aligned right.
+
+- Runner volume pages follow Jobs card/widget spacing and Job detail headers and metadata. Keep inventory search and tables in Noora card sections, with Volume details above the Overview and Jobs tabs.
+
+- The volume chart uses the shared Noora/ECharts hook, Jobs-style line rendering and count/byte/percentage formatting. Keep its three selectable widgets equal in width and height even when only the storage widgets have trend footers.

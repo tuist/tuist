@@ -38,3 +38,13 @@ GITHUB_ENV="${fixtures}/missing/env" bash -eu "${JOB_STARTED_HOOK}" > "${fixture
 test -f "${JOB_STARTED_MARKER}"
 grep -q '::warning::Could not publish' "${fixtures}/warning"
 echo "ok: a failed environment write is visible and leaves the job running"
+
+export TUIST_CACHE_VOLUME_URL="http://runner-cache-volumes:8090"
+export TUIST_CACHE_VOLUME_POD="pod-test"
+export TUIST_CACHE_VOLUME_UID="uid-test"
+: > "${GITHUB_ENV}"
+bash -eu "${JOB_STARTED_HOOK}"
+grep -qx "TUIST_CACHE_VOLUME_URL=${TUIST_CACHE_VOLUME_URL}" "${GITHUB_ENV}"
+grep -qx "TUIST_CACHE_VOLUME_POD=${TUIST_CACHE_VOLUME_POD}" "${GITHUB_ENV}"
+grep -qx "TUIST_CACHE_VOLUME_UID=${TUIST_CACHE_VOLUME_UID}" "${GITHUB_ENV}"
+echo "ok: cache-volume settings reach container job steps"

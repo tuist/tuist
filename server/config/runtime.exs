@@ -32,6 +32,8 @@ alias Tuist.Oban.RuntimeConfig
 # A boot failure here is caught in the canary stage before production.
 alias Tuist.Runners.Catalog
 
+config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
+
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
     :ok
@@ -997,3 +999,11 @@ else
   config :opentelemetry,
     traces_exporter: :none
 end
+
+config :tuist,
+       :runner_cache_volumes_namespace,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE", System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners"))
+
+config :tuist,
+       :runner_cache_volumes_sa_name,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_SA_NAME", "tuist-runner-cache-volumes")

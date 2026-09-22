@@ -2425,6 +2425,20 @@ runnersFleet:
 #      the operator-provisioned host count can accommodate; Pending
 #      Pods are the signal to provision more hosts).
 runnersFleetLinux:
+  # Opt-in; hostPath MUST be a dedicated filesystem separate from kubelet.
+  cacheVolumes:
+    enabled: false
+    hostPath: /var/lib/tuist-runner-cache
+    maxSlots: 100
+    volumeGB: 20
+    image:
+      repository: ghcr.io/tuist/tuist-runner-cache-volumes
+      tag: "" # Required when enabled; use a published cache-volumes image tag.
+    ceph:
+      pool: ""
+      namespace: tuist-cache-volumes
+      client: tuist-cache-volumes
+      existingSecret: "" # ceph.conf and ceph.client.<client>.keyring
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and

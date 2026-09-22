@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -145,6 +146,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	}
 
 	linuxPod := pool.Spec.OS == "linux"
+	cacheVolumes := pool.Spec.CacheVolumeRoot != ""
+	if cacheVolumes && (!linuxPod || pool.Spec.RuntimeClass != "kata-qemu" || !filepath.IsAbs(pool.Spec.CacheVolumeRoot) || filepath.Clean(pool.Spec.CacheVolumeRoot) == "/" || pool.Spec.CacheVolumeURL == "" || dindImage == "") {
+		return nil, fmt.Errorf("cache volumes require a Linux Kata pool, dind, an absolute dedicated root and an agent URL")
+	}
 
 	// Env consumed by the dispatch poll loop. On macOS the loop runs
 	// inside the Tart VM, so this is the runner container's env. On
@@ -523,7 +528,28 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// effective uid). The loop-mounted ext4 above sidesteps the
 	// problem entirely by giving dockerd a real kernel-native
 	// filesystem.
+
+	if cacheVolumes {
+		nodeSelector["tuist.dev/linux-cache-volumes"] = "ready"
+		// SubPathExpr is resolved by kubelet, not a guest-supplied path. Only this
+		// pod's directory crosses virtiofs; slots and other tenants never do.
+		volumes = append(volumes, corev1.Volume{Name: "cache-volumes", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: filepath.Join(pool.Spec.CacheVolumeRoot, "pods"), Type: ptr(corev1.HostPathDirectoryOrCreate)}}})
+		mount := corev1.VolumeMount{Name: "cache-volumes", MountPath: workPath + "/_tuist_cache", SubPathExpr: "$(TUIST_CACHE_VOLUME_UID)", MountPropagation: ptr(corev1.MountPropagationHostToContainer)}
+		uidEnv := corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_UID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}}
+		runnerMounts = append(runnerMounts, mount)
+		runnerEnv = append(runnerEnv, uidEnv, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_URL", Value: pool.Spec.CacheVolumeURL}, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_POD", Value: podName})
+		for i := range initContainers {
+			if initContainers[i].Name == "dind" {
+				initContainers[i].VolumeMounts = append(initContainers[i].VolumeMounts, mount)
+				initContainers[i].Env = append(initContainers[i].Env, uidEnv)
+			}
+		}
+	}
+
 	annotations := map[string]string{}
+	if linuxPod {
+		annotations["tuist.dev/cache-volume-revision"] = CacheVolumeRevision(pool)
+	}
 	if linuxPod && pool.Spec.RuntimeClass == "kata-qemu" {
 		// Enable PSI (/proc/pressure/*) in the kata guest so the runner
 		// vitals probe can report CPU/memory pressure. The stock kata
@@ -786,3 +812,9 @@ func ReservationValue(poolName string) string {
 }
 
 var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
+
+// CacheVolumeRevision lets the existing bounded idle rollout converge mounts.
+func CacheVolumeRevision(pool *tuistv1.RunnerPool) string {
+	h := sha256.Sum256([]byte("rbd-v2\n" + pool.Spec.CacheVolumeRoot + "\n" + pool.Spec.CacheVolumeURL))
+	return hex.EncodeToString(h[:])
+}

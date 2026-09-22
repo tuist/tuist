@@ -1,0 +1,31 @@
+name: Tuist cache volume
+description: Attach a private clone of a persistent cache volume on Tuist Linux runners.
+inputs:
+  key:
+    description: Stable volume key, shared across jobs and branches in this repository.
+    required: true
+  path:
+    description: Directory to retain. Supports absolute paths, workspace-relative paths, and ~/.
+    required: true
+outputs:
+  cache-hit:
+    description: Whether the job attached a previously committed snapshot.
+    value: ${{ steps.attach.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - id: attach
+      shell: bash
+      env:
+        TUIST_VOLUME_KEY: ${{ inputs.key }}
+        TUIST_VOLUME_PATH: ${{ inputs.path }}
+      run: |
+        if command -v tuist-cache-volume >/dev/null 2>&1; then
+          client=tuist-cache-volume
+        elif [ -x /__e/tuist-cache-volume ]; then
+          client=/__e/tuist-cache-volume
+        else
+          echo '::error::This action requires a Tuist Linux runner with cache volumes enabled.'
+          exit 1
+        fi
+        "$client" --key "$TUIST_VOLUME_KEY" --path "$TUIST_VOLUME_PATH"

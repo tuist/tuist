@@ -28,3 +28,9 @@ This directory contains ExUnit tests for the Tuist Server.
 - Runner sizing coverage must include runner-only accounts in claim proposals, account-sized claims on creation, immediate enrollment budgets with plan resolution, sized-claim precedence, a 50Gi growth cap and preservation of existing pins, capacity accounting without an account preload, creation/cold-return manifest pinning, and manifests that apply memory profiles without requesting an unadvertised memory-ceiling resource.
 
 - Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results.
+
+- Linux cache-volume tests cover tenant/node scoping, private PR reads, trusted
+  publication, success gating, retries, generation invalidation, usage analytics
+  and retention. Lifecycle tests use the real database row locks and queries.
+  Storage coverage includes account totals, missing measurements, size-change
+  history, retry deduplication, deletion acknowledgements and cascading retention.

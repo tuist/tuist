@@ -28,3 +28,8 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - Dashboard timeline JSON routes cover Xcode/Gradle build runs and Bazel invocations. Dispatch by the authorized project build system, scope the parent before reading metadata, omit machine samples and logs, and disable caching for every source.
 
 - Gradle timeline metadata requests disable sample-row loading at the source; dropping sample fields only after loading them does not avoid the query cost. Scalar bounds keep metadata aligned with bootstrap.
+
+- `RunnerCacheVolumesController` authenticates the storage agent service account
+  through Kubernetes TokenReview. Allocation binds the actual executed Linux job
+  to GitHub App run/repository metadata; reports are node-bound. Never accept a
+  workflow credential as an agent or user-supplied scope/branch identity.
