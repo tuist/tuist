@@ -253,9 +253,13 @@ async fn initialize_and_serve(
         Err(error) => tracing::warn!(%error, "failed to read analytics outbox depth at startup"),
     }
     let store = Arc::new(store);
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let analytics = Analytics::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        metrics.clone(),
+        Some(Arc::clone(&store)),
+    )
+    .map_err(|error| format!("failed to initialize analytics: {error}"))?;
     let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
         config.analytics.as_ref(),
         &config.node_url,
