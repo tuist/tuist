@@ -4110,6 +4110,18 @@ archival released reservations.
 
 ### Kura admission refusing instances
 
+When investigating reservations, use retention evidence rather than current
+volume occupancy alone. Claim sizing can correct moderate excess retention
+after 14 complete post-resize days with snapshots, at least seven meaningful
+eviction days, and two ring budgets of turnover. It discounts known idle whole
+days, requires adjusted retention of at least 4.5 days, and projects toward
+3.75 days. Each correction frees 10–25% of the account claim, requires every
+known pinned region to support shrinking, and restarts the observation window.
+Today's contradictory evictions veto it. Existing 30-day occupancy and
+clearly excessive-retention shrink paths still apply. The evidence is saved in
+`kura_claim_proposals`; low occupancy or one long-lived eviction is not enough
+to justify manually shrinking an instance.
+
 ```promql
 label_replace(
   sum by (cluster, region, reason) (
