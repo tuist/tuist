@@ -61,19 +61,28 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
   end
 
   @doc """
-  Lists the session's events, oldest first unless `order: "desc"`.
-  Returns the `data` list of a single page (`:limit`, default 1000).
+  Lists one page of the session's events, oldest first unless
+  `order: "desc"`. Options: `:limit` (default 1000), `:page` (a previous
+  answer's `next_page`) and `:created_at_gte` / `:created_at_gt`, RFC
+  3339 timestamps compared against each event's `processed_at`. Returns
+  `{:ok, %{data: events, next_page: cursor}}` with `next_page` nil on
+  the last page.
   """
   def list_events(api_key, session_id, opts \\ []) do
-    params = put_param([limit: Keyword.get(opts, :limit, @default_events_limit)], :order, Keyword.get(opts, :order))
+    params =
+      [limit: Keyword.get(opts, :limit, @default_events_limit)]
+      |> put_param(:order, Keyword.get(opts, :order))
+      |> put_param(:page, Keyword.get(opts, :page))
+      |> put_param(:"created_at[gte]", Keyword.get(opts, :created_at_gte))
+      |> put_param(:"created_at[gt]", Keyword.get(opts, :created_at_gt))
 
     api_key
     |> request()
     |> Req.get(url: session_path(session_id, "events"), params: params)
     |> handle_response()
     |> case do
-      {:ok, %{"data" => events}} when is_list(events) -> {:ok, events}
-      {:ok, _body} -> {:ok, []}
+      {:ok, %{"data" => events} = body} when is_list(events) -> {:ok, %{data: events, next_page: next_page(body)}}
+      {:ok, _body} -> {:ok, %{data: [], next_page: nil}}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -95,6 +104,9 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
   def user_message(text) when is_binary(text) do
     %{type: "user.message", content: [%{type: "text", text: text}]}
   end
+
+  defp next_page(%{"next_page" => page}) when is_binary(page) and page != "", do: page
+  defp next_page(_body), do: nil
 
   defp handle_response({:ok, %Req.Response{status: status, body: body}}) when status in 200..299, do: {:ok, body}
 

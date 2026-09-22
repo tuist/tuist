@@ -272,11 +272,14 @@ Fix the build."
         assert opts[:order] == "desc"
 
         {:ok,
-         [
-           %{"type" => "session.usage"},
-           %{"type" => "session.status_idle", "stop_reason" => %{"type" => "end_turn"}},
-           %{"type" => "session.status_idle", "stop_reason" => %{"type" => "requires_action"}}
-         ]}
+         %{
+           data: [
+             %{"type" => "session.usage"},
+             %{"type" => "session.status_idle", "stop_reason" => %{"type" => "end_turn"}},
+             %{"type" => "session.status_idle", "stop_reason" => %{"type" => "requires_action"}}
+           ],
+           next_page: nil
+         }}
       end)
 
       assert {:ok, %{session: refreshed, status: "idle", usage: usage, sandbox_state: :paused}} =
@@ -306,48 +309,53 @@ Fix the build."
   end
 
   describe "list_agent_session_events/2" do
-    test "flattens the events, filters by index and remembers the stop reason" do
+    defp cursor(at, id), do: Base.url_encode64("#{at}|#{id}", padding: false)
+
+    defp event(id, type, at, extra \\ %{}) do
+      Map.merge(%{"id" => id, "type" => type, "processed_at" => at}, extra)
+    end
+
+    test "flattens the events, follows the pages and remembers the stop reason" do
       agent_session = agent_session_fixture(anthropic_session_id: "sesn_events")
 
-      events = [
-        %{
-          "type" => "user.message",
-          "processed_at" => "2026-09-05T10:00:00Z",
+      first_page = [
+        event("sevt_1", "user.message", "2026-09-05T10:00:00Z", %{
           "content" => [%{"type" => "text", "text" => "Fix the build."}]
-        },
-        %{"type" => "agent.thinking", "processed_at" => "2026-09-05T10:00:01Z"},
-        %{
-          "type" => "agent.tool_use",
-          "processed_at" => "2026-09-05T10:00:02Z",
+        }),
+        event("sevt_2", "agent.thinking", "2026-09-05T10:00:01Z"),
+        event("sevt_3", "agent.tool_use", "2026-09-05T10:00:02Z", %{
           "name" => "bash",
           "input" => %{"command" => "swift build"}
-        },
-        %{
-          "type" => "user.tool_result",
-          "processed_at" => "2026-09-05T10:00:03Z",
-          "tool_use_id" => "sevt_2",
+        }),
+        event("sevt_4", "user.tool_result", "2026-09-05T10:00:03Z", %{
+          "tool_use_id" => "sevt_3",
           "content" => [%{"type" => "text", "text" => "error: missing module"}, %{"type" => "text", "text" => "exit 1"}]
-        },
-        %{
-          "type" => "agent.message",
-          "processed_at" => "2026-09-05T10:00:04Z",
-          "content" => [%{"type" => "text", "text" => "Done."}, %{"type" => "redacted"}]
-        },
-        %{
-          "type" => "session.status_idle",
-          "processed_at" => "2026-09-05T10:00:05Z",
-          "stop_reason" => %{"type" => "end_turn"}
-        },
-        %{"type" => "session.usage", "processed_at" => "2026-09-05T10:00:06Z", "usage" => %{"input_tokens" => 1}}
+        })
       ]
 
-      expect(ControlPlane, :list_events, 2, fn "sk-ant-api-fixture", "sesn_events", [] -> {:ok, events} end)
+      second_page = [
+        event("sevt_5", "agent.message", "2026-09-05T10:00:04Z", %{
+          "content" => [%{"type" => "text", "text" => "Done."}, %{"type" => "redacted"}]
+        }),
+        event("sevt_6", "session.status_idle", "2026-09-05T10:00:05Z", %{"stop_reason" => %{"type" => "end_turn"}}),
+        event("sevt_7", "session.usage", "2026-09-05T10:00:06Z", %{"usage" => %{"input_tokens" => 1}})
+      ]
 
-      assert {:ok, %{events: all, next_after: 6}} = Sandboxes.list_agent_session_events(agent_session)
-      assert Enum.map(all, & &1.index) == Enum.to_list(0..6)
+      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_events", [limit: 1000] ->
+        {:ok, %{data: first_page, next_page: "page_2"}}
+      end)
+
+      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_events", opts ->
+        assert Enum.sort(opts) == [limit: 1000, page: "page_2"]
+        {:ok, %{data: second_page, next_page: nil}}
+      end)
+
+      assert {:ok, %{events: all, next_after: next_after}} = Sandboxes.list_agent_session_events(agent_session)
+      assert Enum.map(all, & &1.id) == Enum.map(1..7, &"sevt_#{&1}")
+      assert next_after == cursor("2026-09-05T10:00:06Z", "sevt_7")
 
       assert Enum.at(all, 0) == %{
-               index: 0,
+               id: "sevt_1",
                type: "user.message",
                at: "2026-09-05T10:00:00Z",
                text: "Fix the build.",
@@ -364,15 +372,67 @@ Fix the build."
       assert %{type: "session.usage", text: nil, stop_reason: nil} = Enum.at(all, 6)
       assert %AgentSession{last_stop_reason: "end_turn"} = Repo.reload!(agent_session)
 
-      assert {:ok, %{events: newer, next_after: 6}} = Sandboxes.list_agent_session_events(agent_session, after: 4)
-      assert Enum.map(newer, & &1.index) == [5, 6]
+      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_events", opts ->
+        assert Enum.sort(opts) == [created_at_gte: "2026-09-05T10:00:06Z", limit: 1000]
+        {:ok, %{data: [List.last(second_page)], next_page: nil}}
+      end)
+
+      assert {:ok, %{events: [], next_after: ^next_after}} =
+               Sandboxes.list_agent_session_events(agent_session, after: next_after)
     end
 
-    test "answers an empty list without moving the cursor" do
+    test "a cursor skips the events up to its id among those sharing its timestamp" do
       agent_session = agent_session_fixture()
-      expect(ControlPlane, :list_events, fn _key, _id, [] -> {:ok, []} end)
+      at = "2026-09-05T10:00:00Z"
 
-      assert {:ok, %{events: [], next_after: 3}} = Sandboxes.list_agent_session_events(agent_session, after: 3)
+      events = [
+        event("sevt_1", "agent.thinking", at),
+        event("sevt_2", "agent.thinking", at),
+        event("sevt_3", "agent.thinking", at),
+        event("sevt_4", "agent.thinking", "2026-09-05T10:00:01Z")
+      ]
+
+      expect(ControlPlane, :list_events, fn _key, _id, opts ->
+        assert opts[:created_at_gte] == at
+        {:ok, %{data: events, next_page: nil}}
+      end)
+
+      assert {:ok, %{events: newer, next_after: next_after}} =
+               Sandboxes.list_agent_session_events(agent_session, after: cursor(at, "sevt_2"))
+
+      assert Enum.map(newer, & &1.id) == ["sevt_3", "sevt_4"]
+      assert next_after == cursor("2026-09-05T10:00:01Z", "sevt_4")
+    end
+
+    test "answers an empty session with no cursor" do
+      agent_session = agent_session_fixture()
+      expect(ControlPlane, :list_events, fn _key, _id, [limit: 1000] -> {:ok, %{data: [], next_page: nil}} end)
+
+      assert {:ok, %{events: [], next_after: nil}} = Sandboxes.list_agent_session_events(agent_session)
+    end
+
+    test "stops following pages at the cap and points the cursor at the last event returned" do
+      agent_session = agent_session_fixture()
+
+      expect(ControlPlane, :list_events, 20, fn _key, _id, opts ->
+        page = if opts[:page], do: String.to_integer(String.trim_leading(opts[:page], "page_")), else: 0
+        at = "2026-09-05T10:#{String.pad_leading(Integer.to_string(page), 2, "0")}:00Z"
+        {:ok, %{data: [event("sevt_#{page}", "agent.thinking", at)], next_page: "page_#{page + 1}"}}
+      end)
+
+      assert {:ok, %{events: events, next_after: next_after}} = Sandboxes.list_agent_session_events(agent_session)
+      assert length(events) == 20
+      assert next_after == cursor("2026-09-05T10:19:00Z", "sevt_19")
+    end
+
+    test "rejects a cursor it did not mint" do
+      agent_session = agent_session_fixture()
+      reject(&ControlPlane.list_events/3)
+
+      assert {:error, :invalid_cursor} = Sandboxes.list_agent_session_events(agent_session, after: "*")
+
+      assert {:error, :invalid_cursor} =
+               Sandboxes.list_agent_session_events(agent_session, after: Base.url_encode64("nopipe"))
     end
   end
 

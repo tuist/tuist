@@ -96,17 +96,39 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlaneTest do
     expect(Req, :get, fn _request, opts ->
       assert opts[:url] == "/v1/sessions/sesn_1/events"
       assert opts[:params] == [limit: 1000]
-      {:ok, %Req.Response{status: 200, body: %{"data" => [%{"type" => "user.message"}]}}}
+
+      {:ok, %Req.Response{status: 200, body: %{"data" => [%{"type" => "user.message"}], "next_page" => "page_2"}}}
     end)
 
-    assert {:ok, [%{"type" => "user.message"}]} = ControlPlane.list_events("sk-ant-api", "sesn_1")
+    assert {:ok, %{data: [%{"type" => "user.message"}], next_page: "page_2"}} =
+             ControlPlane.list_events("sk-ant-api", "sesn_1")
 
     expect(Req, :get, fn _request, opts ->
-      assert Enum.sort(opts[:params]) == [limit: 5, order: "desc"]
-      {:ok, %Req.Response{status: 200, body: %{"data" => []}}}
+      assert Enum.sort(opts[:params]) == [
+               {:"created_at[gte]", "2026-09-05T10:00:00Z"},
+               {:limit, 5},
+               {:order, "desc"},
+               {:page, "page_2"}
+             ]
+
+      {:ok, %Req.Response{status: 200, body: %{"data" => [], "next_page" => nil}}}
     end)
 
-    assert {:ok, []} = ControlPlane.list_events("sk-ant-api", "sesn_1", limit: 5, order: "desc")
+    assert {:ok, %{data: [], next_page: nil}} =
+             ControlPlane.list_events("sk-ant-api", "sesn_1",
+               limit: 5,
+               order: "desc",
+               page: "page_2",
+               created_at_gte: "2026-09-05T10:00:00Z"
+             )
+
+    expect(Req, :get, fn _request, opts ->
+      assert Enum.sort(opts[:params]) == [{:"created_at[gt]", "2026-09-05T10:00:00Z"}, {:limit, 1000}]
+      {:ok, %Req.Response{status: 200, body: %{"data" => [%{"type" => "agent.message"}]}}}
+    end)
+
+    assert {:ok, %{data: [%{"type" => "agent.message"}], next_page: nil}} =
+             ControlPlane.list_events("sk-ant-api", "sesn_1", created_at_gt: "2026-09-05T10:00:00Z")
 
     expect(Req, :post, fn _request, opts ->
       assert opts[:url] == "/v1/sessions/sesn_1/events"

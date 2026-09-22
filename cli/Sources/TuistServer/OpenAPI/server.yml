@@ -7227,9 +7227,9 @@ components:
           type: string
           x-struct:
           x-validate:
-        index:
-          description: Position in the session's event list, oldest first.
-          type: integer
+        id:
+          description: Anthropic's id of the event.
+          type: string
           x-struct:
           x-validate:
         stop_reason:
@@ -7254,7 +7254,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - index
+        - id
         - type
         - at
         - text
@@ -31521,7 +31521,7 @@ paths:
   /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events:
     get:
       callbacks: {}
-      description: "Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only newer events."
+      description: "Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only the events after it; keep polling with the same cursor until it changes."
       operationId: listSandboxAgentSessionEvents
       parameters:
         - description: The account handle.
@@ -31540,12 +31540,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Only return events with an index greater than this value.
+        - description: Opaque cursor from a previous answer's `next_after`; only events after it are returned.
           in: query
           name: after
           required: false
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       responses:
@@ -31569,9 +31569,9 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
-                        index:
-                          description: Position in the session's event list, oldest first.
-                          type: integer
+                        id:
+                          description: Anthropic's id of the event.
+                          type: string
                           x-struct:
                           x-validate:
                         stop_reason:
@@ -31596,7 +31596,7 @@ paths:
                           x-struct:
                           x-validate:
                       required:
-                        - index
+                        - id
                         - type
                         - at
                         - text
@@ -31611,8 +31611,9 @@ paths:
                     x-struct:
                     x-validate:
                   next_after:
-                    description: Pass as `after` on the next call.
-                    type: integer
+                    description: Pass as `after` on the next call. Null while the session has no events.
+                    nullable: true
+                    type: string
                     x-struct:
                     x-validate:
                 required:

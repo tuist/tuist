@@ -17,27 +17,42 @@ consumer is Claude Managed Agents `self_hosted` environments.
   account's environment with the environment's `anthropic_api_key`
   (`start_agent_session/3`), and follows them (`refresh_agent_session/1`,
   `list_agent_session_events/2`, `send_agent_session_message/2`,
-  `archive_agent_session/1`). The agent is created on first use with the
+  `archive_agent_session/1`). Event listing follows Anthropic's pages
+  (1000 events each, at most 20 pages per call) and hands out an opaque
+  cursor, the base64url of `"<processed_at>|<event_id>"` of the last
+  event returned; a listing with a cursor asks Anthropic for
+  `created_at[gte]=<processed_at>` and drops everything up to and
+  including the event id, so events sharing a timestamp are neither
+  lost nor repeated. `next_after` is nil only while the session has no
+  events. The agent is created on first use with the
   environment's `agent_model` and `agent_system_prompt` and cached in
   `anthropic_agent_id`; a per-session `model` override gets an uncached
   agent, and `agent_id` runs an existing one. The row id is generated
   before the Anthropic call and travels in the session `metadata`
   (`tuist_agent_session_id`, `repository_url`, `repository_ref`).
-- `Tuist.Sandboxes.Nodes`: `Registry` of connected nodes (name to socket
-  pid plus capacity/templates/sandboxes) and `call/4`, the blocking
-  request/response bridge onto `TuistWeb.SandboxNodeWebSock`, with
-  `on_stream` for `exec` output.
+- `Tuist.Sandboxes.Nodes`: cluster-wide view of the connected nodes
+  (`connected_nodes/0`, `node_with_capacity/1`) read from
+  `Tuist.Sandboxes.NodePresence`, a `Phoenix.Presence` on `Tuist.PubSub`
+  keyed by node name under `"sandbox_nodes"` with the socket pid,
+  Erlang node, capacity, templates and sandboxes as meta, and `call/4`,
+  the blocking request/response bridge onto `TuistWeb.SandboxNodeWebSock`
+  that broadcasts the command on `"sandbox_node:<name>"` and monitors
+  the socket pid, with `on_stream` for `exec` output.
 - `Tuist.Sandboxes.Anthropic.Client`: Req client for the work queue
   (`poll`, `ack`, `stop`, `stats`), authenticated with the environment
   key. `TUIST_ANTHROPIC_API_URL` overrides the base URL.
 - `Tuist.Sandboxes.Anthropic.ControlPlane`: Req client for `/v1/agents`
   and `/v1/sessions` (`create_agent`, `create_session`, `get_session`,
   `list_events`, `send_message`, `archive_session`), authenticated with
-  `x-api-key`. Non-2xx answers become `{:error, %{status, message}}`.
-- `Tuist.Sandboxes.Anthropic.Supervisor`: registry + task supervisor +
-  dynamic supervisor of one `Poller` per enabled agent environment, kept
-  in sync with the table by `Manager` every 30s. Started on web pods
-  outside tests (`sandboxes_children/0` in `Tuist.Application`).
+  `x-api-key`. `list_events` fetches one page (`limit`, `order`, `page`,
+  `created_at_gte` / `created_at_gt`) and returns `%{data, next_page}`.
+  Non-2xx answers become `{:error, %{status, message}}`.
+- `Tuist.Sandboxes.Anthropic.Supervisor`: task supervisor + dynamic
+  supervisor of the `Poller`s this replica started (one per enabled
+  agent environment across the cluster, registered as
+  `{:global, {Poller, agent_environment_id}}`), kept in sync with the
+  table by `Manager` every 30s. Started on web pods outside tests
+  (`sandboxes_children/0` in `Tuist.Application`).
 - `Tuist.Sandboxes.Router`: finds or creates the session's sandbox,
   resumes it, records the residency and starts `sbx-worker` with the
   session credentials; force-stops the work item on any failure so
@@ -52,6 +67,35 @@ consumer is Claude Managed Agents `self_hosted` environments.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; pauses only when the sandbox is still running, has
   no residency and the epoch it was enqueued with is still current.
+
+## Multiple replicas
+
+Web replicas form an Erlang cluster, and nothing here assumes the
+socket, the poller and the caller share a replica:
+
+- A node's socket lands on one replica and tracks itself in
+  `NodePresence`; `connected_nodes/0`, `node_with_capacity/1` and
+  `Nodes.call/4` read presence, so `Router.dispatch` and
+  `PauseSandboxWorker` work from any replica. A node with two presences
+  (a reconnect racing its old socket) counts by the newest
+  `connected_at`; the new socket's `hello` broadcasts
+  `:sandbox_node_superseded` on the node topic and the old socket
+  untracks and closes.
+- Commands travel over `Tuist.PubSub`: the socket subscribes to
+  `"sandbox_node:<name>"` on `hello`, `Nodes.call/4` broadcasts
+  `{:sandbox_command, ref, op, args, from}` there and the socket answers
+  `from` directly. A socket forwards a command only while presence names
+  it as the node's current socket, so a command broadcast in the moment
+  between a reconnect and the old socket's exit runs once. The caller monitors the socket pid from the presence
+  meta, so a socket dying mid-call yields `{:error, :node_disconnected}`
+  wherever the caller runs.
+- Each environment has one poller in the cluster, held under a
+  `:global` name. Every replica's `Manager` asks its dynamic supervisor
+  to start every enabled environment's poller each reconcile;
+  `already_started` means another replica has it, and the reconcile of
+  a surviving replica restarts the pollers of one that died. Pollers of
+  removed or disabled environments are stopped by pid wherever they
+  run.
 
 ## Invariants
 
@@ -85,8 +129,8 @@ consumer is Claude Managed Agents `self_hosted` environments.
   system prompt; sandboxes, exec/pause/resume/delete).
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
-  list, show with live status and usage, `messages`, `events?after=n`,
-  `archive`).
+  list, show with live status and usage, `messages`,
+  `events?after=<cursor>`, `archive`).
 
 ## Related Context
 

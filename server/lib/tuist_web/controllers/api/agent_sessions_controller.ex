@@ -106,7 +106,7 @@ defmodule TuistWeb.API.AgentSessionsController do
     title: "SandboxAgentSessionEvent",
     type: :object,
     properties: %{
-      index: %Schema{type: :integer, description: "Position in the session's event list, oldest first."},
+      id: %Schema{type: :string, description: "Anthropic's id of the event."},
       type: %Schema{type: :string},
       at: %Schema{type: :string, format: "date-time", nullable: true},
       text: %Schema{type: :string, nullable: true, description: "Text of message and tool result events."},
@@ -114,7 +114,7 @@ defmodule TuistWeb.API.AgentSessionsController do
       tool_name: %Schema{type: :string, nullable: true},
       stop_reason: %Schema{type: :string, nullable: true, description: "Set on session.status_idle events."}
     },
-    required: [:index, :type, :at, :text, :command, :tool_name, :stop_reason]
+    required: [:id, :type, :at, :text, :command, :tool_name, :stop_reason]
   }
 
   @account_parameters [
@@ -302,16 +302,16 @@ defmodule TuistWeb.API.AgentSessionsController do
   operation(:index_events,
     summary: "List an agent session's events.",
     description:
-      "Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only newer events.",
+      "Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only the events after it; keep polling with the same cursor until it changes.",
     operation_id: "listSandboxAgentSessionEvents",
     parameters:
       @session_parameters ++
         [
           after: [
             in: :query,
-            type: :integer,
+            type: :string,
             required: false,
-            description: "Only return events with an index greater than this value."
+            description: "Opaque cursor from a previous answer's `next_after`; only events after it are returned."
           ]
         ],
     responses:
@@ -324,7 +324,11 @@ defmodule TuistWeb.API.AgentSessionsController do
              type: :object,
              properties: %{
                events: %Schema{type: :array, items: @event_schema},
-               next_after: %Schema{type: :integer, description: "Pass as `after` on the next call."}
+               next_after: %Schema{
+                 type: :string,
+                 nullable: true,
+                 description: "Pass as `after` on the next call. Null while the session has no events."
+               }
              },
              required: [:events, :next_after]
            }},
@@ -337,7 +341,7 @@ defmodule TuistWeb.API.AgentSessionsController do
         _params
       ) do
     with_agent_session(conn, account, agent_session_id, fn agent_session ->
-      case Sandboxes.list_agent_session_events(agent_session, after: Map.get(params, :after, -1)) do
+      case Sandboxes.list_agent_session_events(agent_session, after: Map.get(params, :after)) do
         {:ok, %{events: events, next_after: next_after}} -> json(conn, %{events: events, next_after: next_after})
         {:error, reason} -> agent_session_error(conn, reason)
       end
@@ -384,6 +388,10 @@ defmodule TuistWeb.API.AgentSessionsController do
       message:
         "No usable agent environment: pass agent_environment_id or connect exactly one enabled environment to the account."
     })
+  end
+
+  defp agent_session_error(conn, :invalid_cursor) do
+    conn |> put_status(:bad_request) |> json(%{message: "The after cursor is not one this API returned."})
   end
 
   defp agent_session_error(conn, :missing_api_key) do

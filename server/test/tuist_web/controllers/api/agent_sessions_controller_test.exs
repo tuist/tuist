@@ -167,7 +167,8 @@ Fix the build."
       end)
 
       expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_show", _opts ->
-        {:ok, [%{"type" => "session.status_idle", "stop_reason" => %{"type" => "budget_reached"}}]}
+        {:ok,
+         %{data: [%{"type" => "session.status_idle", "stop_reason" => %{"type" => "budget_reached"}}], next_page: nil}}
       end)
 
       shown =
@@ -215,51 +216,79 @@ Fix the build."
       |> json_response(:bad_request)
     end
 
-    test "returns the events after an index", %{conn: conn, account: account} do
+    test "returns the events after a cursor", %{conn: conn, account: account} do
       agent_session = agent_session_fixture(account: account, anthropic_session_id: "sesn_evt")
 
-      expect(ControlPlane, :list_events, 2, fn "sk-ant-api-fixture", "sesn_evt", [] ->
-        {:ok,
-         [
-           %{
-             "type" => "user.message",
-             "processed_at" => "2026-09-05T10:00:00Z",
-             "content" => [%{"type" => "text", "text" => "Go"}]
-           },
-           %{
-             "type" => "agent.tool_use",
-             "processed_at" => "2026-09-05T10:00:01Z",
-             "name" => "bash",
-             "input" => %{"command" => "ls"}
-           },
-           %{
-             "type" => "session.status_idle",
-             "processed_at" => "2026-09-05T10:00:02Z",
-             "stop_reason" => %{"type" => "end_turn"}
-           }
-         ]}
+      raw = [
+        %{
+          "id" => "sevt_1",
+          "type" => "user.message",
+          "processed_at" => "2026-09-05T10:00:00Z",
+          "content" => [%{"type" => "text", "text" => "Go"}]
+        },
+        %{
+          "id" => "sevt_2",
+          "type" => "agent.tool_use",
+          "processed_at" => "2026-09-05T10:00:01Z",
+          "name" => "bash",
+          "input" => %{"command" => "ls"}
+        },
+        %{
+          "id" => "sevt_3",
+          "type" => "session.status_idle",
+          "processed_at" => "2026-09-05T10:00:02Z",
+          "stop_reason" => %{"type" => "end_turn"}
+        }
+      ]
+
+      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_evt", [limit: 1000] ->
+        {:ok, %{data: raw, next_page: nil}}
       end)
 
-      assert %{"events" => events, "next_after" => 2} =
+      assert %{"events" => events, "next_after" => next_after} =
                conn
                |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-sessions/#{agent_session.id}/events")
                |> json_response(:ok)
 
+      assert next_after == Base.url_encode64("2026-09-05T10:00:02Z|sevt_3", padding: false)
+
       assert [
-               %{"index" => 0, "type" => "user.message", "text" => "Go", "command" => nil},
-               %{"index" => 1, "type" => "agent.tool_use", "tool_name" => "bash", "command" => "ls"},
+               %{"id" => "sevt_1", "type" => "user.message", "text" => "Go", "command" => nil},
+               %{"id" => "sevt_2", "type" => "agent.tool_use", "tool_name" => "bash", "command" => "ls"},
                %{
-                 "index" => 2,
+                 "id" => "sevt_3",
                  "type" => "session.status_idle",
                  "stop_reason" => "end_turn",
                  "at" => "2026-09-05T10:00:02Z"
                }
              ] = events
 
-      assert %{"events" => [%{"index" => 2}], "next_after" => 2} =
+      refute Enum.any?(events, &Map.has_key?(&1, "index"))
+
+      newer = %{"id" => "sevt_4", "type" => "agent.thinking", "processed_at" => "2026-09-05T10:00:03Z"}
+
+      expect(ControlPlane, :list_events, fn "sk-ant-api-fixture", "sesn_evt", opts ->
+        assert Enum.sort(opts) == [created_at_gte: "2026-09-05T10:00:02Z", limit: 1000]
+        {:ok, %{data: [List.last(raw), newer], next_page: nil}}
+      end)
+
+      assert %{"events" => [%{"id" => "sevt_4", "type" => "agent.thinking"}], "next_after" => cursor} =
                conn
-               |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-sessions/#{agent_session.id}/events?after=1")
+               |> get(
+                 ~p"/api/accounts/#{account.name}/sandboxes/agent-sessions/#{agent_session.id}/events?after=#{next_after}"
+               )
                |> json_response(:ok)
+
+      assert cursor == Base.url_encode64("2026-09-05T10:00:03Z|sevt_4", padding: false)
+
+      reject(&ControlPlane.list_events/3)
+
+      assert %{"message" => message} =
+               conn
+               |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-sessions/#{agent_session.id}/events?after=*")
+               |> json_response(:bad_request)
+
+      assert message =~ "cursor"
     end
 
     test "archives the session", %{conn: conn, account: account} do

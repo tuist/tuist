@@ -897,7 +897,7 @@ public protocol APIProtocol: Sendable {
     func listAutomationAlertRevisions(_ input: Operations.listAutomationAlertRevisions.Input) async throws -> Operations.listAutomationAlertRevisions.Output
     /// List an agent session's events.
     ///
-    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only newer events.
+    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only the events after it; keep polling with the same cursor until it changes.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)`.
@@ -3202,7 +3202,7 @@ extension APIProtocol {
     }
     /// List an agent session's events.
     ///
-    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only newer events.
+    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only the events after it; keep polling with the same cursor until it changes.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)`.
@@ -13318,10 +13318,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/command`.
             public var command: Swift.String?
-            /// Position in the session's event list, oldest first.
+            /// Anthropic's id of the event.
             ///
-            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/index`.
-            public var index: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/id`.
+            public var id: Swift.String
             /// Set on session.status_idle events.
             ///
             /// - Remark: Generated from `#/components/schemas/SandboxAgentSessionEvent/stop_reason`.
@@ -13339,7 +13339,7 @@ public enum Components {
             /// - Parameters:
             ///   - at:
             ///   - command: The command of a bash tool use.
-            ///   - index: Position in the session's event list, oldest first.
+            ///   - id: Anthropic's id of the event.
             ///   - stop_reason: Set on session.status_idle events.
             ///   - text: Text of message and tool result events.
             ///   - tool_name:
@@ -13347,7 +13347,7 @@ public enum Components {
             public init(
                 at: Foundation.Date? = nil,
                 command: Swift.String? = nil,
-                index: Swift.Int,
+                id: Swift.String,
                 stop_reason: Swift.String? = nil,
                 text: Swift.String? = nil,
                 tool_name: Swift.String? = nil,
@@ -13355,7 +13355,7 @@ public enum Components {
             ) {
                 self.at = at
                 self.command = command
-                self.index = index
+                self.id = id
                 self.stop_reason = stop_reason
                 self.text = text
                 self.tool_name = tool_name
@@ -13364,7 +13364,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case at
                 case command
-                case index
+                case id
                 case stop_reason
                 case text
                 case tool_name
@@ -84050,7 +84050,7 @@ public enum Operations {
     }
     /// List an agent session's events.
     ///
-    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only newer events.
+    /// Returns the session's events flattened to text, commands and stop reasons, oldest first. Pass the previous answer's `next_after` as `after` to receive only the events after it; keep polling with the same cursor until it changes.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/get(listSandboxAgentSessionEvents)`.
@@ -84083,15 +84083,15 @@ public enum Operations {
             public var path: Operations.listSandboxAgentSessionEvents.Input.Path
             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Only return events with an index greater than this value.
+                /// Opaque cursor from a previous answer's `next_after`; only events after it are returned.
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/query/after`.
-                public var after: Swift.Int?
+                public var after: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - after: Only return events with an index greater than this value.
-                public init(after: Swift.Int? = nil) {
+                ///   - after: Opaque cursor from a previous answer's `next_after`; only events after it are returned.
+                public init(after: Swift.String? = nil) {
                     self.after = after
                 }
             }
@@ -84138,10 +84138,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/command`.
                             public var command: Swift.String?
-                            /// Position in the session's event list, oldest first.
+                            /// Anthropic's id of the event.
                             ///
-                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/index`.
-                            public var index: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/id`.
+                            public var id: Swift.String
                             /// Set on session.status_idle events.
                             ///
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/eventsPayload/stop_reason`.
@@ -84159,7 +84159,7 @@ public enum Operations {
                             /// - Parameters:
                             ///   - at:
                             ///   - command: The command of a bash tool use.
-                            ///   - index: Position in the session's event list, oldest first.
+                            ///   - id: Anthropic's id of the event.
                             ///   - stop_reason: Set on session.status_idle events.
                             ///   - text: Text of message and tool result events.
                             ///   - tool_name:
@@ -84167,7 +84167,7 @@ public enum Operations {
                             public init(
                                 at: Foundation.Date? = nil,
                                 command: Swift.String? = nil,
-                                index: Swift.Int,
+                                id: Swift.String,
                                 stop_reason: Swift.String? = nil,
                                 text: Swift.String? = nil,
                                 tool_name: Swift.String? = nil,
@@ -84175,7 +84175,7 @@ public enum Operations {
                             ) {
                                 self.at = at
                                 self.command = command
-                                self.index = index
+                                self.id = id
                                 self.stop_reason = stop_reason
                                 self.text = text
                                 self.tool_name = tool_name
@@ -84184,7 +84184,7 @@ public enum Operations {
                             public enum CodingKeys: String, CodingKey {
                                 case at
                                 case command
-                                case index
+                                case id
                                 case stop_reason
                                 case text
                                 case tool_name
@@ -84195,18 +84195,18 @@ public enum Operations {
                         public typealias eventsPayload = [Operations.listSandboxAgentSessionEvents.Output.Ok.Body.jsonPayload.eventsPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/events`.
                         public var events: Operations.listSandboxAgentSessionEvents.Output.Ok.Body.jsonPayload.eventsPayload
-                        /// Pass as `after` on the next call.
+                        /// Pass as `after` on the next call. Null while the session has no events.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-sessions/{agent_session_id}/events/GET/responses/200/content/json/next_after`.
-                        public var next_after: Swift.Int
+                        public var next_after: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - events:
-                        ///   - next_after: Pass as `after` on the next call.
+                        ///   - next_after: Pass as `after` on the next call. Null while the session has no events.
                         public init(
                             events: Operations.listSandboxAgentSessionEvents.Output.Ok.Body.jsonPayload.eventsPayload,
-                            next_after: Swift.Int
+                            next_after: Swift.String? = nil
                         ) {
                             self.events = events
                             self.next_after = next_after

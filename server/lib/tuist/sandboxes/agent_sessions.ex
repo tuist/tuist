@@ -22,6 +22,8 @@ defmodule Tuist.Sandboxes.AgentSessions do
   @idle_event_type "session.status_idle"
   @text_event_types ["user.message", "agent.message", "user.tool_result", "agent.tool_result"]
   @recent_events_limit 100
+  @events_page_limit 1000
+  @events_page_cap 20
 
   def default_system_prompt, do: @default_system_prompt
 
@@ -135,25 +137,35 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   @doc """
   Returns the session's events flattened to
-  `%{index, type, at, text, command, tool_name, stop_reason}`, oldest
-  first. `after: n` skips events up to index `n` so a client can poll
-  incrementally; `next_after` is the index to pass on the next call.
+  `%{id, type, at, text, command, tool_name, stop_reason}`, oldest first,
+  following Anthropic's pages (at most #{@events_page_cap} per call).
+  `after: cursor` resumes after the event a previous call returned as
+  `next_after`, so a client polls incrementally. `next_after` is the
+  cursor of the last event returned, the cursor passed in when nothing
+  newer exists and nil when the session has no events at all.
+
+  The cursor is the base64url of `"<processed_at>|<event_id>"`. Listing
+  with one asks Anthropic for events processed at or after that
+  timestamp and drops everything up to and including the event id, so
+  events sharing a timestamp are neither lost nor repeated.
   """
   def list_agent_session_events(%AgentSession{} = agent_session, opts \\ []) do
-    after_index = Keyword.get(opts, :after, -1)
+    after_cursor = Keyword.get(opts, :after)
 
-    with {:ok, api_key} <- api_key_for(agent_session),
-         {:ok, events} <- ControlPlane.list_events(api_key, agent_session.anthropic_session_id, []) do
-      simplified = events |> Enum.with_index() |> Enum.map(fn {event, index} -> simplify_event(event, index) end)
+    with {:ok, cursor} <- decode_cursor(after_cursor),
+         {:ok, api_key} <- api_key_for(agent_session),
+         {:ok, events} <- fetch_events(api_key, agent_session.anthropic_session_id, cursor) do
+      simplified = events |> Enum.map(&simplify_event/1) |> drop_through(cursor)
       remember_stop_reason(agent_session, simplified)
 
       next_after =
-        case List.last(simplified) do
-          nil -> after_index
-          last -> last.index
+        case {simplified, cursor} do
+          {[], nil} -> nil
+          {[], _cursor} -> after_cursor
+          {newer, _cursor} -> encode_cursor(newer, cursor)
         end
 
-      {:ok, %{events: Enum.filter(simplified, &(&1.index > after_index)), next_after: next_after}}
+      {:ok, %{events: simplified, next_after: next_after}}
     end
   end
 
@@ -265,7 +277,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   defp latest_stop_reason(api_key, %AgentSession{anthropic_session_id: session_id}) do
     case ControlPlane.list_events(api_key, session_id, order: "desc", limit: @recent_events_limit) do
-      {:ok, events} ->
+      {:ok, %{data: events}} ->
         Enum.find_value(events, fn
           %{"type" => @idle_event_type} = event -> get_in(event, ["stop_reason", "type"])
           _event -> nil
@@ -284,11 +296,75 @@ defmodule Tuist.Sandboxes.AgentSessions do
     end
   end
 
-  defp simplify_event(event, index) when is_map(event) do
+  defp fetch_events(api_key, session_id, cursor) do
+    params =
+      case cursor do
+        %{at: at} when is_binary(at) -> [limit: @events_page_limit, created_at_gte: at]
+        _none -> [limit: @events_page_limit]
+      end
+
+    fetch_pages(api_key, session_id, params, nil, [], @events_page_cap)
+  end
+
+  defp fetch_pages(api_key, session_id, params, page, acc, pages_left) do
+    opts = if page, do: Keyword.put(params, :page, page), else: params
+
+    case ControlPlane.list_events(api_key, session_id, opts) do
+      {:ok, %{data: events, next_page: next_page}} when is_binary(next_page) and pages_left > 1 ->
+        fetch_pages(api_key, session_id, params, next_page, [events | acc], pages_left - 1)
+
+      {:ok, %{data: events}} ->
+        {:ok, [events | acc] |> Enum.reverse() |> Enum.concat()}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp drop_through(simplified, nil), do: simplified
+
+  # The inclusive timestamp bound re-fetches the cursor event and any
+  # sharing its timestamp; everything through the cursor id was already
+  # delivered. A cursor whose event is missing keeps the whole window
+  # rather than hiding events behind an id that will never show up.
+  defp drop_through(simplified, %{id: id}) do
+    case Enum.split_while(simplified, &(&1.id != id)) do
+      {_delivered, [_cursor_event | newer]} -> newer
+      {all, []} -> all
+    end
+  end
+
+  defp decode_cursor(nil), do: {:ok, nil}
+  defp decode_cursor(""), do: {:ok, nil}
+
+  defp decode_cursor(cursor) when is_binary(cursor) do
+    with {:ok, decoded} <- Base.url_decode64(cursor, padding: false),
+         [at, id] <- String.split(decoded, "|", parts: 2) do
+      {:ok, %{at: blank_to_nil(at), id: id}}
+    else
+      _invalid -> {:error, :invalid_cursor}
+    end
+  end
+
+  defp decode_cursor(_cursor), do: {:error, :invalid_cursor}
+
+  # An event Anthropic has not processed yet has no `processed_at`; the
+  # cursor then keeps the newest timestamp seen so the next listing still
+  # starts from a bound Anthropic accepts.
+  defp encode_cursor(simplified, cursor) do
+    last = List.last(simplified)
+    at = simplified |> Enum.reverse() |> Enum.find_value(& &1.at) || (cursor && cursor.at) || ""
+    Base.url_encode64(at <> "|" <> to_string(last.id), padding: false)
+  end
+
+  defp blank_to_nil(value) when is_binary(value) and value != "", do: value
+  defp blank_to_nil(_value), do: nil
+
+  defp simplify_event(event) when is_map(event) do
     type = event["type"]
 
     base = %{
-      index: index,
+      id: event["id"],
       type: type,
       at: event["processed_at"],
       text: nil,
