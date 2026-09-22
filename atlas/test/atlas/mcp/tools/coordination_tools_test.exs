@@ -48,7 +48,7 @@ defmodule Atlas.MCP.Tools.CoordinationToolsTest do
   test "rejects leadership brief access for employees" do
     employee = %{role: :employee} |> insert_user!() |> mcp_conn()
 
-    assert {:error, "Leadership brief tools are only available to executives."} =
+    assert {:error, "Leadership brief tools require the briefs:read scope."} =
              execute_tool(ListBriefs, employee, %{})
   end
 

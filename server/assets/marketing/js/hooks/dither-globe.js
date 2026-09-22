@@ -1,33 +1,45 @@
 /*
- * Dither globe (cache "Low latency, everywhere" card): a slowly spinning
- * stippled sphere — lat/long wireframe, Natural Earth coastlines, land
- * fill and ocean grain — rendered through the marketing dither texture:
- * every dot snaps to the 2px cell grid as a full 2px square, colored from
- * the shallow → mid → deep token ramp (interleaved per cell with a stable
- * hash so the shades scatter instead of banding), and the spin advances at
- * full rAF rate so the rotation stays smooth at chunky pitches. Dragging
- * the canvas rotates the globe (trackball); under prefers-reduced-motion
- * the globe holds a static frame.
+ * Dotted globe (cache "Low latency, everywhere" card): a slowly spinning
+ * sphere of small squares — Natural Earth land as a dense field of dots,
+ * a sparse ocean grain, an optional lat/long wireframe, and a trickle of
+ * faint specks lifting off the land — with pulsing purple region markers.
+ *
+ * Dots are anchored to the sphere and drawn as squares in a few sizes,
+ * each snapped to the device pixel grid with a whole number of device
+ * pixels per side, so they stay crisp on 2x and 3x screens and still
+ * glide with the rotation (a device pixel is a third of a CSS pixel on
+ * a phone) instead of stepping. The globe spins about the screen's vertical axis
+ * (the tilt poses the map, not the axis), so every dot keeps its screen
+ * row and nothing jitters up or down. Shades come from the shallow → mid
+ * → deep token ramp, interleaved with a stable per-dot random so they
+ * scatter instead of banding. Dragging the canvas rotates the globe
+ * (trackball); under prefers-reduced-motion the globe holds a static
+ * frame and emits nothing.
  *
  * Options (all data attributes):
  *   data-size:      globe radius as a fraction of min(w, h) / 2
- *   data-pitch:     dither cell/dot size in px (the texture's grain)
  *   data-tilt-x:    forward tilt in radians
  *   data-tilt-z:    sideways tilt in radians
- *   data-speed:     spin in rad/s around the globe's own pole
+ *   data-speed:     spin in rad/s
  *   data-meridians: meridian great circles
  *   data-parallels: parallel rings
- *   data-density:   0-100 — arc spacing of the wireframe/coastline dots
- *   data-shade:     0-100 — terminator shading stipple amount
- *   data-land:      0-100 — land fill stipple amount
- *   data-ocean:     0-100 — ocean grain stipple amount
+ *   data-density:   0-100 — arc spacing of the wireframe dots
+ *   data-shade:     0-100 — how much dots dim on the terminator side
+ *   data-land:      0-100 — share of the land points drawn
+ *   data-ocean:     0-100 — ocean grain amount
+ *   data-limb:      0-100 — how much dots fade and shrink toward the limb
+ *                   (0 keeps the edge dense and crisp)
+ *   data-points:    stipple points on the whole sphere
+ *   data-dot-size:  base dot radius in CSS px
+ *   data-emit:      specks per second lifting off the land (0 = none)
+ *   data-emit-speed:   their rise in CSS px per second
+ *   data-emit-life:    their lifetime in seconds
+ *   data-emit-opacity: 0-100 — their peak opacity
  *   data-offset-x / data-offset-y: center offset in px
  */
 
 import { onThemeChange } from "../lib/theme.js";
 
-// Deterministic hash in [0, 1): stable per cell, so the shade interleave
-// never reshuffles between frames.
 function noise2(x, y) {
   let h = (Math.imul(x + 1, 374761393) + Math.imul(y + 1, 668265263)) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -93,52 +105,79 @@ const L = (() => {
   return v.map((x) => x / l);
 })();
 
-/* ---------- fixed stipple field on the sphere ---------------------
-   Built lazily on first mount (with the land classification and the
-   coastline subdivision below): this module is imported by every
+/* ---------- stipple points on the sphere ---------------------------
+   Built lazily on first mount (this module is imported by every
    marketing page's bundle, and doing the geometry at import time held
-   up first paint everywhere. */
-const STIP_N = 22000;
+   up first paint everywhere): a Fibonacci spiral, each point nudged by
+   up to half the spacing along the surface so the lattice never reads as
+   rows or moiré, classified land/ocean against a rasterized
+   equirectangular mask. Rebuilt when a globe asks for another count. */
+let STIP_N = 0;
 let stip = null; // x, y, z, rand
+let stipShade = null; // a second, independent random per dot for the shade pick
 let landFlag = null;
+let maskData = null;
 
-function ensureGeometry() {
-  if (stip) return;
+function ensureGeometry(count) {
+  if (stip && STIP_N === count) return;
+  STIP_N = count;
   stip = new Float32Array(STIP_N * 4);
+  stipShade = new Float32Array(STIP_N);
   const ga = Math.PI * (3 - Math.sqrt(5));
+  const spacing = Math.sqrt((4 * Math.PI) / STIP_N);
   let seed = 1234567;
   const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
   for (let i = 0; i < STIP_N; i++) {
     const y = 1 - ((i + 0.5) * 2) / STIP_N;
     const r = Math.sqrt(1 - y * y);
     const th = ga * i;
-    stip[i * 4] = Math.cos(th) * r;
-    stip[i * 4 + 1] = y;
-    stip[i * 4 + 2] = Math.sin(th) * r;
+    const x = Math.cos(th) * r;
+    const z = Math.sin(th) * r;
+    // Tangent basis: t1 ⟂ the normal and the pole, t2 = n × t1.
+    let t1x = -z;
+    let t1z = x;
+    const t1l = Math.hypot(t1x, t1z) || 1;
+    t1x /= t1l;
+    t1z /= t1l;
+    const t2x = y * t1z;
+    const t2y = z * t1x - x * t1z;
+    const t2z = -y * t1x;
+    const a = (rnd() - 0.5) * spacing;
+    const b = (rnd() - 0.5) * spacing;
+    const jx = x + t1x * a + t2x * b;
+    const jy = y + t2y * b;
+    const jz = z + t1z * a + t2z * b;
+    const l = Math.hypot(jx, jy, jz) || 1;
+    stip[i * 4] = jx / l;
+    stip[i * 4 + 1] = jy / l;
+    stip[i * 4 + 2] = jz / l;
     stip[i * 4 + 3] = rnd();
+    stipShade[i] = rnd();
   }
 
-  // Land classification via a rasterized equirectangular mask: one
-  // native even-odd fill plus 22k cheap texel lookups, instead of 22k
-  // point-in-polygon tests over the LAND rings (which took hundreds of
-  // milliseconds).
+  // Land classification via the mask: one native even-odd fill plus cheap
+  // texel lookups, instead of point-in-polygon tests over the LAND rings
+  // (which took hundreds of milliseconds). The raster is kept for later
+  // rebuilds at another point count.
   const MW = 1440;
   const MH = 720;
-  const mask = document.createElement("canvas");
-  mask.width = MW;
-  mask.height = MH;
-  const mctx = mask.getContext("2d", { willReadFrequently: true });
-  const path = new Path2D();
-  for (const r of getLand()) {
-    path.moveTo(((r[0] + 1800) / 3600) * MW, ((900 - r[1]) / 1800) * MH);
-    for (let i = 2; i < r.length; i += 2) {
-      path.lineTo(((r[i] + 1800) / 3600) * MW, ((900 - r[i + 1]) / 1800) * MH);
+  if (!maskData) {
+    const mask = document.createElement("canvas");
+    mask.width = MW;
+    mask.height = MH;
+    const mctx = mask.getContext("2d", { willReadFrequently: true });
+    const path = new Path2D();
+    for (const r of getLand()) {
+      path.moveTo(((r[0] + 1800) / 3600) * MW, ((900 - r[1]) / 1800) * MH);
+      for (let i = 2; i < r.length; i += 2) {
+        path.lineTo(((r[i] + 1800) / 3600) * MW, ((900 - r[i + 1]) / 1800) * MH);
+      }
+      path.closePath();
     }
-    path.closePath();
+    mctx.fillStyle = "#fff";
+    mctx.fill(path, "evenodd");
+    maskData = mctx.getImageData(0, 0, MW, MH).data;
   }
-  mctx.fillStyle = "#fff";
-  mctx.fill(path, "evenodd");
-  const data = mctx.getImageData(0, 0, MW, MH).data;
   landFlag = new Uint8Array(STIP_N);
   for (let i = 0; i < STIP_N; i++) {
     const x = stip[i * 4];
@@ -148,7 +187,7 @@ function ensureGeometry() {
     const lon = Math.atan2(x, z);
     const mx = Math.min(MW - 1, ((lon / Math.PI + 1) / 2) * MW) | 0;
     const my = Math.min(MH - 1, (0.5 - lat / Math.PI) * MH) | 0;
-    landFlag[i] = data[(my * MW + mx) * 4 + 3] > 127 ? 1 : 0;
+    landFlag[i] = maskData[(my * MW + mx) * 4 + 3] > 127 ? 1 : 0;
   }
 }
 
@@ -200,40 +239,6 @@ function ll2xyz(lon, lat) {
   return [cf * Math.sin(lon * DEG), Math.sin(lat * DEG), cf * Math.cos(lon * DEG)];
 }
 
-/* coastlines: pre-subdivided 3D polylines on the sphere, built on
-   first use */
-let COAST = null;
-function getCoast() {
-  if (!COAST) {
-    COAST = getLand().map(subdivideRing);
-  }
-  return COAST;
-}
-
-function subdivideRing(r) {
-  const pts = [];
-  const n = r.length / 2;
-  let prev = ll2xyz(r[0] / 10, r[1] / 10);
-  pts.push(prev[0], prev[1], prev[2]);
-  for (let i = 1; i <= n; i++) {
-    const ii = i % n;
-    const cur = ll2xyz(r[ii * 2] / 10, r[ii * 2 + 1] / 10);
-    const d = Math.max(-1, Math.min(1, prev[0] * cur[0] + prev[1] * cur[1] + prev[2] * cur[2]));
-    const ang = Math.acos(d);
-    const steps = Math.max(1, Math.ceil(ang / 0.02));
-    for (let s = 1; s <= steps; s++) {
-      const t = s / steps;
-      const x = prev[0] + (cur[0] - prev[0]) * t;
-      const y = prev[1] + (cur[1] - prev[1]) * t;
-      const z = prev[2] + (cur[2] - prev[2]) * t;
-      const l = Math.hypot(x, y, z) || 1;
-      pts.push(x / l, y / l, z / l);
-    }
-    prev = cur;
-  }
-  return new Float32Array(pts);
-}
-
 /* Anchored grid dots — fixed positions ON the sphere, cached per M/P/step.
    Dots are glued to the globe like paint: rotation moves them, never
    re-seats them, so lines can't crawl or "regenerate" mid-spin. */
@@ -267,30 +272,6 @@ function gridDots(M, P, step) {
   return gridCache.pts;
 }
 
-/* anchored coastline dots — walked once along the polylines in object
-   space at fixed 3D arc spacing, cached per step */
-let coastCache = { key: "", pts: null };
-function coastDots(step) {
-  const key = step.toFixed(4);
-  if (coastCache.key === key) return coastCache.pts;
-  const out = [];
-  for (const pts of getCoast()) {
-    let acc = step;
-    for (let i = 3; i < pts.length; i += 3) {
-      const dx = pts[i] - pts[i - 3];
-      const dy = pts[i + 1] - pts[i - 2];
-      const dz = pts[i + 2] - pts[i - 1];
-      acc += Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (acc >= step) {
-        acc = 0;
-        out.push(pts[i], pts[i + 1], pts[i + 2]);
-      }
-    }
-  }
-  coastCache = { key, pts: new Float32Array(out) };
-  return coastCache.pts;
-}
-
 /* Region markers: pulsing purple points glued to real locations on the
    sphere — they rotate with the globe and hide behind the horizon. No
    labels, just the pulse. */
@@ -312,24 +293,35 @@ const PULSE_S = 2.4; // one ring per marker every PULSE_S seconds, staggered
 
 // The tunable options and their data-attribute names.
 const OPTIONS = [
-  { key: "size", attr: "size", def: 0.78 },
-  { key: "pitch", attr: "pitch", def: 2 },
-  { key: "tiltX", attr: "tilt-x", def: 0.42 },
-  { key: "tiltZ", attr: "tilt-z", def: -0.25 },
-  { key: "speed", attr: "speed", def: 0.25 },
-  { key: "meridians", attr: "meridians", def: 9 },
-  { key: "parallels", attr: "parallels", def: 9 },
-  { key: "density", attr: "density", def: 40 },
-  { key: "shade", attr: "shade", def: 30 },
-  { key: "land", attr: "land", def: 55 },
-  { key: "ocean", attr: "ocean", def: 20 },
+  { key: "size", attr: "size", def: 0.92 },
+  { key: "tiltX", attr: "tilt-x", def: 0.07 },
+  { key: "tiltZ", attr: "tilt-z", def: -0.26 },
+  { key: "speed", attr: "speed", def: 0.15 },
+  { key: "meridians", attr: "meridians", def: 0 },
+  { key: "parallels", attr: "parallels", def: 0 },
+  { key: "density", attr: "density", def: 100 },
+  { key: "shade", attr: "shade", def: 0 },
+  { key: "land", attr: "land", def: 100 },
+  { key: "ocean", attr: "ocean", def: 30 },
+  { key: "limb", attr: "limb", def: 0 },
+  { key: "points", attr: "points", def: 52000 },
+  { key: "dotSize", attr: "dot-size", def: 1 },
+  { key: "emit", attr: "emit", def: 0 },
+  { key: "emitSpeed", attr: "emit-speed", def: 50 },
+  { key: "emitLife", attr: "emit-life", def: 4.5 },
+  { key: "emitOpacity", attr: "emit-opacity", def: 40 },
   { key: "offsetX", attr: "offset-x", def: 0 },
   { key: "offsetY", attr: "offset-y", def: 0 },
 ];
 
+// A dot's radius is quantized into SIZES buckets and its opacity into
+// ALPHAS levels, so a frame is a few dozen Path2D fills instead of tens
+// of thousands of individually styled squares.
+const SIZES = 4;
+const ALPHAS = 6;
+
 export const DitherGlobe = {
   mounted() {
-    ensureGeometry();
     this.canvas = this.el;
     this.ctx = this.canvas.getContext("2d");
     this.host = this.canvas.parentElement;
@@ -339,6 +331,9 @@ export const DitherGlobe = {
     this.spin = 0;
     this.pulseT = 0;
     this.drag = IDENTITY;
+    this.specks = [];
+    this.emitAcc = 0;
+    this.dt = 0;
 
     this.opts = {};
     for (const o of OPTIONS) {
@@ -346,6 +341,7 @@ export const DitherGlobe = {
       const n = raw === undefined ? NaN : Number(raw);
       this.opts[o.key] = Number.isFinite(n) ? n : o.def;
     }
+    ensureGeometry(Math.max(1000, Math.min(200000, Math.round(this.opts.points))));
 
     this.resolveColors = () => {
       this.shades = [
@@ -353,8 +349,6 @@ export const DitherGlobe = {
         resolveTokenColor(this.host, "--marketing-cache-globe-dither-mid"),
         resolveTokenColor(this.host, "--marketing-cache-globe-dither-deep"),
       ];
-      // Pre-packed ABGR words for the pixel-buffer renderer.
-      this.packedShades = this.shades.map((s) => ((255 << 24) | (s[2] << 16) | (s[1] << 8) | s[0]) >>> 0);
       this.markerShade = resolveTokenColor(this.host, "--marketing-cache-globe-marker");
     };
     this.resolveColors();
@@ -365,7 +359,10 @@ export const DitherGlobe = {
 
     this.resize = () => {
       const rect = this.host.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // Full device resolution up to 3x: a 2x cap left phones scaling the
+      // canvas up, which blurred the 1px dots.
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      this.dpr = dpr;
       this.w = Math.max(1, Math.round(rect.width));
       this.h = Math.max(1, Math.round(rect.height));
       this.canvas.width = this.w * dpr;
@@ -437,15 +434,13 @@ export const DitherGlobe = {
   start() {
     if (this.raf !== null) return;
     this.lastTime = performance.now();
-    // Full rAF rate (~60fps): with chunky pitch cells a quantized cadence
-    // reads as jitter, so the rotation advances every frame — the dots
-    // still snap to the cell grid, they just step far more often.
     const tick = (now) => {
       this.raf = requestAnimationFrame(tick);
       const dt = Math.min((now - this.lastTime) / 1000, 0.25);
       this.lastTime = now;
       if (!this.dragging) this.spin += this.opts.speed * dt;
       this.pulseT += dt;
+      this.dt = dt;
       this.render();
     };
     this.raf = requestAnimationFrame(tick);
@@ -458,24 +453,25 @@ export const DitherGlobe = {
     }
   },
 
-  // drag (view) * tilt (posing) * spin (own pole) — sliders keep working
-  // after a drag, and the spin never disturbs the tilt.
+  // drag (view) * spin (view y axis) * tilt (map pose) — the spin is
+  // about the screen's vertical, so each dot keeps its screen row; the
+  // tilt sliders keep working after a drag.
   rotation() {
     const tilt = matMul(rotAxis(1, 0, 0, this.opts.tiltX), rotAxis(0, 0, 1, this.opts.tiltZ));
-    return matMul(this.drag, matMul(tilt, rotAxis(0, 1, 0, this.spin)));
+    return matMul(this.drag, matMul(rotAxis(0, 1, 0, this.spin), tilt));
   },
 
-  /* Walk the globe's dots — wireframe, coastlines, stipple fill — and
-     hand each to plot(wx, wy, n): unit-sphere view coordinates plus a
-     signal n in 0..1, how deep into the shade ramp the dot sits. Dots are
-     drawn straight through the callback: the old per-frame array of dot
-     objects churned the GC at 60fps. */
+  /* Walk the globe's dots — wireframe and stipple — and hand each to
+     plot(wx, wy, wz, n, r, scale): unit-sphere view coordinates, a signal
+     n in 0..1 (how deep into the shade ramp the dot sits), the dot's own
+     stable random r for the shade interleave, and a size scale (ocean
+     grain draws smaller). Dots are drawn straight through the callback:
+     a per-frame array of dot objects would churn the GC at 60fps. */
   drawField(plot) {
     const R = this.rotation();
     const M = Math.round(this.opts.meridians);
     const P = Math.round(this.opts.parallels);
     const spacing = 0.055 - (this.opts.density / 100) * 0.041;
-    const shadeAmt = this.opts.shade / 100;
     const landAmt = this.opts.land / 100;
     const oceanAmt = this.opts.ocean / 100;
     const m0 = R[0];
@@ -491,8 +487,10 @@ export const DitherGlobe = {
     const L1 = L[1];
     const L2 = L[2];
 
-    // rotate anchored dots, cull the back hemisphere, shade by darkness
-    const anchored = (pts, base, span) => {
+    if (M > 0 || P > 0) {
+      // rotate anchored wireframe dots, cull the back hemisphere, shade by
+      // darkness
+      const pts = gridDots(M, P, spacing);
       for (let i = 0; i < pts.length; i += 3) {
         const x = pts[i];
         const y = pts[i + 1];
@@ -504,14 +502,14 @@ export const DitherGlobe = {
         let b = (wx * L0 + wy * L1 + wz * L2) * 0.5 + 0.5;
         if (b < 0) b = 0;
         else if (b > 1) b = 1;
-        plot(wx, wy, base + span * (1 - b));
+        plot(wx, wy, wz, 0.35 + 0.45 * (1 - b), noise2(i, 3), 1);
       }
-    };
-    anchored(gridDots(M, P, spacing), 0.35, 0.45);
-    if (landAmt > 0) anchored(coastDots(spacing * 0.62), 0.55, 0.45);
+    }
 
-    // surface stipple — land fill + ocean grain + terminator shading
-    if (shadeAmt > 0 || landAmt > 0 || oceanAmt > 0) {
+    // surface stipple — land is a uniform sample of the continent (the
+    // terminator dims dots rather than thinning them, see render), the
+    // ocean a sparse field of smaller dots
+    if (landAmt > 0 || oceanAmt > 0) {
       for (let i = 0; i < STIP_N; i++) {
         const x = stip[i * 4];
         const y = stip[i * 4 + 1];
@@ -519,91 +517,147 @@ export const DitherGlobe = {
         // depth-only test first — skips ~half the points before full transform
         const wz = m6 * x + m7 * y + m8 * z;
         if (wz < 0.03) continue;
+        const rnd = stip[i * 4 + 3];
+        if (landFlag[i] ? landAmt <= rnd : oceanAmt * 0.35 <= rnd) continue;
         const wx = m0 * x + m1 * y + m2 * z;
         const wy = m3 * x + m4 * y + m5 * z;
         let b = (wx * L0 + wy * L1 + wz * L2) * 0.5 + 0.5;
         if (b < 0) b = 0;
         else if (b > 1) b = 1;
         const d = 1 - b;
-        const rnd = stip[i * 4 + 3];
-        if (landAmt > 0 && landFlag[i]) {
-          // land: reads on the lit side too, thickens toward shadow
-          if (landAmt * (0.55 + 0.6 * d) > rnd) plot(wx, wy, 0.45 + 0.55 * d);
-        } else if (shadeAmt > 0 && i % 3 === 0 && Math.pow(d, 2.6) * shadeAmt * 1.35 > rnd) {
-          plot(wx, wy, 0.3 + 0.5 * d);
-        } else if (oceanAmt > 0 && oceanAmt * 0.5 * (0.55 + 0.55 * d) > rnd) {
-          // fine, sparse water grain — shallowest shades, so land stays darker
-          plot(wx, wy, 0.2 + 0.3 * d);
-        }
+        if (landFlag[i]) plot(wx, wy, wz, d, stipShade[i], 1);
+        else plot(wx, wy, wz, d * 0.6, stipShade[i], 0.6);
       }
     }
   },
 
+  /* Squares snapped to the device pixel grid. Each dot has its own stable
+     size (so the field mixes small and large dots), optionally fades and
+     shrinks toward the limb, and dims on the terminator side by the
+     shade amount. Dots go into Path2D buckets by shade × size × opacity
+     and each bucket is filled once. */
   render() {
-    const { ctx, w, h, shades } = this;
+    const { ctx, w, h } = this;
     if (!w || !h) return;
     ctx.clearRect(0, 0, w, h);
     const rad = (Math.min(w, h) / 2) * this.opts.size;
     const cx = w / 2 + this.opts.offsetX;
     const cy = h / 2 + this.opts.offsetY;
-    const pitch = Math.max(1, Math.round(this.opts.pitch));
-    // Pixel-buffer rendering: thousands of per-dot fillRect calls (with a
-    // fillStyle change each) dominated the frame cost and starved the
-    // page's other animations. Dots are written straight into an
-    // ImageData word buffer and blitted once, nearest-neighbor, which
-    // also keeps the pixel-art crisp.
-    if (!this.buf || this.bufW !== w || this.bufH !== h) {
-      this.off = document.createElement("canvas");
-      this.off.width = w;
-      this.off.height = h;
-      this.offCtx = this.off.getContext("2d");
-      this.buf = this.offCtx.createImageData(w, h);
-      this.buf32 = new Uint32Array(this.buf.data.buffer);
-      this.bufW = w;
-      this.bufH = h;
-    }
-    const buf32 = this.buf32;
-    buf32.fill(0);
-    const packed = this.packedShades;
-    // Snap to the pitch cell grid — the dither texture's chunky grain.
-    // Seamless ramp: the signal maps to a continuous position across the
-    // three shades, and each dot dithers between its two nearest shades
-    // via the stable cell hash — the colors interleave instead of
-    // stacking into visible bands.
-    this.drawField((wx, wy, n) => {
-      const gx = Math.round((cx + wx * rad) / pitch);
-      const gy = Math.round((cy - wy * rad) / pitch);
+    const shadeAmt = this.opts.shade / 100;
+    const limbAmt = Math.max(0, Math.min(1, this.opts.limb / 100));
+    const maxR = this.opts.dotSize * 1.4;
+    const dpr = this.dpr || 1;
+    const buckets = new Array(3 * SIZES * ALPHAS);
+    this.drawField((wx, wy, wz, n, r, scale) => {
+      const t = Math.max(0, Math.min(1, (wz - 0.04) / 0.55));
+      const fade = 1 - limbAmt * (1 - t * t * (3 - 2 * t));
+      const alpha = fade * (1 - shadeAmt * 0.75 * n);
+      if (alpha < 0.04) return;
+      const radius = this.opts.dotSize * (0.5 + r * 0.9) * (0.5 + 0.5 * fade) * scale;
+      const si = Math.min(SIZES - 1, (radius / maxR) * SIZES) | 0;
+      const ai = Math.min(ALPHAS - 1, Math.ceil(alpha * ALPHAS) - 1);
+      // Shade interleave off a second random derived from the dot's own,
+      // so size and shade don't line up.
+      const r2 = (r * 7919) % 1;
       const s = Math.min(2, n * 2);
       const lo = Math.floor(s);
       const hi = Math.min(2, lo + 1);
-      const color = packed[s - lo > noise2(gx + 31, gy + 17) ? hi : lo];
-      const x0 = gx * pitch;
-      const y0 = gy * pitch;
-      if (x0 >= 0 && y0 >= 0 && x0 + pitch <= w && y0 + pitch <= h) {
-        // fully-inside block: skip the per-pixel bounds checks (hot path —
-        // nearly every dot lands here; only limb dots at the canvas edge
-        // need clipping)
-        let row = y0 * w + x0;
-        for (let py = 0; py < pitch; py++, row += w) {
-          for (let px = 0; px < pitch; px++) {
-            buf32[row + px] = color;
-          }
+      const shade = s - lo > r2 ? hi : lo;
+      const key = (shade * SIZES + si) * ALPHAS + ai;
+      let path = buckets[key];
+      if (!path) path = buckets[key] = new Path2D();
+      // Whole device pixels per side, on device pixel boundaries, so the
+      // square never straddles a pixel and smears.
+      const side = Math.max(1, Math.round(((si + 0.5) / SIZES) * maxR * 2 * dpr)) / dpr;
+      const x = Math.round((cx + wx * rad - side / 2) * dpr) / dpr;
+      const y = Math.round((cy - wy * rad - side / 2) * dpr) / dpr;
+      path.rect(x, y, side, side);
+    });
+    for (let key = 0; key < buckets.length; key++) {
+      const path = buckets[key];
+      if (!path) continue;
+      const ai = key % ALPHAS;
+      const shade = ((key / ALPHAS) | 0) / SIZES;
+      const [cr, cg, cb] = this.shades[shade | 0];
+      ctx.globalAlpha = (ai + 1) / ALPHAS;
+      ctx.fillStyle = `rgb(${cr}, ${cg}, ${cb})`;
+      ctx.fill(path);
+    }
+    ctx.globalAlpha = 1;
+    this.renderSpecks(rad, cx, cy);
+    this.renderMarkers(rad, cx, cy);
+  },
+
+  /* Specks: a slow trickle of faint squares that lift off the lit side of
+     the land and drift upward with a little sway, fading in fast and out
+     slowly. Time only advances from the animation tick (this.dt), so a
+     static repaint — a resize, a theme change — leaves them where they
+     are. Nothing is emitted under reduced motion. */
+  renderSpecks(rad, cx, cy) {
+    const rate = this.reduced ? 0 : this.opts.emit;
+    const dt = this.dt;
+    this.dt = 0;
+    const specks = this.specks;
+    if (rate <= 0 && specks.length === 0) return;
+    const life = Math.max(0.5, this.opts.emitLife);
+    if (dt > 0) {
+      for (let i = specks.length - 1; i >= 0; i--) {
+        const sp = specks[i];
+        sp.age += dt;
+        if (sp.age >= sp.life) {
+          specks[i] = specks[specks.length - 1];
+          specks.pop();
+          continue;
         }
-      } else {
-        for (let py = y0; py < y0 + pitch; py++) {
-          if (py < 0 || py >= h) continue;
-          const row = py * w;
-          for (let px = x0; px < x0 + pitch; px++) {
-            if (px < 0 || px >= w) continue;
-            buf32[row + px] = color;
-          }
+        sp.y -= sp.vy * dt;
+        sp.x += Math.sin(sp.age * sp.sway + sp.phase) * sp.drift * dt;
+      }
+      this.emitAcc += rate * dt;
+      const R = this.rotation();
+      while (this.emitAcc >= 1 && specks.length < 600) {
+        this.emitAcc -= 1;
+        // A random land point on the facing hemisphere; a few tries,
+        // then give up for this one.
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const i = (Math.random() * STIP_N) | 0;
+          if (!landFlag[i]) continue;
+          const x = stip[i * 4];
+          const y = stip[i * 4 + 1];
+          const z = stip[i * 4 + 2];
+          const wz = R[6] * x + R[7] * y + R[8] * z;
+          if (wz < 0.3) continue;
+          const wx = R[0] * x + R[1] * y + R[2] * z;
+          const wy = R[3] * x + R[4] * y + R[5] * z;
+          specks.push({
+            x: cx + wx * rad,
+            y: cy - wy * rad,
+            vy: this.opts.emitSpeed * (0.7 + Math.random() * 0.6),
+            drift: 2 + Math.random() * 4,
+            sway: 0.6 + Math.random() * 0.8,
+            phase: Math.random() * Math.PI * 2,
+            size: this.opts.dotSize * (0.7 + Math.random() * 0.6),
+            age: 0,
+            life: life * (0.7 + Math.random() * 0.6),
+          });
+          break;
         }
       }
-    });
-    this.offCtx.putImageData(this.buf, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.off, 0, 0, w, h);
-    this.renderMarkers(pitch, rad, cx, cy);
+    }
+    if (specks.length === 0) return;
+    const { ctx } = this;
+    const peak = Math.max(0, Math.min(1, this.opts.emitOpacity / 100));
+    const [cr, cg, cb] = this.shades[1];
+    const dpr = this.dpr || 1;
+    ctx.fillStyle = `rgb(${cr}, ${cg}, ${cb})`;
+    for (const sp of specks) {
+      const t = sp.age / sp.life;
+      const a = Math.min(1, t / 0.12) * Math.pow(1 - t, 1.3) * peak;
+      if (a < 0.01) continue;
+      ctx.globalAlpha = a;
+      const side = Math.max(1, Math.round(sp.size * 2 * dpr)) / dpr;
+      ctx.fillRect(Math.round((sp.x - side / 2) * dpr) / dpr, Math.round((sp.y - side / 2) * dpr) / dpr, side, side);
+    }
+    ctx.globalAlpha = 1;
   },
 
   /* Pulsing region markers, drawn on top of the globe as plain vector
@@ -614,12 +668,12 @@ export const DitherGlobe = {
      toward the limb — instead of flat screen circles. Markers fade out
      near the horizon and under prefers-reduced-motion only the static
      cores show. */
-  renderMarkers(pitch, rad, cx, cy) {
+  renderMarkers(rad, cx, cy) {
     const { ctx } = this;
     const R = this.rotation();
     const [mr, mg, mb] = this.markerShade;
     const color = `rgb(${mr}, ${mg}, ${mb})`;
-    const coreR = Math.max(pitch * 1.5, rad * 0.028) / rad;
+    const coreR = Math.max(3, rad * 0.028) / rad;
     const maxRing = coreR + 0.11;
     for (let i = 0; i < MARKERS.length; i++) {
       const [x, y, z] = MARKERS[i];
@@ -659,7 +713,7 @@ export const DitherGlobe = {
         const ringR = coreR + t * (maxRing - coreR);
         ctx.strokeStyle = color;
         ctx.globalAlpha = (1 - t) * 0.9 * limb;
-        ctx.lineWidth = Math.max(1.25, pitch) / rad;
+        ctx.lineWidth = 1.5 / rad;
         ctx.beginPath();
         ctx.arc(0, 0, ringR, 0, Math.PI * 2);
         ctx.stroke();

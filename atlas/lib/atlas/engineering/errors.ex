@@ -37,12 +37,17 @@ defmodule Atlas.Engineering.Errors do
 
   import Ecto.Query
 
+  alias Atlas.Accounts.Account
+  alias Atlas.Accounts.HandleRegistry
+  alias Atlas.Audit
   alias Atlas.Engineering.Domains.Domain
   alias Atlas.Engineering.Errors.Availability
   alias Atlas.Engineering.Errors.Envelope
   alias Atlas.Engineering.Errors.Event
   alias Atlas.Engineering.Errors.Fingerprint
   alias Atlas.Engineering.Errors.Issue
+  alias Atlas.Engineering.Errors.IssueAccount
+  alias Atlas.Engineering.Errors.IssueAccountCoalescer
   alias Atlas.Engineering.Errors.IssueCoalescer
   alias Atlas.Engineering.Errors.KeyTouches
   alias Atlas.Engineering.Errors.ProjectKey
@@ -145,12 +150,54 @@ defmodule Atlas.Engineering.Errors do
       :ok =
         IssueCoalescer.observe(IssueCoalescer, project, fingerprint, event, domain_id: domain_id)
 
+      :ok = observe_impacted_account(issue_id, event)
+
       :ok
     else
       {:error, :not_configured}
     end
   rescue
     error -> {:error, error}
+  end
+
+  # Non-blocking hot-path account attribution. Reads
+  # `selected_account_handle` (preferred — the account the user was
+  # acting on when the error fired) or `auth_account_handle` from
+  # Sentry's `extra` context; resolves through the in-process
+  # HandleRegistry (`:persistent_term`, no DB roundtrip); casts to
+  # `IssueAccountCoalescer` on hit. Unauthenticated / unknown-handle
+  # events silently no-op — that is the "unattributed" bucket, not
+  # a bug.
+  defp observe_impacted_account(issue_id, %SentryEvent{} = event) do
+    with handle when is_binary(handle) <- account_handle_from_event(event),
+         {:ok, %{account_id: account_id}} <- HandleRegistry.lookup(handle) do
+      IssueAccountCoalescer.observe(issue_id, account_id, event.timestamp)
+    else
+      _ -> :ok
+    end
+
+    :ok
+  end
+
+  defp account_handle_from_event(%SentryEvent{payload: payload}) when is_map(payload) do
+    extra = payload["extra"] || %{}
+    tags = payload["tags"] || %{}
+
+    first_present_string([
+      extra["selected_account_handle"],
+      extra["auth_account_handle"],
+      tags["selected_account_handle"],
+      tags["auth_account_handle"]
+    ])
+  end
+
+  defp account_handle_from_event(_event), do: nil
+
+  defp first_present_string(values) do
+    Enum.find(values, fn
+      value when is_binary(value) and byte_size(value) > 0 -> true
+      _ -> false
+    end)
   end
 
   # Builds the ClickHouse row as an `Event` struct. Kept separate from
@@ -362,9 +409,27 @@ defmodule Atlas.Engineering.Errors do
   end
 
   def update_issue_status(%Issue{} = issue, status) when status in [:unresolved, :resolved, :ignored] do
+    previous_status = issue.status
+
     issue
     |> Issue.status_changeset(status)
     |> Repo.update()
+    |> tap(fn
+      {:ok, updated} when previous_status != status ->
+        Audit.record("error_issue.status_changed", %{
+          target_type: "error_issue",
+          target_id: updated.id,
+          target_label: updated.title,
+          metadata: %{
+            "project_id" => updated.project_id,
+            "from" => to_string(previous_status),
+            "to" => to_string(status)
+          }
+        })
+
+      _ ->
+        :ok
+    end)
   end
 
   @doc """
@@ -405,6 +470,22 @@ defmodule Atlas.Engineering.Errors do
         )
 
         Enum.map(issues, &%{&1 | status: :resolved, resolved_at: resolved_at})
+      end)
+      |> tap(fn
+        {:ok, resolved} when resolved != [] ->
+          Audit.record("error_issue.bulk_resolved", %{
+            target_type: "error_project",
+            target_id: project_id,
+            target_label: project_id,
+            metadata: %{
+              "project_id" => project_id,
+              "resolved_ids" => Enum.map(resolved, & &1.id),
+              "count" => length(resolved)
+            }
+          })
+
+        _ ->
+          :ok
       end)
     end
   end
@@ -487,7 +568,7 @@ defmodule Atlas.Engineering.Errors do
   Deletes every existing key for the project and mints a fresh one.
   Called when an operator suspects a Data Source Name has leaked.
   """
-  def rotate_project_key(%Project{id: id}) do
+  def rotate_project_key(%Project{id: id} = project) do
     existing_public_keys =
       ProjectKey
       |> where([k], k.project_id == ^id and is_nil(k.domain_id))
@@ -499,19 +580,38 @@ defmodule Atlas.Engineering.Errors do
         {_deleted, _} =
           Repo.delete_all(from(k in ProjectKey, where: k.project_id == ^id and is_nil(k.domain_id)))
 
-        case create_project_key(id, %{"name" => "default"}) do
+        case create_project_key(id, %{"name" => "default"}, audit: false) do
           {:ok, key} -> key
           {:error, changeset} -> Repo.rollback(changeset)
         end
       end)
 
     Enum.each(existing_public_keys, &invalidate_project_key_cache/1)
+
+    case result do
+      {:ok, %ProjectKey{} = key} ->
+        Audit.record("project_key.rotated", %{
+          target_type: "project_key",
+          target_id: key.id,
+          target_label: project_label(project),
+          metadata: %{
+            "project_id" => id,
+            "rotated_public_keys" => existing_public_keys
+          }
+        })
+
+      _ ->
+        :ok
+    end
+
     result
   end
 
   def rotate_project_key(_), do: {:error, :invalid_project}
 
-  def create_project_key(project_id, attrs \\ %{}) do
+  def create_project_key(project_id, attrs \\ %{}, opts \\ []) do
+    audit? = Keyword.get(opts, :audit, true)
+
     attrs =
       attrs
       |> Map.new(fn {k, v} -> {to_string(k), v} end)
@@ -524,12 +624,22 @@ defmodule Atlas.Engineering.Errors do
     |> ProjectKey.changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, %ProjectKey{public_key: public_key}} = ok ->
+      {:ok, %ProjectKey{public_key: public_key} = key} = ok ->
         # Positive-only cache: an earlier `:not_found` was ignored, so
         # no invalidation is needed. But if a caller previously fetched
         # a cached miss under any code path that DID cache it, this
         # keeps the invariant safe.
         invalidate_project_key_cache(public_key)
+
+        if audit? do
+          Audit.record("project_key.created", %{
+            target_type: "project_key",
+            target_id: key.id,
+            target_label: key.name,
+            metadata: %{"project_id" => project_id}
+          })
+        end
+
         ok
 
       other ->
@@ -619,7 +729,7 @@ defmodule Atlas.Engineering.Errors do
   Source Name has leaked. Does not touch the project-level DSN or any
   other domain's DSN.
   """
-  def rotate_domain_key(%Project{id: project_id}, %Domain{id: domain_id}) do
+  def rotate_domain_key(%Project{id: project_id} = project, %Domain{id: domain_id} = domain) do
     existing_public_keys =
       ProjectKey
       |> where([k], k.project_id == ^project_id and k.domain_id == ^domain_id)
@@ -635,19 +745,40 @@ defmodule Atlas.Engineering.Errors do
             )
           )
 
-        case create_domain_key(project_id, domain_id, %{"name" => "default"}) do
+        case create_domain_key(project_id, domain_id, %{"name" => "default"}, audit: false) do
           {:ok, key} -> key
           {:error, changeset} -> Repo.rollback(changeset)
         end
       end)
 
     Enum.each(existing_public_keys, &invalidate_project_key_cache/1)
+
+    case result do
+      {:ok, %ProjectKey{} = key} ->
+        Audit.record("domain_key.rotated", %{
+          target_type: "domain_key",
+          target_id: key.id,
+          target_label: domain_label(domain, project),
+          metadata: %{
+            "project_id" => project_id,
+            "domain_id" => domain_id,
+            "rotated_public_keys" => existing_public_keys
+          }
+        })
+
+      _ ->
+        :ok
+    end
+
     result
   end
 
   def rotate_domain_key(_, _), do: {:error, :invalid_pair}
 
-  def create_domain_key(project_id, domain_id, attrs \\ %{}) when is_binary(project_id) and is_binary(domain_id) do
+  def create_domain_key(project_id, domain_id, attrs \\ %{}, opts \\ [])
+      when is_binary(project_id) and is_binary(domain_id) do
+    audit? = Keyword.get(opts, :audit, true)
+
     attrs =
       attrs
       |> Map.new(fn {k, v} -> {to_string(k), v} end)
@@ -661,14 +792,32 @@ defmodule Atlas.Engineering.Errors do
     |> ProjectKey.changeset(attrs)
     |> Repo.insert()
     |> case do
-      {:ok, %ProjectKey{public_key: public_key}} = ok ->
+      {:ok, %ProjectKey{public_key: public_key} = key} = ok ->
         invalidate_project_key_cache(public_key)
+
+        if audit? do
+          Audit.record("domain_key.created", %{
+            target_type: "domain_key",
+            target_id: key.id,
+            target_label: key.name,
+            metadata: %{"project_id" => project_id, "domain_id" => domain_id}
+          })
+        end
+
         ok
 
       other ->
         other
     end
   end
+
+  defp project_label(%Project{name: name}) when is_binary(name) and name != "", do: name
+  defp project_label(%Project{id: id}), do: id
+
+  defp domain_label(%Domain{name: name}, project) when is_binary(name) and name != "",
+    do: "#{project_label(project)}/#{name}"
+
+  defp domain_label(%Domain{id: id}, project), do: "#{project_label(project)}/#{id}"
 
   @doc """
   Returns the distinct environments seen for events matching the
@@ -1110,4 +1259,108 @@ defmodule Atlas.Engineering.Errors do
   end
 
   defp safe_decode(_), do: %{}
+
+  @doc """
+  Returns the accounts impacted by a given issue, sorted enterprise-first
+  and then by event_count. Each row is a map with `:account`, `:event_count`,
+  `:first_seen`, `:last_seen`.
+  """
+  def impacted_accounts_for_issue(issue_id, opts \\ []) when is_binary(issue_id) do
+    limit = Keyword.get(opts, :limit, 25)
+
+    from(ia in IssueAccount,
+      join: a in Account,
+      on: a.id == ia.account_id,
+      where: ia.issue_id == ^issue_id,
+      order_by: [
+        desc: fragment("CASE WHEN ? = 'enterprise' THEN 1 ELSE 0 END", a.plan_tier),
+        desc: ia.event_count,
+        desc: ia.last_seen
+      ],
+      limit: ^limit,
+      select: %{
+        account: a,
+        event_count: ia.event_count,
+        first_seen: ia.first_seen,
+        last_seen: ia.last_seen
+      }
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Batched top-N impacted accounts per issue for a set of issue ids.
+  Returns `%{issue_id => [rows]}` with the same row shape as
+  `impacted_accounts_for_issue/2`. Used by the Slack summary to enrich
+  multiple attention items with one query.
+  """
+  def impacted_accounts_by_issue_ids(issue_ids, opts \\ []) when is_list(issue_ids) do
+    limit_per_issue = Keyword.get(opts, :limit_per_issue, 3)
+
+    if issue_ids == [] do
+      %{}
+    else
+      from(ia in IssueAccount,
+        join: a in Account,
+        on: a.id == ia.account_id,
+        where: ia.issue_id in ^issue_ids,
+        select: %{
+          issue_id: ia.issue_id,
+          account: a,
+          event_count: ia.event_count,
+          first_seen: ia.first_seen,
+          last_seen: ia.last_seen
+        }
+      )
+      |> Repo.all()
+      |> Enum.group_by(& &1.issue_id)
+      |> Map.new(fn {issue_id, rows} ->
+        top =
+          rows
+          |> Enum.sort_by(
+            &{if(&1.account.plan_tier == "enterprise", do: 0, else: 1), -&1.event_count},
+            :asc
+          )
+          |> Enum.take(limit_per_issue)
+
+        {issue_id, top}
+      end)
+    end
+  end
+
+  @doc """
+  Whether an issue is impacting at least one account on the enterprise
+  plan tier. Powers the small badge on the issues list.
+  """
+  def issue_impacts_enterprise?(issue_id) when is_binary(issue_id) do
+    from(ia in IssueAccount,
+      join: a in Account,
+      on: a.id == ia.account_id,
+      where: ia.issue_id == ^issue_id and a.plan_tier == "enterprise",
+      limit: 1,
+      select: 1
+    )
+    |> Repo.one()
+    |> Kernel.!=(nil)
+  end
+
+  @doc """
+  Batched variant of `issue_impacts_enterprise?/1` returning a
+  `MapSet` of issue ids impacting at least one enterprise account.
+  """
+  def enterprise_impacted_issue_ids(issue_ids) when is_list(issue_ids) do
+    if issue_ids == [] do
+      MapSet.new()
+    else
+      from(ia in IssueAccount,
+        join: a in Account,
+        on: a.id == ia.account_id,
+        where: ia.issue_id in ^issue_ids and a.plan_tier == "enterprise",
+        distinct: true,
+        select: ia.issue_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+    end
+  end
 end

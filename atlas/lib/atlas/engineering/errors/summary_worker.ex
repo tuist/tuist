@@ -16,6 +16,7 @@ defmodule Atlas.Engineering.Errors.SummaryWorker do
     unique: [fields: [:worker, :queue, :args], period: 60, states: :incomplete]
 
   alias Atlas.Audit
+  alias Atlas.Engineering.Errors
   alias Atlas.Engineering.Errors.Summaries
   alias Atlas.LLMs.Errors, as: LLMErrors
 
@@ -23,7 +24,11 @@ defmodule Atlas.Engineering.Errors.SummaryWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{} = job) do
-    Audit.with_context(%{interface: "worker"}, fn -> do_perform(job) end)
+    if Errors.enabled?() do
+      Audit.with_context(%{interface: "worker"}, fn -> do_perform(job) end)
+    else
+      :ok
+    end
   end
 
   defp do_perform(%Oban.Job{} = job) do

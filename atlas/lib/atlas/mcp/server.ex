@@ -15,6 +15,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ActOnBriefItem
   alias Atlas.MCP.Tools.AddAssetToInsurance
   alias Atlas.MCP.Tools.AddEmailAudienceSubscriber
+  alias Atlas.MCP.Tools.AddSpecComment
   alias Atlas.MCP.Tools.AddSupportThreadNote
   alias Atlas.MCP.Tools.AssignAsset
   alias Atlas.MCP.Tools.AttachDocumentToFinancing
@@ -47,8 +48,11 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
   alias Atlas.MCP.Tools.CreateNote
+  alias Atlas.MCP.Tools.CreatePostmortem
+  alias Atlas.MCP.Tools.CreatePostmortemActionItem
   alias Atlas.MCP.Tools.CreateSocialChannelIdea
   alias Atlas.MCP.Tools.CreateSocialPostRevision
+  alias Atlas.MCP.Tools.CreateSpec
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
   alias Atlas.MCP.Tools.DecommissionDataCenter
   alias Atlas.MCP.Tools.DeleteAccountTerm
@@ -59,8 +63,12 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
+  alias Atlas.MCP.Tools.DeletePostmortem
+  alias Atlas.MCP.Tools.DeletePostmortemActionItem
   alias Atlas.MCP.Tools.DeleteSocialChannelIdea
   alias Atlas.MCP.Tools.DeleteSocialPostRevision
+  alias Atlas.MCP.Tools.DeleteSpec
+  alias Atlas.MCP.Tools.DeleteSpecComment
   alias Atlas.MCP.Tools.DescribeTuistClickhouseTable
   alias Atlas.MCP.Tools.DescribeTuistPostgresTable
   alias Atlas.MCP.Tools.DetachDocumentFromFinancing
@@ -117,9 +125,12 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
+  alias Atlas.MCP.Tools.GetPostmortem
+  alias Atlas.MCP.Tools.GetPostmortemActionItem
   alias Atlas.MCP.Tools.GetProjectErrorDsn
   alias Atlas.MCP.Tools.GetSocialChannelIdea
   alias Atlas.MCP.Tools.GetSocialPostRevision
+  alias Atlas.MCP.Tools.GetSpec
   alias Atlas.MCP.Tools.GetSupportThread
   alias Atlas.MCP.Tools.IgnoreErrorIssue
   alias Atlas.MCP.Tools.ImportFinancingSchedule
@@ -169,9 +180,13 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
+  alias Atlas.MCP.Tools.ListPostmortemActionItems
+  alias Atlas.MCP.Tools.ListPostmortems
   alias Atlas.MCP.Tools.ListProductTraces
   alias Atlas.MCP.Tools.ListSocialChannelIdeas
   alias Atlas.MCP.Tools.ListSocialPostRevisions
+  alias Atlas.MCP.Tools.ListSpecComments
+  alias Atlas.MCP.Tools.ListSpecs
   alias Atlas.MCP.Tools.ListSupportThreads
   alias Atlas.MCP.Tools.ListTuistClickhouseTables
   alias Atlas.MCP.Tools.ListTuistPostgresTables
@@ -200,6 +215,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RejectOutreachCandidate
   alias Atlas.MCP.Tools.RemoveAssetFromInsurance
   alias Atlas.MCP.Tools.ReplyToSupportThread
+  alias Atlas.MCP.Tools.RequestSpecReview
   alias Atlas.MCP.Tools.RequestTaxCertificateLetter
   alias Atlas.MCP.Tools.ResolveErrorIssue
   alias Atlas.MCP.Tools.RetireAsset
@@ -232,8 +248,12 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateFeatureInterestAccountContext
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateNote
+  alias Atlas.MCP.Tools.UpdatePostmortem
+  alias Atlas.MCP.Tools.UpdatePostmortemActionItem
   alias Atlas.MCP.Tools.UpdateSocialChannelIdea
   alias Atlas.MCP.Tools.UpdateSocialPostRevision
+  alias Atlas.MCP.Tools.UpdateSpec
+  alias Atlas.MCP.Tools.UpdateSpecComment
   alias Atlas.MCP.Tools.UpdateSupportThread
   alias Atlas.MCP.Tools.UploadPostalLetter
 
@@ -417,6 +437,26 @@ defmodule Atlas.MCP.Server do
     CreateEngineeringProject,
     UpdateEngineeringProject,
     DeleteEngineeringProject,
+    ListPostmortems,
+    GetPostmortem,
+    CreatePostmortem,
+    UpdatePostmortem,
+    DeletePostmortem,
+    ListPostmortemActionItems,
+    GetPostmortemActionItem,
+    CreatePostmortemActionItem,
+    UpdatePostmortemActionItem,
+    DeletePostmortemActionItem,
+    ListSpecs,
+    GetSpec,
+    CreateSpec,
+    UpdateSpec,
+    DeleteSpec,
+    RequestSpecReview,
+    ListSpecComments,
+    AddSpecComment,
+    UpdateSpecComment,
+    DeleteSpecComment,
     ListEngineeringDomains,
     GetEngineeringDomain,
     CreateEngineeringDomain,
@@ -747,7 +787,7 @@ defmodule Atlas.MCP.Server do
   defp admin_tool_allowed?(conn, tool_module) when tool_module in @admin_tools do
     conn
     |> Tool.current_user()
-    |> Atlas.Users.executive?()
+    |> Atlas.Users.has_scope?("admin:read")
   end
 
   defp admin_tool_allowed?(_conn, _tool_module), do: true

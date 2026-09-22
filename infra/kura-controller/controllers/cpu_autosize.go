@@ -25,10 +25,11 @@ const (
 
 	cpuScheduleCapTTL = 24 * time.Hour
 
-	// This read is optional and runs before primary selection on the single
-	// reconcile worker, so it may not outlast a metrics-server that accepts the
-	// connection and never answers. Losing a sample costs nothing: the ring
-	// holds six-hour windows and the next pass is 30 seconds away.
+	// This read is optional and runs before primary selection, holding a
+	// reconcile worker for its duration, so it may not outlast a
+	// metrics-server that accepts the connection and never answers. Losing a
+	// sample costs nothing: the ring holds six-hour windows and the next pass
+	// is 30 seconds away.
 	cpuMetricsTimeout = 2 * time.Second
 )
 

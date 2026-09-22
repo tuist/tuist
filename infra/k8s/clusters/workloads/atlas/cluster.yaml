@@ -2,13 +2,14 @@
 #
 # Reconciled by the self-hosted CAPI + caph management cluster maintained
 # in tuist/tuist (`infra/k8s/clusters/clusterclass-tuist.yaml`). Atlas is a
-# non-critical internal service, so the base cluster is collapsed to the
-# minimum that stays operational within the CAPI model: 1× cpx22 control
-# plane + 1× cpx32 worker in fsn1. The single cpx32 worker (8 GiB) holds
-# the whole base workload — one Atlas pod, the CloudNativePG primary, the
-# vector search DB, and the platform charts (cert-manager / ingress-nginx
-# / external-dns / ESO / CNPG). Scale the general pool up if resource
-# pressure appears.
+# non-critical internal service, so the base cluster stays small within
+# the CAPI model: 1× cpx22 control plane + 2× cpx32 workers in fsn1. The
+# two cpx32 workers (8 GiB each) carry the base workload, with room for
+# HA on the ClickHouse StatefulSet (2 replicas, required podAntiAffinity)
+# and the atlas web tier (2 replicas), alongside the CloudNativePG
+# primary, the vector search DB, and the platform charts (cert-manager /
+# ingress-nginx / external-dns / ESO / CNPG). Scale the general pool up
+# further if resource pressure appears.
 #
 # Atlas reuses tuist's `org-tuist` namespace and the `hetzner` Secret
 # living in it — the ClusterClass hardcodes `hetznerSecretRef.name:
@@ -101,8 +102,9 @@ spec:
       machineDeployments:
         - class: hcloud-worker
           name: md-0
-          # One worker holds the whole base workload (app + Postgres +
-          # vector search DB + ingress + operators). Scale up only if
-          # resource pressure appears.
-          replicas: 1
+          # Two workers carry the base workload (app + Postgres + vector
+          # search DB + ingress + operators) and give ClickHouse and the
+          # atlas web tier a second scheduling target for HA. Scale up
+          # further only if resource pressure appears.
+          replicas: 2
           failureDomain: fsn1

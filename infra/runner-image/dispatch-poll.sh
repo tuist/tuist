@@ -314,6 +314,26 @@ CACHE_CONTENT_DIGEST=""
 CAS_STORE_DIR="CompilationCache.noindex"
 CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
 CAS_ENABLED_MARKER="cas-enabled"
+# The budget the binary cache and the compilation cache share in the image: its
+# size less the room a job grows into. set_cache_limits divides it by what each
+# cache holds. A host whose tart-kubelet predates this marker stages a fixed split
+# instead, `cache-max-bytes` for the binary cache and the cas-enabled figure for
+# the compilation cache, and set_cache_limits applies that as is.
+CACHE_BUDGET_MARKER="cache-budget-bytes"
+# What set_cache_limits measured and decided, for the calls that apply it: the
+# shared budget (empty on a host that stages the fixed split), what each cache
+# holds, the binary cache's share, which limit_binary_cache exports, and the
+# compilation cache's limit, which setup_cas_store gives the compiler and
+# prune_cas_stores divides across the stores (empty when the host did not enable
+# the compilation cache).
+CACHE_BUDGET_BYTES=""
+BINARY_CACHE_HELD_BYTES=0
+COMPILATION_CACHE_HELD_BYTES=0
+BINARY_CACHE_SHARE_BYTES=""
+CAS_LIMIT_BYTES=""
+# The file stage_cache_limits appends the division to for the host to turn into
+# metrics. Nothing on the guest reads it back.
+CACHE_LIMITS_FILE="cache-limits"
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -425,17 +445,7 @@ attach_cache_image() {
       echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not fully relax cache tree modes"
   fi
   export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
-  # Byte budget for the CLI's per-generate LRU self-prune: the host stages the
-  # per-branch cap (≈80% of a master's provisioned size) into the status share
-  # so a full working set degrades to a hot tier (LRU keeps the most-used
-  # artifacts local, the tail misses to the remote) instead of churning at
-  # ENOSPC when the image hits its cap.
-  local budget
-  budget=$(cat "${STATUS_SHARE}/cache-max-bytes" 2>/dev/null)
-  if [ -n "${budget}" ] && [ "${budget}" -gt 0 ] 2>/dev/null; then
-    export TUIST_CACHE_MAX_BYTES="${budget}"
-  fi
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache image mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache image mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set"
   return 0
 }
 
@@ -537,11 +547,10 @@ probe_cache_share() {
 # it sets (the CAS path included) wins over these defaults.
 setup_cas_store() {
   [ -n "${CACHE_MOUNT}" ] || return 0
-  # The marker carries the CAS's coordinated byte budget (empty/absent = the host
-  # disabled the feature). Reclaim of a stale store left by a previously enabled
-  # run happens at teardown, not here — see reclaim_cas_if_disabled.
-  local cas_limit_bytes
-  cas_limit_bytes=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
+  # The compilation cache's limit from set_cache_limits (empty = the host disabled
+  # the feature). Reclaim of a stale store left by a previously enabled run
+  # happens at teardown, not here — see reclaim_cas_if_disabled.
+  local cas_limit_bytes="${CAS_LIMIT_BYTES}"
   if [ -z "${cas_limit_bytes}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: CAS not enabled; compilation cache runs VM-local"
     return 0
@@ -565,14 +574,14 @@ setup_cas_store() {
   {
     printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${store}"
     printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
-    # Bound the store to the host-computed byte budget so llcas prunes before the
-    # image can hit ENOSPC. LIMIT_SIZE (not LIMIT_PERCENT): Swift Build's percent
-    # is against the current cache-db size plus free space, so as the binary cache
-    # fills the shared image the percent's denominator shrinks and the CAS prunes
-    # toward far less than intended. An absolute byte budget is invariant to the
-    # binary cache's fill; it is the coordinated other half of TUIST_CACHE_MAX_BYTES
-    # (both from the host's cacheImageSplit) so the two pruners cannot over-commit
-    # the one shared image.
+    # Bound the store to its byte limit so llcas rotates before the image can hit
+    # ENOSPC. LIMIT_SIZE (not LIMIT_PERCENT): Swift Build's percent is against the
+    # current cache-db size plus free space, so as the binary cache fills the
+    # shared image the percent's denominator shrinks and the CAS prunes toward far
+    # less than intended. An absolute byte limit is invariant to the binary
+    # cache's fill; it and TUIST_CACHE_MAX_BYTES both come from set_cache_limits,
+    # which never hands the two more than the budget, so the two pruners cannot
+    # over-commit the one shared image.
     printf 'COMPILATION_CACHE_LIMIT_SIZE = %s\n' "${cas_limit_bytes}"
     # A pre-existing user xcconfig is chained LAST: the variable is a single slot,
     # so carry theirs rather than clobber it, and including it after our defaults
@@ -712,11 +721,11 @@ cas_proxy_client() {
 # detach, since the spool lives inside the image and the publisher needs to read
 # it.
 #
-# It runs for a failed job too. A non-zero rc never promotes (report_cache_dirty
-# and report_volume_head both gate on it), so its verdict gates nothing there,
-# but setup_cas_store told the job's compiles not to wait for their uploads
-# because this wait would, and the next job's warm cache is made of those
-# uploads whether this one passed or not.
+# It runs for a failed job too. A job that did not succeed never promotes
+# (report_cache_dirty and report_volume_head both gate on JOB_PASSED), so its
+# verdict gates nothing there, but setup_cas_store told the job's compiles not to
+# wait for their uploads because this wait would, and the next job's warm cache
+# is made of those uploads whether this one passed or not.
 #
 # Best-effort by nature, which is why it does not replace the plugin's read-side
 # guard: a host that panics, or a job cancelled mid-upload, promotes without ever
@@ -794,43 +803,49 @@ cas_store_dirs() {
     while IFS= read -r generation; do dirname "${generation}"; done | sort -u
 }
 
-# CAS_STORE_BUDGET_FLOOR_BYTES is the least a small store is budgeted, so a store
-# a job starts writing to can grow before its next prune gives it more.
-CAS_STORE_BUDGET_FLOOR_BYTES=$((256 * 1024 * 1024))
+# allocated_bytes prints the bytes allocated under $1, 0 when it is absent.
+# Allocated rather than logical, because what the caches share is space in an
+# image.
+allocated_bytes() {
+  local kib
+  kib=$(du -sk "$1" 2>/dev/null | awk '{print $1}')
+  case "${kib}" in ''|*[!0-9]*) kib=0 ;; esac
+  printf '%s' "$((kib * 1024))"
+}
 
-# cas_store_budgets splits the compilation cache's budget ($1) across the stores
-# in $2 (one path per line) by what each uses, printing one "<bytes><TAB><store>"
-# line per store. A store whose need, twice its allocated size and at least
-# CAS_STORE_BUDGET_FLOOR_BYTES, is under an even share gets that need; the stores
-# that need more split the rest evenly. The lines never add up to more than the
-# budget, which is the invariant a split exists for, and a budget of 0 stays 0.
+# split_by_use divides a budget ($1) between the parties on stdin, one
+# "<used bytes><TAB><name>" line each, by what each uses, and prints one
+# "<bytes><TAB><name>" line per party. A party's need is twice what it uses and at
+# least the floor ($2). A party whose need is under an even share gets that need;
+# the parties that need more split the rest evenly. The lines never add up to more
+# than the budget, which is the invariant a split exists for, and a budget of 0
+# stays 0.
 #
-# An even split handed Xcode's `generic` store, a few KB on every volume, half the
-# budget, capping the `plugin` store the builds use at half of what the host
-# staged. A strictly proportional split is not the answer either: it would pin a
-# small store near zero, so it would rotate on every prune and never grow once a
-# job starts using it.
-cas_store_budgets() {
-  local budget="$1" stores="$2"
-  local tab store used need sized="" count=0
+# It divides the budget between the two caches (cache_budget_shares) and the
+# compilation cache's limit between its stores (cas_store_budgets). An even split
+# handed Xcode's `generic` store, a few KB on every volume, half the compilation
+# cache, capping the `plugin` store the builds use at half of it. A strictly
+# proportional split is not the answer either: it would pin a small party near
+# zero, so it could never grow once a job starts using it. Twice its use is the
+# room a party has to double before the next division gives it more.
+split_by_use() {
+  local budget="$1" floor="$2"
+  local tab used name need sized="" count=0
   tab=$(printf '\t')
-  while IFS= read -r store; do
-    [ -n "${store}" ] || continue
-    used=$(du -sk "${store}" 2>/dev/null | awk '{print $1}')
+  while IFS="${tab}" read -r used name; do
+    [ -n "${name}" ] || continue
     case "${used}" in ''|*[!0-9]*) used=0 ;; esac
-    sized="${sized}$((used * 1024))${tab}${store}
+    sized="${sized}${used}${tab}${name}
 "
     count=$((count + 1))
-  done <<EOF
-${stores}
-EOF
+  done
   [ "${count}" -gt 0 ] || return 0
 
   local even=$((budget / count)) small_total=0 large_count=0
-  while IFS="${tab}" read -r used store; do
-    [ -n "${store}" ] || continue
+  while IFS="${tab}" read -r used name; do
+    [ -n "${name}" ] || continue
     need=$((used * 2))
-    [ "${need}" -ge "${CAS_STORE_BUDGET_FLOOR_BYTES}" ] || need="${CAS_STORE_BUDGET_FLOOR_BYTES}"
+    [ "${need}" -ge "${floor}" ] || need="${floor}"
     if [ "${need}" -lt "${even}" ]; then
       small_total=$((small_total + need))
     else
@@ -842,18 +857,39 @@ EOF
 
   local large_share="${even}"
   [ "${large_count}" -eq 0 ] || large_share=$(((budget - small_total) / large_count))
-  while IFS="${tab}" read -r used store; do
-    [ -n "${store}" ] || continue
+  while IFS="${tab}" read -r used name; do
+    [ -n "${name}" ] || continue
     need=$((used * 2))
-    [ "${need}" -ge "${CAS_STORE_BUDGET_FLOOR_BYTES}" ] || need="${CAS_STORE_BUDGET_FLOOR_BYTES}"
+    [ "${need}" -ge "${floor}" ] || need="${floor}"
     if [ "${large_count}" -gt 0 ] && [ "${need}" -lt "${even}" ]; then
-      printf '%s%s%s\n' "${need}" "${tab}" "${store}"
+      printf '%s%s%s\n' "${need}" "${tab}" "${name}"
     else
-      printf '%s%s%s\n' "${large_share}" "${tab}" "${store}"
+      printf '%s%s%s\n' "${large_share}" "${tab}" "${name}"
     fi
   done <<EOF
 ${sized}
 EOF
+}
+
+# CAS_STORE_BUDGET_FLOOR_BYTES is the least a small store is budgeted, so a store
+# a job starts writing to can grow before its next prune gives it more.
+CAS_STORE_BUDGET_FLOOR_BYTES=$((256 * 1024 * 1024))
+
+# cas_store_budgets splits the compilation cache's limit ($1) across the stores in
+# $2 (one path per line) by what each uses (split_by_use), printing one
+# "<bytes><TAB><store>" line per store.
+cas_store_budgets() {
+  local budget="$1" stores="$2"
+  local tab store sized=""
+  tab=$(printf '\t')
+  while IFS= read -r store; do
+    [ -n "${store}" ] || continue
+    sized="${sized}$(allocated_bytes "${store}")${tab}${store}
+"
+  done <<EOF
+${stores}
+EOF
+  printf '%s' "${sized}" | split_by_use "${budget}" "${CAS_STORE_BUDGET_FLOOR_BYTES}"
 }
 
 # prune_cas_stores is what actually bounds the compilation cache on this image.
@@ -901,8 +937,8 @@ EOF
 # sample_cache_fill's ceiling already guards. It never fails the job or blocks
 # promotion.
 #
-# The teardown call site applies an rc gate; the attach one does not need it
-# (nothing has been drained yet because nothing has been written yet).
+# The teardown call site applies the JOB_PASSED gate; the attach one does not
+# need it (nothing has been drained yet because nothing has been written yet).
 #
 # `$1` names the call site and is echoed into every line this emits. The two
 # passes are otherwise indistinguishable in the logs, and telling them apart is
@@ -920,14 +956,14 @@ prune_cas_stores() {
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING no CAS proxy binary; compilation-cache stores left unbounded"
     return 0
   }
-  # The per-generation budget the host staged, from the same marker
-  # setup_cas_store read. An absent or non-numeric marker leaves it at 0, which
-  # prunes against whatever limit the store already carries rather than
-  # inventing one.
-  budget=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
+  # The compilation cache's limit set_cache_limits decided for this pass, the
+  # figure setup_cas_store gives the compiler. An empty or non-numeric one leaves
+  # it at 0, which prunes against whatever limit the store already carries rather
+  # than inventing one.
+  budget="${CAS_LIMIT_BYTES}"
   case "${budget}" in ''|*[!0-9]*) budget=0 ;; esac
 
-  # SPLIT across the stores actually present, because the marker is the CAS's
+  # SPLIT across the stores actually present, because the limit is the CAS's
   # allowance as a whole and llcas only takes a per-generation bound per STORE.
   # A job that used both lanes would otherwise get the full allowance twice,
   # which is the over-commit this budget exists to prevent. See cas_store_budgets
@@ -975,6 +1011,133 @@ $(cas_store_budgets "${budget}" "${stores}")
 EOF
 }
 
+# CACHE_SPLIT_FLOOR_BYTES is the least share of the budget either cache is given,
+# so a cache that holds little or nothing today can still grow. It binds only
+# when the other cache holds a quarter of the budget or more; below that both
+# get an even share. It matters most for the binary cache, which the CLI holds
+# to its limit for the whole job: a download that does not fit is rebuilt from
+# source. 2 GiB holds a small project's whole working set in its first job, and
+# doubling from it gives the ~10 GiB the largest measured working sets need by
+# the fourth. The compilation cache needs less, because a job's writes land past
+# its limit and the teardown division counts them, but one floor keeps one rule.
+# It is also what an unused cache holds back from the other: 2 GiB of the 24 at a
+# 30 GiB cap.
+CACHE_SPLIT_FLOOR_BYTES=$((2 * 1024 * 1024 * 1024))
+
+# cache_budget_shares divides the budget ($1) between the binary cache, which
+# holds $2 bytes, and the compilation cache, which holds $3, by split_by_use, and
+# prints "<binary><TAB><compilation>".
+cache_budget_shares() {
+  local tab share name binary=0 compilation=0
+  tab=$(printf '\t')
+  while IFS="${tab}" read -r share name; do
+    case "${name}" in
+      binary) binary="${share}" ;;
+      compilation) compilation="${share}" ;;
+    esac
+  done <<EOF
+$(printf '%s\tbinary\n%s\tcompilation\n' "$2" "$3" | split_by_use "$1" "${CACHE_SPLIT_FLOOR_BYTES}")
+EOF
+  printf '%s%s%s\n' "${binary}" "${tab}" "${compilation}"
+}
+
+# within_room caps a cache's share ($1) at what the budget ($2) leaves beside the
+# other cache, which holds $3 bytes. Each cache is pruned only by its own pruner
+# and only when that runs, so the other can hold more than its share: the binary
+# cache until the job's `tuist` next prunes it, the compilation cache because a
+# prune keeps a store's newest generations even past a limit that just shrank.
+# Handing that room out twice is how the image fills to ENOSPC. The cap never goes below CACHE_SPLIT_FLOOR_BYTES,
+# so a cache crowded out this way still works while the other shrinks back.
+within_room() {
+  local share="$1" room=$(($2 - $3))
+  [ "${room}" -ge "${CACHE_SPLIT_FLOOR_BYTES}" ] || room="${CACHE_SPLIT_FLOOR_BYTES}"
+  [ "${share}" -le "${room}" ] || share="${room}"
+  printf '%s' "${share}"
+}
+
+# set_cache_limits decides what each cache in the image may hold, at attach and
+# again at teardown ($1), each time before the compilation cache is pruned.
+#
+# With the budget the host staged for both caches, it divides it by what each
+# holds now (cache_budget_shares), and caps the compilation cache's limit at what
+# the binary cache leaves (within_room). The two shares never add up to more than
+# the budget, so the room a job grows into, the image less the budget, is never
+# handed out. Teardown divides again because the binary cache may have grown to
+# its attach-time share during the job, and nothing prunes it here. Without the
+# compilation cache the binary cache has the whole budget.
+#
+# Without that budget, which is a host older than this runner image, it applies
+# the fixed split that host stages.
+set_cache_limits() {
+  local when="$1"
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local budget tab binary_held compilation_held shares
+  CACHE_BUDGET_BYTES=""
+  CAS_LIMIT_BYTES=""
+  budget=$(cat "${STATUS_SHARE}/${CACHE_BUDGET_MARKER}" 2>/dev/null)
+  case "${budget}" in ''|*[!0-9]*)
+    BINARY_CACHE_SHARE_BYTES=$(cat "${STATUS_SHARE}/cache-max-bytes" 2>/dev/null)
+    CAS_LIMIT_BYTES=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
+    return 0 ;;
+  esac
+  CACHE_BUDGET_BYTES="${budget}"
+  if [ ! -f "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" ]; then
+    BINARY_CACHE_SHARE_BYTES="${budget}"
+    return 0
+  fi
+  tab=$(printf '\t')
+  binary_held=$(allocated_bytes "${CACHE_MOUNT}/tuist")
+  compilation_held=$(allocated_bytes "${CACHE_MOUNT}/${CAS_STORE_DIR}")
+  BINARY_CACHE_HELD_BYTES="${binary_held}"
+  COMPILATION_CACHE_HELD_BYTES="${compilation_held}"
+  shares=$(cache_budget_shares "${budget}" "${binary_held}" "${compilation_held}")
+  BINARY_CACHE_SHARE_BYTES="${shares%%"${tab}"*}"
+  CAS_LIMIT_BYTES=$(within_room "${shares##*"${tab}"}" "${budget}" "${binary_held}")
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache budget ${budget}B divided by use (${when}): binary cache holds ${binary_held}B, share ${BINARY_CACHE_SHARE_BYTES}B; compilation cache holds ${compilation_held}B, limit ${CAS_LIMIT_BYTES}B"
+}
+
+# stage_cache_limits records the division ($1, attach or teardown) for the host,
+# one "<when><TAB><cache><TAB><held><TAB><limit>" line per cache. The host exports
+# both as histograms: the sizes are the only per-cache measurement the fleet has,
+# and the limits beside them are what the rule and its floors get retuned from.
+# This log carries the same numbers, but the host re-emits a bounded tail of it,
+# so a verbose job's attach lines never reach the log store.
+#
+# The binary cache's figure is what limit_binary_cache exported at attach, its
+# share capped beside the pruned store, and its share at teardown, where nothing
+# exports it. A host staging the fixed split divides nothing, so there is nothing
+# to record.
+stage_cache_limits() {
+  local when="$1"
+  [ -n "${CACHE_BUDGET_BYTES}" ] || return 0
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local binary_limit="${BINARY_CACHE_SHARE_BYTES}"
+  if [ "${when}" = "attach" ] && [ -n "${TUIST_CACHE_MAX_BYTES:-}" ]; then
+    binary_limit="${TUIST_CACHE_MAX_BYTES}"
+  fi
+  {
+    printf '%s\t%s\t%s\t%s\n' "${when}" binary "${BINARY_CACHE_HELD_BYTES}" "${binary_limit:-0}"
+    printf '%s\t%s\t%s\t%s\n' "${when}" compilation "${COMPILATION_CACHE_HELD_BYTES}" "${CAS_LIMIT_BYTES:-0}"
+  } >>"${STATUS_SHARE}/${CACHE_LIMITS_FILE}" 2>/dev/null || true
+}
+
+# limit_binary_cache exports the binary cache's limit as TUIST_CACHE_MAX_BYTES, for
+# the CLI's LRU prune and the admission its downloads and stores claim against, so
+# a working set larger than the limit degrades to a hot tier instead of churning
+# at ENOSPC. The job inherits it, so it bounds the binary cache for the whole job.
+# Called after the attach prune, so the limit fits beside what the compilation
+# cache holds once pruned.
+limit_binary_cache() {
+  local limit="${BINARY_CACHE_SHARE_BYTES}"
+  case "${limit}" in ''|*[!0-9]*) return 0 ;; esac
+  [ "${limit}" -gt 0 ] || return 0
+  if [ -n "${CACHE_BUDGET_BYTES}" ]; then
+    limit=$(within_room "${limit}" "${CACHE_BUDGET_BYTES}" "$(allocated_bytes "${CACHE_MOUNT}/${CAS_STORE_DIR}")")
+  fi
+  export TUIST_CACHE_MAX_BYTES="${limit}"
+  echo "$(date -u +%FT%TZ) dispatch-poll: binary cache limit ${TUIST_CACHE_MAX_BYTES}B"
+}
+
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
 # most a job's start can be delayed by the cache. The host materializes from its
 # LOCAL master (a CoW clonefile, ~tens of ms, no network) before signalling;
@@ -1011,6 +1174,9 @@ wait_for_cache_ready() {
         return 0
       fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory "${CACHE_MOUNT}")
+      # Both caches' limits, from what the job inherited, before the prune that
+      # applies the compilation cache's.
+      set_cache_limits attach
       # Bound the store this job INHERITED, before the job can run out of room
       # in it. Nothing has opened it yet — `tuist setup cache` has not run, so
       # there is no proxy, and a runner VM is single-shot so no previous one
@@ -1029,6 +1195,10 @@ wait_for_cache_ready() {
       # frees, which is space the job was going to need, and killing an unlink
       # midway would leave a half-collected generation behind.
       prune_cas_stores attach
+      # After the prune, so the binary cache's limit fits beside what the
+      # compilation cache holds once pruned.
+      limit_binary_cache
+      stage_cache_limits attach
       # After the prune, which can be what makes room in a full image for the
       # store to be writable.
       setup_cas_store
@@ -1155,11 +1325,70 @@ capture_content_digest() {
   echo "$(date -u +%FT%TZ) dispatch-poll: settled cache image sha256=${CACHE_CONTENT_DIGEST:-unavailable}"
 }
 
+# JOB_RESULT_FILE is where the Buildkite pre-exit hook and the GitLab executor
+# leave the job's outcome for teardown. The hook's state directory defaults to
+# this directory, and the executor is handed the path.
+JOB_RESULT_FILE=/var/log/tuist-runner/job-result
+RUNNER_DIAG_DIR=/Users/runner/actions-runner/_diag
+
+# read_job_result prints how the job on this machine ended, lowercased
+# (succeeded, failed, canceled, ...), or "unknown" when the agent left no
+# verdict. `$1` names the agent: github, buildkite or gitlab.
+#
+# This, and not the runner's exit status, is what gates promotion. `run.sh`
+# maps every Listener exit code except a restart to 0, and the GitLab executor
+# exits 0 for job outcomes by design, so neither exit says how the job ended.
+# The Buildkite agent's exit does, but only for failures, and only because it
+# is started with `--reflect-exit-status`; buildkite_job_result combines the two.
+#
+# GitHub records its verdict in the Listener's own trace, as `finish job request
+# for job <id> with result: <Result>`. The Listener writes that line on both of
+# its completion paths (the Worker exited, or the job was cancelled or
+# abandoned), with the result it reports to GitHub, and nothing in it comes from
+# the job. The match is anchored to the trace header because a later line
+# echoes the job's display name, which the workflow chooses. The Worker's "Job
+# result after all job steps finish" line is not a substitute: a job that fails
+# to initialize, or whose Worker crashes, never writes it. Buildkite and GitLab
+# write JOB_RESULT_FILE.
+#
+# An absent verdict reads as "unknown", which does not promote.
+read_job_result() {
+  local result=""
+  case "${1}" in
+    github)
+      result=$(cat "${RUNNER_DIAG_DIR}"/Runner_*.log 2>/dev/null |
+        sed -n 's/^\[[^]]* JobDispatcher\] finish job request for job [^ ]* with result: \([A-Za-z]*\)[[:space:]]*$/\1/p' |
+        tail -n 1)
+      ;;
+    *)
+      result=$(cat "${JOB_RESULT_FILE}" 2>/dev/null)
+      ;;
+  esac
+  result=$(printf '%s' "${result}" | tr -cd 'A-Za-z' | tr '[:upper:]' '[:lower:]' | cut -c1-32)
+  printf '%s' "${result:-unknown}"
+}
+
+# buildkite_job_result prints the Buildkite job's result from the pre-exit
+# hook's verdict and the agent's exit status (`$1`), which
+# `--reflect-exit-status` makes the job's final status. The hook alone is not
+# enough: the executor settles that status after the global pre-exit hook runs,
+# so an automatic artifact upload that fails, or a repository or plugin pre-exit
+# hook that fails, turns a job the hook saw pass into a failure. The status
+# alone is not enough either: it does not mark a cancel, and a job whose command
+# exits 0 after being cancelled reads as a pass.
+buildkite_job_result() {
+  local result
+  result=$(read_job_result buildkite)
+  if [ "${result}" = "succeeded" ] && [ "${1}" != "0" ]; then
+    result=failed
+  fi
+  printf '%s' "${result}"
+}
+
 # report_cache_dirty writes the guest's dirty marker into the writable status
 # share so the reconciler can decide promote-vs-discard. "1" iff the job
-# succeeded (runner rc == 0) AND the cache inventory changed; "0" for a
-# read-only / pure-hit job OR a job whose runner exited non-zero (infra failure,
-# cancellation, runner crash).
+# succeeded (JOB_PASSED) AND the cache inventory changed; "0" for a read-only /
+# pure-hit job OR a job that failed, was cancelled, or left no result.
 #
 # It MUST run AFTER a successful detach. The marker is what authorizes the host
 # to promote, and the host promotes by cloning the image file without being able
@@ -1171,24 +1400,21 @@ capture_content_digest() {
 # detach failure). It reads the inventory capture_settled_inventory took off the
 # detached image, so "dirty" describes the bytes that would actually be promoted.
 #
-# Gating on rc carries the job result to the host so a failed run never promotes
-# its branch to the account's master — the host's own `tart run` clean-exit
-# signal reflects the VM halting, not the job's conclusion, so it can't make
-# this call on its own. (rc is the runner-process exit: it catches infra/runner
-# failures and cancellations; a job whose steps fail while the runner exits 0
-# still promotes, which is acceptable — those artifacts are content-addressed
-# and signature-validated, so they warm rather than corrupt.) Mirrors the rc
-# gate in report_volume_head so local promote and HEAD publish agree.
+# Gating on the job's result carries it to the host so a failed or cancelled run
+# never promotes its branch to the account's master. The host's own `tart run`
+# clean-exit signal reflects the VM halting, not the job's conclusion, so it
+# can't make this call on its own. Mirrors the gate in report_volume_head so
+# local promote and HEAD publish agree.
 
 report_cache_dirty() {
   [ -d "${STATUS_SHARE}" ] || return 0
-  local rc="${1:-1}" dirty=0
-  if [ "${rc}" = "0" ] && [ -n "${CACHE_INVENTORY_AFTER}" ] && \
+  local passed="${1:-0}" dirty=0
+  if [ "${passed}" = "1" ] && [ -n "${CACHE_INVENTORY_AFTER}" ] && \
     [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
     dirty=1
   fi
   printf '%s' "${dirty}" > "${STATUS_SHARE}/cache-dirty" 2>/dev/null || true
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (rc=${rc}) digest=${CACHE_INVENTORY_AFTER} reported to host"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (job=${JOB_RESULT:-unknown}) digest=${CACHE_INVENTORY_AFTER} reported to host"
 }
 
 # stage_volume_head writes the account's cache-volume HEAD (from the dispatch
@@ -1313,8 +1539,8 @@ VOLUME_HEAD_UPLOAD_TIMEOUT=600
 # be mid-write, and what gets uploaded here becomes every other host's master.
 # Best-effort; never blocks teardown.
 report_volume_head() {
-  local rc="${1:-1}"
-  [ "${rc}" = "0" ] || return 0
+  local passed="${1:-0}"
+  [ "${passed}" = "1" ] || return 0
   [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
   [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
@@ -1676,6 +1902,10 @@ HOOK
           "${RUNNER_PERF_FILE}" 2>/dev/null
       }
 
+      # The machine is fresh per job, so anything here would be a stray, but the
+      # verdict teardown promotes on has to be this job's.
+      rm -f "${JOB_RESULT_FILE}"
+
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
       # version is baked into the image; we bump that via Renovate
@@ -1694,10 +1924,11 @@ HOOK
       # writes nothing to the ingest path.
       if [ "${gitlab_job}" = "true" ]; then
         /opt/tuist/tuist-gitlab-runner --job-file /tmp/tuist-gitlab-job.json \
-          --builds-dir /Users/runner/work &
+          --builds-dir /Users/runner/work --result-file "${JOB_RESULT_FILE}" &
         runner_pid=$!
         wait "${runner_pid}"
         rc=$?
+        JOB_RESULT=$(read_job_result gitlab)
       elif [ -n "${bk_token}" ]; then
         # Buildkite needs none of the idle-watchdog machinery below. The
         # acquisition token names one job UUID, so the assignment already
@@ -1720,10 +1951,23 @@ HOOK
           --build-path /Users/runner/work \
           --enable-job-log-tmpfile \
           --job-log-path /var/log/tuist-runner \
-          --disconnect-after-job &
+          --disconnect-after-job \
+          --reflect-exit-status &
         runner_pid=$!
         wait "${runner_pid}"
-        rc=$?
+        agent_rc=$?
+        JOB_RESULT=$(buildkite_job_result "${agent_rc}")
+        # `--reflect-exit-status` exits the agent with a failed job's status, but
+        # the runners-controller reads a non-zero runner exit as a runner death
+        # and not as a job outcome. A verdict from the hook proves the job ran, so
+        # its status stays out of the exit; without one, the agent's own status
+        # (a rejected acquisition, or a job that never reached its hooks) is
+        # still reported.
+        rc=0
+        if [ "${JOB_RESULT}" = "unknown" ]; then
+          rc="${agent_rc}"
+        fi
+        echo "$(date -u +%FT%TZ) dispatch-poll: buildkite agent exited ${agent_rc}"
       else
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!
@@ -1769,7 +2013,16 @@ HOOK
       rc=$?
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+      JOB_RESULT=$(read_job_result github)
       fi
+      # Only a job that succeeded may promote its cache (see read_job_result for
+      # why the exit status cannot say so). A non-zero exit still withholds: it is
+      # a runner the idle watchdog killed, or an agent that failed.
+      JOB_PASSED=0
+      if [ "${rc}" = "0" ] && [ "${JOB_RESULT}" = "succeeded" ]; then
+        JOB_PASSED=1
+      fi
+      echo "$(date -u +%FT%TZ) dispatch-poll: job result=${JOB_RESULT} (rc=${rc}); cache promotion $([ "${JOB_PASSED}" = "1" ] && echo allowed || echo withheld)"
       # Cache teardown. The order here is load-bearing:
       #   0. wait for the compilation cache's asynchronous publications to reach
       #      the remote, while the spool is still mounted and the publisher can
@@ -1796,28 +2049,33 @@ HOOK
       #   4. ONLY then authorize promotion (dirty marker) and upload the settled
       #      image as the account's new HEAD. A detach failure, an unmeasurable
       #      image, or an early exit leaves no dirty marker, so the host discards.
-      # rc gates promotion — a failed run never advances the master.
+      # JOB_PASSED gates promotion: only a job that succeeded advances the master.
       # If the CAS feature was turned off, drop its stale store from the image
       # BEFORE the image is measured, so the removal promotes a cleaned master
       # instead of masters carrying dead CAS bytes forever.
       reclaim_cas_if_disabled
       # After the reclaim: a store that was just dropped has no spool left to
       # wait on, so a disabled-CAS teardown never pays for this gate.
-      if ! drain_cas_publications && [ "${rc}" = "0" ]; then
+      if ! drain_cas_publications && [ "${JOB_PASSED}" = "1" ]; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
       # Bound the compilation cache before the image is measured: nothing else
       # ever collects the generations that fall out of its chain, and an
       # unbounded store is what fills this volume and wedges the account.
       #
-      # Gated on rc. A non-zero rc never promotes, so there is no image for this
-      # to shrink, and the drain's verdict gates nothing for a failed job, so
-      # the spool may still owe the remote objects this would delete. Nothing
-      # inherits those associations (the branch is discarded), but "prune only
-      # what has been drained" is the invariant
+      # Gated on JOB_PASSED. A job that did not succeed never promotes, so there
+      # is no image for this to shrink, and the drain's verdict gates nothing
+      # for it, so the spool may still owe the remote objects this would delete.
+      # Nothing inherits those associations (the branch is discarded), but
+      # "prune only what has been drained" is the invariant
       # worth being unable to get wrong later. The attach-time prune is what
       # covers a failing job, from the other end.
-      if [ "${rc}" = "0" ]; then
+      if [ "${JOB_PASSED}" = "1" ]; then
+        # Divide the budget again first: the binary cache may have grown to its
+        # attach-time share during the job, and nothing prunes it here, so the
+        # compilation cache has to fit beside what it holds now.
+        set_cache_limits teardown
+        stage_cache_limits teardown
         prune_cas_stores teardown
       fi
       # A full image is withheld from BOTH channels, so the detach still runs
@@ -1837,12 +2095,12 @@ HOOK
       elif [ "${cache_within_fill_ceiling}" = "1" ]; then
         # Only a changed image from a successful job is promoted, so only that one
         # is worth the teardown time a compaction costs.
-        if [ "${rc}" = "0" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
+        if [ "${JOB_PASSED}" = "1" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
           compact_cache_image
         fi
         capture_content_digest
-        report_cache_dirty "${rc}"
-        report_volume_head "${rc}"
+        report_cache_dirty "${JOB_PASSED}"
+        report_volume_head "${JOB_PASSED}"
       fi
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last

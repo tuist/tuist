@@ -283,6 +283,16 @@ k8s-monitoring:
           decisionCache: null
           numTraces: 5000
           expectedNewTracesPerSec: 100
+          # The upstream default (4MB) is smaller than the ingress Alloy's HTTP
+          # body cap (20MiB), so the loadbalancing exporter re-emits Kura's
+          # accepted trace batches to this sampler and they are rejected here
+          # as ResourceExhausted, dropping every batch. Match the ingress cap
+          # so the internal Alloy-to-Alloy hop stops throwing away work the
+          # front door already admitted.
+          receiver:
+            otlp:
+              grpc:
+                maxReceivedMessageSize: 20MB
           policies:
             - name: errors
               type: status_code

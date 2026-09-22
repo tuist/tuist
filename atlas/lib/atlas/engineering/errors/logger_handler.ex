@@ -1,15 +1,15 @@
 defmodule Atlas.Engineering.Errors.LoggerHandler do
   @moduledoc """
   Erlang :logger handler that captures error-level and above events
-  emitted by the running Hive instance and records them as Sentry
-  events against the "Hive" self-project.
+  emitted by the running Atlas instance and records them as Sentry
+  events against the "Atlas" self-project.
 
   The handler runs in the calling process, converts the log event to a
   Sentry-shaped map in memory, and calls `Atlas.Engineering.Errors.record_event/2`
   directly. There is no HTTP hop, so an ingest failure cannot trigger
   another log event that re-enters the handler.
 
-  The process dictionary key `:hive_errors_recording?` guards against
+  The process dictionary key `:atlas_errors_recording?` guards against
   re-entry from any indirect logs the recorder itself might emit.
   """
 
@@ -19,7 +19,7 @@ defmodule Atlas.Engineering.Errors.LoggerHandler do
   alias Atlas.Engineering.Projects.Project
   alias Atlas.Repo
 
-  @handler_id :hive_errors_handler
+  @handler_id :atlas_errors_handler
 
   @doc """
   Attaches the handler at the `:error` level. Safe to call twice: the
@@ -54,21 +54,21 @@ defmodule Atlas.Engineering.Errors.LoggerHandler do
   # level filter.
   def log(%{level: level, meta: meta, msg: msg} = event, _config) do
     if !(recording?() or ignore?(meta)) do
-      Process.put(:hive_errors_recording?, true)
+      Process.put(:atlas_errors_recording?, true)
 
       try do
         record(level, msg, meta, event)
       rescue
         _ -> :ok
       after
-        Process.delete(:hive_errors_recording?)
+        Process.delete(:atlas_errors_recording?)
       end
     end
 
     :ok
   end
 
-  defp recording?, do: Process.get(:hive_errors_recording?) == true
+  defp recording?, do: Process.get(:atlas_errors_recording?) == true
 
   defp ignore?(meta) do
     from_ignored_domain?(meta) or from_transport_only_domain?(meta) or
@@ -76,7 +76,7 @@ defmodule Atlas.Engineering.Errors.LoggerHandler do
   end
 
   defp from_ignored_domain?(%{domain: domain}) when is_list(domain) do
-    Enum.any?(domain, &(&1 in [:hive_errors]))
+    Enum.any?(domain, &(&1 in [:atlas_errors]))
   end
 
   defp from_ignored_domain?(_), do: false
@@ -103,7 +103,7 @@ defmodule Atlas.Engineering.Errors.LoggerHandler do
 
     String.starts_with?(name, "Elixir.Ch.") or
       String.starts_with?(name, "Elixir.Ecto.Adapters.ClickHouse") or
-      String.starts_with?(name, "Elixir.Atlas.Ingestion.")
+      String.starts_with?(name, "Elixir.Atlas.Engineering.Errors.")
   end
 
   defp from_click_house_infra?(_), do: false
@@ -149,10 +149,10 @@ defmodule Atlas.Engineering.Errors.LoggerHandler do
       "level" => normalize_level(level),
       "logger" => logger_name(meta),
       "server_name" => to_string(:net_adm.localhost()),
-      "environment" => to_string(Application.get_env(:hive, :env, "production")),
-      "release" => to_string(Application.spec(:hive, :vsn)),
+      "environment" => to_string(Application.get_env(:atlas, :env, "production")),
+      "release" => to_string(Application.spec(:atlas, :vsn)),
       "message" => %{"formatted" => message},
-      "sdk" => %{"name" => "hive.self", "version" => "1.0.0"},
+      "sdk" => %{"name" => "atlas.self", "version" => "1.0.0"},
       "tags" => tags_from_meta(meta)
     }
 
@@ -384,7 +384,7 @@ defmodule Atlas.Engineering.Errors.LoggerHandler do
   defp in_app?(module) do
     module
     |> inspect()
-    |> String.starts_with?(["Hive", "HiveWeb"])
+    |> String.starts_with?(["Atlas", "AtlasWeb"])
   end
 
   defp generate_event_id do

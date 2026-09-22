@@ -16,6 +16,8 @@ defmodule AtlasWeb.AccountLiveTest do
   alias Atlas.Accounts.OutcomeProposal
   alias Atlas.Accounts.ServiceLevel
   alias Atlas.Accounts.ServiceLevelExtractionCheck
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Document
   alias Atlas.Letters
   alias Atlas.Repo
@@ -1280,9 +1282,22 @@ defmodule AtlasWeb.AccountLiveTest do
   end
 
   defp insert_user!(email, attrs \\ %{}) do
-    %User{}
-    |> User.changeset(Map.merge(%{email: email, name: "Atlas User"}, attrs))
-    |> Repo.insert!()
+    {role, attrs} = Map.pop(attrs, :role)
+
+    user =
+      %User{}
+      |> User.changeset(Map.merge(%{email: email, name: "Atlas User"}, attrs))
+      |> Repo.insert!()
+
+    if role == :executive do
+      executive_role = Roles.ensure_executive_role!()
+
+      %UserRole{}
+      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
+      |> Repo.insert!()
+    end
+
+    user
   end
 
   defp insert_tax_certificate_account!(suffix) do

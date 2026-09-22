@@ -317,6 +317,7 @@ var tuistInitCommandDependencies: [Target.Dependency] = [
     "TuistEnvKey",
     "TuistServer",
     "TuistAuthCommand",
+    "TuistBazelCommand",
     "TuistAlert",
     "TuistNooraExtension",
     .product(name: "Noora", package: "tuist.Noora"),

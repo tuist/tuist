@@ -21,7 +21,7 @@ defmodule Atlas.MCP.Tools.UpdateFeatureInterestAccountContext do
   def description, do: "Update the internal context for one account's recorded feature interest."
 
   def execute(conn, %{"feature_interest_account_id" => id, "context" => context}) do
-    with :ok <- Tool.authorize_executive(conn, "Feature interest tools"),
+    with :ok <- Tool.authorize_scope(conn, "accounts:write", "Feature interest tools"),
          interest_account when not is_nil(interest_account) <- Accounts.get_feature_interest_account(id) do
       case Accounts.update_feature_interest_notes(interest_account, %{"notes" => context}, Tool.current_user(conn)) do
         {:ok, updated} ->

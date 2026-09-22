@@ -54,14 +54,9 @@ egress IPs and managed-cluster LoadBalancer locations.
 The `tuist-preview` overlay enables `previewJanitor`, a Kubernetes CronJob that
 deletes expired preview namespaces inside the preview cluster. It reads
 namespaces labeled `tuist.dev/preview=true`, deletes the matching
-`KuraInstance` from the `kura` namespace, and deletes the preview namespace as
-the backstop.
-
-The janitor intentionally does not run `helm uninstall`, because that would
-require read access to Helm release Secrets in every dynamic preview namespace.
-The external `preview-sweep.yml` workflow keeps that Helm-aware cleanup path
-with its explicit preview-cluster kubeconfig. The workflow runs at the top of
-the hour, and the janitor follows at minute 20 as the in-cluster backstop.
+`KuraInstance` from the `kura` namespace, and deletes the preview namespace.
+The namespace delete cascades through every chart-created resource, including
+the Helm release Secret, so no `helm uninstall` step is required.
 
 The janitor is disabled by default because it needs cluster-wide delete access
 to dynamic preview namespaces. Keep it enabled only for the managed preview

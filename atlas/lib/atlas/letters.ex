@@ -875,7 +875,7 @@ defmodule Atlas.Letters do
   end
 
   defp authorize(actor) do
-    if Users.executive?(actor), do: :ok, else: {:error, :unauthorized}
+    if Users.has_scope?(actor, "letters:write"), do: :ok, else: {:error, :unauthorized}
   end
 
   defp audit(action, letter, actor, metadata, opts \\ []) do

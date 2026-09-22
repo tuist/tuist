@@ -14,7 +14,6 @@ defmodule AtlasWeb.Admin.InferenceLive do
   import AtlasWeb.CoreComponents, only: []
   import Noora.Filter
 
-  alias Atlas.Audit
   alias Atlas.Inference
   alias Atlas.Inference.ModelBinding
   alias Atlas.Inference.Token
@@ -102,9 +101,7 @@ defmodule AtlasWeb.Admin.InferenceLive do
 
   def handle_event("create_profile", %{"profile" => params}, socket) do
     case Inference.create_profile(params) do
-      {:ok, profile} ->
-        record_profile_audit(:"inference_profile.created", profile)
-
+      {:ok, _profile} ->
         {:noreply,
          socket
          |> put_flash(:info, gettext("Profile created."))
@@ -558,19 +555,4 @@ defmodule AtlasWeb.Admin.InferenceLive do
   defp status_filter_label("enabled"), do: gettext("Enabled")
   defp status_filter_label("disabled"), do: gettext("Disabled")
   defp status_filter_label(status), do: status
-
-  defp record_profile_audit(action, %ModelBinding{} = profile) do
-    Audit.record(action, %{
-      target_type: "inference_profile",
-      target_id: profile.id,
-      target_label: profile.name,
-      metadata: %{
-        "upstream_provider" => profile.upstream_provider,
-        "upstream_model" => profile.upstream_model,
-        "input_cost_per_million" => profile.input_cost_per_million,
-        "output_cost_per_million" => profile.output_cost_per_million,
-        "path" => "/admin/inference/profiles/#{profile.id}"
-      }
-    })
-  end
 end

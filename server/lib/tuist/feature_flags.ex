@@ -38,6 +38,21 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether dispatch stamps a job's repository cache volume on its Pod. Canary and
+  production require an explicit `:runner_cache_volumes_per_repository` toggle,
+  so a deploy never starts stamping while replicas of the previous version are
+  still serving. Those replicas resolve every promote and upload URL under the
+  account's `tuist-cache` volume, so a repository-labelled Pod whose upload one
+  of them mints and whose promote a new replica accepts would publish a HEAD
+  pointing at an object under the other volume's prefix, which no host can then
+  download. Turn it on once the rollout is complete; the host side has its own
+  gate (`tuist.dev/cache-volumes-per-repository`).
+  """
+  def runner_cache_volumes_per_repository_enabled? do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_cache_volumes_per_repository)
+  end
+
+  @doc """
   Whether Kura runtime-image rollouts run through the rollout
   orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
   account-grouped waves with the health gate in production, expedited

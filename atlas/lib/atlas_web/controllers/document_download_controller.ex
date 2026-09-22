@@ -20,7 +20,7 @@ defmodule AtlasWeb.DocumentDownloadController do
     user = conn.assigns[:current_user]
 
     cond do
-      not Users.executive?(user) ->
+      not Users.has_scope?(user, "documents:read") ->
         conn
         |> put_status(:forbidden)
         |> text("Documents are only available to executives.")

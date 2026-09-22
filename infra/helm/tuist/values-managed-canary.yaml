@@ -21,7 +21,7 @@ registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
   deployEnv: canary
-  sentryEnv: can
+  sentryEnv: canary
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
@@ -52,6 +52,18 @@ server:
 
   kuraCapacityAdmission:
     enabled: true
+
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-canary` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
+  config:
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
 
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
@@ -283,29 +295,19 @@ clickhouse:
     # canary is for is the shape production will run, which staging does not
     # exercise: two replicas here, one on each AX42-1.
     #
-    # Still one replica, running the configuration a second one needs, so
-    # that configuration reaches it in a deploy of its own. A joining replica
-    # fetches every part from the address its peer registered in Keeper, and
-    # before this configuration that address is the pod's name under a
-    # Service that is not headless, which does not resolve. The StatefulSet
-    # creates a new replica before it restarts the old one, so adding the
-    # second replica in the same deploy would leave it unable to catch up and
-    # the rollout waiting on it until helm gives up.
-    #
     # Keeper stays at one member. Growing a live ensemble to three is a
     # membership change, not a replica count: new members started with a
     # three-server configuration can elect a leader between themselves with
     # none of the existing member's metadata.
-    replicas: 1
+    replicas: 2
     persistence:
       size: 200Gi
       localVolume:
-        # The box that has held the data since the migration began. The
-        # second one, bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv, is
-        # joined, tainted and idle until it becomes replica 1. See `nodeNames`
-        # in values.yaml.
+        # Replica 0 on the box that has held the data since the migration
+        # began, replica 1 on the second. See `nodeNames` in values.yaml.
         nodeNames:
           - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+          - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv
     # Reachable over the tailnet as well as in-cluster, because the
     # xcresult-processor is not on the pod network: it runs in a Tart VM with
     # a tailnet address, so the Service name every other writer resolves does
@@ -717,7 +719,8 @@ macosFleet:
   # unwritable share for a local cold cache instead of exporting a broken
   # root. Production has run on that path (gib: 80) since; canary tracks it
   # here, with the Xcode compilation cache (CAS) folded in — masterCapGib 28
-  # gives the CAS 16 GiB, the binary cache ~10, and a ~2 GiB reserve.
+  # gives the two caches 22.4 GiB to share by use, with a 5.6 GiB reserve.
+  # casGib 16 sets the fixed split older runner images apply.
   runnerCacheVolume:
     gib: 80
     masterCapGib: 28

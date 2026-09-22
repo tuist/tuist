@@ -2,6 +2,7 @@ defmodule Atlas.Users do
   import Ecto.Query
 
   alias Atlas.Audit
+  alias Atlas.Authorization.Roles
   alias Atlas.Repo
   alias Atlas.Users.User
 
@@ -12,7 +13,6 @@ defmodule Atlas.Users do
   def list_users do
     from(user in User,
       order_by: [
-        asc: fragment("case when ? = 'executive' then 0 else 1 end", user.role),
         asc: fragment("lower(coalesce(?, ''))", user.name),
         asc: fragment("lower(?)", user.email)
       ]
@@ -20,31 +20,24 @@ defmodule Atlas.Users do
     |> Repo.all()
   end
 
-  def change_user_role(%User{} = user, attrs \\ %{}) do
-    User.role_changeset(user, attrs)
-  end
+  @doc """
+  All scope strings currently granted to a user, expanded so that any
+  `<area>:write` scope also grants `<area>:read`.
+  """
+  def scopes_for(%User{} = user), do: Roles.scopes_for_user(user)
+  def scopes_for(_user), do: []
 
-  def update_user_role(%User{} = user, attrs) do
-    changeset = User.role_changeset(user, attrs)
+  @doc "True if the user carries the required scope, either directly or via a write override."
+  def has_scope?(%User{} = user, scope) when is_binary(scope), do: Roles.has_scope?(user, scope)
+  def has_scope?(_user, _scope), do: false
 
-    changeset
-    |> Repo.update()
-    |> tap(fn
-      {:ok, updated_user} ->
-        Audit.record("user.role_updated", %{
-          target_type: "user",
-          target_id: updated_user.id,
-          target_label: updated_user.email,
-          metadata: %{"changed" => Audit.changeset_changes(changeset)}
-        })
-
-      _result ->
-        :ok
-    end)
-  end
-
-  def executive?(%User{role: :executive}), do: true
-  def executive?(_user), do: false
+  @doc """
+  Backwards-compatible predicate for legacy call sites: a user is considered an
+  "administrator" of Atlas when they hold `admin:write`. New code should ask
+  for the specific scope it needs via `has_scope?/2` instead.
+  """
+  def admin?(%User{} = user), do: has_scope?(user, "admin:write")
+  def admin?(_user), do: false
 
   def find_or_create_user_from_auth(%Ueberauth.Auth{} = auth) do
     email = auth.info.email
@@ -53,17 +46,27 @@ defmodule Atlas.Users do
       case Repo.get_by(User, email: email) do
         nil ->
           %User{}
-          |> User.changeset(%{
-            email: email,
-            name: auth.info.name
-          })
+          |> User.changeset(%{email: email, name: auth.info.name})
           |> Repo.insert()
+          |> tap(fn
+            {:ok, user} ->
+              Audit.record("user.created", %{
+                interface: "sso",
+                actor_id: user.id,
+                actor_email: user.email,
+                actor_name: user.name,
+                target_type: "user",
+                target_id: user.id,
+                target_label: user.email
+              })
+
+            _ ->
+              :ok
+          end)
 
         user ->
           user
-          |> User.changeset(%{
-            name: auth.info.name
-          })
+          |> User.changeset(%{name: auth.info.name})
           |> Repo.update()
       end
     else
@@ -79,4 +82,20 @@ defmodule Atlas.Users do
   end
 
   defp allowed_email?(_email), do: false
+
+  def delete_user(%User{} = user) do
+    user
+    |> Repo.delete()
+    |> tap(fn
+      {:ok, deleted} ->
+        Audit.record("user.deleted", %{
+          target_type: "user",
+          target_id: deleted.id,
+          target_label: deleted.email
+        })
+
+      _ ->
+        :ok
+    end)
+  end
 end

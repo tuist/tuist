@@ -6,8 +6,9 @@
 .layout {
   display: flex;
   flex-direction: column;
-  min-width: 100vw;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .layout p {
@@ -25,15 +26,12 @@
   flex: 1;
   flex-direction: row;
   background: var(--noora-surface-background-primary);
+  min-height: 0;
 
   & .noora-sidebar {
-    position: sticky;
-    top: 0;
     flex-shrink: 0;
-    align-self: flex-start;
-    margin-top: var(--noora-spacing-5);
-    max-height: 100vh;
-    overflow-y: auto;
+    align-self: stretch;
+    overflow: hidden;
   }
 
   @media (max-width: 1024px) {
@@ -47,7 +45,7 @@
   flex: 1;
   padding: var(--noora-spacing-9) var(--noora-spacing-9) var(--noora-spacing-5) var(--noora-spacing-5);
   min-width: 0;
-  overflow: hidden;
+  overflow: auto;
   position: relative;
 }
 

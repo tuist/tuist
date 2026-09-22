@@ -387,12 +387,17 @@ defmodule TuistWeb.OpsAccountLive do
        )}
     else
       # Missing billing details: open the modal pre-filled with whatever
-      # the Stripe customer already has.
+      # the Stripe customer already has. The modal is `:if`-gated on
+      # `upgrade_target_account`, so it isn't in the DOM yet and its
+      # Noora Modal hook hasn't attached the `phx:open-modal` window
+      # listener. Defer the event to the next tick so the DOM patch
+      # mounts the modal (and its listener) before we dispatch.
+      send(self(), :open_enterprise_modal)
+
       {:noreply,
        socket
        |> assign(:upgrade_target_account, account)
-       |> assign(:upgrade_target_customer, customer)
-       |> push_event("open-modal", %{id: "enterprise-modal"})}
+       |> assign(:upgrade_target_customer, customer)}
     end
   end
 
@@ -451,6 +456,11 @@ defmodule TuistWeb.OpsAccountLive do
      |> assign(:upgrade_target_account, nil)
      |> assign(:upgrade_target_customer, nil)
      |> push_event("close-modal", %{id: "enterprise-modal"})}
+  end
+
+  @impl true
+  def handle_info(:open_enterprise_modal, socket) do
+    {:noreply, push_event(socket, "open-modal", %{id: "enterprise-modal"})}
   end
 
   ## Stripe-customer prefill helpers (moved from OpsAccountsLive)

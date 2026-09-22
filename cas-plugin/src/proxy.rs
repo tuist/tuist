@@ -591,9 +591,16 @@ const STORE_BOUND_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 /// The per-generation limit for a store whose footprint may reach
 /// `store_size_limit` bytes. A pruned store settles at about twice its
-/// per-generation limit (the primary plus the upstream it demoted), which is
-/// why the runner image stages half of its CAS allowance the same way. Never 0,
+/// per-generation limit (the primary plus the upstream it demoted), so halving
+/// is what keeps the footprint within what the project asked for. Never 0,
 /// which `prune_store` reads as imposing no limit.
+///
+/// A Tuist runner does NOT halve the figure it stages for its compilation cache,
+/// and the difference is the reserve. A runner's cache image keeps room a job
+/// grows into, and its stores are pruned only at the two ends of a job, so they
+/// are budgeted to reach their whole figure and overshoot it in between. A
+/// machine running this proxy has no such reserve and is pruned on a timer, so
+/// here the project's limit is a footprint the store stays within.
 fn generation_limit(store_size_limit: u64) -> u64 {
     (store_size_limit / 2).max(1)
 }
@@ -4239,12 +4246,27 @@ impl Proxy {
                 self.consider_endpoint(&resolved, current_reachable);
             }
             crate::endpoint::Resolution::BeingPrepared => {
-                let _ = self.endpoint_preparing_since_ms.compare_exchange(
-                    0,
-                    now,
-                    Ordering::Relaxed,
-                    Ordering::Relaxed,
-                );
+                // A streak keeps its own start so the window still caps it. A
+                // stamp already older than the window is a streak that ended —
+                // a preparation that outlived it, then `Unknown` answers that
+                // deliberately do not clear it — and this answer starts a new
+                // one. Without that the field keeps its stale timestamp for
+                // the life of the process, and every later preparation (the
+                // archive-and-return this exists for) falls back to the absent
+                // or refresh interval instead of re-arming the fast one.
+                let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
+                let mut observed = self.endpoint_preparing_since_ms.load(Ordering::Relaxed);
+                while observed == 0 || now.saturating_sub(observed) >= window {
+                    match self.endpoint_preparing_since_ms.compare_exchange(
+                        observed,
+                        now,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => break,
+                        Err(current) => observed = current,
+                    }
+                }
             }
             crate::endpoint::Resolution::Unknown => {}
         }
@@ -5572,6 +5594,11 @@ fn plan_generations(sizes: &BTreeMap<u64, u64>, limit_bytes: u64, exclusive: boo
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
+    #[cfg(test)]
+    assert!(
+        tests::CAS_TEST_LOCK.get().is_some(),
+        "tests opening an Apple CAS must use run_in_cas_subprocess"
+    );
     let options = (up.llcas_cas_options_create)();
     let c_path = std::ffi::CString::new(path).map_err(|_| "bad cas path".to_string())?;
     (up.llcas_cas_options_set_client_version)(options, 0, 1);
@@ -5789,6 +5816,125 @@ unsafe fn read_node_frame(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    // Production workers require static state. A test subprocess gives every
+    // leaked handle and worker a bounded lifetime, even if a test panics or a
+    // reopen is still running. Serializing only these tests also bounds peak
+    // mapped memory without removing concurrency inside the race tests.
+    static CAS_TEST_RUN: Mutex<()> = Mutex::new(());
+    pub(super) static CAS_TEST_LOCK: std::sync::OnceLock<std::fs::File> =
+        std::sync::OnceLock::new();
+    const CAS_TEST_CHILD: &str = "TUIST_CAS_TEST_CHILD";
+
+    fn run_in_cas_subprocess() -> bool {
+        let thread = std::thread::current();
+        let name = thread.name().expect("a libtest test thread has a name");
+        if std::env::var(CAS_TEST_CHILD).as_deref() == Ok(name) {
+            // Keep the lock until process exit, after all mappings and worker
+            // threads are gone. It also serializes independent cargo runs.
+            CAS_TEST_LOCK.get_or_init(|| {
+                let lock = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(false)
+                    .write(true)
+                    .open(std::env::temp_dir().join("tuist-cas-proxy-tests.lock"))
+                    .expect("open CAS test lock");
+                lock.lock().expect("lock CAS tests");
+                lock
+            });
+            return false;
+        }
+
+        // Do not spawn a process for every waiting libtest thread.
+        let _run = CAS_TEST_RUN
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let output = cas_test_command(name)
+            .output()
+            .expect("run isolated CAS test");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            output.status.success(),
+            "{name}: {}\n{stdout}\n{stderr}",
+            output.status
+        );
+        print!("{stdout}");
+        eprint!("{stderr}");
+        true
+    }
+
+    fn cas_test_command(name: &str) -> std::process::Command {
+        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                name,
+                "--include-ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CAS_TEST_CHILD, name);
+        command
+    }
+
+    #[test]
+    fn isolated_cas_tests_release_handles_on_success_and_panic() {
+        let _run = CAS_TEST_RUN
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        for panic in [false, true] {
+            let dir = TempCasDir::new("isolation-lifetime");
+            let output = cas_test_command("proxy::tests::cas_lifetime_fixture")
+                .env("TUIST_CAS_TEST_STORE", dir.path())
+                .env("TUIST_CAS_TEST_PANIC", panic.to_string())
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.success(),
+                !panic,
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            if panic {
+                assert!(String::from_utf8_lossy(&output.stderr).contains("injected CAS test panic"));
+            }
+            let lock = std::fs::File::options()
+                .write(true)
+                .open(dir.0.join("lock"))
+                .unwrap();
+            lock.try_lock()
+                .expect("every helper and proxy handle must be closed after the test");
+        }
+    }
+
+    #[test]
+    #[ignore = "subprocess fixture for isolated_cas_tests_release_handles_on_success_and_panic"]
+    fn cas_lifetime_fixture() {
+        // Running all ignored tests directly should not require fixture input.
+        let Ok(path) = std::env::var("TUIST_CAS_TEST_STORE") else {
+            return;
+        };
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let state = path_state_for(&path);
+        let digest = store_probe_object(state, b"mapped-test-object");
+        let proxy_state = test_proxy().path_state(&path).unwrap();
+        assert!(proxy_state.load_present(&digest));
+        let lock = std::fs::File::options()
+            .write(true)
+            .open(Path::new(&path).join("lock"))
+            .unwrap();
+        assert!(
+            lock.try_lock().is_err(),
+            "the child must still hold the store open"
+        );
+        if std::env::var("TUIST_CAS_TEST_PANIC").as_deref() == Ok("true") {
+            panic!("injected CAS test panic");
+        }
+    }
 
     /// The churn-skip must not swallow the reclaim: a trunk build re-putting a
     /// value it already resolved may be republishing an entry that is still
@@ -6450,6 +6596,9 @@ mod tests {
 
     #[test]
     fn a_build_waits_until_its_record_is_published() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture("published", UPLOADING);
         let proxy = waiting_proxy(&dir, |record_path| {
             std::thread::sleep(Duration::from_millis(200));
@@ -6473,6 +6622,9 @@ mod tests {
 
     #[test]
     fn a_failed_upload_is_left_to_the_sweep() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture("failed", UPLOADING);
         let proxy = waiting_proxy(&dir, |_| {});
 
@@ -6494,6 +6646,9 @@ mod tests {
     /// builds stop waiting at all rather than each paying the budget again.
     #[test]
     fn a_stalled_upload_releases_the_build_and_the_ones_after_it() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture("stalled", UPLOADING);
         let (release, released) = std::sync::mpsc::channel::<()>();
         let released = Mutex::new(released);
@@ -6540,6 +6695,9 @@ mod tests {
     /// them; the first timeout releases the rest.
     #[test]
     fn the_first_stalled_upload_releases_the_builds_already_waiting() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture("released", UPLOADING);
         let (release, released) = std::sync::mpsc::channel::<()>();
         let released = Mutex::new(released);
@@ -6580,6 +6738,9 @@ mod tests {
     /// hear about it when it happens rather than wait out its budget.
     #[test]
     fn a_failed_publication_already_in_flight_ends_the_wait_as_a_failure() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture("in-flight", UPLOADING);
         let (entered_sender, entered) = std::sync::mpsc::channel();
         let (release, released) = std::sync::mpsc::channel::<()>();
@@ -6615,6 +6776,9 @@ mod tests {
     /// on it, not after the backlog ahead of it.
     #[test]
     fn a_queued_publication_is_taken_over_by_the_build_waiting_on_it() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture("queued", UPLOADING);
         let blocker = Path::new(&cas_path).join("tuist-spool").join("1234-9");
         std::fs::write(&blocker, record_body(b"blocker", b"value")).expect("record");
@@ -6647,6 +6811,9 @@ mod tests {
 
     #[test]
     fn a_project_that_does_not_upload_owes_nothing() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture(
             "read-only",
             r#"{"tuist/mastodon":{"trunk":"main","upload":false}}"#,
@@ -6667,6 +6834,9 @@ mod tests {
     /// compiler's wait published the value, the re-put has no bytes to wait for.
     #[test]
     fn a_reput_of_a_published_value_does_not_wait() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture("reput", UPLOADING);
         let (release, released) = std::sync::mpsc::channel::<()>();
         let released = Mutex::new(released);
@@ -6702,6 +6872,9 @@ mod tests {
 
     #[test]
     fn an_unprimed_path_is_not_waited_on() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let (dir, cas_path, record_path) = upload_wait_fixture("unprimed", UPLOADING);
         let proxy = waiting_proxy(&dir, |_| panic!("nowhere to publish to"));
 
@@ -7529,6 +7702,40 @@ mod tests {
     }
 
     #[test]
+    fn a_preparation_after_the_window_lapsed_re_arms_the_fast_interval() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let start = 1_000_000_u64;
+        let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
+
+        // A preparation that outlives its window, then answers the CLI could
+        // not give — the laptop went offline — which do not clear the stamp.
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+        proxy.record_resolution(
+            crate::endpoint::Resolution::Unknown,
+            start + window + 1,
+            || true,
+        );
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + window + 1),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+
+        // A genuinely new preparation, hours later.
+        let later = start + window * 100;
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, later, || true);
+        assert_eq!(
+            proxy.endpoint_resolution_interval(later),
+            ENDPOINT_PREPARING_INTERVAL
+        );
+    }
+
+    #[test]
     fn an_answer_the_cli_could_not_give_keeps_the_absent_interval() {
         let proxy = Proxy::new(
             String::new(),
@@ -7963,6 +8170,9 @@ mod tests {
 
     #[test]
     fn sweep_reclaims_only_stores_of_dead_runs() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let root = TempCasDir::new("sweep-root");
         let mut child = std::process::Command::new("true").spawn().unwrap();
         let dead_pid = child.id();
@@ -7995,6 +8205,9 @@ mod tests {
     // Rebinding the handle is what makes the probe authoritative again.
     #[test]
     fn load_present_does_not_answer_from_a_wiped_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("wipe-read");
         let state = path_state_for(&dir.path());
         let digest = store_probe_object(state, b"tuist-cas-wipe-probe");
@@ -8017,6 +8230,9 @@ mod tests {
     // build. After rebinding, what the proxy writes is what the compiler reads.
     #[test]
     fn stores_after_a_wipe_land_in_the_live_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("wipe-write");
         let state = path_state_for(&dir.path());
 
@@ -8075,6 +8291,9 @@ mod tests {
     /// SECOND that pushes the original off the end for the prune to delete.
     #[test]
     fn a_prune_rotates_the_chain_and_collects_what_falls_off_it() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 16 * 1024 * 1024;
         const FILL: u64 = 24 * 1024 * 1024;
         let dir = TempCasDir::new("prune-rotate");
@@ -8134,6 +8353,9 @@ mod tests {
     /// `Ok(0)` with `v1.1` still in place.
     #[test]
     fn concurrent_registrations_leave_exactly_one_handle_on_the_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 1024 * 1024;
         let dir = TempCasDir::new("register-race");
         let proxy = test_proxy();
@@ -8175,6 +8397,9 @@ mod tests {
     /// store is measured at most once per STORE_BOUND_INTERVAL.
     #[test]
     fn a_store_past_its_projects_size_limit_is_pruned() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 4 * 1024 * 1024;
         let proxy = test_proxy();
 
@@ -8262,6 +8487,9 @@ mod tests {
     /// `v9.*` is the compilers' own layout, which no upstream plugin reads.
     #[test]
     fn a_prune_bounds_a_store_in_a_layout_the_upstream_plugin_does_not_read() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const MIB: usize = 1024 * 1024;
         let dir = TempCasDir::new("prune-foreign-layout");
         std::fs::write(dir.0.join("lock"), b"").unwrap();
@@ -8279,6 +8507,9 @@ mod tests {
 
     #[test]
     fn a_prune_of_a_store_held_open_collects_only_what_is_unreachable() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const MIB: usize = 1024 * 1024;
         let dir = TempCasDir::new("prune-held-lock");
         write_generation(&dir.0, 1, "v9.data", MIB);
@@ -8296,6 +8527,9 @@ mod tests {
 
     #[test]
     fn a_store_rotated_on_disk_is_the_chain_the_upstream_plugin_expects() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("prune-upstream-roundtrip");
         let digests = store_directly(&dir.path(), payloads(1, 1));
 
@@ -8307,6 +8541,9 @@ mod tests {
 
     #[test]
     fn a_prune_runs_on_a_full_volume_and_frees_it() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const MIB: usize = 1024 * 1024;
         let Some(volume) = TestVolume::attach("prune-full") else { return };
         let store = volume.mount.join("builtin");
@@ -8326,6 +8563,9 @@ mod tests {
 
     #[test]
     fn a_proxy_prune_of_a_store_it_holds_runs_on_a_full_volume() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 8 * 1024 * 1024;
         let Some(volume) = TestVolume::attach("proxy-prune-full") else { return };
         let store = volume.mount.join("plugin");
@@ -8342,6 +8582,16 @@ mod tests {
         assert_eq!(reclaimed, upstream);
         assert_eq!(generations_at(&store), vec!["v1.2", "v1.3"]);
         assert!(state.load_present(&kept[0]));
+    }
+
+    // Native CAS probes need genuine upstream digests, even for absent objects.
+    // One-byte placeholders made a tiny closure test fault gigabytes of mappings.
+    // Seed a separate store so these objects are still absent from the test's CAS.
+    fn digests_for<const N: usize>(payloads: [&[u8]; N]) -> [Vec<u8>; N] {
+        let seed = TempCasDir::new("digest-seed");
+        store_directly(&seed.path(), payloads.into_iter().map(<[u8]>::to_vec).collect())
+            .try_into()
+            .unwrap()
     }
 
     /// Stores each payload through a handle of its own, disposed afterwards.
@@ -8456,6 +8706,31 @@ mod tests {
         names
     }
 
+    /// The halving is the contract, not arithmetic: a project configures what the
+    /// store may OCCUPY. Cycles rather than one prune, because the footprint has
+    /// to stay within the limit while the store keeps being written to, which is
+    /// what a machine with no reserve for a store to overshoot into depends on.
+    #[test]
+    fn a_projects_store_size_limit_bounds_the_footprint_while_it_is_written_to() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const LIMIT: u64 = 8 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-footprint");
+        let state = path_state_for(&dir.path());
+
+        for cycle in 0..4 {
+            fill_to(state, &dir, directory_size(&dir.path()) + LIMIT / 2);
+            state.prune_ondisk(generation_limit(LIMIT)).unwrap();
+            let occupied = directory_size(&dir.path());
+            assert!(
+                occupied <= LIMIT,
+                "cycle {cycle}: the store occupies {occupied} bytes, past the \
+                 {LIMIT}-byte limit its project set"
+            );
+        }
+    }
+
     #[test]
     fn a_store_size_limit_is_a_footprint_split_across_two_generations() {
         assert_eq!(generation_limit(20 * 1024 * 1024 * 1024), 10 * 1024 * 1024 * 1024);
@@ -8470,6 +8745,9 @@ mod tests {
     /// the way the runner's teardown drains before it prunes.
     #[test]
     fn a_store_with_spooled_publications_is_not_pruned_until_they_drain() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 4 * 1024 * 1024;
         let dir = TempCasDir::new("bound-spooled");
         let state = path_state_for(&dir.path());
@@ -8501,6 +8779,9 @@ mod tests {
     /// service.
     #[test]
     fn a_store_past_its_limit_that_a_prune_would_not_change_is_left_alone() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("bound-upstream-heavy");
         store_directly(&dir.path(), payloads(1, 256));
         prune_store(&dir.path(), directory_size(&dir.0.join("v1.1").to_string_lossy())).unwrap();
@@ -8520,6 +8801,9 @@ mod tests {
     // resolves, which answer misses meanwhile, nor the maintenance loop.
     #[test]
     fn a_blocked_automatic_prune_parks_neither_resolves_nor_the_maintenance_loop() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 2 * 1024 * 1024;
         const QUEUED: usize = 8;
         let dir = TempCasDir::new("bound-blocked");
@@ -8713,6 +8997,9 @@ mod tests {
 
     #[test]
     fn a_path_no_build_has_used_within_the_window_is_forgotten_and_a_used_one_is_kept() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-unused");
         let registry = dir.0.join("registry");
         let idle = store_in(&dir, "idle");
@@ -8751,6 +9038,9 @@ mod tests {
 
     #[test]
     fn a_path_whose_store_directory_is_gone_is_forgotten_however_recently_it_was_used() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-gone");
         let registry = dir.0.join("registry");
         let deleted = dir.0.join("deleted").to_string_lossy().into_owned();
@@ -8767,6 +9057,9 @@ mod tests {
     /// A registry written before uses were recorded has none for any path.
     #[test]
     fn a_path_with_no_recorded_use_starts_its_clock_instead_of_being_forgotten() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-unrecorded");
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
@@ -8787,6 +9080,9 @@ mod tests {
 
     #[test]
     fn a_forgotten_path_is_registered_again_by_the_next_build_that_declares_its_instance() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-reregister");
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
@@ -8814,6 +9110,9 @@ mod tests {
     /// registry, so its requests alone have to keep a path registered.
     #[test]
     fn a_build_that_routes_through_the_registry_keeps_its_path() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-routed-use");
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
@@ -8835,6 +9134,9 @@ mod tests {
     /// within one second.
     #[test]
     fn a_path_used_after_it_was_observed_is_kept_even_within_the_same_second() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-used-since");
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
@@ -8859,6 +9161,9 @@ mod tests {
     /// sweep or by a drain that declares no instance.
     #[test]
     fn a_path_whose_spool_holds_publications_is_kept_past_the_window_until_it_drains() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-spooled");
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
@@ -8882,6 +9187,9 @@ mod tests {
     /// that is already registered stays in memory until the maintenance loop.
     #[test]
     fn using_a_registered_path_writes_nothing_until_its_use_is_due_to_be_recorded() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-cheap-use");
         let registry = dir.0.join("registry");
         let store = store_in(&dir, "store");
@@ -8905,6 +9213,9 @@ mod tests {
     /// recorded policy for the next build to find.
     #[test]
     fn forgetting_paths_drops_no_project_from_a_store_in_use_or_from_the_sources_registry() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("registry-sources");
         let registry = dir.0.join("registry");
         let shared = store_in(&dir, "shared");
@@ -8946,6 +9257,9 @@ mod tests {
     /// do on its own: only the holder of a store's handle can rotate it.
     #[test]
     fn a_prune_alongside_a_live_handle_cannot_rotate_the_chain() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 1024 * 1024;
         let dir = TempCasDir::new("prune-held");
         let state = path_state_for(&dir.path());
@@ -8970,6 +9284,9 @@ mod tests {
     /// machine looks idle exactly while it is most bandwidth-bound.
     #[test]
     fn a_demand_fetch_counts_as_the_machine_being_busy() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("busy-fetch");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
@@ -9337,14 +9654,16 @@ mod tests {
     /// which makes this the shape most worth counting, not the least.
     #[test]
     fn an_incomplete_closure_under_an_already_local_root_is_counted() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("root-already-local");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/already-local");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x31];
-        let child = vec![0x32];
+        let [root, child] = digests_for([b"root", b"child"]);
         let root_entry = ManifestEntry {
             llcas_digest: root.clone(),
             blob: reapi::Digest { hash: "1a".repeat(32), size_bytes: 4 },
@@ -9390,6 +9709,9 @@ mod tests {
     /// a withhold: retrying is pointless until the remote can serve the root.
     #[test]
     fn a_root_that_fails_on_its_own_is_still_reported() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("corrupt-root");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
@@ -9398,8 +9720,7 @@ mod tests {
 
         // The child is sound and the ROOT is the undecodable one, which is the
         // inverse of the case above.
-        let root = vec![0x21];
-        let child = vec![0x22];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
@@ -9438,6 +9759,9 @@ mod tests {
     /// "complete". Without it this manifest publishes a root over a hole.
     #[test]
     fn an_incomplete_closure_withholds_its_root() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("incomplete-closure");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
@@ -9448,8 +9772,7 @@ mod tests {
         // inlined, so nothing is fetched and the remote is never consulted; the
         // child's bytes are not a frame, which is one of the ways a node is
         // skipped.
-        let root = vec![0x01];
-        let child = vec![0x02];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
@@ -9486,14 +9809,16 @@ mod tests {
     /// become locally resolvable and every build would re-resolve every key.
     #[test]
     fn a_complete_closure_publishes_its_root() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("complete-closure");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/complete");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x11];
-        let child = vec![0x12];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
@@ -9536,6 +9861,9 @@ mod tests {
 
     #[test]
     fn demand_and_background_downloads_record_joinable_output_analytics() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let source_dir = TempCasDir::new("analytics-source");
         let source = path_state_for(&source_dir.path());
         let child = store_probe_object(source, b"analytics-child");
@@ -9613,6 +9941,9 @@ mod tests {
     /// snapshot hits and per-key hits enter `commit_and_materialize` here.
     #[test]
     fn demand_loads_never_persist_an_incomplete_graph() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let source_dir = TempCasDir::new("demand-race-source");
         let source = path_state_for(&source_dir.path());
         let child = store_probe_object(source, b"demand-race-child");
@@ -9722,6 +10053,9 @@ mod tests {
 
     #[test]
     fn demand_repair_checks_descendants_without_a_manifest_guard() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let source_dir = TempCasDir::new("unguarded-source");
         let source = path_state_for(&source_dir.path());
         let leaf = store_probe_object(source, b"unguarded-leaf");
@@ -9770,6 +10104,9 @@ mod tests {
 
     #[test]
     fn materialization_orders_shared_descendants_before_every_parent() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let source_dir = TempCasDir::new("shared-source");
         let source = path_state_for(&source_dir.path());
         let leaf = store_probe_object(source, b"shared-leaf");
@@ -9861,14 +10198,16 @@ mod tests {
     /// no delete and refuses a differing re-put.
     #[test]
     fn a_withheld_root_is_not_put_back_by_a_demand_load() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-demand");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/withheld");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x21];
-        let child = vec![0x22];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
         register_instructions(state, &manifest);
         proxy
@@ -9901,6 +10240,9 @@ mod tests {
 
     #[test]
     fn a_resolve_withholds_its_root_before_the_materializer_starts() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("resolve-before-materializer");
         let state = path_state_for(&dir.path());
         let seed_dir = TempCasDir::new("resolve-root-seed");
@@ -9924,14 +10266,16 @@ mod tests {
 
     #[test]
     fn snapshot_candidates_install_the_same_closure_guard() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         use sha2::{Digest, Sha256};
         let dir = TempCasDir::new("snapshot-candidate-guard");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         proxy.materializer.drain_stop_timeout(Duration::ZERO);
         let remote = proxy.remote_for("tuist/snapshot-candidate-guard");
-        let root = vec![0x31];
-        let child = vec![0x32];
+        let [root, child] = digests_for([b"root", b"child"]);
         let key = b"snapshot-candidate";
         let hash: [u8; 32] = Sha256::digest(key).into();
         let snapshot = Snapshot {
@@ -9960,14 +10304,16 @@ mod tests {
     /// the nodes actually owed instead of a transitive walk.
     #[test]
     fn a_withheld_root_is_produced_once_its_closure_is_completed() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-repair");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/withheld-repair");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x31];
-        let child = vec![0x32];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
         register_instructions(state, &manifest);
         proxy
@@ -10000,10 +10346,9 @@ mod tests {
             produced,
             "the closure is whole now, so the root is safe to produce"
         );
-        // Two objects went in, the owed node first and the root only after it:
-        // counted rather than probed because `is_local` answers from the
-        // known-local marks, which only `materialize_manifest` writes, and these
-        // digests are fixtures rather than real content addresses.
+        assert!(state.load_present(&child), "the repaired child is physically present");
+        assert!(state.load_present(&root), "the repaired root is physically present");
+        // Two objects went in, the owed node first and the root only after it.
         assert_eq!(
             state.stats_demand_fetched.load(Ordering::Relaxed),
             2,
@@ -10028,14 +10373,16 @@ mod tests {
     /// proxy even though its closure is whole on disk.
     #[test]
     fn a_completed_closure_clears_an_earlier_withhold() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-cleared");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/withheld-cleared");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x41];
-        let child = vec![0x42];
+        let [root, child] = digests_for([b"root", b"child"]);
         let broken = incomplete_manifest(&root, &child, b"not a frame".to_vec());
         register_instructions(state, &broken);
         proxy
@@ -10122,6 +10469,9 @@ mod tests {
     /// instruction that produces the root and nothing saying it must not.
     #[test]
     fn a_wipe_keeps_the_withheld_roots() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-invalidate");
         let state = path_state_for(&dir.path());
         let root = vec![0x51];
@@ -10155,6 +10505,9 @@ mod tests {
     /// dropping the record alone.
     #[test]
     fn dropping_a_withheld_root_on_overflow_drops_its_instruction_too() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-overflow");
         let state = path_state_for(&dir.path());
         let root = vec![0x61];
@@ -10202,6 +10555,9 @@ mod tests {
     /// is also the order that exposes the window.
     #[test]
     fn enforcing_the_withheld_bound_never_strands_an_instruction() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-bound-race");
         let state = path_state_for(&dir.path());
         let root_at = |index: u32| {
@@ -10263,6 +10619,9 @@ mod tests {
     /// left every error path exactly as exposed as before the guard existed.
     #[test]
     fn a_materialization_that_fails_still_withholds_its_root() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-error");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
@@ -10270,8 +10629,7 @@ mod tests {
         let remote = proxy.remote_for("tuist/failing");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x71];
-        let child = vec![0x72];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
@@ -10308,15 +10666,16 @@ mod tests {
     /// poisoning an association this fetch was never about.
     #[test]
     fn a_repair_does_not_produce_a_nested_withheld_root() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-nested");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
 
         // outer owes inner; inner is itself a withheld root owing a node that
         // nothing can produce.
-        let outer = vec![0x81];
-        let inner = vec![0x82];
-        let unobtainable = vec![0x83];
+        let [outer, inner, unobtainable] = digests_for([b"outer", b"inner", b"missing"]);
         {
             let mut withheld = state.withheld_roots.lock().unwrap();
             withheld.insert(outer.clone(), vec![inner.clone()]);
@@ -10324,12 +10683,12 @@ mod tests {
         }
         // Both roots have usable inlined instructions, so only the guard stands
         // between them and the store.
-        for digest in [&outer, &inner] {
+        for (digest, payload) in [(&outer, b"outer".as_slice()), (&inner, b"inner".as_slice())] {
             state.pending_objects.lock().unwrap().insert(
                 digest.clone(),
                 PendingFetch {
                     blob: reapi::Digest { hash: "81".repeat(32), size_bytes: 4 },
-                    contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"node"))),
+                    contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], payload))),
                 },
             );
         }
@@ -10355,11 +10714,14 @@ mod tests {
     /// record that points back at itself refuses rather than recursing.
     #[test]
     fn a_withheld_root_that_owes_itself_refuses_instead_of_recursing() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-cycle");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
 
-        let root = vec![0x91];
+        let [root] = digests_for([b"node"]);
         state
             .withheld_roots
             .lock()
@@ -10387,6 +10749,9 @@ mod tests {
     // is there that its own live CAS has never seen.
     #[test]
     fn a_demand_fetch_arriving_first_after_a_wipe_does_not_answer_from_the_dead_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("wipe-fetch");
         let state = path_state_for(&dir.path());
         let digest = store_probe_object(state, b"present-before-the-wipe");
@@ -10417,6 +10782,9 @@ mod tests {
     // they get re-learned through still points at the deleted store.
     #[test]
     fn a_wipe_rebinds_the_handle_and_drops_the_marks() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("wipe-guard");
         let state = path_state_for(&dir.path());
         let digest = store_probe_object(state, b"marked-local-before-the-wipe");
@@ -10447,6 +10815,9 @@ mod tests {
     // left every lookup waiting out the plugin's 120s socket timeout.
     #[test]
     fn a_blocked_reopen_does_not_park_resolves() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("reopen-blocked");
         let (entered_tx, entered_rx) = std::sync::mpsc::channel::<()>();
         let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
@@ -10532,6 +10903,9 @@ mod tests {
     // store.
     #[test]
     fn a_failed_reopen_answers_misses_without_retrying_per_resolve() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("reopen-failing");
         let attempts = Arc::new(AtomicU64::new(0));
         let counted = attempts.clone();
@@ -10580,6 +10954,9 @@ mod tests {
     // handle can be committed once the fresh one serves.
     #[test]
     fn a_reopen_releases_the_stale_handle_before_opening() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("reopen-order");
         let this: Arc<std::sync::OnceLock<&'static PathState>> = Arc::default();
         let seen: Arc<Mutex<Vec<(bool, u64)>>> = Arc::default();
@@ -10674,6 +11051,9 @@ mod tests {
     // store.
     #[test]
     fn a_failed_reopen_is_retried_after_the_interval() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("reopen-retry");
         let attempts = Arc::new(AtomicU64::new(0));
         let counted = attempts.clone();

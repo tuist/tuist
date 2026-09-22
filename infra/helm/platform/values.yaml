@@ -565,9 +565,7 @@ ciliumEgressGateway:
 # permissions. The tuist-preview overlay enables it.
 previewJanitor:
   enabled: false
-  # Runs after preview-sweep.yml's on-the-hour schedule and 15 minute timeout,
-  # so the external workflow gets first chance to run helm uninstall.
-  schedule: "20 * * * *"
+  schedule: "0 * * * *"
   suspend: false
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3

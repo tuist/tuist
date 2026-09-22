@@ -52,7 +52,7 @@ defmodule Atlas.MCP.Tools.SearchDocuments do
   def description, do: "Semantically search executive documents by page."
 
   def execute(conn, %{"query" => query} = args) when is_binary(query) do
-    with :ok <- Tool.authorize_executive(conn, "Document tools"),
+    with :ok <- Tool.authorize_scope(conn, "documents:read", "Document tools"),
          {:ok, results} <- Documents.semantic_search(query, limit: Tool.page_size(args)) do
       {:ok, %{results: results, count: length(results)}}
     end
