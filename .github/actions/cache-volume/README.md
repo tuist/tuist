@@ -60,15 +60,19 @@ Linux only; the fleet must have cache volumes enabled.
 
 The public installation is `tuist/cache-volume@v1`; pin an immutable release
 commit when stronger reproducibility is needed. `v1.x.y` tags are immutable;
-`v1` advances only through the explicit release workflow. The distributed
-`SOURCE_COMMIT` records the reviewed monorepo source.
+`v1` automatically follows the latest release in that major version. The
+`SOURCE_COMMIT` file records the monorepo source.
 
-Development and tests live in `tuist/tuist/.github/actions/cache-volume`.
-The monorepo's **Cache Volume Action** workflow tests and packages pull requests.
-A maintainer releases from `main` with an explicit version after storage smoke
-validation. The distribution repository must exist with a `main` branch, and
-`TUIST_RELEASE_GITHUB_TOKEN` must have write access to it.
+The monorepo's **Cache Volume Integrations** workflow tests and packages pull
+requests. Relevant changes merged to `main` automatically release the GitHub
+action, Buildkite plugin and GitLab template together. The existing
+`release:check` / git-cliff machinery derives their shared semantic version;
+there is no version to enter or routine manual dispatch. A no-input dispatch
+is available for recovery. See the monorepo's
+[release implementation](https://github.com/tuist/tuist/tree/main/ci/cache-volume).
 
-Until the first release is published, test this PR with
-`tuist/tuist/.github/actions/cache-volume@<reviewed-commit>`; `@v1` is the release
-interface, not an assertion that the first release is already available.
+Distribution repositories need a `main` branch and write access for
+`TUIST_RELEASE_GITHUB_TOKEN` as a one-time setup. Publishing the wrappers does
+not enable cache volumes on the fleet; storage rollout is independent.
+Until the first release is published, test with
+`tuist/tuist/.github/actions/cache-volume@<reviewed-commit>`.

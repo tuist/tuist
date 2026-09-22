@@ -13,12 +13,11 @@ test:
     - ./gradlew test
 ```
 
-Or copy `cache-volume.yml` into your repository as
-`.gitlab/tuist-cache-volume.yml`, then compose its reusable snippet:
+Or include the automatically released template and compose its reusable snippet:
 
 ```yaml
 include:
-  - local: .gitlab/tuist-cache-volume.yml
+  - remote: https://raw.githubusercontent.com/tuist/cache-volume-gitlab/v1/cache-volume.yml
 
 test:
   tags: [tuist-linux]
@@ -33,8 +32,14 @@ test:
     - ./gradlew test
 ```
 
-You may also include the raw file from this repository at an immutable commit
-using GitLab's `include:remote`, or mirror it to your GitLab instance.
+Relevant changes merged to the monorepo’s `main` automatically publish
+`tuist/cache-volume-gitlab` alongside the GitHub action and Buildkite plugin,
+using the same semantic version. `v1` follows the latest release in that major
+version; replace it with an immutable `v1.x.y` tag or full release commit to pin
+the template. `SOURCE_COMMIT` records its monorepo source.
+
+You can also vendor `cache-volume.yml` and use `include:local`, or mirror it to
+your GitLab instance. Until the first release, use a reviewed monorepo commit.
 No GitLab.com-only Catalog component is required. For multiple directories, call
 the client once per key/path pair (maximum eight per job).
 

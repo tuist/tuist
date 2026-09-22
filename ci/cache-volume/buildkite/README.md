@@ -18,9 +18,11 @@ steps:
 ```
 
 This plugin's distribution repository is `tuist/cache-volume-buildkite-plugin`.
-Its first public version is published with the fleet rollout; until then, use a
-local plugin checkout containing this directory. Pin a reviewed release commit
-for reproducible pipelines.
+Relevant changes merged to the monorepo’s `main` automatically publish it
+alongside the GitHub action and GitLab template, using a shared semantic version.
+`v1.x.y` tags are immutable; `v1` tracks the latest release in that major version.
+Pin a release commit for reproducible pipelines. Until the first release, use a
+local plugin checkout containing this directory. Fleet enablement is separate.
 
 The pre-command hook runs after checkout. Target directories must be absent or
 empty; do not restore another cache or artifact into them first. Keys support

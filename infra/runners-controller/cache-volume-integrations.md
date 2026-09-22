@@ -11,9 +11,9 @@ macOS is a separate follow-up. Provider namespaces never share data implicitly.
 | Buildkite | `tuist/cache-volume#v1` plugin with a list of key/path pairs | Default-branch webhook or schedule, no PR or tag |
 | GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Default-branch push, schedule or web pipeline, no tag |
 
-The action and Buildkite plugin include standalone release packaging, but their
-first public releases and the Ceph/Kata fleet smoke gates remain rollout work.
-The GitLab template can be vendored or included at a pinned monorepo commit.
+All three entry points are packaged and automatically released from `main`.
+The initial distribution-repository setup and Ceph/Kata fleet smoke gates remain
+rollout work. Publishing a wrapper does not enable storage on the fleet.
 Neither packaging nor fake-coordinator tests establish live storage compatibility.
 
 ## Workflow interfaces and distribution
@@ -32,14 +32,28 @@ image persists pod routing into the staged job environment before Buildkite
 sanitizes inherited variables; the global environment hook exports it again.
 See [plugin hooks](https://buildkite.com/docs/pipelines/integrations/plugins/writing).
 
-`.github/workflows/cache-volume-action.yml` tests and packages both integrations
-on PRs. Manual releases select GitHub or Buildkite, require `main`, and copy the
-reviewed package to `tuist/cache-volume` or
-`tuist/cache-volume-buildkite-plugin`. Distribution repositories must already
-exist with a main branch and grant write access to
-`TUIST_RELEASE_GITHUB_TOKEN`. Existing v1.x.y tags are rejected; the immutable
-tag and moving v1 tag are pushed atomically. GitLab's reusable template is also
-uploaded as a review artifact.
+`.github/workflows/cache-volume-action.yml` tests and packages all integrations
+on PRs. Relevant pushes to `main` automatically release them together using the
+existing `release:check cache-volume` and git-cliff version calculation. A shared
+`cache-volume@1.0.0` monorepo release tracks matching `v1.0.0` distribution tags:
+
+- `tuist/cache-volume`: standalone GitHub action.
+- `tuist/cache-volume-buildkite-plugin`: Buildkite plugin with executable hook.
+- `tuist/cache-volume-gitlab`: reusable `cache-volume.yml` for `include:remote`.
+
+As a one-time bootstrap, create those repositories with a `main` branch and give
+`TUIST_RELEASE_GITHUB_TOKEN` write access. Each release pushes the generated main
+branch, immutable version tag and moving major tag atomically. The monorepo tag
+is recorded only after all three pushes succeed. Releases are serialized;
+stale runs predating the latest monorepo release are rejected.
+
+If publication is interrupted, rerun the failed workflow at the same source
+commit. Identical already-published packages are accepted, while different
+content under an existing version fails closed. Complete a partial release
+before releasing later changes. A no-input main dispatch can recover a run when
+main still identifies the same source. No routine manual version selection is
+required. Rolling back consumers means pinning an earlier immutable tag or
+commit; a code rollback on main produces a new release instead of rewriting tags.
 
 The [GitLab include and example](../../ci/cache-volume/gitlab/README.md) compose
 an attachment snippet into `before_script` without replacing other setup.

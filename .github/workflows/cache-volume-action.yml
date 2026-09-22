@@ -1,4 +1,4 @@
-name: Cache Volume Action
+name: Cache Volume Integrations
 
 on:
   pull_request:
@@ -6,30 +6,21 @@ on:
       - .github/actions/cache-volume/**
       - ci/cache-volume/**
       - .github/workflows/cache-volume-action.yml
+      - mise/tasks/release/components.json
   push:
     branches: [main]
     paths:
       - .github/actions/cache-volume/**
       - ci/cache-volume/**
       - .github/workflows/cache-volume-action.yml
+      - mise/tasks/release/components.json
   workflow_dispatch:
-    inputs:
-      integration:
-        description: Integration to release
-        type: choice
-        options: [github, buildkite]
-        default: github
-        required: true
-      version:
-        description: Immutable v1 release tag (for example v1.0.0); also advances v1
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: cache-volume-action-${{ github.event_name == 'workflow_dispatch' && 'release' || github.ref }}
+  group: cache-volume-action-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
   cancel-in-progress: false
 
 jobs:
@@ -38,6 +29,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
       - run: python3 -m unittest discover -s .github/actions/cache-volume -p '*_test.py' -v
       - run: python3 -m unittest discover -s ci/cache-volume -p '*_test.py' -v
       - name: Install test client
@@ -70,8 +65,7 @@ jobs:
       - name: Package Buildkite plugin and GitLab template
         run: |
           bash ci/cache-volume/buildkite/package.sh "$RUNNER_TEMP/cache-volume-buildkite"
-          mkdir "$RUNNER_TEMP/cache-volume-gitlab"
-          cp ci/cache-volume/gitlab/* "$RUNNER_TEMP/cache-volume-gitlab/"
+          bash ci/cache-volume/gitlab/package.sh "$RUNNER_TEMP/cache-volume-gitlab"
       - uses: actions/upload-artifact@v4
         with:
           name: cache-volume-buildkite
@@ -82,84 +76,79 @@ jobs:
           path: ${{ runner.temp }}/cache-volume-gitlab/
 
   release:
-    if: github.event_name == 'workflow_dispatch' && inputs.integration == 'github' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
-      - name: Validate release version
-        env:
-          VERSION: ${{ inputs.version }}
-        run: '[[ "$VERSION" =~ ^v1\.[0-9]+\.[0-9]+$ ]]'
-      - uses: actions/download-artifact@v4
-        with:
-          name: cache-volume-action
-          path: package
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+      - name: Reject stale release runs
+        run: |
+          latest=$(git tag -l 'cache-volume@*' --sort=-version:refname | head -n1)
+          if [[ -n "$latest" ]]; then
+            git merge-base --is-ancestor "$latest" HEAD
+          fi
+      - id: check
+        run: mise run --skip-tools release:check cache-volume
+      - uses: actions/download-artifact@v4
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        with:
+          pattern: cache-volume-*
+          path: packages
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.cache-volume-should-release == 'true'
         with:
           repository: tuist/cache-volume
           ref: main
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-          path: distribution
+          path: distributions/github
           fetch-depth: 0
-      - name: Publish standalone action
-        working-directory: distribution
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          if git show-ref --verify --quiet "refs/tags/$VERSION"; then
-            echo "Release $VERSION already exists; choose a new version."
-            exit 1
-          fi
-          cp ../package/action.yml ../package/attach.sh ../package/README.md ../package/LICENSE.md ../package/SOURCE_COMMIT .
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add action.yml attach.sh README.md LICENSE.md SOURCE_COMMIT
-          git commit --allow-empty -m "Release $VERSION"
-          git tag "$VERSION"
-          git tag -f v1
-          git push --atomic origin HEAD:main "refs/tags/$VERSION" +refs/tags/v1
-
-  release-buildkite:
-    if: github.event_name == 'workflow_dispatch' && inputs.integration == 'buildkite' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
-    needs: test
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Validate release version
-        env:
-          VERSION: ${{ inputs.version }}
-        run: '[[ "$VERSION" =~ ^v1\.[0-9]+\.[0-9]+$ ]]'
-      - uses: actions/download-artifact@v4
-        with:
-          name: cache-volume-buildkite
-          path: package
       - uses: actions/checkout@v4
+        if: steps.check.outputs.cache-volume-should-release == 'true'
         with:
           repository: tuist/cache-volume-buildkite-plugin
           ref: main
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-          path: distribution
+          path: distributions/buildkite
           fetch-depth: 0
-      - name: Publish Buildkite plugin
-        working-directory: distribution
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        with:
+          repository: tuist/cache-volume-gitlab
+          ref: main
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          path: distributions/gitlab
+          fetch-depth: 0
+      - name: Publish all provider integrations
+        if: steps.check.outputs.cache-volume-should-release == 'true'
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: v${{ steps.check.outputs.cache-volume-next-version-number }}
         run: |
-          set -euo pipefail
-          if git show-ref --verify --quiet "refs/tags/$VERSION"; then
-            echo "Release $VERSION already exists; choose a new version."
-            exit 1
-          fi
-          cp ../package/plugin.yml ../package/README.md ../package/LICENSE.md ../package/SOURCE_COMMIT .
-          mkdir -p hooks
-          cp ../package/hooks/pre-command hooks/
-          chmod +x hooks/pre-command
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add plugin.yml hooks/pre-command README.md LICENSE.md SOURCE_COMMIT
-          git commit --allow-empty -m "Release $VERSION"
-          git tag "$VERSION"
-          git tag -f v1
-          git push --atomic origin HEAD:main "refs/tags/$VERSION" +refs/tags/v1
+          python3 ci/cache-volume/publish.py packages/cache-volume-action distributions/github "$VERSION" "$GITHUB_SHA"
+          python3 ci/cache-volume/publish.py packages/cache-volume-buildkite distributions/buildkite "$VERSION" "$GITHUB_SHA"
+          python3 ci/cache-volume/publish.py packages/cache-volume-gitlab distributions/gitlab "$VERSION" "$GITHUB_SHA"
+      - name: Record coordinated release
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ github.token }}
+          target_commitish: ${{ github.sha }}
+          tag_name: ${{ steps.check.outputs.cache-volume-next-version }}
+          name: Cache Volume Integrations ${{ steps.check.outputs.cache-volume-next-version-number }}
+          body: |
+            Linux cache-volume integrations, released together from ${{ github.sha }}.
+
+            - [GitHub action](https://github.com/tuist/cache-volume/tree/v${{ steps.check.outputs.cache-volume-next-version-number }})
+            - [Buildkite plugin](https://github.com/tuist/cache-volume-buildkite-plugin/tree/v${{ steps.check.outputs.cache-volume-next-version-number }})
+            - [GitLab CI template](https://github.com/tuist/cache-volume-gitlab/tree/v${{ steps.check.outputs.cache-volume-next-version-number }})
+
+            Immutable version tags and moving major tags are available in each distribution repository.
