@@ -38,14 +38,14 @@ use crate::{
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
         MAX_PEER_PAGE_ITEMS, MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
-        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
-        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
-        ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
-        ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
-        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
-        SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
-        SYNC_FEED_TRIM_BATCH_ROWS,
+        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_ANALYTICS_OUTBOX,
+        ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS,
+        ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
+        ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
+        ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
+        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
+        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS,
+        SEGMENT_FREE_SPACE_MARGIN, SYNC_FEED_TRIM_BATCH_ROWS,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -1228,6 +1228,19 @@ impl Store {
             ),
             ColumnFamilyDescriptor::new(
                 ROCKSDB_CF_USAGE_OUTBOX,
+                rocksdb_column_family_options(
+                    config,
+                    &rocksdb_block_cache,
+                    &rocksdb_write_buffer_manager,
+                ),
+            ),
+            // Analytics outbox declaration lands before any producer exists.
+            // See `constants::ROCKSDB_CF_ANALYTICS_OUTBOX` for the rollout
+            // sequence rationale. Uses the same options as every other CF so
+            // no per-family tuning surface is exposed until a producer knows
+            // what it needs.
+            ColumnFamilyDescriptor::new(
+                ROCKSDB_CF_ANALYTICS_OUTBOX,
                 rocksdb_column_family_options(
                     config,
                     &rocksdb_block_cache,
@@ -6362,6 +6375,17 @@ impl Store {
 
     pub fn usage_outbox_message_count(&self) -> Result<usize, String> {
         self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
+    }
+
+    /// Depth of the analytics outbox in entries. Zero for the life of this
+    /// release: no producer routes through the column family yet (that
+    /// arrives with the follow-up outbox module). Exists so the metrics
+    /// registration in `Metrics::new` can publish the depth gauge from day
+    /// one, giving the follow-up producer PR a live signal to correlate
+    /// against instead of a gauge that appears for the first time under a
+    /// production incident.
+    pub fn analytics_outbox_entry_count(&self) -> Result<usize, String> {
+        self.count_cf_entries(ROCKSDB_CF_ANALYTICS_OUTBOX)
     }
 
     pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {
@@ -12596,6 +12620,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_freshly_opened_store_reports_zero_analytics_outbox_entries() {
+        // The column family exists from the day it is declared, but the
+        // release that declares it ships no producer. A fresh store must
+        // still be able to read the (empty) count without erroring, so the
+        // startup metric wire-up in app.rs and the follow-up outbox
+        // module's periodic refresh both have a stable contract from day
+        // one.
+        let (_temp, _config, store) = temp_store();
+        let count = store
+            .analytics_outbox_entry_count()
+            .expect("counting the empty analytics outbox should succeed");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn a_reopened_store_still_reports_zero_analytics_outbox_entries() {
+        // Round-trip through close/open to prove the CF descriptor is
+        // registered on both the initial open and the subsequent one, and
+        // that neither path errors on the empty column family. A binary
+        // that shipped this declaration and got rolled back to a
+        // predecessor would fail to open its database, which is the whole
+        // reason this PR ships without a producer.
+        let (temp, config, store) = temp_store();
+        drop(store);
+        let reopened = reopen_store(&config);
+        assert_eq!(
+            reopened
+                .analytics_outbox_entry_count()
+                .expect("counting the empty analytics outbox should succeed after reopen"),
+            0
+        );
+        drop(reopened);
+        drop(temp);
+    }
+
     fn reopen_store(config: &Config) -> Store {
         let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
         let io = IoController::new(
@@ -17168,6 +17228,7 @@ mod tests {
             ROCKSDB_CF_MULTIPART_UPLOADS,
             ROCKSDB_CF_OUTBOX,
             ROCKSDB_CF_USAGE_OUTBOX,
+            ROCKSDB_CF_ANALYTICS_OUTBOX,
             ROCKSDB_CF_SEGMENT_ARTIFACTS,
             ROCKSDB_CF_SEGMENT_STATE,
             ROCKSDB_CF_ACTION_CACHE_INDEX,
