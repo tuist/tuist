@@ -8,118 +8,6 @@
     title={dgettext("dashboard_account", "Current plan")}
   >
     <div data-part="current-plan-card-sections">
-      <.card_section data-part="current-plan-card-section">
-        <div data-part="plan-summary">
-          <div data-part="header">
-            <div data-part="title">
-              <span data-part="label">
-                {case @plan do
-                  :air -> dgettext("dashboard_account", "Air")
-                  :open_source -> dgettext("dashboard_account", "Open source")
-                  :pro -> dgettext("dashboard_account", "Pro")
-                  :enterprise -> dgettext("dashboard_account", "Enterprise")
-                end}
-              </span>
-              <.badge
-                label={
-                  case @plan do
-                    :air -> dgettext("dashboard_account", "Free")
-                    :open_source -> dgettext("dashboard_account", "Free")
-                    :pro -> dgettext("dashboard_account", "Usage-based")
-                    :enterprise -> dgettext("dashboard_account", "Custom")
-                  end
-                }
-                color="primary"
-                size="small"
-                style="light-fill"
-              />
-            </div>
-            <span :if={@plan == :air} data-part="subtitle">
-              {dgettext(
-                "dashboard_account",
-                "Get started with no credit card required—try with no commitment."
-              )}
-            </span>
-            <span :if={@plan == :pro} data-part="subtitle">
-              {dgettext("dashboard_account", "Usage-based pricing after free tier.")}
-            </span>
-            <span :if={@plan == :enterprise} data-part="subtitle">
-              {dgettext("dashboard_account", "Create your plan or self-host your instance.")}
-            </span>
-            <span :if={@plan == :open_source} data-part="subtitle">
-              {dgettext(
-                "dashboard_account",
-                "Use all Tuist features as long as you stay open source."
-              )}
-            </span>
-          </div>
-          <.modal
-            :if={@plan in [:air, :pro]}
-            id="billing-upgrade-modal"
-            description={
-              dgettext("dashboard_account", "Change your subscription to fit your needs.")
-            }
-            title={dgettext("dashboard_account", "Change subscription plan")}
-            header_type="icon"
-            header_size="large"
-          >
-            <:trigger :let={attrs}>
-              <.button
-                label={dgettext("dashboard_account", "Upgrade plan")}
-                variant="primary"
-                {attrs}
-              />
-            </:trigger>
-            <:header_icon>
-              <.credit_card />
-            </:header_icon>
-            <:header_button>
-              <.button
-                label={dgettext("dashboard_account", "Pricing details")}
-                variant="secondary"
-                href="https://tuist.dev/pricing"
-                target="_blank"
-                size="medium"
-              >
-                <:icon_right><.external_link /></:icon_right>
-              </.button>
-            </:header_button>
-            <div data-part="plans">
-              <.pricing_cards id="billing-modal-pricing-plans" plan={@plan} />
-            </div>
-            <:footer>
-              <.modal_footer>
-                <:action>
-                  <.button
-                    label="Cancel"
-                    variant="secondary"
-                    phx-click="close-billing-upgrade-modal"
-                  />
-                </:action>
-              </.modal_footer>
-            </:footer>
-          </.modal>
-        </div>
-        <ul :if={@plan == :enterprise} data-part="feature-list">
-          <.plan_feature label={
-            dgettext(
-              "dashboard_account",
-              "Custom terms: Tailored agreements to meet your specific needs"
-            )
-          } />
-          <.plan_feature label={
-            dgettext("dashboard_account", "On-premise: Self-host your instance of Tuist")
-          } />
-          <.plan_feature label={
-            dgettext("dashboard_account", "Priority support: Via shared Slack channel")
-          } />
-        </ul>
-        <ul :if={@plan == :open_source} data-part="feature-list">
-          <.plan_feature label={
-            dgettext("dashboard_account", "Completely free for open source projects")
-          } />
-        </ul>
-      </.card_section>
       <.card_section :if={@plan in [:air, :pro]} data-part="usage-card-section">
         <div data-part="current-bill">
           <span data-part="next-payment">{@estimated_next_payment}</span>
@@ -238,6 +126,150 @@
             {dgettext("dashboard_account", "of your usage")}
           </span>
         </div>
+      </.card_section>
+      <.card_section data-part="current-plan-card-section">
+        <div data-part="header">
+          <div data-part="title">
+            <span data-part="label">
+              {case @plan do
+                :air -> dgettext("dashboard_account", "Air")
+                :open_source -> dgettext("dashboard_account", "Open source")
+                :pro -> dgettext("dashboard_account", "Pro")
+                :enterprise -> dgettext("dashboard_account", "Enterprise")
+              end}
+            </span>
+            <.badge
+              label={
+                case @plan do
+                  :air -> dgettext("dashboard_account", "Free")
+                  :open_source -> dgettext("dashboard_account", "Free")
+                  :pro -> dgettext("dashboard_account", "Usage-based")
+                  :enterprise -> dgettext("dashboard_account", "Custom")
+                end
+              }
+              color="primary"
+              size="small"
+              style="light-fill"
+            />
+          </div>
+          <span :if={@plan == :air} data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Get started with no credit card required—try with no commitment."
+            )}
+          </span>
+          <span :if={@plan == :pro} data-part="subtitle">
+            {dgettext("dashboard_account", "Usage-based pricing after free tier.")}
+          </span>
+          <span :if={@plan == :enterprise} data-part="subtitle">
+            {dgettext("dashboard_account", "Create your plan or self-host your instance.")}
+          </span>
+          <span :if={@plan == :open_source} data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Use all Tuist features as long as you stay open source."
+            )}
+          </span>
+        </div>
+        <ul :if={@plan == :air} data-part="feature-list">
+          <.plan_feature label={
+            dgettext(
+              "dashboard_account",
+              "Generous free monthly tier: Usage capped at free tier limits"
+            )
+          } />
+          <.plan_feature label={
+            dgettext(
+              "dashboard_account",
+              "Like, totally free: All features, no credit card required"
+            )
+          } />
+          <.plan_feature label={
+            dgettext("dashboard_account", "Community support: Support via community forum")
+          } />
+        </ul>
+        <ul :if={@plan == :pro} data-part="feature-list">
+          <.plan_feature label={
+            dgettext(
+              "dashboard_account",
+              "Generous base price: Pay nothing if below free tier limits"
+            )
+          } />
+          <.plan_feature label={
+            dgettext(
+              "dashboard_account",
+              "Usage-based pricing: Pay only for what you use per feature"
+            )
+          } />
+          <.plan_feature label={
+            dgettext("dashboard_account", "Standard support: Via Slack and email")
+          } />
+        </ul>
+        <ul :if={@plan == :enterprise} data-part="feature-list">
+          <.plan_feature label={
+            dgettext(
+              "dashboard_account",
+              "Custom terms: Tailored agreements to meet your specific needs"
+            )
+          } />
+          <.plan_feature label={
+            dgettext("dashboard_account", "On-premise: Self-host your instance of Tuist")
+          } />
+          <.plan_feature label={
+            dgettext("dashboard_account", "Priority support: Via shared Slack channel")
+          } />
+        </ul>
+        <ul :if={@plan == :open_source} data-part="feature-list">
+          <.plan_feature label={
+            dgettext("dashboard_account", "Completely free for open source projects")
+          } />
+        </ul>
+        <.modal
+          :if={@plan in [:air, :pro]}
+          id="billing-upgrade-modal"
+          description={
+            dgettext("dashboard_account", "Change your subscription to fit your needs.")
+          }
+          title={dgettext("dashboard_account", "Change subscription plan")}
+          header_type="icon"
+          header_size="large"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_account", "Upgrade plan")}
+              variant="primary"
+              {attrs}
+            />
+          </:trigger>
+          <:header_icon>
+            <.credit_card />
+          </:header_icon>
+          <:header_button>
+            <.button
+              label={dgettext("dashboard_account", "Pricing details")}
+              variant="secondary"
+              href="https://tuist.dev/pricing"
+              target="_blank"
+              size="medium"
+            >
+              <:icon_right><.external_link /></:icon_right>
+            </.button>
+          </:header_button>
+          <div data-part="plans">
+            <.pricing_cards id="billing-modal-pricing-plans" plan={@plan} />
+          </div>
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  label="Cancel"
+                  variant="secondary"
+                  phx-click="close-billing-upgrade-modal"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
       </.card_section>
     </div>
   </.card>
