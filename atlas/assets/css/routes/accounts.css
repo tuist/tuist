@@ -159,6 +159,86 @@
     width: 14px;
   }
 
+  & [data-part="account-nudges-section"] {
+    background: transparent;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-4);
+  }
+
+  & [data-part="account-nudges-description"],
+  & [data-part="account-nudge-rationale"],
+  & [data-part="account-nudge-dismissal"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="account-nudge-dismissal"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-1);
+  }
+
+  & [data-part="account-nudge-dismissal"] > span {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+  }
+
+  & [data-part="account-nudges-list"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="account-nudge"] {
+    align-items: flex-start;
+    background: var(--noora-surface-background-primary);
+    border-radius: var(--noora-radius-3);
+    box-shadow: var(--noora-border-light-default);
+    display: flex;
+    gap: var(--noora-spacing-4);
+    justify-content: space-between;
+    padding: var(--noora-spacing-4);
+  }
+
+  & [data-part="account-nudge-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+  }
+
+  & [data-part="account-nudge-controls"] {
+    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="account-nudge-heading"] {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="account-nudge-title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="account-nudge-timestamp"] {
+    color: var(--noora-surface-label-tertiary);
+    font: var(--noora-font-body-small);
+    white-space: nowrap;
+  }
+
   & [data-part="feature-interest-accounts-section"] {
     background: transparent;
     box-shadow: none;
