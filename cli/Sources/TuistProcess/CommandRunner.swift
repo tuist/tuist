@@ -48,7 +48,7 @@ public enum CommandError: Error, Equatable, Sendable, CustomStringConvertible {
     public var description: String {
         switch self {
         case let .executableNotFound(executable):
-            "Executable not found: \(executable)"
+            return "Executable not found: \(executable)"
         case let .terminated(exitCode, stderr, command):
             let commandDescription = command.joined(separator: " ")
             return stderr.isEmpty
