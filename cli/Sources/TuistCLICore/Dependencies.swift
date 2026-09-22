@@ -70,7 +70,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
 }
 
 #if os(macOS)
-    func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
+    public func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
         try initEnv()
         ThreadDumpSignalHandler.installIfEnabled()
 
@@ -152,7 +152,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
     }
 #else
     /// Linux-specific initialization - simpler setup without macOS-specific features
-    func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
+    public func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
         try initEnv()
 
         let stateDirectory = Environment.current.stateDirectory

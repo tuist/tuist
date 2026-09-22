@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistCLICore
 
 @main
 @_documentation(visibility: private)
