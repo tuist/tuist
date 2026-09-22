@@ -281,6 +281,16 @@ defmodule TuistWeb.API.OIDCControllerTest do
       subject = Authentication.authenticated_subject(response["access_token"])
       assert {:error, :forbidden} = Authorization.authorize(:project_cache_create, subject, project)
       assert :ok = Authorization.authorize(:project_cache_read, subject, project)
+
+      # Cache nodes read these handles as read and write access, so a
+      # project whose write was withheld must not be listed.
+      access =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{response["access_token"]}")
+        |> get(~p"/api/cache/access")
+        |> json_response(:ok)
+
+      assert access["projects"] == []
     end
 
     test "withholds the account-wide cache by the account's own rules", %{conn: conn, project: project, account: account} do
