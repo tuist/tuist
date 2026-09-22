@@ -5,7 +5,7 @@
 # the first one wrote.
 #
 #   ANTHROPIC_API_KEY=sk-ant-... ENVIRONMENT_ID=env_... \
-#     infra/sandboxd/hack/managed-agents-smoke.sh
+#     infra/sandboxd/validation/managed-agents-smoke.sh
 #
 # Optional: MODEL (default claude-haiku-4-5-20251001, the cheapest supported
 # model; the prompts are deliberately tiny), AGENT_ID (reuse an agent),

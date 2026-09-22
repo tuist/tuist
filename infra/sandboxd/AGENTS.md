@@ -290,6 +290,15 @@ agent so the manager runs end to end without KVM).
 | `POD_INTERFACE` | default route | Pod egress device for the slot-range MASQUERADE. |
 | `LOG_LEVEL` | `info` | slog level. |
 
+### Validation scripts
+
+`validation/` holds the end-to-end checks used during bring-up and after
+every image change: `validate-job.sh` runs create, exec, pause, resume and
+delete against a node's admin API from a Job in the cluster;
+`managed-agents-smoke.sh` runs a two-turn Managed Agents session across a
+pause and resume on a connected environment; `managed-agents-chat.sh` is an
+interactive terminal session on the same path.
+
 ### Admin API
 
 `POST /v1/sandboxes {id?,template,template_tag?,vcpus,memory_mb,workspace_gb,hostname}`

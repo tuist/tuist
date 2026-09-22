@@ -5,7 +5,7 @@
 # environment. Creates a Job in the sandboxes namespace labelled as an admin
 # client (the NetworkPolicy admits that label) and prints its log.
 #
-#   infra/sandboxd/hack/validate-job.sh <kubectl-context> [namespace] [admin-url]
+#   infra/sandboxd/validation/validate-job.sh <kubectl-context> [namespace] [admin-url]
 set -euo pipefail
 
 CONTEXT="${1:?kubectl context}"

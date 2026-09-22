@@ -6,7 +6,7 @@
 # watch the sandbox pause and resume underneath the same session.
 #
 #   ANTHROPIC_API_KEY=sk-ant-api... ENVIRONMENT_ID=env_... \
-#     infra/sandboxd/hack/managed-agents-chat.sh
+#     infra/sandboxd/validation/managed-agents-chat.sh
 #
 # Optional: MODEL (default claude-sonnet-5), BUDGET_CENTS (hard session cap,
 # default 200), SESSION_ID (resume an existing session instead of creating
