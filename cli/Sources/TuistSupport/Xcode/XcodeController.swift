@@ -20,6 +20,11 @@ public protocol XcodeControlling: Sendable {
     /// - Returns: `Version` of selected Xcode
     /// - Throws: An error if it can't be obtained
     func selectedVersion() async throws -> Version
+
+    /// The developer directory `xcode-select -p` reports to a process that does
+    /// not set `DEVELOPER_DIR`, such as a launchd agent, which inherits none of
+    /// this process's environment.
+    func systemDeveloperDirectory() async throws -> AbsolutePath
 }
 
 public final class XcodeController: XcodeControlling, @unchecked Sendable {
@@ -29,6 +34,13 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
 
     public init(commandRunner: CommandRunning = CommandRunner()) {
         self.commandRunner = commandRunner
+    }
+
+    public func systemDeveloperDirectory() async throws -> AbsolutePath {
+        var environment = ProcessInfo.processInfo.environment
+        environment.removeValue(forKey: "DEVELOPER_DIR")
+        let path = try await commandRunner.capture(arguments: ["xcode-select", "-p"], environment: environment).spm_chomp()
+        return try AbsolutePath(validating: path)
     }
 
     /// Cached response of `xcode-select` command

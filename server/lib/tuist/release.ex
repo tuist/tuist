@@ -21,7 +21,7 @@ defmodule Tuist.Release do
     bazel_test_results
     bazel_test_summaries
   )
-  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
+  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints feature_flags)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
 
   # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
@@ -57,21 +57,44 @@ defmodule Tuist.Release do
 
     assert_supported_clickhouse_version()
 
-    for repo <- repos() do
-      {:ok, _, _} =
-        Ecto.Migrator.with_repo(repo, fn repo ->
-          ensure_database_schema(repo)
-          Ecto.Migrator.run(repo, :up, all: true)
-          assert_all_migrations_up(repo)
-          grant_runtime_role(repo)
-          grant_processor_role(repo)
-          grant_swift_registry_sync_role(repo)
-          grant_grafana_role(repo)
-          reconcile_ops_clickhouse(repo)
-        end)
-    end
+    with_shadow_ingest_repo(fn ->
+      for repo <- repos() do
+        {:ok, _, _} =
+          Ecto.Migrator.with_repo(repo, fn repo ->
+            ensure_database_schema(repo)
+            Ecto.Migrator.run(repo, :up, all: true)
+            assert_all_migrations_up(repo)
+            grant_runtime_role(repo)
+            grant_processor_role(repo)
+            grant_swift_registry_sync_role(repo)
+            grant_grafana_role(repo)
+            reconcile_ops_clickhouse(repo)
+          end)
+      end
+    end)
 
     reconcile_bare_metal_clickhouse_schema()
+  end
+
+  # Migrating with shadow writes on mirrors every `Tuist.IngestRepo` write to
+  # the in-cluster server, including the `schema_migrations` insert Ecto makes
+  # after each migration. `Ecto.Migrator.with_repo/3` below starts the repo
+  # being migrated and nothing else, so the destination was never started and
+  # every one of those mirrors failed at lookup:
+  #
+  #   Shadow ClickHouse write (insert) failed: could not lookup Ecto repo
+  #   Tuist.ShadowIngestRepo because it was not started or it does not exist
+  #
+  # That failure is terminal rather than retried, because a repo that is not
+  # started will not become started, so each one was a row the destination
+  # never received, on every deploy that ran migrations.
+  defp with_shadow_ingest_repo(fun) do
+    if is_nil(Environment.clickhouse_bare_metal_url()) do
+      fun.()
+    else
+      {:ok, result, _apps} = Ecto.Migrator.with_repo(Tuist.ShadowIngestRepo, fn _started -> fun.() end)
+      result
+    end
   end
 
   # Brings the in-cluster ClickHouse's schema back in line with the source, for
@@ -179,7 +202,8 @@ defmodule Tuist.Release do
   end
 
   @doc """
-  Compares the two ClickHouse servers and raises unless every table agrees.
+  Compares the two ClickHouse servers and raises unless every table and the
+  migration ledgers agree.
 
   This is the gate for the backfill and, once dual writes are on, for the
   ongoing parity between the two.
@@ -188,9 +212,19 @@ defmodule Tuist.Release do
     load_app()
 
     case Parity.compare() do
-      {:ok, %{differing: [], schema: %{missing_on_destination: [], differing_columns: []}} = report} ->
-        Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas included")
+      {:ok,
+       %{
+         differing: [],
+         schema: %{missing_on_destination: [], differing_columns: []},
+         migrations: %{missing_on_destination: [], only_on_destination: []}
+       } = report} ->
+        Logger.info("ClickHouse parity holds across #{report.compared} table(s), schemas and migration ledgers included")
         :ok
+
+      # Once the in-cluster server is primary, `migrate/0` runs every version
+      # missing from its ledger again, data migrations included.
+      {:ok, %{differing: [], schema: %{missing_on_destination: [], differing_columns: []}} = report} ->
+        raise "ClickHouse schema_migrations drift: #{inspect(report.migrations)}"
 
       # Gated separately from the row comparison, and deliberately fatal. Until
       # the in-cluster server is primary a missing column costs a dropped
@@ -485,9 +519,9 @@ defmodule Tuist.Release do
           max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
           max_rows_to_read = 100000000 MIN 1 MAX 100000000,
           max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
-          max_result_rows = 201 MIN 1 MAX 201,
+          max_result_rows = 10001 MIN 1 MAX 10001,
           max_result_bytes = 5242880 MIN 1 MAX 5242880,
-          max_block_size = 201 MIN 1 MAX 201,
+          max_block_size = 10001 MIN 1 MAX 10001,
           max_threads = 2 MIN 1 MAX 2
         """,
         []
@@ -631,11 +665,14 @@ defmodule Tuist.Release do
     # blanket `GRANT … ON ALL` would.
     [
       "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      # Table-level REVOKE does not remove column-level privileges.
+      "REVOKE ALL (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads FROM #{role}",
       "GRANT CONNECT ON DATABASE #{database} TO #{role}",
       "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
       "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
       "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
-      "GRANT SELECT ON TABLE #{read_tables} TO #{role}"
+      "GRANT SELECT ON TABLE #{read_tables} TO #{role}",
+      "GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE #{quoted_schema}.bazel_profile_uploads TO #{role}"
     ]
   end
 

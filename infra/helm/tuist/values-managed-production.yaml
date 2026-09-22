@@ -26,7 +26,7 @@ registry:
   publicHost: tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: production
-  sentryEnv: prod
+  sentryEnv: production
   poolSize: "10"
   ingress:
     host: registry.tuist.dev
@@ -73,6 +73,15 @@ server:
   turnstile:
     enabled: true
 
+  # Interstitial Turnstile challenge in front of public project dashboards.
+  # Defence in depth on top of Cloudflare Super Bot Fight Mode at the edge
+  # (bot-management.yaml sets `sbfm_definitely_automated: managed_challenge`);
+  # SBFM still lets a real chunk of automated traffic through, so browser
+  # sessions get gated at the app layer too before they can touch the
+  # ClickHouse-backed dashboards. See PR #13205.
+  publicPageChallenge:
+    enabled: true
+
   kuraCapacityAdmission:
     enabled: true
 
@@ -81,6 +90,13 @@ server:
   config:
     atlasEmail:
       enabled: true
+    # Point server error reporting at the Atlas error-tracking ingest
+    # (atlas.tuist.dev) instead of the Hive ingest. The `dsn_atlas`
+    # field on the SENTRY 1P item was added alongside the existing
+    # `dsn` field, so rollback is `sentryDsn: dsn` on the same item.
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
   # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
@@ -88,11 +104,6 @@ server:
   # cache volume's binaries never validate as local hits across VMs. Same
   # keypair as staging (the CLI's baked public key pins it).
   externalSecrets:
-    # The offline-certificate license config is now the shared default in
-    # values-managed-common.yaml, so production no longer overrides it here.
-    license:
-      verifyKeyItem: TUIST_LICENSE_VERIFY_KEY
-      verifyKeyField: password
     cacheGrant:
       item: TUIST_CACHE_GRANT_PRIVATE_KEY
 
@@ -136,6 +147,11 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEESLWue9IBlPSb2nVmx22"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
@@ -192,11 +208,53 @@ server:
     # per-account cache pods and dispatch routes the Mac fleet's build
     # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west,ap-southeast,scw-fr-par-runners
+      value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # What the placement sweep may apply on its own, per kind per day. Unset
+    # until 2026-09-09, which left placement proposing and an operator
+    # applying every time.
+    #
+    # Per kind because the kinds do not cost the same thing. An `expand` opens
+    # a region and leaves every cache the account already has where it is; the
+    # others give a region up, and what they spend is the refill of whatever
+    # was warm in it. `relocate` is the lowest because it is the only kind that
+    # can abandon a region an account has held long enough to have filled.
+    # `correct` replaces a first placement while it is still days old, so what
+    # it abandons is a cache that was barely warm and was chosen by a guess.
+    #
+    # Small on purpose: the numbers drain the backlog that had accumulated by
+    # the time this was set over several days rather than in one pass, so the
+    # first unattended moves are watched rather than found afterwards.
+    #
+    # `all` means no fleet-wide ceiling on that kind, which is the setting for
+    # every kind whose mistake is recoverable. What bounds those is the policy,
+    # asked per account: expansion stops at the plan's region count, relocation
+    # runs once a quarter, correction fires once in an account's life. Those
+    # scale with the fleet because they are per account. A fleet-wide count does
+    # not, and one sitting in front of a queue that grows with the account count
+    # only ever falls further behind.
+    #
+    # Falling behind is not merely slow here. A correction stops being available
+    # once the placement it replaces is a fortnight old, so a queue that runs
+    # long silently turns corrections into relocations, which need a quarter.
+    # The first day this ran capped, the whole fleet's allowance went in the
+    # first second: five applies, then eleven accounts waiting a full day.
+    #
+    # `retire` keeps a ceiling because it is the only kind whose mistake cannot
+    # be taken back: the instance stops serving within a minute and the volume
+    # is deleted an hour later with no cancel path. The per-account limits say
+    # nothing about how many accounts move at once, so a rung deciding wrongly
+    # for the whole fleet has nothing else in front of it.
+    #
+    # 25 is a stop, not a throttle. Retirement is rare by construction (a region
+    # held 90 days, a full history window, under the floor, and not earning its
+    # place), so this should never bind on a real day; what it bounds is a
+    # fleet-wide misfire, to one day's worth of regions rather than all of them.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -330,6 +388,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   sharedSecrets:
     externalSecret:
       item: kura-introspection-oauth-client
@@ -341,21 +401,25 @@ kuraController:
   sentry:
     externalSecret:
       enabled: true
-      # Points at the self-hosted Hive ingest (../hive) so Kura errors land in
-      # the Kura project on hive.tuist.dev. The `kura-sentry-hive` 1P item in
-      # `tuist-k8s-production` holds the Hive DSN under the default
+      # Points at the self-hosted Atlas ingest (../atlas) so Kura errors land in
+      # the Kura project on atlas.tuist.dev. The `kura-sentry-atlas` 1P item in
+      # `tuist-k8s-production` holds the Atlas DSN under the default
       # `KURA_SENTRY_DSN` field and MUST exist before this merges; a
       # remoteRef whose item is missing fails the whole `kura-shared-secrets`
-      # sync. The prior `kura-sentry` item is kept in the vault as a rollback:
-      # flip this back to `kura-sentry` and reroll.
-      item: kura-sentry-hive
+      # sync. The prior `kura-sentry-hive` (Hive) and `kura-sentry` (hosted
+      # sentry.io) items are kept in the vault as rollbacks: flip this back to
+      # either and reroll.
+      item: kura-sentry-atlas
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
-# and its traffic is node-local runner reads that must not be shaped.
+# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
+# Private Network, not the 1 Gbit/s public bandwidth every budget here is
+# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
+# nothing for a tree to rate its root against. Each tenant is still ceilinged
+# on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
-  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast]
+  nodePools: [kura-dedibox, kura-us-east, kura-us-west, kura-ap-southeast, kura-sa-west, kura-eu-east, kura-us-central]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -463,9 +527,8 @@ clickhouse:
   managed:
     enabled: false
     # One replica to begin with, which is the shape staging proved end to end,
-    # so the copy and the soak can start as soon as a box lands. Two replicas
-    # need a volume per replica and the database initialised on each of them;
-    # until those exist, this being 2 would leave the second pod Pending.
+    # so the copy and the soak can start as soon as a box lands. A second one
+    # needs its own box, named in `persistence.localVolume.nodeNames`.
     #
     # A single replica is not the shape to *finish* on: after the cutover the
     # system of record would live on one machine, with the backups below as the
@@ -776,24 +839,26 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
 # (the env boundary, since all Dedibox share the org's default project) and
-# self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
+# self-joins it as the kura-dedibox pool that backs eu-west. PREREQ before
 # merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
 # box is delivered + tagged tuist-kura-production; an enabled fleet with no
 # adoptable box hangs helm --wait.
 #
-# eu-central is a shared public region, so its capacity is the sum of its boxes
+# eu-west is a shared public region, so its capacity is the sum of its boxes
 # and replicas is how it grows. What runs out first on a Pro-9-XS is the memory
 # ceiling, not the disk: tuist.dev/memory-ceiling-mib is twice the node's
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
 # 4096 MiB) while the 2x1 TB NVMe would hold eight.
 #
-# Every box in this fleet must be the same offer AND datacenter: Dedibox
-# adoption matches both exactly (FindAdoptableServer), unlike the ovhFleets
-# entries, which substring-match the offer and prefix-match the datacenter. A
-# box of any other shape is never adopted, and nothing reports why.
+# Every box in this fleet must be in the same datacenter: Dedibox adoption
+# matches the datacenter exactly (FindAdoptableServer), unlike the ovhFleets
+# entries, which prefix-match it. The offer is left unset, so the tag and the
+# datacenter scope adoption and the pool mixes Pro-9-XS and Pro-5-L boxes (same
+# EPYC 7281 and 2x1 TB NVMe). A box in any other datacenter is never adopted,
+# and nothing reports why.
 #
 # Raise replicas only once each box reports `installed`. Prep is
 # `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
@@ -801,15 +866,15 @@ kuraFleet:
 # per-account project quota, then tags the box into the pool.
 dediboxFleet:
   enabled: true
-  # Two boxes: the original plus sd-184776 (DC5, delivered 2026-09-02).
-  replicas: 2
+  # Three boxes: the original plus sd-184776 (DC5, delivered 2026-09-02) and
+  # the Pro-5-L sd-148144 (DC5, delivered 2026-09-17).
+  replicas: 3
   machine:
     adoptTag: tuist-kura-production
-    offer: Pro-9-XS
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
-    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
+    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-west's
     # 25-Mbps-floor cache pods against it (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 1000
   scaleway:
@@ -819,6 +884,79 @@ dediboxFleet:
   sshExternalSecret:
     enabled: true
     item: DEDIBOX_FLEET_SSH
+
+# Vultr, the one provider that sells in South America. OVH, Scaleway and Hetzner
+# all have no presence there, which is what put a fourth provider in the fleet.
+vultrFleet:
+  externalSecrets:
+    item: VULTR_API
+
+vultrFleets:
+  # US Central (Chicago). Vultr because no provider in the fleet sells bare metal
+  # in the US interior; the plan and shape match sa-west exactly, so the machine
+  # kind, the disk conversion and the fleet wiring are the ones already proven
+  # there.
+  #
+  # Every box counted by replicas must already carry the adoptTag and have been
+  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
+  # the mirrored root plus separate XFS /data the self-join gates on, so an
+  # unconverted box is never adopted, and a fleet whose replicas exceed the
+  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy rather than just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
+  us-central:
+    enabled: true
+    replicas: 2
+    nodePool: kura-us-central
+    machine:
+      adoptTag: tuist-kura-vultr-production
+      region: ord
+      plan: vbm-6c-32gb-amd
+      osID: 2284
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
+  # South America West (Santiago), on Vultr because no other provider in the
+  # fleet sells bare metal in South America.
+  #
+  # Every box counted by replicas must already carry the adoptTag and have been
+  # through `mise run baremetal:prep-vultr`. Vultr's installer cannot lay down
+  # the mirrored root plus separate XFS /data the self-join gates on, so an
+  # unconverted box is never adopted, and a fleet whose replicas exceed the
+  # adoptable boxes sits at MD 0/1 and wedges `helm --wait` for every production
+  # deploy rather than just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # sa-west's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
+  sa-west:
+    enabled: true
+    replicas: 1
+    nodePool: kura-sa-west
+    machine:
+      # The env boundary. One Vultr account holds every env's boxes, and
+      # region+plan repeat across envs.
+      adoptTag: tuist-kura-vultr-production
+      region: scl
+      # Exact, not a prefix: the SSD variant of this plan has the same core count
+      # and a cache adopting it would be a silent downgrade to SATA-class disks.
+      plan: vbm-6c-32gb-amd
+      # Ubuntu 24.04 LTS x64. Recorded rather than requested: the reinstall
+      # endpoint takes no OS argument and reimages whatever the box carries.
+      osID: 2284
+      # The plan meters a 10 TB/month transfer quota, so the quota rather than
+      # the 25 Gbit/s the NIC links at is what binds. Provisional until the
+      # region serves enough traffic to measure.
+      egressBudgetMbps: 1000
+    sshExternalSecret:
+      enabled: true
+      item: VULTR_FLEET_SSH
 
 # Shared OVH config holder. The singular ovhFleet stays disabled in production
 # (it is the ca-east validation fleet); production's OVH regions are the us-east /
@@ -845,9 +983,40 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
+  # EU East (Warsaw). OVH sells bare metal here, so the region reuses the
+  # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
+  # metered provider where an unmetered one is available.
+  #
+  # Every box counted by replicas must already be prepped (`mise run
+  # baremetal:prep-ovh`) and carry the adoptDisplayNamePrefix, or the fleet sits
+  # at MD 0/1 and wedges `helm --wait` for every production deploy rather than
+  # just this region.
+  #
+  # Running a box here is not the same as serving the region: that is decided by
+  # eu-east's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
+  # controller in the platform chart. Both are open. Closing either one takes the
+  # region out of service without touching the box.
+  eu-east:
+    enabled: true
+    replicas: 1
+    nodePool: kura-eu-east
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
+      offer: advance-1
+      datacenter: waw
+      os: ubuntu_24.04
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   us-east:
     enabled: true
-    replicas: 2
+    # Four boxes: three since 2026-09-11 plus ns1027689 (vin1, 2026-09-18). At
+    # two the region reserved 1292 GiB against an admission line of 1303 (85% of
+    # allocatable), so Admission refused every storage claim growth here — and a
+    # claim is account-scoped, so that refusal also blocked the regions the same
+    # accounts run in that did have room.
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
@@ -864,7 +1033,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 1
+    replicas: 2
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -936,11 +1105,13 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     #
-    # Four boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
-    # chart's 1 vCPU / 4 GB slot size, so 128 in total. Slots and threads are 1:1
+    # Ten boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
+    # chart's 1 vCPU / 4 GB slot size, so 320 in total. Slots and threads are 1:1
     # on this shape, so there is no oversubscription headroom to absorb a burst;
-    # capacity grows by box count rather than by packing slots tighter.
-    replicas: 4
+    # capacity grows by box count rather than by packing slots tighter. A box
+    # seats at most one 16 vCPU Pod, so the box count is also the ceiling on
+    # concurrent 16 vCPU jobs.
+    replicas: 10
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -1012,57 +1183,50 @@ macosFleet:
   runnerCacheVolume:
     gib: 80
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib is the sparse per-master ceiling; of it the CAS gets casGib,
-    # the binary cache the rest minus a ~2 GiB reserve. A typical binary master
-    # is ~2.4 GB, so the ~7 GiB binary budget still holds ~3x headroom while the
-    # CAS rides the same clone/promote/converge path. The guest is fail-safe: a
+    # masterCapGib is the capacity of every cache image: the room a job has.
+    # The image is sparse, so capacity costs nothing on the host until written,
+    # and teardown compacts the image it promotes, so a master takes on the host
+    # what it holds. A master created at a smaller cap is grown to this one when
+    # the host next installs it, at its account's next promote or convergence.
+    #
+    # Inside the image the two caches share one budget, the cap less a
+    # reserve of max(2 GiB, 20% of the cap): 24 GiB at 30, and 6 GiB of room a
+    # job always starts with before anything prunes. The guest divides the
+    # budget by what each cache holds, at attach and again at teardown, so an
+    # account that barely uses one cache leaves its share to the other, and a
+    # cache that holds nothing yet keeps 2 GiB to grow from. The compiler is
+    # given the compilation cache's limit whole as COMPILATION_CACHE_LIMIT_SIZE:
+    # llcas and the teardown prune rotate a store once its primary passes half
+    # of it, so it already covers both generations. The guest is fail-safe: a
     # store it cannot write falls back to a VM-local cold compilation cache, so
     # a bad budget costs warmth, not the job.
     #
-    # casGib is what the store may OCCUPY, not the limit the compiler is given:
-    # that is half of it, because llcas keeps a primary generation plus the
-    # demoted upstream that is still the warm cache. 11 here is 5.5 GiB per
-    # generation, and 11 + 7 + 2 reserve is the 20 GiB cap exactly.
+    # casGib turns the compilation cache on. It also sets the fixed split that
+    # runner images older than the division by use still apply, 14 GiB for the
+    # compilation cache and 10 GiB for the binary cache, because tart-kubelet
+    # and the runner image roll out separately.
     #
-    # Before that halving the compiler was handed the whole 11 GiB per
-    # generation, so a correctly pruning store wanted ~22 GiB inside a 20 GiB
-    # image — which is what the measured masters showed (17-18 GB of CAS against
-    # a 2.2 GB binary cache) and why this account's volume filled every ~2 days.
-    # Raising masterCapGib is NOT the alternative fix; see the admission
-    # arithmetic below.
+    # The cap is bounded by admission and the evictor, not by taste. Admission
+    # reserves the cap for every branch running a job, and a branch is reserved
+    # when it is materialized for one, not at VM boot. The evictor keeps
+    # 1.2 x cap free. Masters count at what they hold, so on this 80 GiB volume
+    # a cap of 30 leaves 44 GiB for masters: one account near its 24 GiB of
+    # limits beside several small ones, or around 14 accounts of 3 GiB. One job
+    # growing to the cap still leaves 50 GiB, and two overlapping ones 20.
     #
-    # The cap is bounded by admission, not by taste. Admission reserves
-    # masterCapGib for the branch it is admitting plus every branch already
-    # live, so with B branches already held the resident masters that survive
-    # are gib/cap - (B+1). A host runs one job VM, but a branch is reserved at
-    # VM BOOT rather than at dispatch, so a booted warm standby holds one too:
-    # B is 0 or 1 depending on the pool. At cap 28 that leaves 1 or 0 masters —
-    # which is what the fleet showed, hosts flapping between one master and
-    # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
-    # covers the account set with dispatch affinity scoring on residency.
-    #
-    # Raising gib is NOT the alternative fix. Masters that survive scale as
-    # gib/cap, so holding 3 at cap 28 needs gib 140, which raises the volume's
-    # PEAK claim on the shared boot container by 60 GiB. There is no room for
-    # that: the container is 460 GiB with ~330 GiB free idle, but a single job
-    # VM's CoW growth transiently takes it to 42-61 GiB, and the volume already
-    # reaches its 80 GiB quota (observed down to 0.5 GiB free). Restoring
-    # residents raises the volume's sustained floor, not that peak, which is
-    # why it fits where a bigger quota would not. gib also needs a host
-    # replacement (the provisioning script never resizes), while cap is an
-    # operator flag that rolls in place, so cap is the tunable one.
-    #
-    # If the tail ever does starve job VMs, lower gib rather than raising cap:
-    # masters fill to roughly gib - cap, so a smaller cap yields MORE total
-    # master bytes. gib is the footprint lever, cap is the master-count lever.
+    # Raising gib is NOT the alternative. The volume shares the Mac's 460 GiB
+    # disk with the goldens and the job VMs, and a job VM's own writes take the
+    # disk's free space down to 40-57 GiB (7 days to 2026-09-18). A bigger
+    # volume, once full, lowers that floor by the same amount. gib also needs a
+    # host replacement, because the provisioning script never resizes.
     #
     # Retuning either value changes how many accounts a host keeps hot, and
     # therefore how often dispatch can place a job warm. Nothing needs to be
     # kept in sync for that: the host advertises the masters it actually holds
     # as Node labels and the server reads them, so this arithmetic bounds the
     # fleet's behaviour without also being a number the server has to be told.
-    masterCapGib: 20
-    casGib: 11
+    masterCapGib: 30
+    casGib: 14
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
@@ -1285,12 +1449,11 @@ runnersFleet:
         # across all 15 macOS Nodes.
         maxPods: 5
         guestCapacity: 2
-        # 240 GiB against the M2-L's 80. Not a nicety — at 80 the dual
-        # guest host would hold FEWER hot accounts than a single-guest
-        # M2-L does today. Resident masters are `gib/masterCapGib -
-        # (liveBranches + 1)` and a branch is reserved at VM boot, so
-        # two guests means liveBranches reaches 2: at 80/20 that is
-        # 4 - 3 = 1 master, or 0. At 240/20 it is 12 - 3 = 9.
+        # 240 GiB against the M2-L's 80. Not a nicety: admission reserves
+        # masterCapGib for every branch running a job, and two guests run
+        # two, so at 80 GiB and a 30 GiB cap only 20 GiB would be left for
+        # masters. At 240 GiB it is 180 GiB, with masters counted at what
+        # they hold.
         #
         # The M2-L cannot simply be raised to match; that is the point
         # of the SKU. Its 460 GiB container has ~330 GiB free idle and
@@ -1408,10 +1571,12 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -1432,6 +1597,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 14
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -1577,7 +1747,22 @@ runnersFleetLinux:
     # and 4 GB/vCPU, and kata pins guest RAM (request == limit == the
     # shape), so memory reservation is what runs out on this fleet while
     # CPU does not. This rung is bought for memory and priced for it.
-    - { vcpus: 16, memoryGb: 64 }
+    #
+    # Warm floor 1, unlike every other long-tail shape. This Pod needs a
+    # contiguous 16,250m / 66.5 GiB, which is 52% of a RISE-L's CPU and
+    # 57% of its memory, so at floor 0 each arrival waits for that hole
+    # to be manufactured by draining a host. The drain cannot converge
+    # here: `reservationTimeout` is 15m and the `16vcpu-32gb` jobs it
+    # queues behind run a p50 of 28m, so the reservation expires and the
+    # node then rests for `reservationCooldown`. Production 2026-09-11
+    # spent 36 minutes queued that way with the fleet at 88% committed
+    # and the account 96 GB under its own limit. Holding one Pod costs
+    # the same 66.5 GiB continuously and removes both the cold start and
+    # the drain, against ~4 jobs/day at a 46-minute median.
+    - vcpus: 16
+      memoryGb: 64
+      autoscaling:
+        minWarmPoolFloor: 1
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

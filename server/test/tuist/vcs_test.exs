@@ -12,6 +12,7 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -468,6 +469,135 @@ defmodule Tuist.VCSTest do
         end,
         test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
         bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "creates a comment when a preview has no commit SHA" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          git_ref: @git_ref,
+          git_commit_sha: nil,
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App"
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Previews 📦
+
+        | App | Commit |
+        | - | - |
+        | [App](https://tuist.dev/previews/#{preview.id}) |  |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "creates a comment when a bundle has no commit SHA" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1000,
+          download_size: 3000,
+          git_branch: "feat/my-feature",
+          git_ref: @git_ref,
+          git_commit_sha: nil,
+          inserted_at: ~U[2024-01-01 05:00:00Z]
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Bundles 🧰
+
+        | Bundle | Commit | Install size | Download size |
+        | - | - | - | - |
+        | [App](https://tuist.dev/bundles/#{bundle.id}) |  | <div align=\"center\">1.0 KB</div> | <div align=\"center\">3.0 KB</div> |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview} ->
+          "https://tuist.dev/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn %{bundle: bundle} -> "https://tuist.dev/bundles/#{bundle.id}" end,
         build_url: fn _ -> "" end
       })
     end
@@ -2898,7 +3028,7 @@ defmodule Tuist.VCSTest do
       assert {:ok, %Oban.Job{}} = result
 
       assert_enqueued(
-        worker: VCS.Workers.CommentWorker,
+        worker: CommentWorker,
         args: %{
           "build_id" => build.id,
           "git_commit_sha" => "abc123",
@@ -2906,6 +3036,34 @@ defmodule Tuist.VCSTest do
           "git_remote_url_origin" => "https://github.com/tuist/tuist",
           "project_id" => project.id
         }
+      )
+    end
+
+    test "strips credentials from the remote URL before enqueuing" do
+      project = ProjectsFixtures.project_fixture()
+
+      VCS.enqueue_vcs_pull_request_comment(%{
+        git_commit_sha: "abc123",
+        git_ref: "refs/pull/123/head",
+        git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
+        project_id: project.id
+      })
+
+      VCS.enqueue_vcs_pull_request_comment(%{
+        "git_commit_sha" => "def456",
+        "git_ref" => "refs/pull/124/head",
+        "git_remote_url_origin" => "https://x-access-token:fake-token@github.com/tuist/tuist.git",
+        "project_id" => project.id
+      })
+
+      assert_enqueued(
+        worker: CommentWorker,
+        args: %{"git_commit_sha" => "abc123", "git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
+      )
+
+      assert_enqueued(
+        worker: CommentWorker,
+        args: %{"git_commit_sha" => "def456", "git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
       )
     end
 

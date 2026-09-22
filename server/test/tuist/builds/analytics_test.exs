@@ -2255,7 +2255,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       build.(~N[2024-04-03 10:00:00], :miss, "s2", "d1")
       # Only a dependency changed.
       build.(~N[2024-04-04 10:00:00], :miss, "s2", "d2")
-      # Nothing changed but it still missed, so the entry was gone.
+      # Identical inputs missed again, without proof that this key was ever available.
       build.(~N[2024-04-05 10:00:00], :miss, "s2", "d2")
 
       page = Analytics.module_build_history(project_id: project.id, name: "Core")

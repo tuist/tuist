@@ -12,6 +12,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
+- `atlas/` - Atlas internal ops app (Elixir/Phoenix) covering CRM, contracts, GTM, finance, letters, and the MCP tools other services call into. Deployed to `atlas-production` on the CAPI cluster. MPL-2.0. See `atlas/AGENTS.md`.
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `gradle/` - Tuist Gradle plugin (Kotlin) - see `gradle/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
@@ -42,6 +43,9 @@ This file provides guidance to AI agents when working with code in this reposito
 - Do not edit translation `.po` files; only the `tuistit` bot should change them.
 - Do not modify content in languages other than English (source language).
 
+## Repository Build Configuration
+- Keep Swift project prefix mapping enabled. Tests must resolve fixture and snapshot locations through `TuistTestSupport` using the runtime checkout path (`TUIST_CONFIG_SRCROOT`), rather than accessing compiler-remapped `#file` or `#filePath` paths directly.
+
 ## Intent Layer Maintenance
 When making changes in a directory with an `AGENTS.md`, keep that node up to date. If a new subsystem or boundary is introduced, add a new leaf `AGENTS.md` and link it from the nearest parent node.
 
@@ -51,6 +55,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS and macOS app
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
+- `atlas` - Changes to the Atlas internal ops app (Elixir/Phoenix)
 - `codebase-search` - Changes to the bounded source-code search service
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `registry` - Changes to the Swift package registry service
@@ -261,7 +266,9 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 
 ## Translation Management (Gettext)
 
-**Important:** Translations are managed through Weblate. Do not manually edit translation files.
+**Important:** The translation workflow uses `translate.exs` and the `tuistit` bot. Do not manually edit translation files. Catalog translation is incremental by source-message key. Each successful batch is written before the next request. Markdown translations are reused when their source and context hashes match.
+
+The workflow restores the unmerged `l10n/update-translations` branch with a three-way merge before spending tokens, then saves validated progress even if translation fails. Conflicts stop the run before model requests. Provider-wide failures stop queued batches across sources and locales; in-flight requests may finish. Keep the translation step's timeout below the job timeout so saving partial progress has time to complete. Run `elixir translate_test.exs` when changing this behavior; it covers translation logic and branch recovery in temporary local repositories.
 
 **Translation File Types:**
 - `.pot` files (templates) - **CAN be modified** by developers when adding/changing translatable strings
@@ -272,7 +279,7 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 1. Add translatable strings using `dgettext/2` in your code
 2. Run `mix gettext.extract` to update the `.pot` template files
 3. Commit only the `.pot` files (and your code changes)
-4. Weblate will automatically sync the `.pot` changes and create translation PRs via the `tuistit` bot
+4. The translation workflow sends missing entries to the model and updates the translation pull request through the `tuistit` bot
 5. **Never run `mix gettext.extract --merge`** in your PRs as this modifies `.po` files
 
 **Key Principles:**

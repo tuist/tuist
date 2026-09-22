@@ -56,6 +56,7 @@ mise run dev
 - `mise run dev`
 - `mix phx.server`
 - `iex -S mix phx.server`
+- `TUIST_DEV_DISABLE_DEBUG_ERRORS=1 mise run dev` - Render the real error pages (`TuistWeb.ErrorHTML`, e.g. the marketing 404) instead of Plug.Debugger's stack-trace page. `debug_errors` is compiled into `TuistWeb.Endpoint`, so when flipping it run `rm _build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam` first (or `mix compile --force`)
 
 **Testing**
 - `mix test`
@@ -80,6 +81,15 @@ mise run dev
 - `mix ecto.dump`
 - `mix excellent_migrations.check_safety`
 
+## Marketing Site
+
+The marketing site lives under `lib/tuist_web/marketing/` and is a single design:
+
+- Controller pages render templates in `controllers/marketing_html/` (embedded by `TuistWeb.Marketing.MarketingHTML`); LiveView pages keep their template next to the module (`live/marketing_blog_live/blog.html.heex`); the shared navbar and footer live in `components/marketing_layout_components/` and are rendered by `TuistWeb.Marketing.MarketingComponents` from the marketing layout.
+- Styles: `assets/marketing/marketing.css` is the single entry, served as `bundle.css` and built together with `bundle.js` from `marketing.js`. Page styles live under `assets/marketing/css/routes/`, layout styles under `assets/marketing/css/layouts/`, tokens and the page skeleton under `assets/marketing/css/shared/`.
+- Page switches are cross-document view transitions with prefetch-on-hover (see the root layout); the navbar and footer hooks are mounted by `assets/marketing/js/lib/static-hooks.js` independently of LiveView, so they must not rely on LiveView-only hook APIs.
+- Social cards are designed PNGs under `priv/static/marketing/images/og/`, served by `TuistWeb.Marketing.SocialCards`; per-item pages (blog posts, changelog entries, case studies, newsletter issues) keep their generated images.
+
 ## Key Configuration Files
 - `.mise.toml` - Tool versions
 - `mix.exs` - Elixir project configuration
@@ -101,6 +111,12 @@ mise run dev
   and duration by outcome) and LiveView async loads by
   `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric:
   a metric nothing queries has its labels aggregated away by Grafana Cloud.
+- `Tuist.Repo.PromExPlugin` exports pool pressure, query attempts by outcome,
+  and connection-wait, execution, decoding, and total-duration histograms for
+  PostgreSQL and ClickHouse in all runtimes. The `workload` label separates
+  web, build processing, test-result processing, and registry synchronization.
+  The Processor Service dashboard compares these workloads using the same
+  measurements; execution time includes the network round trip.
 
 ## Code Style Guidelines
 - Use `alias` for modules used multiple times; avoid `import` unless using DSLs (e.g., Ecto.Query).
@@ -128,6 +144,7 @@ mise run dev
 Update `server/data-export.md` whenever you change stored customer data (schema, storage, retention, or new data collection). This is required for legal compliance.
 
 ## Related Context (Downlinks)
+- Activity log executable and streamed step protocol: `server/native/xcactivitylog_nif/AGENTS.md`
 - Business logic: `server/lib/tuist/AGENTS.md`
 - Web/UI layer: `server/lib/tuist_web/AGENTS.md`
 - Assets pipeline: `server/assets/AGENTS.md`
@@ -135,3 +152,5 @@ Update `server/data-export.md` whenever you change stored customer data (schema,
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Test conventions: `server/test/AGENTS.md`
 - Grafana dashboards (Oban + others): [`infra/grafana-dashboards/`](../infra/grafana-dashboards/) (Git Sync'd with Grafana Cloud — see `infra/AGENTS.md`)
+
+- Gradle and Bazel build detail pages reuse the shared build timeline. Source adapters expose recorded operations and explicit coverage; see `lib/tuist/gradle/AGENTS.md` and `lib/tuist/bazel/AGENTS.md`.

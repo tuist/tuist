@@ -4,8 +4,11 @@ defmodule Tuist.Tests.Test do
   This is a ClickHouse entity that stores test run data.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
+
+  alias Tuist.Tests.StressNewTests
 
   @derive {
     Flop.Schema,
@@ -51,6 +54,13 @@ defmodule Tuist.Tests.Test do
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
     field :only_test_identifiers, Ch, type: "Array(String)", default: []
     field :skip_test_identifiers, Ch, type: "Array(String)", default: []
+    field :stress_mode, Ch, type: "LowCardinality(String)", default: ""
+    field :stress_outcome, Ch, type: "LowCardinality(String)", default: ""
+    field :stress_skip_reason, Ch, type: "LowCardinality(String)", default: ""
+    field :stress_new_count, Ch, type: "UInt32", default: 0
+    field :stress_stressed_count, Ch, type: "UInt32", default: 0
+    field :stress_excluded_count, Ch, type: "UInt32", default: 0
+    field :stress_known_count, Ch, type: "UInt32", default: 0
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
@@ -91,7 +101,14 @@ defmodule Tuist.Tests.Test do
       :build_system,
       :shard_plan_id,
       :only_test_identifiers,
-      :skip_test_identifiers
+      :skip_test_identifiers,
+      :stress_mode,
+      :stress_outcome,
+      :stress_skip_reason,
+      :stress_new_count,
+      :stress_stressed_count,
+      :stress_excluded_count,
+      :stress_known_count
     ])
     |> validate_required([
       :id,
@@ -106,5 +123,8 @@ defmodule Tuist.Tests.Test do
     |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
     |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
+    |> validate_inclusion(:stress_mode, ["" | StressNewTests.modes()])
+    |> validate_inclusion(:stress_outcome, ["" | StressNewTests.run_outcomes()])
+    |> validate_inclusion(:stress_skip_reason, ["" | StressNewTests.skip_reasons()])
   end
 end

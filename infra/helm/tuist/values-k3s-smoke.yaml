@@ -7,6 +7,11 @@
 
 server:
   replicaCount: 0
+  # The Deployment is scaled to zero, so the tag is never pulled. This value
+  # satisfies the chart's mandatory-tag guard while preserving the rendered
+  # server workload in this Kubernetes smoke test.
+  image:
+    tag: k3s-smoke
   migrationJob:
     enabled: false
   license:

@@ -18,7 +18,19 @@ name: CLI Release Candidate
 #
 # RCs are GitHub prereleases: never "Latest", never pushed to Homebrew. After a
 # clean soak, promote the line to stable with cli-promote.yml.
+#
+# Every Monday a new line is cut from main right after the scheduled
+# cli-promote.yml run succeeds, so the promotion always picks the line cut the
+# week before rather than this one. A failed promotion holds the cut back: the
+# promote resolver only ever picks the highest RC line above the latest stable,
+# so cutting the next line on top of a failure would strand the one that did
+# not ship. Holding back instead leaves it the highest line, and the following
+# Monday retries it.
 on:
+  workflow_run:
+    workflows: [CLI Promote to Stable]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       branch:
@@ -43,7 +55,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   MISE_GITHUB_ATTESTATIONS: 0
@@ -51,6 +62,15 @@ env:
 jobs:
   prepare:
     name: Resolve RC version
+    # Manual promotions don't cut a new line; only the weekly scheduled one
+    # does, and only when it succeeded. A promotion that published nothing
+    # leaves its line unshipped, and cutting past it would make it
+    # unreachable.
+    if: >-
+      github.repository == 'tuist/tuist' &&
+      (github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'schedule' &&
+      github.event.workflow_run.conclusion == 'success'))
     runs-on: tuist-linux
     timeout-minutes: 10
     outputs:
@@ -65,9 +85,8 @@ jobs:
           ref: ${{ inputs.branch == '' && github.event.repository.default_branch || inputs.branch }}
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}

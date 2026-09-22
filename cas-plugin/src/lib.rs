@@ -16,9 +16,11 @@
 pub mod analytics;
 pub mod endpoint;
 pub mod proxy;
+pub mod proxy_failure;
 pub mod proxy_proto;
 pub mod prefetch;
 pub mod reapi;
+pub mod chunk_cache;
 pub mod token;
 pub mod types;
 pub mod upstream;
@@ -246,6 +248,43 @@ fn resolve_upload(state: &OptionsState) -> bool {
     }
 }
 
+/// Whether a put hands its record to the proxy and moves on, rather than
+/// waiting for the upload.
+///
+/// A developer machine keeps its store and a proxy that outlives the build, so
+/// the upload finishes after the build does. A CI job's store, and usually its
+/// machine, go away with the job, taking any record still spooled with them.
+/// A Tuist runner is the exception for the store under `TUIST_CAS_DRAINED_STORE`,
+/// the directory its teardown drains before the machine goes away. Only a store
+/// inside it qualifies: a job that points its compilation cache anywhere else
+/// leaves a spool nothing waits for.
+fn resolve_upload_in_background(cas_dir: Option<&std::path::Path>) -> bool {
+    upload_in_background(
+        on_ci(),
+        cas_dir,
+        std::env::var_os("TUIST_CAS_DRAINED_STORE").as_deref(),
+    )
+}
+
+fn upload_in_background(
+    on_ci: bool,
+    cas_dir: Option<&std::path::Path>,
+    drained_store: Option<&std::ffi::OsStr>,
+) -> bool {
+    if !on_ci {
+        return true;
+    }
+    let (Some(cas_dir), Some(drained_store)) = (cas_dir, drained_store.filter(|store| !store.is_empty()))
+    else {
+        return false;
+    };
+    let resolved = |path: &std::path::Path| std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    resolved(cas_dir).starts_with(resolved(std::path::Path::new(drained_store)))
+}
+
+/// How long a put waits for its upload before leaving it to the proxy.
+const UPLOAD_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
 struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
@@ -263,6 +302,8 @@ struct CasState {
     // the `tuist-upload` plugin option (so it reaches every frontend, including a
     // ⌘B build) with the `TUIST_CAS_UPLOAD` env as a fallback; see resolve_upload.
     upload: bool,
+    // See `resolve_upload_in_background`.
+    upload_in_background: bool,
     // (key -> value digest) associations served FROM the remote by this
     // process, so the client's end-of-job re-puts of replayed results skip
     // the publish path entirely (see actioncache_put_remote).
@@ -286,10 +327,8 @@ struct CasState {
     // (tuist/tuist#12245).
     stats_unbacked_local_hits: AtomicU64,
     stats_poisoned_puts: AtomicU64,
-    // Resolve hits whose association was NOT recorded because the graph had not
-    // materialized yet. Not a degradation: the key resolves again next build and
-    // is recorded then. A count that stays high across builds means graphs are
-    // not landing at all, which is a materialization problem, not a cache one.
+    // Remote candidates returned as compiler misses because their graph was
+    // unavailable. Keep the diagnostic name stable; these also defer the put.
     stats_deferred_puts: AtomicU64,
     // Time spent resolving demand-driven remote work (entry read-through and
     // object-load materialization). This bounds how far warm-remote can sit
@@ -540,12 +579,14 @@ pub unsafe extern "C" fn llcas_cas_create(
         .as_ref()
         .and_then(|p| p.to_str().ok())
         .map(std::path::PathBuf::from);
+    let upload_in_background = resolve_upload_in_background(cas_dir.as_deref());
     let state_ptr = Box::into_raw(Box::new(CasState {
         up,
         cas: upstream_cas,
         proxy,
         proxy_instance,
         upload: resolve_upload(state),
+        upload_in_background,
         created_at: std::time::Instant::now(),
         cas_dir,
         published: Mutex::new(std::collections::HashSet::new()),
@@ -592,6 +633,7 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         return;
     }
     let state_ptr = cas as *mut CasState;
+    proxy_failure::handle_disposed(state_ptr as usize);
     {
         // Workers reference this state; join them before freeing anything.
         // Prefetches are droppable; queued uploads must flush.
@@ -671,6 +713,10 @@ static LOG_BYTES_SINCE_CHECK: AtomicU64 = AtomicU64::new(LOG_SIZE_CHECK_INTERVAL
 /// presence rather than value, exactly as it does.
 const CI_MARKERS: [&str; 3] = ["GITHUB_RUN_ID", "CI", "BUILD_NUMBER"];
 
+fn on_ci() -> bool {
+    CI_MARKERS.iter().any(|marker| std::env::var_os(marker).is_some())
+}
+
 /// Where the diagnostics go, or `None` to write none.
 ///
 /// An explicitly set `TUIST_CAS_LOG` always wins, and setting it EMPTY is the way
@@ -706,7 +752,7 @@ fn log_path() -> Option<String> {
 /// would be state created on every build for a reader who never asked for it; a CI
 /// machine is ephemeral and the job bounds it.
 fn default_log_path() -> Option<String> {
-    if !CI_MARKERS.iter().any(|marker| std::env::var_os(marker).is_some()) {
+    if !on_ci() {
         return None;
     }
     let state_directory = match std::env::var("XDG_STATE_HOME") {
@@ -956,18 +1002,8 @@ pub unsafe extern "C" fn llcas_cas_contains_object(
 /// `missing object '0~...'` a build reports.
 unsafe fn printed_digest(state: &CasState, id: llcas_objectid_t) -> String {
     let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
-    let mut printed: *mut c_char = std::ptr::null_mut();
-    let mut print_error: *mut c_char = std::ptr::null_mut();
-    let failed = (state.up.llcas_digest_print)(state.cas, digest, &mut printed, &mut print_error);
-    if !print_error.is_null() {
-        (state.up.llcas_string_dispose)(print_error);
-    }
-    if failed || printed.is_null() {
-        return hex(&digest_bytes(state, id));
-    }
-    let text = CStr::from_ptr(printed).to_string_lossy().into_owned();
-    (state.up.llcas_string_dispose)(printed);
-    text
+    state.up.print_digest(state.cas, digest)
+        .unwrap_or_else(|| hex(&digest_bytes(state, id)))
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -1168,18 +1204,7 @@ unsafe fn actioncache_get_impl(
         .unwrap_or_default();
     match client.resolve(&cas_path, &state.proxy_instance, key) {
         Ok(Resolution::Hit(value_digest)) => {
-            state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
-            // Remember the association: the client re-puts replayed results
-            // at the end of its job, and re-publishing a (key, value) that
-            // just came FROM the remote is pure churn — a spool write on
-            // the compile path plus a proxy publish check per key
-            // (thousands per warm build). actioncache_put_remote skips
-            // puts that match this map.
-            state
-                .remote_hits
-                .lock()
-                .unwrap()
-                .insert(key.to_vec(), value_digest.clone());
+            proxy_failure::proxy_answered();
             let value_digest_t =
                 llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
             let mut value_id = llcas_objectid_t { opaque: 0 };
@@ -1188,23 +1213,35 @@ unsafe fn actioncache_get_impl(
                 adopt_error(state.up, id_error, error);
                 return LLCAS_LOOKUP_RESULT_ERROR;
             }
-            // Record the association ONLY once the graph it names is actually
-            // here. A resolve replies before materialization finishes (protocol
-            // v2 is non-blocking on purpose — this runs on the serial task-setup
-            // path), so putting unconditionally writes `key -> value` for a graph
-            // that may never arrive, and NOTHING can retract it: the ABI has no
-            // delete and a re-put with a different value is refused. That made
-            // this function an author of the very state `verified_local_get`
-            // exists to catch, with no prune involved — measured on a real build
-            // over an EMPTY store, which ended it holding 9 dangling roots.
-            //
-            // Skipping costs one extra resolve for this key, ONCE: the
-            // materialized root persists on disk, so the next build's resolve
-            // finds it present and records the association then. On the warm
-            // snapshot path the graph is already materialized, the probe passes,
-            // and nothing changes. The same ROOT-only probe as the read guard —
-            // an interior node still needs the load path's FETCH_OBJECT.
-            if value_graph_is_available(state, value_id) {
+            // A remote association is only a candidate until materialization
+            // publishes its root over a complete, verified local graph. Fetch
+            // instructions cannot promise availability: a recipe and its whole
+            // download fallback can both lose the same chunk. Clang cannot
+            // recover from that loss once we have advertised a compiler hit.
+            // Xcode's task-setup probes are local-only; its separate network
+            // query tasks ask globally. Only the latter may wait for the graph.
+            // A failed global restore remains a miss, before Clang commits to
+            // replay. The proxy withholds the root until every child is ready.
+            if globally && !value_graph_is_available(state, value_id) {
+                if let Err(message) =
+                    client.prepare_action(&cas_path, &state.proxy_instance, &value_digest)
+                {
+                    log_line(&format!("proxy graph preparation failed: {message}"));
+                    if report_proxy_failure(state, globally, &message, error) {
+                        return LLCAS_LOOKUP_RESULT_ERROR;
+                    }
+                }
+            }
+            if !value_graph_is_available(state, value_id) {
+                state.stats_deferred_puts.fetch_add(1, Ordering::Relaxed);
+                state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            }
+            state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
+            // Only actual hits suppress publication. A miss above may compile
+            // this same value and must be allowed to repair the remote cache.
+            state.remote_hits.lock().unwrap().insert(key.to_vec(), value_digest);
+            {
                 let mut put_error: *mut c_char = std::ptr::null_mut();
                 if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
                     // Reachable BECAUSE of the verification: a stale association sends
@@ -1216,8 +1253,6 @@ unsafe fn actioncache_get_impl(
                         return LLCAS_LOOKUP_RESULT_ERROR;
                     }
                 }
-            } else {
-                state.stats_deferred_puts.fetch_add(1, Ordering::Relaxed);
             }
             if !p_value.is_null() {
                 *p_value = value_id;
@@ -1225,32 +1260,79 @@ unsafe fn actioncache_get_impl(
             return LLCAS_LOOKUP_RESULT_SUCCESS;
         }
         Ok(Resolution::Miss) => {
+            proxy_failure::proxy_answered();
             state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
             return LLCAS_LOOKUP_RESULT_NOTFOUND;
         }
         Err(message) => {
             state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
             log_line(&format!("proxy resolve error: {message}"));
+            if report_proxy_failure(state, globally, &message, error) {
+                return LLCAS_LOOKUP_RESULT_ERROR;
+            }
             return LLCAS_LOOKUP_RESULT_NOTFOUND;
         }
     }
 }
 
-/// The ROOT only, and a probe rather than a load: this runs on the thread that
-/// schedules every task in the build, so its cost is multiplied by every lookup
-/// ("Per-key overhead" in AGENTS.md). A deep-node miss belongs to the
-/// write-through ordering, not to a graph walk here.
-///
-/// Always LOCAL: a healthy remote answers yes to a global probe and would mask the
-/// condition. A probe that errors counts as unavailable — falling through costs a
-/// resolve, serving an unbacked hit costs a build.
-unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) -> bool {
-    let mut probe_error: *mut c_char = std::ptr::null_mut();
-    let result = (state.up.llcas_cas_contains_object)(state.cas, value, false, &mut probe_error);
-    if !probe_error.is_null() {
-        (state.up.llcas_string_dispose)(probe_error);
+/// A failed proxy request degrades to a miss, the same answer a cold cache gives. The one
+/// lookup `proxy_failure` lets report it returns a cache error instead, which swift-build
+/// shows as a warning; every other failure stays a miss.
+unsafe fn report_proxy_failure(
+    state: &CasState,
+    globally: bool,
+    message: &str,
+    error: *mut *mut c_char,
+) -> bool {
+    if !proxy_failure::should_report(globally, state as *const CasState as usize) {
+        return false;
     }
-    result == LLCAS_LOOKUP_RESULT_SUCCESS
+    set_error(error, &proxy_failure::message(&state.proxy.socket_path, message));
+    true
+}
+
+/// Validate the local closure without consulting the remote. Root containment
+/// alone accepts graphs written incompletely by older proxies. Do not memoize a
+/// positive result: another process can rotate the shared store between gets.
+unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) -> bool {
+    local_graph_is_available(state.up, state.cas, value)
+}
+
+/// The ids and loaded references must belong to the same live CAS handle.
+unsafe fn local_graph_is_available(
+    up: &Upstream,
+    cas: llcas_cas_t,
+    root: llcas_objectid_t,
+) -> bool {
+    const MAX_NODES: usize = 100_000;
+    let mut visited = std::collections::HashSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id.opaque) {
+            continue;
+        }
+        if visited.len() > MAX_NODES {
+            return false;
+        }
+        let mut loaded = llcas_loaded_object_t { opaque: 0 };
+        let mut error = std::ptr::null_mut();
+        let result = (up.llcas_cas_load_object)(cas, id, &mut loaded, &mut error);
+        if !error.is_null() {
+            (up.llcas_string_dispose)(error);
+        }
+        if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+            return false;
+        }
+        let refs = (up.llcas_loaded_object_get_refs)(cas, loaded);
+        let count = (up.llcas_object_refs_get_count)(cas, refs);
+        if count > MAX_NODES.saturating_sub(pending.len()) {
+            return false;
+        }
+        for index in 0..count {
+            pending.push((up.llcas_object_refs_get_id)(cas, refs, index));
+        }
+    }
+    true
 }
 
 /// The upstream local lookup, with a hit verified before it is served.
@@ -1262,7 +1344,7 @@ unsafe fn value_graph_is_available(state: &CasState, value: llcas_objectid_t) ->
 /// remote on every later get. Full account in AGENTS.md; tuist/tuist#12245.
 ///
 /// The write-side invariants keep this guard from being the only defense: an
-/// association is recorded only once its root is present, and materialization
+/// association is recorded only once its closure is present, and materialization
 /// publishes a root only over a complete closure. This still runs, because a
 /// prune remains an author no writer controls.
 ///
@@ -1412,9 +1494,22 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .as_ref()
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .unwrap_or_default();
+            let record_path = path.to_string_lossy();
+            // Either answer is final: the proxy published the record, or it
+            // finishes it in the background. Without an answer (no proxy
+            // listening, one too old to know the op, or one past the budget) the
+            // put sends the plain notice, which a proxy that already took the
+            // record drops as a duplicate.
+            if !state.upload_in_background
+                && state
+                    .proxy
+                    .publish_and_wait(&cas_path, &state.proxy_instance, &record_path, UPLOAD_WAIT_BUDGET)
+                    .is_ok()
+            {
+                return;
+            }
             // Failure is fine: the record survives for the proxy sweep.
-            let _ =
-                state.proxy.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
+            let _ = state.proxy.publish(&cas_path, &state.proxy_instance, &record_path);
         }
         return;
     }
@@ -1505,5 +1600,35 @@ mod tests {
         assert!(!is_cache_poisoned("No space left on device"));
         assert!(!is_cache_poisoned("failed to open the action cache"));
         assert!(!is_cache_poisoned("poisoned lock in the object store"));
+    }
+
+    /// On CI only a store the runner's teardown drains may upload in the
+    /// background. A job pointing its own compilation cache elsewhere leaves a
+    /// spool nothing waits for, so its puts wait for their uploads.
+    #[test]
+    fn only_a_drained_store_uploads_in_the_background_on_ci() {
+        let dir = std::env::temp_dir().join(format!("tuist-drained-store-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let store = dir.join("cas");
+        let inside = store.join("plugin");
+        let sibling = dir.join("cas-other").join("plugin");
+        std::fs::create_dir_all(&inside).unwrap();
+        std::fs::create_dir_all(&sibling).unwrap();
+        let linked = dir.join("linked");
+        std::os::unix::fs::symlink(&store, &linked).unwrap();
+        let store_path = store.as_os_str();
+
+        assert!(upload_in_background(false, Some(&sibling), None));
+        assert!(!upload_in_background(true, Some(&inside), None));
+        assert!(!upload_in_background(true, None, Some(store_path)));
+        assert!(upload_in_background(true, Some(&inside), Some(store_path)));
+        assert!(!upload_in_background(true, Some(&sibling), Some(store_path)));
+        assert!(
+            upload_in_background(true, Some(&linked.join("plugin")), Some(store_path)),
+            "a store spelled through a symlink is still the drained one"
+        );
+        assert!(!upload_in_background(true, Some(&inside), Some(std::ffi::OsStr::new(""))));
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

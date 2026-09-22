@@ -1,5 +1,11 @@
 # runners-controller
 
+The optional read-only shadow scheduler compares central warm-runner assignment
+proposals with later observed claims. It has no actuator and is disabled by
+default. See [rollout and interpretation](shadow-scheduler.md) and
+[policy boundary](internal/shadow/AGENTS.md). Keep it separate from both
+production reconcilers; it receives only a Kubernetes `client.Reader`.
+
 Kubernetes controller for `RunnerPool` CRDs. Runs in the workload
 cluster, reconciles Pods + per-Pod `ServiceAccount`s that the Tuist
 server's dispatch endpoint authenticates via the TokenReview API.
@@ -180,7 +186,10 @@ independent workqueues:
     tolerates that key at its OWN pool's value, so the host stops
     admitting everyone else while its seats accumulate. Running jobs are
     waited out, never evicted; only idle Pods of other pools are
-    retired. The taint is removed when the Pod lands or after
+    retired, and only once they have been bound longer than `seatGrace`
+    (2m) — a Pod that bound more recently is the seat some other
+    reservation just produced, and dispatch has not yet reached it. The
+    taint is removed when the Pod lands or after
     `reservationTimeout` (15m), and at most one host is held per fleet
     (`maxFleetReservations`; the count is taken over the pool's own
     fleet nodes, so darwin and linux hold separate budgets), since a

@@ -33,7 +33,7 @@ defmodule Tuist.MCP.Components.Tools.ListBazelInvocations do
 
   @impl EMCP.Tool
   def description do
-    "List Bazel invocations with build metrics, bounded timeline and critical-path diagnostics, and correlated remote-cache totals for a project."
+    "List Bazel invocations with custom metadata, build metrics, bounded timeline and critical-path diagnostics, and correlated remote-cache totals for a project."
   end
 
   def execute(_conn, args, project) do

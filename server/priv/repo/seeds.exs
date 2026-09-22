@@ -6,6 +6,7 @@ alias Tuist.Alerts.Alert
 alias Tuist.Alerts.AlertRule
 alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
+alias Tuist.Bazel
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Builds.Build
@@ -23,6 +24,7 @@ alias Tuist.Gradle.Task, as: GradleTask
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
+alias Tuist.ReapiCache
 alias Tuist.Repo
 alias Tuist.Runners.Job
 alias Tuist.Runners.JobMetrics
@@ -35,6 +37,7 @@ alias Tuist.Shards.ShardPlanModule
 alias Tuist.Shards.ShardPlanTestSuite
 alias Tuist.Shards.ShardRun
 alias Tuist.Slack.Installation
+alias Tuist.Tests
 alias Tuist.Tests.Test
 alias Tuist.Tests.TestCase
 alias Tuist.Tests.TestCaseEvent
@@ -238,6 +241,121 @@ defmodule SeedHelpers do
     |> Base.encode16(case: :lower)
     |> binary_part(0, length)
   end
+
+  def seed_test_comparison_projects(account, user_account) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    definitions = [
+      {"test_cache_warmup", "CacheTests", "enabled", true},
+      {"test_cache_key_is_stable", "CacheTests", "enabled", false},
+      {"test_session_refresh", "SessionTests", "muted", true},
+      {"test_valid_session", "SessionTests", "enabled", false},
+      {"test_background_sync", "SyncTests", "skipped", true},
+      {"test_sorted_inputs", "SortingTests", "enabled", false}
+    ]
+
+    for build_system <- [:xcode, :bazel] do
+      name = "#{build_system}-comparison"
+
+      project =
+        Repo.get_by(Project, account_id: account.id, name: name) ||
+          Projects.create_project!(%{name: name, account: %{id: account.id}}, build_system: build_system)
+
+      if !Tuist.ClickHouseRepo.exists?(from(t in Test, where: t.project_id == ^project.id)) do
+        for index <- 0..13 do
+          ran_at = NaiveDateTime.add(now, -(13 - index) * 43_200, :second)
+
+          modules =
+            definitions
+            |> Enum.reject(fn {_, _, state, _} -> state == "skipped" and index >= 11 end)
+            |> Enum.group_by(fn {_, suite, _, _} -> suite end)
+            |> Enum.sort_by(&elem(&1, 0))
+            |> Enum.map(fn {suite, cases} ->
+              test_cases =
+                Enum.map(cases, fn {name, _, state, flaky} ->
+                  failed = flaky and state == "muted" and index in [8, 11, 13]
+                  retries = flaky and not failed and rem(index, 3) == 1
+                  duration = 80 + index * 9 + if(flaky, do: 160, else: 0)
+
+                  %{
+                    name: name,
+                    test_suite_name: suite,
+                    status: if(failed, do: "failure", else: "success"),
+                    duration: duration,
+                    is_quarantined: state == "muted" and index >= 8,
+                    repetitions:
+                      if retries do
+                        [
+                          %{repetition_number: 1, name: "First attempt", status: "failure", duration: duration},
+                          %{repetition_number: 2, name: "Retry", status: "success", duration: duration}
+                        ]
+                      else
+                        []
+                      end,
+                    failures:
+                      if failed or retries do
+                        [
+                          %{
+                            message: "Service was not ready",
+                            path: "#{suite}.swift",
+                            line_number: 42,
+                            issue_type: "assertion_failure"
+                          }
+                        ]
+                      else
+                        []
+                      end
+                  }
+                end)
+
+              status = if Enum.any?(test_cases, &(&1.status == "failure")), do: "failure", else: "success"
+              duration = Enum.sum(Enum.map(test_cases, & &1.duration))
+
+              %{
+                name: if(build_system == :bazel, do: "//app:#{Macro.underscore(suite)}", else: "App#{suite}"),
+                status: status,
+                duration: duration,
+                test_suites: [%{name: suite, status: status, duration: duration}],
+                test_cases: test_cases
+              }
+            end)
+
+          {:ok, _} =
+            Tests.create_test(%{
+              id: UUIDv7.generate(),
+              project_id: project.id,
+              account_id: user_account.id,
+              build_system: Atom.to_string(build_system),
+              scheme: if(build_system == :bazel, do: "//app:all_tests", else: "App"),
+              git_branch: "main",
+              git_commit_sha: "comparison-#{index}",
+              is_ci: true,
+              ran_at: ran_at,
+              inserted_at: ran_at,
+              status: if(Enum.any?(modules, &(&1.status == "failure")), do: "failure", else: "success"),
+              duration: Enum.sum(Enum.map(modules, & &1.duration)),
+              test_modules: modules,
+              xcode_version: if(build_system == :xcode, do: "26.0", else: ""),
+              macos_version: "26.0",
+              model_identifier: "Mac15,6"
+            })
+
+          for buffer <- [TestCase.Buffer, TestCaseRun.Buffer, TestModuleRun.Buffer, TestSuiteRun.Buffer] do
+            buffer.flush()
+          end
+        end
+
+        {test_cases, _} = Tests.list_test_cases(project.id, %{page_size: 100})
+
+        for test_case <- test_cases do
+          {_, _, state, flaky} = Enum.find(definitions, &(elem(&1, 0) == test_case.name))
+          {:ok, _} = Tests.update_test_case(test_case.id, %{state: state, is_flaky: flaky}, actor_id: user_account.id)
+        end
+      end
+
+      IO.puts("Test comparison: /#{account.name}/#{name}/tests/test-cases")
+    end
+  end
 end
 
 # Stubs
@@ -293,6 +411,7 @@ organization =
   end
 
 organization_account = Repo.preload(organization, :account).account
+SeedHelpers.seed_test_comparison_projects(organization_account, Repo.preload(user, :account).account)
 {:ok, true} = FunWithFlags.enable(:kura, for_actor: organization_account)
 
 seed_account_token = fn account, name, opts ->
@@ -508,6 +627,112 @@ seed_account_token.(organization_account, "organization-projects-ci",
 )
 
 Code.eval_file(Path.join(__DIR__, "automation_history_seeds.exs"))
+
+# Bazel insights: invocations with build timelines and remote cache events from
+# the last 30 days, so the Bazel dashboard and the live dashboard embedded in the
+# Bazel announcement blog post have data locally. Skips the project when it
+# already has invocations, so it's safe to re-run.
+seed_bazel_insights = fn account_handle, project_handle ->
+  case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
+    nil ->
+      IO.puts("Skipping Bazel insights: #{account_handle}/#{project_handle} doesn't exist")
+
+    project ->
+      # The Bazel post's live timeline loads steps from the project's timeline
+      # endpoint, which anonymous visitors can only read for public projects.
+      if project.visibility != :public do
+        {:ok, _project} = Projects.update_project(project, %{visibility: :public})
+      end
+
+      if Bazel.invocations_present?(project.id) do
+        IO.puts("Bazel insights already seeded for #{account_handle}/#{project_handle}")
+      else
+        :rand.seed(:exsss, {2026, 9, 9})
+        now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+        cache_endpoint = "http://localhost:8080"
+        timeline_lanes = ["Execution lane 1", "Execution lane 2"]
+
+        invocations =
+          for index <- 0..59 do
+            failed? = rem(index, 9) == 4
+            command = if(rem(index, 4) == 0, do: "test", else: "build")
+            duration_ms = 25_000 + :rand.uniform(220_000)
+            finished_at = NaiveDateTime.add(now, -(index * 700 + 17) * 60, :second)
+
+            # {lane, start, duration, description}, with start and duration as
+            # fractions of the invocation, shaped like the action spans Kura
+            # retains for real builds.
+            spans = [
+              {0, 0.02, 0.36, "Rustc //app:core"},
+              {1, 0.03, 0.27, "Rustc //app:network"},
+              {1, 0.32, 0.22, "Rustc //app:storage"},
+              {0, 0.40, 0.31, "Rustc //app:lib"},
+              {1, 0.57, 0.17, "CppCompile //third_party:zstd"},
+              {0, 0.74, 0.22, if(command == "test", do: "TestRunner //app:lib_test", else: "Rustc //app:cli")}
+            ]
+
+            %{
+              invocation_id: UUIDv7.generate(),
+              command: command,
+              target_patterns: ["//..."],
+              is_ci: rem(index, 3) == 0,
+              bazel_version: "8.4.2",
+              status: if(failed?, do: "failure", else: "success"),
+              exit_code: if(failed?, do: 1, else: 0),
+              started_at: NaiveDateTime.add(finished_at, -div(duration_ms, 1000), :second),
+              finished_at: finished_at,
+              duration_ms: duration_ms,
+              project_id: project.id,
+              account_handle: account_handle,
+              project_handle: project_handle,
+              cache_endpoint: cache_endpoint,
+              build_timeline_duration_ms: duration_ms,
+              build_timeline_lanes: timeline_lanes,
+              build_timeline_span_lanes: Enum.map(spans, &elem(&1, 0)),
+              build_timeline_span_start_ms: Enum.map(spans, &round(elem(&1, 1) * duration_ms)),
+              build_timeline_span_durations_ms: Enum.map(spans, &round(elem(&1, 2) * duration_ms)),
+              build_timeline_span_categories: Enum.map(spans, fn _span -> "execution" end),
+              build_timeline_span_descriptions: Enum.map(spans, &elem(&1, 3))
+            }
+          end
+
+        Bazel.create_invocations(invocations)
+
+        cache_events =
+          for invocation <- invocations, index <- 0..19 do
+            %{
+              client_kind: "bazel",
+              operation: "action_cache",
+              outcome: if(:rand.uniform(100) <= 82, do: "hit", else: "miss"),
+              action_digest:
+                :sha256 |> :crypto.hash("#{invocation.invocation_id}-#{index}") |> Base.encode16(case: :lower),
+              size: 200 + :rand.uniform(4_000),
+              duration_ms: 1 + :rand.uniform(20),
+              invocation_id: invocation.invocation_id,
+              action_mnemonic: "CppCompile",
+              target_label: "//app:lib",
+              configuration_id: "",
+              project_id: project.id,
+              account_handle: account_handle,
+              project_handle: project_handle,
+              cache_endpoint: cache_endpoint,
+              # Cache events store `observed_at` with microsecond precision.
+              observed_at:
+                invocation.started_at
+                |> NaiveDateTime.add(index * 5, :second)
+                |> DateTime.from_naive!("Etc/UTC")
+                |> then(&%{&1 | microsecond: {0, 6}})
+            }
+          end
+
+        ReapiCache.create_cache_events(cache_events)
+
+        IO.puts("Seeded Bazel insights for #{account_handle}/#{project_handle}")
+      end
+  end
+end
+
+seed_bazel_insights.("tuist", "bazel-comparison")
 
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
@@ -1130,7 +1355,7 @@ test_case_definitions =
   end
 
 {test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids, _test_cases} =
-  Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
+  Tests.create_test_cases(tuist_project.id, test_case_definitions, %{})
 
 # Update flaky test cases to be marked as is_flaky.
 # Split the flaky population across three states so both quarantine modes are exercised:

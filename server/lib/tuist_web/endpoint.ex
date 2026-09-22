@@ -9,6 +9,7 @@ defmodule TuistWeb.Endpoint do
   alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
   alias TuistWeb.Plugs.MarketingStaticAssetObservabilityPlug
   alias TuistWeb.Plugs.WebhookPlug
+  alias TuistWeb.Webhooks.BazelActionsController
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
 
@@ -22,7 +23,8 @@ defmodule TuistWeb.Endpoint do
     store: :cookie,
     key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
@@ -115,6 +117,27 @@ defmodule TuistWeb.Endpoint do
     signature_header: "x-cache-signature"
 
   plug WebhookPlug,
+    at: "/webhooks/bazel-actions/batch",
+    handler: BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 12_000_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-actions",
+    handler: BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 512_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-profiles",
+    handler: TuistWeb.Webhooks.BazelProfilesController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 45_000_000
+
+  plug WebhookPlug,
     at: "/webhooks/bazel-test-artifacts",
     handler: TuistWeb.Webhooks.BazelTestArtifactsController,
     secret: {Tuist.Environment, :cache_api_key, []},
@@ -128,6 +151,7 @@ defmodule TuistWeb.Endpoint do
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library(),
+    body_reader: {TuistWeb.Plugs.DeflateBodyReader, :read_body, []},
     length: 50_000_000
 
   plug Plug.MethodOverride

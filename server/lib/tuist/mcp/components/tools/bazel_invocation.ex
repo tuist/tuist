@@ -1,6 +1,7 @@
 defmodule Tuist.MCP.Components.Tools.BazelInvocation do
   @moduledoc false
 
+  alias Tuist.Bazel.Invocation
   alias Tuist.MCP.Formatter
 
   def schema do
@@ -13,6 +14,15 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
         "git_branch" => %{"type" => "string"},
         "git_commit_sha" => %{"type" => "string"},
         "is_ci" => %{"type" => "boolean"},
+        "custom_metadata" => %{
+          "type" => "object",
+          "properties" => %{
+            "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
+            "values" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}}
+          },
+          "required" => ["tags", "values"],
+          "additionalProperties" => false
+        },
         "bazel_version" => %{"type" => "string"},
         "cache_endpoint" => %{"type" => "string"},
         "status" => %{"type" => "string"},
@@ -32,6 +42,7 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
         "git_branch",
         "git_commit_sha",
         "is_ci",
+        "custom_metadata",
         "bazel_version",
         "cache_endpoint",
         "status",
@@ -56,6 +67,7 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
       git_branch: invocation.git_branch,
       git_commit_sha: invocation.git_commit_sha,
       is_ci: invocation.is_ci,
+      custom_metadata: %{tags: [], values: invocation.custom_values},
       bazel_version: invocation.bazel_version,
       cache_endpoint: invocation.cache_endpoint,
       status: to_string(invocation.status),
@@ -78,9 +90,19 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
         "misses" => %{"type" => "integer"},
         "download_bytes" => %{"type" => "integer"},
         "upload_bytes" => %{"type" => "integer"},
+        "content_download_bytes" => %{"type" => "integer"},
+        "content_upload_bytes" => %{"type" => "integer"},
         "hit_rate" => %{"type" => ["number", "null"]}
       },
-      "required" => ["hits", "misses", "download_bytes", "upload_bytes", "hit_rate"],
+      "required" => [
+        "hits",
+        "misses",
+        "download_bytes",
+        "upload_bytes",
+        "content_download_bytes",
+        "content_upload_bytes",
+        "hit_rate"
+      ],
       "additionalProperties" => false
     }
   end
@@ -179,18 +201,7 @@ defmodule Tuist.MCP.Components.Tools.BazelInvocation do
   end
 
   defp build_timeline_json(invocation) do
-    spans =
-      [
-        invocation.build_timeline_span_lanes,
-        invocation.build_timeline_span_start_ms,
-        invocation.build_timeline_span_durations_ms,
-        invocation.build_timeline_span_categories,
-        invocation.build_timeline_span_descriptions
-      ]
-      |> Enum.zip()
-      |> Enum.map(fn {lane, start_ms, duration_ms, category, description} ->
-        %{lane: lane, start_ms: start_ms, duration_ms: duration_ms, category: category, description: description}
-      end)
+    spans = Invocation.timeline_spans(invocation)
 
     if spans == [] do
       nil

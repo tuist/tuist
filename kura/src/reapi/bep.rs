@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     pin::Pin,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -16,8 +16,9 @@ use tracing::warn;
 use crate::{
     analytics::{BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent},
     bazel_test_artifacts::{
-        BazelTestArtifact, BazelTestArtifactKind, BazelTestInvocationFinished,
-        BazelTestResult as DeliveredBazelTestResult, BazelTestSummary as DeliveredBazelTestSummary,
+        BazelAction, BazelProfile, BazelTestArtifact, BazelTestArtifactKind,
+        BazelTestInvocationFinished, BazelTestResult as DeliveredBazelTestResult,
+        BazelTestSummary as DeliveredBazelTestSummary, MAX_BAZEL_PROFILE_BYTES,
         MAX_BAZEL_TEST_ARTIFACT_BYTES,
     },
     state::SharedState,
@@ -60,6 +61,9 @@ const MAX_CRITICAL_PATH_LOG_BYTES: usize = 128 * 1_024;
 const MAX_INVOCATION_LOG_ENTRIES: usize = 32;
 const MAX_INVOCATION_LOG_BYTES: usize = 32 * 1_024;
 const MAX_INVOCATION_LOG_CHUNK_BYTES: usize = 2 * 1_024;
+const MAX_CUSTOM_METADATA_ENTRIES: usize = 20;
+const MAX_CUSTOM_METADATA_KEY_BYTES: usize = 50;
+const MAX_CUSTOM_METADATA_VALUE_BYTES: usize = 500;
 const MAX_BUILD_EVENT_MESSAGE_BYTES: usize = 2 * 1_024 * 1_024;
 
 #[derive(Clone)]
@@ -78,6 +82,7 @@ struct InvocationStart {
     git_branch: String,
     git_commit_sha: String,
     is_ci: bool,
+    custom_values: BTreeMap<String, String>,
     bazel_version: String,
     cpu_time_ms: u64,
     actions_created: u64,
@@ -183,6 +188,8 @@ struct BazelBuildEventId {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelActionCompletedId {
+    #[prost(string, tag = "1")]
+    primary_output: String,
     #[prost(string, tag = "2")]
     label: String,
 }
@@ -235,6 +242,12 @@ struct BazelProgress {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelActionExecuted {
+    #[prost(bool, tag = "1")]
+    success: bool,
+    #[prost(message, optional, tag = "3")]
+    stdout: Option<BazelFile>,
+    #[prost(message, optional, tag = "4")]
+    stderr: Option<BazelFile>,
     #[prost(string, tag = "8")]
     action_type: String,
     #[prost(message, optional, tag = "12")]
@@ -251,6 +264,8 @@ struct BazelBuildToolLogs {
 
 #[derive(Clone, PartialEq, Message)]
 struct BazelBuildToolLog {
+    #[prost(string, optional, tag = "2")]
+    uri: Option<String>,
     #[prost(string, tag = "1")]
     name: String,
     #[prost(bytes = "vec", tag = "3")]
@@ -629,6 +644,7 @@ impl BuildEventService {
                 git_branch: String::new(),
                 git_commit_sha: String::new(),
                 is_ci: false,
+                custom_values: BTreeMap::new(),
                 bazel_version: truncate_wire_string(&started.build_tool_version, MAX_COMMAND_BYTES),
                 cpu_time_ms: 0,
                 actions_created: 0,
@@ -709,6 +725,36 @@ impl BuildEventService {
         }
 
         if let Some(action) = event.action {
+            if let Some(delivery) = self.state.bazel_test_artifacts.as_ref()
+                && let Some(id) = event
+                    .id
+                    .as_ref()
+                    .and_then(|id| id.action_completed.as_ref())
+                && !id.primary_output.is_empty()
+                && id.primary_output.len() <= MAX_TARGET_LABEL_BYTES
+            {
+                let logs = [action.stdout.as_ref(), action.stderr.as_ref()]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(bazel_file_digest_and_size)
+                    .filter(|(digest, _)| {
+                        digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit())
+                    })
+                    .collect();
+                delivery.enqueue_action(BazelAction {
+                    account_handle: account_handle.to_owned(),
+                    project_handle: project_handle.to_owned(),
+                    invocation_id: invocation_id.clone(),
+                    primary_output: id.primary_output.clone(),
+                    started_at_ms: action
+                        .start_time
+                        .as_ref()
+                        .and_then(strict_timestamp_millis)
+                        .unwrap_or_default(),
+                    success: action.success,
+                    logs,
+                });
+            }
             if let Some(start) = self.invocations.lock().await.get_mut(&key)
                 && let Some(action_span) = action_span(event.id.as_ref(), &action)
             {
@@ -725,6 +771,16 @@ impl BuildEventService {
         }
 
         if let Some(build_tool_logs) = event.build_tool_logs {
+            if let Some(delivery) = self.state.bazel_test_artifacts.as_ref() {
+                for log in &build_tool_logs.log {
+                    if let Some(profile) =
+                        profile_delivery(account_handle, project_handle, &invocation_id, log)
+                    {
+                        delivery.enqueue_profile(profile);
+                        break;
+                    }
+                }
+            }
             if let Some(start) = self.invocations.lock().await.get_mut(&key)
                 && let Some((duration_ms, actions)) = critical_path(&build_tool_logs)
             {
@@ -752,6 +808,7 @@ impl BuildEventService {
         if let Some(metadata) = event.build_metadata {
             if let Some(start) = self.invocations.lock().await.get_mut(&key) {
                 apply_metadata(start, &metadata.metadata);
+                apply_custom_metadata(start, &metadata.metadata);
             }
             return;
         }
@@ -877,6 +934,7 @@ impl BuildEventService {
                         git_branch: String::new(),
                         git_commit_sha: String::new(),
                         is_ci: false,
+                        custom_values: BTreeMap::new(),
                         bazel_version: String::new(),
                         cpu_time_ms: 0,
                         actions_created: 0,
@@ -1147,6 +1205,36 @@ fn append_invocation_log(
     });
 }
 
+fn profile_delivery(
+    account: &str,
+    project: &str,
+    invocation: &str,
+    log: &BazelBuildToolLog,
+) -> Option<BazelProfile> {
+    if log.name != "command.profile.gz" {
+        return None;
+    }
+    let file = BazelFile {
+        uri: log.uri.clone(),
+        ..Default::default()
+    };
+    let (digest, size) = bazel_file_digest_and_size(&file)?;
+    if size == 0
+        || size > MAX_BAZEL_PROFILE_BYTES
+        || digest.len() != 64
+        || !digest.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return None;
+    }
+    Some(BazelProfile {
+        account_handle: account.to_owned(),
+        project_handle: project.to_owned(),
+        invocation_id: invocation.to_owned(),
+        digest,
+        size,
+    })
+}
+
 fn critical_path(logs: &BazelBuildToolLogs) -> Option<(u64, Vec<CriticalPathAction>)> {
     let contents = logs
         .log
@@ -1361,6 +1449,43 @@ fn apply_metadata(invocation: &mut InvocationStart, metadata: &HashMap<String, S
     }
 }
 
+fn apply_custom_metadata(invocation: &mut InvocationStart, metadata: &HashMap<String, String>) {
+    let mut entries = metadata
+        .iter()
+        .filter(|(key, value)| {
+            !key.is_empty()
+                && key.len() <= MAX_CUSTOM_METADATA_KEY_BYTES
+                && value.len() <= MAX_CUSTOM_METADATA_VALUE_BYTES
+                && !context_metadata_key(key)
+        })
+        .collect::<Vec<_>>();
+    entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+
+    for (key, value) in entries {
+        if invocation.custom_values.contains_key(key)
+            || invocation.custom_values.len() < MAX_CUSTOM_METADATA_ENTRIES
+        {
+            invocation
+                .custom_values
+                .insert(key.to_owned(), value.to_owned());
+        }
+    }
+}
+
+fn context_metadata_key(key: &str) -> bool {
+    matches!(
+        key.to_ascii_uppercase().as_str(),
+        "CI" | "ROLE"
+            | "TUIST_CI"
+            | "BUILD_SCM_BRANCH"
+            | "GIT_BRANCH"
+            | "BRANCH_NAME"
+            | "BUILD_SCM_REVISION"
+            | "GIT_COMMIT"
+            | "COMMIT_SHA"
+    )
+}
+
 fn metadata_value<'a>(metadata: &'a HashMap<String, String>, keys: &[&str]) -> Option<&'a str> {
     keys.iter()
         .find_map(|key| metadata.get(*key))
@@ -1426,6 +1551,7 @@ fn completed_invocation_event(
         git_branch: start.git_branch,
         git_commit_sha: start.git_commit_sha,
         is_ci: start.is_ci,
+        custom_values: start.custom_values,
         bazel_version: start.bazel_version,
         cpu_time_ms: start.cpu_time_ms,
         actions_created: start.actions_created,
@@ -1668,6 +1794,28 @@ mod tests {
     }
 
     #[test]
+    fn profile_delivery_accepts_only_bounded_cas_profiles() {
+        let digest = "a".repeat(64);
+        let mut log = BazelBuildToolLog {
+            name: "command.profile.gz".into(),
+            uri: Some(format!("bytestream://cache/project/blobs/{digest}/123")),
+            contents: vec![],
+        };
+        let profile = profile_delivery("account", "project", "build", &log).unwrap();
+        assert_eq!(profile.digest, digest);
+        assert_eq!(profile.size, 123);
+        log.uri = Some("file:///tmp/command.profile.gz".into());
+        assert!(profile_delivery("account", "project", "build", &log).is_none());
+        log.uri = Some(format!(
+            "bytestream://cache/project/blobs/{digest}/{}",
+            MAX_BAZEL_PROFILE_BYTES + 1
+        ));
+        assert!(profile_delivery("account", "project", "build", &log).is_none());
+        log.name = "unrelated.gz".into();
+        assert!(profile_delivery("account", "project", "build", &log).is_none());
+    }
+
+    #[test]
     fn extracts_invocation_identity_from_the_build_event_stream() {
         let event = OrderedBuildEvent {
             stream_id: Some(proto::StreamId {
@@ -1766,6 +1914,34 @@ mod tests {
                         action: None,
                         test_summary: None,
                         test_result: None,
+                        finished: None,
+                        workspace_status: None,
+                        build_tool_logs: None,
+                        build_metrics: None,
+                        build_metadata: Some(BazelBuildMetadata {
+                            metadata: HashMap::from([
+                                ("environment".into(), "local".into()),
+                                ("runner".into(), "linux-arm64".into()),
+                            ]),
+                        }),
+                    },
+                ),
+            )
+            .await;
+
+        service
+            .process_event(
+                "acme",
+                "ios",
+                ordered_bazel_event(
+                    "invocation-1",
+                    BazelBuildEvent {
+                        id: None,
+                        progress: None,
+                        started: None,
+                        action: None,
+                        test_summary: None,
+                        test_result: None,
                         finished: Some(BazelBuildFinished {
                             overall_success: true,
                             finish_time_millis: 1_700_000_015_000,
@@ -1831,6 +2007,7 @@ mod tests {
                         workspace_status: None,
                         build_tool_logs: Some(BazelBuildToolLogs {
                             log: vec![BazelBuildToolLog {
+                                uri: None,
                                 name: "critical path".into(),
                                 contents: b"Critical Path: 1s\n  1s Link //app:app\n".to_vec(),
                             }],
@@ -1849,6 +2026,13 @@ mod tests {
         assert_eq!(start.actions_created, 11);
         assert_eq!(start.actions_executed, 10);
         assert_eq!(start.critical_path_duration_ms, 1_000);
+        assert_eq!(
+            start.custom_values,
+            BTreeMap::from([
+                ("environment".into(), "local".into()),
+                ("runner".into(), "linux-arm64".into()),
+            ])
+        );
         drop(starts);
 
         service
@@ -1870,6 +2054,7 @@ mod tests {
                 git_branch: "main".into(),
                 git_commit_sha: "abc123".into(),
                 is_ci: false,
+                custom_values: BTreeMap::from([("environment".into(), "local".into())]),
                 bazel_version: "9.1.0".into(),
                 cpu_time_ms: 1_250,
                 actions_created: 11,
@@ -1898,6 +2083,10 @@ mod tests {
         assert_eq!(event.target_patterns, ["//app:tests"]);
         assert_eq!(event.git_branch, "main");
         assert_eq!(event.git_commit_sha, "abc123");
+        assert_eq!(
+            event.custom_values.get("environment"),
+            Some(&"local".into())
+        );
         assert_eq!(event.bazel_version, "9.1.0");
         assert_eq!(event.cpu_time_ms, 1_250);
         assert_eq!(event.actions_created, 11);
@@ -1987,6 +2176,7 @@ mod tests {
     fn parses_a_bounded_critical_path_report() {
         let logs = BazelBuildToolLogs {
             log: vec![BazelBuildToolLog {
+                uri: None,
                 name: "critical path".into(),
                 contents: b"Critical Path: 1.25s, Remote (80.00% of the time): [queue: 1.00%, setup: 2.00%, process: 77.00%]\n  250ms, Remote (100.00% of the time): [queue: 0.00%, setup: 1.00%, process: 99.00%, input files: 4, input bytes: 512, memory bytes: 1024] Compile //app:one\n  1s Link //app:app\n".to_vec(),
             }],
@@ -2222,44 +2412,52 @@ mod tests {
 
     #[test]
     fn applies_build_metadata_without_erasing_prior_values() {
-        let mut invocation = InvocationStart {
-            account_handle: "acme".into(),
-            project_handle: "ios".into(),
-            invocation_id: "invocation-1".into(),
-            command: "test".into(),
-            target_patterns: Vec::new(),
-            git_branch: String::new(),
-            git_commit_sha: String::new(),
-            is_ci: false,
-            bazel_version: String::new(),
-            cpu_time_ms: 0,
-            actions_created: 0,
-            actions_executed: 0,
-            targets_configured: 0,
-            packages_loaded: 0,
-            first_action_started_at_ms: None,
-            action_spans: Vec::new(),
-            critical_path_duration_ms: 0,
-            critical_path_actions: Vec::new(),
-            logs: VecDeque::new(),
-            log_bytes: 0,
-            completion: None,
-            started_at_ms: 0,
-            inserted_at: Instant::now(),
-        };
-        apply_metadata(
-            &mut invocation,
-            &HashMap::from([
-                ("ROLE".into(), "CI".into()),
-                ("BUILD_SCM_BRANCH".into(), "refs/heads/main".into()),
-                ("BUILD_SCM_REVISION".into(), "abc123".into()),
-            ]),
-        );
+        let mut invocation = test_invocation_start();
+        let metadata = HashMap::from([
+            ("ROLE".into(), "CI".into()),
+            ("BUILD_SCM_BRANCH".into(), "refs/heads/main".into()),
+            ("BUILD_SCM_REVISION".into(), "abc123".into()),
+            ("environment".into(), "local".into()),
+            ("runner".into(), "linux-arm64".into()),
+        ]);
+        apply_metadata(&mut invocation, &metadata);
+        apply_custom_metadata(&mut invocation, &metadata);
         apply_metadata(&mut invocation, &HashMap::new());
 
         assert!(invocation.is_ci);
         assert_eq!(invocation.git_branch, "main");
         assert_eq!(invocation.git_commit_sha, "abc123");
+        assert_eq!(
+            invocation.custom_values,
+            BTreeMap::from([
+                ("environment".into(), "local".into()),
+                ("runner".into(), "linux-arm64".into()),
+            ])
+        );
+    }
+
+    #[test]
+    fn bounds_custom_build_metadata() {
+        let mut invocation = test_invocation_start();
+        let mut metadata = (0..25)
+            .map(|index| (format!("key-{index:02}"), "value".into()))
+            .collect::<HashMap<_, _>>();
+        metadata.insert(
+            "oversized-value".into(),
+            "x".repeat(MAX_CUSTOM_METADATA_VALUE_BYTES + 1),
+        );
+        metadata.insert(
+            "x".repeat(MAX_CUSTOM_METADATA_KEY_BYTES + 1),
+            "value".into(),
+        );
+
+        apply_custom_metadata(&mut invocation, &metadata);
+
+        assert_eq!(invocation.custom_values.len(), MAX_CUSTOM_METADATA_ENTRIES);
+        assert!(invocation.custom_values.contains_key("key-00"));
+        assert!(invocation.custom_values.contains_key("key-19"));
+        assert!(!invocation.custom_values.contains_key("key-20"));
+        assert!(!invocation.custom_values.contains_key("oversized-value"));
     }
 
     fn test_invocation_start() -> InvocationStart {
@@ -2272,6 +2470,7 @@ mod tests {
             git_branch: String::new(),
             git_commit_sha: String::new(),
             is_ci: false,
+            custom_values: BTreeMap::new(),
             bazel_version: "9.1.0".into(),
             cpu_time_ms: 0,
             actions_created: 0,

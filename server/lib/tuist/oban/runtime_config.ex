@@ -17,6 +17,7 @@ defmodule Tuist.Oban.RuntimeConfig do
   alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
   alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
@@ -40,7 +41,7 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   @hosted_only_crons [
     {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-    {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
+    {"@hourly", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
@@ -50,10 +51,12 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/10 * * * *", Tuist.Kura.Workers.ClaimSizingWorker},
     {"40 * * * *", Tuist.Kura.Workers.PlacementWorker},
     {"* * * * *", Tuist.Runners.Workers.BuildkitePollWorker},
+    {"* * * * *", Tuist.Runners.Workers.GitLabPollWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.PodReconciliationWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
+    {"* * * * *", Tuist.Runners.Workers.UnstartedExecutionsWorker},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
@@ -82,9 +85,14 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"45 3 * * *", DeleteExpiredCasCacheArtifactsWorker}
   ]
 
+  # Runners are hosted-only, so their GitLab cache archives never exist on a
+  # self-hosted deployment.
+  @gitlab_cache_artifact_retention_cron {"15 4 * * *", DeleteExpiredGitLabCacheArtifactsWorker}
+
   @hosted_artifact_retention_crons [
                                      @schedule_expired_artifacts_cron,
-                                     @legacy_build_artifact_retention_cron
+                                     @legacy_build_artifact_retention_cron,
+                                     @gitlab_cache_artifact_retention_cron
                                    ] ++ @cache_artifact_retention_crons
 
   # Self-hosted retention workers read their window from the environment on every run.

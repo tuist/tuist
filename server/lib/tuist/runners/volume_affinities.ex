@@ -1,8 +1,10 @@
 defmodule Tuist.Runners.VolumeAffinities do
   @moduledoc """
   Dispatch-time cache-volume affinity: prefer handing a polling runner a queued
-  job whose account's cache master is already resident on that node, so the job
-  materializes warm instead of cold.
+  job whose cache volume's master is already resident on that node, so the job
+  materializes warm instead of cold. A job's volume is its repository's; the
+  account's `tuist-cache` master also counts for a repository volume, because
+  the host seeds a repository with no master of its own from it.
 
   Affinity is a pure dispatch-scoring policy over the shared warm pool — no
   Kubernetes scheduling change. `select_candidate/3` prefers a resident
@@ -13,11 +15,11 @@ defmodule Tuist.Runners.VolumeAffinities do
   ## Where residency comes from
 
   The host reports it. tart-kubelet scans the runner-cache root each node
-  heartbeat and advertises one `tuist.dev/cache-master-<account_id>` Node label
-  per resident master (`VolumeManager.CacheMasterNodeLabels`), the same
-  mechanism it already uses to advertise its golden base VMs. Master
-  directories are named after the account id the server stamps on the Pod, so
-  the labels are account ids and need no translation.
+  heartbeat and advertises one Node label per resident master
+  (`VolumeManager.CacheMasterNodeLabels`): `tuist.dev/cache-master-<account_id>`
+  for a `tuist-cache` master and `tuist.dev/cache-master-<account_id>.<volume>`
+  for a repository's, the same mechanism it already uses to advertise its golden
+  base VMs.
 
   This replaced a server-side model of residency built from dispatch history
   ("the N accounts that ran here most recently, where N is derived from the
@@ -37,17 +39,19 @@ defmodule Tuist.Runners.VolumeAffinities do
 
   The server cannot place a job on a host of its choosing; it can only answer
   the host that asked. That is sufficient because the preference is
-  self-reinforcing: a node that wins account A's jobs keeps A's master resident
+  self-reinforcing: a node that wins a volume's jobs keeps its master resident
   (materialize touches its mtime, so LRU keeps it), which keeps the node
-  advertising A, which keeps A's jobs going there. The fleet settles into a
+  advertising it, which keeps the volume's jobs going there. The fleet settles into a
   stable partition of accounts over hosts without anything scheduling it.
   """
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.VolumeHeads
 
   require Logger
 
   @cache_master_label_prefix "tuist.dev/cache-master-"
+  @repository_volumes_label "tuist.dev/cache-volumes-per-repository"
 
   # A node advertises on a 30s heartbeat and masters change on the order of a
   # job, so a few seconds of staleness costs at most one cold materialize. This
@@ -56,35 +60,41 @@ defmodule Tuist.Runners.VolumeAffinities do
   @residency_cache_ttl to_timeout(second: 10)
 
   @doc """
-  Set of account ids whose cache masters `node_name` currently holds, read from
-  the labels the host advertises.
+  Set of `{account_id, volume_name}` masters `node_name` currently holds, read
+  from the labels the host advertises.
 
   Returns an empty set when the node is unknown, unreadable, or advertises
   nothing — a host that reports no masters gets no preference and is handed
   plain oldest-queued work, which is also what every host does before the
   advertising build of tart-kubelet reaches it.
   """
-  def resident_account_ids(node_name)
+  def resident_masters(node_name), do: node_cache_volumes(node_name).masters
 
-  def resident_account_ids(node_name) when is_binary(node_name) and node_name != "" do
+  @doc """
+  Whether `node_name`'s tart-kubelet reads the Pod's cache volume label. A job
+  dispatched to a host that does not must stay on the account's `tuist-cache`
+  volume, which is the only one that host materializes and promotes.
+  """
+  def repository_volumes?(node_name), do: node_cache_volumes(node_name).repository_volumes?
+
+  defp node_cache_volumes(node_name) when is_binary(node_name) and node_name != "" do
     KeyValueStore.get_or_update(
-      [:runner_volume_residency, node_name],
+      [:runner_node_cache_volumes, node_name],
       [ttl: @residency_cache_ttl],
-      fn -> fetch_resident_account_ids(node_name) end
+      fn -> fetch_node_cache_volumes(node_name) end
     )
   end
 
-  def resident_account_ids(_node_name), do: MapSet.new()
+  defp node_cache_volumes(_node_name), do: no_cache_volumes()
 
-  defp fetch_resident_account_ids(node_name) do
+  defp fetch_node_cache_volumes(node_name) do
     case K8sClient.get_node(node_name) do
       {:ok, node} ->
-        node
-        |> get_in(["metadata", "labels"])
-        |> account_ids_from_labels()
+        labels = get_in(node, ["metadata", "labels"]) || %{}
+        %{masters: masters_from_labels(labels), repository_volumes?: labels[@repository_volumes_label] == "true"}
 
       {:error, _reason} ->
-        MapSet.new()
+        no_cache_volumes()
     end
   rescue
     # A Node read is an optimization input, not a correctness gate, and this
@@ -99,24 +109,40 @@ defmodule Tuist.Runners.VolumeAffinities do
         reason: Exception.message(e)
       )
 
-      MapSet.new()
+      no_cache_volumes()
   end
 
-  defp account_ids_from_labels(labels) when is_map(labels) do
+  defp no_cache_volumes, do: %{masters: MapSet.new(), repository_volumes?: false}
+
+  defp masters_from_labels(labels) when is_map(labels) do
     for {key, "true"} <- labels,
         String.starts_with?(key, @cache_master_label_prefix),
-        {account_id, ""} <- [Integer.parse(String.replace_prefix(key, @cache_master_label_prefix, ""))],
+        master <- [master_from_label(String.replace_prefix(key, @cache_master_label_prefix, ""))],
+        master != nil,
         into: MapSet.new() do
-      account_id
+      master
     end
   end
 
-  defp account_ids_from_labels(_labels), do: MapSet.new()
+  defp masters_from_labels(_labels), do: MapSet.new()
+
+  defp master_from_label(suffix) do
+    case Integer.parse(suffix) do
+      {account_id, ""} ->
+        {account_id, VolumeHeads.reserved_tuist_cache()}
+
+      {account_id, "." <> volume_name} ->
+        if VolumeHeads.valid_volume_name?(volume_name), do: {account_id, volume_name}
+
+      _ ->
+        nil
+    end
+  end
 
   @doc """
   Picks the candidate a polling runner on `node_name` should be handed
   from a top-K list of queued candidates (ordered oldest-enqueued first):
-  the oldest one whose account's master is resident on the node, UNLESS the
+  the oldest one whose volume's master is resident on the node, UNLESS the
   queue head has itself been waiting longer than `:tolerance_seconds`, in
   which case the head is returned so it can't be passed over indefinitely.
 
@@ -131,8 +157,8 @@ defmodule Tuist.Runners.VolumeAffinities do
   why that candidate was picked, so dispatch can report whether the preference
   is discriminating at all:
 
-    * `:resident` — a queued job of a resident account was preferred.
-    * `:head_resident` — the head's own account is resident; nothing was
+    * `:resident` — a queued job of a resident volume was preferred.
+    * `:head_resident` — the head's own volume is resident; nothing was
       reordered but the job still lands warm.
     * `:no_resident_candidate` — the node holds masters, but none of the top-K
       queued jobs belong to them; the head goes out cold.
@@ -151,7 +177,7 @@ defmodule Tuist.Runners.VolumeAffinities do
 
   def select_candidate([head | _] = candidates, node_name, opts) do
     tolerance_seconds = Keyword.fetch!(opts, :tolerance_seconds)
-    resident = resident_account_ids(node_name)
+    resident = resident_masters(node_name)
 
     cond do
       MapSet.size(resident) == 0 ->
@@ -161,14 +187,21 @@ defmodule Tuist.Runners.VolumeAffinities do
       # either way, and reporting that as `:head_overdue` would hide that the
       # placement was warm anyway and make the bound look more expensive than
       # it is.
-      MapSet.member?(resident, head.account_id) ->
+      resident?(resident, head) ->
         {head, :head_resident}
 
       true ->
         candidates
-        |> Enum.find(fn candidate -> MapSet.member?(resident, candidate.account_id) end)
+        |> Enum.find(&resident?(resident, &1))
         |> resolve_against_starvation_bound(head, tolerance_seconds)
     end
+  end
+
+  defp resident?(resident, %{account_id: account_id} = candidate) do
+    volume_name = VolumeHeads.volume_name_for_repository(Map.get(candidate, :repository))
+
+    MapSet.member?(resident, {account_id, volume_name}) or
+      MapSet.member?(resident, {account_id, VolumeHeads.reserved_tuist_cache()})
   end
 
   # Nothing resident is queued, so the head goes out and the tolerance was never

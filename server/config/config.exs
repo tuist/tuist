@@ -58,10 +58,20 @@ config :esbuild,
       "--loader:.woff=file",
       "--loader:.woff2=file",
       "--loader:.ttf=file",
-      "--target=es2017",
-      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
       "--external:/fonts/*",
       "--external:/images/*",
+      "--external:/marketing/*",
       "--alias:@=.",
       "--alias:noora/hooks=#{Path.expand("../../noora/js", __DIR__)}",
       "--alias:noora=#{noora_static_path}/noora.js",
@@ -303,6 +313,8 @@ config :money,
 
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 
+config :phoenix, :filter_parameters, ["password", "secret", "token", "credential"]
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
@@ -515,6 +527,7 @@ config :tuist, :runner_macos_xcode_versions, [
   %{xcode_version: "26.5", default: true},
   %{xcode_version: "26.4.1"},
   %{xcode_version: "26.3"},
+  %{xcode_version: "26.1.1"},
   %{xcode_version: "26.0.1"}
 ]
 

@@ -4,6 +4,7 @@ defmodule TuistWeb.API.BazelController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Bazel
+  alias Tuist.Bazel.Invocation
   alias Tuist.ReapiCache
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -125,6 +126,14 @@ defmodule TuistWeb.API.BazelController do
       git_branch: %Schema{type: :string},
       git_commit_sha: %Schema{type: :string},
       is_ci: %Schema{type: :boolean},
+      custom_metadata: %Schema{
+        type: :object,
+        properties: %{
+          tags: %Schema{type: :array, items: %Schema{type: :string}},
+          values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
+        },
+        required: [:tags, :values]
+      },
       bazel_version: %Schema{type: :string},
       cache_endpoint: %Schema{type: :string},
       status: %Schema{type: :string, enum: ["success", "failure"]},
@@ -144,6 +153,7 @@ defmodule TuistWeb.API.BazelController do
       :git_branch,
       :git_commit_sha,
       :is_ci,
+      :custom_metadata,
       :bazel_version,
       :cache_endpoint,
       :status,
@@ -461,6 +471,7 @@ defmodule TuistWeb.API.BazelController do
       git_branch: invocation.git_branch,
       git_commit_sha: invocation.git_commit_sha,
       is_ci: invocation.is_ci,
+      custom_metadata: %{tags: [], values: invocation.custom_values},
       bazel_version: invocation.bazel_version,
       cache_endpoint: invocation.cache_endpoint,
       status: invocation.status,
@@ -497,18 +508,7 @@ defmodule TuistWeb.API.BazelController do
   end
 
   defp build_timeline_json(invocation) do
-    spans =
-      [
-        invocation.build_timeline_span_lanes,
-        invocation.build_timeline_span_start_ms,
-        invocation.build_timeline_span_durations_ms,
-        invocation.build_timeline_span_categories,
-        invocation.build_timeline_span_descriptions
-      ]
-      |> Enum.zip()
-      |> Enum.map(fn {lane, start_ms, duration_ms, category, description} ->
-        %{lane: lane, start_ms: start_ms, duration_ms: duration_ms, category: category, description: description}
-      end)
+    spans = Invocation.timeline_spans(invocation)
 
     if spans == [] do
       nil

@@ -137,6 +137,10 @@ defmodule Tuist.Accounts.Account do
     cast(account, attrs, [:runner_trial_started_at, :runner_trial_ended_at])
   end
 
+  def free_tier_reset_changeset(account, attrs) do
+    cast(account, attrs, [:free_tier_reset_at, :current_month_remote_cache_hits_count])
+  end
+
   def update_changeset(account, attrs) do
     account
     |> cast(attrs, [:name, :region, :billing_email, :cache_write_policy, :custom_cache_endpoints_enabled])
@@ -216,6 +220,7 @@ defmodule Tuist.Accounts.Account do
   defp validate_handle(changeset) do
     changeset
     |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/, message: "must contain only alphanumeric characters")
+    |> validate_format(:name, ~r/^[a-zA-Z0-9](?:.*[a-zA-Z0-9])?$/s, message: "must start and end with a letter or number")
     |> validate_length(:name, min: 1, max: 32)
     |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
     |> unique_constraint(:name, name: "index_accounts_on_name")

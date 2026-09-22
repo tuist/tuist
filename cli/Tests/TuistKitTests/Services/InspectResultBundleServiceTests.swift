@@ -4,8 +4,10 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistAutomation
 import TuistCI
+import TuistConfig
 import TuistConstants
 import TuistCore
 import TuistEnvironment
@@ -36,6 +38,7 @@ struct UploadResultBundleServiceTests {
     private let rootDirectoryLocator = MockRootDirectoryLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
     private let analyticsArtifactUploadService = MockAnalyticsArtifactUploadServicing()
+    private let xcResultService = MockXCResultServicing()
     private let fileSystem = FileSystem()
 
     init() throws {
@@ -52,7 +55,8 @@ struct UploadResultBundleServiceTests {
             rootDirectoryLocator: rootDirectoryLocator,
             xcActivityLogController: xcActivityLogController,
             analyticsArtifactUploadService: analyticsArtifactUploadService,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            xcResultService: xcResultService
         )
 
         given(machineEnvironment)
@@ -109,7 +113,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -190,7 +195,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -325,7 +331,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -399,7 +406,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -476,7 +484,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -539,7 +548,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -626,7 +636,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -767,7 +778,8 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -823,7 +835,315 @@ struct UploadResultBundleServiceTests {
     // MARK: - uploadResultBundle (remote)
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadTestSummary_readsTheBundlesCoverageAgainstTheCheckout() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        let coverage = XcodeCoverageReport(partial: true, files: [])
+        given(xcResultService)
+            .coveredFilePaths(path: .value(xcresultPath))
+            .willReturn(["/tmp/project/Sources/A.swift"])
+        given(gitController)
+            .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
+            .willReturn(["Sources/B.swift": "bbb", "Sources/A.swift": "aaa"])
+        given(xcResultService)
+            .parseCoverage(
+                path: .value(xcresultPath),
+                manifest: .value(XcodeCoverageManifest(
+                    rootDirectories: ["/tmp/project", "/private/tmp/project"],
+                    partial: true,
+                    // B.swift is tracked but the run did not cover it.
+                    files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
+                ))
+            )
+            .willReturn(coverage)
+
+        _ = try await subject.uploadTestSummary(
+            testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
+            resultBundlePath: xcresultPath,
+            projectDerivedDataDirectory: nil,
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil,
+            skipTestIdentifiers: ["AppTests/SlowTests"]
+        )
+
+        verify(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                testSummary: .matching { $0.coverage == coverage },
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadTestSummary_doesNotMarkARunPartialForQuarantinedTestsAlone() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(["/tmp/project/Sources/A.swift"])
+        given(gitController)
+            .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
+            .willReturn(["Sources/A.swift": "aaa"])
+        given(xcResultService)
+            .parseCoverage(path: .any, manifest: .matching { !$0.partial })
+            .willReturn(XcodeCoverageReport(partial: false, files: []))
+
+        let storage = RunMetadataStorage()
+        await storage.update(skippedQuarantinedTestIdentifiers: ["AppTests/FlakyTests"])
+        try await RunMetadataStorage.$current.withValue(storage) {
+            _ = try await subject.uploadTestSummary(
+                testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
+                resultBundlePath: xcresultPath,
+                projectDerivedDataDirectory: nil,
+                config: .test(fullHandle: "tuist/tuist"),
+                shardPlanId: nil,
+                shardIndex: nil,
+                skipTestIdentifiers: ["AppTests/FlakyTests"]
+            )
+        }
+
+        verify(xcResultService)
+            .parseCoverage(path: .any, manifest: .matching { !$0.partial })
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_leavesCoverageOutWhenTheConfigTurnsItsUploadOff() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        // A manifest an earlier upload of the same bundle left behind.
+        try await fileSystem.writeText("{}", at: xcresultPath.appending(component: XcodeCoverageManifest.fileName))
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .willReturn()
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: xcresultPath,
+            config: .test(
+                fullHandle: "tuist/tuist",
+                testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: false))
+            ),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        // Nothing is read from the bundle and nothing is added to it.
+        verify(xcResultService).coveredFilePaths(path: .any).called(0)
+        #expect(try await !fileSystem.exists(xcresultPath.appending(component: XcodeCoverageManifest.fileName)))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadsCoverage_letsTheEnvironmentVariableOverrideTheConfig() throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let enabled = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
+        let disabled = TuistConfig.Tuist.test(
+            fullHandle: "tuist/tuist",
+            testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: false))
+        )
+
+        #expect(UploadResultBundleService.uploadsCoverage(config: enabled))
+        #expect(!UploadResultBundleService.uploadsCoverage(config: disabled))
+
+        Environment.mocked?.variables[UploadResultBundleService.coverageUploadVariable] = "0"
+        #expect(!UploadResultBundleService.uploadsCoverage(config: enabled))
+
+        Environment.mocked?.variables[UploadResultBundleService.coverageUploadVariable] = "1"
+        #expect(UploadResultBundleService.uploadsCoverage(config: disabled))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_doesNoCoverageWorkWithoutTheFeatureFlag() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .willReturn()
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: xcresultPath,
+            config: .test(fullHandle: "tuist/tuist"),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        verify(xcResultService).coveredFilePaths(path: .any).called(0)
+        #expect(try await !fileSystem.exists(xcresultPath.appending(component: XcodeCoverageManifest.fileName)))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func rootSpellings_includeThePrefixTheCompilerRecorded() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let checkout = temporaryDirectory.appending(component: "checkout")
+        try await fileSystem.makeDirectory(at: checkout.appending(component: "Sources"))
+        try await fileSystem.writeText("", at: checkout.appending(components: "Sources", "A.swift"))
+        let link = temporaryDirectory.appending(component: "link")
+        try await fileSystem.createSymbolicLink(from: link, to: checkout)
+
+        // Git reports the canonical checkout; the build ran through the link.
+        let got = UploadResultBundleService.rootSpellings(
+            of: checkout,
+            coveredFilePaths: [
+                link.appending(components: "Sources", "A.swift").pathString,
+                link.appending(components: "Sources", "Deleted.swift").pathString,
+                "/elsewhere/Dependency.swift",
+            ]
+        )
+
+        #expect(got.contains(link.pathString))
+        #expect(got.contains(checkout.pathString))
+        #expect(!got.contains("/elsewhere"))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadTestSummary_resolvesCoverageAgainstTheCheckoutTheProductsWereBuiltIn() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        let manifest = XcodeCoverageManifest(
+            rootDirectories: ["/build-machine/checkout", "/tmp/project", "/private/tmp/project"],
+            partial: false,
+            files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "compiled")]
+        )
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(["/build-machine/checkout/Sources/A.swift"])
+        given(xcResultService)
+            .parseCoverage(path: .any, manifest: .value(manifest))
+            .willReturn(XcodeCoverageReport(partial: false, files: []))
+
+        let storage = RunMetadataStorage()
+        await storage.update(coverageBuildSources: CoverageBuildSources(
+            rootDirectories: ["/build-machine/checkout"],
+            files: ["Sources/A.swift": "compiled", "Sources/B.swift": "bbb"]
+        ))
+        try await RunMetadataStorage.$current.withValue(storage) {
+            _ = try await subject.uploadTestSummary(
+                testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
+                resultBundlePath: xcresultPath,
+                projectDerivedDataDirectory: nil,
+                config: .test(fullHandle: "tuist/tuist"),
+                shardPlanId: nil,
+                shardIndex: nil
+            )
+        }
+
+        verify(xcResultService)
+            .parseCoverage(path: .any, manifest: .value(manifest))
+            .called(1)
+        // The current checkout may be at other content than what was compiled.
+        verify(gitController)
+            .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies())
+    func uploadTestSummary_warnsWhenNoCoveredFileIsInTheCheckout() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(["/build-machine/checkout/Sources/A.swift"])
+        given(gitController)
+            .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
+            .willReturn(["Sources/A.swift": "aaa"])
+        given(xcResultService)
+            .parseCoverage(path: .any, manifest: .matching { $0.files.isEmpty })
+            .willReturn(XcodeCoverageReport(partial: false, files: []))
+
+        _ = try await subject.uploadTestSummary(
+            testSummary: TestSummary(testPlanName: nil, status: .passed, duration: 10, testModules: []),
+            resultBundlePath: xcresultPath,
+            projectDerivedDataDirectory: nil,
+            config: .test(fullHandle: "tuist/tuist"),
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        let warnings = AlertController.current.warnings()
+        #expect(warnings.count == 1)
+        #expect(warnings.first?.message.plain().contains("None of the 1 files covered") == true)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func uploadResultBundle_writesTheCoverageManifestIntoTheBundle() async throws {
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: xcresultPath)
+        try await fileSystem.writeText("", at: xcresultPath.appending(component: "Info.plist"))
+        let manifestPath = xcresultPath.appending(component: XcodeCoverageManifest.fileName)
+
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(["/tmp/project/Sources/A.swift"])
+        given(gitController)
+            .sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any)
+            .willReturn(["Sources/A.swift": "aaa"])
+        given(analyticsArtifactUploadService)
+            .uploadResultBundle(.any, fullHandle: .any, commandEventId: .any, serverURL: .any)
+            .willProduce { _, _, _, _ in
+                // The manifest has to be in the bundle by the time it goes up.
+                #expect(FileManager.default.fileExists(atPath: manifestPath.pathString))
+            }
+
+        _ = try await subject.uploadResultBundle(
+            resultBundlePath: xcresultPath,
+            config: .test(fullHandle: "tuist/tuist"),
+            quarantinedTests: [],
+            shardPlanId: nil,
+            shardIndex: nil
+        )
+
+        let manifest = try JSONDecoder().decode(
+            XcodeCoverageManifest.self,
+            from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
+        )
+        #expect(manifest == XcodeCoverageManifest(
+            rootDirectories: ["/tmp/project", "/private/tmp/project"],
+            partial: false,
+            files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
+        ))
+        verify(xcResultService)
+            .parseCoverage(path: .any, manifest: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_uploadsAndCreatesProcessingTest() async throws {
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -879,13 +1199,17 @@ struct UploadResultBundleServiceTests {
                 shardPlanId: .value(nil),
                 shardIndex: .value(nil),
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_writesQuarantinedTestsJSON() async throws {
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -927,6 +1251,9 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_resolvesSymlinkBeforeUpload() async throws {
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "result-bundle.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)
@@ -966,6 +1293,9 @@ struct UploadResultBundleServiceTests {
 
     @Test(.withMockedEnvironment())
     func uploadResultBundle_throwsWhenFullHandleMissing() async throws {
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         await #expect(
             throws: UploadResultBundleServiceError.missingFullHandle
         ) {
@@ -981,6 +1311,9 @@ struct UploadResultBundleServiceTests {
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func uploadResultBundle_throwsWhenInfoPlistMissing() async throws {
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcresultPath = temporaryDirectory.appending(component: "Test.xcresult")
         try await fileSystem.makeDirectory(at: xcresultPath)

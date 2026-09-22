@@ -36,6 +36,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.FlakyTestCaseRun
   alias Tuist.Tests.QuarantinedTestCase
+  alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseBranchPresence
@@ -53,11 +54,13 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunDashboardCount
   alias Tuist.Tests.TestCaseRunFlakyCorrection
   alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestSuiteRun
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
+  alias Tuist.Tests.XcodeCoverage
   alias Tuist.Webhooks.Dispatcher
 
   require Logger
@@ -359,12 +362,33 @@ defmodule Tuist.Tests do
     end
   end
 
-  def list_test_runs(attrs) do
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
+  def list_test_runs(attrs, opts \\ []) do
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(test_runs_query(opts), attrs, for: Test)
 
     results = Repo.preload(results, :ran_by_account)
 
     {results, meta}
+  end
+
+  # `:coverage` narrows the listing to the runs that gathered coverage, and to
+  # the full or partial ones. Those figures live in their own table, which Flop
+  # cannot join, so they filter the run ids instead.
+  defp test_runs_query(opts) do
+    project_id = Keyword.get(opts, :project_id)
+
+    case {Keyword.get(opts, :coverage), project_id} do
+      {nil, _} ->
+        Test
+
+      {_coverage, nil} ->
+        Test
+
+      {{:not_in, coverage}, project_id} ->
+        from(t in Test, where: t.id not in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
+
+      {{:in, coverage}, project_id} ->
+        from(t in Test, where: t.id in subquery(XcodeCoverage.run_ids_query(project_id, coverage)))
+    end
   end
 
   def latest_completed_test_runs(project_id, limit \\ 40) do
@@ -503,6 +527,10 @@ defmodule Tuist.Tests do
     test_modules = Map.get(attrs, :test_modules, [])
     is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
+    stress_new_tests = Map.get(attrs, :stress_new_tests)
+
+    xcode_coverage =
+      XcodeCoverage.rows(Map.get(attrs, :project_id), Map.get(attrs, :xcode_coverage))
 
     attrs =
       if has_flaky_tests and is_ci do
@@ -511,33 +539,68 @@ defmodule Tuist.Tests do
         attrs
       end
 
-    case %Test{}
-         |> Test.create_changeset(attrs)
-         |> IngestRepo.insert() do
-      {:ok, test} ->
-        create_run_destinations(test, Map.get(attrs, :run_destinations, []))
-        create_run_errors(test, Map.get(attrs, :run_errors, []))
+    attrs = Map.merge(attrs, StressNewTests.run_attrs(stress_new_tests))
 
-        {test_case_ids_with_flaky_run, test_case_runs} =
-          create_test_modules(test, test_modules, shard_index, shard_plan)
+    with {:ok, test} <-
+           %Test{}
+           |> Test.create_changeset(attrs)
+           |> Ecto.Changeset.apply_action(:insert) do
+      # The version test_runs keeps the latest row by. Left to the column
+      # default, each ClickHouse server would stamp its own clock, and one that
+      # receives the create late would rank it above an update that followed.
+      test = %{test | inserted_at: NaiveDateTime.utc_now()}
+      test = insert_test_run(test, shard_plan)
 
-        Tuist.Tasks.run_async(fn ->
-          mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+      create_run_destinations(test, Map.get(attrs, :run_destinations, []))
+      create_run_errors(test, Map.get(attrs, :run_errors, []))
+      StressNewTests.insert_candidates(test, stress_new_tests)
+      XcodeCoverage.publish(test, xcode_coverage, shard_index, (shard_plan && shard_plan.shard_count) || 1)
 
-          project = Tuist.Projects.get_project_by_id(test.project_id)
+      {test_case_ids_with_flaky_run, test_case_runs} =
+        create_test_modules(test, test_modules, shard_index, shard_plan)
 
+      Tuist.Tasks.run_async(fn ->
+        mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+
+        project = Tuist.Projects.get_project_by_id(test.project_id)
+
+        if project do
           Tuist.PubSub.broadcast(
             test,
             "#{project.account.name}/#{project.name}",
             :test_created
           )
-        end)
+        end
+      end)
 
-        {:ok, %{test | test_case_runs: test_case_runs}}
-
-      {:error, changeset} ->
-        {:error, changeset}
+      {:ok, %{test | test_case_runs: test_case_runs}}
     end
+  end
+
+  # The `test_runs` write is what starves the ingest pool on the xcresult-
+  # processor pods: `create_new_test/3` fires it, then a chain of dependent
+  # inserts, all synchronous, all going through the same 15-slot IngestRepo
+  # pool. Routing it through `Test.Buffer` folds those into one batched flush
+  # per interval, which is the whole point of the buffer machinery.
+  #
+  # The sharded merge path still needs read-your-write across pods: the next
+  # shard reads `test_runs` by the plan's merged id to decide whether to
+  # create or update the run, and a 5-second flush window turns that decision
+  # into a race between concurrent shards. That path stays on `insert_all`.
+  defp insert_test_run(test, nil) do
+    {:ok, _} = Test.Buffer.insert(test)
+    test
+  end
+
+  defp insert_test_run(test, _shard_plan) do
+    IngestRepo.insert_all(Test, [test_row(test)])
+    test
+  end
+
+  defp test_row(%Test{} = test) do
+    test
+    |> Map.from_struct()
+    |> Map.drop(@test_struct_non_field_keys)
   end
 
   defp create_run_destinations(%Test{id: test_run_id}, destinations) when is_list(destinations) do
@@ -559,7 +622,7 @@ defmodule Tuist.Tests do
 
     case rows do
       [] -> :ok
-      rows -> IngestRepo.insert_all(TestRunDestination, rows)
+      rows -> TestRunDestination.Buffer.insert_all(rows)
     end
   end
 
@@ -593,7 +656,7 @@ defmodule Tuist.Tests do
 
     case rows do
       [] -> :ok
-      rows -> IngestRepo.insert_all(TestRunError, rows)
+      rows -> TestRunError.Buffer.insert_all(rows)
     end
   end
 
@@ -713,10 +776,17 @@ defmodule Tuist.Tests do
 
           merged_duration = max(existing_test.duration, shard_duration)
 
+          stress_new_tests = Map.get(attrs, :stress_new_tests)
+          StressNewTests.insert_candidates(existing_test, stress_new_tests)
+
+          xcode_coverage = XcodeCoverage.rows(project_id, Map.get(attrs, :xcode_coverage))
+          XcodeCoverage.publish(existing_test, xcode_coverage, shard_index, expected_shard_count)
+
           updated_test =
             merged_test
             |> Map.put(:status, merged_status)
             |> Map.put(:duration, merged_duration)
+            |> Map.merge(StressNewTests.merge_run_attrs(existing_test, stress_new_tests))
 
           update_attrs =
             updated_test
@@ -731,11 +801,13 @@ defmodule Tuist.Tests do
 
             project = Tuist.Projects.get_project_by_id(updated_test.project_id)
 
-            Tuist.PubSub.broadcast(
-              updated_test,
-              "#{project.account.name}/#{project.name}",
-              :test_created
-            )
+            if project do
+              Tuist.PubSub.broadcast(
+                updated_test,
+                "#{project.account.name}/#{project.name}",
+                :test_created
+              )
+            end
           end)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}
@@ -1147,7 +1219,10 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp generate_test_case_id(project_id, name, module_name, suite_name) do
+  @doc """
+  Returns the stable identity shared by test ingestion and quarantine lookups.
+  """
+  def generate_test_case_id(project_id, name, module_name, suite_name) do
     identity = "#{project_id}:#{name}:#{module_name}:#{suite_name}"
 
     <<a::32, b::16, c::16, d::16, e::48>> =
@@ -1201,6 +1276,36 @@ defmodule Tuist.Tests do
     Map.new(test_case_ids, fn test_case_id ->
       {test_case_id, Map.get(resolved_states, test_case_id, @default_test_case_state)}
     end)
+  end
+
+  @doc """
+  Resolves quarantine state at the start of an externally reported test run.
+  Delayed report processing must not apply a later quarantine change to history.
+  """
+  def get_test_case_states_at(project_id, test_case_ids, at) do
+    resolved =
+      test_case_ids
+      |> Enum.uniq()
+      |> Enum.chunk_every(2_000)
+      |> Enum.flat_map(fn ids ->
+        ClickHouseRepo.all(
+          from(s in TestCaseState,
+            where: s.project_id == ^project_id,
+            where: fragment("? IN (?)", s.test_case_id, type(^ids, {:array, Ecto.UUID})),
+            where: s.inserted_at <= ^at,
+            group_by: s.test_case_id,
+            select: %{
+              test_case_id: s.test_case_id,
+              state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
+              is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+            }
+          ),
+          multipart: true
+        )
+      end)
+      |> Map.new(&{&1.test_case_id, normalize_test_case_state(&1)})
+
+    Map.new(test_case_ids, &{&1, Map.get(resolved, &1, @default_test_case_state)})
   end
 
   # Scoped by `project_id` (which the caller already read off the test case) so
@@ -1851,6 +1956,16 @@ defmodule Tuist.Tests do
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
     |> tap(fn _ -> flush_test_case_run_buffers() end)
+    |> tap(fn {_flaky_ids, all_test_case_runs} ->
+      # Hoisted out of the per-module async block: the alert-lookup query
+      # depends only on project_id, so a run with N modules was hitting
+      # Postgres N times for the same result and starving the pool. One call
+      # per ingest, with the downstream AutomationScheduler still dedup'ing
+      # by cadence.
+      Tuist.Tasks.run_async(fn ->
+        enqueue_flaky_alert_evaluations(test, all_test_case_runs)
+      end)
+    end)
   end
 
   # One flush for the whole run rather than one per module.
@@ -1915,7 +2030,9 @@ defmodule Tuist.Tests do
   end
 
   defp check_cross_run_flakiness(%{is_ci: false}, test_case_data), do: {test_case_data, []}
-  defp check_cross_run_flakiness(%{git_commit_sha: nil}, test_case_data), do: {test_case_data, []}
+
+  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data) when commit in [nil, ""],
+    do: {test_case_data, []}
 
   defp check_cross_run_flakiness(test, test_case_data) do
     test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
@@ -2259,8 +2376,6 @@ defmodule Tuist.Tests do
       if Enum.any?(all_attachments) do
         TestCaseRunAttachment.Buffer.insert_all(all_attachments)
       end
-
-      enqueue_flaky_alert_evaluations(test, test_case_runs)
     end)
 
     # The audit-log row and the outbound webhook fire on the same set:
@@ -2319,6 +2434,7 @@ defmodule Tuist.Tests do
             name: Map.get(rep_attrs, :name),
             status: Map.get(rep_attrs, :status),
             duration: Map.get(rep_attrs, :duration, 0),
+            source: Map.get(rep_attrs, :source) || "run",
             inserted_at: now
           }
         end)
@@ -2372,6 +2488,7 @@ defmodule Tuist.Tests do
         name: Map.get(rep_attrs, :name),
         status: Map.get(rep_attrs, :status),
         duration: Map.get(rep_attrs, :duration, 0),
+        source: Map.get(rep_attrs, :source) || "run",
         inserted_at: NaiveDateTime.utc_now()
       }
     end)
@@ -4384,7 +4501,8 @@ defmodule Tuist.Tests do
           repetition_number: r.repetition_number,
           name: r.name,
           status: r.status,
-          duration: r.duration
+          duration: r.duration,
+          source: r.source
         }
       )
 

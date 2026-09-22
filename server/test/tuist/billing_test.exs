@@ -114,37 +114,105 @@ defmodule Tuist.BillingTest do
   end
 
   describe "get_estimated_next_payment_money/1" do
-    test "when current_month_remote_cache_hits_count is under the threshold" do
+    test "when the count is under the threshold" do
       # Given
       remote_cache_hit_threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-      current_month_remote_cache_hits_count = round(remote_cache_hit_threshold / 2)
+      remote_cache_hits_count = round(remote_cache_hit_threshold / 2)
 
       # When
-      got =
-        Billing.get_estimated_next_payment_money(%{
-          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-        })
+      got = Billing.get_estimated_next_payment_money(remote_cache_hits_count)
 
       # Then
       assert got == Money.new(0, :USD)
     end
 
-    test "when current_month_remote_cache_hits_count is above the threshold" do
+    test "when the count is above the threshold" do
       # Given
       remote_cache_hit_threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-      current_month_remote_cache_hits_count = round(remote_cache_hit_threshold * 2)
+      remote_cache_hits_count = round(remote_cache_hit_threshold * 2)
 
       # When
-      got =
-        Billing.get_estimated_next_payment_money(%{
-          current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-        })
+      got = Billing.get_estimated_next_payment_money(remote_cache_hits_count)
 
       # Then
       assert got ==
                50
                |> Money.new(:USD)
-               |> Money.multiply(current_month_remote_cache_hits_count - remote_cache_hit_threshold)
+               |> Money.multiply(remote_cache_hits_count - remote_cache_hit_threshold)
+    end
+  end
+
+  describe "current_billing_period/1" do
+    test "reads the boundaries mirrored onto the subscription row" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        current_period_start: ~U[2026-09-08 10:00:00Z],
+        current_period_end: ~U[2026-10-08 10:00:00Z]
+      )
+
+      # The webhooks keep the row current, so the page render that asks
+      # for the period owes Stripe nothing.
+      reject(&Stripe.Subscription.retrieve/1)
+
+      # When
+      got = Billing.current_billing_period(account)
+
+      # Then
+      assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
+    end
+
+    test "asks Stripe when the mirrored period has already closed" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      # A renewal webhook that is late, or an older event delivered after
+      # a newer one, leaves a period the account has already been
+      # invoiced for on the row.
+      now = DateTime.utc_now()
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_id",
+        current_period_start: DateTime.truncate(DateTime.shift(now, month: -2), :second),
+        current_period_end: DateTime.truncate(DateTime.shift(now, month: -1), :second)
+      )
+
+      expect(Stripe.Subscription, :retrieve, fn "sub_id" ->
+        {:ok,
+         %{
+           current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+           current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+         }}
+      end)
+
+      # When
+      got = Billing.current_billing_period(account)
+
+      # Then
+      assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
+    end
+
+    test "falls back to Stripe for a row that has not seen a webhook yet" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: "sub_id")
+
+      expect(Stripe.Subscription, :retrieve, fn "sub_id" ->
+        {:ok,
+         %{
+           current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+           current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+         }}
+      end)
+
+      # When
+      got = Billing.current_billing_period(account)
+
+      # Then
+      assert got == {~U[2026-09-08 10:00:00Z], ~U[2026-10-08 10:00:00Z]}
     end
   end
 
@@ -204,6 +272,62 @@ defmodule Tuist.BillingTest do
       assert subscription.plan == :air
       assert subscription.default_payment_method == "pm_some-id"
       refute subscription.cancel_at_period_end
+    end
+
+    test "persists the current service period from the Stripe payload" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Billing.on_subscription_change(%{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+        current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z]),
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      })
+
+      # Then
+      subscription = Billing.get_current_active_subscription(account)
+      assert subscription.current_period_start == ~U[2026-09-08 10:00:00Z]
+      assert subscription.current_period_end == ~U[2026-10-08 10:00:00Z]
+    end
+
+    test "moves the persisted service period when the subscription renews" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      payload = %{
+        id: "sub_some-id",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "pro.usage"}}, %{price: %{id: "pro.flat.monthly"}}]}
+      }
+
+      Billing.on_subscription_change(
+        Map.merge(payload, %{
+          current_period_start: DateTime.to_unix(~U[2026-09-08 10:00:00Z]),
+          current_period_end: DateTime.to_unix(~U[2026-10-08 10:00:00Z])
+        })
+      )
+
+      # When
+      Billing.on_subscription_change(
+        Map.merge(payload, %{
+          current_period_start: DateTime.to_unix(~U[2026-10-08 10:00:00Z]),
+          current_period_end: DateTime.to_unix(~U[2026-11-08 10:00:00Z])
+        })
+      )
+
+      # Then
+      subscription = Billing.get_current_active_subscription(account)
+      assert subscription.current_period_start == ~U[2026-10-08 10:00:00Z]
+      assert subscription.current_period_end == ~U[2026-11-08 10:00:00Z]
     end
 
     test "persists cancel_at_period_end from the Stripe payload" do
@@ -566,6 +690,57 @@ defmodule Tuist.BillingTest do
       assert params.proration_behavior == "none"
     end
 
+    test "removes the standing prepaid item when a trial starts", %{account: account} do
+      # A trial carries no runner items, so its usage is never invoiced and
+      # credit bought through the prepaid item would have nothing to pay
+      # for. Leaving the item would keep charging for it every renewal.
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "runners" => %{"runner_macos_compute_unit_milliseconds" => "runner.macos"},
+          "runner_prepaid_minutes" => "runner.prepaid"
+        }
+      end)
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_starting_trial",
+        plan: :pro,
+        status: "active"
+      )
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_starting_trial" ->
+        {:ok,
+         %Stripe.Subscription{
+           items: %{
+             data: [
+               %{id: "si_pro_flat", price: %{id: "pro.flat.monthly"}},
+               %{id: "si_runner_macos", price: %{id: "runner.macos"}},
+               %{id: "si_prepaid", price: %{id: "runner.prepaid"}, quantity: 6_000}
+             ]
+           }
+         }}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_starting_trial", %{items: items} ->
+        send(parent, {:items, items})
+        {:ok, %{}}
+      end)
+
+      on_trial = %{account | runner_trial_started_at: DateTime.utc_now(), runner_trial_ended_at: nil}
+
+      assert {:ok, _} = Billing.sync_runner_subscription_items(on_trial)
+
+      assert_received {:items, items}
+
+      assert Enum.sort_by(items, & &1.id) == [
+               %{id: "si_prepaid", deleted: true},
+               %{id: "si_runner_macos", deleted: true}
+             ]
+    end
+
     test "keeps an existing runner item instead of deleting and re-adding it", %{account: account} do
       # Given a subscription that already carries the Linux runner item, so
       # its accrued usage would be lost if the plan change deleted it.
@@ -610,6 +785,67 @@ defmodule Tuist.BillingTest do
                %{id: "si_air_flat", deleted: true},
                %{price: "pro.usage"},
                %{price: "runner.macos"},
+               %{price: "pro.flat.monthly", quantity: 1}
+             ]
+    end
+
+    test "keeps the standing prepaid item and its quantity across a plan change", %{account: account} do
+      # The prepaid item is independent of the plan, like the runner items.
+      # Deleting it would silently end a recurring prepaid arrangement.
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "enterprise" => %{"usage" => ["enterprise.usage"], "flat_monthly" => ["enterprise.flat.monthly"]},
+          "runners" => %{
+            "runner_linux_compute_unit_milliseconds" => "runner.linux",
+            "runner_macos_compute_unit_milliseconds" => "runner.macos"
+          },
+          "runner_prepaid_minutes" => "runner.prepaid"
+        }
+      end)
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_prepaid" ->
+        {:ok,
+         %Stripe.Subscription{
+           items: %{
+             data: [
+               %{id: "si_air_usage", price: %{id: "air.usage"}},
+               %{id: "si_air_flat", price: %{id: "air.flat.monthly"}},
+               %{id: "si_runner_linux", price: %{id: "runner.linux"}},
+               %{id: "si_runner_macos", price: %{id: "runner.macos"}},
+               %{id: "si_prepaid", price: %{id: "runner.prepaid"}, quantity: 6_000}
+             ]
+           }
+         }}
+      end)
+
+      parent = self()
+
+      stub(Stripe.Subscription, :update, fn "sub_prepaid", %{items: items} ->
+        send(parent, {:items, items})
+        {:ok, %{}}
+      end)
+
+      Billing.on_subscription_change(%{
+        id: "sub_prepaid",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: "pm_some-id",
+        items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]}
+      })
+
+      # When
+      assert :ok = Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
+
+      # Then the prepaid item is absent from the payload, so it keeps its id
+      # and its quantity.
+      assert_received {:items, items}
+
+      assert items == [
+               %{id: "si_air_usage", deleted: true},
+               %{id: "si_air_flat", deleted: true},
+               %{price: "pro.usage"},
                %{price: "pro.flat.monthly", quantity: 1}
              ]
     end
@@ -1590,6 +1826,45 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "reset_free_tier/1" do
+    test "zeroes the counter so the account is no longer blocked" do
+      # Given
+      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: threshold * 2,
+          preload: [:account]
+        )
+
+      assert Billing.cache_access_blocked?(account)
+
+      # When
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      # Then
+      assert account.current_month_remote_cache_hits_count == 0
+      refute Billing.cache_access_blocked?(Repo.preload(account, :subscriptions))
+    end
+
+    test "moves the counting window forward so the nightly recount does not undo it" do
+      # Given
+      %{account: account} =
+        AccountsFixtures.user_fixture(
+          current_month_remote_cache_hits_count: 500,
+          preload: [:account]
+        )
+
+      before = DateTime.utc_now() |> DateTime.add(-1, :second) |> DateTime.truncate(:second)
+
+      # When
+      {:ok, account} = Billing.reset_free_tier(account)
+
+      # Then
+      assert DateTime.after?(account.free_tier_reset_at, before)
+    end
+  end
+
   describe "upgrade_to_enterprise/2" do
     test "creates an invoice-billed subscription and updates the customer when no sub exists" do
       # Given
@@ -1684,6 +1959,95 @@ defmodule Tuist.BillingTest do
           cadence: "yearly",
           address: %{line1: "1 Market St", country: "US"}
         })
+
+      # Then
+      assert %{plan: :enterprise} = Billing.get_current_active_subscription(account)
+    end
+
+    test "picks the enterprise price matching the customer's currency when several are configured" do
+      # Given — a customer pinned to USD on Stripe, and both a USD and an EUR
+      # enterprise price configured. The old code always used the first entry
+      # and Stripe rejected the sub with a currency mismatch.
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "enterprise" => %{
+            "flat_monthly" => ["enterprise.flat.monthly.eur", "enterprise.flat.monthly.usd"]
+          }
+        }
+      end)
+
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      stub(Stripe.Customer, :retrieve, fn "customer_id" ->
+        {:ok, %Stripe.Customer{id: "customer_id", currency: "usd"}}
+      end)
+
+      stub(Stripe.Price, :retrieve, fn
+        "enterprise.flat.monthly.eur" -> {:ok, %{currency: "eur"}}
+        "enterprise.flat.monthly.usd" -> {:ok, %{currency: "usd"}}
+      end)
+
+      expect(Stripe.Subscription, :create, fn %{
+                                                customer: "customer_id",
+                                                items: [%{price: "enterprise.flat.monthly.usd", quantity: 0}],
+                                                collection_method: "send_invoice",
+                                                days_until_due: 30
+                                              } ->
+        {:ok,
+         %{
+           id: "sub_new",
+           status: "active",
+           customer: "customer_id",
+           default_payment_method: nil,
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly.usd"}}]}
+         }}
+      end)
+
+      # When
+      {:ok, _} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+
+      # Then
+      assert %{plan: :enterprise} = Billing.get_current_active_subscription(account)
+    end
+
+    test "falls back to the first enterprise price when the customer has no currency yet" do
+      # Given — a brand-new Stripe customer whose currency isn't pinned yet
+      # (Stripe returns nil until the first invoice). Picking the first
+      # configured price keeps the existing behavior and lets Stripe pin the
+      # currency from that price.
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "enterprise" => %{
+            "flat_monthly" => ["enterprise.flat.monthly.eur", "enterprise.flat.monthly.usd"]
+          }
+        }
+      end)
+
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      stub(Stripe.Customer, :retrieve, fn "customer_id" ->
+        {:ok, %Stripe.Customer{id: "customer_id", currency: nil}}
+      end)
+
+      reject(&Stripe.Price.retrieve/1)
+
+      expect(Stripe.Subscription, :create, fn %{
+                                                items: [%{price: "enterprise.flat.monthly.eur", quantity: 0}]
+                                              } = _args ->
+        {:ok,
+         %{
+           id: "sub_new",
+           status: "active",
+           customer: "customer_id",
+           default_payment_method: nil,
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly.eur"}}]}
+         }}
+      end)
+
+      # When
+      {:ok, _} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
 
       # Then
       assert %{plan: :enterprise} = Billing.get_current_active_subscription(account)

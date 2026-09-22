@@ -8,7 +8,14 @@ name: CLI Promote to Stable
 # bare semver tag X.Y.0 with make_latest=true, moving the GitHub "Latest" pointer
 # and the Homebrew formula. From here on, fixes for the line ship as patches via
 # cli-backport.yml.
+#
+# Every Monday the schedule promotes the newest cut line that is not yet stable
+# (the RC cut the previous Monday) and does nothing when there is none. Once it
+# completes, cli-rc.yml cuts the next RC line, so a freshly cut line is never
+# promoted in the same run.
 on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
   workflow_dispatch:
     inputs:
       branch:
@@ -32,7 +39,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   MISE_GITHUB_ATTESTATIONS: 0
@@ -40,21 +46,26 @@ env:
 jobs:
   prepare:
     name: Resolve stable version
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 10
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       sha: ${{ steps.resolve.outputs.sha }}
       changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+      should_publish: ${{ steps.resolve.outputs.should_publish }}
     steps:
+      # Always the branch this workflow runs from, never the release branch
+      # being promoted: a line is cut from main and then stops moving, so
+      # checking it out would run that line's vintage of channel-version.sh.
+      # The resolver reads the line's tags and resolves its HEAD from the
+      # remote, so it needs no local checkout of the branch.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -64,10 +75,28 @@ jobs:
         run: |
           set -euo pipefail
           mise run --no-deps --skip-tools cli:release:channel-version -- promote "$BRANCH"
+      # build-publish is gated on should_publish, so anything other than a
+      # decision the resolver actually made skips the build and leaves a green
+      # run that promoted nothing. Only "false" is a real no-op: the weekly
+      # schedule firing with no candidate waiting. An unset value means the
+      # resolver never reached its decision, which is a bug, not a no-op.
+      - name: Check the resolver reached a publish decision
+        env:
+          SHOULD_PUBLISH: ${{ steps.resolve.outputs.should_publish }}
+        run: |
+          set -euo pipefail
+          case "$SHOULD_PUBLISH" in
+            true | false) ;;
+            *)
+              echo "::error::The resolver recorded no publish decision (should_publish='${SHOULD_PUBLISH}'), so the build would be skipped and this run would report success having promoted nothing."
+              exit 1
+              ;;
+          esac
 
   build-publish:
     name: Build and publish stable
     needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
     uses: ./.github/workflows/cli-build-publish.yml
     with:
       version: ${{ needs.prepare.outputs.version }}

@@ -5,6 +5,12 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
 
   import TuistWeb.Marketing.StructuredMarkup
 
+  alias TuistWeb.Marketing.SocialCards
+
+  embed_templates "marketing_previews_live/*"
+
+  def render(assigns), do: previews(assigns)
+
   def mount(_params, session, socket) do
     socket =
       socket
@@ -31,12 +37,7 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(
        :head_image,
-       Tuist.Environment.app_url(
-         path:
-           TuistWeb.Helpers.OpenGraph.image_path(:marketing,
-             title: dgettext("marketing", "Previews")
-           )
-       )
+       SocialCards.image_url("previews")
      )
      |> assign(:head_description, description)
      |> assign_feature_structured_data(dgettext("marketing", "Previews"), description, "/previews")}

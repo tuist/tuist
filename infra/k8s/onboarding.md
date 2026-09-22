@@ -315,7 +315,7 @@ The controller install task requires `KURA_CONTROLLER_IMAGE_TAG` and refuses to 
 
 Each preview's `KuraInstance` is rendered by the Helm chart into that same `kura` namespace ([`templates/kura-instance.yaml`](../helm/tuist/templates/kura-instance.yaml)), so Helm owns it: `helm upgrade` patches it in place and `helm uninstall` reaps it. Managed environments leave `kuraRuntime.instance.enabled` off, because there the server's reconciler authors the CR from the `kura_servers` intent rows.
 
-Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether it is torn down by `helm uninstall`, by the janitor's namespace delete, or by a half-finished run of either. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by `preview-janitor`, with `.github/workflows/preview-sweep.yml` kept as the external Helm-aware backstop.
+Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether the janitor's namespace delete finishes or is interrupted. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by the `preview-janitor` CronJob.
 
 Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
 
@@ -350,7 +350,7 @@ encoded = IO.binread(:stdio, :eof) |> String.trim()
 
 with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
      {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
-       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_key(), certificate) do
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_keys(), certificate) do
   IO.puts("valid through #{expiration_date}")
 else
   :error -> raise "air-gapped license is not valid Base64"
@@ -393,7 +393,7 @@ encoded = IO.binread(:stdio, :eof)
 
 with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
      {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
-       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_key(), certificate) do
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_keys(), certificate) do
   IO.puts("stored license valid through #{expiration_date}")
 else
   :error -> raise "stored air-gapped license is not valid Base64"
@@ -425,7 +425,7 @@ gh workflow run preview-deploy.yml -f pr_number=1234 -f ttl_hours=24
 gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
 ```
 
-The hourly `preview-sweep.yml` workflow gets the first cleanup chance and is the path that runs `helm uninstall`. The platform chart's `preview-janitor` CronJob follows at minute 20 and deletes expired preview `KuraInstance` resources and namespaces if the external sweep did not finish the cleanup.
+The platform chart's `preview-janitor` CronJob runs hourly inside the preview cluster, deleting expired preview `KuraInstance` resources and namespaces.
 
 ## 9. Dedicated pentest cluster
 

@@ -21,11 +21,11 @@ registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
   deployEnv: canary
-  sentryEnv: can
+  sentryEnv: canary
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
-  # Terminate-then-replace on the two-worker canary pool. The chart default
+  # Keep terminate-then-replace on the canary pool. The chart default
   # (maxSurge=1, maxUnavailable=0) asks the scheduler for a second 512Mi Pod
   # while every other Deployment in the release is surging too, so the extra
   # Pods queue behind each other on FailedScheduling and whichever waits past
@@ -53,6 +53,18 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-canary` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
+  config:
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
+
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
   # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
@@ -63,6 +75,12 @@ server:
   # is safe here and rehearses the exact ESO sync + hostname-allowlist path
   # production runs.
   turnstile:
+    enabled: true
+
+  # Mirrors production so canary rehearses the public-dashboard challenge
+  # ahead of the cascade. See values-managed-production.yaml and PR #13205
+  # for context.
+  publicPageChallenge:
     enabled: true
 
   appUrl: https://canary.tuist.dev
@@ -115,6 +133,11 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEILQ9gGM5W1agSHl9o4rT"
       air:
         usage: ["price_1S7xQ3Q9gGM5W1ag8IjnKx6f"]
         flat_monthly: ["price_1S7xQ3Q9gGM5W1agupKva14g"]
@@ -150,7 +173,7 @@ server:
     tlsSecretName: tuist-tls-cloudflare-origin
 
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
-  # alongside the live pod on the 2-worker canary nodepool. Steady-state
+  # alongside the live pod on the canary nodepool. Steady-state
   # working set is ~700 MiB; the 2 GiB limit absorbs that under load.
   resources:
     requests:
@@ -162,7 +185,7 @@ server:
 
   # The migration hook runs before Helm can roll any workload pods, so it
   # must fit next to the steady-state canary server, processor, Redis, and
-  # telemetry pods on the 2-worker cluster. `Tuist.Release.migrate` only
+  # telemetry pods on the canary cluster. `Tuist.Release.migrate` only
   # loads the app config and runs Ecto migrations (no Phoenix endpoint, no
   # Oban, pool size 1), so peak working set is around 150-250Mi. Match the
   # canary server's request so the hook fits whenever the server fits;
@@ -205,7 +228,7 @@ server:
       # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
-      value: eu-central,scw-fr-par-runners,ca-east
+      value: eu-west,scw-fr-par-runners,ca-east
     - name: TUIST_KURA_INACTIVE_DAYS
       # Every account this environment provisions comes from an acceptance
       # test run, and a test account never builds again. On the production
@@ -235,6 +258,14 @@ server:
     # interim-paced ordering here; kept aligned with production.
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # Matches production so the cascade runs the automatic-apply path before
+    # production gets it. What it proves is bounded: this environment has one
+    # public region and its accounts are acceptance-test accounts reclaimed the
+    # next day, so the sweep has nowhere to move anything to and no history to
+    # move it on. It exercises the parse, the per-kind budget and the sweep
+    # under a non-empty value, not a real transition.
+    - name: TUIST_KURA_PLACEMENT_AUTOMATIC_APPLIES_PER_DAY
+      value: expand=all,correct=all,relocate=all,retire=25
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -250,32 +281,47 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
-  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
-  # and their volume stay Pending and `helm --wait` fails the deploy.
+  # The in-cluster ClickHouse is canary's system of record (spec #73). Every
+  # workload reads and writes it through TUIST_CLICKHOUSE_URL, and ClickHouse
+  # Cloud receives nothing.
   #
-  # Turning it on is step 2 of the rollout plan in the pull request, and the
-  # steps after it are `shadowWrites.enabled`, then `migration` with the
-  # backfill in the background, then the read flag. Each is its own deploy, and
-  # each has a gate.
+  # Going back to `external` does not copy anything back: rows written since
+  # the switch exist only on the in-cluster server.
+  mode: managed
   managed:
-    enabled: false
-    # Canary carries no production-sized copy: its AX42-1 has a 2x512 GB
-    # mirror, so this is sized for the environment's own data. What canary is
-    # for is the shape production will run — a second replica and a
-    # three-member quorum, neither of which staging exercises.
+    enabled: true
+    # Canary carries no production-sized copy: its AX42-1s have a 2x512 GB
+    # mirror each, so this is sized for the environment's own data. What
+    # canary is for is the shape production will run, which staging does not
+    # exercise: two replicas here, one on each AX42-1.
     #
-    # Both are still 1 here, because two replicas need a volume per replica and
-    # a database initialised on each of them, and neither exists yet. Raise
-    # them together once they do.
-    #
-    # The volume per replica is what gates `enabled: true` above, not just this
-    # count: the pool is two nodes and the local PersistentVolume binds on the
-    # pool label rather than a node name, so even one pod can be scheduled onto
-    # the node that does not hold the data.
-    replicas: 1
+    # Keeper stays at one member. Growing a live ensemble to three is a
+    # membership change, not a replica count: new members started with a
+    # three-server configuration can elect a leader between themselves with
+    # none of the existing member's metadata.
+    replicas: 2
     persistence:
       size: 200Gi
+      localVolume:
+        # Replica 0 on the box that has held the data since the migration
+        # began, replica 1 on the second. See `nodeNames` in values.yaml.
+        nodeNames:
+          - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+          - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM with
+    # a tailnet address, so the Service name every other writer resolves does
+    # not resolve for it.
+    #
+    # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
+    # created by this cluster's operator, and the wrong tag makes the operator
+    # refuse with `requested tags are invalid or not permitted`, leaving no
+    # proxy and a hostname that never resolves. The pooler above hit exactly
+    # that and its comment records it.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-canary
+      tags: tag:tuist-k8s-canary
     keeper:
       replicas: 1
     backup:
@@ -327,6 +373,8 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  privateGateway:
+    enabled: true
   resources:
     requests:
       cpu: "100m"
@@ -355,17 +403,20 @@ kuraController:
       item: kura-sentry-hive
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
-# (kura-scw-fr-par) is intentionally excluded: it advertises no egress budget,
-# and its traffic is node-local runner reads that must not be shaped.
+# (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
+# Private Network, not the 1 Gbit/s public bandwidth every budget here is
+# denominated in, so the box advertises no tuist.dev/egress-mbps and there is
+# nothing for a tree to rate its root against. Each tenant is still ceilinged
+# on that path by the Cilium bandwidth manager (egress_burst_mbps).
 egressTreeAgent:
   enabled: true
   nodePools: [kura-dedibox, kura-ca-east]
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
-# replica), 10Gi per instance. Matches the cluster's general-purpose
-# hcloud-worker pool (md-0, replicas: 2) — hard pod anti-affinity
-# requires one CNPG instance per host, so a 3-instance cluster would
-# leave the third pod permanently Pending until md-0 was scaled up.
+# replica), 10Gi per instance. Hard pod anti-affinity keeps the instances
+# on separate hosts. The general-purpose pool has three workers so hooks
+# and rolling updates have headroom; keep CNPG at two instances rather
+# than consuming that capacity with another database replica.
 # Canary is a soak environment, not an HA-shape one; production keeps
 # the 3-instance design on its 3-worker pool. Each instance is a
 # streaming replica holding the whole DB, so the size is per-replica
@@ -518,10 +569,10 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
-# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# Dedibox fleet (EU customer-facing Kura cache, the eu-west cutover). The
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
 # env boundary, since all Dedibox share the org's default project) and self-joins
-# it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
+# it as the kura-dedibox pool that backs eu-west. PREREQ before merge: the
 # DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
 # in DC2 is delivered + tagged tuist-kura-canary; an enabled fleet with no
 # adoptable box hangs helm --wait.
@@ -533,7 +584,7 @@ dediboxFleet:
     datacenter: DC2
     os: ubuntu_24.04
     # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
-    # tuist.dev/egress-mbps so eu-central's 25-Mbps-floor pods bin-pack
+    # tuist.dev/egress-mbps so eu-west's 25-Mbps-floor pods bin-pack
     # (@enterprise_egress_floor_mbps).
     egressBudgetMbps: 500
   scaleway:
@@ -668,7 +719,8 @@ macosFleet:
   # unwritable share for a local cold cache instead of exporting a broken
   # root. Production has run on that path (gib: 80) since; canary tracks it
   # here, with the Xcode compilation cache (CAS) folded in — masterCapGib 28
-  # gives the CAS 16 GiB, the binary cache ~10, and a ~2 GiB reserve.
+  # gives the two caches 22.4 GiB to share by use, with a 5.6 GiB reserve.
+  # casGib 16 sets the fixed split older runner images apply.
   runnerCacheVolume:
     gib: 80
     masterCapGib: 28
@@ -730,10 +782,12 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -754,6 +808,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

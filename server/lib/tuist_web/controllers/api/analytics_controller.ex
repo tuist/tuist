@@ -8,6 +8,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.VCS
+  alias Tuist.VCS.RemoteURL
   alias Tuist.Xcode
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
@@ -366,6 +367,30 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",
                                  properties: %{
+                                   destinations: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Sorted raw destinations used to compute this hash. Omitted when unavailable."
+                                   },
+                                   embedded_product_references: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
+                                   foreign_build: %Schema{
+                                     type: :string,
+                                     description: "Foreign build hash. Empty means none; omitted means unavailable."
+                                   },
+                                   test_device: %Schema{
+                                     type: :string,
+                                     description: "UI test device name. Empty means none; omitted means unavailable."
+                                   },
+                                   test_runtime: %Schema{
+                                     type: :string,
+                                     description:
+                                       "UI test runtime identifier. Empty means none; omitted means unavailable."
+                                   },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},
                                    copy_files: %Schema{type: :string, description: "Copy files hash"},
@@ -412,6 +437,30 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",
                                  properties: %{
+                                   destinations: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Sorted raw destinations used to compute this hash. Omitted when unavailable."
+                                   },
+                                   embedded_product_references: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
+                                   foreign_build: %Schema{
+                                     type: :string,
+                                     description: "Foreign build hash. Empty means none; omitted means unavailable."
+                                   },
+                                   test_device: %Schema{
+                                     type: :string,
+                                     description: "UI test device name. Empty means none; omitted means unavailable."
+                                   },
+                                   test_runtime: %Schema{
+                                     type: :string,
+                                     description:
+                                       "UI test runtime identifier. Empty means none; omitted means unavailable."
+                                   },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},
                                    copy_files: %Schema{type: :string, description: "Copy files hash"},
@@ -477,7 +526,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     git_commit_sha = Map.get(body_params, :git_commit_sha)
     git_ref = Map.get(body_params, :git_ref)
-    git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
+    git_remote_url_origin = body_params |> Map.get(:git_remote_url_origin) |> RemoteURL.strip_credentials()
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)
@@ -1095,6 +1144,9 @@ defmodule TuistWeb.API.AnalyticsController do
       case type do
         "result_bundle" ->
           CommandEvents.get_result_bundle_key(run_id, project)
+
+        "stress_result_bundle" ->
+          CommandEvents.get_stress_result_bundle_key(run_id, project)
 
         "invocation_record" ->
           CommandEvents.get_result_bundle_invocation_record_key(

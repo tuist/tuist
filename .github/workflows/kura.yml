@@ -26,7 +26,6 @@ defaults:
     working-directory: kura
 
 env:
-  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
 
 jobs:
@@ -34,13 +33,12 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "bazel"
           working_directory: kura
 
@@ -58,14 +56,14 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -98,9 +96,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel"
           working_directory: kura
 
@@ -135,14 +132,14 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -172,9 +169,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel"
           working_directory: kura
 
@@ -209,14 +205,14 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -247,9 +243,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel"
           working_directory: kura
 
@@ -278,13 +273,12 @@ jobs:
     name: Audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: rust
           working_directory: kura
 
@@ -312,6 +306,7 @@ jobs:
       contents: read
       id-token: write
     if: |
+      github.repository == 'tuist/tuist' &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     env:
@@ -319,9 +314,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel tuist"
           working_directory: kura
 
@@ -369,9 +363,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "rust bazel"
           working_directory: kura
 
@@ -431,7 +424,9 @@ jobs:
           - shard_name: cluster
             specs: "spec/e2e/cluster_spec.sh"
           - shard_name: clients
-            specs: "spec/e2e/clients_spec.sh"
+            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh"
+          - shard_name: bytestream-admission
+            specs: "spec/e2e/bytestream_admission_spec.sh"
           - shard_name: discovery-faults-handoff
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: authorization-mtls
@@ -472,7 +467,6 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          version: ${{ env.MISE_VERSION }}
           install: "rust shellspec bazel aqua:facebook/buck2"
           working-directory: kura
 

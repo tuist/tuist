@@ -4,13 +4,13 @@ metadata:
   name: cloudflare-operator-manager
 rules:
   - apiGroups: ["cloudflare.tuist.dev"]
-    resources: [cloudflareratelimits, cloudflarecustomrules]
+    resources: [cloudflareratelimits, cloudflarecustomrules, cloudflarebotmanagements]
     verbs: [get, list, watch, update, patch]
   - apiGroups: ["cloudflare.tuist.dev"]
-    resources: [cloudflareratelimits/status, cloudflarecustomrules/status]
+    resources: [cloudflareratelimits/status, cloudflarecustomrules/status, cloudflarebotmanagements/status]
     verbs: [get, update, patch]
   - apiGroups: ["cloudflare.tuist.dev"]
-    resources: [cloudflareratelimits/finalizers, cloudflarecustomrules/finalizers]
+    resources: [cloudflareratelimits/finalizers, cloudflarecustomrules/finalizers, cloudflarebotmanagements/finalizers]
     verbs: [update]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]

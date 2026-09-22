@@ -65,14 +65,14 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
            "operation" => operation,
            "outcome" => outcome,
            "action_digest" => action_digest,
-           "size" => size,
-           "duration_ms" => duration_ms
+           "size" => size
          } <- event,
-         true <- is_binary(account_handle) and is_binary(project_handle) do
+         true <- is_binary(account_handle) and is_binary(project_handle),
+         duration_us when is_integer(duration_us) <- duration_us(event) do
       full_handle = "#{account_handle}/#{project_handle}"
 
       with %{id: project_id, build_system: :bazel} <- Map.get(projects_map, full_handle),
-           true <- valid_event?(operation, outcome, action_digest, size, duration_ms, Map.get(event, "observed_at_ms")) do
+           true <- valid_event?(operation, outcome, action_digest, size, duration_us, Map.get(event, "observed_at_ms")) do
         {:ok,
          %{
            client_kind: "bazel",
@@ -80,7 +80,8 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
            outcome: outcome,
            action_digest: action_digest,
            size: size,
-           duration_ms: duration_ms,
+           duration_us: duration_us,
+           duration_ms: div(duration_us, 1_000),
            observed_at: observed_at(event),
            invocation_id: optional_string(event, "invocation_id"),
            action_mnemonic: optional_string(event, "action_mnemonic"),
@@ -101,10 +102,28 @@ defmodule TuistWeb.Webhooks.ReapiCacheController do
     end
   end
 
-  defp valid_event?(operation, outcome, action_digest, size, duration_ms, observed_at_ms) do
+  defp valid_event?(operation, outcome, action_digest, size, duration_us, observed_at_ms) do
     operation in ["action_cache", "cas"] and
       outcome in ["hit", "miss", "write"] and is_binary(action_digest) and is_integer(size) and size >= 0 and
-      is_integer(duration_ms) and duration_ms >= 0 and valid_observed_at?(observed_at_ms)
+      is_integer(duration_us) and duration_us >= 0 and valid_observed_at?(observed_at_ms)
+  end
+
+  # Kura measures in microseconds: it serves most action-cache lookups in well
+  # under a millisecond, so a millisecond figure rounds nearly every observation
+  # to zero and leaves latency and throughput uncomputable. `duration_ms` is
+  # still accepted so a node that has not rolled yet keeps reporting, at the
+  # coarse resolution it can offer.
+  defp duration_us(event) do
+    case Map.get(event, "duration_us") do
+      value when is_integer(value) and value >= 0 ->
+        value
+
+      _ ->
+        case Map.get(event, "duration_ms") do
+          value when is_integer(value) and value >= 0 -> value * 1_000
+          _ -> nil
+        end
+    end
   end
 
   defp valid_observed_at?(nil), do: true

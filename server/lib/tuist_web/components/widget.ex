@@ -87,7 +87,7 @@ defmodule TuistWeb.Widget do
   attr(:title, :string, required: true, doc: "The title of the widget.")
 
   attr(:legend_color, :string,
-    values: ~w(primary secondary tertiary destructive flaky p99 p90 p50),
+    values: ~w(amber primary secondary tertiary destructive flaky p99 p90 p50),
     required: false,
     doc: "The color of the legend. The legend is hidden if the value is `nil`."
   )
@@ -98,7 +98,7 @@ defmodule TuistWeb.Widget do
     default: nil
   )
 
-  attr(:value, :string, default: nil, doc: "The value of the widget.")
+  attr(:value, :any, default: nil, doc: "The value of the widget.")
 
   attr(:trend_value, :integer,
     required: false,
@@ -212,7 +212,9 @@ defmodule TuistWeb.Widget do
           <span class="tuist-loading-skeleton tuist-loading-skeleton--small">&nbsp;</span>
         </div>
       <% else %>
-        <span data-part="value">{@value}</span>
+        <span data-part="value">{if is_number(@value) and abs(@value) >= 10_000,
+          do: TuistWeb.CldrHelpers.format_number(@value),
+          else: @value}</span>
         <div :if={@trend_value} data-part="trend">
           <.trend_badge
             trend_value={@trend_value}

@@ -1,0 +1,417 @@
+# Production values for the Atlas Helm chart.
+#
+# Single environment, managed-only. Self-host is not a target — everything
+# in here assumes the cluster has cert-manager, ingress-nginx, external-dns,
+# external-secrets-operator + a 1Password ClusterSecretStore named
+# `onepassword`, and the CloudNativePG operator. See
+# infra/k8s/onboarding.md for the bootstrap.
+#
+# Secrets model:
+#   - Every app secret is its own item in the `atlas-k8s-production`
+#     1Password vault. ESO syncs them all into a single `atlas-app`
+#     Secret which the Deployment + migration Job consume via envFrom.
+#   - Operator-level credentials the app never sees (CNPG backup creds,
+#     GHCR pull token) are also synced via ESO from their own 1P items.
+
+nameOverride: ""
+fullnameOverride: "atlas"
+
+host: atlas.tuist.dev
+
+# Internal Tuist server API. Atlas authenticates with a projected
+# ServiceAccount token (audience `tokenAudience`) that the Tuist server
+# verifies offline against Atlas' pinned JWKS. Powers the read-only
+# `*_tuist_postgres*` MCP tools. The Tuist server must already trust this
+# cluster's SA (`atlas`/`atlas-production`) via its TUIST_ATLAS_* config.
+tuistServer:
+  enabled: true
+  internalUrl: https://tuist.dev
+  tokenAudience: tuist-server
+  tokenMountPath: /var/run/secrets/tuist
+  tokenExpirationSeconds: 3600
+
+image:
+  repository: ghcr.io/tuist/atlas
+  # Tag is set per-deploy by the GitHub Actions workflow (`--set image.tag=…`).
+  tag: ""
+  pullPolicy: IfNotPresent
+  # Pull secret synced by ESO. Created in the namespace by the chart,
+  # populated from a GHCR PAT in 1Password.
+  pullSecretName: ghcr-pull
+
+# Atlas is a non-critical internal service on a single general-pool worker.
+# One replica, no autoscaling, no PodDisruptionBudget: HA isn't achievable
+# (or needed) on a single node, and a PDB would block node drains during
+# cluster upgrades.
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 75
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+service:
+  port: 80
+  targetPort: 4000
+
+ingress:
+  className: nginx
+  clusterIssuer: letsencrypt-prod
+  licenseValidationRateLimit:
+    enabled: true
+    requestsPerSecond: 5
+    burstMultiplier: 3
+
+# Phoenix runtime knobs that aren't secret.
+env:
+  POOL_SIZE: "10"
+  DATABASE_SSL: "1"
+  # Tags every Sentry event with the deploy environment. SENTRY_RELEASE
+  # is set per-deploy by the GitHub Actions workflow (`--set env.SENTRY_RELEASE=…`).
+  SENTRY_ENVIRONMENT: production
+  # Atlas hosts its own inference relay. Atlas.LLMs.LocalTransport routes
+  # ReqLLM's HTTP calls in-process to Atlas.Inference. Which profile is
+  # used isn't configured here — it's the one marked atlas_inference: true
+  # in the inference_model_bindings table. To point atlas at an external
+  # LLM endpoint instead, unset LLM_MODE and set LLM_API_KEY, LLM_MODEL,
+  # and optionally LLM_BASE_URL.
+  LLM_MODE: "local"
+  # Both finance reports are intended for the private Tuist leadership channel.
+  # The Atlas Slack bot is already a member of this channel.
+  ATLAS_FINANCE_COST_DIGEST_SLACK_CHANNEL_ID: "C07MU2C1VA8"
+  ATLAS_FINANCE_WEEKLY_SUMMARY_SLACK_CHANNEL_ID: "C07MU2C1VA8"
+  # Customer-support activity belongs in its own channel, separate from the
+  # operational notification stream. Add the Atlas Slack bot to this channel.
+  ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
+  # Default Slack channel for engineering error-issue alerts (new issue and
+  # regression transitions from the issue coalescer, plus drop alerts).
+  # Matches Hive prod's HIVE_ALERTS_SLACK_CHANNEL_ID so the alert stream
+  # stays on the same channel after the port. Projects can override per
+  # project via their slack_alert_channel setting.
+  ATLAS_DEFAULT_ALERT_SLACK_CHANNEL: "C061VCZC2V8"
+  # Document page embeddings. In local mode Atlas.LLMs.LocalTransport
+  # routes the /embeddings call in-process to the profile marked
+  # atlas_embedding: true. The profile's upstream model emits native
+  # 4096-dim vectors, matching the vector collection's `dimensions`
+  # below.
+  ATLAS_DOCUMENT_EMBEDDING_MODEL: "Embedder"
+  # App-level object persistence through Hetzner's S3-compatible Object Storage.
+  ATLAS_OBJECT_STORAGE_ENDPOINT_URL: "https://fsn1.your-objectstorage.com"
+  ATLAS_OBJECT_STORAGE_REGION: "fsn1"
+  ATLAS_VECTOR_URL: "http://atlas-vector:8080"
+  # Pingen's current resource API host. Authentication remains at
+  # identity.pingen.com and is configured in the application runtime.
+  ATLAS_PINGEN_API_BASE_URL: "https://api.pingen.com"
+
+probes:
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+migrationJob:
+  enabled: true
+  backoffLimit: 2
+
+# 1Password / external-secrets-operator wiring. Each entry maps an env
+# var the app reads to a `<item>/<field>` path in the 1P vault. Add a
+# new line here when you add a new secret to runtime.exs.
+externalSecrets:
+  refreshInterval: 1h
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  items:
+    SECRET_KEY_BASE:
+      remoteRef: "atlas-secret-key-base/password"
+    GUARDIAN_SECRET_KEY:
+      remoteRef: "atlas-secret-key-base/password"
+    ENCRYPTION_KEY:
+      remoteRef: "atlas-encryption-key/password"
+    ATLAS_LICENSE_SIGNING_PRIVATE_KEY:
+      remoteRef: "atlas-license-signing-key/password"
+    GOOGLE_CLIENT_ID:
+      remoteRef: "atlas-google-oauth/username"
+    GOOGLE_CLIENT_SECRET:
+      remoteRef: "atlas-google-oauth/credential"
+    SUPER_ADMIN_PASSWORD:
+      remoteRef: "atlas-super-admin/password"
+    STRIPE_API_KEY:
+      remoteRef: "atlas-stripe-api-key/password"
+    # SENTRY_DSN is intentionally not synced: with no DSN configured,
+    # Atlas' primary Sentry.LoggerHandler stays detached and the in-process
+    # Atlas.Engineering.Errors.SelfMonitor attaches instead, recording
+    # this instance's own crashes against the "Atlas" self-project through
+    # the same ingest pipeline external SDKs use — no HTTP hop, so an
+    # ingest outage cannot loop back through the logger. This replaces the
+    # previous route that posted envelopes to hive.tuist.dev.
+    ATLAS_SLACK_SIGNING_SECRET:
+      remoteRef: "atlas-slack-company/password"
+    SLACK_COMPANY_BOT_TOKEN:
+      remoteRef: "atlas-slack-company/credential"
+    ATLAS_SLACK_AGENT_IDENTITIES:
+      remoteRef: "atlas-slack-agent-identities/password"
+    ATLAS_SLACK_AGENT_CHANNEL_POLICIES:
+      remoteRef: "atlas-slack-agent-channel-policies/password"
+    LLM_API_KEY:
+      remoteRef: "atlas-hive-inference-token/credential"
+    ATLAS_DOCUMENT_EMBEDDING_API_KEY:
+      remoteRef: "atlas-hive-embedding-token/credential"
+    GRANOLA_API_KEY:
+      remoteRef: "atlas-granola-api-key/credential"
+    QONTO_SIGN_IN:
+      remoteRef: "atlas-qonto/username"
+    QONTO_SECRET_KEY:
+      remoteRef: "atlas-qonto/credential"
+    MERCURY_API_TOKEN:
+      remoteRef: "atlas-mercury/credential"
+    ATLAS_GTM_INGEST_TOKEN:
+      remoteRef: "atlas-gtm-ingest-token/password"
+    MAILGUN_API_KEY:
+      remoteRef: "atlas-mailgun/api_key"
+    ATLAS_INBOX_WEBHOOK_SECRET:
+      remoteRef: "atlas-inbox-webhook-secret/password"
+    ATLAS_GITHUB_APP_ID:
+      remoteRef: "atlas-github-app/app_id"
+    ATLAS_GITHUB_APP_NAME:
+      remoteRef: "atlas-github-app/app_name"
+    ATLAS_GITHUB_APP_CLIENT_ID:
+      remoteRef: "atlas-github-app/client_id"
+    ATLAS_GITHUB_APP_PRIVATE_KEY:
+      remoteRef: "atlas-github-app/private_key"
+    ATLAS_GITHUB_APP_WEBHOOK_SECRET:
+      remoteRef: "atlas-github-app/webhook_secret"
+    BRAVE_SEARCH_API_KEY:
+      remoteRef: "atlas-brave-search-api-key/password"
+    APOLLO_API_KEY:
+      remoteRef: "atlas-apollo-api-key/password"
+    ATLAS_OBJECT_STORAGE_ACCESS_KEY_ID:
+      remoteRef: "atlas-object-storage/username"
+    ATLAS_OBJECT_STORAGE_SECRET_ACCESS_KEY:
+      remoteRef: "atlas-object-storage/credential"
+    ATLAS_OBJECT_STORAGE_BUCKET:
+      remoteRef: "atlas-object-storage/bucket"
+    ATLAS_PINGEN_CLIENT_ID:
+      remoteRef: "atlas-pingen/username"
+    ATLAS_PINGEN_CLIENT_SECRET:
+      remoteRef: "atlas-pingen/password"
+    ATLAS_PINGEN_ORGANISATION_ID:
+      remoteRef: "atlas-pingen/organisation_id"
+    ATLAS_TAX_CERTIFICATE_SENDER_NAME:
+      remoteRef: "atlas-tuist-gmbh/sender_name"
+    ATLAS_TAX_CERTIFICATE_SENDER_STREET:
+      remoteRef: "atlas-tuist-gmbh/sender_street"
+    ATLAS_TAX_CERTIFICATE_SENDER_POSTAL_CODE:
+      remoteRef: "atlas-tuist-gmbh/sender_postal_code"
+    ATLAS_TAX_CERTIFICATE_SENDER_CITY:
+      remoteRef: "atlas-tuist-gmbh/sender_city"
+    ATLAS_TAX_CERTIFICATE_SENDER_COUNTRY:
+      remoteRef: "atlas-tuist-gmbh/sender_country"
+    ATLAS_TAX_CERTIFICATE_TAX_ID:
+      remoteRef: "atlas-tuist-gmbh/tax_id"
+    ATLAS_TAX_CERTIFICATE_VAT_ID:
+      remoteRef: "atlas-tuist-gmbh/vat_id"
+    ATLAS_TAX_CERTIFICATE_SIGNATORY_TITLE:
+      remoteRef: "atlas-tuist-gmbh/signatory_title"
+    ATLAS_TAX_CERTIFICATE_FOUNDATION_DATE:
+      remoteRef: "atlas-tuist-gmbh/foundation_date"
+    ATLAS_TAX_CERTIFICATE_LEGAL_FORM:
+      remoteRef: "atlas-tuist-gmbh/legal_form"
+    ATLAS_TAX_CERTIFICATE_SIGNING_LOCATION:
+      remoteRef: "atlas-tuist-gmbh/signing_location"
+    ATLAS_TAX_CERTIFICATE_TAX_OFFICE_NAME:
+      remoteRef: "atlas-tuist-gmbh/tax_office_name"
+    ATLAS_TAX_CERTIFICATE_TAX_OFFICE_STREET:
+      remoteRef: "atlas-tuist-gmbh/tax_office_street"
+    ATLAS_TAX_CERTIFICATE_TAX_OFFICE_POSTAL_CODE:
+      remoteRef: "atlas-tuist-gmbh/tax_office_postal_code"
+    ATLAS_TAX_CERTIFICATE_TAX_OFFICE_CITY:
+      remoteRef: "atlas-tuist-gmbh/tax_office_city"
+  # Image pull secret (private GHCR). The 1P item's notesPlain holds
+  # base64 of a `~/.docker/config.json` snippet for `ghcr.io`.
+  pullSecret:
+    enabled: true
+    item: "atlas-ghcr-pull"
+    field: "notesPlain"
+
+agentSandboxes:
+  enabled: true
+  namespace: atlas-agents
+  serviceAccountName: condukt-agent
+
+# CloudNativePG-managed in-cluster Postgres with continuous backups to
+# Hetzner Object Storage. The CNPG operator must be pre-installed
+# cluster-wide (one-time bootstrap; see onboarding.md §4).
+postgres:
+  enabled: true
+  # Single instance: continuous WAL archiving + daily base backups to
+  # Hetzner Object Storage (below) are the recovery path, so a hot standby
+  # isn't worth a second node's resources for a non-critical service.
+  instances: 1
+  storageSize: 100Gi
+  storageClass: hcloud-volumes
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.0
+  database: atlas
+  owner: atlas
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  backup:
+    enabled: true
+    endpointURL: https://fsn1.your-objectstorage.com
+    destinationPath: s3://atlas-postgres-backups/production
+    retention: 30d
+    schedule: "0 0 3 * * *" # 03:00 UTC daily; 6-field cron (with seconds).
+    credentialsSecretName: atlas-postgres-backup-credentials
+    externalSecret:
+      accessKeyRemoteRef: "atlas-postgres-backup/username"
+      secretKeyRemoteRef: "atlas-postgres-backup/credential"
+
+# Unlike Hive's `vector` (a Vector.dev log pipeline that was switched off to
+# save resources), this is the opendata-oss vector search DB backing Atlas'
+# semantic search and document embeddings (ATLAS_VECTOR_URL). It is a
+# functional dependency, not observability, and stays enabled.
+vector:
+  enabled: true
+  image:
+    repository: ghcr.io/opendata-oss/vector
+    tag: "0.2.1"
+    pullPolicy: IfNotPresent
+  containerPort: 8080
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+  service:
+    port: 8080
+  storage:
+    endpointURL: "https://fsn1.your-objectstorage.com"
+    region: "fsn1"
+    bucket: "atlas-object-storage"
+    # The SlateDB index at this prefix is bound to `config.dimensions`. The
+    # original "vector/production" prefix holds a 1536-dim index, and
+    # "vector/production-v2-4096" holds a 4096-dim index. Changing dimensions
+    # therefore requires a fresh prefix so the collection re-initializes clean.
+    # Existing document pages must be re-embedded after switching prefixes.
+    prefix: "vector/production-v3-1024"
+    externalSecret:
+      accessKeyRemoteRef: "atlas-object-storage/username"
+      secretKeyRemoteRef: "atlas-object-storage/credential"
+  cache:
+    size: 50Gi
+    storageClass: hcloud-volumes
+    mountPath: /var/cache/opendata-vector
+    diskCapacityBytes: 42949672960
+    memoryCapacityBytes: 536870912
+  config:
+    # Matches the native output of ATLAS_DOCUMENT_EMBEDDING_MODEL. Changing the
+    # embedding model means re-provisioning this collection and re-embedding
+    # every page.
+    dimensions: 1024
+    distanceMetric: L2
+    flushInterval: 60
+    splitThresholdVectors: 150
+    mergeThresholdVectors: 50
+    splitSearchNeighbourhood: 0
+    # Indexed/filterable attributes. Additional attributes (e.g. page_number)
+    # are still stored on each vector as free-form metadata; only the fields
+    # listed here can be filtered on. Atlas.Documents filters by source_type
+    # ("document_page") and keys each vector id as "document_page:<page_id>".
+    metadataFields:
+      - name: source_type
+        field_type: String
+        indexed: true
+      - name: document_id
+        field_type: String
+        indexed: true
+
+# ClickHouse instance backing Atlas.Engineering.Errors (event stream).
+# Ported from Hive. Disabled by default; production values enables it
+# and configures per-environment resources and backups.
+clickhouse:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: clickhouse/clickhouse-server
+    tag: "26.1.2.11"
+    pullPolicy: IfNotPresent
+  database: atlas
+  username: default
+  service:
+    httpPort: 8123
+    nativePort: 9000
+  persistence:
+    size: 100Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 2
+      memory: 4Gi
+    limits:
+      memory: 8Gi
+  nodeSelector: {}
+  tolerations: []
+  probes:
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 6
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 3
+      failureThreshold: 3
+  backup:
+    enabled: true
+    # Time (UTC) the daily CronJob runs. Offset by 30 minutes from the
+    # Postgres backup so both do not contend for network/disk at once.
+    schedule: "30 3 * * *"
+    # The CronJob runs `clickhouse-client` against the StatefulSet and issues
+    # `BACKUP DATABASE ... TO S3(...)`, so it reuses the same ClickHouse
+    # server image and does not need its own image or a PVC mount.
+    s3:
+      bucket: atlas-clickhouse-backups
+      path: production
+      region: fsn1
+      endpoint: "https://fsn1.your-objectstorage.com"
+    # ExternalSecret that must expose ACCESS_KEY_ID and SECRET_ACCESS_KEY.
+    credentialsSecretName: atlas-clickhouse-backup-credentials
+    externalSecret:
+      accessKeyRemoteRef: "atlas-clickhouse-backup/username"
+      secretKeyRemoteRef: "atlas-clickhouse-backup/credential"
+    activeDeadlineSeconds: 3600
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi

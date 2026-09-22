@@ -19,6 +19,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Runners.Workers.StaleQueuedJobsWorker
   alias Tuist.Slack.Workers.ReportWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
@@ -128,6 +129,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute DeleteExpiredXcodeCacheArtifactsWorker in workers
         refute DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         refute DeleteExpiredGradleCacheArtifactsWorker in workers
+        refute DeleteExpiredGitLabCacheArtifactsWorker in workers
         refute SyncStripeMetersWorker in workers
         refute KuraReconciler in workers
         refute ClaimSizingWorker in workers
@@ -231,6 +233,10 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       assert hosted_cache_crons == self_hosted_cache_crons
     end
 
+    test "the hosted sign-up report runs every hour, including weekends" do
+      assert {"@hourly", HourlySlackReportWorker} in RuntimeConfig.crontab(:web, :prod, true)
+    end
+
     test ":web + prod-like env, Tuist-hosted: hosted-only entries plus shared crons" do
       for env <- [:prod, :stag, :can], artifact_retention_days <- [%{}, %{cache_artifacts: 21}] do
         workers =
@@ -255,11 +261,30 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert DeleteExpiredXcodeCacheArtifactsWorker in workers
         assert DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         assert DeleteExpiredGradleCacheArtifactsWorker in workers
+        assert DeleteExpiredGitLabCacheArtifactsWorker in workers
         assert SyncStripeMetersWorker in workers
         assert KuraReconciler in workers
         assert ClaimSizingWorker in workers
         assert StaleQueuedJobsWorker in workers
         assert FlushJobTransitionEventsWorker in workers
+      end
+    end
+
+    test "GitLab cache retention runs only where runners do" do
+      every_family = %{
+        cache_artifacts: 14,
+        app_previews: 30,
+        build_archives: 30,
+        run_artifacts: 30,
+        test_attachments: 30,
+        shard_bundles: 30
+      }
+
+      for env <- [:prod, :stag, :can] do
+        assert {"15 4 * * *", DeleteExpiredGitLabCacheArtifactsWorker} in RuntimeConfig.crontab(:web, env, true)
+
+        self_hosted = RuntimeConfig.crontab(:web, env, false, artifact_retention_days: every_family)
+        refute Enum.any?(self_hosted, &(cron_worker(&1) == DeleteExpiredGitLabCacheArtifactsWorker))
       end
     end
 

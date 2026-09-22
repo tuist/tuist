@@ -28,6 +28,36 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
   end
 
   describe "compare_builds" do
+    test "uses each build system's step tools and explains recording limits" do
+      for build_system <- [:gradle, :bazel] do
+        stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
+          %{default_branch: "main", build_system: build_system}
+        end)
+
+        %{messages: [%{content: %{text: text}}]} =
+          CompareBuilds.template(nil, %{
+            "account_handle" => "acme",
+            "project_handle" => "app",
+            "head" => "head-id"
+          })
+
+        assert text =~ "list_#{build_system}_build_steps"
+        assert text =~ "get_#{build_system}_build_step"
+        refute text =~ "list_xcode_build_steps"
+
+        if build_system == :bazel do
+          assert text =~ "invocation_id"
+          assert text =~ "trace_profile"
+          assert text =~ "retained_action_spans"
+          assert text =~ "recorded action log when available"
+          refute text =~ "Per-action outcomes and logs are unavailable"
+          refute text =~ "build_run_id=head-id"
+        else
+          assert text =~ "time_origin"
+        end
+      end
+    end
+
     test "returns prompt messages with default branch" do
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" ->
         %{default_branch: "develop", build_system: :xcode}

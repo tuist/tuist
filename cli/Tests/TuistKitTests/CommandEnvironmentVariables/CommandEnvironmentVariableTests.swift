@@ -489,6 +489,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testShardIndex, value: "2")
         setVariable(.testShardSkipUpload, value: "true")
         setVariable(.testShardArchivePath, value: "/path/to/shards/bundle.aar")
+        setVariable(.testStressNewTests, value: "report")
 
         // Execute TestRunCommand without command line arguments
         let testCommandWithEnvVars = try TestRunCommand.parse([])
@@ -522,6 +523,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithEnvVars.shardIndex == 2)
         #expect(testCommandWithEnvVars.shardSkipUpload == true)
         #expect(testCommandWithEnvVars.shardArchivePath == "/path/to/shards/bundle.aar")
+        #expect(testCommandWithEnvVars.stressNewTests == .report)
 
         // Execute TestRunCommand with command line arguments
         let testCommandWithArgs = try TestRunCommand.parse([
@@ -549,8 +551,10 @@ struct CommandEnvironmentVariableTests {
             "--shard-index", "3",
             "--no-shard-skip-upload",
             "--shard-archive-path", "/new/shards/bundle.aar",
+            "--stress-new-tests", "enforce",
         ])
         #expect(testCommandWithArgs.scheme == "NewScheme")
+        #expect(testCommandWithArgs.stressNewTests == .enforce)
         #expect(testCommandWithArgs.clean == false)
         #expect(testCommandWithArgs.path == "/new/test/path")
         #expect(testCommandWithArgs.device == "iPad")
@@ -583,6 +587,7 @@ struct CommandEnvironmentVariableTests {
     @Test(.withMockedEnvironment()) func xcodeBuildShardCommandsUseEnvVars() throws {
         setVariable(.testShardArchivePath, value: "/tmp/env-shards/bundle.aar")
         setVariable(.testShardPlanId, value: "shard-plan-id")
+        setVariable(.testStressNewTests, value: "report")
 
         let buildForTestingCommandWithEnvVars = try #require(
             XcodeBuildCommand.parseAsRoot(["build-for-testing"]) as? XcodeBuildBuildForTestingCommand
@@ -594,6 +599,7 @@ struct CommandEnvironmentVariableTests {
         )
         #expect(testCommandWithEnvVars.shardArchivePath == "/tmp/env-shards/bundle.aar")
         #expect(testCommandWithEnvVars.shardPlanId == "shard-plan-id")
+        #expect(testCommandWithEnvVars.stressNewTests == .report)
 
         let testWithoutBuildingCommandWithEnvVars = try #require(
             XcodeBuildCommand.parseAsRoot(["test-without-building"]) as? XcodeBuildTestWithoutBuildingCommand
@@ -614,10 +620,12 @@ struct CommandEnvironmentVariableTests {
                 "test",
                 "--shard-archive-path", "/tmp/cli-shards/test.aar",
                 "--shard-plan-id", "cli-shard-plan-id",
+                "--stress-new-tests", "enforce",
             ]) as? XcodeBuildTestCommand
         )
         #expect(testCommandWithArgs.shardArchivePath == "/tmp/cli-shards/test.aar")
         #expect(testCommandWithArgs.shardPlanId == "cli-shard-plan-id")
+        #expect(testCommandWithArgs.stressNewTests == .enforce)
 
         let testWithoutBuildingCommandWithArgs = try #require(
             XcodeBuildCommand.parseAsRoot([

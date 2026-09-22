@@ -14,7 +14,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
          {:ok, storage_snapshots} <- optional_list(params, "storage_snapshots") do
       case authorize(conn) do
         {:ok, :unconstrained} ->
-          ingest(conn, events, evictions, storage_snapshots)
+          ingest(conn, Usage.create_events(events), evictions, storage_snapshots)
 
         {:ok, {:account, account}} ->
           if events_scoped_to_account?(events ++ evictions ++ storage_snapshots, account) do
@@ -25,7 +25,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
             # self-hosted node claiming a governed region resize the account's
             # hosted claim. Usage still ingests, so a node that sends both
             # keeps its metering.
-            ingest(conn, events, [], [])
+            ingest(conn, Usage.create_events(events, account), [], [])
           else
             conn
             |> put_status(:forbidden)
@@ -60,8 +60,8 @@ defmodule TuistWeb.Internal.KuraUsageController do
     end
   end
 
-  defp ingest(conn, events, evictions, storage_snapshots) do
-    with {:ok, count} <- Usage.create_events(events),
+  defp ingest(conn, usage_result, evictions, storage_snapshots) do
+    with {:ok, count} <- usage_result,
          {:ok, _evictions} <- StorageTelemetry.create_eviction_events(evictions),
          {:ok, _snapshots} <- StorageTelemetry.create_storage_snapshots(storage_snapshots) do
       conn

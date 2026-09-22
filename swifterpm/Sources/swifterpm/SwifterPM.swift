@@ -218,12 +218,34 @@ public struct SwifterPM: Sendable {
         let scratch = request.scratchDirectory ?? package.appendingPathComponent(".build")
         let cacheRoot = try Cache.resolvedRoot(request.cacheDirectory)
 
+        // On `resolve`, the seed Package.resolved may still list dependencies
+        // that have been removed from the manifest since the last install.
+        // Drop orphan pins before either path handles the file, so SwiftPM
+        // never chases a location that only the previous manifest reached.
+        // `update` and `--force-resolved-versions` bypass this: the former
+        // clears the file outright, the latter must not mutate it.
+        if preferResolvedFile, request.writeResolvedFile, !request.forceResolvedVersions {
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheRoot: cacheRoot,
+                disableSandbox: request.disableSandbox
+            )
+        }
+
+        let registryConfig = try await RegistryConfig.load(
+            packageDir: package,
+            configPath: request.registryConfigurationPath,
+            defaultRegistryURL: request.defaultRegistryURL
+        )
+
         // A cache only helps when it has every pin for this package. Going
         // straight to the native resolver for any missing pin avoids manifest
         // precomputation and restoration work before SwiftPM fetches it.
         if try await PackageResolver.shouldUseNativeColdPath(
             packageDir: package,
-            cacheRoot: cacheRoot
+            cacheRoot: cacheRoot,
+            registryConfig: registryConfig
         ) {
             let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
                 packageDir: package,
@@ -244,6 +266,12 @@ public struct SwifterPM: Sendable {
                 cache: cache,
                 resolved: resolved
             )
+            try await WorkspaceRestorer.cacheNativeRegistryDownloads(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: registryConfig,
+                resolved: resolved
+            )
             if !request.quiet {
                 ResolvedFile.print(resolved)
             }
@@ -251,11 +279,6 @@ public struct SwifterPM: Sendable {
         }
 
         let cache = try await Cache(root: cacheRoot)
-        let registryConfig = try await RegistryConfig.load(
-            packageDir: package,
-            configPath: request.registryConfigurationPath,
-            defaultRegistryURL: request.defaultRegistryURL
-        )
 
         let resolved = try await PackageResolver.resolveOrLoad(
             packageDir: package,

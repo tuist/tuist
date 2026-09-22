@@ -13,6 +13,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
@@ -29,7 +30,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
 
       expected_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -82,7 +83,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
       expected_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -118,7 +119,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         })
 
       default_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -154,7 +155,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         })
 
       default_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -165,7 +166,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> Authentication.put_current_user(attacker)
         |> get(~p"/api/cache/endpoints?account_handle=#{victim_account.name}")
 
-      assert json_response(conn, :ok) == %{"endpoints" => default_endpoints}
+      assert json_response(conn, :ok) == %{"endpoints" => default_endpoints, "provisioning" => false}
     end
 
     test "returns Kura endpoints to a project-scoped account token", %{conn: conn} do
@@ -175,11 +176,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = organization.account
       project = ProjectsFixtures.project_fixture(account: account)
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
 
@@ -194,7 +191,7 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> Headers.put_client_feature_flags(["kura"])
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
-      assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"]}
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://kura-cache.example.com"], "provisioning" => false}
 
       # A serving instance is a stable answer, so it is cacheable for the usual
       # interval rather than re-resolved constantly.
@@ -203,14 +200,15 @@ defmodule TuistWeb.API.CacheControllerTest do
 
     test "shortens the cache lifetime while a dedicated instance is being provisioned back", %{conn: conn} do
       # The stand-in answer stops being right the moment the account's own
-      # instance starts serving, so it must not be held for the usual interval.
+      # instance starts serving, which takes seconds, so it is held for no longer
+      # than that.
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       # Resolution refuses a service region the deployment does not serve;
       # state the deployment this test assumes rather than inheriting the test
       # env's local-controller-only catalog.
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -221,8 +219,109 @@ defmodule TuistWeb.API.CacheControllerTest do
         |> Headers.put_client_feature_flags(["kura"])
         |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
 
-      assert json_response(conn, :ok) == %{"endpoints" => ["https://default.tuist.dev"]}
-      assert ["private, max-age=30"] = get_resp_header(conn, "cache-control")
+      assert json_response(conn, :ok) == %{"endpoints" => ["https://default.tuist.dev"], "provisioning" => true}
+      assert ["private, max-age=5"] = get_resp_header(conn, "cache-control")
+    end
+
+    test "never hands the legacy cache nodes to a client always routed to Kura while its instance is provisioned back",
+         %{conn: conn} do
+      # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_cli_version("4.209.0-canary.23")
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      # The client polls until its instance serves, so an HTTP cache must not
+      # answer those polls.
+      assert json_response(conn, :ok) == %{"endpoints" => [], "provisioning" => true}
+      assert ["private, no-cache, max-age=5"] = get_resp_header(conn, "cache-control")
+    end
+
+    test "routes CLIs from the first version without the kura client feature flag to Kura", %{conn: conn} do
+      # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
+
+      # When
+      responses =
+        for version <- ["4.209.0-canary.22", "4.209.0-canary.23", "4.209.0", "4.210.0", "x.y.z"] do
+          conn
+          |> Authentication.put_current_user(user)
+          |> Headers.put_cli_version(version)
+          |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+          |> json_response(:ok)
+          |> Map.fetch!("endpoints")
+        end
+
+      # Then
+      assert responses == [
+               ["https://default.tuist.dev"],
+               ["https://kura-cache.example.com"],
+               ["https://kura-cache.example.com"],
+               ["https://kura-cache.example.com"],
+               ["https://kura-cache.example.com"]
+             ]
+    end
+
+    test "keeps routing earlier CLIs by the kura client feature flag", %{conn: conn} do
+      # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_cli_version("4.208.0")
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      assert json_response(conn, :ok)["endpoints"] == ["https://kura-cache.example.com"]
+    end
+
+    test "routes Gradle plugins from the first version without the kura client feature flag to Kura", %{conn: conn} do
+      # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
+
+      # When
+      responses =
+        for version <- ["0.14.0", "0.15.0", "1.0.0"] do
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header(Headers.gradle_plugin_version_header(), version)
+          |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+          |> json_response(:ok)
+          |> Map.fetch!("endpoints")
+        end
+
+      # Then
+      assert responses == [
+               ["https://default.tuist.dev"],
+               ["https://kura-cache.example.com"],
+               ["https://kura-cache.example.com"]
+             ]
     end
 
     test "returns ready account Kura endpoints when the client requests Kura and the account is opted in", %{
@@ -240,11 +339,7 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://custom-cache.example.com"
         })
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default-cache.example.com"] end)
 
@@ -276,11 +371,7 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://custom-cache.example.com"
         })
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       stub(Tuist.Environment, :cache_endpoints, fn -> ["https://default-cache.example.com"] end)
 
@@ -333,7 +424,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
 
       expected_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 
@@ -354,17 +445,8 @@ defmodule TuistWeb.API.CacheControllerTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-2.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, region: "eu-west", url: "https://kura-cache-1.example.com")
+      KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://kura-cache-2.example.com")
 
       conn =
         conn
@@ -394,17 +476,8 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://default-cache.example.com"
         })
 
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-2.example.com",
-          technology: :kura
-        })
+      KuraFixtures.active_server_fixture(account, region: "eu-west", url: "https://kura-cache-1.example.com")
+      KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://kura-cache-2.example.com")
 
       conn =
         conn
@@ -429,7 +502,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       account = Accounts.get_account_from_user(user)
 
       default_endpoints = [
-        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-eu-west-test.tuist.dev",
         "https://cache-us-east-test.tuist.dev"
       ]
 

@@ -3169,7 +3169,7 @@
                       "group": "__expr__",
                       "kind": "DataQuery",
                       "spec": {
-                        "expression": "SELECT __value__ AS Value, region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-central'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-central'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM D LIMIT 20",
+                        "expression": "SELECT __value__ AS Value, region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-west'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-west'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM D LIMIT 20",
                         "type": "sql"
                       },
                       "version": "v0"
@@ -3211,7 +3211,7 @@
                       "group": "__expr__",
                       "kind": "DataQuery",
                       "spec": {
-                        "expression": "SELECT region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-central'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-central'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM F LIMIT 20",
+                        "expression": "SELECT region,\n  CASE region\n    WHEN 'us-east'                 THEN 38.7509\n    WHEN 'us-west'                 THEN 45.5229\n    WHEN 'eu-west'              THEN 48.8566\n    WHEN 'ca-east'                 THEN 45.3168\n    WHEN 'ap-southeast'            THEN 1.3521\n    WHEN 'scw-fr-par-runners'      THEN 48.7871\n    WHEN 'hetzner-staging-runners' THEN 50.4779\n    ELSE NULL\n  END AS lat,\n  CASE region\n    WHEN 'us-east'                 THEN -77.6003\n    WHEN 'us-west'                 THEN -122.9898\n    WHEN 'eu-west'              THEN 2.3522\n    WHEN 'ca-east'                 THEN -73.8779\n    WHEN 'ap-southeast'            THEN 103.8198\n    WHEN 'scw-fr-par-runners'      THEN 2.3931\n    WHEN 'hetzner-staging-runners' THEN 12.3713\n    ELSE NULL\n  END AS lon\nFROM F LIMIT 20",
                         "type": "sql"
                       },
                       "version": "v0"
@@ -4035,7 +4035,7 @@
         "spec": {
           "id": 9001,
           "title": "Box NIC egress utilisation vs budget",
-          "description": "Per-box NIC transmit as a fraction of the box's advertised tuist.dev/egress-mbps budget (3 Gbit/s us, 1 Gbit/s eu-central/ca-east). The primary \"add a box / shard the region\" signal: sustained >85% means the NIC is the bottleneck. Populates once the CAPI provider advertises egress-mbps node capacity; until then use the raw-throughput panel.",
+          "description": "Per-box NIC transmit as a fraction of the box's advertised tuist.dev/egress-mbps budget (3 Gbit/s us, 1 Gbit/s eu-west/ca-east). The primary \"add a box / shard the region\" signal: sustained >85% means the NIC is the bottleneck. Populates once the CAPI provider advertises egress-mbps node capacity; until then use the raw-throughput panel.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4161,7 +4161,7 @@
         "spec": {
           "id": 9002,
           "title": "Box NIC egress throughput by node",
-          "description": "Raw per-box NIC transmit in bits/s (always available, unlike the utilisation panel which needs the egress-mbps capacity advertised). Threshold lines mark the ~1 Gbit/s (eu-central/ca-east) and ~3 Gbit/s (us-east/us-west) box budgets.",
+          "description": "Raw per-box NIC transmit in bits/s (always available, unlike the utilisation panel which needs the egress-mbps capacity advertised). Threshold lines mark the ~1 Gbit/s (eu-west/ca-east) and ~3 Gbit/s (us-east/us-west) box budgets.",
           "links": [],
           "data": {
             "kind": "QueryGroup",

@@ -83,6 +83,11 @@ spec:
           labelSelector:
             matchLabels:
               {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 14 }}
+      # Sized for a Tuist.Tests.Workers.ProcessXcresultWorker parse
+      # tail plus the ingestion buffers' final flush; see the values
+      # comment for the rationale. Ingestion buffers use
+      # `shutdown: :infinity` and rely on this as the outer wall.
+      terminationGracePeriodSeconds: {{ .Values.xcresultProcessor.terminationGracePeriodSeconds }}
       # No init containers, no sidecars — tart-kubelet maps Pod ↔
       # Tart VM 1:1 and rejects multi-container Pods at admission.
       # The first (and only) container's image is the Tart VM image;
@@ -231,11 +236,16 @@ spec:
                   fieldPath: metadata.name
             {{- end }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
-            # This processor writes the test tables, so it has to mirror them
-            # too. Without it the dual write covers only what the web pods
-            # insert, and every row parsed out of an xcresult reaches the
-            # system of record alone.
-            {{- include "tuist.clickhouseBareMetalEnv" . | nindent 12 }}
+            # This processor writes the test tables, so it needs the in-cluster
+            # server like every other writer: as the mirror destination while
+            # ClickHouse Cloud is the system of record, and as its ClickHouse
+            # once the in-cluster server is.
+            #
+            # The tailnet variant, because this is the one writer that is not
+            # on the pod network: it runs in a Tart VM with a tailnet address,
+            # so the in-cluster Service name every other writer uses does not
+            # resolve here.
+            {{- include "tuist.clickhouseManagedTailnetEnv" . | nindent 12 }}
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

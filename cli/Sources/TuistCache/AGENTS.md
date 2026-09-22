@@ -7,7 +7,11 @@ This module handles CLI integration with the cache service and cache features.
 - Define cache versioning and invalidation boundaries.
 - Support selective testing by identifying cached tests.
 
+## Generated client
+- `OpenAPI/cache.yml`, `Types.swift` and `Client.swift` are generated from Kura's HTTP API definition (`kura/openapi/cache.yml`) with `mise run generate-cli-client` from `kura/`. Change the definition there, not these files.
+
 ## Related Context
+- Kura: `kura/AGENTS.md`
 - Cache service: `cache/AGENTS.md`
 
 ## Invariants

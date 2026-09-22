@@ -78,17 +78,25 @@ defmodule TuistWeb.ModuleCacheLiveTest do
   end
 
   describe "subhashes_list/1" do
-    test "renders destinations in a deterministic sorted order regardless of input order" do
+    test "renders recorded hash destinations independently of declared destinations" do
       # Given
-      target_a = target_fixture(destinations: ["mac_with_ipad_design", "iphone", "ipad"])
-      target_b = target_fixture(destinations: ["ipad", "mac_with_ipad_design", "iphone"])
+      hashed_destinations = ["iPad", "iPhone", "macWithiPadDesign"]
+
+      target_a =
+        target_fixture(
+          destinations: ["mac", "mac_with_ipad_design", "iphone", "ipad"],
+          hashed_destinations: hashed_destinations
+        )
+
+      target_b = target_fixture(destinations: ["iphone"], hashed_destinations: hashed_destinations)
 
       # When
       html_a = render_component(&ModuleCacheTab.subhashes_list/1, target: target_a)
       html_b = render_component(&ModuleCacheTab.subhashes_list/1, target: target_b)
 
       # Then
-      assert html_a =~ "iPad, iPhone, Mac with iPad design"
+      assert html_a =~ "iPad, iPhone, macWithiPadDesign"
+      refute html_a =~ "iPad, iPhone, mac, macWithiPadDesign"
       assert html_a == html_b
     end
 

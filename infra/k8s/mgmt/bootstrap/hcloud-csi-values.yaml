@@ -94,6 +94,9 @@ node:
   # hcloud-csi-node landed on the new bare-metal boxes and
   # CrashLoopBackOff'd (hcloud Volumes can't attach off Hetzner).
   # A new kura region on an existing provider now needs no edit here.
+  # A new *provider* does: its `instance-type` value has to join the
+  # list below. Adding the Vultr fleet missed that, and
+  # hcloud-csi-node crash-looped on `sa-west` exactly as #11346 had.
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -119,7 +122,7 @@ node:
                   - clickhouse
               # Nodes the in-house CAPI provider brings up on
               # non-Hetzner infrastructure (OVHcloud, Dedibox,
-              # Scaleway) for the kura cache fleets. hcloud Volumes
+              # Scaleway, Vultr) for the kura cache fleets. hcloud Volumes
               # can't attach anywhere off Hetzner, so the driver only
               # crash-loops there; the server provisions those PVCs
               # from local NVMe instead. Keying on the provider label
@@ -133,6 +136,7 @@ node:
                   - ovh
                   - dedibox
                   - scaleway
+                  - vultr
               - key: kubernetes.io/os
                 operator: NotIn
                 values:

@@ -7,17 +7,37 @@ defmodule Tuist.Kura.PromExPlugin do
   reclaimed bytes, archive cancellations, refused provisions, and the accounts
   refused a service region before they reach any transition at all.
 
-  Two polled gauges cover what a transition cannot see:
+  Five polled gauges cover what a transition cannot see:
 
     * per-region occupancy — the forecast enforced warm quota against what is
       installed. This is the number that decides whether another machine is
       needed, and whether the Air pressure rule is active at all.
+    * per-region admission headroom: the gibibytes `Tuist.Kura.Admission` can
+      still place, as the minute-old reading placement acts on. Occupancy alone
+      cannot give it, because admission also counts rows the cluster has not
+      observed yet.
     * hit-rate recovery — the cache hit ratio of account-regions that returned
       from archive recently, against the same ratio for instances that did
       not. A cold return that never recovers its hit rate is the cost the
       inactivity windows are trading against.
+    * unroutable instances: instances that exist in a public region but are not
+      `:active`, so the CLI cannot be handed them. The account holds an
+      allocation and builds against the legacy cache lane, and nothing errors,
+      so there is no transition to hang this off and no failure to count.
+    * stalled instances: the subset of the above whose provisioning attempt has
+      run past `Tuist.Kura.provisioning_stall_seconds/0`. Unroutable counts
+      every instance still starting, so it is only readable as how long a count
+      persisted; this one is zero on a healthy fleet and non-zero only when
+      something is genuinely stuck, which is what makes it alertable on its
+      value.
 
-  Both are tagged by region only. Account never appears as a tag.
+  All four are tagged by region only. Account never appears as a tag.
+
+  These are polled per web pod, so every replica reports the same fleet-wide
+  count. Alert on whether the value is non-zero, never on how large it is: a
+  count that has had its `pod` label aggregated away by summing reads as the
+  true count multiplied by the replica count, so any absolute threshold tracks
+  how many web pods are running rather than how many instances are stuck.
   """
 
   use PromEx.Plugin
@@ -26,6 +46,7 @@ defmodule Tuist.Kura.PromExPlugin do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.Kura
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.Regions
@@ -34,6 +55,12 @@ defmodule Tuist.Kura.PromExPlugin do
 
   @metric_prefix [:tuist, :kura, :lifecycle]
   @poll_rate to_timeout(minute: 1)
+
+  # The percentile is taken over a day of deployments, and a day's percentile
+  # does not move within a minute. Polled slower so every server pod is not
+  # running that scan on the minute.
+  @readiness_poll_rate to_timeout(minute: 5)
+  @readiness_window_seconds 24 * 60 * 60
 
   # A cold return's time-to-ready spans a provision plus a rollout, so the
   # buckets run from a fast reschedule to well past a slow image pull.
@@ -76,8 +103,22 @@ defmodule Tuist.Kura.PromExPlugin do
           counter(
             @metric_prefix ++ [:drain_pending, :count],
             event_name: Telemetry.event_name_drain_pending(),
-            description: "Instances entering drain-pending, split by whether capacity pressure shortened the window.",
+            description: "Instances entering drain-pending, by the reason the drain started.",
             tags: [:plan, :region, :reason]
+          ),
+          counter(
+            @metric_prefix ++ [:claim_apply_refused, :count],
+            event_name: Telemetry.event_name_claim_apply_refused(),
+            description: "Storage-claim applies capacity admission refused, leaving the proposal open to be retried.",
+            tags: [:region, :reason]
+          ),
+          counter(
+            @metric_prefix ++ [:provision_refused, :count],
+            event_name: Telemetry.event_name_provision_refused(),
+            description:
+              "Provisions and cold returns capacity admission refused. The account keeps asking, " <>
+                "so a full region reads as a steady rate.",
+            tags: [:plan, :region, :reason, :cold_return]
           ),
           counter(
             @metric_prefix ++ [:archive_cancelled, :count],
@@ -88,15 +129,15 @@ defmodule Tuist.Kura.PromExPlugin do
           counter(
             @metric_prefix ++ [:archived, :count],
             event_name: Telemetry.event_name_archived(),
-            description: "Instances archived after a successful drain.",
-            tags: [:plan, :region]
+            description: "Instances archived after a successful drain, by the reason the drain started.",
+            tags: [:plan, :region, :reason]
           ),
           sum(
             @metric_prefix ++ [:reclaimed, :bytes],
             event_name: Telemetry.event_name_archived(),
             measurement: :reclaimed_bytes,
-            description: "Enforced warm quota reclaimed by archival.",
-            tags: [:plan, :region]
+            description: "Enforced warm quota reclaimed by archival, by the reason the drain started.",
+            tags: [:plan, :region, :reason]
           ),
           distribution(
             @metric_prefix ++ [:drain_duration, :milliseconds],
@@ -118,9 +159,8 @@ defmodule Tuist.Kura.PromExPlugin do
             event_name: Telemetry.event_name_seed_declined(),
             description:
               "Accounts not seeded an instance ahead of their first cache request, because the " <>
-                "region they resolve to is over its pressure line. They are still provisioned on " <>
-                "first use, so sustained counts measure how much of the head start the fleet " <>
-                "cannot currently afford.",
+                "region they resolve to is under capacity pressure or their last instance was " <>
+                "reclaimed for never storing anything. They are still provisioned on first use.",
             tags: [:plan, :region, :reason]
           ),
           counter(
@@ -131,6 +171,15 @@ defmodule Tuist.Kura.PromExPlugin do
                 "region is unserved or carries no budget for the plan. The procurement signal: " <>
                 "sustained counts on one wanted/served pair are the case for funding that region.",
             tags: [:origin, :wanted, :served]
+          ),
+          counter(
+            @metric_prefix ++ [:placement_capacity_spill, :count],
+            event_name: Telemetry.event_name_placement_capacity_spill(),
+            description:
+              "First placements that skipped the region nearest the traffic because it had no room " <>
+                "for the instance. The other procurement signal: sustained counts on one wanted region " <>
+                "are the case for another box there.",
+            tags: [:plan, :wanted, :served]
           ),
           counter(
             @metric_prefix ++ [:origin_attribution, :count],
@@ -178,6 +227,22 @@ defmodule Tuist.Kura.PromExPlugin do
         ]
       ),
       Polling.build(
+        :tuist_kura_admission_polling_metrics,
+        @poll_rate,
+        {__MODULE__, :execute_admission_headroom_telemetry_event, []},
+        [
+          last_value(
+            [:tuist, :kura, :capacity, :admission_headroom, :gibibytes],
+            event_name: [:tuist, :kura, :capacity, :admission],
+            measurement: :headroom_gib,
+            description:
+              "Disk capacity admission can still place in the region: the pressure line less the larger " <>
+                "of the observed and desired reservations. An instance whose reservation exceeds it is refused.",
+            tags: [:region]
+          )
+        ]
+      ),
+      Polling.build(
         :tuist_kura_recovery_polling_metrics,
         @poll_rate,
         {__MODULE__, :execute_hit_rate_recovery_telemetry_event, []},
@@ -194,6 +259,59 @@ defmodule Tuist.Kura.PromExPlugin do
             event_name: [:tuist, :kura, :lifecycle, :hit_rate_recovery],
             measurement: :steady_hit_rate,
             description: "Cache hit ratio of account-regions that did not recently return, for comparison.",
+            tags: [:region]
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_kura_new_instance_readiness_polling_metrics,
+        @readiness_poll_rate,
+        {__MODULE__, :execute_new_instance_readiness_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:new_instance_time_to_ready, :p90_seconds],
+            event_name: [:tuist, :kura, :lifecycle, :new_instance_readiness],
+            measurement: :p90_seconds,
+            description:
+              "90th percentile of how long the new instances that started serving in the last day " <>
+                "took, from the deployment that brought one up to its endpoint answering. First " <>
+                "provisions and cold returns only, so a fleet rollout does not move it.",
+            unit: :second
+          ),
+          last_value(
+            @metric_prefix ++ [:new_instances, :count],
+            event_name: [:tuist, :kura, :lifecycle, :new_instance_readiness],
+            measurement: :count,
+            description:
+              "New instances that started serving in the last day, which is how many samples the " <>
+                "percentile above is taken over."
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_kura_instance_routability_polling_metrics,
+        @poll_rate,
+        {__MODULE__, :execute_unroutable_instances_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:unroutable_instances, :count],
+            event_name: [:tuist, :kura, :lifecycle, :instance_routability],
+            measurement: :unroutable,
+            description:
+              "Instances in a public region that are not active, so the CLI resolves the legacy " <>
+                "cache lane instead of the instance the account is paying for. Provisioning passes " <>
+                "through here for a minute or two, so what matters is how long a count persists.",
+            tags: [:region]
+          ),
+          last_value(
+            @metric_prefix ++ [:stalled_instances, :count],
+            event_name: [:tuist, :kura, :lifecycle, :instance_routability],
+            measurement: :stalled,
+            description:
+              "Instances whose provisioning attempt has run past the stall threshold without a " <>
+                "routable endpoint. Unlike unroutable_instances this excludes instances that are " <>
+                "merely starting, so a healthy fleet reads zero and any non-zero value is an " <>
+                "account holding an allocation it cannot use.",
             tags: [:region]
           )
         ]
@@ -216,6 +334,70 @@ defmodule Tuist.Kura.PromExPlugin do
           allocatable_gib: occupancy.allocatable_gib || 0,
           instances: occupancy.instances
         },
+        %{region: region_id}
+      )
+    end)
+  end
+
+  @doc false
+  def execute_admission_headroom_telemetry_event do
+    Enum.each(lifecycle_regions(), fn %Regions{id: region_id} = region ->
+      case Capacity.admission_headroom_gib(region) do
+        :unbounded ->
+          :ok
+
+        # Admission refuses every instance in a region it cannot read, so an
+        # unreadable region has no headroom.
+        headroom ->
+          :telemetry.execute(
+            [:tuist, :kura, :capacity, :admission],
+            %{headroom_gib: headroom || 0},
+            %{region: region_id}
+          )
+      end
+    end)
+  end
+
+  @doc false
+  def execute_new_instance_readiness_telemetry_event do
+    case Kura.new_instance_readiness(@readiness_window_seconds) do
+      # No new instance in the window reports the count as zero and leaves the
+      # percentile alone: a fleet that provisioned nothing has no speed to
+      # report, and a zero there would read as instant.
+      #
+      # The count has to be emitted rather than skipped. A `last_value` is an
+      # ETS row the exporter reads with no TTL and no delete path, so a series
+      # that stops being emitted goes stale rather than absent; leaving both
+      # stale would let the alert keep evaluating the previous day's percentile
+      # against the previous day's sample gate, staying green through exactly
+      # the wedged-provisioning day it should notice. A zero count closes the
+      # gate instead, which is the No Data the rule is configured for.
+      %{count: 0} ->
+        :telemetry.execute([:tuist, :kura, :lifecycle, :new_instance_readiness], %{count: 0}, %{})
+
+      %{count: count, p90_seconds: p90_seconds} ->
+        :telemetry.execute(
+          [:tuist, :kura, :lifecycle, :new_instance_readiness],
+          %{count: count, p90_seconds: p90_seconds},
+          %{}
+        )
+    end
+  end
+
+  @doc false
+  def execute_unroutable_instances_telemetry_event do
+    region_ids = Enum.map(lifecycle_regions(), & &1.id)
+    counts = Kura.unroutable_instance_counts(region_ids)
+    stalled = Kura.stalled_instance_counts(region_ids)
+
+    # Emitted for every region, not only the ones with a count, so a region
+    # whose instances stop reaching `:active` is a series moving off zero
+    # rather than a series appearing. An alert on the latter has to decide what
+    # No Data means.
+    Enum.each(region_ids, fn region_id ->
+      :telemetry.execute(
+        [:tuist, :kura, :lifecycle, :instance_routability],
+        %{unroutable: Map.get(counts, region_id, 0), stalled: Map.get(stalled, region_id, 0)},
         %{region: region_id}
       )
     end)

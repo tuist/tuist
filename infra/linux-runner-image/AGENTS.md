@@ -27,6 +27,11 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   (`TUIST_RUNNER_JIT_PATH`) and `exec`s
   `./run.sh --jitconfig <jit> --disableupdate`, or exits 0 if no
   JIT was staged (410 drain / poller abort). Holds no SA token.
+  The job-start hook publishes the staged `TUIST_CACHE_ENDPOINT`
+  through `GITHUB_ENV`: Docker job steps receive GitHub's explicit
+  job environment, not the runner process's inherited environment.
+  Keep environment-file expansion at hook execution time, since
+  GitHub creates that file after `run-job.sh` starts.
 - `/usr/local/bin/vitals.sh` — periodic resource-vitals emitter.
   `run-job.sh` backgrounds it just before exec'ing the runner (the
   dispatch-poll rollout-bridge path does too), so it samples for the
@@ -181,7 +186,7 @@ release-pipeline digest rewrite, same shape as the macOS image.
 
 ## CI
 
-The release pipeline mirrors `release-runner-image` for macOS but
+The release pipeline mirrors the macOS runner image release but
 runs on a standard cloud Linux runner (no Tart / GUI session
 needed). Steady-state: `feat(linux-runner-image)` /
 `fix(linux-runner-image)` conventional commits on `main` trigger
@@ -201,6 +206,17 @@ flow).
 `metrics-sampler_test.sh` inside `ubuntu:22.04` — the image's own
 base, so the sampler's byte formatting is exercised against mawk
 rather than whichever awk the CI runner happens to ship.
+
+`run-job_test.sh` exercises the generated job-start hook, including
+late environment-file expansion and jobs without a cache endpoint.
+`.github/workflows/linux-runners-staging-smoke.yml` with `gradle_cache`
+enabled validates a deployed image with a real Docker job container. Select the runner
+profile, matching server URL, and an existing Gradle project authorized
+for the repository's OIDC token. It requires the injected endpoint to
+be reachable, then runs `gradle-cache-smoke.sh`: a unique task input
+must upload on the first build and hit remotely after deleting outputs,
+with local caching disabled. Run this against the candidate image
+before promoting it, then against the production runner profile.
 
 ## How it ends up serving traffic
 
@@ -224,3 +240,13 @@ For the customer-facing dispatch label, autoscaling, and capacity
 model see `server/lib/tuist/runners.ex` and
 `infra/helm/tuist/values.yaml` (`runnersFleetLinux.pools[]`) —
 this doc is only about the container image.
+
+## GitLab CI
+
+The poller stages `<jit>.gitlab.json` with one assigned job and its report token, then writes the JIT marker for sidecars. `run-job.sh` launches `/usr/local/bin/tuist-gitlab-runner`; the reusable GitLab runner token stays on the server. The same executor is built for macOS. See [executor context](gitlab-runner/AGENTS.md); validate it with `GOWORK=off go test ./...` from that directory.
+
+Remove Ubuntu's default `.bash_logout` from the runner home: its console
+clearing fails in GitLab's noninteractive login shell before checkout. The
+image build runs a login-shell smoke check as the runner user.
+
+- GitLab staging cleans partial credential files on failure and stages the optional cache endpoint before the job-start marker. `run-job.sh` exports that endpoint before choosing the provider. `gitlab-dispatch_test.sh` exercises the actual Linux/macOS staging branches with synthetic assignments and checks failure cleanup and endpoint inheritance.

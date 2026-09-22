@@ -29,6 +29,23 @@ class TuistBuildInsightsTest {
     private val gson = Gson()
 
     @Test
+    fun `recording origin includes early samples and never clips earlier operations`() {
+        val sample = MachineMetricSample(2.0, 10f, 100, 200, 0, 0, 0, 0)
+        assertEquals(2000L, recordingStartedAt(listOf("1970-01-01T00:00:03Z"), listOf(sample), 4000))
+        assertEquals(1000L, recordingStartedAt(listOf("1970-01-01T00:00:01Z"), listOf(sample), 4000))
+        assertEquals(4000L, recordingStartedAt(emptyList(), emptyList(), 4000))
+    }
+
+    @Test
+    fun `downsampling keeps the first and last machine samples`() {
+        val downsampled = downsample((0 until 3602).toList(), maxCount = 3600)
+
+        assertEquals(3600, downsampled.size)
+        assertEquals(0, downsampled.first())
+        assertEquals(3601, downsampled.last())
+    }
+
+    @Test
     fun `URL construction is correct`() {
         val baseUrl = "https://tuist.dev"
         val accountHandle = "my-org"
@@ -100,10 +117,12 @@ class TuistBuildInsightsTest {
                 tags = listOf("nightly"),
                 values = mapOf("team" to "android")
             ),
+            startedAt = "2026-09-09T10:00:00.123Z",
             configurationCache = ConfigurationCacheReport(status = "reused")
         )
 
         val json = gson.toJson(report)
+        assertTrue(json.contains("\"started_at\":\"2026-09-09T10:00:00.123Z\""))
         assertTrue(json.contains("\"duration_ms\""))
         assertTrue(json.contains("\"gradle_version\""))
         assertTrue(json.contains("\"java_version\""))

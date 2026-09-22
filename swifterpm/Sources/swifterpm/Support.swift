@@ -390,10 +390,13 @@ enum HTTPAuthorization {
         // ranks its environment token above netrc, but we keep netrc first here
         // because GITHUB_TOKEN in CI is often repo-scoped and not valid for the
         // host a netrc entry deliberately targets.
+        let netrc = Environment.netrc
         if let header = await prioritizedHeader(
             isGitHub: isGitHub(url),
-            netrcCredential: Environment.netrc.credential(for: url),
-            keychain: { await KeychainAuthorization.credential(for: url) },
+            netrcCredential: netrc.credential(for: url),
+            keychain: {
+                netrc.keychainDisabled ? nil : await KeychainAuthorization.credential(for: url)
+            },
             gitHubEnvToken: GitHubAuth.envToken(from: environment)
         ) {
             return header
@@ -460,9 +463,6 @@ enum Hashing {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    static func shortRevision(_ revision: String) -> String {
-        String(revision.prefix(12))
-    }
 }
 
 private let defaultParallelism = max(4, min(32, ProcessInfo.processInfo.activeProcessorCount * 4))

@@ -642,13 +642,23 @@ enum WorkspaceRestorer {
             else { return }
 
             let destination = try cache.sourcePath(pin: pin)
-            if try await cachedSourceIsUsable(destination) {
+            let expectedRevision = try pin.revision()
+            // The cache already holds this revision, so hand the workspace the cached copy
+            // instead of leaving SwiftPM's checkout behind. Returning early here left a real
+            // directory in a scratch directory whose other pins are symlinks.
+            if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
+                try await fileSystem.replaceWithCachedDirectory(
+                    source: destination, destination: checkout
+                )
                 return
             }
 
             let lock = try await cache.lock(namespace: "sources", key: destination.path)
             _ = lock
-            if try await cachedSourceIsUsable(destination) {
+            if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
+                try await fileSystem.replaceWithCachedDirectory(
+                    source: destination, destination: checkout
+                )
                 return
             }
 
@@ -656,6 +666,7 @@ enum WorkspaceRestorer {
                 try await fileSystem.remove(destination.absolutePath)
             }
 
+            try await writeSourceRevisionMarker(directory: checkout, revision: expectedRevision)
             try await fileSystem.move(from: checkout.absolutePath, to: destination.absolutePath)
             do {
                 try await fileSystem.replaceWithCachedDirectory(
@@ -700,13 +711,14 @@ enum WorkspaceRestorer {
 
     static func ensureSource(cache: Cache, pin: ResolvedPin) async throws -> URL {
         let destination = try cache.sourcePath(pin: pin)
-        if try await cachedSourceIsUsable(destination) {
+        let expectedRevision = try pin.revision()
+        if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
             return destination
         }
 
         let lock = try await cache.lock(namespace: "sources", key: destination.path)
         _ = lock
-        if try await cachedSourceIsUsable(destination) {
+        if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
             return destination
         }
         if try await fileSystem.exists(destination.absolutePath) {
@@ -724,10 +736,12 @@ enum WorkspaceRestorer {
                 try await shallowFetchCheckout(pin: pin, destination: temp)
             }
 
+            try await writeSourceRevisionMarker(directory: temp, revision: expectedRevision)
+
             do {
                 try await fileSystem.move(from: temp.absolutePath, to: destination.absolutePath, options: [])
             } catch {
-                if try await cachedSourceIsUsable(destination) {
+                if try await cachedSourceIsUsable(destination, expectedRevision: expectedRevision) {
                     try? await fileSystem.remove(temp.absolutePath)
                     return destination
                 }
@@ -740,6 +754,14 @@ enum WorkspaceRestorer {
         return destination
     }
 
+    static let sourceRevisionMarkerFilename = ".swifterpm-source-sha"
+
+    private static func writeSourceRevisionMarker(directory: URL, revision: String) async throws {
+        try await fileSystem.atomicWrite(
+            revision, to: directory.appendingPathComponent(sourceRevisionMarkerFilename)
+        )
+    }
+
     private static func cachedSourceIsUsable(_ source: URL) async throws -> Bool {
         guard try await fileSystem.exists(
             source.appendingPathComponent("Package.swift").absolutePath
@@ -747,6 +769,24 @@ enum WorkspaceRestorer {
             return false
         }
         return try await submodulesAreMaterialized(in: source)
+    }
+
+    // Verifies the checkout in `source` was written for `expectedRevision` by reading the
+    // `.swifterpm-source-sha` marker left behind at write time. A missing or mismatched marker
+    // treats the entry as a miss so the next resolve refetches instead of trusting a stale
+    // Package.swift. See `ensureSource` and `cacheNativeSourceCheckouts` for the writers.
+    private static func cachedSourceIsUsable(_ source: URL, expectedRevision: String) async throws -> Bool {
+        guard try await cachedSourceIsUsable(source) else {
+            return false
+        }
+        let markerPath = source.appendingPathComponent(sourceRevisionMarkerFilename)
+        guard try await fileSystem.exists(markerPath.absolutePath) else {
+            return false
+        }
+        let markerData = try await fileSystem.readFile(at: markerPath.absolutePath)
+        let recorded = String(decoding: markerData, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return recorded == expectedRevision
     }
 
     private static func submodulesAreMaterialized(in source: URL) async throws -> Bool {
@@ -775,17 +815,15 @@ enum WorkspaceRestorer {
         let destination = cache.registrySourcePath(
             identity: pin.identity,
             version: version,
-            registryURL: archive.registryURL.absoluteString,
-            checksum: archive.checksum
+            registryURL: archive.registryURL.absoluteString
         )
-        let manifest = destination.appendingPathComponent("Package.swift")
-        if try await fileSystem.exists(manifest.absolutePath) {
+        if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
             return destination
         }
 
         let lock = try await cache.lock(namespace: "sources", key: destination.path)
         _ = lock
-        if try await fileSystem.exists(manifest.absolutePath) {
+        if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
             return destination
         }
         if try await fileSystem.exists(destination.absolutePath) {
@@ -806,15 +844,144 @@ enum WorkspaceRestorer {
                 destination: temp
             )
 
+            try await writeRegistryChecksumMarker(directory: temp, checksum: archive.checksum)
             try await fileSystem.move(from: temp.absolutePath, to: destination.absolutePath, options: [])
         } catch {
             try? await fileSystem.remove(temp.absolutePath)
-            if try await fileSystem.exists(manifest.absolutePath) {
+            if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
                 return destination
             }
             throw error
         }
         return destination
+    }
+
+    /// Makes registry downloads created by native SwiftPM available to future SwifterPM
+    /// installations, the way `cacheNativeSourceCheckouts` does for source-control checkouts.
+    /// Without this a registry pin never reaches the cache, so `shouldUseNativeColdPath` would
+    /// keep delegating to native SwiftPM on every later installation.
+    ///
+    /// Seeding is best effort: the marker records the checksum the registry declares for the
+    /// release, which costs one metadata request per pin on an installation that has just
+    /// resolved against that same registry. A pin whose checksum cannot be read is left alone
+    /// rather than cached without one, so a later installation refetches instead of trusting
+    /// an unidentified payload.
+    static func cacheNativeRegistryDownloads(
+        scratchDir: URL,
+        cache: Cache,
+        registryConfig: RegistryConfig,
+        resolved: ResolvedPins
+    ) async throws {
+        let downloads = scratchDir.appendingPathComponent("registry/downloads")
+        try await ConcurrentTasks.forEach(resolved.pins.filter { PinKind.isRegistry($0.kind) }) { pin in
+            let download = try downloads.appendingPathComponent(
+                PinKind.registryDownloadSubpath(pin)
+            )
+            guard fileSystem.isDirectoryAndNotSymlink(download),
+                  try await fileSystem.exists(
+                      download.appendingPathComponent("Package.swift").absolutePath
+                  )
+            else { return }
+
+            let version = try pin.versionString()
+            guard let archive = try? await RegistryClient.sourceArchive(
+                registryConfig: registryConfig,
+                identity: pin.identity,
+                version: version
+            ) else { return }
+
+            let destination = cache.registrySourcePath(
+                identity: pin.identity,
+                version: version,
+                registryURL: archive.registryURL.absoluteString
+            )
+            if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: destination, destination: download
+                )
+                return
+            }
+
+            let lock = try await cache.lock(namespace: "sources", key: destination.path)
+            _ = lock
+            if try await cachedRegistrySourceIsUsable(destination, expectedChecksum: archive.checksum) {
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: destination, destination: download
+                )
+                return
+            }
+
+            if try await fileSystem.exists(destination.absolutePath) {
+                try await fileSystem.remove(destination.absolutePath)
+            }
+
+            try await writeRegistryChecksumMarker(directory: download, checksum: archive.checksum)
+            try await fileSystem.move(from: download.absolutePath, to: destination.absolutePath)
+            do {
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: destination, destination: download
+                )
+            } catch {
+                try? await fileSystem.remove(download.absolutePath)
+                try? await fileSystem.move(from: destination.absolutePath, to: download.absolutePath)
+                throw error
+            }
+        }
+    }
+
+    static let registryChecksumMarkerFilename = ".swifterpm-registry-checksum"
+
+    private static func writeRegistryChecksumMarker(directory: URL, checksum: String) async throws {
+        try await fileSystem.atomicWrite(
+            checksum, to: directory.appendingPathComponent(registryChecksumMarkerFilename)
+        )
+    }
+
+    /// Verifies the download in `source` was written for `expectedChecksum` by reading the
+    /// `.swifterpm-registry-checksum` marker left behind at write time. The marker replaces the
+    /// checksum the cache path used to carry, so the path stays probeable offline while a
+    /// republished release still reads as a miss. See `ensureRegistrySource` and
+    /// `cacheNativeRegistryDownloads` for the writers.
+    static func cachedRegistrySourceIsUsable(
+        _ source: URL,
+        expectedChecksum: String
+    ) async throws -> Bool {
+        guard try await fileSystem.exists(
+            source.appendingPathComponent("Package.swift").absolutePath
+        ) else {
+            return false
+        }
+        let markerPath = source.appendingPathComponent(registryChecksumMarkerFilename)
+        guard try await fileSystem.exists(markerPath.absolutePath) else {
+            return false
+        }
+        let markerData = try await fileSystem.readFile(at: markerPath.absolutePath)
+        let recorded = String(decoding: markerData, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return recorded.caseInsensitiveCompare(expectedChecksum) == .orderedSame
+    }
+
+    /// True when the cache holds a registry release for `pin`, judged without contacting the
+    /// registry. `shouldUseNativeColdPath` uses this to decide whether the restoration path can
+    /// serve the pin; the checksum is verified later, by `ensureRegistrySource`.
+    static func cachedRegistrySourceExists(
+        cacheRoot: URL,
+        registryConfig: RegistryConfig,
+        pin: ResolvedPin
+    ) async throws -> Bool {
+        let version = try pin.versionString()
+        guard let registryURL = try? registryConfig.registryURL(for: pin.identity) else {
+            return false
+        }
+        let destination = Cache.registrySourcePath(
+            root: cacheRoot,
+            identity: pin.identity,
+            version: version,
+            registryURL: registryURL.absoluteString
+        )
+        return try await fileSystem.exists(
+            destination.appendingPathComponent(registryChecksumMarkerFilename).absolutePath
+        )
     }
 
     private static func downloadSourceArchive(cache: Cache, pin: ResolvedPin, destination: URL)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"go/ast"
 	"go/parser"
@@ -107,56 +109,73 @@ func TestInstallTailscale_GuardsCredentialBeforeClient(t *testing.T) {
 
 // The fleet credential is an OAuth client secret, which `tailscale up` turns
 // into a freshly minted key. Two properties have to ride along, because the
-// implicit key defaults to preauthorized=false and the fleet needs ephemeral
-// registrations. This runs the classification the renderer emits, rather than
-// matching on its text, so a rewrite that keeps the shape but breaks the
-// behaviour still fails.
+// implicit key defaults to ephemeral=true and preauthorized=false. This runs
+// the classification the renderer emits, rather than matching on its text, so
+// a rewrite that keeps the shape but breaks the behaviour still fails.
 func TestRenderTailscaleScript_AnnotatesOAuthCredential(t *testing.T) {
 	bash, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("bash not available")
 	}
 
-	script := renderTailscaleScript(Config{TailscaleTags: []string{"tag:tuist-macmini-production"}})
-
-	// The minted key's properties only reach Tailscale if `up` reads the
-	// annotated variable. An edit that inlines the credential back into the
-	// flag would silently drop them.
-	if !strings.Contains(script, `--authkey="$TS_AUTH_KEY"`) {
-		t.Fatal("tailscale up must read the annotated $TS_AUTH_KEY, not the raw credential")
-	}
-
-	const marker = `case "$TS_AUTH_KEY" in`
-	start := strings.Index(script, marker)
-	if start < 0 {
-		t.Fatal("rendered script has no credential classification block")
-	}
-	end := strings.Index(script[start:], "esac")
-	if end < 0 {
-		t.Fatal("credential classification block is unterminated")
-	}
-	classify := script[start : start+end+len("esac")]
-
 	for _, tc := range []struct {
 		name       string
+		cfg        Config
 		credential string
 		want       string
 	}{
 		{
-			name:       "oauth client secret",
+			// A rented mini is wiped on release, so its record should go
+			// with it.
+			name:       "rented mini",
+			cfg:        Config{TailscaleTags: []string{"tag:tuist-macmini-production"}},
 			credential: "tskey-client-abc123",
 			want:       "tskey-client-abc123?ephemeral=true&preauthorized=true",
+		},
+		{
+			// A rack mini that sits powered off for an hour would lose its
+			// device, and with it the only path that does not go through
+			// the rack's subnet router. Omitting the parameter is not
+			// enough: the minted key defaults to ephemeral.
+			name: "rack mini",
+			cfg: Config{
+				TailscaleTags:             []string{"tag:tuist-macmini-staging"},
+				TailscalePersistentDevice: true,
+			},
+			credential: "tskey-client-abc123",
+			want:       "tskey-client-abc123?ephemeral=false&preauthorized=true",
 		},
 		{
 			// Bootstrap has to keep succeeding against the legacy
 			// credential while envs migrate; a pre-auth key takes no
 			// query parameters and appending them would corrupt it.
 			name:       "legacy pre-auth key",
+			cfg:        Config{TailscalePersistentDevice: true},
 			credential: "tskey-auth-abc123",
 			want:       "tskey-auth-abc123",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			script := renderTailscaleScript(tc.cfg)
+
+			// The minted key's properties only reach Tailscale if `up`
+			// reads the annotated variable. An edit that inlines the
+			// credential back into the flag would silently drop them.
+			if !strings.Contains(script, `--authkey="$TS_AUTH_KEY"`) {
+				t.Fatal("tailscale up must read the annotated $TS_AUTH_KEY, not the raw credential")
+			}
+
+			const marker = `case "$TS_AUTH_KEY" in`
+			start := strings.Index(script, marker)
+			if start < 0 {
+				t.Fatal("rendered script has no credential classification block")
+			}
+			end := strings.Index(script[start:], "esac")
+			if end < 0 {
+				t.Fatal("credential classification block is unterminated")
+			}
+			classify := script[start : start+end+len("esac")]
+
 			out, err := exec.Command(bash, "-c",
 				"TS_AUTH_KEY=\"$1\"\n"+classify+"\nprintf '%s' \"$TS_AUTH_KEY\"",
 				"bash", tc.credential).Output()
@@ -167,6 +186,18 @@ func TestRenderTailscaleScript_AnnotatesOAuthCredential(t *testing.T) {
 				t.Errorf("annotated credential = %q, want %q", out, tc.want)
 			}
 		})
+	}
+}
+
+// Whether a host joins as a standard device is rendered into the Tailscale
+// script, so it has to move the hash: otherwise a rack host bootstrapped
+// before the change would be stamped converged and keep joining ephemeral.
+func TestHostConfigHash_ChangesWithTailscalePersistentDevice(t *testing.T) {
+	base := Config{TailscaleTags: []string{"tag:tuist-macmini-staging"}}
+	persistent := base
+	persistent.TailscalePersistentDevice = true
+	if HostConfigHash(base) == HostConfigHash(persistent) {
+		t.Fatal("HostConfigHash must change when TailscalePersistentDevice changes")
 	}
 }
 
@@ -452,6 +483,7 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	// Per-host fields must not move the canonical hash, or every host in
 	// a fleet would falsely drift.
 	perHost.NodeName = "macmini-7"
+	perHost.SSHUser = "m1"
 	perHost.IP = "51.15.1.2"
 	perHost.Kubeconfig = "kubeconfig-yaml"
 	perHost.ProviderID = "scw-applesilicon://fr-par-1/abc"
@@ -673,6 +705,24 @@ func TestRenderSSHIngressGuardScript_RejectsBadCIDR(t *testing.T) {
 		if _, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{bad}}); err == nil {
 			t.Errorf("renderSSHIngressGuardScript accepted %q; must fail closed", bad)
 		}
+	}
+}
+
+// A rack host's allow list is the fleet's plus the host's subnet routers, and
+// the router entry is the one that matters: with SNAT the operator's LAN dial
+// arrives from the router's own address, which is neither the tailnet nor the
+// operator's egress. The session source cannot stand in for it, because a push
+// over the tailnet fallback replaces it with a tailnet address.
+func TestRenderSSHIngressGuardScript_AdmitsEveryConfiguredSource(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{
+		SSHIngressAllowCIDRs: []string{"78.47.186.71/32", "192.168.0.223/32"},
+	})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	want := "table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}, 78.47.186.71/32, 192.168.0.223/32 }"
+	if !strings.Contains(s, want) {
+		t.Fatalf("allow table does not carry every configured source; want %q in\n%s", want, s)
 	}
 }
 
@@ -1128,6 +1178,8 @@ var hashPartInstaller = map[string]string{
 	"node-exporter":           "installNodeExporter",
 	"tailnet-resolver":        "installTailnetResolver",
 	"local-network-allowlist": "installLocalNetworkAllowlist",
+	"software-update-policy":  "installSoftwareUpdatePolicy",
+	"setup-assistant":         "installSetupAssistantSuppression",
 	"log-shipper":             "installLogShipper",
 	"tart-kubelet-install":    "installTartKubelet",
 	"ssh-reachability":        "installSSHReachability",
@@ -1310,6 +1362,57 @@ func TestHostConfigHash_ChangesWithGuestSizedFields(t *testing.T) {
 		mutate(&changed)
 		if HostConfigHash(base) == HostConfigHash(changed) {
 			t.Errorf("HostConfigHash must change when %s does", name)
+		}
+	}
+}
+
+// The auto-login step checks whether macOS replaced /etc/kcpassword with its
+// "<sealed>" marker, which is how a wrong password surfaces: bootstrap would
+// otherwise complete while every later boot fails to raise an Aqua session, so
+// Tart can start no guests at all.
+//
+// The check compares the file's first 8 bytes against a hardcoded hex string
+// rather than decoding them, because decoding needed /usr/bin/python3 and that
+// is a Command Line Tools shim: on a host without Xcode it fails with
+// "xcode-select: error: No developer tools were found" and takes the whole
+// bootstrap with it. That is what stopped the BER1 prototype on 2026-09-09.
+//
+// Hardcoding is only safe if the constant really is the encoding of the marker,
+// so derive it here from the same encoder the writer uses instead of restating
+// my own arithmetic.
+func TestSealedMarkerSignatureMatchesTheEncoder(t *testing.T) {
+	encoded, err := base64.StdEncoding.DecodeString(encodeKCPassword("<sealed>"))
+	if err != nil {
+		t.Fatalf("decode encodeKCPassword output: %v", err)
+	}
+	if len(encoded) < 8 {
+		t.Fatalf("encoded marker is %d bytes, want at least 8", len(encoded))
+	}
+	want := hex.EncodeToString(encoded[:8])
+
+	script := autoLoginScript("tuist", "hunter2")
+	if !strings.Contains(script, want) {
+		t.Fatalf("auto-login script does not test for the sealed signature %q; a sealed kcpassword would pass unnoticed and the host would never raise an Aqua session", want)
+	}
+}
+
+// The whole point of the change: nothing in the auto-login step may depend on
+// Xcode Command Line Tools, because a rack host provisioned by MDM has none.
+func TestAutoLoginScriptNeedsNoDeveloperTools(t *testing.T) {
+	// Comment lines are stripped first: the script explains in prose why it
+	// stopped using python3, and matching that text would fail the test for
+	// documenting the very bug it guards against.
+	var executable []string
+	for _, line := range strings.Split(autoLoginScript("tuist", "hunter2"), "\n") {
+		if trimmed := strings.TrimSpace(line); !strings.HasPrefix(trimmed, "#") {
+			executable = append(executable, line)
+		}
+	}
+	script := strings.Join(executable, "\n")
+
+	for _, forbidden := range []string{"python3", "xcrun", "xcode-select"} {
+		if strings.Contains(script, forbidden) {
+			t.Errorf("auto-login script runs %q, which needs Xcode Command Line Tools that a rack host does not have", forbidden)
 		}
 	}
 }

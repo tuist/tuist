@@ -31,7 +31,7 @@ That is the substantive change. The old fleet had its own operating system, its 
 
 | Region | Provider | Location |
 | --- | --- | --- |
-| `eu-central` | Scaleway Dedibox | Europe, central |
+| `eu-west` | Scaleway Dedibox | Paris |
 | `us-east` | OVHcloud | Vint Hill, Virginia |
 | `us-west` | OVHcloud | Hillsboro, Oregon |
 | `scw-fr-par-runners` | Scaleway Elastic Metal | Paris |
@@ -67,7 +67,7 @@ The values themselves live in `server/lib/tuist/kura/regions.ex`, which is where
 
 The controllers never order hardware. A box is ordered by hand, prepared, and then adopted.
 
-1. **Order the box** in the provider console. OVHcloud for the US regions, Dedibox for `eu-central`.
+1. **Order the box** in the provider console. OVHcloud for the US regions, Dedibox for `eu-west`.
 
 2. **Prepare it.** One task installs Ubuntu, the fleet's secure shell key, and the sudo password, then sets the adoption marker as its final step:
 

@@ -151,6 +151,88 @@ k8s-monitoring:
           regex = "tuist-(staging|canary|pentest);.+_bucket"
           action = "drop"
         }
+        // Non-production keeps only what validates a deploy. Everything below
+        // the `keep` list is dropped for staging, canary and pentest, which
+        // together were 39% of all billed series while nothing pages on them.
+        //
+        // The keep list is not a judgement call: it is every metric read by an
+        // alert rule that does NOT pin `cluster="tuist-production"`, so no
+        // alert changes scope silently. Recover it with
+        //   GET /api/v1/provisioning/alert-rules
+        //   jq '[.[] | {e: ([.data[]?|.model.expr? // empty]|join(" "))}
+        //        | select(.e|test("tuist-production")|not) | .e]'
+        // and re-derive this regex if the alert set changes. `up` and
+        // `scrape_*` are outside the dropped prefixes, so the
+        // "Kura - cache telemetry missing" alert keeps its staging and canary
+        // arms.
+        //
+        // Two alerts DO change scope, deliberately: the Phoenix route-latency
+        // pair carries no cluster matcher, so staging and canary traffic has
+        // been folding into what reads as a production SLO. They become
+        // production-only.
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|tuist_repo_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
+        // The PN VLAN alert compares node_load1 against VLAN transmit metrics.
+        // Keeping only its liveness anchor makes healthy non-production Macs
+        // appear to have no VLAN. Retain one series per VLAN, not every NIC.
+        write_relabel_config {
+          source_labels = ["job", "__name__", "device"]
+          separator = ";"
+          regex = "tuist-macos-node-exporter;node_network_transmit_bytes_total;vlan.*"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
+        // `hubble_*` is in the dropped set because its `source` label is a bare
+        // remote address for external traffic, so its cardinality is unbounded.
+        // The mis-sourced-host runbook in alerts.md that justifies keeping it
+        // is production-only.
+        write_relabel_config {
+          source_labels = ["cluster", "__tmp_nonprod_keep", "__name__"]
+          separator = ";"
+          regex = "tuist-(staging|canary|pentest);;(kube_.*|kura_.*|tuist_.*|container_.*|node_.*|hubble_.*)"
+          action = "drop"
+        }
+        write_relabel_config {
+          regex = "__tmp_nonprod_keep"
+          action = "labeldrop"
+        }
+        // Kura histograms whose buckets no dashboard or alert reads. Their
+        // cardinality is pod count x `le`, so it grows with every account
+        // admitted to a region. `_count` and `_sum` survive, and a pod's full
+        // distribution is readable on demand from
+        // /api/ops/kura/pods/:pod/metrics.
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "kura_(analytics_batch_duration_seconds|artifact_egress_duration_seconds|artifact_egress_throughput_bytes_per_second|artifact_write_size_bytes|auth_backend_request_duration_seconds|auth_decision_duration_seconds|file_descriptor_wait_seconds|file_operation_duration_seconds|internal_backfill_http_request_duration_seconds|manifest_index_rebuild_duration_seconds|response_stream_wait_duration_seconds|segment_refresh_duration_seconds)_bucket"
+          action = "drop"
+        }
+        // Kura runs one StatefulSet pod per cache node. Its public latency
+        // histograms below therefore multiply every node by 17 classic
+        // buckets, even though the dashboards only need an approximate
+        // percentile and the count/sum series for rates and mean latency.
+        // Keep every other bucket so histogram_quantile remains useful, but
+        // remove alternating buckets. This takes the request families from
+        // 17 to 10 buckets (and the multipart family from 15 to 8) without
+        // changing labels or making duplicate remote-write series.
+        //
+        // kura_replication_request_duration_seconds keeps every bucket. Since
+        // pull replication it only times catch-up passes (backfill_entries,
+        // backfill_bodies, backfill_artifact), labelled by operation alone, so
+        // it is cheap, and it is the only latency signal when a node is
+        // bootstrapping or rejoining. Thinned buckets overstated its p99 by
+        // 50-75%.
+        write_relabel_config {
+          source_labels = ["cluster", "__name__", "le"]
+          separator = ";"
+          regex = "tuist-production;kura_(http_request_duration_seconds|public_request_latency_seconds|multipart_upload_admission_duration_seconds)_bucket;(0.002|0.008|0.032|0.128|0.512|2.048|8.192)"
+          action = "drop"
+        }
 
     grafana-cloud-logs:
       type: loki
@@ -190,6 +272,10 @@ k8s-monitoring:
         # Keep all failed and slow traces, then retain a representative sample
         # of healthy traffic. Sampling after the trace completes preserves the
         # diagnostic traces that head-based sampling could discard.
+        #
+        # Policies are OR'ed, so exclusions live inside `and` policies: a
+        # string_attribute sub-policy with invert_match fails the `and` when
+        # any span in the trace carries one of the listed routes.
         tailSampling:
           enabled: true
           decisionWait: 15s
@@ -197,17 +283,64 @@ k8s-monitoring:
           decisionCache: null
           numTraces: 5000
           expectedNewTracesPerSec: 100
+          # The upstream default (4MB) is smaller than the ingress Alloy's HTTP
+          # body cap (20MiB), so the loadbalancing exporter re-emits Kura's
+          # accepted trace batches to this sampler and they are rejected here
+          # as ResourceExhausted, dropping every batch. Match the ingress cap
+          # so the internal Alloy-to-Alloy hop stops throwing away work the
+          # front door already admitted.
+          receiver:
+            otlp:
+              grpc:
+                maxReceivedMessageSize: 20MB
           policies:
             - name: errors
               type: status_code
               status_codes:
                 - ERROR
+            # Kura's pull replication holds peer reads open by design:
+            # /_internal/sync/forward and the region listing on
+            # /_internal/backfill/entries wait up to KURA_SYNC_LONG_POLL_SECS
+            # (25s) for new rows. Nearly every one of those traces crosses 2s,
+            # so a plain latency policy retained all of them and they were
+            # most of Kura's stored traces. They still fall through to the
+            # errors policy and the healthy sample below.
             - name: slow
-              type: latency
-              threshold_ms: 2000
+              type: and
+              and:
+                and_sub_policy:
+                  - name: slower-than-2s
+                    type: latency
+                    threshold_ms: 2000
+                  - name: not-a-long-poll
+                    type: string_attribute
+                    key: http.route
+                    values:
+                      - ^/_internal/sync/forward$
+                      - ^/_internal/backfill/entries$
+                    enabled_regex_matching: true
+                    invert_match: true
+            # Errors and traces slower than 2s are retained above. Keep a
+            # smaller representative sample for healthy traffic to contain
+            # trace ingestion and downstream service-graph cost. Healthy probe
+            # traces (kubelet /up and /ready, metrics scrapes, rollout polls
+            # and the peer /_internal/status health check) carry no diagnostic
+            # value, so they are only kept when they fail or run slow.
             - name: healthy-sample
-              type: probabilistic
-              sampling_percentage: 25
+              type: and
+              and:
+                and_sub_policy:
+                  - name: sample-5-percent
+                    type: probabilistic
+                    sampling_percentage: 5
+                  - name: not-a-probe
+                    type: string_attribute
+                    key: http.route
+                    values:
+                      - ^/(up|ready|metrics|status/rollout)$
+                      - ^/_internal/status$
+                    enabled_regex_matching: true
+                    invert_match: true
           collector:
             alloy:
               resources:
@@ -240,12 +373,12 @@ k8s-monitoring:
   #   - kubelet: 24 `kubelet_*` metrics ingested, all in the default list;
   #     the one risky drop (`kubelet_runtime_operations_duration_seconds_bucket`)
   #     isn't ingested on this stack.
-  #   - kube-state-metrics: 96 `kube_*` metrics ingested; none of the explicit
-  #     high-churn omissions (`kube_lease_*`, `kube_endpointslice_*`,
-  #     `kube_mutatingwebhookconfiguration_*`,
-  #     `kube_configmap_metadata_resource_version`,
-  #     `kube_secret_metadata_resource_version`) are referenced by any
-  #     dashboard, alert, or recording rule.
+  #   - kube-state-metrics: 96 `kube_*` metrics ingested. `kube_lease_*`,
+  #     `kube_endpointslice_*` and `kube_mutatingwebhookconfiguration_*` are
+  #     absent as expected, but the default allow list does keep both
+  #     `*_metadata_resource_version` gauges, so they are excluded explicitly
+  #     below. None of them are referenced by any dashboard, alert, or
+  #     recording rule.
   #
   # `includeMetrics` therefore stays empty for all three. If a future
   # dashboard needs a dropped metric, add it under
@@ -384,6 +517,12 @@ k8s-monitoring:
           - kube_replicaset_metadata_generation
           - kube_replicaset_status_observed_generation
           - kube_replicaset_status_fully_labeled_replicas
+          # resourceVersion is an opaque, monotonically increasing integer
+          # that carries no monitoring signal: there is nothing to chart and
+          # nothing to alert on. The pair costs 2,999 series, 2,740 of them
+          # Secrets, and 1,836 of those on canary alone.
+          - kube_secret_metadata_resource_version
+          - kube_configmap_metadata_resource_version
 
   # Streams Kubernetes Events to Loki as structured logs. Cheap and
   # extremely useful for post-mortem ("what got evicted, when, why").
@@ -541,7 +680,10 @@ k8s-monitoring:
         selector = "{service_name=~\"kura-.*-ingress-nginx\", tmp_response_status=~\"2[0-9]{2}|404\"}"
 
         stage.sampling {
-          rate = 0.1
+          // Kura request volume is high and routine 2xx/404 lines are not
+          // useful at the current 10% rate. Keep every error and sample one
+          // percent of normal traffic for capacity and adoption analysis.
+          rate = 0.01
           drop_counter_reason = "kura_ingress_request_sampling"
         }
       }
@@ -650,6 +792,17 @@ k8s-monitoring:
       metricsPortNumber: "prometheus.io/port"
       metricsPath: "prometheus.io/path"
       metricsScheme: "prometheus.io/scheme"
+    # Kura pods export a large per-node metric surface, so they scrape every
+    # 65 seconds instead of the global 60. Set here rather than as a pod
+    # annotation so changing it never restarts the Kura fleet. These rules run
+    # after the chart's own __scrape_interval__ default, so they override it.
+    extraDiscoveryRules: |
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+        regex = "kura"
+        target_label = "__scrape_interval__"
+        replacement = "65s"
+      }
     metricsTuning:
       excludeMetrics:
         # Cilium's event timestamps, BPF map gauges, and agent-internal
@@ -658,9 +811,16 @@ k8s-monitoring:
         # pod/map/endpoint fan-out and are not queried by any dashboard or
         # alert in this repo. Re-add a specific name here if a Cilium
         # integration dashboard is ever installed.
+        #
+        # cilium_bpf_map_pressure is deliberately NOT excluded. A full policy
+        # map surfaces as `Policy denied` drops, indistinguishable from a real
+        # NetworkPolicy denial (see alerts.md, "Kura cache rejecting runner
+        # traffic"), so it has to be ruled out from metrics. Its fan-out is
+        # small: one series per agent per global map, and per-endpoint policy
+        # maps collapse into a single `cilium_policy_v2*` max that Cilium only
+        # emits above 10% fill.
         - cilium_event_ts
         - cilium_bpf_map_capacity
-        - cilium_bpf_map_pressure
         - cilium_bpf_map_ops_total
         - cilium_agent_bootstrap_seconds
         - cilium_api_limiter_.*
@@ -1673,6 +1833,91 @@ k8s-monitoring:
 
           clustering {
             enabled = true
+          }
+        }
+
+        // Regional Kura ingress controllers (`kura-<region>-ingress-nginx`).
+        // They run host-network on the Kura boxes and are the only place a
+        // malformed response between client and Kura shows up: status `009`
+        // or `000` with a healthy upstream, or a 502 on gRPC. Kura's own
+        // latency and error metrics stay clean while that happens.
+        //
+        // Scraped here rather than through annotationAutodiscovery so the
+        // metric set can be cut to the request counter. The controller also
+        // exports per-Ingress request, response and upstream histograms, and
+        // every Kura instance owns two Ingresses, so its full output grows with
+        // every account admitted to a region.
+        discovery.kubernetes "tuist_kura_ingress_nginx" {
+          role = "pod"
+          namespaces {
+            names = ["platform"]
+          }
+          selectors {
+            role = "pod"
+            label = "app.kubernetes.io/component=controller"
+          }
+        }
+
+        discovery.relabel "tuist_kura_ingress_nginx" {
+          targets = discovery.kubernetes.tuist_kura_ingress_nginx.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex = "kura-.+-ingress-nginx"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_ip"]
+            target_label = "__address__"
+            replacement = "$1:10254"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex = "kura-(.+)-ingress-nginx"
+            target_label = "kura_gateway"
+            replacement = "$1"
+          }
+        }
+
+        prometheus.scrape "tuist_kura_ingress_nginx" {
+          targets = discovery.relabel.tuist_kura_ingress_nginx.output
+          forward_to = [prometheus.relabel.tuist_kura_ingress_nginx.receiver]
+          job_name = "kura-ingress-nginx"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
+        prometheus.relabel "tuist_kura_ingress_nginx" {
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          rule {
+            source_labels = ["__name__"]
+            regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
+            action = "keep"
           }
         }
 

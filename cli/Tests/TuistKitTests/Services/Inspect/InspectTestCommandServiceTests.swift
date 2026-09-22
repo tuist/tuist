@@ -48,16 +48,21 @@ struct InspectTestCommandServiceTests {
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: []))
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
 
         given(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -95,12 +100,14 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -135,12 +142,14 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -178,12 +187,14 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -247,12 +258,14 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -285,7 +298,9 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                stressResultBundlePaths: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -314,18 +329,22 @@ struct InspectTestCommandServiceTests {
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                stressResultBundlePaths: .any
             )
             .called(1)
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(0)
     }
@@ -360,12 +379,14 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,
                 shardIndex: .any,
                 onlyTestIdentifiers: .any,
-                skipTestIdentifiers: .any
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }

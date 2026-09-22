@@ -11,6 +11,32 @@ public protocol XcodeProjWriting {
     func write(workspace: WorkspaceDescriptor) async throws
 }
 
+/// Format used to serialize each `.xcodeproj` bundle to disk.
+///
+/// Mirrors `XcodeProj.ProjectFormat` at the `TuistGenerator` boundary so callers don't need to
+/// `import XcodeProj` just to opt into the JSON5 project format that Xcode 27.2 introduced.
+public enum XcodeProjectFormat: String, Sendable, Equatable {
+    case pbxproj
+    case xcproj
+}
+
+extension XcodeProjWriting {
+    /// Sets the given format on every project inside `workspace` before delegating to
+    /// `write(workspace:)`. `XcodeProj` is a class and `projectFormat` is a `var`, so mutating
+    /// each descriptor here is enough for the writer to dispatch to the right serializer.
+    public func write(workspace: WorkspaceDescriptor, projectFormat: XcodeProjectFormat) async throws {
+        let format: ProjectFormat
+        switch projectFormat {
+        case .pbxproj: format = .pbxproj
+        case .xcproj: format = .xcproj
+        }
+        for descriptor in workspace.projectDescriptors {
+            descriptor.xcodeProj.projectFormat = format
+        }
+        try await write(workspace: workspace)
+    }
+}
+
 // MARK: -
 
 public struct XcodeProjWriter: XcodeProjWriting {
@@ -103,28 +129,46 @@ public struct XcodeProjWriter: XcodeProjWriting {
         try await sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
     }
 
-    /// Writes the `.xcodeproj`, mirroring `XcodeProj.write` (workspace → pbxproj → shared data → user
-    /// data).
+    /// Writes the `.xcodeproj`, mirroring `XcodeProj.write` (workspace → project body → shared data → user
+    /// data). The body is serialized as either `project.pbxproj` (OpenStep plist) or `project.xcproj`
+    /// (Xcode 27.2 JSON5) depending on `xcodeProj.projectFormat`.
     ///
-    /// As an implementation detail, `project.pbxproj` is only written when its freshly serialized bytes
-    /// differ from what's already on disk. Tuist's generation is byte-deterministic for an unchanged
-    /// input (PBX references are stable hashes of identity and output is sorted), so an unchanged
-    /// regeneration produces identical bytes; leaving the file untouched preserves its modification time
-    /// and avoids the inode/mtime churn an unconditional rewrite would cause. The serialized bytes are
-    /// computed once and reused for the write, so the only added cost is a single read + compare.
+    /// The body is only written when its freshly serialized bytes differ from what's already on disk.
+    /// Tuist's generation is byte-deterministic for an unchanged input (PBX references are stable
+    /// hashes of identity and output is sorted), so an unchanged regeneration produces identical bytes;
+    /// leaving the file untouched preserves its modification time and avoids the inode/mtime churn an
+    /// unconditional rewrite would cause. The serialized bytes are computed once and reused for the
+    /// write, so the only added cost is a single read + compare.
+    ///
+    /// When switching formats between generations, the file for the previous format is removed so the
+    /// bundle only contains the format currently in use (`XcodeProj` picks up the first one it finds
+    /// when re-reading).
     private func writePBXProj(_ xcodeProj: XcodeProj, at xcodeprojPath: AbsolutePath) throws {
         let path = xcodeprojPath.path
-        let outputSettings = PBXOutputSettings()
         try path.mkpath()
         try xcodeProj.writeWorkspace(path: path, override: true)
 
-        let pbxprojPath = XcodeProj.pbxprojPath(path)
-        if let output = try xcodeProj.pbxproj.dataRepresentation(outputSettings: outputSettings) {
-            let existing = pbxprojPath.exists ? try? pbxprojPath.read() : nil
-            if existing != output {
-                if pbxprojPath.exists { try pbxprojPath.delete() }
-                try pbxprojPath.write(output)
+        switch xcodeProj.projectFormat {
+        case .pbxproj:
+            let outputSettings = PBXOutputSettings()
+            let pbxprojPath = XcodeProj.pbxprojPath(path)
+            if let output = try xcodeProj.pbxproj.dataRepresentation(outputSettings: outputSettings) {
+                let existing = pbxprojPath.exists ? try? pbxprojPath.read() : nil
+                if existing != output {
+                    if pbxprojPath.exists { try pbxprojPath.delete() }
+                    try pbxprojPath.write(output)
+                }
             }
+            let staleXCProj = XcodeProj.xcprojPath(path)
+            if staleXCProj.exists { try staleXCProj.delete() }
+        case .xcproj:
+            // XcodeProj's PBXProj-level `xcprojData(settings:)` is `internal`, so we can't
+            // pre-serialize and byte-compare like we do for pbxproj. Delegate to the public
+            // `writeXCProj(path:override:outputSettings:)` which always rewrites; the mtime churn
+            // is acceptable while this format is opt-in and experimental.
+            try xcodeProj.writeXCProj(path: path, override: true)
+            let stalePBXProj = XcodeProj.pbxprojPath(path)
+            if stalePBXProj.exists { try stalePBXProj.delete() }
         }
 
         try xcodeProj.writeSharedData(path: path, override: true)

@@ -1,3 +1,5 @@
+@import "./scroll_indicator.css";
+
 .noora-table {
   box-sizing: border-box;
   position: relative;
@@ -76,12 +78,6 @@
       position: absolute;
       top: 0;
       height: 100%;
-      border-radius: var(--noora-radius-4);
-      background-color: light-dark(
-        var(--noora-neutral-light-600),
-        var(--noora-neutral-dark-600)
-      );
-      touch-action: none;
     }
   }
 

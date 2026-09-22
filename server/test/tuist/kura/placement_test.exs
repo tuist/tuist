@@ -4,7 +4,7 @@ defmodule Tuist.Kura.PlacementTest do
   alias Tuist.Kura.Placement
 
   @today ~D[2026-08-26]
-  @permitted ["us-east", "us-west", "eu-central", "ap-southeast"]
+  @permitted ["us-east", "us-west", "eu-west", "ap-southeast"]
 
   describe "relocate" do
     test "moves the primary once another region has durably carried the majority" do
@@ -15,7 +15,7 @@ defmodule Tuist.Kura.PlacementTest do
           rollups: daily("FR", 30, 20) ++ daily("US-VA", 30, 5)
         )
 
-      assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "majority_of_runs_moved"
       assert evidence["share"] >= 0.6
       # The account built on all 30 days; the rung reads the last 14 of them.
@@ -100,7 +100,7 @@ defmodule Tuist.Kura.PlacementTest do
           rollups: daily("FR", 30, 65) ++ daily("US-VA", 30, 35)
         )
 
-      assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["retire_source"] == false
     end
 
@@ -113,7 +113,7 @@ defmodule Tuist.Kura.PlacementTest do
           rollups: daily("FR", 30, 95) ++ daily("US-VA", 30, 2)
         )
 
-      assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["retire_source"] == true
     end
 
@@ -126,7 +126,7 @@ defmodule Tuist.Kura.PlacementTest do
           rollups: daily("FR", 30, 65) ++ daily("US-VA", 30, 35)
         )
 
-      assert {:relocate, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert {:relocate, "us-east", "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["retire_source"] == true
     end
 
@@ -141,7 +141,7 @@ defmodule Tuist.Kura.PlacementTest do
           rollups: daily("FR", 7, 90) ++ daily("US-VA", 7, 10)
         )
 
-      assert {:correct, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert {:correct, "us-east", "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "initial_placement_missed"
     end
 
@@ -161,7 +161,7 @@ defmodule Tuist.Kura.PlacementTest do
           rollups: [rollup("FR", @today, 40)]
         )
 
-      assert {:correct, "us-east", "eu-central", evidence} = Placement.evaluate(context)
+      assert {:correct, "us-east", "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "initial_placement_missed"
       assert evidence["active_days"] == 1
     end
@@ -251,8 +251,8 @@ defmodule Tuist.Kura.PlacementTest do
       context =
         context(
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
-          retiring: ["eu-central"],
+          serving: ["us-east", "eu-west"],
+          retiring: ["eu-west"],
           rollups: daily("FR", 30, 20)
         )
 
@@ -272,7 +272,7 @@ defmodule Tuist.Kura.PlacementTest do
           rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
         )
 
-      assert {:expand, "eu-central", evidence} = Placement.evaluate(context)
+      assert {:expand, "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "sustained_local_demand"
       assert evidence["runs_per_day"] >= 25
     end
@@ -300,7 +300,7 @@ defmodule Tuist.Kura.PlacementTest do
           rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120)
         )
 
-      assert {:expand, "eu-central", _evidence} = Placement.evaluate(context)
+      assert {:expand, "eu-west", _evidence} = Placement.evaluate(context)
     end
 
     test "holds an Air account at two regions" do
@@ -308,7 +308,7 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :air,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
+          serving: ["us-east", "eu-west"],
           rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 120) ++ daily("JP", 14, 200)
         )
 
@@ -335,10 +335,10 @@ defmodule Tuist.Kura.PlacementTest do
       # whichever paid plan it is on.
       rollups = daily("US-VA", 14, 500) ++ daily("FR", 14, 30)
 
-      assert {:expand, "eu-central", _evidence} =
+      assert {:expand, "eu-west", _evidence} =
                Placement.evaluate(context(plan: :pro, primary: "us-east", serving: ["us-east"], rollups: rollups))
 
-      assert {:expand, "eu-central", _evidence} =
+      assert {:expand, "eu-west", _evidence} =
                Placement.evaluate(context(plan: :enterprise, primary: "us-east", serving: ["us-east"], rollups: rollups))
 
       assert Placement.evaluate(context(plan: :air, primary: "us-east", serving: ["us-east"], rollups: rollups)) ==
@@ -352,7 +352,7 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central", "ap-southeast"],
+          serving: ["us-east", "eu-west", "ap-southeast"],
           rollups: daily("US-VA", 14, 500) ++ daily("US-OR", 14, 200) ++ daily("FR", 90, 20) ++ daily("SG", 90, 20)
         )
 
@@ -364,7 +364,7 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
+          serving: ["us-east", "eu-west"],
           rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 40)
         )
 
@@ -378,12 +378,55 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
+          serving: ["us-east", "eu-west"],
           rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
         )
 
-      assert {:retire, "eu-central", evidence} = Placement.evaluate(context)
+      assert {:retire, "eu-west", evidence} = Placement.evaluate(context)
       assert evidence["signal"] == "demand_below_floor"
+    end
+
+    test "will not judge a window it has no history for" do
+      # The floor is a whole window's worth of runs. Measured against ten days
+      # of history it is ten times too generous, so a region running a real 30
+      # builds a day reads as abandoned. At a full window the same region is
+      # six times over the floor and is never a candidate.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 10, 100) ++ daily("FR", 10, 30)
+        )
+
+      assert Placement.evaluate(context) == :none
+    end
+
+    test "retires once the history reaches the window it measures" do
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
+        )
+
+      assert {:retire, "eu-west", _evidence} = Placement.evaluate(context)
+    end
+
+    test "holds a new account's regions to the same rule as the fleet's" do
+      # Not a rollout guard. An account onboarded a fortnight ago has a
+      # fortnight of history however long attribution has been running, and its
+      # regions cannot be judged on a quarter it was not present for.
+      context =
+        context(
+          plan: :pro,
+          primary: "us-east",
+          serving: ["us-east", "eu-west"],
+          rollups: daily("US-VA", 14, 500) ++ daily("FR", 14, 2)
+        )
+
+      assert Placement.evaluate(context) == :none
     end
 
     test "never retires the primary, however quiet its region has gone" do
@@ -392,8 +435,8 @@ defmodule Tuist.Kura.PlacementTest do
       context =
         context(
           plan: :pro,
-          primary: "eu-central",
-          serving: ["eu-central"],
+          primary: "eu-west",
+          serving: ["eu-west"],
           rollups: daily("FR", 90, 1)
         )
 
@@ -405,7 +448,7 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
+          serving: ["us-east", "eu-west"],
           rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 40)
         )
 
@@ -417,8 +460,8 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
-          retiring: ["eu-central"],
+          serving: ["us-east", "eu-west"],
+          retiring: ["eu-west"],
           rollups: daily("US-VA", 90, 100) ++ daily("FR", 90, 1)
         )
 
@@ -433,8 +476,8 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
-          held_since: %{"eu-central" => Date.add(@today, -120)},
+          serving: ["us-east", "eu-west"],
+          held_since: %{"eu-west" => Date.add(@today, -120)},
           rollups: []
         )
 
@@ -451,8 +494,8 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
-          held_since: %{"eu-central" => Date.add(@today, -120)},
+          serving: ["us-east", "eu-west"],
+          held_since: %{"eu-west" => Date.add(@today, -120)},
           rollups: daily("US-VA", 90, 500) ++ quiet_then_busy
         )
 
@@ -468,8 +511,8 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
-          held_since: %{"eu-central" => Date.add(@today, -14)},
+          serving: ["us-east", "eu-west"],
+          held_since: %{"eu-west" => Date.add(@today, -14)},
           rollups: daily("US-VA", 90, 500) ++ daily("FR", 14, 10)
         )
 
@@ -481,12 +524,12 @@ defmodule Tuist.Kura.PlacementTest do
         context(
           plan: :pro,
           primary: "us-east",
-          serving: ["us-east", "eu-central"],
-          held_since: %{"eu-central" => Date.add(@today, -120)},
+          serving: ["us-east", "eu-west"],
+          held_since: %{"eu-west" => Date.add(@today, -120)},
           rollups: daily("US-VA", 90, 500) ++ daily("FR", 14, 10)
         )
 
-      assert {:retire, "eu-central", _evidence} = Placement.evaluate(context)
+      assert {:retire, "eu-west", _evidence} = Placement.evaluate(context)
     end
 
     test "the gap between the two floors is what keeps a region from flapping" do
@@ -495,7 +538,7 @@ defmodule Tuist.Kura.PlacementTest do
       between = daily("US-VA", 90, 500) ++ daily("FR", 90, 15)
 
       assert Placement.evaluate(
-               context(plan: :pro, primary: "us-east", serving: ["us-east", "eu-central"], rollups: between)
+               context(plan: :pro, primary: "us-east", serving: ["us-east", "eu-west"], rollups: between)
              ) == :none
 
       assert Placement.evaluate(context(plan: :pro, primary: "us-east", serving: ["us-east"], rollups: between)) == :none

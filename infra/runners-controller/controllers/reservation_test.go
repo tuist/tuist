@@ -86,6 +86,16 @@ func placedPod(name, pool, node string, owner string) *corev1.Pod {
 	return pod
 }
 
+func seatedPod(name, pool, node string, seatedAt time.Time) *corev1.Pod {
+	p := placedPod(name, pool, node, "")
+	p.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(seatedAt),
+	}}
+	return p
+}
+
 // smallPool is the 6 vCPU shape the large one competes with. A
 // reservation is only taken for a shape that is large RELATIVE to what
 // else runs on the fleet, so the sibling has to exist for the large
@@ -515,6 +525,45 @@ func TestReservation_RetiresIdleLinuxPodsButNeverRunningJobs(t *testing.T) {
 // genuinely IS coarser than its siblings on one big host, so it passes
 // that test and would close the fleet. Reachable in practice — the
 // Linux fleet is small and moving to smaller boxes.
+// A reservation releases the moment its Pod binds, so the seat it just
+// produced is exposed to the next reservation on the same host while
+// dispatch is still reaching for it.
+func TestReservation_DoesNotRetireAFreshlySeatedPod(t *testing.T) {
+	pool := linuxLargePool()
+	node := ax162Node("bm-0")
+	node.Spec.Taints = []corev1.Taint{{
+		Key:    podtemplate.ReservationTaintKey,
+		Value:  podtemplate.ReservationValue(pool.Name),
+		Effect: corev1.TaintEffectNoSchedule,
+	}}
+	node.Annotations = map[string]string{reservationAtAnnotation: reservationNow.Format(time.RFC3339)}
+
+	starved := pendingPod("large-0", pool.Name, 5*time.Minute)
+	fresh := seatedPod("small-fresh", linuxSmallPoolName, "bm-0", reservationNow.Add(-30*time.Second))
+	stale := seatedPod("small-stale", linuxSmallPoolName, "bm-0", reservationNow.Add(-10*time.Minute))
+
+	r := reservationReconciler(pool, linuxSmallPool(), node, starved, fresh, stale)
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatalf("reconcileReservation: %v", err)
+	}
+
+	remaining := &corev1.PodList{}
+	if err := r.List(context.Background(), remaining, client.InNamespace("runners")); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	names := map[string]bool{}
+	for i := range remaining.Items {
+		names[remaining.Items[i].Name] = true
+	}
+
+	if !names["small-fresh"] {
+		t.Error("a Pod seated within the grace period must survive: dispatch has not had a chance to claim it")
+	}
+	if names["small-stale"] {
+		t.Error("a Pod idle since well before the grace period should still be retired")
+	}
+}
+
 func TestReservation_NeverTakesTheFleetsLastHost(t *testing.T) {
 	pool := linuxLargePool()
 	node := ax162Node("bm-0")

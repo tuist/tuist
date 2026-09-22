@@ -11,6 +11,7 @@ public enum Module: String, CaseIterable {
     case projectDescription = "ProjectDescription"
     case projectAutomation = "ProjectAutomation"
     case acceptanceTesting = "TuistAcceptanceTesting"
+    case testSupport = "TuistTestSupport"
     case testing = "TuistTesting"
     case constants = "TuistConstants"
     case environment = "TuistEnvironment"
@@ -27,6 +28,7 @@ public enum Module: String, CaseIterable {
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
     case server = "TuistServer"
+    case rosalind = "Rosalind"
     case oidc = "TuistOIDC"
     case hasher = "TuistHasher"
     case cache = "TuistCache"
@@ -93,8 +95,33 @@ public enum Module: String, CaseIterable {
     public static func allTargets() -> [Target] {
         var targets = Module.allCases.flatMap(\.targets)
         targets.append(contentsOf: cacheEETargets())
+        targets.append(contentsOf: serverAcceptanceTargets())
         targets.append(contentsOf: xcResultParserTargets())
         return targets
+    }
+
+    public static let serverAcceptanceTestsTargetName = "TuistServerAcceptanceTests"
+
+    /// Acceptance tests that exercise a running Tuist server end to end, rather than the
+    /// command-line tool on its own.
+    ///
+    /// They live in their own target because the deploy cascade runs them against the freshly
+    /// deployed canary before promoting to production, and a promotion gate has to be a suite
+    /// somebody chose, not a filter over a larger one.
+    public static func serverAcceptanceTargets() -> [Target] {
+        [
+            .target(
+                name: serverAcceptanceTestsTargetName,
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistServerAcceptanceTests",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["cli/Tests/TuistServerAcceptanceTests"],
+                dependencies: Module.kit.acceptanceTestDependencies,
+                metadata: .metadata(tags: ["domain:server", "layer:testing"])
+            ),
+        ]
     }
 
     public static func xcResultParserTargets() -> [Target] {
@@ -237,6 +264,7 @@ public enum Module: String, CaseIterable {
                 infoPlist: .default,
                 buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
                 dependencies: [
+                    .target(name: Module.testSupport.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cache.targetName),
                     .target(name: Module.cacheCommand.targetName),
@@ -363,7 +391,7 @@ public enum Module: String, CaseIterable {
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-             .registryCommand, .buildCommand, .generateCommand,
+             .registryCommand, .generateCommand,
              .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
             return nil
         default:
@@ -421,6 +449,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.generateCommand.targetName),
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: "XCResultParser"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -504,13 +534,13 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:project-loading")
         case .dependencies:
             moduleTags.append("domain:dependencies")
-        case .server, .oidc:
+        case .server, .rosalind, .oidc:
             moduleTags.append("domain:server")
         case .kit:
             moduleTags.append("domain:cli")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("domain:cli-tools")
-        case .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
+        case .testSupport, .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
             moduleTags.append("domain:testing")
         case .automation:
             moduleTags.append("domain:automation")
@@ -543,7 +573,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("layer:tool")
-        case .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
+        case .testSupport, .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
             moduleTags.append("layer:testing")
         default:
             moduleTags.append("layer:feature")
@@ -612,8 +642,11 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "LoggingOSLog", condition: .when([.macos])),
                 ]
+            case .testSupport:
+                [.external(name: "SnapshotTesting"), .xctest]
             case .testing:
                 [
+                    .target(name: Module.testSupport.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
@@ -814,6 +847,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.userInputReader.targetName),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                     .external(name: "SwiftToolsSupport"),
                     .target(name: Module.xcodeGraph.targetName),
                     .target(name: Module.xcodeGraphMapper.targetName),
@@ -822,11 +856,9 @@ public enum Module: String, CaseIterable {
                     .external(name: "AnyCodable"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
-                    .external(name: "GRPCCore"),
-                    .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "Noora"),
                     .external(name: "SwiftyJSON"),
-                    .external(name: "Rosalind"),
+                    .target(name: Module.rosalind.targetName),
                 ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
@@ -957,6 +989,16 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "SwiftToolsSupport"),
                 ]
+            case .rosalind:
+                [
+                    .external(name: "Crypto"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Command"),
+                    .external(name: "MachOKit", condition: .when([.macos])),
+                    .external(name: "SwiftProtobuf"),
+                    .external(name: "Logging"),
+                    .external(name: "ZIPFoundation"),
+                ]
             case .server:
                 [
                     .target(name: Module.android.targetName),
@@ -988,7 +1030,8 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
                     .target(name: Module.xcodeGraph.targetName),
-                    .external(name: "Rosalind", condition: .when([.macos])),
+                    .external(name: "Command", condition: .when([.macos])),
+                    .target(name: Module.rosalind.targetName, condition: .when([.macos])),
                     .external(name: "KeychainAccess"),
                     .external(name: "Crypto"),
                 ]
@@ -1019,6 +1062,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .external(name: "Crypto"),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
@@ -1102,6 +1146,7 @@ public enum Module: String, CaseIterable {
             case .xcResultService:
                 [
                     .target(name: Module.support.targetName),
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: "XCResultParser"),
                     .external(name: "FileSystem"),
@@ -1109,21 +1154,10 @@ public enum Module: String, CaseIterable {
                 ]
             case .cas:
                 [
-                    .target(name: Module.core.targetName, condition: .when([.macos])),
-                    .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.server.targetName),
-                    .target(name: Module.cache.targetName, condition: .when([.macos])),
-                    .target(name: Module.casAnalytics.targetName, condition: .when([.macos])),
                     .target(name: Module.http.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
-                    .external(name: "FileSystem"),
-                    .external(name: "OpenAPIRuntime"),
-                    .external(name: "GRPCCore"),
-                    .external(name: "GRPCNIOTransportHTTP2"),
-                    .external(name: "GRPCProtobuf"),
-                    .external(name: "SwiftProtobuf"),
-                    .external(name: "libzstd"),
                 ]
             case .reapi:
                 [
@@ -1204,6 +1238,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .bazelCommand:
                 [
+                    .external(name: "Command"),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.reapi.targetName),
@@ -1444,6 +1479,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.authCommand.targetName),
+                    .target(name: Module.bazelCommand.targetName),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.core.targetName),
@@ -1573,7 +1609,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
-                    .external(name: "Rosalind"),
+                    .target(name: Module.rosalind.targetName),
                     .external(name: "Mockable"),
                     .external(name: "Command"),
                     .target(name: Module.xcodeGraph.targetName),
@@ -1593,12 +1629,12 @@ public enum Module: String, CaseIterable {
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .macOSSDK, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-                 .registryCommand, .buildCommand, .generateCommand,
+                 .registryCommand, .generateCommand,
                  .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android, .reapi:
                 []
             case .xcodeGraph:
                 []
-            case .logging:
+            case .testSupport, .logging:
                 [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -1628,6 +1664,15 @@ public enum Module: String, CaseIterable {
                 [
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                ]
+            case .buildCommand:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.server.targetName),
                 ]
             case .testCommand:
                 [
@@ -1665,13 +1710,16 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
             case .bazelCommand:
                 [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.reapi.targetName),
                     .target(name: Module.config.targetName),
@@ -1679,10 +1727,13 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "Noora"),
                 ]
             case .userInputReader:
                 [
@@ -1820,13 +1871,15 @@ public enum Module: String, CaseIterable {
                     .external(name: "Difference"),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                     .target(name: Module.xcodeGraph.targetName),
                     .target(name: Module.xcodeGraphMapper.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "SwiftyJSON"),
-                    .external(name: "Rosalind"),
+                    .target(name: Module.rosalind.targetName),
                     .external(name: "Noora"),
                     .external(name: "Command"),
                     .external(name: "OpenAPIRuntime"),
@@ -2022,6 +2075,11 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
                 ]
+            case .rosalind:
+                [
+                    .external(name: "FileSystem"),
+                    .external(name: "Command"),
+                ]
             case .xcodeProjectOrWorkspacePathLocator:
                 [
                     .target(name: Module.testing.targetName),
@@ -2050,18 +2108,8 @@ public enum Module: String, CaseIterable {
             case .cas:
                 [
                     .target(name: Module.testing.targetName),
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
-                    .target(name: Module.cache.targetName),
-                    .target(name: Module.casAnalytics.targetName),
-                    .target(name: Module.http.targetName),
                     .target(name: Module.environment.targetName),
-                    .external(name: "FileSystem"),
-                    .external(name: "OpenAPIRuntime"),
-                    .external(name: "GRPCCore"),
-                    .external(name: "GRPCProtobuf"),
-                    .external(name: "SwiftProtobuf"),
                 ]
             case .casAnalytics:
                 [
@@ -2111,6 +2159,9 @@ public enum Module: String, CaseIterable {
                 .external(name: "SnapshotTesting"),
             ]
 
+        if [.xcodeMetadata, .xcodeGraphMapper, .rosalind, .kit, .xcActivityLog, .xcResultService].contains(self) {
+            dependencies.append(.target(name: Module.testSupport.targetName))
+        }
         return dependencies
     }
 
@@ -2203,6 +2254,8 @@ public enum Module: String, CaseIterable {
             default: .macOS("15.0")
             }
 
+        let excludedFiles = ["AGENTS.md", "*.docc", "*.docc/**"] + (self == .rosalind ? ["Proto/*.proto"] : [])
+
         return .target(
             name: name,
             destinations: destinations,
@@ -2210,10 +2263,12 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
+            resources: self == .bazelCommand && product == .unitTests
+                ? [.folderReference(path: "cli/Tests/Fixtures/JUnitIdentity")] : nil,
             buildableFolders: [
                 .folder(
                     buildableFolderPath,
-                    exceptions: [.exception(excluded: ["AGENTS.md", "*.docc", "*.docc/**"])]
+                    exceptions: [.exception(excluded: excludedFiles)]
                 ),
             ],
             dependencies: dependencies,
