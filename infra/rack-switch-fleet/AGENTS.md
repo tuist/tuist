@@ -508,6 +508,57 @@ arbitrary line into its negation is the same class of guess.
   spaces behind, and the normaliser needs to see the prompt to know that those
   spaces are an erased line rather than indentation. Getting this wrong makes
   every diff show whitespace drift that is not there.
+- **The SSH daemon allows a bounded number of connections per boot, and a clean
+  logout does not extend it.** Measured on `ber1-tor-b` on 2026-09-22, freshly
+  booted, one connection at a time, nothing else touching the rack: connections
+  one to seven succeeded and the eighth was refused, after which port 22 stopped
+  completing a handshake entirely. The switch kept forwarding, kept answering
+  ping and kept serving its web UI throughout. It does not recover on its own;
+  an hour was not enough on two occasions. Recovery is a reboot.
+
+  The mechanism is visible in `show users`. Each connection gets a task named
+  `tSshNN` and the number only ever goes up: `tSsh00` through `tSsh06` across
+  those seven, never reused, while the session table held exactly one row the
+  whole time. So the logout does end the session, and the firmware still does
+  not get the slot back. Logging out is necessary and it is not sufficient.
+
+  This was worth measuring rather than assuming. The earlier wedge happened
+  fifteen seconds after `ber1-tor-a` rebooted and flapped the ISL, which looked
+  like an obvious cause and was not: with the rack quiet, a switch wedges on its
+  own at the same point.
+
+  **Treat connections as a consumable: seven per boot.** A full pass of the
+  runbook costs six of them, because `sessions`, `diff` and `backup` are one
+  each and `replace` is two. That leaves one spare, which is too close to plan a
+  working session around, and is the argument for batching several reads into a
+  single connection rather than for logging out more carefully.
+
+- **A write to a dead coprocess must never be allowed to raise SIGPIPE.** A
+  shell killed by SIGPIPE does not run its EXIT trap, so the logout is skipped,
+  the switch keeps the session, and enough of those wedge its SSH daemon. That
+  is how this tool took `ber1-tor-b` down twice while it was being written.
+  SIGPIPE is ignored for as long as a session is open, every write checks its
+  status, and `switch_close` runs on INT and TERM as well as EXIT. Depending on
+  whether bash has reaped the coprocess yet, the same dead session shows up
+  either as SIGPIPE or as "Bad file descriptor", so both are handled.
+- **Bash deletes the coprocess array, and `NAME_PID` with it, the moment the
+  coprocess is reaped.** A connection that fails fast therefore turns every
+  `${SWITCH[0]}` into an unbound variable under `set -u`, which is what a
+  refused or wedged switch gives you instead of an error message. Every access
+  goes through `switch_alive`, ssh's diagnostics go to a log file so there is
+  something left to print once the descriptors are gone, and the dead-session
+  check runs before the first read rather than after it.
+- **`$?` after a failed `if` is not the condition's status.** An `if` with no
+  `else` exits 0, so a `read` timeout was indistinguishable from a successful
+  read and the drain gave up on its first interval with an empty buffer. Against
+  a real switch that made every command look like it produced nothing at all. A
+  fake switch that answers within one read interval hides this completely, which
+  is why the one in the tests waits before replying.
+- **Answer the pager on a separate window, never by editing the transcript.**
+  Removing the prompt from the buffer as it is answered leaves its padding
+  spaces behind, and the normaliser needs to see the prompt to know that those
+  spaces are an erased line rather than indentation. Getting this wrong makes
+  every diff show whitespace drift that is not there.
 - **The SSH daemon wedges after a handful of connections, and a clean logout
   does not prevent it.** The switch keeps forwarding, keeps answering ping and
   keeps serving its web UI while port 22 stops completing a handshake. It does
