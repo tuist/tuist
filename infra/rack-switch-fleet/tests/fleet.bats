@@ -1492,6 +1492,12 @@ cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
 
 # --- the path from switches behind the edge node to the tailnet --------------
 
+@test "an interface address gives the network it sits in" {
+    run fleet_sh "fleet_network 192.168.50.1/24; fleet_network 10.1.2.3/16"
+    [ "${lines[0]}" = "192.168.50.0/24" ]
+    [ "${lines[1]}" = "10.1.0.0/16" ]
+}
+
 @test "a prefix length becomes the mask the switch CLI takes" {
     run fleet_sh "for b in 0 10 24 32; do fleet_prefix_mask \$b; done"
     [ "${lines[0]}" = "0.0.0.0" ]
@@ -1601,7 +1607,8 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" == *"ip addr replace 192.168.0.10/32 dev enp87s0"* ]]
     [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
-    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.13 } masquerade'* ]]
+    [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp87s0"* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.13,192.168.50.0/24 } masquerade'* ]]
     [[ "$output" != *"advertise-routes"* ]]
     [[ "$output" == *"dry run, nothing changed"* ]]
 }
@@ -1956,7 +1963,10 @@ case "$*" in
         echo "default via 192.168.0.1 dev enp2s0f1np1 proto dhcp src 192.168.0.158 metric 100";;
     "link show dev enp89s0"|"link show dev enp2s0f1np1") echo "5: $4: <BROADCAST,UP>";;
     "link show dev "*) exit 1;;
-    "-4 -o addr show dev enp89s0") echo "5: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0";;
+    "-4 -o addr show dev enp89s0")
+        # the switch-side /32 first, as ber1-edge lists them
+        echo "5: enp89s0    inet 192.168.0.10/32 scope global enp89s0"
+        echo "5: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0";;
 esac
 STUB
     cat > "$dir/nft" <<'STUB'
@@ -2024,6 +2034,32 @@ STUB
     [ "$output" = "1" ]
     run bash -c "grep -n '^NFT' '$bin/log' | tail -1"
     [[ "$output" == *"delete table netdev rack_ztp"* ]]
+}
+
+@test "--via serves from the provisioning address, not the switch-side one beside it" {
+    bin="$BATS_TEST_TMPDIR/via5"
+    ztp_via_stub "$bin"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
+        "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"at 192.168.50.1"* ]]
+    [[ "$output" == *"dhcp-range=192.168.50.100,192.168.50.150,1h"* ]]
+    [[ "$output" != *"dhcp-range=192.168.0."* ]]
+}
+
+@test "zero touch names the controller in option 138 once its address is known" {
+    bin="$BATS_TEST_TMPDIR/via6"
+    ztp_via_stub "$bin"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
+        "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
+    [[ "$output" != *"dhcp-option=138"* ]]
+    copy="$BATS_TEST_TMPDIR/fleet-copy"
+    cp -R "$FLEET_ROOT" "$copy"
+    jq '.management.controller.address = "100.101.102.103"' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
+        "$copy/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"dhcp-option=138,100.101.102.103"* ]]
 }
 
 @test "--via stops dnsmasq and removes the files on the server when this end is killed outright" {

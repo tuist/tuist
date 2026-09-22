@@ -93,8 +93,16 @@ fi
 if [ -n "$via" ]; then
   default_interfaces="$(on_server "ip route show default | awk '{print \$5}'" 2>/dev/null || true)"
   on_server "ip link show dev $interface" >/dev/null 2>&1 || { echo "error: $server has no interface $interface" >&2; exit 1; }
-  server_ip="$(on_server "ip -4 -o addr show dev $interface | awk '{print \$4}' | cut -d/ -f1 | head -1" 2>/dev/null || true)"
-  address_hint="ssh $via 'sudo ip addr add 192.168.50.1/24 dev $interface && sudo ip link set $interface up'"
+  # The edge node's port can carry more than one address; the one to serve
+  # from is the provisioning segment the site names, when it names one.
+  addresses="$(on_server "ip -4 -o addr show dev $interface | awk '{print \$4}' | cut -d/ -f1" 2>/dev/null || true)"
+  provisioning="$(jq -r '.management.edge.provisioning // empty' "$site_file")"
+  if [ -n "$provisioning" ]; then
+    server_ip="$(grep -x -- "${provisioning%/*}" <<<"$addresses" || true)"
+  else
+    server_ip="$(head -1 <<<"$addresses")"
+  fi
+  address_hint="mise run rack:edge-path --interface $interface (it gives the port the site's provisioning address)"
 else
   default_interfaces="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' || true)"
   ifconfig "$interface" >/dev/null 2>&1 || { echo "error: no interface $interface" >&2; exit 1; }
@@ -239,6 +247,10 @@ subnet="${server_ip%.*}"
   # TP-Link's Auto Install names option 150 for the TFTP server; the switch asks
   # for both.
   echo "dhcp-option=150,$server_ip"
+  # A factory switch that is told where its controller is shows up there as
+  # pending, which is the zero-touch path through Omada rather than a config file.
+  controller_address="$(jq -r '.management.controller.address // empty' "$site_file")"
+  [ -n "$controller_address" ] && echo "dhcp-option=138,$controller_address"
   echo "log-dhcp"
   if [ -n "$mac" ]; then
     # Only this switch gets an answer, so even a segment that turns out not to

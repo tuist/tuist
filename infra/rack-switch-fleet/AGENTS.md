@@ -66,7 +66,7 @@ Serving from the edge node rather than a laptop is also how it would work in a
 data center. This never touches the ToRs.
 
 ```
-ssh tuist@<ber1-edge> 'sudo ip addr add 192.168.50.1/24 dev enp89s0 && sudo ip link set enp89s0 up'
+mise run rack:edge-path --interface enp89s0   # gives the port the site's provisioning address
 mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --dry-run
 mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --create-credentials
 ```
@@ -74,7 +74,8 @@ mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --create
 `ber1-mgmt` had no 1Password item, since it was never prepped;
 `--create-credentials` makes one with a generated password, as prep-switch does.
 
-The address is not persisted, so a reboot of the edge node clears it. ber1-edge
+The provisioning address is `management.edge.provisioning` in the site, and
+`rack:edge-path` installs it as part of the edge node's boot-time unit. ber1-edge
 needs `dnsmasq-base` (installed 2026-09-22), and only the password read here
 asks for anything (Touch ID); sudo there is passwordless. From a laptop instead,
 use the USB Ethernet adapter and drop `--via`:
@@ -534,6 +535,11 @@ provisioned from scratch has none of our credentials:
   password from the switch's 1Password item, and the switch hashes it itself;
   the CLI reference documents `secret 0` as a plaintext password. The dry run
   writes it redacted and a real run deletes the served files when it stops.
+- **Its controller, once there is one.** When `management.controller.address`
+  is set, `rack:ztp` also sends DHCP option 138 naming it, and the edge path
+  translates the provisioning segment into the tailnet, so a factory switch
+  shows up in the controller as pending with no configuration file at all. That
+  is the zero-touch path through Omada; it has not met hardware yet.
 - **The fleet key.** It is not configuration, no export carries it, and Auto
   Install fetches only the configuration file. So the served file runs
   `ip ssh download v2 fleet.pub ip-address <server>` itself, ahead of

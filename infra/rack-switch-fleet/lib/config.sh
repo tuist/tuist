@@ -233,6 +233,16 @@ fleet_check_ports() {
 }
 
 # A device's whole desired configuration, as configuration-file text.
+# The network an interface address sits in: 192.168.50.1/24 is 192.168.50.0/24.
+fleet_network() {
+  local cidr="$1" bits octets masks out="" i
+  bits="${cidr#*/}"
+  IFS=. read -r -a octets <<<"${cidr%/*}"
+  IFS=. read -r -a masks <<<"$(fleet_prefix_mask "$bits")"
+  for i in 0 1 2 3; do out+="${out:+.}$(( octets[i] & masks[i] ))"; done
+  echo "$out/$bits"
+}
+
 # A prefix length as the dotted mask the switch CLI takes: 10 is 255.192.0.0.
 fleet_prefix_mask() {
   local bits="$1" mask="" octet
