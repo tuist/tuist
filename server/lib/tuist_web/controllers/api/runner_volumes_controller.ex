@@ -17,7 +17,7 @@ defmodule TuistWeb.API.RunnerVolumesController do
   tags ["Runners"]
 
   operation(:list,
-    summary: "List, search and sort runner volumes.",
+    summary: "List runner volumes filtered by name and repository.",
     operation_id: "listRunnerVolumes",
     parameters: RunnerVolumes.parameters(:list),
     responses: %{

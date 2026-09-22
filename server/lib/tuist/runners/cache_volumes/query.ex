@@ -7,13 +7,13 @@ defmodule Tuist.Runners.CacheVolumes.Query do
 
   def run(:list, account_id, params) do
     with {:ok, page, size} <- pagination(params),
-         {:ok, search, options} <- filters(params) do
-      data = CacheVolumes.list(account_id, search, page, options ++ [page_size: size])
+         {:ok, options} <- filters(params) do
+      data = CacheVolumes.list(account_id, "", page, options ++ [page_size: size])
 
       {:ok,
        %{
          volumes: Enum.map(data.volumes, &volume(&1, Map.get(data.stats, &1.id, %{}))),
-         pagination_metadata: metadata(page, size, CacheVolumes.count(account_id, search))
+         pagination_metadata: metadata(page, size, CacheVolumes.count(account_id, "", options))
        }}
     end
   end
@@ -118,12 +118,16 @@ defmodule Tuist.Runners.CacheVolumes.Query do
   defp filters(params) do
     sort = Map.get(params, "sort_by", "last_used")
     order = Map.get(params, "sort_order", if(sort in ["volume", "repository"], do: "asc", else: "desc"))
-    search = Map.get(params, "search", "")
+    name = params["name"]
+    repository = params["repository"]
 
-    if sort in @sorts and order in ["asc", "desc"] and is_binary(search) and String.length(search) <= 200,
-      do: {:ok, search, [sort_by: sort, sort_order: order]},
+    if sort in @sorts and order in ["asc", "desc"] and valid_filter?(name) and valid_filter?(repository),
+      do: {:ok, [sort_by: sort, sort_order: order, name: name, repository: repository]},
       else: {:error, :invalid_parameters}
   end
+
+  defp valid_filter?(nil), do: true
+  defp valid_filter?(value), do: is_binary(value) and String.length(value) in 1..200
 
   defp period(params) do
     now = DateTime.utc_now()

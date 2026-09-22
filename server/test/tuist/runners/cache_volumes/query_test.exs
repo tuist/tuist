@@ -58,14 +58,35 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
     refute Map.has_key?(volume, :pod_name)
 
     assert {:ok, %{volumes: [%{key: "charlie"}], pagination_metadata: %{total_count: 1}}} =
-             Query.run(:list, account.id, %{"search" => "char"})
+             Query.run(:list, account.id, %{"name" => "charlie", "repository" => "org/repo"})
+
+    for args <- [
+          %{"name" => "char"},
+          %{"repository" => "org"},
+          %{"name" => "charlie", "repository" => "other/repo"},
+          %{"name" => "%"}
+        ] do
+      assert {:ok, %{volumes: [], pagination_metadata: %{total_count: 0}}} = Query.run(:list, account.id, args)
+    end
+
+    assert {:ok, %{volumes: volumes, pagination_metadata: %{total_count: 3}}} =
+             Query.run(:list, account.id, %{"repository" => "org/repo"})
+
+    assert length(volumes) == 3
 
     assert {:ok, %{volumes: [], pagination_metadata: %{has_next_page: false}}} =
              Query.run(:list, account.id, %{"page" => 4, "page_size" => 1})
   end
 
   test "rejects malformed pagination, sorts and volume identifiers", %{account: account} do
-    for args <- [%{"page" => 0}, %{"page_size" => 101}, %{"sort_by" => "scope"}, %{"sort_order" => "up"}] do
+    for args <- [
+          %{"page" => 0},
+          %{"page_size" => 101},
+          %{"name" => ""},
+          %{"repository" => 42},
+          %{"sort_by" => "scope"},
+          %{"sort_order" => "up"}
+        ] do
       assert {:error, :invalid_parameters} = Query.run(:list, account.id, args)
     end
 

@@ -92,7 +92,13 @@ defmodule TuistWeb.API.Schemas.RunnerVolumes do
       case action do
         :list ->
           Map.merge(page_inputs(), %{
-            search: %Schema{type: :string, maxLength: 200},
+            name: %Schema{type: :string, minLength: 1, maxLength: 200, description: "Exact volume name (cache key)."},
+            repository: %Schema{
+              type: :string,
+              minLength: 1,
+              maxLength: 200,
+              description: "Exact repository name, including its owner or namespace."
+            },
             sort_by: %Schema{type: :string, enum: ["volume", "repository", "used_space", "capacity", "last_used"]},
             sort_order: %Schema{type: :string, enum: ["asc", "desc"]}
           })

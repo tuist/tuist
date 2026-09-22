@@ -37,10 +37,12 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
     expect(Query, :run, fn :list, 1, args ->
       assert args["page"] == 2
       assert args["page_size"] == 3
+      assert args["name"] == "gradle"
+      assert args["repository"] == "acme/android"
       {:ok, %{volumes: []}}
     end)
 
-    result = call(:list, %{"page" => "2", "page_size" => "3"})
+    result = call(:list, %{"page" => "2", "page_size" => "3", "name" => "gradle", "repository" => "acme/android"})
     assert result.status == 200
     assert get_resp_header(result, "cache-control") == ["private, no-store"]
   end

@@ -20956,7 +20956,7 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// List, search and sort runner volumes.
+    /// List runner volumes filtered by name and repository.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)`.
@@ -20980,6 +20980,13 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
+                    name: "name",
+                    value: input.query.name
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
                     name: "page",
                     value: input.query.page
                 )
@@ -20994,8 +21001,8 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
-                    name: "search",
-                    value: input.query.search
+                    name: "repository",
+                    value: input.query.repository
                 )
                 try converter.setQueryItemAsURI(
                     in: &request,

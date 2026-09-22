@@ -25,7 +25,14 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
   test "read tools authorize and return the shared paginated contract", %{account: account, conn: conn} do
     expect(Authorization, :authorize, fn :runners_read, :subject, ^account -> :ok end)
 
-    expect(Query, :run, fn :list, 1, %{"account_handle" => "acme", "page_size" => 1} ->
+    expect(Query, :run, fn :list,
+                           1,
+                           %{
+                             "account_handle" => "acme",
+                             "page_size" => 1,
+                             "name" => "gradle",
+                             "repository" => "acme/android"
+                           } ->
       {:ok,
        %{
          volumes: [],
@@ -41,7 +48,12 @@ defmodule Tuist.MCP.Components.Tools.RunnerVolumeToolsTest do
     end)
 
     assert %{"structuredContent" => %{"volumes" => [], "pagination_metadata" => %{"page_size" => 1}}} =
-             ListRunnerVolumes.call(conn, %{"account_handle" => "acme", "page_size" => 1})
+             ListRunnerVolumes.call(conn, %{
+               "account_handle" => "acme",
+               "page_size" => 1,
+               "name" => "gradle",
+               "repository" => "acme/android"
+             })
   end
 
   test "job references bind account, run and job and retain unknown metrics", %{account: account, conn: conn, id: id} do

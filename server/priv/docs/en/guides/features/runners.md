@@ -50,15 +50,17 @@ They use the same account access rules as the dashboard: runner access for reads
 and account administration for clearing.
 
 ```sh
-# Account can also come from the project's configured full handle.
-tuist runner volume list --account acme --search gradle --sort-by used_space --sort-order desc --page-size 20 --json
-tuist runner volume show VOLUME_UUID --account acme
-tuist runner volume jobs VOLUME_UUID --account acme --page 2
-tuist runner volume for-job JOB_ID --account acme
-tuist runner volume analytics --account acme --volume VOLUME_UUID --start 2026-09-01T00:00:00Z --end 2026-09-08T00:00:00Z --json
-tuist runner volume clear VOLUME_UUID --account acme --yes
+# Account defaults to the project in Tuist.swift or tuist.toml.
+tuist runner volume list --name gradle-dependencies --repository acme/android --sort-by used_space --sort-order desc --page-size 20 --json
+tuist runner volume show VOLUME_UUID
+tuist runner volume jobs VOLUME_UUID --page 2
+tuist runner volume for-job JOB_ID
+tuist runner volume analytics --volume VOLUME_UUID --start 2026-09-01T00:00:00Z --end 2026-09-08T00:00:00Z --json
+tuist runner volume clear VOLUME_UUID --yes
 ```
 
+The `--name` and `--repository` filters match exactly; combine them to require both.
+Use `--account` to override the configured account or when running outside a configured project.
 Omit `--volume` for account-wide analytics. The default range is the last seven
 days; an explicit range must be ordered, at most 90 days, and end no later than
 now. Pagination starts at 1 and accepts up to 100 rows per page. Use the Tuist job
@@ -70,7 +72,7 @@ The API paths below are relative to `/api/accounts/{account_handle}/runners`:
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/volumes` | Inventory; `search`, `sort_by`, `sort_order`, `page`, `page_size` |
+| GET | `/volumes` | Inventory; `name`, `repository`, `sort_by`, `sort_order`, `page`, `page_size` |
 | GET | `/volumes/{volume_id}` | Volume details |
 | GET | `/volumes/{volume_id}/jobs` | Job history; `page`, `page_size` |
 | GET | `/jobs/{workflow_job_id}/volumes` | Volumes mounted by a job |

@@ -401,7 +401,7 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   def list(account_id, search \\ "", page \\ 1, opts \\ []) do
-    query = inventory_query(account_id, search)
+    query = inventory_query(account_id, search, opts)
     page_size = Keyword.get(opts, :page_size, 20)
     query = sort_volumes(query, account_id, opts)
     volumes = Repo.all(from(v in query, limit: ^(page_size + 1), offset: ^((page - 1) * page_size)))
@@ -409,11 +409,11 @@ defmodule Tuist.Runners.CacheVolumes do
     %{volumes: Enum.take(volumes, page_size), more?: length(volumes) > page_size, stats: statistics(ids)}
   end
 
-  def count(account_id, search \\ "") do
-    Repo.aggregate(inventory_query(account_id, search), :count)
+  def count(account_id, search \\ "", opts \\ []) do
+    Repo.aggregate(inventory_query(account_id, search, opts), :count)
   end
 
-  defp inventory_query(account_id, search) do
+  defp inventory_query(account_id, search, opts) do
     query =
       from(v in Volume,
         where: v.account_id == ^account_id
@@ -424,7 +424,8 @@ defmodule Tuist.Runners.CacheVolumes do
         do: query,
         else: where(query, [v], ilike(v.key, ^"%#{search}%") or ilike(v.repository, ^"%#{search}%"))
 
-    query
+    query = if name = opts[:name], do: where(query, [v], v.key == ^name), else: query
+    if repository = opts[:repository], do: where(query, [v], v.repository == ^repository), else: query
   end
 
   def history_count(account_id, volume_id) do

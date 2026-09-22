@@ -28773,6 +28773,17 @@ paths:
             x-validate:
         - description: ''
           in: query
+          name: name
+          required: false
+          schema:
+            description: Exact volume name (cache key).
+            maxLength: 200
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
           name: page
           required: false
           schema:
@@ -28793,10 +28804,12 @@ paths:
             x-validate:
         - description: ''
           in: query
-          name: search
+          name: repository
           required: false
           schema:
+            description: Exact repository name, including its owner or namespace.
             maxLength: 200
+            minLength: 1
             type: string
             x-struct:
             x-validate:
@@ -29000,7 +29013,7 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
-      summary: List, search and sort runner volumes.
+      summary: List runner volumes filtered by name and repository.
       tags:
         - Runners
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites:

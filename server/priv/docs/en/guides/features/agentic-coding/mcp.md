@@ -257,7 +257,7 @@ require runner access; clearing requires account administration and user confirm
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_runner_volumes` | Search, sort and paginate volumes. | `account_handle` |
+| `list_runner_volumes` | Filter by name and repository, sort and paginate volumes. | `account_handle` |
 | `get_runner_volume` | Repository, platform, capacity, used space and last use. | `account_handle`, `volume_id` |
 | `list_runner_volume_jobs` | Paginated job and workflow references, cache status, hit outcome and mount time. | `account_handle`, `volume_id` |
 | `list_runner_job_volumes` | Volumes mounted by a job. | `account_handle`, `workflow_job_id` |
@@ -265,7 +265,7 @@ require runner access; clearing requires account administration and user confirm
 | `clear_runner_volume` | Clear saved contents. Running jobs keep their private copies but cannot save them; later jobs start empty. | `account_handle`, `volume_id` |
 
 Lists accept `page` and `page_size` (up to 100). Volume inventory also accepts
-`search`, `sort_by` (`volume`, `repository`, `used_space`, `capacity`, `last_used`)
+`name` and `repository` (exact matches, combined with AND), `sort_by` (`volume`, `repository`, `used_space`, `capacity`, `last_used`)
 and `sort_order` (`asc`, `desc`). Unknown measurements and hit outcomes remain
 `null`. Cache status describes whether volume changes were saved, not job success.
 

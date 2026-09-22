@@ -777,7 +777,7 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)`.
     func listGradleBuildSteps(_ input: Operations.listGradleBuildSteps.Input) async throws -> Operations.listGradleBuildSteps.Output
-    /// List, search and sort runner volumes.
+    /// List runner volumes filtered by name and repository.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)`.
@@ -2833,7 +2833,7 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// List, search and sort runner volumes.
+    /// List runner volumes filtered by name and repository.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)`.
@@ -76166,7 +76166,7 @@ public enum Operations {
             }
         }
     }
-    /// List, search and sort runner volumes.
+    /// List runner volumes filtered by name and repository.
     ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)`.
@@ -76192,6 +76192,10 @@ public enum Operations {
             public struct Query: Sendable, Hashable {
                 ///
                 ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/name`.
+                public var name: Swift.String?
+                ///
+                ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/page`.
                 public var page: Swift.Int?
                 ///
@@ -76200,8 +76204,8 @@ public enum Operations {
                 public var page_size: Swift.Int?
                 ///
                 ///
-                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/search`.
-                public var search: Swift.String?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/repository`.
+                public var repository: Swift.String?
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/sort_by`.
                 @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case volume = "volume"
@@ -76226,21 +76230,24 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - name:
                 ///   - page:
                 ///   - page_size:
-                ///   - search:
+                ///   - repository:
                 ///   - sort_by:
                 ///   - sort_order:
                 public init(
+                    name: Swift.String? = nil,
                     page: Swift.Int? = nil,
                     page_size: Swift.Int? = nil,
-                    search: Swift.String? = nil,
+                    repository: Swift.String? = nil,
                     sort_by: Operations.listRunnerVolumes.Input.Query.sort_byPayload? = nil,
                     sort_order: Operations.listRunnerVolumes.Input.Query.sort_orderPayload? = nil
                 ) {
+                    self.name = name
                     self.page = page
                     self.page_size = page_size
-                    self.search = search
+                    self.repository = repository
                     self.sort_by = sort_by
                     self.sort_order = sort_order
                 }

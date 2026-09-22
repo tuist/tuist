@@ -48,3 +48,6 @@ these schemas persist volume identities and per-job uses.
   without node, pod, Ceph or credential details. HTTP/MCP use runners-read for data
   and account-update for clearing. Limit pages to 100 rows and ranges to 90 days;
   never coerce unknown byte counts or hit outcomes to zero.
+
+- Public inventory filters use exact name (key) and repository equality, combined
+  with AND before counting and paginating. The dashboard retains its free-text search.

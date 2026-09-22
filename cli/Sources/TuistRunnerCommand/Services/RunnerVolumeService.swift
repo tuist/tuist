@@ -22,7 +22,8 @@ struct RunnerVolumeService {
     }
 
     func list(
-        search: String?,
+        name: String?,
+        repository: String?,
         sort: RunnerVolumeSort?,
         order: RunnerVolumeSortOrder?,
         pagination: RunnerVolumePagination
@@ -30,9 +31,10 @@ struct RunnerVolumeService {
         let response = try await client.listRunnerVolumes(.init(
             path: .init(account_handle: account),
             query: .init(
+                name: name,
                 page: pagination.page,
                 page_size: pagination.pageSize,
-                search: search,
+                repository: repository,
                 sort_by: sort.flatMap { .init(rawValue: $0.rawValue) },
                 sort_order: order.flatMap { .init(rawValue: $0.rawValue) }
             )

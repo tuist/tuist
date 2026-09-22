@@ -51,17 +51,21 @@ enum RunnerVolumeSortOrder: String, ExpressibleByArgument, CaseIterable {
 }
 
 struct RunnerVolumeListCommand: AsyncParsableCommand, NooraReadyCommand {
-    static let configuration = CommandConfiguration(commandName: "list", abstract: "List, search and sort volumes.")
+    static let configuration = CommandConfiguration(
+        commandName: "list",
+        abstract: "List and filter volumes by name and repository."
+    )
     @OptionGroup var options: RunnerVolumeOptions
     @OptionGroup var pagination: RunnerVolumePagination
-    @Option(name: .long) var search: String?
+    @Option(name: .long, help: "Filter by exact volume name (cache key).") var name: String?
+    @Option(name: .long, help: "Filter by exact repository, including its owner or namespace.") var repository: String?
     @Option(name: .long) var sortBy: RunnerVolumeSort?
     @Option(name: .long) var sortOrder: RunnerVolumeSortOrder?
     var jsonThroughNoora: Bool { true }
 
     func run() async throws {
         let service = try await RunnerVolumeService.resolve(options)
-        try await service.list(search: search, sort: sortBy, order: sortOrder, pagination: pagination)
+        try await service.list(name: name, repository: repository, sort: sortBy, order: sortOrder, pagination: pagination)
     }
 }
 

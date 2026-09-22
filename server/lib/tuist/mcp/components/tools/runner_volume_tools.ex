@@ -36,7 +36,9 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerVolumes do
     output_schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.response(:list))
 
   @impl EMCP.Tool
-  def description, do: "List, search and sort runner volumes for an account."
+  def description,
+    do:
+      "List and sort runner volumes for an account. Optional name and repository filters match exactly and combine with AND."
 
   def execute(conn, args), do: Tuist.MCP.Components.Tools.RunnerVolumeTools.execute(:list, conn, args)
 end

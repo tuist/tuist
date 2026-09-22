@@ -6,12 +6,14 @@ import Testing
 struct RunnerVolumeCommandTests {
     private let id = "a57a427c-1ffc-476f-9282-558ff3f61585"
 
-    @Test func parsesPaginatedSearch() throws {
+    @Test func parsesPaginatedFilters() throws {
         let command = try RunnerVolumeListCommand.parse([
             "--account",
             "acme",
-            "--search",
+            "--name",
             "gradle",
+            "--repository",
+            "acme/android",
             "--page",
             "2",
             "--page-size",
@@ -23,11 +25,19 @@ struct RunnerVolumeCommandTests {
             "--json",
         ])
         #expect(command.options.account == "acme")
+        #expect(command.name == "gradle")
+        #expect(command.repository == "acme/android")
         #expect(command.pagination.page == 2)
         #expect(command.pagination.pageSize == 5)
         #expect(command.sortBy == .usedSpace)
         #expect(command.sortOrder == .asc)
         #expect(command.options.json)
+    }
+
+    @Test func accountIsOptionalAndSearchIsNotAccepted() throws {
+        let command = try RunnerVolumeListCommand.parse(["--name", "gradle"])
+        #expect(command.options.account == nil)
+        #expect(throws: (any Error).self) { try RunnerVolumeListCommand.parse(["--search", "gradle"]) }
     }
 
     @Test func rejectsUnboundedPages() {
