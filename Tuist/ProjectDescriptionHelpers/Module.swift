@@ -137,7 +137,8 @@ public enum Module: String, CaseIterable {
                 dependencies: [
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .external(name: "Subprocess"),
+                    .external(name: "SystemPackage"),
                     .external(name: "Mockable"),
                 ],
                 settings: .settings(
@@ -440,7 +441,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                 ]
             case .automation:
                 [
@@ -463,7 +464,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "XcodeProj"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                 ]
             case .dependencies:
                 [
@@ -480,7 +481,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.registryCommand.targetName),
                     .external(name: "XcodeProj"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
@@ -508,7 +509,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                 ]
             default:
                 []
@@ -594,7 +595,7 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .process:
-                []
+                [.external(name: "Subprocess")]
             case .xcodeGraph:
                 [
                     .external(name: "AnyCodable"),
@@ -609,7 +610,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.xcodeGraph.targetName),
                     .target(name: Module.xcodeMetadata.targetName),
-                    .external(name: "Command"),
+                    .external(name: "Subprocess"),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
                 ]
@@ -655,6 +656,7 @@ public enum Module: String, CaseIterable {
             case .testing:
                 [
                     .target(name: Module.testSupport.targetName),
+                    .target(name: Module.process.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.server.targetName),
@@ -674,7 +676,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
-                    .external(name: "Command"),
+                    .external(name: "Subprocess"),
                     .external(name: "Logging"),
                     .external(name: "ArgumentParser"),
                     .external(name: "Noora"),
@@ -710,7 +712,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "ArgumentParser"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                 ]
             case .tuist:
                 [
@@ -795,7 +797,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Logging"),
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "LoggingOSLog"),
                     .external(name: "Noora"),
                     .external(name: "XCLogParser"),
@@ -855,7 +857,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.userInputReader.targetName),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
                     .external(name: "SwiftToolsSupport"),
                     .target(name: Module.xcodeGraph.targetName),
                     .target(name: Module.xcodeGraphMapper.targetName),
@@ -884,7 +885,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "AnyCodable"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "FileSystem"),
                     .target(name: Module.xcodeMetadata.targetName),
                 ]
@@ -901,7 +902,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "SwiftGenKit"),
                     .external(name: "PathKit"),
@@ -940,7 +941,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
                 ]
@@ -956,7 +957,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "SwiftToolsSupport"),
                 ]
             case .migration:
@@ -990,7 +991,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
                     .external(name: "XcbeautifyLib"),
@@ -1001,7 +1002,7 @@ public enum Module: String, CaseIterable {
                 [
                     .external(name: "Crypto"),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "MachOKit", condition: .when([.macos])),
                     .external(name: "SwiftProtobuf"),
                     .external(name: "Logging"),
@@ -1038,7 +1039,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
                     .target(name: Module.xcodeGraph.targetName),
-                    .external(name: "Command", condition: .when([.macos])),
+                    .target(name: "TuistProcess", condition: .when([.macos])),
                     .target(name: Module.rosalind.targetName, condition: .when([.macos])),
                     .external(name: "KeychainAccess"),
                     .external(name: "Crypto"),
@@ -1052,7 +1053,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.xcodeGraph.targetName),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "FileSystem"),
                     .external(name: "OrderedSet"),
                     .external(name: "Logging"),
@@ -1127,7 +1128,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                 ]
@@ -1190,7 +1191,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .launchctl:
                 [
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
@@ -1253,7 +1254,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .bazelCommand:
                 [
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.reapi.targetName),
@@ -1312,7 +1313,7 @@ public enum Module: String, CaseIterable {
             case .macOSSDK:
                 [
                     .target(name: Module.threadSafe.targetName),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                 ]
             case .encodable:
                 [
@@ -1506,7 +1507,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "ArgumentParser"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .target(name: Module.xcodeGraph.targetName),
                 ]
             case .android:
@@ -1514,7 +1515,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.environment.targetName),
                     .external(name: "FileSystem"),
-                    .external(name: "Command", condition: .when([.macos])),
+                    .target(name: "TuistProcess", condition: .when([.macos])),
                     .external(name: "Mockable"),
                 ]
             case .machineMetrics:
@@ -1553,7 +1554,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "Mockable"),
                 ]
@@ -1626,7 +1627,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .target(name: Module.rosalind.targetName),
                     .external(name: "Mockable"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .target(name: Module.xcodeGraph.targetName),
                 ]
             }
@@ -1745,7 +1746,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "Noora"),
@@ -1785,7 +1786,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                 ]
             case .har:
                 [
@@ -1809,7 +1810,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .target(name: Module.swifterPMCore.targetName),
                 ]
             case .projectDescription:
@@ -1886,7 +1887,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "Difference"),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
                     .target(name: Module.xcodeGraph.targetName),
                     .target(name: Module.xcodeGraphMapper.targetName),
                     .external(name: "SwiftToolsSupport"),
@@ -1896,7 +1896,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftyJSON"),
                     .target(name: Module.rosalind.targetName),
                     .external(name: "Noora"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "OpenAPIRuntime"),
                 ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
@@ -1912,7 +1912,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystemTesting"),
                     .target(name: Module.xcodeMetadata.targetName),
                     .external(name: "SwiftToolsSupport"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "XcodeProj"),
                 ]
             case .generator:
@@ -2005,7 +2005,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "FileSystemTesting"),
                 ]
             case .server:
@@ -2028,7 +2028,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "SwiftToolsSupport"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                 ]
             case .hasher:
                 [
@@ -2096,7 +2096,7 @@ public enum Module: String, CaseIterable {
             case .rosalind:
                 [
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                 ]
             case .xcodeProjectOrWorkspacePathLocator:
                 [
@@ -2143,7 +2143,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.loggerTesting.targetName),
-                    .external(name: "Command"),
+                    .target(name: "TuistProcess"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
