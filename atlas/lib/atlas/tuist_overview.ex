@@ -621,7 +621,10 @@ defmodule Atlas.TuistOverview do
       elapsed = Date.diff(day, ~D[2026-01-01])
       base = if Date.day_of_week(day) in [6, 7], do: 130, else: 700
       growth = :math.pow(@sample_active_users_daily_growth, elapsed)
-      {day, round(base * growth) + rem(elapsed, 17)}
+      # `Integer.mod/2` rather than `rem/2`: the jitter has to stay positive for
+      # days before the anchor, or a range far enough back — where the growth
+      # factor has decayed the base to nothing — samples a negative headcount.
+      {day, max(round(base * growth) + Integer.mod(elapsed, 17), 0)}
     end
   end
 
