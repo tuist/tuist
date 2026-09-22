@@ -1106,6 +1106,48 @@ defmodule Tuist.BillingTest do
       assert Billing.switch_to_usage_based_pricing(account) == {:error, :usage_meter_prices_not_configured}
     end
 
+    test "only a Pro subscription that renewed in the last two days is due to switch", %{account: account} do
+      now = ~U[2026-05-20 12:00:00.000000Z]
+
+      renewed_yesterday =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :pro,
+          status: "active",
+          current_period_start: ~U[2026-05-19 12:00:00Z]
+        )
+
+      for {plan, period_start} <- [
+            {:pro, ~U[2026-05-01 12:00:00Z]},
+            {:pro, nil},
+            {:enterprise, ~U[2026-05-19 12:00:00Z]},
+            {:open_source, ~U[2026-05-19 12:00:00Z]},
+            {:air, ~U[2026-05-19 12:00:00Z]}
+          ] do
+        other = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+        BillingFixtures.subscription_fixture(
+          account_id: other.id,
+          plan: plan,
+          status: "active",
+          current_period_start: period_start
+        )
+      end
+
+      cancelled = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      BillingFixtures.subscription_fixture(
+        account_id: cancelled.id,
+        plan: :pro,
+        status: "canceled",
+        current_period_start: ~U[2026-05-19 12:00:00Z]
+      )
+
+      assert renewed_yesterday.account_id == account.id
+
+      assert Enum.map(Billing.accounts_due_for_usage_based_pricing_switch(now), & &1.id) == [account.id]
+    end
+
     test "the hold keeps the flag off for a subscribed account but not an Air one", %{account: account} do
       air_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture(customer_id: "customer_air"))
 

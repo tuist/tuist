@@ -24,6 +24,7 @@ defmodule Tuist.Billing do
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
   @usage_meter_event_names ["cache_egress_megabytes", "cache_requests", "passing_test_cases"]
+  @switch_renewal_window_days 2
 
   @payment_thresholds %{remote_cache_hits: 200}
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
@@ -715,6 +716,31 @@ defmodule Tuist.Billing do
       {:ok, false} = FunWithFlags.disable(:usage_based_pricing, for_actor: account)
       account
     end)
+  end
+
+  @doc """
+  The accounts whose Pro subscription renewed within the last two days and
+  is therefore due to be switched onto the usage-based meters.
+
+  A switch belongs right after a renewal: the hit Price it removes was
+  invoiced by that renewal, and the meters start the new period at zero.
+  The window spans two days so a missed daily run still catches it, and the
+  switch is idempotent, so seeing a subscription twice costs nothing.
+
+  Only Pro subscriptions. Enterprise terms are contracted per account, and
+  open source accounts pay nothing, so neither is migrated by a schedule.
+  """
+  def accounts_due_for_usage_based_pricing_switch(%DateTime{} = now) do
+    renewed_since = DateTime.add(now, -@switch_renewal_window_days * 24 * 60 * 60, :second)
+
+    from(s in Subscription,
+      where: s.status == "active" and s.plan == :pro,
+      where: not is_nil(s.current_period_start),
+      where: s.current_period_start >= ^renewed_since and s.current_period_start <= ^now,
+      preload: :account
+    )
+    |> Repo.all()
+    |> Enum.map(& &1.account)
   end
 
   @doc """

@@ -49,6 +49,17 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  Whether the switch worker may move this account's subscription onto the
+  usage-based meters at its next renewal. Off unless
+  `:usage_based_pricing_switch` is enabled for the account or for everyone,
+  which is what paces the migration: an account is only switched once its
+  notice period has passed.
+  """
+  def usage_based_pricing_switch_enabled?(account) do
+    FunWithFlags.enabled?(:usage_based_pricing_switch, for: account)
+  end
+
+  @doc """
   Whether the pricing page shows usage-based pricing. Anonymous visitors see
   it once the `:usage_based_pricing_page` flag is enabled for everyone; a
   signed-in user sees it once the flag is enabled for them, so the page can be
