@@ -19,6 +19,7 @@ defmodule AtlasWeb.AccountLiveTest do
   alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Document
   alias Atlas.Letters
+  alias Atlas.Nudges.Proposal
   alias Atlas.Repo
   alias Atlas.Slack
   alias Atlas.Slack.Message, as: SlackMessage
@@ -153,6 +154,40 @@ defmodule AtlasWeb.AccountLiveTest do
     assert has_element?(view, "[data-part='metadata-value']", "EUR 7,980.00")
     assert has_element?(view, "#timeline-event-#{event.id}", event.title)
     _ = upcoming_invoice
+  end
+
+  test "renders the account nudges card empty by default", %{conn: conn} do
+    user = insert_user!("account-nudges-empty@example.com")
+    account = insert_account!(%{name: "No Nudges Yet", segment: :customer})
+
+    conn = init_test_session(conn, %{"user_id" => user.id})
+
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
+
+    assert has_element?(view, "[data-part='account-nudges-card']")
+    assert has_element?(view, "#account-nudges-empty")
+  end
+
+  test "renders open nudges on the account page", %{conn: conn} do
+    user = insert_user!("account-nudges@example.com")
+    account = insert_account!(%{name: "Nudged Customer", segment: :customer, plan_tier: "pro"})
+
+    {:ok, nudge} =
+      Atlas.Nudges.propose(account, "invited_teammates_sso", %Proposal{
+        dedup_key: "invited_teammates_sso:test",
+        title: "Nudged Customer: SSO conversation (5 members)",
+        rationale: "SSO not yet configured; team crossed the threshold.",
+        draft_subject: "SSO setup for Nudged Customer",
+        draft_body: "Hi,",
+        evidence: %{"member_count" => 5}
+      })
+
+    conn = init_test_session(conn, %{"user_id" => user.id})
+
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
+
+    assert has_element?(view, "#nudge-row-#{nudge.id}", "Nudged Customer: SSO conversation")
+    refute has_element?(view, "#account-nudges-empty")
   end
 
   test "renders extracted service levels from signed documents", %{conn: conn} do
