@@ -1,0 +1,94 @@
+name: Kura Promote to Stable
+
+# Promote a soaked release candidate to the stable kura@X.Y.0 release.
+#
+# Prerequisite: the line's releases/kura-<major>.<minor>.x branch has
+# published at least one RC (kura-rc.yml) and soaked cleanly. This builds
+# the branch HEAD (which includes any fixes cherry-picked during the soak)
+# and publishes the semver tag kura@X.Y.0 with make_latest=true, moving the
+# GitHub "Latest" pointer and the GHCR :latest tag on ghcr.io/tuist/kura.
+#
+# The cron is aligned with cli-promote.yml and server-promote.yml so all
+# three components' release trains fire in lockstep. The hosted server
+# picks up the newly promoted Kura runtime on the next deploy: the deploy
+# tail resolves `kura@` semvers from git at deploy time.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Release branch to promote (releases/kura-<major>.<minor>.x)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+  id-token: write
+
+concurrency:
+  # Shared with kura-release.yml / kura-rc.yml so version resolution and tag
+  # creation never race.
+  group: kura-publish
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  prepare:
+    name: Resolve stable version
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+      should_publish: ${{ steps.resolve.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: resolve
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          mise run --no-deps --skip-tools kura:release:channel-version -- promote "$BRANCH"
+      - name: Check the resolver reached a publish decision
+        env:
+          SHOULD_PUBLISH: ${{ steps.resolve.outputs.should_publish }}
+        run: |
+          set -euo pipefail
+          case "$SHOULD_PUBLISH" in
+            true | false) ;;
+            *)
+              echo "::error::The resolver recorded no publish decision (should_publish='${SHOULD_PUBLISH}'), so the build would be skipped and this run would report success having promoted nothing."
+              exit 1
+              ;;
+          esac
+
+  build-publish:
+    name: Build and publish stable
+    needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
+    uses: ./.github/workflows/kura-build-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ needs.prepare.outputs.sha }}
+      changelog_from: ${{ needs.prepare.outputs.changelog_from }}
+      make_latest: true
+      prerelease: false
+    secrets: inherit
