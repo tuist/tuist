@@ -14,9 +14,10 @@ defmodule Atlas.Nudges.Nudge do
 
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.Contact
+  alias Atlas.GTM.Delivery
   alias Atlas.Users.User
 
-  @states ~w(pending_post proposed claimed dismissed expired)
+  @states ~w(pending_post proposed claimed sent dismissed expired)
   @open_states ~w(pending_post proposed claimed)
   @severities ~w(low normal high)
 
@@ -38,15 +39,22 @@ defmodule Atlas.Nudges.Nudge do
     field :dismissed_reason, :string
     field :dismissed_until, :utc_datetime
     field :expired_at, :utc_datetime
+    field :sent_at, :utc_datetime
+    field :email_delivery_observed_at, :utc_datetime
 
     field :slack_channel_id, :string
     field :slack_message_ts, :string
 
     field :expires_at, :utc_datetime
 
+    # Transient send-result flag returned by `Atlas.Nudges.send/2` so callers
+    # can distinguish a fresh queue from a duplicate collapse.
+    field :duplicate, :boolean, virtual: true, default: false
+
     belongs_to :account, Account
     belongs_to :contact, Contact
     belongs_to :claimed_by_user, User, foreign_key: :claimed_by_user_id
+    belongs_to :email_delivery, Delivery
 
     timestamps()
   end
@@ -139,6 +147,44 @@ defmodule Atlas.Nudges.Nudge do
 
   def dismiss_changeset(nudge, _attrs) do
     nudge |> change() |> add_error(:state, "must be open to dismiss")
+  end
+
+  def send_changeset(%__MODULE__{state: "claimed"} = nudge, %Delivery{id: delivery_id}) do
+    nudge
+    |> change(%{
+      state: "sent",
+      sent_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      email_delivery_id: delivery_id,
+      email_delivery_observed_at: nil
+    })
+    |> foreign_key_constraint(:email_delivery_id)
+  end
+
+  def send_changeset(nudge, _delivery) do
+    nudge |> change() |> add_error(:state, "must be claimed to send")
+  end
+
+  def retry_changeset(%__MODULE__{state: "sent"} = nudge) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    nudge
+    |> change(%{
+      state: "claimed",
+      claimed_at: now,
+      sent_at: nil,
+      email_delivery_id: nil,
+      email_delivery_observed_at: nil
+    })
+  end
+
+  def retry_changeset(nudge) do
+    nudge |> change() |> add_error(:state, "must be sent to retry")
+  end
+
+  def observe_delivery_changeset(%__MODULE__{} = nudge) do
+    change(nudge, %{
+      email_delivery_observed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
   end
 
   def expire_changeset(%__MODULE__{state: state} = nudge) when state in ["pending_post", "proposed", "claimed"] do

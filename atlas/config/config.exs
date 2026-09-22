@@ -26,6 +26,7 @@ alias Atlas.MCP.Workers.RefreshOAuthSessions
 alias Atlas.Memory.Workers.RefreshBulletin, as: RefreshMemoryBulletin
 alias Atlas.Nudges.Workers.EvaluateSignals, as: EvaluateNudgeSignals
 alias Atlas.Nudges.Workers.ExpireStaleNudges
+alias Atlas.Nudges.Workers.ReconcileDeliveryOutcomes, as: ReconcileNudgeDeliveryOutcomes
 alias Atlas.OAuth.AccessTokens
 alias Atlas.OAuth.Clients
 alias Atlas.OAuth.ResourceOwners
@@ -87,6 +88,7 @@ config :atlas, Oban,
        {"0 3 * * *", ScheduleOverviewSummaries},
        {"20 4 * * *", EvaluateNudgeSignals},
        {"30 4 * * *", ExpireStaleNudges},
+       {"* * * * *", ReconcileNudgeDeliveryOutcomes},
        {"15 3 * * *", ScheduleStripeInvoiceReconciliations},
        {"5 * * * *", SyncNotes, args: %{mode: "incremental"}},
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},
