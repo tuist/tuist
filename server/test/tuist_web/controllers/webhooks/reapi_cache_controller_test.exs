@@ -7,6 +7,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.ReapiCache.CacheEvent
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -38,11 +39,16 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
   end
 
   describe "POST /webhooks/reapi-cache" do
-    test "ingests current and retained account handles after a rename", %{conn: conn, project: project} do
+    test "ingests current and retained account handles even after URL expiry", %{conn: conn, project: project} do
       original = project.account
       other = ProjectsFixtures.project_fixture(name: project.name, build_system: :bazel)
       {:ok, middle} = Accounts.update_account(original, %{name: "middle-#{original.id}"})
       {:ok, renamed} = Accounts.update_account(middle, %{name: "renamed-#{original.id}"})
+
+      Repo.query!(
+        "UPDATE account_handle_reservations SET client_url_expires_at = now() - interval '1 second' WHERE account_id = $1 AND name <> $2",
+        [original.id, renamed.name]
+      )
 
       # Kura's no-tenant-header fallback and queued batches still carry the
       # original storage tenant; explicit headers can carry an intermediate name.

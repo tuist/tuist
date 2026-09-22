@@ -1522,15 +1522,18 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 	// external-dns writes it, and starting that while volumes are provisioned and
 	// pods start, rather than after, is most of how soon a new instance can be
 	// handed out.
-	if target == "" && !instance.Spec.Private {
+	if target == "" {
 		existing := &unstructured.Unstructured{}
 		existing.SetGroupVersionKind(dnsEndpointGVK)
 		err := r.Get(ctx, types.NamespacedName{Namespace: endpoint.GetNamespace(), Name: endpoint.GetName()}, existing)
 		switch {
 		case err == nil:
-			return nil
+			return r.pruneClientDNSAliases(ctx, instance, existing)
 		case !apierrors.IsNotFound(err):
 			return err
+		}
+		if instance.Spec.Private {
+			return nil
 		}
 		target, err = r.regionBoxIP(ctx, instance)
 		if err != nil {
@@ -1560,6 +1563,37 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
 	})
 	return err
+}
+
+// Retiring a hostname must not depend on a healthy gateway. Preserve the last
+// targets of still-desired records while removing aliases absent from the spec.
+func (r *KuraInstanceReconciler) pruneClientDNSAliases(ctx context.Context, instance *kurav1alpha1.KuraInstance, endpoint *unstructured.Unstructured) error {
+	records, _, err := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if err != nil {
+		return err
+	}
+	hosts := map[string]bool{}
+	for _, host := range clientHosts(instance) {
+		hosts[host] = true
+	}
+	retained := make([]interface{}, 0, len(records))
+	for _, record := range records {
+		fields, ok := record.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("invalid client DNS record for %s", instance.Name)
+		}
+		host, _ := fields["dnsName"].(string)
+		if hosts[host] {
+			retained = append(retained, record)
+		}
+	}
+	if len(retained) == len(records) {
+		return nil
+	}
+	if err := unstructured.SetNestedSlice(endpoint.Object, retained, "spec", "endpoints"); err != nil {
+		return err
+	}
+	return r.Update(ctx, endpoint)
 }
 
 // regionBoxIP returns the InternalIP of a box the instance's pods could be

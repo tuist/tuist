@@ -20,7 +20,7 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 ## Account renames
 
-`clientHostAliases` retains historical client names alongside the current public/private host. Render the same host set into DNS, HTTP/gRPC ingress and certificate names; a shared wildcard is eligible only if it covers every name. This field never enters the StatefulSet template, peer TLS identity or volume configuration. Preserve private CIDR restrictions and operator-set `OnDelete`. See [account renames](../../kura/docs/account-renames.md).
+`clientHostAliases` contains historical client names still within their 90-day window alongside the current public/private host. The server removes expired names; reconcile must remove their DNS, HTTP/gRPC and certificate entries, including pruning stale DNS aliases when no healthy gateway target is known. Render the same host set into DNS, HTTP/gRPC ingress and certificate names; a shared wildcard is eligible only if it covers every name. This field never enters the StatefulSet template, peer TLS identity or volume configuration. Preserve private CIDR restrictions and operator-set `OnDelete`. See [account renames](../../kura/docs/account-renames.md).
 
 ## Deployment Topology
 

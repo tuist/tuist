@@ -2,6 +2,8 @@ defmodule Tuist.Kura.IdentityTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.Organization
@@ -14,6 +16,7 @@ defmodule Tuist.Kura.IdentityTest do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
+  alias Tuist.Time
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.KuraFixtures
 
@@ -112,6 +115,105 @@ defmodule Tuist.Kura.IdentityTest do
     assert "is reserved by another account" in errors_on(changeset).name
     assert {:ok, restored} = Accounts.update_account(renamed, %{name: account.name})
     assert restored.kura_tenant_id == account.kura_tenant_id
+  end
+
+  test "client URLs expire at 90 days without changing identity, analytics or name ownership" do
+    original = AccountsFixtures.organization_fixture(name: "original-#{System.unique_integer([:positive])}").account
+    server = KuraFixtures.active_server_fixture(original, region: "eu-west")
+    {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    canonical = Provisioner.public_url(account, server)
+    server = server |> Ecto.Changeset.change(url: canonical) |> Repo.update!() |> Map.put(:account, account)
+    region = Regions.get(server.region)
+    ref = server.provisioner_node_ref
+    deadline = client_url_deadline(original.name)
+
+    assert Repo.query!(
+             "SELECT client_url_expires_at = now() + interval '90 days' FROM account_handle_reservations WHERE name = $1",
+             [original.name]
+           ).rows == [[true]]
+
+    assert client_url_deadline(account.name) == nil
+
+    stub(Time, :utc_now, fn -> DateTime.add(deadline, -1, :second) end)
+    before = KubernetesController.manifest(ref, "0.52.1", account, region, server)
+    before_revision = KubernetesController.manifest_revision(server, region)
+    assert Identity.client_handles(account) == Enum.sort([original.name, account.name])
+
+    assert Identity.endpoint_redirects(account) == %{
+             URI.parse(Provisioner.public_url(original, server)).host => canonical
+           }
+
+    stub(Time, :utc_now, fn -> deadline end)
+    after_expiry = KubernetesController.manifest(ref, "0.52.1", account, region, server)
+    assert Identity.client_handles(account) == [account.name]
+    assert Identity.endpoint_redirects(account) == %{}
+    refute Map.has_key?(after_expiry["spec"], "clientHostAliases")
+    assert Map.delete(after_expiry["spec"], "clientHostAliases") == Map.delete(before["spec"], "clientHostAliases")
+    refute KubernetesController.manifest_revision(server, region) == before_revision
+    assert Identity.tenant_id(account) == original.name
+    assert original.name in Identity.handles(account)
+    assert Identity.account_ids([original.name]) == %{original.name => account.id}
+    assert Identity.account_for_handle(original.name).id == account.id
+  end
+
+  test "each alias has its own deadline and rename-back resets only that name" do
+    original = AccountsFixtures.organization_fixture().account
+    {:ok, middle} = Accounts.update_account(original, %{name: "middle-#{original.id}"})
+    earlier_deadline = DateTime.add(DateTime.utc_now(), 10, :day)
+
+    Repo.update_all(from(r in "account_handle_reservations", where: r.name == ^original.name),
+      set: [client_url_expires_at: earlier_deadline]
+    )
+
+    {:ok, latest} = Accounts.update_account(middle, %{name: "latest-#{original.id}"})
+    assert client_url_deadline(original.name) == earlier_deadline
+    middle_deadline = client_url_deadline(middle.name)
+    assert DateTime.after?(middle_deadline, earlier_deadline)
+
+    stub(Time, :utc_now, fn -> earlier_deadline end)
+    assert Identity.client_handles(latest) == Enum.sort([middle.name, latest.name])
+    {:ok, restored} = Accounts.update_account(latest, %{name: original.name})
+    assert client_url_deadline(original.name) == nil
+    assert client_url_deadline(middle.name) == middle_deadline
+    assert original.name in Identity.client_handles(restored)
+    {:ok, _} = Accounts.update_account(restored, %{name: "final-#{original.id}"})
+    assert DateTime.after?(client_url_deadline(original.name), earlier_deadline)
+  end
+
+  test "new and existing accounts cannot claim an alias before or after URL expiry" do
+    original = AccountsFixtures.organization_fixture().account
+    other = AccountsFixtures.organization_fixture().account
+    {:ok, middle} = Accounts.update_account(original, %{name: "middle-#{original.id}"})
+    {:ok, latest} = Accounts.update_account(middle, %{name: "latest-#{original.id}"})
+    deadline = client_url_deadline(middle.name)
+
+    for now <- [DateTime.add(deadline, -1, :second), deadline] do
+      stub(Time, :utc_now, fn -> now end)
+      assert middle.name in Identity.client_handles(latest) == DateTime.before?(now, deadline)
+      assert {:error, changeset} = Accounts.update_account(other, %{name: String.upcase(middle.name)})
+      assert "is reserved by another account" in errors_on(changeset).name
+      organization = Repo.insert!(%Organization{})
+
+      assert {:error, changeset} =
+               %Account{}
+               |> Account.create_changeset(%{
+                 name: String.upcase(middle.name),
+                 organization_id: organization.id,
+                 billing_email: "test@example.com"
+               })
+               |> Repo.insert()
+
+      assert "is reserved by another account" in errors_on(changeset).name
+    end
+  end
+
+  defp client_url_deadline(handle) do
+    Repo.one!(
+      from(r in "account_handle_reservations",
+        where: r.name == ^handle,
+        select: type(r.client_url_expires_at, :utc_datetime_usec)
+      )
+    )
   end
 
   test "the database rejects identity changes even outside account changesets" do

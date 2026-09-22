@@ -98,6 +98,47 @@ func TestAccountRenameRetainsClientAliasesWithoutRollingWorkload(t *testing.T) {
 			if instance.Spec.ClientHostAliases[0] != "original.example.com" {
 				t.Fatal("deep copy shared aliases")
 			}
+
+			// The server drops expired aliases from the desired spec. Reconcile
+			// must withdraw both protocols and TLS without changing the workload.
+			instance.Spec.ClientHostAliases = nil
+			if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.reconcileGRPCIngress(ctx, instance, nil, nil, ""); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range []string{instance.Name, grpcServiceName(instance)} {
+				ingress := &networkingv1.Ingress{}
+				if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, ingress); err != nil {
+					t.Fatal(err)
+				}
+				if len(ingress.Spec.Rules) != 1 || ingress.Spec.Rules[0].Host != "latest.example.com" {
+					t.Fatal("expired alias still routed")
+				}
+				if name == instance.Name && !reflect.DeepEqual(ingress.Spec.TLS[0].Hosts, []string{"latest.example.com"}) {
+					t.Fatal("expired alias still in TLS hosts")
+				}
+			}
+			if err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
+				t.Fatal(err)
+			}
+			names, _, _ = unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
+			if !reflect.DeepEqual(names, []string{"latest.example.com"}) {
+				t.Fatal("expired alias still in certificate names")
+			}
+			if err := r.Get(ctx, key, after); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(before.Spec, after.Spec) {
+				t.Fatal("alias retirement changed the StatefulSet")
+			}
 		})
 	}
 }
@@ -143,5 +184,33 @@ func TestSharedTLSMustCoverRetainedAliases(t *testing.T) {
 	instance.Spec.ClientHostAliases = []string{"old.kura.tuist.dev"}
 	if !r.sharedPublicTLSCovers(ctx, instance) {
 		t.Fatal("one wildcard should cover the canonical hostname and aliases")
+	}
+}
+
+func TestExpiredAliasDNSIsRemovedWithoutAHealthyGateway(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+	instance := hostNetworkPublicInstance("kura-original", "eu-west", "latest.example.com")
+	existing := publicDNSEndpoint(instance.Name+"-public-dns", "latest.example.com", "203.0.113.50")
+	records, _, _ := unstructured.NestedSlice(existing.Object, "spec", "endpoints")
+	records = append(records, map[string]interface{}{"dnsName": "expired.example.com", "recordType": "A", "recordTTL": int64(60), "targets": []interface{}{"203.0.113.50"}})
+	if err := unstructured.SetNestedSlice(existing.Object, records, "spec", "endpoints"); err != nil {
+		t.Fatal(err)
+	}
+	r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing).Build(), Scheme: scheme}
+	if err := r.reconcilePublicDNSEndpoint(ctx, instance, instance.Name+"-0"); err != nil {
+		t.Fatal(err)
+	}
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(dnsEndpointGVK)
+	if err := r.Get(ctx, types.NamespacedName{Name: existing.GetName(), Namespace: instance.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	retained, _, _ := unstructured.NestedSlice(got.Object, "spec", "endpoints")
+	if len(retained) != 1 || retained[0].(map[string]interface{})["dnsName"] != "latest.example.com" {
+		t.Fatalf("expired DNS alias retained: %v", retained)
+	}
+	if !reflect.DeepEqual(recordTargets(t, got), []interface{}{"203.0.113.50"}) {
+		t.Fatal("canonical DNS lost its last known target")
 	}
 }

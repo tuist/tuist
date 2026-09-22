@@ -54,3 +54,5 @@ This directory contains database migrations and other private assets.
 - Automation `event_generation` is nullable and falls back to `baseline_generation` for historical rows. It preserves recovery history across one-time action requests and cancellation; condition changes advance both generations. Keep attempt revision checks separate from event queries.
 
 - Kura identity backfill is forward-only: audit historical provisioner references and reservation collisions before deployment. Unknown/conflicting references abort; never guess a live volume namespace. See `kura/docs/account-renames.md` at repository root.
+
+- Kura client URL expiry is separate from handle ownership: `client_url_expires_at` is set to 90 days when a name is retired, cleared on rename-back, and never deletes its reservation. Historical names with unknown rename dates get 90 days from the expiry migration. Both migrations are forward-only.

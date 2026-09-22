@@ -15,7 +15,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   setup :set_mimic_from_context
 
   setup do
-    stub(Identity, :handles, fn account -> [String.downcase(account.name)] end)
+    stub(Identity, :client_handles, fn account -> [String.downcase(account.name)] end)
     # The manifest resolves the account's egress override from the database, the
     # same way it resolves its disk claim. These tests render manifests for
     # unpersisted accounts, so the unoverridden answer is stubbed here and the

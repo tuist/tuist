@@ -5,6 +5,7 @@ defmodule Tuist.Kura.ReconcilerTest do
   alias Tuist.Accounts
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
@@ -390,6 +391,26 @@ defmodule Tuist.Kura.ReconcilerTest do
     expect(Provisioner, :rollout, fn %Server{id: id, storage_claim_size: claim}, _inputs ->
       assert id == server.id
       assert claim == "24Gi"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
+  test "the ordinary reconciliation tick withdraws expired URLs without an image change" do
+    {original, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: account})
+    Repo.query!("UPDATE account_handle_reservations SET client_url_expires_at = now() WHERE name = $1", [original.name])
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      assert Identity.client_handles(inputs.account) == [account.name]
       :ok
     end)
 

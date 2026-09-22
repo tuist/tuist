@@ -13,6 +13,7 @@ defmodule Tuist.Kura.Identity do
   alias Tuist.Kura.SelfHostedClient
   alias Tuist.Kura.Server
   alias Tuist.Repo
+  alias Tuist.Time
 
   def tenant_id(%{kura_tenant_id: tenant}) when is_binary(tenant), do: tenant
   def tenant_id(%{name: name}), do: String.downcase(name)
@@ -37,10 +38,24 @@ defmodule Tuist.Kura.Identity do
     [account.name, tenant_id(account) | reserved] |> Enum.map(&String.downcase/1) |> Enum.uniq() |> Enum.sort()
   end
 
+  def client_handles(account) do
+    now = Time.utc_now()
+
+    aliases =
+      Repo.all(
+        from(r in "account_handle_reservations",
+          where: r.account_id == ^account.id and r.client_url_expires_at > ^now,
+          select: r.name
+        )
+      )
+
+    [account.name | aliases] |> Enum.map(&String.downcase/1) |> Enum.uniq() |> Enum.sort()
+  end
+
   # Only an endpoint that passed activation's DNS + HTTPS probe is a redirect
   # target. While provisioning the new name, old URLs continue serving in place.
   def endpoint_redirects(account) do
-    aliases = handles(account) -- [String.downcase(account.name)]
+    aliases = client_handles(account) -- [String.downcase(account.name)]
 
     for server <- Repo.all(from(s in Server, where: s.account_id == ^account.id and s.status == :active)),
         {:ok, region} <- [Regions.fetch(server.region)],

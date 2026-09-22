@@ -427,7 +427,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp client_host_aliases(account, region) do
     hosts =
       account
-      |> Identity.handles()
+      |> Identity.client_handles()
       |> Enum.reject(&(&1 == String.downcase(account.name)))
       |> Enum.map(fn handle ->
         if Regions.private?(region), do: private_host(handle, region), else: public_host(handle, region)
@@ -440,7 +440,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp endpoint_identity_revision(account) do
-    handles = Identity.handles(account)
+    handles = Identity.client_handles(account)
 
     if handles == [Identity.tenant_id(account)] and String.downcase(account.name) == Identity.tenant_id(account) do
       ""
