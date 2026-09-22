@@ -186,7 +186,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
-    assert has_element?(view, "#account-nudge-#{nudge.id}", "Nudged Customer: SSO conversation")
+    assert has_element?(view, "#nudge-row-#{nudge.id}", "Nudged Customer: SSO conversation")
     refute has_element?(view, "#account-nudges-empty")
   end
 

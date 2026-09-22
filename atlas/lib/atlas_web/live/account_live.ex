@@ -53,6 +53,8 @@ defmodule AtlasWeb.AccountLive do
          |> assign(:staged_screenshots, [])
          |> assign(:overview_summary_processing, false)
          |> assign(:overview_summary_error, nil)
+         |> assign(:dismiss_nudge_id, nil)
+         |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
          |> assign(:outcome_proposals_processing, false)
          |> assign(:outcome_proposals_error, nil)
          |> assign_favicon(account)
@@ -469,6 +471,83 @@ defmodule AtlasWeb.AccountLive do
              Accounts.generate_outcome_proposals(account_id)
            end)
          end)}
+    end
+  end
+
+  def handle_event("claim_nudge", %{"id" => id}, socket) do
+    case Nudges.claim(id, socket.assigns.current_user) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("You now own this nudge."))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not claim the nudge."))}
+    end
+  end
+
+  def handle_event("release_nudge", %{"id" => id}, socket) do
+    case Nudges.release(id) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("Nudge released."))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not release the nudge."))}
+    end
+  end
+
+  def handle_event("open_dismiss_nudge_modal", %{"id" => id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:dismiss_nudge_id, id)
+     |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+     |> push_event("open-modal", %{id: "dismiss-nudge-modal"})}
+  end
+
+  def handle_event("close_dismiss_nudge_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:dismiss_nudge_id, nil)
+     |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+     |> push_event("close-modal", %{id: "dismiss-nudge-modal"})}
+  end
+
+  def handle_event("dismiss_nudge", %{"dismiss_nudge" => %{"reason" => reason}}, socket) do
+    nudge_id = socket.assigns.dismiss_nudge_id
+    trimmed = String.trim(reason || "")
+
+    cond do
+      is_nil(nudge_id) ->
+        {:noreply, put_flash(socket, :error, gettext("No nudge selected."))}
+
+      trimmed == "" ->
+        {:noreply,
+         assign(
+           socket,
+           :dismiss_nudge_form,
+           to_form(%{"reason" => reason}, as: "dismiss_nudge", errors: [reason: {"can't be blank", []}])
+         )}
+
+      true ->
+        case Nudges.dismiss(nudge_id, %{dismissed_reason: trimmed}) do
+          {:ok, _nudge} ->
+            {:noreply,
+             socket
+             |> assign(:dismiss_nudge_id, nil)
+             |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+             |> push_event("close-modal", %{id: "dismiss-nudge-modal"})
+             |> refresh_nudges(gettext("Nudge dismissed."))}
+
+          {:error, :not_found} ->
+            {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, gettext("Could not dismiss the nudge."))}
+        end
     end
   end
 
@@ -2817,48 +2896,79 @@ defmodule AtlasWeb.AccountLive do
         data-part="account-nudges-card"
       >
         <.card_section data-part="account-nudges-section">
-          <p data-part="account-nudges-description">
-            {gettext(
-              "Signals detect moments worth reaching out about and post a card in Slack for a human to claim, edit, and send. Cards live on the account here too."
-            )}
-          </p>
-
-          <div
-            :if={@nudges != []}
-            id="account-nudges-list"
-            data-part="account-nudges-list"
-          >
-            <div
-              :for={nudge <- @nudges}
-              id={"account-nudge-#{nudge.id}"}
-              data-part="account-nudge"
-            >
-              <div data-part="account-nudge-content">
-                <div data-part="account-nudge-heading">
-                  <span data-part="account-nudge-title">{nudge.title}</span>
-                  <.badge
-                    label={nudge.signal}
-                    color="information"
-                    style="light-fill"
-                  />
-                  <.badge
-                    label={nudge_state_label(nudge.state)}
-                    color={nudge_state_color(nudge.state)}
-                    style="light-fill"
-                  />
-                </div>
-                <p data-part="account-nudge-rationale">{nudge.rationale}</p>
-                <p :if={nudge.dismissed_reason} data-part="account-nudge-dismissal">
-                  <span>{gettext("Dismissed:")}</span>
-                  {nudge.dismissed_reason}
-                </p>
-              </div>
-              <div data-part="account-nudge-controls">
-                <span data-part="account-nudge-timestamp">
-                  {format_nudge_timestamp(nudge.inserted_at)}
-                </span>
-              </div>
-            </div>
+          <div :if={@nudges != []} id="account-nudges-table" data-part="account-nudges-table">
+            <.table id="account-nudges" rows={@nudges} row_key={fn n -> "nudge-row-#{n.id}" end}>
+              <:col :let={nudge} label={gettext("Nudge")}>
+                <.text_and_description_cell
+                  label={nudge.title}
+                  description={nudge_description(nudge)}
+                  truncate={false}
+                />
+              </:col>
+              <:col :let={nudge} label={gettext("Signal")}>
+                <.badge_cell label={nudge.signal} color="information" style="light-fill" />
+              </:col>
+              <:col :let={nudge} label={gettext("State")}>
+                <.badge_cell
+                  label={nudge_state_label(nudge.state)}
+                  color={nudge_state_color(nudge.state)}
+                  style="light-fill"
+                />
+              </:col>
+              <:col :let={nudge} label={gettext("Opened")}>
+                <.text_cell label={format_nudge_timestamp(nudge.inserted_at)} />
+              </:col>
+              <:col :let={nudge} label="">
+                <.button_cell :if={nudge.state == "proposed"}>
+                  <:button>
+                    <.button
+                      id={"claim-nudge-#{nudge.id}"}
+                      label={gettext("Claim")}
+                      variant="secondary"
+                      size="small"
+                      type="button"
+                      phx-click="claim_nudge"
+                      phx-value-id={nudge.id}
+                    />
+                  </:button>
+                  <:button>
+                    <.button
+                      id={"dismiss-nudge-#{nudge.id}"}
+                      label={gettext("Dismiss")}
+                      variant="destructive"
+                      size="small"
+                      type="button"
+                      phx-click="open_dismiss_nudge_modal"
+                      phx-value-id={nudge.id}
+                    />
+                  </:button>
+                </.button_cell>
+                <.button_cell :if={nudge.state == "claimed"}>
+                  <:button>
+                    <.button
+                      id={"release-nudge-#{nudge.id}"}
+                      label={gettext("Release")}
+                      variant="secondary"
+                      size="small"
+                      type="button"
+                      phx-click="release_nudge"
+                      phx-value-id={nudge.id}
+                    />
+                  </:button>
+                  <:button>
+                    <.button
+                      id={"dismiss-claimed-nudge-#{nudge.id}"}
+                      label={gettext("Dismiss")}
+                      variant="destructive"
+                      size="small"
+                      type="button"
+                      phx-click="open_dismiss_nudge_modal"
+                      phx-value-id={nudge.id}
+                    />
+                  </:button>
+                </.button_cell>
+              </:col>
+            </.table>
           </div>
 
           <.account_empty_state
@@ -2871,6 +2981,65 @@ defmodule AtlasWeb.AccountLive do
               )
             }
           />
+
+          <.modal
+            id="dismiss-nudge-modal"
+            title={gettext("Dismiss nudge")}
+            description={
+              gettext("Add a short reason. This helps tune thresholds and shows on the account.")
+            }
+            header_type="icon"
+            header_size="small"
+            on_dismiss="close_dismiss_nudge_modal"
+          >
+            <:header_icon><.circle_x /></:header_icon>
+            <:trigger :let={modal_attrs}>
+              <button id="dismiss-nudge-modal-trigger" type="button" hidden {modal_attrs}></button>
+            </:trigger>
+
+            <div data-part="dismiss-nudge-modal-content">
+              <.form
+                id="dismiss-nudge-form"
+                for={@dismiss_nudge_form}
+                phx-submit="dismiss_nudge"
+              >
+                <.text_area
+                  id="dismiss-nudge-reason-input"
+                  field={@dismiss_nudge_form[:reason]}
+                  label={gettext("Reason")}
+                  placeholder={gettext("Not the right moment; team already knows; ...")}
+                  rows={4}
+                  max_length={500}
+                  required
+                />
+              </.form>
+            </div>
+
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    id="cancel-dismiss-nudge-button"
+                    label={gettext("Cancel")}
+                    variant="secondary"
+                    size="small"
+                    type="button"
+                    phx-click="close_dismiss_nudge_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    id="confirm-dismiss-nudge-button"
+                    label={gettext("Dismiss")}
+                    variant="destructive"
+                    size="small"
+                    type="submit"
+                    form="dismiss-nudge-form"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
         </.card_section>
       </.card>
 
@@ -4156,6 +4325,22 @@ defmodule AtlasWeb.AccountLive do
   end
 
   defp pending_outcome_proposals(_account), do: []
+
+  defp refresh_nudges(socket, message) do
+    account = socket.assigns.account
+
+    socket
+    |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
+    |> put_flash(:info, message)
+  end
+
+  defp nudge_description(nudge) do
+    if nudge.dismissed_reason && nudge.dismissed_reason != "" do
+      "#{nudge.rationale} · #{gettext("Dismissed:")} #{nudge.dismissed_reason}"
+    else
+      nudge.rationale
+    end
+  end
 
   defp nudge_state_label("pending_post"), do: gettext("Posting to Slack…")
   defp nudge_state_label("proposed"), do: gettext("Open")
