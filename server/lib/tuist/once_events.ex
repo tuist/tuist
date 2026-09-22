@@ -367,9 +367,27 @@ defmodule Tuist.OnceEvents do
   """
   def ingest_test_case_run(%Run{} = run, attrs) do
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
-    result = safe_string(Map.get(attrs, :result, "unknown"))
+    row = test_case_row(run, attrs, now)
 
-    row = %{
+    {:ok, _} =
+      Repo.transaction(fn ->
+        {count, _} =
+          Repo.insert_all(TestCaseRun, [row],
+            on_conflict: :nothing,
+            conflict_target: [:once_run_id, :case_id, :attempt]
+          )
+
+        if count == 1, do: roll_up_test_case(run, row, now)
+      end)
+
+    broadcast_run(run, {:test_case_ingested, run.run_id})
+    :ok
+  end
+
+  # Helpers -------------------------------------------------------------
+
+  defp test_case_row(%Run{} = run, attrs, now) do
+    %{
       id: UUIDv7.generate(),
       once_run_id: run.id,
       run_id: run.run_id,
@@ -381,7 +399,7 @@ defmodule Tuist.OnceEvents do
       class_name: safe_string_or_nil(Map.get(attrs, :class_name)),
       module: safe_string_or_nil(Map.get(attrs, :module)),
       attempt: Map.get(attrs, :attempt, 1),
-      result: result,
+      result: safe_string(Map.get(attrs, :result, "unknown")),
       duration_ms: Map.get(attrs, :duration_ms, 0),
       failure_message: safe_string_or_nil(Map.get(attrs, :failure_message)),
       started_at: maybe_truncate(Map.get(attrs, :started_at)),
@@ -389,57 +407,53 @@ defmodule Tuist.OnceEvents do
       inserted_at: now,
       updated_at: now
     }
+  end
 
-    delta = %{
+  defp roll_up_test_case(%Run{} = run, row, now) do
+    Repo.update_all(
+      from(r in Run, where: r.id == ^run.id),
+      inc: run_test_case_inc(row.result),
+      set: [heartbeat_at: now]
+    )
+
+    # A completion also advances the parent suite's per-result counters if
+    # a suite row exists. One write per case keeps suite totals live for
+    # the Tests page.
+    Repo.update_all(
+      from(s in TestSuiteRun,
+        where: s.once_run_id == ^run.id and s.suite_id == ^(row.suite_id || "")
+      ),
+      inc: suite_case_inc(row.result),
+      set: [updated_at: now]
+    )
+
+    :ok
+  end
+
+  defp run_test_case_inc(result) do
+    [
       test_case_count: 1,
       passed_test_cases: if(result == "passed", do: 1, else: 0),
       failed_test_cases: if(result == "failed", do: 1, else: 0),
       skipped_test_cases: if(result == "skipped", do: 1, else: 0)
-    }
-
-    Repo.transaction(fn ->
-      {count, _} =
-        Repo.insert_all(TestCaseRun, [row],
-          on_conflict: :nothing,
-          conflict_target: [:once_run_id, :case_id, :attempt]
-        )
-
-      if count == 1 do
-        Repo.update_all(
-          from(r in Run, where: r.id == ^run.id),
-          inc: Map.to_list(delta),
-          set: [heartbeat_at: now]
-        )
-
-        # A completion also advances the parent suite's per-result
-        # counters if a suite row exists — one write per case keeps
-        # suite totals live for the Tests page.
-        suite_inc =
-          case result do
-            "passed" -> [total_cases: 1, passed_cases: 1]
-            "failed" -> [total_cases: 1, failed_cases: 1]
-            "skipped" -> [total_cases: 1, skipped_cases: 1]
-            "errored" -> [total_cases: 1, errored_cases: 1]
-            "timed_out" -> [total_cases: 1, timed_out_cases: 1]
-            "cancelled" -> [total_cases: 1, cancelled_cases: 1]
-            _ -> [total_cases: 1]
-          end
-
-        Repo.update_all(
-          from(s in TestSuiteRun,
-            where: s.once_run_id == ^run.id and s.suite_id == ^(row.suite_id || "")
-          ),
-          inc: suite_inc,
-          set: [updated_at: now]
-        )
-      end
-    end)
-
-    broadcast_run(run, {:test_case_ingested, run.run_id})
-    :ok
+    ]
   end
 
-  # Helpers -------------------------------------------------------------
+  @suite_case_counters %{
+    "passed" => :passed_cases,
+    "failed" => :failed_cases,
+    "skipped" => :skipped_cases,
+    "errored" => :errored_cases,
+    "timed_out" => :timed_out_cases,
+    "cancelled" => :cancelled_cases
+  }
+
+  defp suite_case_inc(result) do
+    case Map.fetch(@suite_case_counters, result) do
+      {:ok, counter} -> [{:total_cases, 1}, {counter, 1}]
+      :error -> [total_cases: 1]
+    end
+  end
 
   # A cache event has no id of its own on the wire, so one is derived
   # from the fields that identify it within a run. Two events that agree

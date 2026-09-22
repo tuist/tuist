@@ -303,43 +303,39 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
 
   # ---- Internals --------------------------------------------------------
 
-  defp build_series_row(a, t) do
-    lookups = if a, do: to_int(a.lookups), else: 0
-    hits = if a, do: to_int(a.hits), else: 0
-    read_ms = if a, do: to_int(a.read_ms), else: 0
-    write_ms = if a, do: to_int(a.write_ms), else: 0
-    read_ms_total = if a, do: to_int(a.read_ms_total), else: 0
-    write_ms_total = if a, do: to_int(a.write_ms_total), else: 0
-    latency_ms = if a, do: to_int(a.latency_ms), else: 0
+  defp build_series_row(action_row, transfer_row) do
+    lookups = bucket_value(action_row, :lookups)
+    hits = bucket_value(action_row, :hits)
+    read_ms_total = bucket_value(action_row, :read_ms_total)
+    write_ms_total = bucket_value(action_row, :write_ms_total)
 
-    observations = if t, do: to_int(t.observations), else: 0
-    download_bytes = if t, do: to_int(t.download_bytes), else: 0
-    upload_bytes = if t, do: to_int(t.upload_bytes), else: 0
-
-    hit_rate =
-      if lookups > 0 do
-        Float.round(hits / lookups * 100.0, 1)
-      else
-        0.0
-      end
+    download_bytes = bucket_value(transfer_row, :download_bytes)
+    upload_bytes = bucket_value(transfer_row, :upload_bytes)
 
     # Throughput denominators: action-cache probe time (per-blob
     # wall time isn't measured on the client yet, so
     # `once_cache_events.duration_ms` is ~0). See summary/2.
     %{
       lookups: lookups,
-      observations: observations,
-      hit_rate: hit_rate,
+      observations: bucket_value(transfer_row, :observations),
+      hit_rate: percentage(hits, lookups),
       download_bytes: download_bytes,
       upload_bytes: upload_bytes,
-      latency_ms: latency_ms,
-      read_ms: read_ms,
-      write_ms: write_ms,
+      latency_ms: bucket_value(action_row, :latency_ms),
+      read_ms: bucket_value(action_row, :read_ms),
+      write_ms: bucket_value(action_row, :write_ms),
       throughput: safe_throughput(download_bytes + upload_bytes, read_ms_total + write_ms_total),
       download_throughput: safe_throughput(download_bytes, read_ms_total),
       upload_throughput: safe_throughput(upload_bytes, write_ms_total)
     }
   end
+
+  # A bucket with no rows on one side of the join is absent, not zeroed.
+  defp bucket_value(nil, _key), do: 0
+  defp bucket_value(row, key), do: row |> Map.fetch!(key) |> to_int()
+
+  defp percentage(_part, 0), do: 0.0
+  defp percentage(part, whole), do: Float.round(part / whole * 100.0, 1)
 
   defp run_to_invocation(%Run{} = run) do
     hits = run.cached_actions || 0

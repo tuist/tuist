@@ -50,33 +50,7 @@ defmodule Tuist.OnceEvents.Projector do
 
   def project(%RunEvent{payload: {:action_completed, %ActionCompleted{} = action}} = ev, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
-      # The client sends `start_at_epoch_ms` under the RFC 0008.v2
-      # extension. Falls back to `envelope.epoch_ms - duration_ms`
-      # for older clients, which collapses many actions into the same
-      # millisecond bucket but keeps the run projectable.
-      start_ms =
-        if is_integer(action.start_at_epoch_ms) and action.start_at_epoch_ms > 0 do
-          action.start_at_epoch_ms
-        else
-          ev.epoch_ms - (action.duration_ms || 0)
-        end
-
-      OnceEvents.ingest_action(run, %{
-        target_execution_id: safe_string(action.target_execution_id),
-        capability: safe_string(action.capability, "build"),
-        action_index: action.action_index || 0,
-        identifier: nil_if_empty(action.identifier),
-        result: target_result(action.result),
-        was_cached: action.was_cached,
-        exit_code: action.exit_code || 0,
-        duration_ms: action.duration_ms || 0,
-        worker_id: safe_string(action.worker_id),
-        prepare_ms: action.prepare_ms || 0,
-        execute_ms: action.execute_ms || 0,
-        cache_key: safe_string(action.cache_key),
-        started_at: from_epoch_ms(start_ms),
-        finished_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
-      })
+      OnceEvents.ingest_action(run, action_attrs(action, ev))
     end
 
     :ok
@@ -203,44 +177,7 @@ defmodule Tuist.OnceEvents.Projector do
 
   def project(%RunEvent{payload: {:test_case_completed, %TestCaseCompleted{} = completed}} = ev, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
-      # `TestCaseCompleted` carries its own identity so a retrospective
-      # report never needs a matching `TestCaseStarted`. The legacy
-      # `test_case_execution_id` (target#case#attempt) is still there
-      # for older clients, so we split it as the fallback path.
-      composite = safe_string(completed.test_case_execution_id)
-      {target_execution_id, composite_case_id, composite_attempt} = split_execution_id(composite)
-
-      case_id =
-        nil_if_empty(completed.case_id) ||
-          composite_case_id ||
-          ""
-
-      suite_id =
-        nil_if_empty(completed.suite_id) ||
-          target_execution_id
-
-      target_execution_id = nil_if_empty(target_execution_id) || safe_string(suite_id)
-
-      duration_ms = observed_or_declared_duration(completed)
-      finished_at = from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
-
-      started_at =
-        if duration_ms > 0 do
-          DateTime.add(finished_at, -duration_ms, :millisecond)
-        end
-
-      OnceEvents.ingest_test_case_run(run, %{
-        target_execution_id: safe_string(target_execution_id),
-        suite_id: safe_string(suite_id),
-        case_id: case_id,
-        name: completed.name |> safe_string() |> non_empty_or(case_id),
-        attempt: attempt(completed.attempt, composite_attempt),
-        result: test_case_result(completed.result),
-        duration_ms: duration_ms,
-        failure_message: extract_failure_message(completed.failure),
-        started_at: started_at,
-        finished_at: finished_at
-      })
+      OnceEvents.ingest_test_case_run(run, test_case_attrs(completed, ev))
     end
 
     :ok
@@ -248,27 +185,94 @@ defmodule Tuist.OnceEvents.Projector do
 
   def project(%RunEvent{payload: {:system_sampled, %SystemSampled{} = sample}} = ev, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
-      at_ms =
-        cond do
-          is_integer(sample.at_epoch_ms) and sample.at_epoch_ms > 0 -> sample.at_epoch_ms
-          is_integer(ev.epoch_ms) and ev.epoch_ms > 0 -> ev.epoch_ms
-          true -> System.system_time(:millisecond)
-        end
-
-      OnceEvents.ingest_system_sample(run, %{
-        at_ms: at_ms,
-        cpu_percent: safe_float(sample.cpu_percent),
-        memory_bytes: sample.memory_bytes || 0,
-        network_in_bytes: sample.network_in_bytes_per_second || 0,
-        network_out_bytes: sample.network_out_bytes_per_second || 0,
-        observed_at: from_epoch_ms(at_ms) || DateTime.utc_now()
-      })
+      OnceEvents.ingest_system_sample(run, system_sample_attrs(sample, ev))
     end
 
     :ok
   end
 
   def project(_other, _project_id, _run_id), do: :ok
+
+  defp action_attrs(%ActionCompleted{} = action, %RunEvent{} = ev) do
+    %{
+      target_execution_id: safe_string(action.target_execution_id),
+      capability: safe_string(action.capability, "build"),
+      action_index: action.action_index || 0,
+      identifier: nil_if_empty(action.identifier),
+      result: target_result(action.result),
+      was_cached: action.was_cached,
+      exit_code: action.exit_code || 0,
+      duration_ms: action.duration_ms || 0,
+      worker_id: safe_string(action.worker_id),
+      prepare_ms: action.prepare_ms || 0,
+      execute_ms: action.execute_ms || 0,
+      cache_key: safe_string(action.cache_key),
+      started_at: from_epoch_ms(action_start_ms(action, ev)),
+      finished_at: from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
+    }
+  end
+
+  # The client sends `start_at_epoch_ms` under the RFC 0008.v2 extension.
+  # Falls back to `envelope.epoch_ms - duration_ms` for older clients,
+  # which collapses many actions into the same millisecond bucket but
+  # keeps the run projectable.
+  defp action_start_ms(%ActionCompleted{start_at_epoch_ms: start_ms}, _ev) when is_integer(start_ms) and start_ms > 0,
+    do: start_ms
+
+  defp action_start_ms(%ActionCompleted{} = action, %RunEvent{} = ev), do: ev.epoch_ms - (action.duration_ms || 0)
+
+  defp test_case_attrs(%TestCaseCompleted{} = completed, %RunEvent{} = ev) do
+    # `TestCaseCompleted` carries its own identity so a retrospective
+    # report never needs a matching `TestCaseStarted`. The legacy
+    # `test_case_execution_id` (target#case#attempt) is still there for
+    # older clients, so we split it as the fallback path.
+    {composite_target, composite_case_id, composite_attempt} =
+      completed.test_case_execution_id |> safe_string() |> split_execution_id()
+
+    case_id = nil_if_empty(completed.case_id) || composite_case_id || ""
+    suite_id = nil_if_empty(completed.suite_id) || composite_target
+    target_execution_id = nil_if_empty(composite_target) || safe_string(suite_id)
+
+    duration_ms = observed_or_declared_duration(completed)
+    finished_at = from_epoch_ms(ev.epoch_ms) || DateTime.utc_now()
+
+    %{
+      target_execution_id: safe_string(target_execution_id),
+      suite_id: safe_string(suite_id),
+      case_id: case_id,
+      name: completed.name |> safe_string() |> non_empty_or(case_id),
+      attempt: attempt(completed.attempt, composite_attempt),
+      result: test_case_result(completed.result),
+      duration_ms: duration_ms,
+      failure_message: extract_failure_message(completed.failure),
+      started_at: started_at(finished_at, duration_ms),
+      finished_at: finished_at
+    }
+  end
+
+  defp started_at(finished_at, duration_ms) when duration_ms > 0,
+    do: DateTime.add(finished_at, -duration_ms, :millisecond)
+
+  defp started_at(_finished_at, _duration_ms), do: nil
+
+  defp system_sample_attrs(%SystemSampled{} = sample, %RunEvent{} = ev) do
+    at_ms = sample_at_ms(sample.at_epoch_ms, ev.epoch_ms)
+
+    %{
+      at_ms: at_ms,
+      cpu_percent: safe_float(sample.cpu_percent),
+      memory_bytes: sample.memory_bytes || 0,
+      network_in_bytes: sample.network_in_bytes_per_second || 0,
+      network_out_bytes: sample.network_out_bytes_per_second || 0,
+      observed_at: from_epoch_ms(at_ms) || DateTime.utc_now()
+    }
+  end
+
+  # The sampler stamps its own instant; the envelope's is the fallback for
+  # clients that do not, and the clock is the last resort.
+  defp sample_at_ms(at_epoch_ms, _envelope_ms) when is_integer(at_epoch_ms) and at_epoch_ms > 0, do: at_epoch_ms
+  defp sample_at_ms(_at_epoch_ms, envelope_ms) when is_integer(envelope_ms) and envelope_ms > 0, do: envelope_ms
+  defp sample_at_ms(_at_epoch_ms, _envelope_ms), do: System.system_time(:millisecond)
 
   defp split_execution_id(id) when is_binary(id) do
     case String.split(id, "#", parts: 3) do

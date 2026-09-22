@@ -47,70 +47,44 @@ defmodule TuistWeb.OnceRunLive do
     end
   end
 
+  @query_params ~w(
+    page search sort_by sort_order
+    filter_result_op filter_result_val filter_cache_op filter_cache_val
+    cache_view cache_search cache_page cache_outcome cache_sort_by cache_sort_order
+  )
+
+  @action_sort_fields ~w(action status cache duration finished)
+  @cache_views ~w(actions content-objects)
+  @cache_outcomes ~w(hit miss stored reused)
+  @cache_sort_fields ~w(action outcome target cache_key size latency observed)
+
   def handle_params(params, uri, socket) do
-    query =
-      Map.take(params, [
-        "page",
-        "search",
-        "sort_by",
-        "sort_order",
-        "filter_result_op",
-        "filter_result_val",
-        "filter_cache_op",
-        "filter_cache_val",
-        "cache_view",
-        "cache_search",
-        "cache_page",
-        "cache_outcome",
-        "cache_sort_by",
-        "cache_sort_order"
-      ])
-
-    active_filters = Filter.Operations.decode_filters_from_query(query, socket.assigns.available_filters)
-
-    sort_by =
-      if query["sort_by"] in ["action", "status", "cache", "duration", "finished"], do: query["sort_by"], else: "action"
-
-    sort_order = if query["sort_order"] == "desc", do: "desc", else: "asc"
-
-    selected_cache_view =
-      if query["cache_view"] in ["actions", "content-objects"], do: query["cache_view"], else: "actions"
-
-    cache_outcome =
-      case query["cache_outcome"] do
-        outcome when outcome in ["hit", "miss", "stored", "reused"] -> outcome
-        _ -> nil
-      end
-
-    cache_sort_by =
-      if query["cache_sort_by"] in ~w(action outcome target cache_key size latency observed),
-        do: query["cache_sort_by"],
-        else: "observed"
-
-    cache_sort_order = if query["cache_sort_order"] == "asc", do: "asc", else: "desc"
-
+    query = Map.take(params, @query_params)
     parsed_uri = URI.parse(uri)
-    base_path = String.trim_trailing(parsed_uri.path, "/cache")
 
     {:noreply,
      socket
      |> assign(
-       run_path: base_path,
+       run_path: String.trim_trailing(parsed_uri.path, "/cache"),
        uri: parsed_uri,
        query: query,
-       active_filters: active_filters,
+       active_filters: Filter.Operations.decode_filters_from_query(query, socket.assigns.available_filters),
        search: query["search"] || "",
-       sort_by: sort_by,
-       sort_order: sort_order,
-       selected_cache_view: selected_cache_view,
+       sort_by: one_of(query["sort_by"], @action_sort_fields, "action"),
+       sort_order: one_of(query["sort_order"], ["desc"], "asc"),
+       selected_cache_view: one_of(query["cache_view"], @cache_views, "actions"),
        cache_search: query["cache_search"] || "",
-       cache_outcome: cache_outcome,
-       cache_sort_by: cache_sort_by,
-       cache_sort_order: cache_sort_order
+       cache_outcome: one_of(query["cache_outcome"], @cache_outcomes, nil),
+       cache_sort_by: one_of(query["cache_sort_by"], @cache_sort_fields, "observed"),
+       cache_sort_order: one_of(query["cache_sort_order"], ["asc"], "desc")
      )
      |> load_actions()
      |> load_cache()}
   end
+
+  # Query strings are user input, so every value that reaches a query has to
+  # come back out of a fixed allowlist or fall back to the default.
+  defp one_of(value, allowed, default), do: if(value in allowed, do: value, else: default)
 
   def handle_event("search", %{"search" => search}, socket) do
     {:noreply,
