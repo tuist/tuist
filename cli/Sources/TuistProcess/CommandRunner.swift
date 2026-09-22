@@ -39,6 +39,8 @@ public enum ProcessEvent: Sendable {
     }
 }
 
+public typealias CommandEvent = ProcessEvent
+
 public enum CommandError: Error, Equatable, Sendable {
     case executableNotFound(String)
     case terminated(Int32, stderr: String, command: [String])

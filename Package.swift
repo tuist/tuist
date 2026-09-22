@@ -1803,7 +1803,7 @@ targets.append(
             systemPackageDependency,
         ],
         path: "cli/Sources/TuistProcess",
-        exclude: ["AGENTS.md"],
+        exclude: ["AGENTS.md", "BackgroundProcessRunner.swift"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
