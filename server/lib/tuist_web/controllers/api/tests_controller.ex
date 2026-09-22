@@ -407,6 +407,11 @@ defmodule TuistWeb.API.TestsController do
                      "The suite that declares the test, the innermost one when suites nest; empty outside any suite."
                  },
                  name: %Schema{type: :string, description: "The test's name as the run reports it, `testExample()`."},
+                 function: %Schema{
+                   type: :string,
+                   description:
+                     "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
+                 },
                  enabled: %Schema{
                    type: :boolean,
                    description: "False when the scheme or the test plan disables the test."

@@ -3,6 +3,8 @@ defmodule Tuist.Tests.EnumeratedTest do
   A test a run could have executed, listed by the client without running it.
   `test_case_id` is the test case's stable id
   (`Tuist.Tests.generate_test_case_id/4`), shared with `test_case_runs`.
+  `function_name` is set when `name` is a display name: the function the
+  enumeration listed the test as.
   """
   use Ecto.Schema
 
@@ -14,6 +16,7 @@ defmodule Tuist.Tests.EnumeratedTest do
     field :module_name, Ch, type: "String"
     field :suite_name, Ch, type: "String", default: ""
     field :name, Ch, type: "String"
+    field :function_name, Ch, type: "String", default: ""
     field :enabled, :boolean, default: true
     field :inserted_at, Ch, type: "DateTime64(6)"
   end

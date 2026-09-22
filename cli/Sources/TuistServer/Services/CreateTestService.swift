@@ -591,7 +591,8 @@ private func stressFailures(
 
 extension TestSummary {
     fileprivate var enumeratedTestsPayload: Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayload? {
-        enumeratedTests?.map { .init(enabled: $0.enabled, module: $0.module, name: $0.name, suite: $0.suite) }
+        enumeratedTests?
+            .map { .init(enabled: $0.enabled, function: $0.function, module: $0.module, name: $0.name, suite: $0.suite) }
     }
 
     fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {

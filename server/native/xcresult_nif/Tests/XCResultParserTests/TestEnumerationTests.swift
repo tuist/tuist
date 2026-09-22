@@ -48,7 +48,12 @@ struct TestEnumerationTests {
         let bundle = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: bundle) }
-        let enumeration = TestEnumeration(tests: [.init(module: "AppTests", suite: "MathTests", name: "testAdd()", enabled: true)])
+        let enumeration = TestEnumeration(tests: [.init(
+            module: "AppTests",
+            suite: "MathTests",
+            name: "testAdd()",
+            enabled: true
+        )])
 
         #expect(TestEnumeration.read(fromResultBundle: bundle) == nil)
         try enumeration.write(toResultBundle: bundle)
@@ -57,5 +62,57 @@ struct TestEnumerationTests {
         let summary = TestSummary(testPlanName: nil, status: .passed, duration: nil, testModules: [])
         #expect(summary.applying(enumeration: nil).enumeratedTests == nil)
         #expect(summary.applying(enumeration: enumeration).enumeratedTests == enumeration.tests)
+    }
+
+    @Test func leavesOutATestClassThatDeclaresNoTests() {
+        #expect(TestEnumeration.Test(identifier: "AppTests/AppTestCase", enabled: true) == nil)
+        #expect(
+            TestEnumeration.Test(identifier: "AppTests/topLevel()", enabled: true)
+                == .init(module: "AppTests", suite: "", name: "topLevel()", enabled: true)
+        )
+        #expect(
+            TestEnumeration.Test(identifier: "AppTests/MathTests/testAdd", enabled: true)
+                == .init(module: "AppTests", suite: "MathTests", name: "testAdd", enabled: true)
+        )
+    }
+
+    @Test func namesATestTheWayItsResultDoes() {
+        let enumeration = TestEnumeration(tests: [
+            .init(module: "AppTests", suite: "MapperTests", name: "map()", enabled: true),
+            .init(module: "AppTests", suite: "MapperTests", name: "skipped()", enabled: true),
+            .init(module: "AppTests", suite: "MathTests", name: "testAdd()", enabled: false),
+        ])
+        let module = TestModule(
+            name: "AppTests",
+            status: .passed,
+            duration: 0,
+            testSuites: [],
+            testCases: [
+                TestCase(
+                    name: "Maps paths",
+                    testSuite: "MapperTests",
+                    module: "AppTests",
+                    duration: 0,
+                    status: .passed,
+                    failures: [],
+                    identifier: "map()"
+                ),
+                TestCase(
+                    name: "testAdd()",
+                    testSuite: "MathTests",
+                    module: "AppTests",
+                    duration: 0,
+                    status: .passed,
+                    failures: []
+                ),
+            ]
+        )
+        let summary = TestSummary(testPlanName: nil, status: .passed, duration: nil, testModules: [module])
+
+        #expect(summary.applying(enumeration: enumeration).enumeratedTests == [
+            .init(module: "AppTests", suite: "MapperTests", name: "Maps paths", enabled: true, function: "map()"),
+            .init(module: "AppTests", suite: "MapperTests", name: "skipped()", enabled: true),
+            .init(module: "AppTests", suite: "MathTests", name: "testAdd()", enabled: false),
+        ])
     }
 }

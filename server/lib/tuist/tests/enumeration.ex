@@ -26,7 +26,14 @@ defmodule Tuist.Tests.Enumeration do
 
   @doc """
   Stores the tests a run's client enumerated. `tests` are maps with
-  `module`, `suite`, `name` and `enabled`, atom or string keyed.
+  `module`, `suite`, `name`, `enabled` and, for a test the results report
+  under a display name, `function`, atom or string keyed.
+
+  A test must have the identity its runs have, or it reads as enumerated and
+  never run. The client names a test after the result it produced
+  (`@Test("Maps paths") func map()` is `Maps paths`), but a test the run
+  skipped produced none, so it arrives as its function. It takes the display
+  name an earlier run of the project recorded for that function.
   """
   def record(_test, nil), do: :ok
   def record(_test, []), do: :ok
@@ -34,9 +41,10 @@ defmodule Tuist.Tests.Enumeration do
   def record(%{id: test_run_id, project_id: project_id}, tests) when is_list(tests) do
     if Coverage.enabled_for_project?(project_id) do
       inserted_at = NaiveDateTime.utc_now()
+      display_names = display_names(project_id)
 
       tests
-      |> Stream.map(&row(&1, project_id, test_run_id, inserted_at))
+      |> Stream.map(&row(&1, project_id, test_run_id, inserted_at, display_names))
       |> Stream.reject(&is_nil/1)
       |> Stream.chunk_every(@insert_chunk_size)
       |> Enum.each(&IngestRepo.insert_all(EnumeratedTest, &1))
@@ -132,10 +140,11 @@ defmodule Tuist.Tests.Enumeration do
     )
   end
 
-  defp row(test, project_id, test_run_id, inserted_at) do
+  defp row(test, project_id, test_run_id, inserted_at, display_names) do
     module = value(test, :module)
-    name = value(test, :name)
     suite = value(test, :suite) || ""
+
+    {name, function} = identity(value(test, :name), value(test, :function), {module, suite}, display_names)
 
     if is_binary(module) and module != "" and is_binary(name) and name != "" do
       %{
@@ -145,10 +154,29 @@ defmodule Tuist.Tests.Enumeration do
         module_name: module,
         suite_name: suite,
         name: name,
+        function_name: if(function == name, do: "", else: function),
         enabled: value(test, :enabled) != false,
         inserted_at: inserted_at
       }
     end
+  end
+
+  defp identity(name, function, _key, _display_names) when is_binary(function) and function != "", do: {name, function}
+
+  defp identity(name, _function, {module, suite}, display_names),
+    do: {Map.get(display_names, {module, suite, name}, name), name}
+
+  # The display name each function was last recorded under. Only tests
+  # declared with a display name have a row here, so it stays small however
+  # large the suite.
+  defp display_names(project_id) do
+    from(e in EnumeratedTest,
+      where: e.project_id == ^project_id and e.function_name != "",
+      group_by: [e.module_name, e.suite_name, e.function_name],
+      select: {{e.module_name, e.suite_name, e.function_name}, fragment("argMax(?, ?)", e.name, e.inserted_at)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
   end
 
   defp value(map, key), do: Map.get(map, key, Map.get(map, Atom.to_string(key)))

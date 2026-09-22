@@ -45,7 +45,9 @@ struct CoverageAttributionTrait: TestTrait, SuiteTrait, TestScoping {
             let components = test.id.nameComponents
             let module = test.id.moduleName
             let suite = components.count >= 2 ? components[components.count - 2] : ""
-            let name = components.last ?? test.name
+            // The name the result bundle reports the test under, which is the test's identity
+            // everywhere else: a display name when it declares one, its function otherwise.
+            let name = test.displayName ?? components.last ?? test.name
             coverageScopeBegin(module, suite, name)
             defer { coverageScopeEnd(module, suite, name) }
             try await function()

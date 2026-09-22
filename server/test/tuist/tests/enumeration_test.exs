@@ -56,6 +56,36 @@ defmodule Tuist.Tests.EnumerationTest do
     assert [%{name: "testSubtract()"}] = Enumeration.list_not_run(test, page: 2, page_size: 1)
   end
 
+  test "names a test skipped by a later run after the display name an earlier run recorded", %{project: project} do
+    ran =
+      run(project,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10,
+            test_cases: [%{name: "Maps paths", test_suite_name: "MapperTests", status: "success", duration: 5}]
+          }
+        ]
+      )
+
+    Enumeration.record(ran, [
+      %{module: "AppTests", suite: "MapperTests", name: "Maps paths", function: "map()", enabled: true}
+    ])
+
+    assert Enumeration.summary(ran) == %{enumerated: 1, enabled: 1, not_run: 0}
+
+    skipped = run(project, [])
+
+    Enumeration.record(skipped, [
+      %{module: "AppTests", suite: "MathTests", name: "testAdd()", enabled: true},
+      %{module: "AppTests", suite: "MapperTests", name: "map()", enabled: true}
+    ])
+
+    assert [%{name: "Maps paths", test_case_id: id}] = Enumeration.list_not_run(skipped)
+    assert id == Tests.generate_test_case_id(project.id, "Maps paths", "AppTests", "MapperTests")
+  end
+
   test "stores and reports nothing while the account's coverage flag is off", %{project: project} do
     test = run(project, [])
     stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)

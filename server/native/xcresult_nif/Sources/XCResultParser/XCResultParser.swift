@@ -581,6 +581,8 @@ public struct XCResultParser: Sendable {
             duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
         }
 
+        let identifier = node.nodeIdentifier?.split(separator: "/").last.map(String.init)
+
         return TestCase(
             name: name,
             testSuite: suiteName,
@@ -589,7 +591,8 @@ public struct XCResultParser: Sendable {
             status: status,
             failures: failures,
             repetitions: repetitions,
-            arguments: arguments
+            arguments: arguments,
+            identifier: identifier == name ? nil : identifier
         )
     }
 
