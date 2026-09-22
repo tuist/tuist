@@ -15,6 +15,12 @@ This module handles CLI integration with the cache service and cache features.
 - Cache service: `cache/AGENTS.md`
 
 ## Invariants
+- Cache HTTP GETs may try one other server-discovered endpoint for the same
+  account after exhausted 502/503/504 or selected connection-failure retries.
+  Keep `CacheReadFailoverMiddleware` outside authentication and artifact resume.
+  Never replay writes, range requests, cancellation, certificate failures, or
+  authorization errors through it. An explicit `TUIST_CACHE_ENDPOINT` disables
+  failover. Do not infer a destination from a hostname or regional suffix.
 - Only cacheable products are hashed (frameworks, static frameworks, static libraries, dynamic libraries, bundles, macros).
 - Test bundles are excluded from binary cache hashing, but test-support frameworks and libraries that link XCTest or Swift Testing can be hashed.
 - Explicit cache warm target selection scopes transitive cache candidates from non-test roots only.

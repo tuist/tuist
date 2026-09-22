@@ -3634,6 +3634,57 @@ falls behind shows as `kura_sync_forward_cursor_lag_entries` and
 `kura_region_watermark_age_seconds` on the pulling side (the `Tuist Kura /
 Details` sync row), which have no rule yet.
 
+### Kura instance has no ready replicas
+
+**Prepared, not live:** the paused Grafana provisioning payload is
+[`kura-availability-alert-rules.json`](kura-availability-alert-rules.json).
+Merging this file does not install or enable it. Replace the folder and
+Prometheus datasource UID placeholders with this stack's existing values,
+preview the expression against production incident history, verify the IRM
+`affected_service=cache` option and environment routing, then provision and
+unpause the rule. Do not add `notification_settings`; let the existing policy
+tree route by the series' environment labels. Confirm non-production alerts
+cannot open a production status-page incident before enabling IRM escalation.
+
+```promql
+(max by (cluster, namespace, statefulset) (
+  kube_statefulset_replicas{namespace="kura"}
+) > bool 0)
+* on (cluster, namespace, statefulset)
+(max by (cluster, namespace, statefulset) (
+  kube_statefulset_status_replicas_ready{namespace="kura"}
+) == bool 0)
+```
+
+- Threshold: `> 0`; pending period: **2 minutes**; severity: **critical**.
+- Desired zero is excluded. One Ready replica is degraded but does not fire.
+- Healthy samples remain an explicit zero. Missing readiness is unknown,
+  not zero replicas: no-data and execution errors remain visible as Grafana
+  `NoData` / `Error`, rather than silently reporting healthy service.
+- There is no `cluster=` filter, preserving detection if Adaptive Metrics
+  removes that label; aggregation removes scrape-target label differences.
+
+This catches the total loss that the existing 30-minute warning below also
+matches but cannot promptly distinguish. On 2026-09-22 EU East's only host
+repeatedly lost API connectivity, both colocated replicas were evicted, and
+DNS-dependent bootstrap delayed their recovery. A pod count is not a complete
+external availability check: correlate it with public `/ready`, authenticated
+read failures, node conditions, Cilium, and DNS. Check how many affected
+instances share a host before diagnosing each instance independently.
+
+Do not delete local data volumes to repair a network partition. Preserve the
+readiness gate and follow the [node-local recovery runbook](../../kura-controller/node-local-recovery.md).
+Test the exact provisioning expression and pending period with:
+
+```sh
+python3 infra/helm/k8s-monitoring/test-kura-availability-alert.py
+```
+
+The fixtures cover healthy and degraded replicas, complete outage, recovery,
+a brief rollout, deliberate scale-to-zero, missing telemetry, other namespaces,
+and absent cluster labels. External probe coverage and live historical-query
+validation are still deployment checks, not consequences of those unit tests.
+
 ### Kura instance below its replica count
 
 Catches a per-account Kura StatefulSet serving on fewer ready replicas than it
@@ -3644,7 +3695,9 @@ standby is also what a rebuilt replica refills its ring from over the peer mesh
 (`instancePodAffinity` in the kura-controller). An instance down to one replica
 still answers, which is why nothing that watches request rates or error rates
 sees anything: it is not an outage, it is the absence of the thing that keeps
-the next deploy from being one.
+the next deploy from being one. Zero Ready replicas **are an outage**; use the
+separate availability rule above and do not wait for this warning's 30-minute
+pending period before investigating loss of service.
 
 **Live**: rule `dfxj89n1poidca`, created 2026-09-07 in folder `Alerts`, group
 `Cache`, alongside the other Kura rules. It carries no `notification_settings`,

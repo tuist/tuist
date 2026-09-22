@@ -110,11 +110,13 @@ func TestReplaceUnreadyPodsForImageChange(t *testing.T) {
 			Image: "ghcr.io/tuist/kura:0.5.3",
 		}}},
 	}
+	sts := probeTestStatefulSet(instance, 2)
+	sts.Spec.Template.Spec.Containers = []corev1.Container{{Name: "kura", Image: instance.Spec.Image}}
 
 	reconciler := &KuraInstanceReconciler{
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
-			WithObjects(instance, oldUnready, oldReady, newUnready).
+			WithObjects(instance, sts, oldUnready, oldReady, newUnready).
 			Build(),
 		Scheme: scheme,
 	}
