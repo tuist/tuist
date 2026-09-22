@@ -89,7 +89,13 @@ defmodule AtlasWeb.POCLive.Public do
     end
   end
 
+  # Swoosh's Test adapter delivers by sending `{:email, %Swoosh.Email{}}` to
+  # the caller. When `send_verification_email/3` runs inside this LiveView
+  # process, that message lands here. Ignore it (and any other unrelated
+  # message) instead of crashing.
   @impl true
+  def handle_info({:email, %Swoosh.Email{}}, socket), do: {:noreply, socket}
+
   def handle_info({:poc_access_request_updated, %AccessRequest{} = request}, socket) do
     socket = assign(socket, :pending_request, request)
 
