@@ -31,6 +31,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
@@ -2899,9 +2900,10 @@ defmodule Tuist.Accounts do
   @doc """
   The Kura cache endpoint URLs the CLI resolves for this account.
 
-  Two sources, each read from the record that owns it: Tuist-managed instances
+  Sources are read from the record that owns them: Tuist-managed instances
   from `kura_servers`, and enrolled self-hosted nodes from their registration
-  heartbeats. Whether these are handed to the CLI at all is decided upstream by
+  heartbeats. Stable hostname hand-out also preserves eligible custom URLs.
+  Whether these are handed to the CLI at all is decided upstream by
   how the client is routed, so provisioning is the only server-side gate.
 
   Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`) derives
@@ -2909,10 +2911,17 @@ defmodule Tuist.Accounts do
   drift.
   """
   def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
-    managed_urls = Kura.managed_cache_endpoint_urls(account, origin)
+    managed_urls = StableEndpoint.resolve(account, Kura.managed_cache_endpoint_urls(account, origin))
     registered_urls = registered_kura_endpoint_urls(account)
 
-    Enum.uniq(managed_urls ++ registered_urls)
+    custom_urls =
+      if StableEndpoint.enabled_for_account?(account) and Environment.kura_stable_hostname_handout_enabled?() do
+        account |> custom_cache_endpoints() |> Enum.map(& &1.url)
+      else
+        []
+      end
+
+    Enum.uniq(managed_urls ++ registered_urls ++ custom_urls)
   end
 
   # Client-facing URLs from registration heartbeats: customer-owned nodes that

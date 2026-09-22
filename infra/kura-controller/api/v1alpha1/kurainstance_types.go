@@ -6,12 +6,16 @@ import (
 )
 
 type KuraInstanceSpec struct {
-	AccountHandle string `json:"accountHandle"`
-	TenantID      string `json:"tenantID"`
-	Region        string `json:"region"`
-	Image         string `json:"image"`
-	Replicas      *int32 `json:"replicas,omitempty"`
-	PublicHost    string `json:"publicHost,omitempty"`
+	// StableHost is rendered independently from its regional DNS advertisement.
+	StableHost      string `json:"stableHost,omitempty"`
+	StableAdvertise bool   `json:"stableAdvertise,omitempty"`
+	StableAWSRegion string `json:"stableAWSRegion,omitempty"`
+	AccountHandle   string `json:"accountHandle"`
+	TenantID        string `json:"tenantID"`
+	Region          string `json:"region"`
+	Image           string `json:"image"`
+	Replicas        *int32 `json:"replicas,omitempty"`
+	PublicHost      string `json:"publicHost,omitempty"`
 	// Deprecated: the value is ignored. gRPC co-hosts on PublicHost (see
 	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
 	// Retained for backward compatibility.
@@ -261,6 +265,7 @@ type KuraInstancePeerRole struct {
 }
 
 type KuraInstanceStatus struct {
+	StableEndpoint *StableEndpointStatus `json:"stableEndpoint,omitempty"`
 	// PrivateURL is published only after the private gateway, DNS, certificate,
 	// and primary have been observed ready for EndpointObservedGeneration.
 	EndpointLastCheckedAt      *metav1.Time `json:"endpointLastCheckedAt,omitempty"`
@@ -302,6 +307,20 @@ type KuraInstanceStatus struct {
 	// ports and the primary pod is placed on a labeled node.
 	NodeAddress   string `json:"nodeAddress,omitempty"`
 	NodePortCache int32  `json:"nodePortCache,omitempty"`
+}
+
+// StableEndpointStatus retains the routing identity until DNS withdrawal and
+// the drain have completed, including when intent is removed or the CR deleted.
+type StableEndpointStatus struct {
+	Host               string `json:"host"`
+	SetIdentifier      string `json:"setIdentifier"`
+	AWSRegion          string `json:"awsRegion"`
+	Target             string `json:"target,omitempty"`
+	HealthCheckID      string `json:"healthCheckID,omitempty"`
+	Ready              bool   `json:"ready"`
+	ObservedGeneration int64  `json:"observedGeneration"`
+	LastCheckedAt      string `json:"lastCheckedAt,omitempty"`
+	WithdrawnAt        string `json:"withdrawnAt,omitempty"`
 }
 
 // KuraInstanceCPUAutosize retains the highest per-pod CPU seen in each of a

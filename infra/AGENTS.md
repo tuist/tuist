@@ -222,3 +222,5 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 - Keep the main Tuist chart (`helm/tuist/`) provider-agnostic. Managed-cluster-specific behavior hides behind feature flags (`managedSecrets`, `externalSecrets`) that default to self-host-safe values.
 - Don't let `helm/k8s-monitoring/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
 - When a new managed-cluster operational step becomes reproducible, document it in `k8s/onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.
+
+- Managed cache proximity DNS: `cache-dns/AGENTS.md` and `cache-dns/README.md` cover the retained Route53 zone, scoped identities, delegation, staged flags, and withdrawal-safe rollback. Defaults are inert.
