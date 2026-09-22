@@ -1108,7 +1108,7 @@ buildersFleet:
 sandboxes:
   enabled: true
   image:
-    tag: "sha-f579f317b69a"
+    tag: "sha-56acac39d16c"
   templateImage:
     tag: "sha-56965cb61732"
   nodePools:
