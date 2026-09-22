@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## Release channels
+
+The Tuist Server has adopted a weekly release-train model with three GHCR image channels:
+
+- `ghcr.io/tuist/tuist:X.Y.0-canary.N` is published on every merge to `main` that touches the server. Canaries are the bleeding edge and never move `:latest`; pin them explicitly if you want to track main.
+- `ghcr.io/tuist/tuist:X.Y.0-rc.N` is published once a week (Mondays 06:00 UTC) from a `releases/server-X.Y.x` branch cut off `main`. RCs soak for a week and never move `:latest`; fixes ride onto the release branch via cherry-pick PRs before the next `-rc.(N+1)` is cut.
+- `ghcr.io/tuist/tuist:X.Y.0` is the stable release, published the following Monday when the previous week's RC is promoted. Only stable releases move `:latest`, and only stable releases are picked up by `mise` / package-manager resolution.
+
+Kura ships on the same weekly cadence. Both trains fire in lockstep with the Tuist CLI's release schedule.
+
 ## What's Changed in server@1.207.6<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

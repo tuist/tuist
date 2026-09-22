@@ -1,0 +1,250 @@
+name: Server Build & Publish
+
+# Reusable build+publish pipeline for the Server, shared by the canary, RC,
+# and promote workflows. The caller computes the version + the exact commit
+# to build; this workflow only builds, packages, and publishes.
+#
+# The three build stages (amd64, arm64, manifest) are cloned from what used
+# to live inline in server-production-deployment.yml as
+# `release-server` / `release-server-arm64-image` / `release-server-manifest`.
+# The only behavioral differences from that inline path are:
+#   * Version + commit come from the caller (inputs), not check-releases.
+#   * `:latest` is pushed only when the caller opts in via `make_latest`
+#     (canaries + RCs are prereleases and must not move the "Latest"
+#     pointer; only the Monday promote does).
+#   * The GitHub Release is minted here via softprops/action-gh-release@v2
+#     (with an explicit release token so the tag can land on a release-branch
+#     commit rather than the tip of main), replacing the "Create Server
+#     GitHub Release" step that used to live in publish-releases.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Bare semver (e.g. 4.192.0, 4.192.0-canary.5, 4.192.0-rc.1) to stamp into the image and tag as server@<version>"
+        required: true
+        type: string
+      ref:
+        description: "Resolved commit SHA to check out, build, and tag (not a branch name)"
+        required: true
+        type: string
+      changelog_from:
+        description: "Full git tag to diff release notes from (e.g. server@4.191.0); empty falls back to the latest server@ stable tag"
+        required: false
+        type: string
+        default: ""
+      make_latest:
+        description: "Whether GitHub marks this release as 'Latest' and whether the Docker manifest also pushes the :latest tag"
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: "Whether GitHub marks this release as a prerelease (canary/RC)"
+        required: false
+        type: boolean
+        default: false
+
+# Top-level env does not cross the workflow_call boundary, so it is redeclared
+# here rather than inherited from the caller.
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  release-server:
+    name: Build Server image (amd64)
+    # Bigger shape: the server image build (Elixir release compile inside the
+    # dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the runner
+    # mid-build ("lost communication"). Mirrors server.yml's docker_build job.
+    runs-on: tuist-linux-large
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        working-directory: server
+        run: |
+          set -euo pipefail
+          LATEST_VERSION="${{ inputs.changelog_from }}"
+          if [ -z "$LATEST_VERSION" ]; then
+            LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1 || true)
+          fi
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push amd64 image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          platforms: linux/amd64
+          outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
+          build-args: |
+            TUIST_HOSTED=0
+            TUIST_VERSION=${{ inputs.version }}
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ inputs.ref }}
+
+  release-server-arm64-image:
+    name: Build Server image (arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push arm64 image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          platforms: linux/arm64
+          outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
+          build-args: |
+            TUIST_HOSTED=0
+            TUIST_VERSION=${{ inputs.version }}
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ inputs.ref }}
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-server-arm64
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-server-arm64,mode=max
+
+  release-server-manifest:
+    name: Publish multi-arch manifest
+    needs: [release-server, release-server-arm64-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/tuist/tuist
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish multi-arch manifest
+        env:
+          VERSION: ${{ inputs.version }}
+          MAKE_LATEST: ${{ inputs.make_latest }}
+          AMD64_DIGEST: ${{ needs.release-server.outputs.image-digest }}
+          ARM64_DIGEST: ${{ needs.release-server-arm64-image.outputs.image-digest }}
+        run: |
+          set -euo pipefail
+          tags=("--tag" "${IMAGE}:${VERSION}")
+          # The :latest pointer moves only on stable promotes; canaries and
+          # RCs push their own versioned tag but must not overwrite :latest,
+          # or every merge would push the bleeding edge onto operators that
+          # pin :latest instead of a version.
+          if [ "${MAKE_LATEST}" = "true" ]; then
+            tags+=("--tag" "${IMAGE}:latest")
+          fi
+          docker buildx imagetools create \
+            "${tags[@]}" \
+            "${IMAGE}@${AMD64_DIGEST}" \
+            "${IMAGE}@${ARM64_DIGEST}"
+
+          docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+
+  publish-release:
+    name: Publish Server GitHub Release
+    needs: [release-server, release-server-manifest]
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      packages: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Create Server GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          # The action's `token` input defaults to github.token, and a non-empty
+          # input wins over the GITHUB_TOKEN env var. GitHub answers 403
+          # "Resource not accessible by integration" to that token when the
+          # tag it has to create points at the soaked release-branch commit
+          # rather than main HEAD, so the release token is passed explicitly.
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+          # Pin the tag to the exact commit that was built. github.sha
+          # would resolve to the caller's triggering commit under
+          # workflow_call (main HEAD for an RC), not the release branch
+          # we actually built.
+          target_commitish: ${{ inputs.ref }}
+          make_latest: ${{ inputs.make_latest }}
+          prerelease: ${{ inputs.prerelease }}
+          name: Server ${{ inputs.version }}
+          tag_name: server@${{ inputs.version }}
+          body: |
+            Docker image: `ghcr.io/tuist/tuist:${{ inputs.version }}`
+
+            ${{ needs.release-server.outputs.release-notes }}
