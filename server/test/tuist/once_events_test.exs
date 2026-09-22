@@ -224,6 +224,36 @@ defmodule Tuist.OnceEventsTest do
     assert AckStore.acked_seq(project.id, run.run_id) == 0
   end
 
+  test "an empty batch advancing past a producer gap is acknowledged at the gap", %{project: project, run: run} do
+    batch = %RunEventBatch{
+      run_id: run.run_id,
+      batch_id: "batch-gap",
+      seq_from: 31,
+      gap_advances: [%Once.Events.V1.GapAdvance{first_dropped_seq: 21, last_dropped_seq: 30}],
+      events: []
+    }
+
+    RunEventService.publish_run_events([batch], reply_stream(project))
+
+    assert_received {:ack, %BatchAck{} = ack}
+    assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_ACCEPTED)
+    assert ack.acked_seq == 30
+    assert ack.expected_next_seq == 31
+  end
+
+  test "a replayed batch is acknowledged at the stored mark rather than walking it back", %{
+    project: project,
+    run: run
+  } do
+    AckStore.observe(project.id, run.run_id, 20)
+
+    batch = %RunEventBatch{run_id: run.run_id, batch_id: "batch-replay", seq_from: 15, events: []}
+
+    RunEventService.publish_run_events([batch], reply_stream(project))
+
+    assert_received {:ack, %BatchAck{acked_seq: 20, expected_next_seq: 21}}
+  end
+
   test "acknowledgement state does not leak across projects that reuse a run id", %{project: project, run: run} do
     other_project = ProjectsFixtures.project_fixture()
 
