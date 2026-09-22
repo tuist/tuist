@@ -342,6 +342,113 @@ struct REAPICacheClientTests {
         #expect(try REAPICompression.decompress(compressed + compressed, size: 200_000) == input + input)
     }
 
+    /// Incompressible, so a plan that cuts a read after a byte count cuts both encodings.
+    private static func blob(_ size: Int) -> Data {
+        var generator = SystemRandomNumberGenerator()
+        return Data((0 ..< size).map { _ in UInt8.random(in: 0 ... 255, using: &generator) })
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func resumesAReadThatBreaksPartway(compressed: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(256 * 1024)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        await state.plan([.cut(after: 100_000), .cut(after: 50000), .complete], for: digest)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireBytes(state: state), WireCapabilities(streamCompression: compressed),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let path = directory.appending(component: "resumed").url
+
+            try await client.downloadBlob(digest, to: path)
+
+            #expect(try Data(contentsOf: path) == body)
+            let offsets = await state.readOffsets[digest] ?? []
+            #expect(offsets.count == 3)
+            #expect(offsets.first == 0)
+            #expect(offsets == offsets.sorted() && Set(offsets).count == offsets.count)
+            // A resumed read asks for the rest of the blob, not for all of it again.
+            if !compressed { #expect(offsets == [0, 100_000, 150_000]) }
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func givesUpOnReadsThatNeverGetFurther() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(256 * 1024)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        await state.plan(
+            [.cut(after: 8192), .cut(after: 0), .cut(after: 0), .cut(after: 0), .cut(after: 0), .complete],
+            for: digest
+        )
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireBytes(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let path = directory.appending(component: "abandoned")
+
+            await #expect(throws: RPCError.self) { try await client.downloadBlob(digest, to: path.url) }
+
+            #expect(await state.readOffsets[digest] == [0, 8192, 8192, 8192, 8192])
+            #expect(try await !FileSystem().exists(path))
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func cutsAStalledReadInsteadOfWaitingForItsDeadline() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(256 * 1024)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        await state.plan([.hang(after: 8192), .hang(after: 8192), .complete], for: digest)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireBytes(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                transferIdleTimeout: .milliseconds(300)
+            ) { "token" }
+            let path = directory.appending(component: "stalled").url
+            let start = ContinuousClock.now
+
+            try await client.downloadBlob(digest, to: path)
+
+            // The call's own deadline is minutes away, so finishing at all means the idle
+            // guard cut each stall and the read resumed from the byte it had reached.
+            #expect(start.duration(to: .now) < .seconds(10))
+            #expect(try Data(contentsOf: path) == body)
+            #expect(await state.readOffsets[digest] == [0, 8192, 16384])
+        }
+    }
+
     private static let caPEM = """
     -----BEGIN CERTIFICATE-----
     MIIC1jCCAb6gAwIBAgIJAJlwwm+UwR8bMA0GCSqGSIb3DQEBCwUAMBgxFjAUBgNV
@@ -410,6 +517,19 @@ private actor WireCache {
     func beginRead() throws {
         readCalls += 1
         if failRead { failRead = false; throw RPCError(code: .resourceExhausted, message: "Injected transient pressure") }
+    }
+
+    /// What each successive ByteStream read of a blob does, consumed in order. A blob without a
+    /// plan, or one whose plan is used up, is served whole.
+    private var readPlans: [REAPI.Digest: [ReadPlan]] = [:]
+    var readOffsets: [REAPI.Digest: [Int64]] = [:]
+    func plan(_ plans: [ReadPlan], for digest: REAPI.Digest) { readPlans[digest] = plans }
+    func nextPlan(for digest: REAPI.Digest, offset: Int64) -> ReadPlan {
+        readOffsets[digest, default: []].append(offset)
+        guard var plans = readPlans[digest], let plan = plans.first else { return .complete }
+        plans.removeFirst()
+        readPlans[digest] = plans
+        return plan
     }
 
     func put(_ data: Data, digest: REAPI.Digest) { blobs[digest] = data; writes += 1 }
@@ -508,6 +628,16 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
     }
 }
 
+/// How a scripted ByteStream read ends.
+private enum ReadPlan: Sendable {
+    /// Serves the rest of the blob.
+    case complete
+    /// Serves this many bytes, then fails the stream the way a dropped connection does.
+    case cut(after: Int)
+    /// Serves this many bytes, then delivers nothing further.
+    case hang(after: Int)
+}
+
 private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
     let state: WireCache
     func read(
@@ -516,13 +646,32 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         context _: ServerContext
     ) async throws {
         let digest = try parse(request.resourceName)
-        guard var data = await state.blobs[digest] else { throw RPCError(code: .notFound, message: "Missing blob") }
+        guard let blob = await state.blobs[digest] else { throw RPCError(code: .notFound, message: "Missing blob") }
+        guard request.readOffset >= 0, request.readOffset <= Int64(blob.count) else {
+            throw RPCError(code: .outOfRange, message: "read_offset exceeds blob size")
+        }
+        let plan = await state.nextPlan(for: digest, offset: request.readOffset)
+        // `read_offset` names an offset into the uncompressed blob, so a compressed read of a
+        // resumed range is a new zstd stream over the remaining bytes, as Kura serves it.
+        var data = blob.suffix(from: Int(request.readOffset))
         if request.resourceName.contains("/compressed-blobs/zstd/") {
-            data = try REAPICompression.compress(data)
+            data = try REAPICompression.compress(Data(data))[...]
             await state.recordCompressedRead()
         }
-        for offset in stride(from: 0, to: data.count, by: 16384) {
-            try await response.write(.with { $0.data = data.subdata(in: offset ..< min(offset + 16384, data.count)) })
+        let served: Int
+        switch plan {
+        case .complete: served = data.count
+        case let .cut(after), let .hang(after): served = min(after, data.count)
+        }
+        let payload = Data(data.prefix(served))
+        for offset in stride(from: 0, to: payload.count, by: 16384) {
+            try await response
+                .write(.with { $0.data = payload.subdata(in: offset ..< min(offset + 16384, payload.count)) })
+        }
+        switch plan {
+        case .complete: return
+        case .cut: throw RPCError(code: .unavailable, message: "Injected mid-stream failure")
+        case .hang: try await Task.sleep(for: .seconds(30))
         }
     }
 
