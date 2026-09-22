@@ -53,6 +53,23 @@ defmodule TuistWeb.ChooseUsernameLiveTest do
       assert html =~ "test-user-name"
     end
 
+    test "suggests a username without hyphens at its ends", %{conn: conn} do
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => "67891",
+        "email" => "_edge.name_@company.org",
+        "provider_organization_id" => nil,
+        "oauth_return_url" => nil
+      }
+
+      {:ok, _lv, html} =
+        conn
+        |> init_test_session(%{"pending_oauth_signup" => oauth_data})
+        |> live(~p"/users/choose-username")
+
+      assert html =~ ~s(value="edge-name")
+    end
+
     test "redirects if user is already logged in", %{conn: conn} do
       user = user_fixture(preload: [:account])
 

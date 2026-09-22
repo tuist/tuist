@@ -16,7 +16,7 @@ defmodule Atlas.MCP.Tools.GetSupportThread do
   def description, do: "Get a support conversation with every customer email, team reply, and private note."
 
   def execute(conn, %{"thread_id" => id}) do
-    with :ok <- Tool.authorize_executive(conn, "Support tools") do
+    with :ok <- Tool.authorize_scope(conn, "support:read", "Support tools") do
       case Support.get_thread(id) do
         nil -> {:error, "Support conversation not found: #{id}"}
         thread -> {:ok, SupportSerializer.thread(thread, include_messages: true)}

@@ -5,7 +5,14 @@ defmodule Atlas.Application do
 
   use Application
 
+  alias Atlas.Accounts.HandleRegistry
   alias Atlas.Agents.Sessions.TelemetryHandler
+  alias Atlas.Engineering.Errors.DropAlerter
+  alias Atlas.Engineering.Errors.Event.Buffer
+  alias Atlas.Engineering.Errors.IssueAccountCoalescer
+  alias Atlas.Engineering.Errors.IssueCoalescer
+  alias Atlas.Engineering.Errors.KeyTouches
+  alias Atlas.Engineering.Errors.SelfMonitor
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
   alias Atlas.Licenses.RateLimiter
@@ -19,6 +26,9 @@ defmodule Atlas.Application do
     ETS.init()
     HTTP.configure_req_defaults()
 
+    :ok = Application.ensure_started(:logger)
+    _ = Task.start(fn -> SelfMonitor.install() end)
+
     children =
       [
         AtlasWeb.Telemetry,
@@ -27,6 +37,7 @@ defmodule Atlas.Application do
         HTTP.finch_child_spec(),
         {DNSCluster, query: Application.get_env(:atlas, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Atlas.PubSub},
+        HandleRegistry,
         RateLimiter,
         GitHubAppBootstrap,
         {Oban, Application.fetch_env!(:atlas, Oban)},
@@ -34,6 +45,7 @@ defmodule Atlas.Application do
         {Atlas.RateLimit, clean_period: :timer.minutes(10)},
         Sweeper
       ] ++
+        clickhouse_children() ++
         BrowseChrome.children() ++
         [
           # Start to serve requests, typically the last entry
@@ -44,6 +56,26 @@ defmodule Atlas.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Atlas.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # ClickHouse-backed Engineering.Errors pipeline. Gated on
+  # `:clickhouse_enabled` so Atlas boots without ClickHouse in dev/test.
+  defp clickhouse_children do
+    if Application.get_env(:atlas, :clickhouse_enabled) do
+      [
+        Atlas.ClickHouseRepo,
+        Atlas.IngestRepo,
+        Supervisor.child_spec(Buffer,
+          id: Buffer
+        ),
+        DropAlerter,
+        IssueCoalescer,
+        IssueAccountCoalescer,
+        KeyTouches
+      ]
+    else
+      []
+    end
   end
 
   # Forwards Logger error/warning events to Sentry. Only attached when a

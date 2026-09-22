@@ -8,13 +8,6 @@
 
 # Bazel flaky tests {#bazel-flaky-tests}
 
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link> with Bazel selected as the build system
-> - `tuist bazel setup` has been run in the workspace (see <.localized_link href="/guides/features/cache/bazel-cache">Bazel cache</.localized_link>)
-> - Tests are executed with `tuist bazel test` (see <.localized_link href="/guides/features/test-insights/bazel">Bazel test insights</.localized_link>)
-
 `tuist bazel test` fetches Tuist's quarantine policy before each invocation and applies it to the underlying `bazel test` run.
 
 ## Applying quarantine {#applying-quarantine}

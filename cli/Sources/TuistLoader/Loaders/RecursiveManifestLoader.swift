@@ -176,6 +176,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
                     packageType: .local,
                     packageSettings: packageSettings,
                     packageModuleAliases: [:],
+                    packageProducts: [:],
                     enabledTraits: []
                 )
             }

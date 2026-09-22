@@ -506,12 +506,18 @@ When enabled:
 
 Configure it with:
 
-- `KURA_ANALYTICS_SERVER_URL`
+- `KURA_ANALYTICS_SERVER_URL` — give a cluster-local name in absolute form
+  (`http://tuist-tuist-server.tuist.svc.cluster.local.:80`, with the trailing
+  dot) so the node resolves it in one lookup instead of expanding it against
+  every `ndots` search domain first
 - `KURA_ANALYTICS_SIGNING_KEY`
 - optional `KURA_ANALYTICS_BATCH_SIZE` default `100`
 - optional `KURA_ANALYTICS_BATCH_TIMEOUT_MS` default `5000`
 - optional `KURA_ANALYTICS_QUEUE_CAPACITY` default `1000`
-- optional `KURA_ANALYTICS_REQUEST_TIMEOUT_MS` default `5000`
+- optional `KURA_ANALYTICS_REQUEST_TIMEOUT_MS` default `5000`, which spans the
+  connect; the connect budget itself is the control plane's 3s, shared with
+  Bazel test-artifact delivery and lowered to the request timeout when that is
+  set below it
 - optional `KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD` default `5`
 - optional `KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS` default `30000`
 
@@ -539,6 +545,38 @@ The hot path increments bounded in-memory counters keyed by tenant, namespace, n
 The usage pipeline follows Kura's resource discipline: bucket count, durable outbox depth, and delivery batch size are capped; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
 
 ## ☸️ Deployment Options
+
+### Irreversible upgrade steps
+
+Kura's on-disk metadata store opens with an explicit RocksDB column-family
+descriptor list, and RocksDB refuses to open a database that contains a
+column family the process does not declare. A release that first
+introduces a new column family therefore closes the rollback door for
+that database volume: once a pod on that release completes `Store::open`,
+the manifest gains the new descriptor, and rolling that pod's image back
+to a predecessor fails on the next start with `Column families not
+opened`.
+
+The rollback constraint applies to a specific data volume, not to the
+release channel as a whole. Options if a rollback becomes necessary:
+
+1. Restore the pod's PersistentVolume from a pre-upgrade snapshot before
+   rolling the image back. This is the surgical recovery.
+2. Delete the pod's PersistentVolume (or empty its data directory) and
+   let it rebuild from peers. This is the safe recovery on a mesh
+   configured for peer replication.
+3. Never roll back that pod's binary past the release that declared the
+   column family. This is the normal expectation once a fleet has been
+   through the deploy.
+
+Deploys that add a new column family are called out here so an operator
+knows which releases lock in that boundary:
+
+- **Release TBD, PR #13467 — `analytics_outbox`.** Adds the RocksDB
+  column family for the future durable analytics outbox. No producer
+  writes to it in that release; the column family stays empty until a
+  follow-up release lights it up. The rollback boundary is set the
+  moment the pod first opens its data volume on this release.
 
 ### Helm And Kubernetes
 
@@ -783,3 +821,5 @@ configuration that makes it do otherwise.
 ### Bazel build timelines
 
 With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON trace profile and action diagnostics to the Tuist server. Profiles supply all recorded intervals and native resource counters; the existing bounded invocation summary remains available for older builds. Delivery reads only authenticated project CAS artifacts under a background memory reservation. Profile files above 32 MiB compressed are rejected; individual diagnostic streams retain their first and last 16 KiB. The server stores normalized timelines and sanitized logs for 90 days.
+
+REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain module usage attribution. Other clients remain attributed to `reapi`; the hint does not change authentication or CAS storage. CAS batch requests count once per batch, and already-present blob uploads do not add usage.

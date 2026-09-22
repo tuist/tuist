@@ -417,6 +417,15 @@ impl SyncCoordinator {
             .collect()
     }
 
+    /// Whether a replica link to `peer` is open.
+    pub fn has_replica_link(&self, peer: &str) -> bool {
+        self.links
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .replica
+            .contains_key(peer)
+    }
+
     /// The readiness term (design §3.6): with a sibling, every replica link
     /// settled; without one — a region of one — every region link settled.
     pub fn bootstrap_settled(&self) -> bool {

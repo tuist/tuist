@@ -38,14 +38,14 @@ use crate::{
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
         MAX_PEER_PAGE_ITEMS, MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
-        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
-        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
-        ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
-        ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
-        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
-        SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
-        SYNC_FEED_TRIM_BATCH_ROWS,
+        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_ANALYTICS_OUTBOX,
+        ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS,
+        ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
+        ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
+        ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
+        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
+        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS,
+        SEGMENT_FREE_SPACE_MARGIN, SYNC_FEED_TRIM_BATCH_ROWS,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -1228,6 +1228,19 @@ impl Store {
             ),
             ColumnFamilyDescriptor::new(
                 ROCKSDB_CF_USAGE_OUTBOX,
+                rocksdb_column_family_options(
+                    config,
+                    &rocksdb_block_cache,
+                    &rocksdb_write_buffer_manager,
+                ),
+            ),
+            // Analytics outbox declaration lands before any producer exists.
+            // See `constants::ROCKSDB_CF_ANALYTICS_OUTBOX` for the rollout
+            // sequence rationale. Uses the same options as every other CF so
+            // no per-family tuning surface is exposed until a producer knows
+            // what it needs.
+            ColumnFamilyDescriptor::new(
+                ROCKSDB_CF_ANALYTICS_OUTBOX,
                 rocksdb_column_family_options(
                     config,
                     &rocksdb_block_cache,
@@ -6362,6 +6375,17 @@ impl Store {
 
     pub fn usage_outbox_message_count(&self) -> Result<usize, String> {
         self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
+    }
+
+    /// Depth of the analytics outbox in entries. Zero for the life of this
+    /// release: no producer routes through the column family yet (that
+    /// arrives with the follow-up outbox module). Exists so the metrics
+    /// registration in `Metrics::new` can publish the depth gauge from day
+    /// one, giving the follow-up producer PR a live signal to correlate
+    /// against instead of a gauge that appears for the first time under a
+    /// production incident.
+    pub fn analytics_outbox_entry_count(&self) -> Result<usize, String> {
+        self.count_cf_entries(ROCKSDB_CF_ANALYTICS_OUTBOX)
     }
 
     pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {
@@ -12596,6 +12620,115 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_freshly_opened_store_reports_zero_analytics_outbox_entries() {
+        // The column family exists from the day it is declared, but the
+        // release that declares it ships no producer. A fresh store must
+        // still be able to read the (empty) count without erroring, so the
+        // startup metric wire-up in app.rs and the follow-up outbox
+        // module's periodic refresh both have a stable contract from day
+        // one.
+        let (_temp, _config, store) = temp_store();
+        let count = store
+            .analytics_outbox_entry_count()
+            .expect("counting the empty analytics outbox should succeed");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn upgrading_a_predecessor_database_creates_the_analytics_outbox_and_preserves_existing_data() {
+        // Simulates the actual production upgrade path: an existing pod's
+        // data volume was written by a predecessor binary whose descriptor
+        // list lacked `analytics_outbox`. The new binary must open the
+        // database, add the missing column family via
+        // `create_missing_column_families(true)`, and leave every other
+        // column family's contents intact. This is the risky transition
+        // the entry-count tests do not exercise, so it is the one that
+        // needs to fail loud if the descriptor list, options, or open path
+        // ever regresses.
+        //
+        // Reuse `temp_store` for its config-building side, then wipe the
+        // rocksdb directory the fresh open left behind so the predecessor
+        // path below starts from an empty on-disk state, exactly as it
+        // would on a fresh volume created by the predecessor release.
+        let (_temp, config, initial_store) = temp_store();
+        drop(initial_store);
+        std::fs::remove_dir_all(config.data_dir.join("rocksdb"))
+            .expect("failed to reset rocksdb dir");
+
+        // Predecessor binary writes a canary into an unrelated column
+        // family so the upgrade path has real state to preserve.
+        {
+            let db = open_predecessor_db(&config).expect("predecessor open should succeed");
+            let cf = db
+                .cf_handle(ROCKSDB_CF_MANIFESTS)
+                .expect("manifests handle should exist");
+            db.put_cf(cf, b"canary/key", b"canary-value")
+                .expect("canary write should succeed");
+        }
+
+        // New binary opens the same database. This is the manifest touch
+        // that the release-notes call irreversible.
+        let store = reopen_store(&config);
+
+        assert_eq!(
+            store
+                .analytics_outbox_entry_count()
+                .expect("counting the upgraded analytics outbox should succeed"),
+            0,
+            "the newly-added column family should be present and empty",
+        );
+
+        let cf = store
+            .db
+            .cf_handle(ROCKSDB_CF_MANIFESTS)
+            .expect("manifests handle should still exist");
+        assert_eq!(
+            store
+                .db
+                .get_cf(cf, b"canary/key")
+                .expect("canary read should succeed"),
+            Some(b"canary-value".to_vec()),
+            "existing column families must survive the upgrade",
+        );
+        drop(store);
+
+        // The predecessor descriptor list no longer covers the database.
+        // Rolling back is expected to fail — this is the one-way boundary
+        // the release notes warn about, pinned here so a future refactor
+        // that softens that boundary (for example, by adding the new
+        // family to the predecessor's open path) fails this test instead
+        // of silently changing rollout semantics.
+        let error = open_predecessor_db(&config)
+            .expect_err("predecessor should not be able to reopen the upgraded database");
+        let message = error.to_string();
+        assert!(
+            message.contains("analytics_outbox") || message.contains("Column families"),
+            "predecessor open error should identify the missing column family, got {message}",
+        );
+    }
+
+    #[test]
+    fn a_reopened_store_still_reports_zero_analytics_outbox_entries() {
+        // Round-trip through close/open to prove the CF descriptor is
+        // registered on both the initial open and the subsequent one, and
+        // that neither path errors on the empty column family. A binary
+        // that shipped this declaration and got rolled back to a
+        // predecessor would fail to open its database, which is the whole
+        // reason this PR ships without a producer.
+        let (temp, config, store) = temp_store();
+        drop(store);
+        let reopened = reopen_store(&config);
+        assert_eq!(
+            reopened
+                .analytics_outbox_entry_count()
+                .expect("counting the empty analytics outbox should succeed after reopen"),
+            0
+        );
+        drop(reopened);
+        drop(temp);
+    }
+
     fn reopen_store(config: &Config) -> Store {
         let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
         let io = IoController::new(
@@ -17168,6 +17301,7 @@ mod tests {
             ROCKSDB_CF_MULTIPART_UPLOADS,
             ROCKSDB_CF_OUTBOX,
             ROCKSDB_CF_USAGE_OUTBOX,
+            ROCKSDB_CF_ANALYTICS_OUTBOX,
             ROCKSDB_CF_SEGMENT_ARTIFACTS,
             ROCKSDB_CF_SEGMENT_STATE,
             ROCKSDB_CF_ACTION_CACHE_INDEX,
@@ -17175,6 +17309,40 @@ mod tests {
         .map(|name| ColumnFamilyDescriptor::new(name, Options::default()));
         DB::open_cf_descriptors(&Options::default(), config.data_dir.join("rocksdb"), cfs)
             .expect("failed to open data dir as a foreign binary")
+    }
+
+    /// Opens the data dir the way the release predecessor to the one that
+    /// declared `analytics_outbox` would: raw RocksDB, no maintenance stamps,
+    /// and no descriptor for the new column family. Used by the upgrade-
+    /// transition test to prove that a fresh binary's `Store::open` can
+    /// take over a database whose manifest lacks the new family, and that
+    /// the predecessor cannot reopen the database after the upgrade.
+    fn open_predecessor_db(config: &Config) -> Result<DB, rocksdb::Error> {
+        let cfs = [
+            ROCKSDB_CF_MANIFESTS,
+            ROCKSDB_CF_KEY_VALUE,
+            ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+            ROCKSDB_CF_NAMESPACE_TOMBSTONES,
+            ROCKSDB_CF_MULTIPART_UPLOADS,
+            ROCKSDB_CF_OUTBOX,
+            ROCKSDB_CF_USAGE_OUTBOX,
+            ROCKSDB_CF_SEGMENT_ARTIFACTS,
+            ROCKSDB_CF_SEGMENT_STATE,
+            ROCKSDB_CF_ACTION_CACHE_INDEX,
+        ]
+        .map(|name| ColumnFamilyDescriptor::new(name, Options::default()));
+        // The predecessor binary's `Store::open` sets both
+        // `create_if_missing` and `create_missing_column_families`, so the
+        // first open on a fresh volume brings every family it declares
+        // into existence. Matching that behaviour here lets the same
+        // helper act as the "predecessor creates a fresh volume" path in
+        // the upgrade-transition test and, after the new binary has run
+        // once, as the "predecessor reopens the upgraded volume" check
+        // that pins the one-way boundary.
+        let mut options = Options::default();
+        options.create_if_missing(true);
+        options.create_missing_column_families(true);
+        DB::open_cf_descriptors(&options, config.data_dir.join("rocksdb"), cfs)
     }
 
     fn inline_manifest_record(

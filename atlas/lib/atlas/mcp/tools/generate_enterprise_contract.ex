@@ -53,7 +53,7 @@ defmodule Atlas.MCP.Tools.GenerateEnterpriseContract do
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Enterprise contracts"),
+    with :ok <- Tool.authorize_scope(conn, "contracts:write", "Enterprise contracts"),
          {:ok, account} <- fetch_account(args) do
       args = Map.put(args, "account", account)
       result = ContractPrompt.template(conn, args)

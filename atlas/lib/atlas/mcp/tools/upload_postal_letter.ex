@@ -36,7 +36,7 @@ defmodule Atlas.MCP.Tools.UploadPostalLetter do
   end
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Letter tools"),
+    with :ok <- Tool.authorize_scope(conn, "letters:write", "Letter tools"),
          {:ok, body} <- decode_pdf(args["pdf_base64"]) do
       upload = %{body: body, filename: args["filename"]}
 

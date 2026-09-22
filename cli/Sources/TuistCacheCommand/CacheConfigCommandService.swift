@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import Noora
 import Path
@@ -21,6 +22,10 @@ public protocol CacheConfigCommandServicing {
 }
 
 public struct CacheConfigCommandService: CacheConfigCommandServicing {
+    /// The status the command exits with while the account's remote cache is being prepared and has
+    /// no endpoint yet (`EX_TEMPFAIL`). The compilation-cache proxy asks again sooner on it.
+    public static let endpointBeingPreparedExitCode: Int32 = 75
+
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
@@ -76,7 +81,15 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         let token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
-        let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
+        let cacheURL: URL
+        do {
+            cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
+        } catch CacheURLStoreError.endpointBeingPrepared {
+            if !json {
+                Noora.current.error(.alert("The remote cache is being prepared and has no endpoint yet."))
+            }
+            throw ExitCode(Self.endpointBeingPreparedExitCode)
+        }
         let endpoints = try await cacheURLStore.getCacheEndpoints(for: resolvedServerURL, accountHandle: accountHandle)
 
         let result = CacheConfiguration(

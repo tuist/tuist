@@ -161,6 +161,14 @@ var tuistCASDependencies: [Target.Dependency] = [
     mockableDependency,
 ]
 var tuistREAPIDependencies: [Target.Dependency] = [
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+    fileSystemDependency,
+    .product(name: "libzstd", package: "facebook.zstd"),
+    pathDependency,
+    "TuistEnvironment",
+    "TuistHTTP",
+    .product(name: "NIOCore", package: "apple.swift-nio"),
+    .product(name: "NIOSSL", package: "apple.swift-nio-ssl"),
     "TuistLogging",
     .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
     .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
@@ -317,6 +325,7 @@ var tuistInitCommandDependencies: [Target.Dependency] = [
     "TuistEnvKey",
     "TuistServer",
     "TuistAuthCommand",
+    "TuistBazelCommand",
     "TuistAlert",
     "TuistNooraExtension",
     .product(name: "Noora", package: "tuist.Noora"),
@@ -862,7 +871,7 @@ var targets: [Target] = [
         name: "TuistREAPI",
         dependencies: tuistREAPIDependencies,
         path: "cli/Sources/TuistREAPI",
-        exclude: ["capabilities.proto", "AGENTS.md"],
+        exclude: ["capabilities.proto", "cache.proto", "bytestream.proto", "AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1950,7 +1959,10 @@ let package = Package(
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
         .package(id: "apple.swift-protobuf", exact: "1.38.1"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
-        .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
+        .package(id: "grpc.grpc-swift-nio-transport", from: "2.9.2"),
+        .package(id: "apple.swift-nio", from: "2.97.1"),
+        .package(id: "apple.swift-nio-ssl", from: "2.37.4"),
+        .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),

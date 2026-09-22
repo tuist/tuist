@@ -3,58 +3,50 @@ defmodule AtlasWeb.Admin.UsersLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Atlas.Authorization.Roles
   alias Atlas.Repo
   alias Atlas.Users.User
 
-  test "renders the admin users directory for executives", %{conn: conn} do
+  test "renders the admin users directory for users with admin scope", %{conn: conn} do
     {conn, executive} = log_in_user(conn, %{role: :executive})
-    employee = insert_user!(:employee)
-    other_executive = insert_user!(:executive)
+    employee = insert_user!()
 
     {:ok, view, _html} = live(conn, ~p"/admin/users")
 
     assert has_element?(view, "#admin-users")
-    assert has_element?(view, "#admin-users-executive-count", "2 executives")
-    assert has_element?(view, "#admin-users-employee-count", "1 employee")
     assert has_element?(view, "#admin-user-actions-#{executive.id}")
     assert has_element?(view, "#admin-user-actions-#{employee.id}")
-    assert has_element?(view, "#admin-user-actions-#{other_executive.id}")
-    assert has_element?(view, "#manage-role-modal-#{employee.id}")
-    assert has_element?(view, "#user-role-#{other_executive.id}", "Executive")
-    assert has_element?(view, ~s(a[href="/admin/users"]), "Users")
+    assert has_element?(view, "#manage-roles-modal-#{employee.id}")
+    assert has_element?(view, "#manage-roles-modal-#{executive.id}")
   end
 
-  test "updates a user's role from the admin directory", %{conn: conn} do
+  test "assigns a role to a user through the manage roles form", %{conn: conn} do
     {conn, _executive} = log_in_user(conn, %{role: :executive})
-    employee = insert_user!(:employee)
+    employee = insert_user!()
+    executive_role = Roles.ensure_executive_role!()
 
     {:ok, view, _html} = live(conn, ~p"/admin/users")
 
-    render_submit(view, "save_user_role", %{
+    render_submit(view, "save_user_roles", %{
       "user_id" => employee.id,
-      "user" => %{"role" => "executive"}
+      "role_ids" => %{executive_role.slug => executive_role.id}
     })
 
-    updated_user = Repo.get!(User, employee.id)
-
-    assert updated_user.role == :executive
-    assert has_element?(view, "#user-role-#{employee.id}", "Executive")
-    assert has_element?(view, "#admin-users-executive-count", "2 executives")
-    assert has_element?(view, "#admin-users-employee-count", "0 employees")
+    assigned = employee |> Repo.reload!() |> Roles.list_roles_for_user()
+    assert Enum.any?(assigned, &(&1.id == executive_role.id))
   end
 
-  test "redirects employees away from the admin directory", %{conn: conn} do
+  test "redirects users without admin scope away from the admin directory", %{conn: conn} do
     {conn, _employee} = log_in_user(conn, %{role: :employee})
 
     assert {:error, {:redirect, %{to: "/commercial/sales"}}} = live(conn, ~p"/admin/users")
   end
 
-  defp insert_user!(role) do
+  defp insert_user! do
     %User{}
     |> User.changeset(%{
       email: "admin-users-#{System.unique_integer([:positive])}@tuist.dev",
-      name: "Atlas User",
-      role: role
+      name: "Atlas User"
     })
     |> Repo.insert!()
   end

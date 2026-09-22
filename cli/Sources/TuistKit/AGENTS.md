@@ -24,4 +24,5 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - Core domain models: `cli/Sources/TuistCore/AGENTS.md`
 - Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
 - Server integration: `cli/Sources/TuistServer/AGENTS.md`
+- Cache warming carries the preload graph's SDK fingerprints through archiving and publication; do not recompute them from the graph after binary replacement. Preserve these publication fingerprints even when profile exclusions prevent handing precomputed target hashes to the warm-project generator.
 - When the default generator runs focus without filters (for example, during build), it preserves eligible local package tests and their dependencies for their effective platforms. Ordinary unfocused generation relies on the narrowing and pruning mappers. Test automation saves the graph before focus for platform inference and passes includedProducts for unit/UI tests; a selected scheme keeps its own test roots and does not add package tests outside the scheme.

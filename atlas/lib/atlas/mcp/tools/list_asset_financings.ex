@@ -54,7 +54,7 @@ defmodule Atlas.MCP.Tools.ListAssetFinancings do
   end
 
   def execute(conn, %{"asset_id" => asset_id}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Hardware tools"),
          %_{} <- Assets.get_asset(asset_id) do
       rows = Financings.list_asset_financings(asset_id)
 

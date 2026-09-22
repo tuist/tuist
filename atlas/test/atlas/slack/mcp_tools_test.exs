@@ -52,6 +52,6 @@ defmodule Atlas.Slack.MCPToolsTest do
       |> Enum.find(&(Tool.name(&1) == "get_finance_overview"))
 
     assert {:error, message} = Tool.execute(get_finance_overview, %{}, %{assigns: %{}})
-    assert message =~ "Finance tools are only available to executives."
+    assert message =~ "Finance tools require the finance:read scope."
   end
 end

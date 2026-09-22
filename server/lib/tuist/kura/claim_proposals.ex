@@ -67,15 +67,17 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   @doc """
-  Open proposals, oldest first, capped at `limit`. What the automatic mode
-  drains; the cap bounds how much a sweep may resize in one pass so a
-  miscalibrated threshold cannot rebuild the fleet in one night.
+  Open proposals, growths first and then oldest first: the order the automatic
+  mode tries them in. A growth waiting leaves an account shedding content it
+  needs, while a shrink waiting only holds disk, so a month's shrinks landing
+  on the same day cannot hold growth back for hours. How many it may apply is
+  the worker's budget to bound, not this list's length: a proposal the cluster
+  refuses stays open at the head of it.
   """
-  def open_proposals(limit) do
+  def open_proposals do
     ClaimProposal
     |> where([proposal], proposal.status == :open)
-    |> order_by([proposal], asc: proposal.inserted_at)
-    |> limit(^limit)
+    |> order_by([proposal], asc: fragment("? <> 'grow'", proposal.direction), asc: proposal.inserted_at)
     |> Repo.all()
   end
 
@@ -135,24 +137,26 @@ defmodule Tuist.Kura.ClaimProposals do
       placer_claims: placer_claims,
       open_proposals: open_proposals,
       last_applied_proposals: last_applied_proposals,
-      pinned_claims: PlacerClaims.pinned_claims(account_ids)
+      region_claims: PlacerClaims.region_claims(account_ids)
     }
   end
 
   defp converge_account(account, inputs, today, policy) do
     open = Map.get(inputs.open_proposals, account.id)
     placer_claim = Map.get(inputs.placer_claims, account.id)
+    region_claims = Map.get(inputs.region_claims, account.id, %{})
 
     current =
       PlacerClaims.resolve_claim_size(
         account,
-        Map.get(inputs.pinned_claims, account.id),
+        PlacerClaims.largest_claim(Map.values(region_claims)),
         placer_claim && placer_claim.claim_size
       )
 
     context = %{
       plan: AccountPolicies.sizing_plan(account),
       current_claim_size: current,
+      region_claim_sizes: region_claims,
       rollups: Map.get(inputs.rollups, account.id, []),
       last_resized_at: placer_claim && placer_claim.updated_at,
       capped_resize_from: capped_resize_from(Map.get(inputs.last_applied_proposals, account.id), policy),

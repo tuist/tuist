@@ -31,6 +31,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
@@ -945,6 +946,7 @@ defmodule Tuist.Accounts do
          |> String.replace(".", "-")
          |> String.replace("_", "-")
          |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+         |> String.trim("-")
          |> String.downcase()) <> suffix
 
     password = Keyword.get(opts, :password, "")
@@ -2817,18 +2819,26 @@ defmodule Tuist.Accounts do
         # boundary the demand-driven lifecycle measures: it covers the Xcode,
         # Module, and Gradle lanes uniformly, and it is the same call whether
         # the client is a developer machine or a runner. The write is buffered
-        # in memory and flushed periodically, so this stays one ETS insert.
-        Demand.record(account.id, origin)
+        # in memory and flushed periodically, so this stays one ETS insert,
+        # except for the request this node acts on: the job placing that
+        # instance may run on another node, so the origin it places from is
+        # written through first.
+        #
+        # Acting is claimed rather than done on every request. Every client of
+        # an account with nothing serving asks, and asks again every
+        # `@provisioning_cache_max_age` seconds, so without the claim a CI
+        # fleet — or an account its region keeps refusing, which never stops
+        # asking — would pay a write-through and a unique job insert per
+        # request forever, to schedule work that is deduplicated anyway.
+        urls = kura_cache_endpoint_urls(account, Origins.value(origin))
+        provisioning? = urls == [] and Demand.instance_expected?(account)
+        kick? = provisioning? and Demand.claim_provision_kick(account.id)
+        Demand.record(account.id, origin, persist_origin: kick?)
+        if kick?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
 
-        case kura_cache_endpoint_urls(account, Origins.value(origin)) do
-          [] ->
-            %{
-              endpoints: absent_kura_endpoint_urls(account, technology),
-              provisioning: Demand.instance_expected?(account)
-            }
-
-          urls ->
-            %{endpoints: urls, provisioning: false}
+        case urls do
+          [] -> %{endpoints: absent_kura_endpoint_urls(account, technology), provisioning: provisioning?}
+          urls -> %{endpoints: urls, provisioning: false}
         end
 
       _ ->

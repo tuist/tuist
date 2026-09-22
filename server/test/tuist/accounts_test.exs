@@ -27,6 +27,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Projects
   alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -2331,6 +2332,15 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "create_user/1" do
+    test "drops the hyphens a handle derived from the email would start or end with" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      unique = TuistTestSupport.Utilities.unique_integer()
+
+      {:ok, user} = Accounts.create_user("_edge.#{unique}_@tuist.dev", password: valid_user_password())
+
+      assert Accounts.get_account_from_user(user).name == "edge-#{unique}"
+    end
+
     test "doesn't start biling trial if it's an on-premise environment" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> false end)
@@ -5372,6 +5382,45 @@ defmodule Tuist.AccountsTest do
       assert resolution.provisioning
     end
 
+    test "asks for the account's instance straight away when none is serving" do
+      # Given
+      # Returning an archived instance used to wait for the demand buffer's
+      # flush and the next reconciler tick, up to two minutes before the
+      # instance even started coming back.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert [%Oban.Job{args: %{"account_id" => account_id}}] =
+               all_enqueued(worker: ProvisionOnDemandWorker)
+
+      assert account_id == account.id
+    end
+
+    test "does not ask for an instance for an account with no resolvable service region" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
+
+      # When
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
     test "does not report provisioning once an instance is serving" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
@@ -5386,6 +5435,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert resolution.endpoints == ["https://acme-us-east-1.kura.tuist.dev"]
       refute resolution.provisioning
+      refute_enqueued(worker: ProvisionOnDemandWorker)
     end
 
     test "does not report provisioning when the client is not routed to Kura" do

@@ -113,6 +113,35 @@ defmodule Atlas.Finance.QueryTest do
     assert result.account.source.atlas_account.account_key == tuist_gmbh.account_key
   end
 
+  test "filters transactions by id" do
+    source = insert_finance_source!(%{config_key: "qonto-main"})
+    account = insert_finance_account!(source)
+
+    wanted =
+      insert_finance_transaction!(account, %{
+        external_id: "txn-wanted",
+        counterparty_name: "Wanted",
+        settled_at: ~U[2026-05-03 09:00:00Z],
+        booked_at: ~U[2026-05-03 09:00:00Z],
+        provider_updated_at: ~U[2026-05-03 09:00:00Z]
+      })
+
+    # Newer than `wanted`, so unfiltered `list_transactions(limit: 1)` would
+    # return this one — proving the id filter is honored, not silently dropped.
+    _newer =
+      insert_finance_transaction!(account, %{
+        external_id: "txn-newer",
+        counterparty_name: "Newer",
+        settled_at: ~U[2026-05-04 09:00:00Z],
+        booked_at: ~U[2026-05-04 09:00:00Z],
+        provider_updated_at: ~U[2026-05-04 09:00:00Z]
+      })
+
+    assert [result] = Query.list_transactions(id: wanted.id, limit: 1)
+    assert result.id == wanted.id
+    assert result.external_id == "txn-wanted"
+  end
+
   test "filters transactions by category and uncategorized state" do
     source = insert_finance_source!(%{config_key: "qonto-main"})
     account = insert_finance_account!(source)

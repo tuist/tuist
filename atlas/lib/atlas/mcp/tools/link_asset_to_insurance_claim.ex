@@ -34,7 +34,7 @@ defmodule Atlas.MCP.Tools.LinkAssetToInsuranceClaim do
   end
 
   def execute(conn, %{"claim_id" => claim_id, "asset_id" => asset_id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = claim <- Policies.get_claim(claim_id) do
       attrs =
         args

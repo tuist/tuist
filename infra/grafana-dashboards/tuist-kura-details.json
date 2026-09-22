@@ -2807,7 +2807,7 @@
               "transformations": []
             }
           },
-          "description": "Peer-plane request failures: outbox replication deliveries and backfill passes that errored against a peer\n\nPrometheus name: `kura_peer_connection_failures_total_total`",
+          "description": "Peer-plane request failures: catch-up requests (listing, body and artifact fetches) that errored against a peer. Push outbox deliveries used to count here too; that path was removed in kura@0.46.\n\nPrometheus name: `kura_peer_connection_failures_total_total`",
           "id": 126,
           "links": [],
           "title": "peer_connection_failures_total (rate)",
@@ -2899,7 +2899,7 @@
               "transformations": []
             }
           },
-          "description": "Apply outcomes for replicated artifacts and namespace deletes received from peers\n\nPrometheus name: `kura_replication_apply_results_total_total` · labels: source, item_type, outcome",
+          "description": "Apply outcomes for artifacts and namespace deletes pushed into this node's retained `/_internal/replicate/*` receivers. Since kura@0.46 only a self-hosted peer still on a release that predates pull replication sends there, so this stays empty on managed fleets; pulled data shows up in the Backfill and Pull replication rows.\n\nPrometheus name: `kura_replication_apply_results_total_total` · labels: source, item_type, outcome",
           "id": 127,
           "links": [],
           "title": "replication_apply_results_total (rate)",
@@ -3365,9 +3365,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_replication_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.5, sum by (pod, operation, le) (rate(kura_replication_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
                         "instant": false,
-                        "legendFormat": "p50 {{pod}}",
+                        "legendFormat": "p50 {{pod}} · {{operation}}",
                         "range": true
                       },
                       "version": "v0"
@@ -3386,9 +3386,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_replication_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.95, sum by (pod, operation, le) (rate(kura_replication_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
                         "instant": false,
-                        "legendFormat": "p95 {{pod}}",
+                        "legendFormat": "p95 {{pod}} · {{operation}}",
                         "range": true
                       },
                       "version": "v0"
@@ -3407,9 +3407,9 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_replication_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.99, sum by (pod, operation, le) (rate(kura_replication_request_duration_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
                         "instant": false,
-                        "legendFormat": "p99 {{pod}}",
+                        "legendFormat": "p99 {{pod}} · {{operation}}",
                         "range": true
                       },
                       "version": "v0"
@@ -3422,10 +3422,10 @@
               "transformations": []
             }
           },
-          "description": "Peer replication request latency by target and operation\n\nPrometheus name: `kura_replication_request_duration_seconds`_bucket/_count/_sum · labels: operation",
+          "description": "Latency of the catch-up requests a node sends to its peers: `backfill_entries` (index listing pages), `backfill_bodies` (body batches) and `backfill_artifact` (single artifact fetches). They run while a node bootstraps, rejoins or walks a region backwards, so this is the latency to read when catch-up stalls. Steady-state forward reads and region long-polls are not timed here; see the Pull replication row. Production keeps every bucket of this histogram.\n\nPrometheus name: `kura_replication_request_duration_seconds`_bucket/_count/_sum · labels: operation",
           "id": 131,
           "links": [],
-          "title": "replication_request_duration_seconds (p50 / p95 / p99)",
+          "title": "replication_request_duration_seconds by operation (p50 / p95 / p99)",
           "vizConfig": {
             "group": "timeseries",
             "kind": "VizConfig",
@@ -3514,7 +3514,7 @@
               "transformations": []
             }
           },
-          "description": "Peer replication requests by target, operation, and result\n\nPrometheus name: `kura_replication_requests_total_total` · labels: target, operation, result",
+          "description": "Catch-up requests a node sends to its peers, by target peer, operation (`backfill_entries`, `backfill_bodies`, `backfill_artifact`) and result.\n\nPrometheus name: `kura_replication_requests_total_total` · labels: target, operation, result",
           "id": 132,
           "links": [],
           "title": "replication_requests_total (rate)",
@@ -6189,7 +6189,7 @@
               "transformations": []
             }
           },
-          "description": "Public HTTP request latency excluding probes and internal endpoints\n\nPrometheus name: `kura_http_request_duration_seconds`_bucket/_count/_sum",
+          "description": "Public HTTP request latency excluding probes and internal endpoints\n\nProduction ships every other bucket (`infra/helm/k8s-monitoring/values.yaml`), so percentiles interpolate between 1 ms, 4 ms, 16 ms, 64 ms, 256 ms, 1.024 s, 4.096 s, 16.384 s and 32.768 s. Staging and canary ship no buckets.\n\nPrometheus name: `kura_http_request_duration_seconds`_bucket/_count/_sum",
           "id": 16,
           "links": [],
           "title": "http_request_duration_seconds (p50 / p95 / p99)",
@@ -7477,6 +7477,98 @@
                     ]
                   },
                   "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-243": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_analytics_outbox_depth_entries{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Analytics-outbox RocksDB column family entry count. Empty for the life of the release that declares the column family; goes non-zero when the follow-up producer PR routes cache analytics through it. Correlates with kura_analytics_batches_total_total{result=~\"error_.*\"} — a rising outbox depth on a pod whose batches are hitting the network means retries are queueing rather than dropping. (The double `_total` suffix is how the counter is scraped; see the existing `analytics_batches_total (rate)` panel above.)\n\nPrometheus name: `kura_analytics_outbox_depth_entries`",
+          "id": 243,
+          "links": [],
+          "title": "analytics_outbox_depth_entries",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
                 },
                 "overrides": []
               },
@@ -10584,7 +10676,7 @@
               "transformations": []
             }
           },
-          "description": "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding\n\nPrometheus name: `kura_public_request_latency_seconds`_bucket/_count/_sum · labels: transport, route",
+          "description": "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding\n\nProduction ships every other bucket (`infra/helm/k8s-monitoring/values.yaml`), so percentiles interpolate between 1 ms, 4 ms, 16 ms, 64 ms, 256 ms, 1.024 s, 4.096 s, 16.384 s and 32.768 s. Staging and canary ship no buckets.\n\nPrometheus name: `kura_public_request_latency_seconds`_bucket/_count/_sum · labels: transport, route",
           "id": 21,
           "links": [],
           "title": "public_request_latency_seconds (p50 / p95 / p99)",
@@ -11903,7 +11995,7 @@
               "transformations": []
             }
           },
-          "description": "Multipart uploads currently tracked in RocksDB\n\nPrometheus name: `kura_multipart_uploads`",
+          "description": "Multipart upload slots currently occupied\n\nPrometheus name: `kura_multipart_uploads`",
           "id": 33,
           "links": [],
           "title": "multipart_uploads",
@@ -19231,7 +19323,7 @@
               "transformations": []
             }
           },
-          "description": "Most recent spans exported by the selected pods, with liveness, readiness, scrape and rollout-status routes excluded so real client work is what's left. Traces carry the node's `kura.region`, `kura.tenant_id` and `geo.*` resource attributes, so a span identifies the node that served it.",
+          "description": "Most recent spans exported by the selected pods, with liveness, readiness, scrape and rollout-status routes excluded so real client work is what's left. Traces carry the node's `kura.region`, `kura.tenant_id` and `geo.*` resource attributes, so a span identifies the node that served it. The trace sampler does not keep healthy probe traces at all; failing or slow ones still arrive.",
           "id": 198,
           "links": [],
           "title": "Recent traces",
@@ -19295,7 +19387,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "limit": 50,
-                        "query": "{ resource.service.namespace = \"kura\" && resource.deployment.environment.name = \"$env\" && resource.service.name =~ \"^(${pod})$\"\n  && span.http.route !~ \"^(/up|/ready|/metrics|/status/rollout)$\"\n  && duration > 500ms } with (most_recent=true)",
+                        "query": "{ resource.service.namespace = \"kura\" && resource.deployment.environment.name = \"$env\" && resource.service.name =~ \"^(${pod})$\"\n  && span.http.route !~ \"^(/up|/ready|/metrics|/status/rollout)$\"\n  && span.http.route !~ \"^/_internal/(sync/forward|backfill/entries)$\"\n  && duration > 500ms } with (most_recent=true)",
                         "queryType": "traceql",
                         "tableType": "traces"
                       },
@@ -19309,7 +19401,7 @@
               "transformations": []
             }
           },
-          "description": "Requests that took longer than half a second. Read alongside `public_request_latency_seconds` in the HTTP row: the histogram says the tail exists, this says which routes and payloads are in it.",
+          "description": "Requests that took longer than half a second. Read alongside `public_request_latency_seconds` in the HTTP row: the histogram says the tail exists, this says which routes and payloads are in it. Pull-replication long-polls (`/_internal/sync/forward` and region listings on `/_internal/backfill/entries`) are excluded: they hold the request open for up to 25 s by design.",
           "id": 199,
           "links": [],
           "title": "Slow traces (> 500 ms)",
@@ -19465,7 +19557,7 @@
               "transformations": []
             }
           },
-          "description": "Mesh-internal traffic only (`/_internal/*`): peer replication applies, backfill listings and body fetches. This is the row to open when the outbox or backfill panels show work that is not draining.",
+          "description": "Mesh-internal traffic only (`/_internal/*`): pull-replication forward reads and region listings, catch-up listings and body fetches, and pushes from self-hosted peers on a pre-pull release. Long-polls are held open for up to 25 s, so their duration is not latency, and the sampler keeps them only when they fail or land in the 5% healthy sample. Open this row when the Pull replication or Backfill panels show work that is not draining.",
           "id": 201,
           "links": [],
           "title": "Peer replication & backfill traces",
@@ -20042,7 +20134,7 @@
               "transformations": []
             }
           },
-          "description": "p95 of `public_request_latency_seconds` per region. Regions serve different client populations over different paths, so a tail that belongs to one region is a routing or placement question, not a runtime one.",
+          "description": "p95 of `public_request_latency_seconds` per region. Regions serve different client populations over different paths, so a tail that belongs to one region is a routing or placement question, not a runtime one.\n\nProduction ships every other bucket (`infra/helm/k8s-monitoring/values.yaml`), so percentiles interpolate between 1 ms, 4 ms, 16 ms, 64 ms, 256 ms, 1.024 s, 4.096 s, 16.384 s and 32.768 s. Staging and canary ship no buckets.",
           "id": 205,
           "links": [],
           "title": "p95 public latency by region",
@@ -22326,7 +22418,7 @@
               "transformations": []
             }
           },
-          "description": "Time to admit or reject a multipart session, including immediate outcomes and cancellation. The one-second deadline includes waiting for the FIFO admission turn, but excludes the subsequent RocksDB record write and payload upload. Prometheus name: kura_multipart_upload_admission_duration_seconds.",
+          "description": "Time to admit or reject a multipart session, including immediate outcomes and cancellation. The one-second deadline includes waiting for the FIFO admission turn, but excludes the subsequent RocksDB record write and payload upload.\n\nProduction ships every other bucket (`infra/helm/k8s-monitoring/values.yaml`), so percentiles interpolate between 1 ms, 4 ms, 16 ms, 64 ms, 256 ms, 1.024 s and 4.096 s. Staging and canary ship no buckets.\n\nPrometheus name: `kura_multipart_upload_admission_duration_seconds`_bucket/_count/_sum",
           "id": 233,
           "links": [],
           "title": "Multipart admission latency (p99)",
@@ -22731,6 +22823,504 @@
                     ]
                   },
                   "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-238": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod, producer) (rate(kura_artifact_write_size_bytes_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod, producer) (rate(kura_artifact_write_size_bytes_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "mean {{pod}} · {{producer}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod, producer) (rate(kura_artifact_write_size_bytes_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "rate {{pod}} · {{producer}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Size of each stored artifact by producer. For producer=\"module\" this is the per-upload payload that stages to the tmp dir, so its upper quantiles size the staging reserve and the TmpBudget::try_reserve floor.\n\nBuckets are not shipped to Grafana Cloud, so this shows the mean size per producer on the left axis and stored artifacts per second on the right. Read the upper quantiles for a live pod from `/api/ops/kura/pods/:pod/metrics`.\n\nPrometheus name: `kura_artifact_write_size_bytes`_count/_sum · labels: producer",
+          "id": 238,
+          "links": [],
+          "title": "artifact_write_size_bytes (mean · rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "bytes"
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": "/^rate /"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.axisPlacement",
+                        "value": "right"
+                      },
+                      {
+                        "id": "unit",
+                        "value": "ops"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-239": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_multipart_upload_capacity{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Current multipart upload admission limit. Compare with `multipart_uploads` for slot occupancy; the multipart shedding alerts in alerts.md read both.\n\nPrometheus name: `kura_multipart_upload_capacity`",
+          "id": 239,
+          "links": [],
+          "title": "multipart_upload_capacity",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-240": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_multipart_upload_waiters{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Multipart starts queued for a session slot. A standing queue with occupancy at capacity is backpressure; compare with the `waited` and `queue_full` outcomes in Multipart admission outcomes.\n\nPrometheus name: `kura_multipart_upload_waiters`",
+          "id": 240,
+          "links": [],
+          "title": "multipart_upload_waiters",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "short"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-241": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod, operation, outcome) (rate(kura_reapi_chunking_events_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}} · {{operation}} / {{outcome}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Content-defined chunking events by operation and bounded outcome\n\nPrometheus name: `kura_reapi_chunking_events_total_total` · labels: operation, outcome",
+          "id": 241,
+          "links": [],
+          "title": "reapi_chunking_events_total (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-242": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod, kind) (rate(kura_reapi_chunking_bytes_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}} · {{kind}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Content-defined chunking bytes by logical or recipe representation\n\nPrometheus name: `kura_reapi_chunking_bytes_total_total` · labels: kind",
+          "id": 242,
+          "links": [],
+          "title": "reapi_chunking_bytes_total (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "Bps"
                 },
                 "overrides": []
               },
@@ -23446,11 +24036,76 @@
                         "x": 12,
                         "y": 28
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-239"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 35
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-240"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 35
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-238"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 35
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-241"
+                        },
+                        "height": 7,
+                        "width": 12,
+                        "x": 0,
+                        "y": 42
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-242"
+                        },
+                        "height": 7,
+                        "width": 12,
+                        "x": 12,
+                        "y": 42
+                      }
                     }
                   ]
                 }
               },
-              "title": "Artifact reads, writes & egress (14)"
+              "title": "Artifact reads, writes & egress (19)"
             }
           },
           {
@@ -24273,7 +24928,7 @@
                   ]
                 }
               },
-              "title": "Memory pressure, admission & response-stream pool (20)"
+              "title": "Memory pressure, admission & response-stream pool (22)"
             }
           },
           {
@@ -24759,77 +25414,12 @@
                       "spec": {
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-126"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 8,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-127"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 16,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-128"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 0,
-                        "y": 7
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-129"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 8,
-                        "y": 7
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-130"
-                        },
-                        "height": 7,
-                        "width": 8,
-                        "x": 16,
-                        "y": 7
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
                           "name": "panel-131"
                         },
                         "height": 7,
                         "width": 8,
                         "x": 0,
-                        "y": 14
+                        "y": 0
                       }
                     },
                     {
@@ -24842,13 +25432,78 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-126"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-127"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 7
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-128"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 7
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-129"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 7
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-130"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
                         "y": 14
                       }
                     }
                   ]
                 }
               },
-              "title": "Peer replication & outbox (12)"
+              "title": "Peer replication catch-up (7)"
             }
           },
           {
@@ -24881,7 +25536,7 @@
                         },
                         "height": 7,
                         "width": 8,
-                        "x": 16,
+                        "x": 8,
                         "y": 0
                       }
                     },
@@ -24894,8 +25549,8 @@
                         },
                         "height": 7,
                         "width": 8,
-                        "x": 0,
-                        "y": 7
+                        "x": 16,
+                        "y": 0
                       }
                     },
                     {
@@ -24907,7 +25562,7 @@
                         },
                         "height": 7,
                         "width": 8,
-                        "x": 16,
+                        "x": 0,
                         "y": 7
                       }
                     },
@@ -24921,7 +25576,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 14
+                        "y": 7
                       }
                     },
                     {
@@ -24934,7 +25589,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 16,
-                        "y": 14
+                        "y": 7
                       }
                     },
                     {
@@ -24947,7 +25602,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 0,
-                        "y": 21
+                        "y": 14
                       }
                     },
                     {
@@ -24960,7 +25615,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 21
+                        "y": 14
                       }
                     },
                     {
@@ -24973,7 +25628,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 16,
-                        "y": 21
+                        "y": 14
                       }
                     },
                     {
@@ -24986,7 +25641,7 @@
                         "height": 7,
                         "width": 8,
                         "x": 0,
-                        "y": 28
+                        "y": 21
                       }
                     },
                     {
@@ -24999,13 +25654,13 @@
                         "height": 7,
                         "width": 8,
                         "x": 8,
-                        "y": 28
+                        "y": 21
                       }
                     }
                   ]
                 }
               },
-              "title": "Backfill (15)"
+              "title": "Backfill (11)"
             }
           },
           {
@@ -25682,11 +26337,24 @@
                         "x": 16,
                         "y": 14
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-243"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 21
+                      }
                     }
                   ]
                 }
               },
-              "title": "Usage reporting & analytics (analytics webhook pipeline is unconfigured in hosted deployments) (9)"
+              "title": "Usage reporting & analytics (analytics webhook pipeline is unconfigured in hosted deployments) (10)"
             }
           },
           {

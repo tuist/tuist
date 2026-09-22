@@ -278,6 +278,7 @@ defmodule Tuist do
       Runners.Profiles,
       Runners.RunnerSession,
       Runners.RunnerSessions,
+      Runners.Shadow.Snapshot,
       Runners.PromExPlugin,
       Runners.Telemetry,
       Kubernetes.Client

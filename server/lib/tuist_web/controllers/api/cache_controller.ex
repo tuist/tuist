@@ -102,7 +102,7 @@ defmodule TuistWeb.API.CacheController do
   # its endpoint is unpublished, so an answer held for its full life is never
   # pointing at something already gone. `Tuist.Kura.placement_drain_seconds/0`
   # is what guarantees it.
-  @provisioning_cache_max_age 30
+  @provisioning_cache_max_age 5
 
   # The first CLI and Gradle plugin versions that no longer send the `kura` client
   # feature flag. They are always routed to Kura, and never to the legacy cache

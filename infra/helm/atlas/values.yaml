@@ -43,7 +43,7 @@ image:
 # One replica, no autoscaling, no PodDisruptionBudget: HA isn't achievable
 # (or needed) on a single node, and a PDB would block node drains during
 # cluster upgrades.
-replicaCount: 1
+replicaCount: 2
 
 resources:
   requests:
@@ -59,7 +59,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 75
 
 pdb:
-  enabled: false
+  enabled: true
   minAvailable: 1
 
 service:
@@ -95,6 +95,12 @@ env:
   # Customer-support activity belongs in its own channel, separate from the
   # operational notification stream. Add the Atlas Slack bot to this channel.
   ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
+  # Default Slack channel for engineering error-issue alerts (new issue and
+  # regression transitions from the issue coalescer, plus drop alerts).
+  # Matches Hive prod's HIVE_ALERTS_SLACK_CHANNEL_ID so the alert stream
+  # stays on the same channel after the port. Projects can override per
+  # project via their slack_alert_channel setting.
+  ATLAS_DEFAULT_ALERT_SLACK_CHANNEL: "C061VCZC2V8"
   # Document page embeddings. In local mode Atlas.LLMs.LocalTransport
   # routes the /embeddings call in-process to the profile marked
   # atlas_embedding: true. The profile's upstream model emits native
@@ -155,8 +161,13 @@ externalSecrets:
       remoteRef: "atlas-super-admin/password"
     STRIPE_API_KEY:
       remoteRef: "atlas-stripe-api-key/password"
-    SENTRY_DSN:
-      remoteRef: "atlas-sentry/dsn"
+    # SENTRY_DSN is intentionally not synced: with no DSN configured,
+    # Atlas' primary Sentry.LoggerHandler stays detached and the in-process
+    # Atlas.Engineering.Errors.SelfMonitor attaches instead, recording
+    # this instance's own crashes against the "Atlas" self-project through
+    # the same ingest pipeline external SDKs use — no HTTP hop, so an
+    # ingest outage cannot loop back through the logger. This replaces the
+    # previous route that posted envelopes to hive.tuist.dev.
     ATLAS_SLACK_SIGNING_SECRET:
       remoteRef: "atlas-slack-company/password"
     SLACK_COMPANY_BOT_TOKEN:
@@ -341,3 +352,66 @@ vector:
       - name: document_id
         field_type: String
         indexed: true
+
+# ClickHouse instance backing Atlas.Engineering.Errors (event stream).
+# Ported from Hive. Disabled by default; production values enables it
+# and configures per-environment resources and backups.
+clickhouse:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: clickhouse/clickhouse-server
+    tag: "26.1.2.11"
+    pullPolicy: IfNotPresent
+  database: atlas
+  username: default
+  service:
+    httpPort: 8123
+    nativePort: 9000
+  persistence:
+    size: 100Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 2
+      memory: 4Gi
+    limits:
+      memory: 8Gi
+  nodeSelector: {}
+  tolerations: []
+  probes:
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 6
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 3
+      failureThreshold: 3
+  backup:
+    enabled: true
+    # Time (UTC) the daily CronJob runs. Offset by 30 minutes from the
+    # Postgres backup so both do not contend for network/disk at once.
+    schedule: "30 3 * * *"
+    # The CronJob runs `clickhouse-client` against the StatefulSet and issues
+    # `BACKUP DATABASE ... TO S3(...)`, so it reuses the same ClickHouse
+    # server image and does not need its own image or a PVC mount.
+    s3:
+      bucket: atlas-clickhouse-backups
+      path: production
+      region: fsn1
+      endpoint: "https://fsn1.your-objectstorage.com"
+    # ExternalSecret that must expose ACCESS_KEY_ID and SECRET_ACCESS_KEY.
+    credentialsSecretName: atlas-clickhouse-backup-credentials
+    externalSecret:
+      accessKeyRemoteRef: "atlas-clickhouse-backup/username"
+      secretKeyRemoteRef: "atlas-clickhouse-backup/credential"
+    activeDeadlineSeconds: 3600
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi

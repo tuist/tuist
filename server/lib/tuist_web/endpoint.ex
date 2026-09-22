@@ -23,7 +23,8 @@ defmodule TuistWeb.Endpoint do
     store: :cookie,
     key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
@@ -142,6 +143,8 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature",
     body_length: 512_000
+
+  plug TuistWeb.Plugs.BrowserTelemetryPlug, session_options: @session_options
 
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.
