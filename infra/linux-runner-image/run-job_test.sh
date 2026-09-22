@@ -48,3 +48,18 @@ grep -qx "TUIST_CACHE_VOLUME_URL=${TUIST_CACHE_VOLUME_URL}" "${GITHUB_ENV}"
 grep -qx "TUIST_CACHE_VOLUME_POD=${TUIST_CACHE_VOLUME_POD}" "${GITHUB_ENV}"
 grep -qx "TUIST_CACHE_VOLUME_UID=${TUIST_CACHE_VOLUME_UID}" "${GITHUB_ENV}"
 echo "ok: cache-volume settings reach container job steps"
+
+# Replay the actual Buildkite staging block, then source the global hook with
+# a sanitized environment just as buildkite-agent does.
+awk '/^  BUILDKITE_JOB_ENV_PATH=\$\(mktemp/ { copying = 1 }
+     copying { print }
+     copying && /^  done$/ { exit }' run-job.sh > "${fixtures}/stage-volume-env.sh"
+export BUILDKITE_ENV_PATH="${fixtures}/buildkite-env"
+printf 'export EXISTING_BUILD_SETTING=preserved\n' > "${BUILDKITE_ENV_PATH}"
+chmod 0444 "${BUILDKITE_ENV_PATH}"
+export TMPDIR="${fixtures}"
+source "${fixtures}/stage-volume-env.sh"
+test "$(wc -l < "${BUILDKITE_ENV_PATH}" | tr -d ' ')" = 1
+env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${BUILDKITE_JOB_ENV_PATH}" TUIST_RUNNER_STATE_DIR="${fixtures}/state" \
+  bash -ec 'source buildkite-hooks/environment; test "$EXISTING_BUILD_SETTING" = preserved; test "$TUIST_CACHE_VOLUME_URL" = "http://runner-cache-volumes:8090"; test "$TUIST_CACHE_VOLUME_POD" = "pod-test"; test "$TUIST_CACHE_VOLUME_UID" = "uid-test"'
+echo "ok: Buildkite restores cache-volume routing after environment sanitization"

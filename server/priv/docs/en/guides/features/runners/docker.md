@@ -157,3 +157,63 @@ back to empty job-local directories before attachment; storage failures after
 attachment can fail a build. Cache data is disposable, and workflows admitted to
 the repository can read it, including forks. Never cache credentials or
 irreplaceable state. This is separate from Tuist's Gradle build-task output cache.
+
+### Buildkite
+
+Use the `tuist/cache-volume#v1` plugin on a Tuist Linux queue:
+
+```yaml
+steps:
+  - label: Test
+    agents:
+      queue: tuist-linux
+    plugins:
+      - tuist/cache-volume#v1:
+          volumes:
+            - key: gradle-dependencies
+              path: .gradle
+    env:
+      GRADLE_USER_HOME: .gradle
+    command: ./gradlew test
+```
+
+The plugin attaches after checkout and before the command. Pin a reviewed plugin
+commit in production. Successful default-branch webhook and scheduled builds
+without a PR or tag can save changes. Manual/API builds and other branches can
+read but cannot save. Volumes are scoped to the Buildkite organization, pipeline,
+and repository, in addition to account, key, architecture and execution UID.
+Renaming a pipeline preserves its volumes; changing its repository URL starts
+a new cache.
+
+### GitLab CI
+
+Call the installed client before dependency installation:
+
+```yaml
+test:
+  tags: [tuist-linux]
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+  before_script:
+    - tuist-cache-volume --key gradle-dependencies --path .gradle
+  script:
+    - ./gradlew test
+```
+
+A [reusable include](https://github.com/tuist/tuist/tree/main/ci/cache-volume/gitlab)
+is also available to vendor into your project or include at a reviewed commit.
+It composes with existing setup commands through GitLab's `!reference`.
+Each GitLab instance and project has a separate cache namespace. Project
+renames preserve volumes. Successful default-branch push, schedule and web
+pipelines can save; merge requests, tags, child and other pipelines cannot.
+The instance must permit the acquired job token to read its own job and the
+repository's branches. Missing source metadata never grants save permission.
+
+GitLab's `cache:` archives and artifacts restore before `before_script`.
+Remove overlapping paths before switching them to volumes, and keep unrelated
+archive caches as they are.
+
+Both integrations initially target native commands on Tuist Linux runners.
+GitLab uses the shell executor; specifying `image:` does not switch executors.
+Docker child containers need explicit private cache-root mounts and separate
+validation. Public action/plugin releases accompany the enabled-fleet rollout.

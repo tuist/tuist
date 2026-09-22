@@ -7,8 +7,12 @@ these schemas persist volume identities and per-job uses.
   authenticated and bound to the node that received the allocation.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
-- GitHub's executed job binding determines repository and trust. PRs can read
-  private clones; publication requires a successful trusted job and local fencing.
+- The live executed-job binding and `Identity` provider adapter determine scope
+  and trust for GitHub, Buildkite and GitLab. Never authorize from job variables.
+  Provider/instance/immutable scope join account/key/architecture/UID in identity.
+  PRs can read private clones; publication requires a successful eligible job
+  and local fencing. Preserve legacy GitHub volume UUIDs when changing identity.
+  See `infra/runners-controller/cache-volume-integrations.md` for provider policies.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique Ceph allocation.
 - Size measurements are appended on the first report, changed used/capacity

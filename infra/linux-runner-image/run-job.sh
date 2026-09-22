@@ -64,10 +64,20 @@ if [ -s "${BUILDKITE_ENV_PATH}" ]; then
     exit 1
   fi
 
+  # The poller-owned file is read-only to the runner. Make a private copy
+  # before adding pod-local routing for the agent's sanitized environment.
+  BUILDKITE_JOB_ENV_PATH=$(mktemp "${TMPDIR:-/tmp}/tuist-buildkite-env.XXXXXX")
+  cat "${BUILDKITE_ENV_PATH}" > "${BUILDKITE_JOB_ENV_PATH}"
+  for volume_var in TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID; do
+    if [ -n "${!volume_var:-}" ]; then
+      printf 'export %s=%q\n' "$volume_var" "${!volume_var}" >> "${BUILDKITE_JOB_ENV_PATH}"
+    fi
+  done
+
   # The hooks read their settings from here rather than from the
   # environment: the agent sanitizes the job environment, so what this
   # process exports does not necessarily reach a hook.
-  export TUIST_RUNNER_JOB_ENV="${BUILDKITE_ENV_PATH}"
+  export TUIST_RUNNER_JOB_ENV="${BUILDKITE_JOB_ENV_PATH}"
   export TUIST_RUNNER_STATE_DIR="${TUIST_RUNNER_STATE_DIR:-/tmp/tuist-runner}"
   mkdir -p "${TUIST_RUNNER_STATE_DIR}" 2>/dev/null || true
 

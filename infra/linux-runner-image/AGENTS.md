@@ -259,3 +259,9 @@ The static client is on PATH and copied to `externals/tuist-cache-volume` so
 container jobs can use `/__e/tuist-cache-volume`. The job-start hook passes the
 endpoint and pod identity through GITHUB_ENV. Runner and DinD share only their
 own pod UID subtree. See [behavior and rollout](../runners-controller/cache-volumes.md).
+
+Buildkite uses the plugin in [ci/cache-volume](../../ci/cache-volume/AGENTS.md).
+Persist pod-local volume routing to the staged environment before starting the
+agent, then re-export it in the global environment hook after sanitization.
+GitLab forwards the same three routing variables through RunnerSettings.
+Neither path receives node-agent/Ceph credentials or decides publication.

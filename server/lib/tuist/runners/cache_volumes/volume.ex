@@ -6,6 +6,9 @@ defmodule Tuist.Runners.CacheVolumes.Volume do
   schema "runner_cache_volumes" do
     belongs_to(:account, Tuist.Accounts.Account)
     field(:repository_id, :integer)
+    field(:provider, :string, default: "github")
+    field(:provider_instance, :string, default: "github.com")
+    field(:scope_id, :string)
     field(:repository, :string)
     field(:key, :string)
     field(:architecture, :string)

@@ -347,10 +347,14 @@ The archive contains everything needed to understand the account's complete data
 ## Linux runner cache volumes (opt-in)
 
 - **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
-  immutable GitHub repository ID and full name, user-chosen key, architecture,
+  provider, provider instance, immutable scope ID, optional numeric repository/project ID,
+  repository or pipeline display name, user-chosen key, architecture,
   execution UID, generation, published head use UUID,
   last use, logical deletion and creation/update timestamps. Identity is unique
-  per account/repository/key/architecture/UID. Kept until account deletion.
+  per account/provider/instance/scope/key/architecture/UID. GitHub uses github.com
+  and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
+  SHA-256 repository-URL digest; GitLab uses a canonical instance-URL digest and
+  project ID. Digests encode identity, not anonymization. Kept until account deletion.
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
   foreign key, generation, parent use UUID, workflow run/job IDs, pod name/UID,
   node name, publication permission, lifecycle status, warm/cold result, logical

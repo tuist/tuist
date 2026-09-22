@@ -51,6 +51,35 @@ defmodule Tuist.Runners.CacheVolumesTest do
 
   defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
 
+  test "provider and instance namespaces cannot collide, and each preserves warm reuse", %{job: job} do
+    scopes = [
+      %{provider: "github", provider_instance: "github.com", scope_id: "123", repository_id: 123, trusted: true},
+      %{provider: "gitlab", provider_instance: "gitlab.com", scope_id: "123", repository_id: 123, trusted: true},
+      %{provider: "gitlab", provider_instance: "self-managed", scope_id: "123", repository_id: 123, trusted: true},
+      %{
+        provider: "buildkite",
+        provider_instance: "organization",
+        scope_id: "pipeline:repo",
+        repository_id: nil,
+        trusted: true
+      }
+    ]
+
+    uses =
+      for {scope, index} <- Enum.with_index(scopes) do
+        scoped_job = %{job | workflow_job_id: job.workflow_job_id + index}
+        {:ok, first} = CacheVolumes.allocate_for_job(scoped_job, scope, attrs("provider-#{index}"))
+        complete(scoped_job)
+        assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", first.id, report())
+        assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", first.id, report("sealed"))
+        {:ok, second} = CacheVolumes.allocate_for_job(scoped_job, scope, attrs("provider-#{index}-warm"))
+        assert second.parent_id == first.id
+        first.scope
+      end
+
+    assert length(Enum.uniq(uses)) == 4
+  end
+
   test "job volumes include mounted volumes once and scope both account and job identity", %{job: job, account: account} do
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
     {:ok, retry} = CacheVolumes.allocate_for_job(job, identity(), attrs("retry"))

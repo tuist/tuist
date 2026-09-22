@@ -20,3 +20,7 @@ staging credentials for local tests.
 - Because job outcomes exit zero, `--result-file <path>` writes `succeeded`, `failed` or `canceled` there once the job ends. The macOS image passes it and promotes the account's cache volume only on `succeeded`. The Linux image does not pass it. `TestExecute` asserts the file for every scenario.
 
 - `cache.go` registers the `tuist` cache adapter so `cache:` survives the machine. Downloads use a presigned URL. Uploads return a Go CDK `tuist://` URL instead, which `cache_bucket.go` opens in the archiver process to upload the archive in parts, buffering one part at a time; a single presigned PUT would cap archives at 5 GB. Both ask the Tuist report endpoints with the job-scoped report token, which reaches the archiver through GitLab's cache env file; storage credentials never enter the machine. A failed or cancelled write aborts its upload. When the endpoints refuse, GitLab Runner skips the remote cache and the job continues. Upstream strips query strings before logging cache URLs, so signatures stay out of traces. `TestCacheCrossesMachines` restores an archive larger than one part in a separate builds directory; keep that property covered.
+
+- `cacheVolumeEnvironment` forwards only the three pod-local volume routing
+  variables to generated job scripts. The server verifies identity independently.
+  Keep them available in before_script and exercise this through TestExecute.

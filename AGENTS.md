@@ -38,6 +38,8 @@ This file provides guidance to AI agents when working with code in this reposito
 
 - `.github/actions/cache-volume/` - Source and release package for the standalone cache volume action; see `.github/actions/cache-volume/AGENTS.md`.
 
+- `ci/cache-volume/` - Buildkite plugin and GitLab cache-volume template; see `ci/cache-volume/AGENTS.md`.
+
 ## Global Guardrails
 - Do not modify `CHANGELOG.md` (auto-generated).
 - Do not edit translation `.po` files; only the `tuistit` bot should change them.

@@ -10,15 +10,14 @@ defmodule Tuist.Runners.CacheVolumes do
   """
   import Ecto.Query
 
-  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Repo
+  alias Tuist.Runners.CacheVolumes.Identity
   alias Tuist.Runners.CacheVolumes.Measurement
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.WorkflowJob
-  alias Tuist.VCS
 
   @retention_seconds 7 * 24 * 60 * 60
 
@@ -35,16 +34,7 @@ defmodule Tuist.Runners.CacheVolumes do
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
          %WorkflowJob{} = job <- executing_job(pod, node),
-         {:ok, installation} <- VCS.get_github_app_installation_for_account(job.account_id),
-         {:ok, run} <-
-           GitHubClient.get_workflow_run(%{
-             repository_full_handle: job.repository,
-             installation: installation,
-             run_id: job.workflow_run_id
-           }),
-         {:ok, repository} <- GitHubClient.get_repository(installation, job.repository),
-         true <- repository["id"] == get_in(run, ["repository", "id"]),
-         {:ok, identity} <- run_identity(job, Map.put(run, "repository", repository)) do
+         {:ok, identity} <- Identity.resolve(job) do
       allocate_for_job(job, identity, %{
         pod_name: pod,
         pod_uid: uid,
@@ -69,7 +59,7 @@ defmodule Tuist.Runners.CacheVolumes do
         on: j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id,
         where:
           s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform == :linux and
-            j.provider == "github" and j.status == "running",
+            j.provider in ["github", "buildkite", "gitlab"] and j.status == "running",
         order_by: [desc: s.started_at],
         limit: 1,
         select: j
@@ -77,29 +67,12 @@ defmodule Tuist.Runners.CacheVolumes do
     )
   end
 
-  def run_identity(job, run) do
-    with %{"id" => id, "full_name" => repository, "default_branch" => default} <- run["repository"],
-         true <- is_integer(id) and id > 0,
-         true <- repository == job.repository and run["id"] == job.workflow_run_id,
-         true <- run["run_attempt"] == job.run_attempt,
-         branch when is_binary(branch) and branch != "" <- run["head_branch"],
-         event when is_binary(event) <- run["event"] do
-      same_repository = get_in(run, ["head_repository", "id"]) == id
-      trusted = same_repository and branch == default and event in ["push", "schedule", "workflow_dispatch"]
+  defdelegate run_identity(job, run), to: Identity, as: :github_identity
 
-      {:ok,
-       %{
-         repository_id: id,
-         trusted: trusted,
-         same_repository: same_repository
-       }}
-    else
-      _ -> {:error, :unavailable}
-    end
-  end
-
-  # Also used by lifecycle tests with already verified GitHub metadata.
+  # Also used by lifecycle tests with already verified provider metadata.
   def allocate_for_job(job, identity, attrs) do
+    identity = Identity.storage_scope(identity)
+
     Repo.transaction(fn ->
       # One admission lock per pod also bounds concurrent requests for new keys.
       Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
@@ -116,6 +89,9 @@ defmodule Tuist.Runners.CacheVolumes do
           id: Ecto.UUID.generate(),
           account_id: job.account_id,
           repository_id: identity.repository_id,
+          provider: identity.provider,
+          provider_instance: identity.provider_instance,
+          scope_id: identity.scope_id,
           repository: job.repository,
           inserted_at: timestamp,
           updated_at: timestamp
@@ -123,18 +99,11 @@ defmodule Tuist.Runners.CacheVolumes do
 
       Repo.insert_all(Volume, [row],
         on_conflict: :nothing,
-        conflict_target: [:account_id, :repository_id, :key, :architecture, :uid]
+        conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :architecture, :uid]
       )
 
       volume =
-        Repo.one!(
-          from(v in Volume,
-            where:
-              v.account_id == ^job.account_id and v.repository_id == ^identity.repository_id and
-                v.key == ^attrs.key and v.architecture == ^attrs.architecture and v.uid == ^attrs.uid,
-            lock: "FOR UPDATE"
-          )
-        )
+        Repo.one!(from(v in volume_query(job, identity, attrs), lock: "FOR UPDATE"))
 
       volume = expire_locked(volume, now)
 
@@ -195,15 +164,21 @@ defmodule Tuist.Runners.CacheVolumes do
     if count >= 8 and not existing_allocation?(job, identity, attrs), do: Repo.rollback(:capacity)
   end
 
+  defp volume_query(job, identity, attrs) do
+    from(v in Volume,
+      where:
+        v.account_id == ^job.account_id and v.provider == ^identity.provider and
+          v.provider_instance == ^identity.provider_instance and v.scope_id == ^identity.scope_id and
+          v.key == ^attrs.key and v.architecture == ^attrs.architecture and v.uid == ^attrs.uid
+    )
+  end
+
   defp existing_allocation?(job, identity, attrs) do
     Repo.exists?(
-      from(u in Usage,
-        join: v in Volume,
+      from(v in volume_query(job, identity, attrs),
+        join: u in Usage,
         on: v.id == u.volume_id,
-        where:
-          v.account_id == ^job.account_id and v.repository_id == ^identity.repository_id and
-            v.key == ^attrs.key and v.architecture == ^attrs.architecture and v.uid == ^attrs.uid and
-            u.pod_uid == ^attrs.pod_uid and u.generation == v.generation
+        where: u.pod_uid == ^attrs.pod_uid and u.generation == v.generation
       )
     )
   end

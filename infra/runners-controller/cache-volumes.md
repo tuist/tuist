@@ -12,7 +12,7 @@ change. Enable it only after the storage and Kata integration gates below pass.
 ## Workflow
 
 The release interface is the dedicated `tuist/cache-volume@v1` action. Its
-[distribution and CI-provider integration plan](cache-volume-integrations.md)
+[distribution and CI-provider integrations](cache-volume-integrations.md)
 covers the release workflow and the Buildkite/GitLab follow-ups. Until the first
 release passes the live storage gates, test with a reviewed monorepo commit:
 
@@ -45,7 +45,8 @@ fail the build. No workflow OIDC permission or privileged container is required.
 
 Keys allow 1–200 ASCII letters, digits, dots, underscores, slashes and hyphens,
 starting with a letter or digit. They are metadata, never filesystem paths.
-Identity includes account, immutable GitHub repository ID, key, architecture and
+Identity includes account, provider, provider instance, immutable repository/project
+or pipeline scope, key, architecture and
 execution UID. Native jobs and root containers therefore have separate caches.
 Mount path is not part of the identity. At most eight allocations per pod and
 100 active local clones per host are admitted by default.
@@ -54,12 +55,12 @@ Mount path is not part of the identity. At most eight allocations per pod and
 
 The agent binds the TCP source IP to the named running pod's UID and local node.
 It authenticates to Tuist using its own Kubernetes service account. The server
-joins the live runner session to the workflow job GitHub actually assigned
-(`executed_workflow_job_id`), then retrieves the run and repository through the
-GitHub App. Dispatch predictions and workflow-provided repository/branch names
+joins the live runner session to the actual assigned job
+(`executed_workflow_job_id`), then verifies provider metadata through the
+[GitHub, Buildkite or GitLab adapter](cache-volume-integrations.md). Dispatch predictions and workflow-provided repository/branch names
 never determine scope or publication rights.
 
-Successful default-branch `push`, `schedule` and
+For GitHub, successful default-branch `push`, `schedule` and
 `workflow_dispatch` jobs can publish. PRs can read the same published snapshot
 in private clones, but their changes are discarded. Publication rules are fixed;
 other branches, forks, `pull_request_target` and other events cannot publish. Treat cached

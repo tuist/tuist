@@ -102,8 +102,9 @@ func execute(job assignment, buildsDir, resultFile string) error {
 		RunnerCredentials: common.RunnerCredentials{URL: job.URL, Token: "job-scoped"},
 		RunnerSettings: common.RunnerSettings{
 			Executor: "shell", Shell: "bash", BuildsDir: buildsDir,
-			CacheDir: filepath.Join(buildsDir, ".gitlab-cache"),
-			Cache:    cacheConfig(),
+			CacheDir:    filepath.Join(buildsDir, ".gitlab-cache"),
+			Cache:       cacheConfig(),
+			Environment: cacheVolumeEnvironment(),
 		},
 	}
 	credentials := &common.JobCredentials{ID: job.Payload.ID, Token: job.Payload.Token}
@@ -288,4 +289,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "GitLab job execution failed")
 		os.Exit(1)
 	}
+}
+
+// Forward only pod-local volume routing to GitLab's generated job environment.
+func cacheVolumeEnvironment() []string {
+	var env []string
+	for _, name := range []string{"TUIST_CACHE_VOLUME_URL", "TUIST_CACHE_VOLUME_POD", "TUIST_CACHE_VOLUME_UID"} {
+		if value := os.Getenv(name); value != "" {
+			env = append(env, name+"="+value)
+		}
+	}
+	return env
 }

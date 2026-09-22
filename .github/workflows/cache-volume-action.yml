@@ -4,14 +4,22 @@ on:
   pull_request:
     paths:
       - .github/actions/cache-volume/**
+      - ci/cache-volume/**
       - .github/workflows/cache-volume-action.yml
   push:
     branches: [main]
     paths:
       - .github/actions/cache-volume/**
+      - ci/cache-volume/**
       - .github/workflows/cache-volume-action.yml
   workflow_dispatch:
     inputs:
+      integration:
+        description: Integration to release
+        type: choice
+        options: [github, buildkite]
+        default: github
+        required: true
       version:
         description: Immutable v1 release tag (for example v1.0.0); also advances v1
         required: true
@@ -31,6 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m unittest discover -s .github/actions/cache-volume -p '*_test.py' -v
+      - run: python3 -m unittest discover -s ci/cache-volume -p '*_test.py' -v
       - name: Install test client
         run: |
           mkdir "$RUNNER_TEMP/action-test-bin"
@@ -58,8 +67,22 @@ jobs:
           name: cache-volume-action
           path: ${{ runner.temp }}/cache-volume-action/
 
+      - name: Package Buildkite plugin and GitLab template
+        run: |
+          bash ci/cache-volume/buildkite/package.sh "$RUNNER_TEMP/cache-volume-buildkite"
+          mkdir "$RUNNER_TEMP/cache-volume-gitlab"
+          cp ci/cache-volume/gitlab/* "$RUNNER_TEMP/cache-volume-gitlab/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cache-volume-buildkite
+          path: ${{ runner.temp }}/cache-volume-buildkite/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cache-volume-gitlab
+          path: ${{ runner.temp }}/cache-volume-gitlab/
+
   release:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.integration == 'github' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -93,6 +116,49 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add action.yml attach.sh README.md LICENSE.md SOURCE_COMMIT
+          git commit --allow-empty -m "Release $VERSION"
+          git tag "$VERSION"
+          git tag -f v1
+          git push --atomic origin HEAD:main "refs/tags/$VERSION" +refs/tags/v1
+
+  release-buildkite:
+    if: github.event_name == 'workflow_dispatch' && inputs.integration == 'buildkite' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate release version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: '[[ "$VERSION" =~ ^v1\.[0-9]+\.[0-9]+$ ]]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: cache-volume-buildkite
+          path: package
+      - uses: actions/checkout@v4
+        with:
+          repository: tuist/cache-volume-buildkite-plugin
+          ref: main
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          path: distribution
+          fetch-depth: 0
+      - name: Publish Buildkite plugin
+        working-directory: distribution
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            echo "Release $VERSION already exists; choose a new version."
+            exit 1
+          fi
+          cp ../package/plugin.yml ../package/README.md ../package/LICENSE.md ../package/SOURCE_COMMIT .
+          mkdir -p hooks
+          cp ../package/hooks/pre-command hooks/
+          chmod +x hooks/pre-command
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add plugin.yml hooks/pre-command README.md LICENSE.md SOURCE_COMMIT
           git commit --allow-empty -m "Release $VERSION"
           git tag "$VERSION"
           git tag -f v1

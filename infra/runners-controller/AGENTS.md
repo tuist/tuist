@@ -1282,7 +1282,7 @@ mount propagation must work through Kata; keep disabled until staging proves it.
 Mount revision changes use the existing bounded idle rollout. No account-wide
 cache root or infrastructure credential crosses into workflow containers.
 
-- Cache volume action distribution and planned Buildkite/GitLab adapters are
+- Cache volume action distribution and implemented Buildkite/GitLab adapters are
   documented in [cache-volume-integrations.md](cache-volume-integrations.md).
   Do not enable provider allocation by removing the GitHub filter alone; require
   verified provider/instance identity and publication policy first.

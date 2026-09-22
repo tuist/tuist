@@ -1,185 +1,132 @@
 # Cache volume integrations
 
-The supported launch interface is a dedicated `tuist/cache-volume@v1` GitHub
-Action. Its source, executable wrapper, tests and distributable package live in
-`.github/actions/cache-volume`; `.github/workflows/cache-volume-action.yml`
-validates the package on PRs and releases it independently from the server.
-The first public tag is a rollout deliverable, after the Ceph/Kata smoke gates
-in [cache-volumes.md](cache-volumes.md). A release requires the distribution
-repository, a `main` branch, and the release token's write access. This PR does
-not advertise Buildkite or GitLab volume support before their adapters exist.
+GitHub Actions, Buildkite and GitLab CI have implemented Linux entry points and
+server identity adapters. They share private per-job RBD clones, 20 GB capacity,
+seven-day idle expiry, generation fencing, teardown checks and the dashboard.
+macOS is a separate follow-up. Provider namespaces never share data implicitly.
 
-## One storage service, provider-specific entry points
-
-All providers should use the same private per-job clone, 20 GB default, seven-day
-idle expiry, clear-generation fence, teardown checks and dashboard. Each entry
-point attaches directories before dependency tools run. Saving is a server/agent
-operation after a successful eligible job and writer teardown; no shell hook is
-allowed to declare its own cache publication eligibility.
-
-| Provider | Workflow interface | Current state |
+| Provider | Entry point | Publication policy after a successful job |
 | --- | --- | --- |
-| GitHub Actions | `tuist/cache-volume@v1`, `key` and `path`, `cache-hit` output | Allocation and execution implemented; standalone release packaging included. Public release and live storage validation remain rollout gates. |
-| Buildkite | `tuist/cache-volume#v1` plugin (`tuist/cache-volume-buildkite-plugin`), with a list of key/path pairs | Design below; server identity adapter and plugin not implemented. |
-| GitLab CI | `tuist-cache-volume --key … --path …` in `before_script`, followed by a reusable template/component | Design below; server identity adapter not implemented. Existing `cache:` remains supported archive caching. |
+| GitHub Actions | `tuist/cache-volume@v1`, key/path and `cache-hit` output | Same-repository default-branch push, schedule or workflow_dispatch |
+| Buildkite | `tuist/cache-volume#v1` plugin with a list of key/path pairs | Default-branch webhook or schedule, no PR or tag |
+| GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Default-branch push, schedule or web pipeline, no tag |
 
-Keep Linux as the initial platform for all three. Provider support and macOS
-support are separate workstreams. Do not share cache namespaces between CI
-providers automatically, even if repository URLs look equivalent.
+The action and Buildkite plugin include standalone release packaging, but their
+first public releases and the Ceph/Kata fleet smoke gates remain rollout work.
+The GitLab template can be vendored or included at a pinned monorepo commit.
+Neither packaging nor fake-coordinator tests establish live storage compatibility.
 
-## GitHub Action distribution
+## Workflow interfaces and distribution
 
-Publish `action.yml`, `attach.sh`, `README.md`, `LICENSE.md` and `SOURCE_COMMIT` at
-the root of `tuist/cache-volume`. The composite action uses `github.action_path`
-to find its wrapper, so it works without checking out the Tuist monorepo. Inputs
-travel through environment variables and quoted arguments. The wrapper locates
-the preinstalled native or GitHub job-container client; it downloads no mutable
-binary and needs no extra workflow credentials.
+The GitHub action source is in
+[`.github/actions/cache-volume`](../../.github/actions/cache-volume/README.md).
+It uses `github.action_path`, so the standalone package requires no monorepo
+checkout. The wrapper uses the installed native or job-container client.
 
-The release workflow is manual, restricted to the monorepo's `main`, and accepts
-an immutable `v1.x.y` tag. It runs package tests before publishing; existing
-version tags are rejected, while `v1` advances in the same atomic push. This
-keeps action releases independent of server versioning. Consumers may pin the
-release commit. PR builds export the same package for review before release.
+The Buildkite plugin is in
+[`ci/cache-volume/buildkite`](../../ci/cache-volume/buildkite/README.md).
+Its `pre-command` hook parses `BUILDKITE_PLUGIN_CONFIGURATION` as JSON, validates
+all key/path pairs before attaching, and invokes the installed client once per
+volume. It propagates failures and does not run a publication hook. The Linux
+image persists pod routing into the staged job environment before Buildkite
+sanitizes inherited variables; the global environment hook exports it again.
+See [plugin hooks](https://buildkite.com/docs/pipelines/integrations/plugins/writing).
 
-Before first release, run native and container cold/warm smoke jobs using the
-reviewed action commit. Confirm output propagation through the actual composite
-step as well as fallback behavior. Publish v1 only with the fleet rollout; the
-presence of packaging tests is not evidence of live Ceph or Kata compatibility.
+`.github/workflows/cache-volume-action.yml` tests and packages both integrations
+on PRs. Manual releases select GitHub or Buildkite, require `main`, and copy the
+reviewed package to `tuist/cache-volume` or
+`tuist/cache-volume-buildkite-plugin`. Distribution repositories must already
+exist with a main branch and grant write access to
+`TUIST_RELEASE_GITHUB_TOKEN`. Existing v1.x.y tags are rejected; the immutable
+tag and moving v1 tag are pushed atomically. GitLab's reusable template is also
+uploaded as a review artifact.
 
-## Buildkite: a plugin
+The [GitLab include and example](../../ci/cache-volume/gitlab/README.md) compose
+an attachment snippet into `before_script` without replacing other setup.
+The embedded shell executor explicitly forwards only the three pod-local volume
+routing variables. Job `image:` does not create a Docker executor.
+[`cache:`](https://docs.gitlab.com/ci/caching/) remains archive caching and restores
+before attachment, as do artifacts; remove overlapping paths to avoid the
+nonempty-directory check. Unrelated archive cache entries keep working.
+A vendorable include works on self-managed GitLab too; a GitLab.com-only Catalog
+component would not, because [components require the same instance](https://docs.gitlab.com/ci/components/).
 
-Proposed pipeline syntax (not available yet):
+Buildkite native commands and GitLab shell jobs are the supported initial paths.
+Docker child containers require explicit mapping of
+`/home/runner/work/_tuist_cache` to the same absolute path, alongside the checkout,
+because attached directories are symlinks. Automatic Docker-plugin wiring is
+not included. Validate those mounts and execution UID separately; GitHub's
+container smoke does not prove other container integrations.
 
-```yaml
-steps:
-  - label: Test
-    agents:
-      queue: tuist-linux
-    plugins:
-      - tuist/cache-volume#v1:
-          volumes:
-            - key: gradle-dependencies
-              path: .gradle
-    env:
-      GRADLE_USER_HOME: .gradle
-    command: ./gradlew test
-```
+## Identity and trust
 
-Use a `pre-command` plugin hook: checkout is complete and dependency commands
-have not started. Parse and validate a list of key/path pairs, then call the
-same installed client. Do not use a post-command hook to save the volume:
-background writers may still exist and later hooks can fail the job. A hit is
-observable in the job log and Tuist dashboard; any optional metadata should be
-namespaced by job UUID and volume key to avoid parallel steps overwriting it.
-Buildkite's [plugin hook model](https://buildkite.com/docs/pipelines/integrations/plugins)
-and [hook ordering](https://buildkite.com/docs/agent/hooks) support this entry point.
+`CacheVolumes.allocate/1` resolves the running Linux pod through its live
+`RunnerSession.executed_workflow_job_id`. Buildkite/GitLab acquisition already
+records that exact assigned job. The new `CacheVolumes.Identity` adapter
+retrieves provider metadata; the storage lifecycle never accepts scope or save
+permission from the mount request or job environment.
 
-Native jobs inherit the existing pod mount. Docker-plugin jobs require an
-explicit tested mapping of the job's private `_tuist_cache` root at the same
-absolute path inside the command container: the attached target is a symlink,
-so mounting only the checkout or cache target is insufficient. Attach before
-the Docker plugin's command hook starts its container. Preserve the execution
-UID scope; do not reuse a host-user-owned clone for a different container user.
-Document the Docker-plugin configuration separately after proving it with DinD;
-GitHub's `/__w` mapping does not establish Buildkite container compatibility.
+- **GitHub:** retain the existing installation-authenticated run/repository
+  lookup, including run attempt and source repository checks.
+- **Buildkite:** retrieve the account-owned job UUID through the existing
+  [Stacks job API](https://buildkite.com/docs/apis/agent-api/stacks). Check job,
+  build, build number, organization slug and pipeline slug against the assignment.
+  Scope by the server-returned organization UUID, pipeline UUID and SHA-256 of
+  the repository URL. Renames preserve identity; repointing a pipeline changes
+  scope. The API's [protected environment fields](https://buildkite.com/docs/pipelines/configure/environment-variables)
+  supply branch, default branch, PR, tag and source. Never inspect the plugin's
+  environment for this decision. Manual/API builds remain read-only because a
+  manually supplied branch is not guaranteed to contain the requested commit.
+  No additional API token is needed.
+- **GitLab:** use the encrypted acquired job token for
+  [GET /job](https://docs.gitlab.com/api/jobs/#retrieve-a-job-by-job-token), checking
+  the assigned job ID, project ID, running status and commit SHA. Scope by the
+  canonical instance digest and immutable project ID. Find the exact branch
+  with an escaped anchored regex through the
+  [branches listing API](https://docs.gitlab.com/api/branches/); require its
+  `default` flag and an allowed job `source`, with `tag == false`, to save.
+  Both endpoints are available to [job tokens](https://docs.gitlab.com/ci/jobs/ci_job_token/).
+  `CI_PROJECT_ID`, `CI_DEFAULT_BRANCH` and other overridable variables grant
+  no authority. A GitLab instance without the source field cannot grant save
+  permission. Missing credentials, identity mismatch or denied API access
+  decline attachment instead of guessing. Calls retain SSRF pinning,
+  response bounds, no redirects and no automatic acquisition retry.
 
-The backend work is more than removing `provider == "github"`:
+The verified identity and `can_publish` decision are persisted when allocating;
+later purging GitLab's temporary assignment does not lose them. PR/MR and other
+non-writer jobs can reuse data in their project/pipeline scope without saving.
+Forks in a separate GitLab project have a separate scope.
 
-- Resolve the actual executed session to the account-owned Buildkite job UUID
-  and pipeline, using `Buildkite.Job` and the existing server-side API client.
-  The lifecycle `repository` currently means the pipeline slug, not a GitHub
-  repository ID. Persist an immutable pipeline identifier and repository
-  identity; invalidate the scope if a pipeline is repointed to another repo.
-- Fetch authoritative branch, source/PR and pipeline-default-branch metadata.
-  The existing `Buildkite.job_trusted?/2` excludes some forks but does not enforce
-  default-branch publication. Its environment-based predicate is insufficient
-  for this policy. Do not authorize from plugin inputs or mutable job variables.
-- The [pipeline API](https://buildkite.com/docs/apis/rest-api/pipelines) exposes
-  repository and default branch. Confirm whether the configured Agent Stack
-  credential can supply all required authoritative fields; otherwise add a
-  narrowly scoped server-side read integration. This credential question is an
-  implementation prerequisite, not an assumption that the current token works.
-- Reuse recorded job completion and pod teardown, including failed/cancelled
-  jobs. Only successful, verified default-branch non-PR jobs may publish.
-  Unknown identity must refuse attachment; unknown writer eligibility must
-  never promote a snapshot.
+All providers require a successful recorded job outcome and local pod/writer
+teardown. The GitLab executor's zero process exit after a reported job failure
+does not authorize publication. Failed/cancelled jobs, clear-generation fences,
+orphan reconciliation and acknowledged deletion use the common existing logic.
 
-## GitLab: explicit directory attachment first
+## Migration and rollback
 
-Proposed initial syntax after its identity adapter ships:
+The migration adds provider, provider instance and immutable scope to volume
+identity and its unique index. Existing rows become GitHub/github.com/repository
+ID identities while retaining volume UUIDs, generations and physical snapshots.
+Account, key, architecture and execution UID remain part of the unique identity.
+The numeric repository ID becomes optional for Buildkite; its actual identity is
+the organization/pipeline/repository scope, not a fabricated GitHub ID.
 
-```yaml
-test:
-  tags: [tuist-linux]
-  variables:
-    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
-  before_script:
-    - tuist-cache-volume --key gradle-dependencies --path .gradle
-  script:
-    - ./gradlew test
-```
+Indexes are built concurrently. Downgrade refuses non-GitHub rows: first disable
+new provider allocations and clean those volumes through the normal physical
+cleanup path. Do not discard metadata while storage journals still reference it.
+The data-export inventory documents the extra identity fields.
 
-Tuist's executor embeds GitLab Runner's **shell executor** inside the isolated
-runner. The installed binary is available there; a job-level `image:` does not
-turn this implementation into GitLab's Docker executor. Arbitrary Docker child
-containers need explicit private-root mounts just as Buildkite does.
+## Validation and fleet acceptance
 
-Keep `cache:` independent. GitLab's cache restores archives before
-`before_script`, and artifacts can restore into the same paths. Either would
-make the volume attachment reject a nonempty directory. Users should remove
-only overlapping archive/artifact paths, retaining unrelated cache entries.
-Automatically reinterpreting `cache:` would change fallback keys, pull/push
-policies, wildcard paths and archive semantics. Existing Tuist multipart archive
-caching continues to handle it. See [GitLab caching](https://docs.gitlab.com/ci/caching/).
+Local suites cover provider metadata mismatches, untrusted sources, spoofed CI
+variables, cross-account resolution, API rejection, project/instance isolation,
+pipeline rename/repointing, per-provider warm reuse, quoted workflow inputs,
+Buildkite environment sanitization, and GitLab execution outcomes.
+The migration is exercised in an isolated schema with a pre-existing GitHub row,
+including its downgrade guard.
 
-A versioned include can provide a hidden job or reusable attachment snippet,
-with explicit composition into an existing `before_script`; do not silently
-replace the user's setup commands. A Catalog component is a convenience layer,
-not a requirement: [components must be hosted on the same GitLab instance](https://docs.gitlab.com/ci/components/),
-so GitLab.com distribution alone would exclude self-managed installations. Keep
-the direct command working everywhere and support mirroring the template.
-
-Backend prerequisites:
-
-- Resolve the job from the executed session and stored acquired assignment.
-  Scope identity by account, provider, canonical instance URL, immutable project
-  ID, key, architecture and UID. Project IDs alone collide across instances;
-  project paths can change. Preserve a verified identity before the encrypted
-  assignment is purged on completion.
-- Verify project, ref, pipeline source, MR/fork status and default branch from
-  coordinator/API metadata. `CI_DEFAULT_BRANCH`, `CI_PROJECT_ID` and other
-  variables are not sufficient authorization evidence merely because their
-  names look predefined. Keep reusable credentials off the runner.
-- The acquired job token can identify its own job through
-  [`GET /job`](https://docs.gitlab.com/api/jobs/#retrieve-a-job-by-job-token).
-  It is not a general project/pipeline API credential. Confirm the available
-  trusted payload fields and endpoint permissions; add a server-side project
-  read integration if default-branch/source verification needs it. Never guess
-  `main`, accept the workflow's claimed default branch, or widen publication
-  when metadata is unavailable.
-- Use the recorded job outcome, not the executor process's zero exit code:
-  this executor deliberately exits zero after reporting script failure or
-  cancellation. Publish only successful default-branch non-MR jobs after the
-  same storage fences as GitHub.
-
-## Shared changes and acceptance criteria
-
-Introduce a provider identity resolver behind `CacheVolumes.allocate/1`, retain
-pod/node binding, and persist provider/instance/immutable scope plus the verified
-publication decision. Migrate existing rows as GitHub identities while retaining
-their volume UUIDs; the physical scope derives from UUID and generation, so
-existing snapshots need not move. Update the unique index, attribution links,
-export documentation and dashboard filters to prevent provider collisions.
-
-Provider adapters should return verified identity and eligibility or an explicit
-unavailable result. The existing storage journal, parent retention, reporting,
-and generation code should not contain provider-specific API calls.
-
-For each provider, require cold/warm reuse on different hosts, simultaneous
-private clones, failed/cancelled jobs, default/non-default branches, fork PR/MR
-reads without publication, spoofed variables, missing API metadata, renamed
-projects/pipelines, cross-provider/instance ID collisions, clear during a job,
-and delayed cleanup. Test Docker mapping separately where advertised. Include
-the packaged GitHub action and actual Buildkite plugin/GitLab template in live
-smoke runs, rather than testing only the underlying client binary.
+Before enabling a fleet, run each actual packaged entry point through cold/warm
+reuse across hosts, simultaneous clones, failure/cancellation, PR/MR and other
+branches, clear during a job, and delayed cleanup. Validate Ceph credentials,
+RBD/Kata mount propagation and capacity failure behavior. Keep the feature
+disabled until those checks pass; production Ceph is not provisioned by this PR.

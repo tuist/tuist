@@ -299,7 +299,12 @@
         <.card_section>
           <div data-part="metadata-grid">
             <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div><span data-part="label"><.brand_github />{volume.repository}</span>
+              <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
+              <span data-part="label">
+                <.brand_github :if={Map.get(volume, :provider, "github") == "github"} />
+                <.brand_gitlab :if={Map.get(volume, :provider) == "gitlab"} />
+                {volume.repository}
+              </span>
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div><.badge

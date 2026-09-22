@@ -10,4 +10,4 @@ The release workflow is `.github/workflows/cache-volume-action.yml`.
 - Run `python3 -m unittest discover -s .github/actions/cache-volume -p '*_test.py'`.
 - Publish only reviewed main-branch versions after live storage validation;
   immutable version tags must not be replaced. `v1` is the moving release alias.
-- Provider integration design lives in `infra/runners-controller/cache-volume-integrations.md`.
+- Provider integration implementation and rollout live in `infra/runners-controller/cache-volume-integrations.md`.
