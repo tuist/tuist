@@ -10,9 +10,6 @@ talk to. The Xcode compilation-cache transport itself lives in the Rust
 - Wait for an endpoint the server reports as being provisioned, only when the
   caller opts in with `CacheProvisioningWait.forInteractiveCommands`.
 - Pick the lowest-latency endpoint when several are returned (`EndpointLatencyService`).
-- Keep the server's endpoint expiration authoritative. Do not put an unexpiring
-  in-memory cache in front of `CachedValueStore`: a long-lived caller must see a
-  refreshed selection once the previous answer expires.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

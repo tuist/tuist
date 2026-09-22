@@ -1,6 +1,5 @@
 import Foundation
 import OpenAPIRuntime
-import TuistEnvironment
 import TuistHTTP
 import TuistServer
 import TuistSupport
@@ -35,10 +34,6 @@ extension Client {
             serverURL: cacheURL,
             transport: TuistURLSessionTransport(session: session),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
-                CacheReadFailoverMiddleware(
-                    authenticationURL: authenticationURL,
-                    fullHandle: Environment.current.variables["TUIST_CACHE_ENDPOINT"] == nil ? fullHandle : nil
-                ),
                 // Outside the retry middleware, so a ranged follow-up is itself
                 // retried. Middlewares nest in array order, so anything placed
                 // after retry would call a `next` that no longer includes it:

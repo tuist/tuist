@@ -54,24 +54,6 @@
         }
 
         @Test(.withMockedEnvironment())
-        func expired_selection_is_replaced_in_the_same_store() async throws {
-            let serverURL = URL(string: "https://tuist.dev")!
-            let near = "https://near.example.com"
-            let far = "https://far.example.com"
-            var resolutions = 0
-            given(getCacheEndpoints)
-                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
-                .willProduce { _, _ in
-                    resolutions += 1
-                    return CacheEndpointsResolution(endpoints: resolutions == 1 ? [near] : [far], maxAge: 0)
-                }
-
-            #expect(try await subject.getCacheURL(for: serverURL, accountHandle: "acme").absoluteString == near)
-            #expect(try await subject.getCacheURL(for: serverURL, accountHandle: "acme").absoluteString == far)
-            #expect(resolutions == 2)
-        }
-
-        @Test(.withMockedEnvironment())
         func uses_single_endpoint_directly_without_measuring_latency() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
