@@ -163,8 +163,10 @@ defmodule Tuist.Tests.Coverage.History do
     |> Enum.reverse()
   end
 
-  defp same_measured_set?(a, b),
-    do: a.schemes == b.schemes and effective_partial_schemes(a) == effective_partial_schemes(b)
+  defp same_measured_set?(a, b) do
+    (a.schemes == b.schemes or Commits.fully_carried?(a) or Commits.fully_carried?(b)) and
+      effective_partial_schemes(a) == effective_partial_schemes(b)
+  end
 
   @doc """
   One point per chained commit of the branch, oldest first, with the

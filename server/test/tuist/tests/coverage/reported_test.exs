@@ -212,6 +212,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
           status: "success",
           scheme: "TextScheme",
           git_branch: "main",
+          git_remote_url_origin: CoverageFixtures.remote_url(),
           git_commit_sha: sha,
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
@@ -226,6 +227,65 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     silent.("head")
     assert_enqueued(worker: CommitWorker, args: %{project_id: project.id, git_commit_sha: "head"})
+  end
+
+  test "carries a commit whose every scheme was skipped whole, and compares it", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    # With nothing measured at the commit there are no coverage rows to read a
+    # blob from, so the listing the client uploads is the only thing that says
+    # the files are unchanged.
+    CoverageFixtures.seed_listing(account, "head", [
+      "Sources/Math.swift",
+      "Sources/Text.swift",
+      "Tests/AppTests.swift"
+    ])
+
+    # Nothing at the head measured anything: the scheme was skipped whole, so
+    # it reports a run with no coverage and no candidates of its own.
+    {:ok, _} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_remote_url_origin: CoverageFixtures.remote_url(),
+        git_commit_sha: "head",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: []
+      })
+
+    assert %{
+             kind: "reported",
+             skipped_tests_count: 2,
+             carried_tests_count: 2,
+             gap_files_count: 0,
+             carried_from: ["base"]
+           } = reported = Reported.compute(project, "head")
+
+    # Everything the base measured, carried: its own figure.
+    assert {reported.covered_lines, reported.executable_lines} == {5, 7}
+
+    row = Commits.recompute(project, "head")
+    assert row.covered_lines == 0
+    assert row.schemes == []
+    assert row.reported_kind == "reported"
+    assert row.reported_coverage == 71.4
+
+    # The commit measured nothing, so it would read as a different measured set
+    # than its baseline; carrying everything forward makes it comparable again.
+    assert Commits.fully_carried?(row)
+
+    comparison = Comparison.compare(project, Comparison.from_commit(project, "head"))
+    assert comparison.baseline.commit == "base"
+    assert comparison.total_delta == 0.0
   end
 
   test "carries nothing for a test one of whose files changed", %{project: project, account: account} do

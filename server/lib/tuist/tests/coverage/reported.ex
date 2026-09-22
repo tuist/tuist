@@ -54,16 +54,25 @@ defmodule Tuist.Tests.Coverage.Reported do
   """
   def compute(%Project{} = project, sha, opts \\ []) do
     runs = Keyword.get_lazy(opts, :runs, fn -> Commits.runs(project.id, sha) end)
+    unmeasured = if runs == [], do: unmeasured_runs(project.id, sha), else: []
 
-    if runs == [] do
+    if runs == [] and unmeasured == [] do
       nil
     else
       excluded = Keyword.get_lazy(opts, :excluded, fn -> ExcludedPaths.pattern_for_project(project) end)
       run_ids = Enum.map(runs, & &1.test_run_id)
       observed = observed_files(project.id, run_ids, excluded)
 
-      repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
+      repository_id =
+        case runs do
+          [] -> unmeasured |> Enum.map(& &1.git_repository_id) |> Enum.max()
+          _ -> runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
+        end
+
       schemes = runs |> Enum.map(& &1.scheme) |> Enum.uniq()
+      # Where a run measured nothing its scheme still says what the commit set
+      # out to cover, which is what an ancestor's files are read back over.
+      covered_schemes = (schemes ++ Enum.map(unmeasured, & &1.scheme)) |> Enum.reject(&(&1 in [nil, ""])) |> Enum.uniq()
 
       case skipped_tests(project, repository_id, sha, run_ids, schemes) do
         :not_enumerated ->
@@ -73,9 +82,45 @@ defmodule Tuist.Tests.Coverage.Reported do
           result(observed, "measured", [], [], 0, [])
 
         skipped ->
-          carry(project, repository_id, sha, {run_ids, schemes}, observed, skipped, excluded)
+          carry(project, repository_id, sha, {run_ids, covered_schemes}, observed, skipped, excluded)
       end
     end
+  end
+
+  @doc """
+  The repository the commit's runs reported, and the build system they used,
+  for a commit no run measured. Nil and `""` when it has no clean run.
+  """
+  def repository_id(project_id, sha) do
+    project_id |> unmeasured_runs(sha) |> Enum.map(& &1.git_repository_id) |> Enum.max(fn -> nil end)
+  end
+
+  def build_system(project_id, sha) do
+    case unmeasured_runs(project_id, sha) do
+      [run | _] -> run.build_system
+      [] -> ""
+    end
+  end
+
+  # The commit's runs from a clean checkout, whether or not they measured
+  # anything. A commit every scheme was skipped whole on has only these: no
+  # coverage to fold, but proof that the test job ran, which is what separates
+  # it from a pipeline that died before reaching the tests and must not have a
+  # baseline carried into it.
+  defp unmeasured_runs(project_id, sha) do
+    ClickHouseRepo.all(
+      from(t in Test,
+        where: t.project_id == ^project_id and t.git_commit_sha == ^sha and t.git_dirty == false,
+        group_by: t.id,
+        select: %{
+          test_run_id: t.id,
+          scheme: fragment("any(?)", t.scheme),
+          build_system: fragment("any(?)", t.build_system),
+          git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at)
+        }
+      ),
+      settings: [select_sequential_consistency: 1]
+    )
   end
 
   defp carry(project, repository_id, sha, {run_ids, schemes}, observed, skipped, excluded) do

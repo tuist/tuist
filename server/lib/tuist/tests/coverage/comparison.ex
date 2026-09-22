@@ -197,16 +197,24 @@ defmodule Tuist.Tests.Coverage.Comparison do
   # The head's measured set is only known once its runs are published; a
   # head with no published commit yet (a run compared before the fold) is
   # compared with whatever the ancestor measured.
+  # A commit every scheme was skipped whole on has no partial scheme either,
+  # since it has no measured scheme at all, and its whole figure is carried.
+  defp partial?(summary), do: summary.partial_schemes != [] or Commits.fully_carried?(summary)
+
   defp comparable(candidate, head) do
     case Commits.summary_for(head) do
-      %{schemes: schemes} when schemes != candidate.schemes ->
-        {:error,
-         %{
-           kind: :measured_set_mismatch,
-           commit: candidate.git_commit_sha,
-           schemes: schemes,
-           baseline_schemes: candidate.schemes
-         }}
+      %{schemes: schemes} = summary when schemes != candidate.schemes ->
+        if Commits.fully_carried?(summary) do
+          {:ok, candidate}
+        else
+          {:error,
+           %{
+             kind: :measured_set_mismatch,
+             commit: candidate.git_commit_sha,
+             schemes: schemes,
+             baseline_schemes: candidate.schemes
+           }}
+        end
 
       _ ->
         {:ok, candidate}
@@ -285,7 +293,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
         {:error, reason} -> {nil, reason}
       end
 
-    partial = summary.partial_schemes != []
+    partial = partial?(summary)
     measured_files = Commits.merged_files(project.id, sha, excluded: excluded)
     carried? = partial and Map.get(summary, :reported_kind) == "reported"
     head_files = head_files(project, sha, measured_files, carried?, excluded)

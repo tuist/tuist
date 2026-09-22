@@ -46,6 +46,15 @@ defmodule Tuist.Tests.Coverage.Commits do
       else: :skipped
   end
 
+  @doc """
+  Whether the commit measured nothing itself and its coverage is entirely
+  carried forward: every scheme was skipped whole and every skipped test's
+  coverage still applied. Its figure is the ancestor's, so it compares with
+  whatever that ancestor measured rather than with an empty measured set.
+  """
+  def fully_carried?(%{reported_kind: "reported", schemes: []}), do: true
+  def fully_carried?(_row), do: false
+
   @doc "Whether the commit already has a published coverage row."
   def measured?(_project_id, sha) when sha in [nil, ""], do: false
 
@@ -63,28 +72,65 @@ defmodule Tuist.Tests.Coverage.Commits do
   def recompute(%Project{} = project, sha, opts \\ []) do
     runs = runs(project.id, sha)
     previous = summary(project.id, sha)
+    reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carried_lines])))
 
-    if runs == [] do
-      nil
-    else
-      excluded = ExcludedPaths.pattern_for_project(project)
-      run_ids = Enum.map(runs, & &1.test_run_id)
-      totals = totals(project.id, run_ids, excluded)
-      schemes = runs |> Enum.map(& &1.scheme) |> Enum.uniq() |> Enum.sort()
+    cond do
+      # Every scheme was skipped whole, so no run measured the commit, but its
+      # coverage is still known: all of it carried forward. The row is written
+      # with nothing measured and the reported figure filled in, so the commit
+      # is comparable and its pipeline can signal completion. A commit whose
+      # runs carried nothing either — no candidate was ever enumerated for
+      # those schemes — has no coverage to publish and keeps none.
+      runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
+        carried_row(project, sha, previous, reported, opts)
 
-      partial_schemes =
-        runs
-        |> Enum.group_by(& &1.scheme, & &1.partial)
-        |> Enum.filter(fn {_scheme, partials} -> Enum.all?(partials) end)
-        |> Enum.map(&elem(&1, 0))
-        |> Enum.sort()
+      runs == [] ->
+        nil
 
-      repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
-      reported = project |> Reported.compute(sha, runs: runs, excluded: excluded) |> Map.drop([:files, :carried_lines])
+      true ->
+        measured_row(project, sha, runs, previous, reported, opts)
+    end
+  end
 
-      row = %{
-        project_id: project.id,
-        git_commit_sha: sha,
+  defp carried_row(project, sha, previous, reported, opts) do
+    row =
+      project
+      |> base_row(sha, previous, reported, opts)
+      |> Map.merge(%{
+        git_repository_id: Reported.repository_id(project.id, sha),
+        build_system: Reported.build_system(project.id, sha),
+        covered_lines: 0,
+        executable_lines: 0,
+        measured_files_count: 0,
+        unmeasured_files_count: 0,
+        schemes: [],
+        partial_schemes: [],
+        test_run_ids: []
+      })
+
+    IngestRepo.insert_all(CoverageCommit, [row])
+    with_percentages(row)
+  end
+
+  defp measured_row(project, sha, runs, previous, reported, opts) do
+    excluded = ExcludedPaths.pattern_for_project(project)
+    run_ids = Enum.map(runs, & &1.test_run_id)
+    totals = totals(project.id, run_ids, excluded)
+    schemes = runs |> Enum.map(& &1.scheme) |> Enum.uniq() |> Enum.sort()
+
+    partial_schemes =
+      runs
+      |> Enum.group_by(& &1.scheme, & &1.partial)
+      |> Enum.filter(fn {_scheme, partials} -> Enum.all?(partials) end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.sort()
+
+    repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
+
+    row =
+      project
+      |> base_row(sha, previous, reported, opts)
+      |> Map.merge(%{
         git_repository_id: repository_id,
         build_system: runs |> hd() |> Map.fetch!(:build_system),
         covered_lines: totals.covered_lines,
@@ -93,23 +139,29 @@ defmodule Tuist.Tests.Coverage.Commits do
         unmeasured_files_count: unmeasured_files_count(project.id, repository_id, sha, run_ids, excluded),
         schemes: schemes,
         partial_schemes: partial_schemes,
-        test_run_ids: run_ids,
-        reported_covered_lines: reported.covered_lines,
-        reported_executable_lines: reported.executable_lines,
-        reported_kind: reported.kind,
-        skipped_tests_count: reported.skipped_tests_count,
-        carried_tests_count: reported.carried_tests_count,
-        gap_files_count: reported.gap_files_count,
-        carried_from: reported.carried_from,
-        complete: Keyword.get(opts, :complete, (previous && previous.complete) || false),
-        completeness: Keyword.get(opts, :completeness, (previous && previous.completeness) || ""),
-        version: next_version(previous),
-        inserted_at: (previous && previous.inserted_at) || NaiveDateTime.utc_now()
-      }
+        test_run_ids: run_ids
+      })
 
-      IngestRepo.insert_all(CoverageCommit, [row])
-      with_percentages(row)
-    end
+    IngestRepo.insert_all(CoverageCommit, [row])
+    with_percentages(row)
+  end
+
+  defp base_row(project, sha, previous, reported, opts) do
+    %{
+      project_id: project.id,
+      git_commit_sha: sha,
+      reported_covered_lines: reported.covered_lines,
+      reported_executable_lines: reported.executable_lines,
+      reported_kind: reported.kind,
+      skipped_tests_count: reported.skipped_tests_count,
+      carried_tests_count: reported.carried_tests_count,
+      gap_files_count: reported.gap_files_count,
+      carried_from: reported.carried_from,
+      complete: Keyword.get(opts, :complete, (previous && previous.complete) || false),
+      completeness: Keyword.get(opts, :completeness, (previous && previous.completeness) || ""),
+      version: next_version(previous),
+      inserted_at: (previous && previous.inserted_at) || NaiveDateTime.utc_now()
+    }
   end
 
   @doc """
