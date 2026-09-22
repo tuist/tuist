@@ -28,6 +28,7 @@ import (
 	"github.com/tuist/tuist/infra/runners-controller/controllers"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
+	"github.com/tuist/tuist/infra/runners-controller/internal/shadow"
 )
 
 var (
@@ -53,6 +54,8 @@ func main() {
 		registryMirror      string
 		clusterDNSIP        string
 		clusterDomain       string
+		shadowSnapshotURL   string
+		shadowInterval      time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -74,6 +77,8 @@ func main() {
 		"kube-dns ClusterIP injected into macOS pool Pods as TUIST_CLUSTER_DNS_IP. dispatch-poll.sh inside the Tart VM writes /etc/resolver/<cluster-domain> from it so the dispatch-provided cache_endpoint_url (*.svc.cluster.local) resolves in the VM. Optional; empty skips the injection (macOS runners then never receive a resolvable in-cluster cache URL — pair with the server's TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS gate).")
 	flag.StringVar(&clusterDomain, "cluster-domain", envOr("TUIST_RUNNER_CLUSTER_DOMAIN", "cluster.local"),
 		"Cluster DNS suffix paired with --cluster-dns-ip (TUIST_CLUSTER_DOMAIN in macOS pool Pods; names the /etc/resolver file in the VM).")
+	flag.StringVar(&shadowSnapshotURL, "shadow-snapshot-url", "", "Opt-in read-only shadow scheduler snapshot endpoint. Empty disables all shadow work.")
+	flag.DurationVar(&shadowInterval, "shadow-interval", 30*time.Second, "Shadow observation interval (minimum 10s).")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -82,6 +87,10 @@ func main() {
 
 	if dispatchURL == "" {
 		setupLog.Error(nil, "--dispatch-url required")
+		os.Exit(1)
+	}
+	if shadowSnapshotURL != "" && shadowInterval < 10*time.Second {
+		setupLog.Error(nil, "--shadow-interval must be at least 10s")
 		os.Exit(1)
 	}
 
@@ -175,6 +184,16 @@ func main() {
 			Logs:           clientset,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup PodLifecycle reconciler")
+			os.Exit(1)
+		}
+	}
+
+	if shadowSnapshotURL != "" {
+		if err := mgr.Add(&controllers.ShadowScheduler{
+			Reader: mgr.GetAPIReader(), Source: shadow.NewClient(shadowSnapshotURL),
+			Namespace: watchedNS, Interval: shadowInterval,
+		}); err != nil {
+			setupLog.Error(err, "setup shadow scheduler")
 			os.Exit(1)
 		}
 	}
