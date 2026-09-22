@@ -292,37 +292,47 @@ cmd_backup() {
 # its verification, so the second run waits for the first to be proven rather
 # than merely finished.
 #
-# mkdir because macOS has no flock: it is atomic, and it leaves the holder's pid
-# behind so a lock left by a killed run can be recognised rather than guessed at.
+# mkdir because macOS has no flock: it is the one atomic primitive available
+# here, and it leaves the holder's pid behind so a killed run can be recognised.
+#
+# A fixed path rather than TMPDIR, because TMPDIR differs per shell and per user
+# and two runs that do not share one would not see each other's lock at all.
+# This still only coordinates runs on one machine: two laptops, or a laptop and
+# a CI job, are not serialised by it. A Lease is the answer to that, and it
+# needs something in the cluster to hold one.
 FLEET_LOCK=""
 
 fleet_lock() {
-  local reason="$1" dir owner
-  dir="${TMPDIR:-/tmp}/rack-fleet-$SITE.lock"
-  if ! mkdir "$dir" 2>/dev/null; then
-    owner="$(cat "$dir/owner" 2>/dev/null || echo unknown)"
-    if [ "$owner" != unknown ] && ! kill -0 "${owner%% *}" 2>/dev/null; then
-      echo "note: clearing a lock left behind by pid ${owner%% *}, which is gone" >&2
-      rm -rf "$dir"
-      # Two runs can reach here together, both see the same dead pid and both
-      # clear it. Only the one whose mkdir wins may go on; ignoring this is how
-      # a stale lock turns into two concurrent changes, which is the exact thing
-      # the lock exists to stop.
-      if ! mkdir "$dir" 2>/dev/null; then
-        echo "error: another run claimed $SITE while this one was clearing a stale lock" >&2
-        return 1
-      fi
-    else
-      echo "error: another change is in flight on $SITE: $owner" >&2
-      echo "       Only one switch in a rack is changed at a time. Wait for it, or if you" >&2
-      echo "       are certain it is dead, remove $dir" >&2
-      return 1
-    fi
+  local reason="$1" dir owner pid
+  dir="${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$SITE.lock"
+
+  # `mkdir` and nothing else. Reclaiming a stale lock automatically means
+  # removing a directory this process did not create, and two runs that both
+  # read the same dead owner will both remove it: the second one deletes the
+  # lock the first just acquired, and then creates its own. Checking the second
+  # `mkdir` does not help, because by then the damage is the `rm`. There is no
+  # ordering of remove-then-create that is safe without a primitive this does
+  # not have, so a stale lock is a thing a human clears.
+  if mkdir "$dir" 2>/dev/null; then
+    printf '%s %s\n' "$$" "$reason" > "$dir/owner"
+    FLEET_LOCK="$dir"
+    trap fleet_unlock EXIT
+    return 0
   fi
-  printf '%s %s\n' "$$" "$reason" > "$dir/owner"
-  FLEET_LOCK="$dir"
-  trap fleet_unlock EXIT
+
+  owner="$(cat "$dir/owner" 2>/dev/null || echo unknown)"
+  pid="${owner%% *}"
+  echo "error: another change is in flight on $SITE: $owner" >&2
+  if [ "$owner" != unknown ] && ! kill -0 "$pid" 2>/dev/null; then
+    echo "       Process $pid is gone, so this is probably a run that was killed. Nothing" >&2
+    echo "       clears it automatically, because a second run doing that races the first." >&2
+    echo "       Check no change is actually in progress, then: rm -rf $dir" >&2
+  else
+    echo "       Only one switch in a rack is changed at a time. Wait for it to finish." >&2
+  fi
+  return 1
 }
+
 
 fleet_unlock() {
   [ -n "$FLEET_LOCK" ] || return 0

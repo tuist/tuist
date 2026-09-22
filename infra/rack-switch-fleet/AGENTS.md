@@ -642,13 +642,13 @@ controller-managed switch can do, everything this directory renders is
 supported: management address and VLAN, hostname, RSTP, per-port spanning tree,
 LLDP, VLANs, port configuration. The capability objection was wrong.
 
-What is real is that there is no fully supported write API. The Open API is
-documented and authenticated but its published material covers site creation;
-the community Terraform provider states that the undocumented web API is the
-only surface with full coverage, does not implement spanning tree, and is
-v0.6.x. So the choice is between two unsupported things: this SSH driver, or a
-community provider on an API the vendor can change. That is a different and
-better question than the one the original decision answered.
+What is not yet established is the write API's coverage, which is not the same
+as it being absent. The Open API guide that was read covers site creation and
+links an endpoint document that was not reached, so nothing shows the vendor
+lacks switch write endpoints. The community Terraform provider does not
+implement spanning tree and calls the undocumented web API the only surface with
+full coverage, but a provider's scope is evidence about that provider. Reading
+the endpoint document, and then the prototype, is what would settle it.
 
 The assessment also carries the prototype that would settle it, and a
 confirmed-commit shape using the switch's own `reboot-schedule` that would give

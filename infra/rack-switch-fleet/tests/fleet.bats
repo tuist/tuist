@@ -1050,38 +1050,54 @@ mini_referencing() {
 
 # --- the lock, and what it has to survive ------------------------------------
 
-@test "only one of two runs clearing the same stale lock may proceed" {
-    # Both see the same dead pid, both clear it, and only the one whose mkdir
-    # wins may go on. Ignoring the second mkdir turned a stale lock into two
-    # concurrent changes, which is the thing the lock exists to stop.
-    lock="$BATS_TEST_TMPDIR/race.lock"
+@test "a real command refuses a stale lock and leaves it alone" {
+    # Through fleet.sh, so the lock path is actually exercised rather than a
+    # reimplementation of it. `replace --dry-run` takes the lock before it does
+    # anything else.
+    lock="$BATS_TEST_TMPDIR/rack-fleet-ber1.lock"
     mkdir "$lock"
     printf '999999 dead\n' > "$lock/owner"
-    cat > "$BATS_TEST_TMPDIR/claim.sh" <<CLAIM
-#!/usr/bin/env bash
-dir="$lock"
-if ! mkdir "\$dir" 2>/dev/null; then
-  owner="\$(cat "\$dir/owner" 2>/dev/null || echo unknown)"
-  if [ "\$owner" != unknown ] && ! kill -0 "\${owner%% *}" 2>/dev/null; then
-    rm -rf "\$dir"
-    mkdir "\$dir" 2>/dev/null || exit 1
-  else
-    exit 1
-  fi
-fi
-echo proceeded
-CLAIM
-    chmod +x "$BATS_TEST_TMPDIR/claim.sh"
-    a="$("$BATS_TEST_TMPDIR/claim.sh" & "$BATS_TEST_TMPDIR/claim.sh" & wait)"
-    [ "$(printf '%s\n' "$a" | grep -c proceeded)" -eq 1 ]
+
+    run env FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" "$FLEET_ROOT/fleet.sh" replace ber1-tor-b --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"another change is in flight"* ]]
+    [[ "$output" == *"999999"* ]]
+    [[ "$output" == *"rm -rf"* ]]
+
+    # untouched: nothing reclaimed it, so nothing could have raced a reclaimer
+    [ -d "$lock" ]
+    run cat "$lock/owner"
+    [ "$output" = "999999 dead" ]
+}
+
+@test "two runs racing the same stale lock: neither takes it" {
+    # The ordering that broke the previous fix: both read the dead owner, the
+    # first clears and acquires, the second clears the first's lock and acquires
+    # its own. With no clearing at all, the ordering cannot arise.
+    lock="$BATS_TEST_TMPDIR/rack-fleet-race.lock"
+    mkdir "$lock"
+    printf '999999 dead\n' > "$lock/owner"
+    claim() { if mkdir "$lock" 2>/dev/null; then echo acquired; else echo refused; fi; }
+    a="$(claim)"; b="$(claim)"
+    [ "$a" = "refused" ]
+    [ "$b" = "refused" ]
+    run cat "$lock/owner"
+    [ "$output" = "999999 dead" ]
+}
+
+@test "the error names the pid and how to clear it by hand" {
+    run grep -c 'rm -rf \$dir' "$FLEET_ROOT/fleet.sh"
+    [ "$output" -ge 1 ]
+    run grep -c 'races the first' "$FLEET_ROOT/fleet.sh"
+    [ "$output" -ge 1 ]
 }
 
 @test "a live lock holder is never displaced" {
-    lock="${TMPDIR:-/tmp}/rack-fleet-livetest.lock"
+    lock="${FLEET_LOCK_DIR:-/tmp}/rack-fleet-livetest.lock"
     rm -rf "$lock"; mkdir "$lock"
     printf '%s a-real-run\n' "$$" > "$lock/owner"
     run env SITE=livetest bash -c '
-        dir="${TMPDIR:-/tmp}/rack-fleet-livetest.lock"
+        dir="${FLEET_LOCK_DIR:-/tmp}/rack-fleet-livetest.lock"
         if ! mkdir "$dir" 2>/dev/null; then
             owner="$(cat "$dir/owner" 2>/dev/null || echo unknown)"
             if [ "$owner" != unknown ] && ! kill -0 "${owner%% *}" 2>/dev/null; then
@@ -1165,7 +1181,7 @@ exit 0
 STUB
     chmod +x "$stub/ssh" "$stub/nc"
 
-    run env PATH="$stub:$PATH" TMPDIR="$BATS_TEST_TMPDIR" \
+    run env PATH="$stub:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" \
         "$FLEET_ROOT/fleet.sh" recover ber1-tor-b --from 192.0.2.50 --yes
     [ "$status" -eq 0 ]
     [[ "$output" == *"back at 192.168.0.12 and saved"* ]]

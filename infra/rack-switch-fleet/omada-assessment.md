@@ -10,7 +10,9 @@ an argument. This is the check.
 vendor's own feature list.** Everything this repository renders is configurable
 in controller mode. What is not settled is whether it can be driven from git
 through a supported API, and that is now the question worth answering rather
-than the one that was assumed.
+than the one that was assumed. Nothing below has been run: there is no
+controller deployed and no prototype results, and the capability table is a
+documentation review rather than a measurement.
 
 ## What we actually render, against what controller mode supports
 
@@ -44,20 +46,33 @@ reading. It also removes the write path whose every bug this PR has been fixing.
 
 Capability is not the problem. These are.
 
-**There is no fully supported write API.** The Open API is documented and
-authenticated with client credentials, but its published guide covers site
-creation, not switch configuration. The community
-[Terraform provider](https://github.com/wncservices/terraform-provider-omada)
-is explicit that "the web API is the only surface with full configuration
-coverage", and the web API is the undocumented one behind the UI. It reads
-switch ports from the web API and writes them through the Open API, and it does
-not implement spanning tree, PoE, per-port QoS or storm control. It is v0.6.x
-and reserves breaking changes for v1.0.0.
+**The write API's coverage is unestablished, which is not the same as absent.**
+Being precise about what was actually checked, because the difference decides
+whether the next step is a prototype or a purchase:
 
-**So the choice is between two unsupported things**, and that is the honest
-framing: a bespoke SSH driver we maintain, or a community provider on an
-undocumented API that the vendor can change. The second is smaller code and
-larger blast radius when it breaks.
+- The Open API guide that was read covers site creation. It links an "Online API
+  Document" with the endpoint specifications, and **that was not reached**. So
+  nothing here shows the vendor lacks switch write endpoints; it shows the
+  introductory material does not describe them.
+- The community
+  [Terraform provider](https://github.com/wncservices/terraform-provider-omada)
+  states that "the web API is the only surface with full configuration
+  coverage", reads switch ports from the web API while writing them through the
+  Open API, and does not implement spanning tree, PoE, per-port QoS or storm
+  control. It is v0.6.x and reserves breaking changes for v1.0.0.
+
+A provider not implementing something is evidence about that provider's scope
+and effort, not about the vendor's endpoints. Treat the second bullet as a lower
+bound on what is reachable, not an upper one.
+
+**What would settle it** is reading the Online API Document for switch
+endpoints, and then the prototype below, which exercises one write for real. If
+the Open API turns out to cover what the table needs, the choice is between a
+bespoke SSH driver and a documented vendor API, which is an easy choice. If it
+only covers part, the choice is between the driver and a community provider on
+an undocumented API the vendor can change, which is smaller code and a larger
+blast radius. Those are different decisions and the evidence so far does not
+distinguish them.
 
 **Adoption behaviour is unknown.** What happens to the configuration already on
 `ber1-tor-a` and `ber1-tor-b` when the controller adopts them, whether it is
