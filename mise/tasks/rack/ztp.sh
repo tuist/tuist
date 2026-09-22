@@ -5,8 +5,8 @@
 # Install armed boots, asks for an address and a boot file, fetches it and
 # applies it, and the USB-C cable stops being part of racking a switch.
 #
-#   mise run rack:ztp ber1-mgmt --interface en5 --dry-run
-#   mise run rack:ztp ber1-mgmt --interface en5
+#   mise run rack:ztp ber1-mgmt --interface en7 --dry-run
+#   mise run rack:ztp ber1-mgmt --interface en7
 #
 # --interface is required and must be an isolated segment: a USB Ethernet
 # adapter with only the switch on the other end. This serves DHCP, and a second

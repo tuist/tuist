@@ -1421,7 +1421,7 @@ ztp_stub() {
     cat > "$dir/op" <<'STUB'
 #!/usr/bin/env bash
 cat <<'JSON'
-{"fields":[{"label":"config-hash","value":"$1$EXAMPLEHASHNOTREAL"}]}
+{"fields":[{"id":"username","value":"tuist"},{"id":"password","value":"ExampleNotReal24chars000"}]}
 JSON
 STUB
     cat > "$dir/ipconfig" <<'STUB'
@@ -1434,6 +1434,10 @@ STUB
 exit 0
 STUB
     chmod +x "$dir/op" "$dir/ipconfig" "$dir/ifconfig"
+    # The fleet key is found through the site definition's `~/.ssh/...` path, so a
+    # HOME of our own gives the served key without touching the real one.
+    mkdir -p "$dir/home/.ssh"
+    ssh-keygen -q -t rsa -b 2048 -N '' -f "$dir/home/.ssh/ber1-switch-rsa"
 }
 
 @test "ztp refuses without an interface, because it is a DHCP server" {
@@ -1461,12 +1465,12 @@ STUB
 exit 1
 STUB
     chmod +x "$bin/ipconfig"
-    run env PATH="$bin:$PATH" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0
+    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0
     [ "$status" -ne 0 ]
     [[ "$output" == *"no IPv4 address"* ]]
 }
 
-@test "ztp refuses when the 1Password item has no config hash" {
+@test "ztp refuses when the 1Password item has no password" {
     # A switch provisioned from scratch has none of our credentials, so a config
     # without a login would leave it unreachable.
     bin="$BATS_TEST_TMPDIR/ztp2"
@@ -1476,15 +1480,15 @@ STUB
 echo '{"fields":[]}'
 STUB
     chmod +x "$bin/op"
-    run env PATH="$bin:$PATH" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
+    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
     [ "$status" -ne 0 ]
-    [[ "$output" == *"config-hash"* ]]
+    [[ "$output" == *"no password"* ]]
 }
 
 @test "ztp serves a config that carries a login, keyed to the switch's MAC" {
     bin="$BATS_TEST_TMPDIR/ztp3"
     ztp_stub "$bin"
-    run env PATH="$bin:$PATH" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
+    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
     [ "$status" -eq 0 ]
     # DHCP only, never DNS, and bound to the one interface
     [[ "$output" == *"port=0"* ]]
@@ -1495,13 +1499,85 @@ STUB
     [[ "$output" == *"67,\"ber1-tor-b.cfg\""* ]]
     # and the served file is the rendered config, with the login put back
     [[ "$output" == *'hostname "ber1-tor-b"'* ]]
-    [[ "$output" == *"secret 5 <redacted>"* ]]
+    [[ "$output" == *"secret 0 <redacted>"* ]]
+    # and the dry run writes nothing it should not: the password stays in 1Password
+    root="$(sed -n 's/.*The files are in //p' <<<"$output")"
+    run grep -rc ExampleNotReal24chars000 "$root"
+    [[ "$output" != *":1"* ]]
+}
+
+@test "ztp refuses a password the switch would not accept" {
+    bin="$BATS_TEST_TMPDIR/ztp8"
+    ztp_stub "$bin"
+    cat > "$bin/op" <<'STUB'
+#!/usr/bin/env bash
+echo '{"fields":[{"id":"password","value":"has a space"}]}'
+STUB
+    chmod +x "$bin/op"
+    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not one the switch accepts"* ]]
+}
+
+@test "a real run serves the password as secret 0 and deletes it once serving stops" {
+    bin="$BATS_TEST_TMPDIR/ztp9"
+    ztp_stub "$bin"
+    cat > "$bin/sudo" <<'STUB'
+#!/usr/bin/env bash
+exec "$@"
+STUB
+    # dnsmasq keeps a copy of what it would have served, then stops as though
+    # the operator pressed Ctrl-C.
+    cat > "$bin/dnsmasq" <<'STUB'
+#!/usr/bin/env bash
+conf="${1#--conf-file=}"
+root="$(sed -n 's/^tftp-root=//p' "$conf")"
+cp "$root/ber1-tor-b.cfg" "$FAKE_COPY"
+echo "$root" > "$FAKE_COPY.root"
+STUB
+    chmod +x "$bin/sudo" "$bin/dnsmasq"
+    copy="$BATS_TEST_TMPDIR/served.cfg"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_COPY="$copy" \
+        "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 < /dev/null
+    [ "$status" -eq 0 ]
+    run bash -c "tr -d '\r\000' < '$copy' | grep -c '^user name tuist privilege admin secret 0 ExampleNotReal24chars000$'"
+    [ "$output" = "1" ]
+    [ ! -e "$(cat "$copy.root")" ]
+}
+
+@test "ztp has the switch fetch the fleet key before the file moves it off this segment" {
+    # Auto Install fetches only the configuration, and the key is not a
+    # configuration line, so the served file has to download it. Once the file
+    # reaches `interface vlan` the switch is on its site address and can no
+    # longer reach this TFTP server.
+    bin="$BATS_TEST_TMPDIR/ztp6"
+    ztp_stub "$bin"
+    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
+    [ "$status" -eq 0 ]
+    root="$(sed -n 's/.*The files are in //p' <<<"$output")"
+    served="$root/ber1-tor-b.cfg"
+    download="$(tr -d '\r\000' < "$served" | grep -nx 'ip ssh download v2 fleet.pub ip-address 192.168.50.1' | cut -d: -f1)"
+    address="$(tr -d '\r\000' < "$served" | grep -n '^interface vlan ' | head -1 | cut -d: -f1)"
+    [ -n "$download" ]
+    [ "$download" -lt "$address" ]
+    run head -1 "$root/fleet.pub"
+    [ "$output" = "---- BEGIN SSH2 PUBLIC KEY ----" ]
+}
+
+@test "ztp refuses an ed25519 fleet key, which the firmware rejects" {
+    bin="$BATS_TEST_TMPDIR/ztp7"
+    ztp_stub "$bin"
+    rm -f "$bin/home/.ssh/ber1-switch-rsa" "$bin/home/.ssh/ber1-switch-rsa.pub"
+    ssh-keygen -q -t ed25519 -N '' -f "$bin/home/.ssh/ber1-switch-rsa"
+    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ed25519"* ]]
 }
 
 @test "ztp offers no boot file by MAC when the site definition has none" {
     bin="$BATS_TEST_TMPDIR/ztp4"
     ztp_stub "$bin"
-    run env PATH="$bin:$PATH" "$FLEET_ROOT/ztp.sh" ber1-mgmt --interface zzz0 --dry-run
+    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" ber1-mgmt --interface zzz0 --dry-run
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-boot=ber1-mgmt.cfg"* ]]
     [[ "$output" == *"no mac in the site definition"* ]]
@@ -1511,7 +1587,7 @@ STUB
     bin="$BATS_TEST_TMPDIR/ztp5"
     ztp_stub "$bin"
     # a PATH with the stubs and the basics, but deliberately no dnsmasq
-    run env PATH="$bin:/usr/bin:/bin:/usr/sbin:/sbin" "$FLEET_ROOT/ztp.sh" \
+    run env PATH="$bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" \
         ber1-tor-b --interface zzz0 --dry-run
     [ "$status" -eq 0 ]
     [[ "$output" == *"dnsmasq"* ]]

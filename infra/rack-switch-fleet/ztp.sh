@@ -13,7 +13,7 @@
 # to exactly one interface. Use a USB Ethernet adapter with the switch on the
 # other end and nothing else attached.
 #
-#   mise run rack:ztp <device> --interface en5 [--dry-run]
+#   mise run rack:ztp <device> --interface en7 [--dry-run]
 #
 # See infra/rack-switch-fleet/AGENTS.md.
 
@@ -77,39 +77,66 @@ fi
 # --- the configuration the switch will fetch ---------------------------------
 #
 # A factory switch has none of our credentials, so unlike `replace`, which
-# carries the login across from the switch itself, this has to put one in. The
-# hash cannot be computed here, so it is stored in the switch's 1Password item
-# alongside the password it belongs to.
+# carries the login across from the switch itself, this has to put one in. It
+# goes in as `secret 0 <password>`, which the switch hashes itself, so the only
+# credential is the password already in the switch's 1Password item. The dry run
+# writes it redacted, and a real run deletes the served files once it stops.
 
 boot_file="$device.cfg"
+
+# The fleet key is not configuration either: prep-switch installs it with a
+# download command, and no export carries it. Without it the switch comes up
+# with a password login the fleet tools cannot use.
+public_key="$(jq -r '.credentials.ssh_key' "$site_file")"
+public_key="${public_key/#\~/$HOME}.pub"
+if [ ! -f "$public_key" ]; then
+  echo "error: no fleet public key at $public_key" >&2
+  exit 1
+fi
+if grep -q 'ssh-ed25519' "$public_key"; then
+  echo "error: $public_key is ed25519, which this firmware rejects; use an RSA key" >&2
+  exit 1
+fi
+
+password=""
+if credentials="$(op item get "$credential_item" --vault "$vault" --format=json 2>/dev/null)"; then
+  password="$(jq -r '.fields[]? | select(.id == "password") | .value // empty' <<<"$credentials")"
+fi
+if [ -z "$password" ]; then
+  echo "error: no password on the 1Password item '$credential_item'." >&2
+  echo "       A switch provisioned from scratch has none of our credentials, so the config" >&2
+  echo "       it fetches has to carry the login." >&2
+  exit 1
+fi
+# The switch's own limits for `secret 0`. Anything else would be rejected and
+# leave the switch with no login of ours.
+if ! [[ "$password" =~ ^[^[:space:]\"?]{6,31}$ ]]; then
+  echo "error: the password on '$credential_item' is not one the switch accepts: 6 to 31" >&2
+  echo "       characters, no spaces, question marks or double quotes." >&2
+  exit 1
+fi
+(( dry_run )) && password="<redacted>"
+
 tftp_root="$(mktemp -d)"
 rendered="$(mktemp)"
 fleet_render "$site_file" "$device" > "$rendered"
-
-secret=""
-if op_args=(item get "$credential_item" --vault "$vault" --format=json) && \
-   credentials="$(op "${op_args[@]}" 2>/dev/null)"; then
-  secret="$(jq -r '.fields[]? | select(.label == "config-hash") | .value // empty' <<<"$credentials")"
-fi
-if [ -z "$secret" ]; then
-  echo "error: no 'config-hash' field on the 1Password item '$credential_item'." >&2
-  echo "" >&2
-  echo "       A switch being provisioned from scratch has none of our credentials, so the" >&2
-  echo "       config it fetches has to contain the login. The hash cannot be computed" >&2
-  echo "       here; take it from a switch that is already prepped, where" >&2
-  echo "       'copy startup-config tftp' writes a line of the form:" >&2
-  echo "         user name tuist privilege admin secret 5 <hash>" >&2
-  echo "       and add that <hash> to the item as a field named config-hash." >&2
-  rm -rf "$tftp_root" "$rendered"
-  exit 1
+# RFC4716, the only form the switch accepts.
+if head -1 "$public_key" | grep -q 'BEGIN SSH2'; then
+  cp "$public_key" "$tftp_root/fleet.pub"
+else
+  ssh-keygen -e -f "$public_key" > "$tftp_root/fleet.pub"
 fi
 
 username="$(jq -r '.credentials.username' "$site_file")"
 served="$tftp_root/$boot_file"
+# Both go ahead of `telnet disable`, which is where a prepped switch keeps the
+# login. For the key that position also matters: the download has to run while
+# the switch still holds its DHCP address on this segment, and the file moves it
+# to its site address further down, at `interface vlan`.
 {
-  # ahead of `telnet disable`, which is where a prepped switch keeps it
-  awk -v line="user name $username privilege admin secret 5 $secret" '
-    $0 ~ /^telnet / && !done { print line; done = 1 } { print }' "$rendered"
+  awk -v login="user name $username privilege admin secret 0 $password" \
+      -v key="ip ssh download v2 fleet.pub ip-address $server_ip" '
+    $0 ~ /^telnet / && !done { print login; print "ip ssh server"; print key; done = 1 } { print }' "$rendered"
 } | fleet_device_file > "$served"
 
 # --- dnsmasq: DHCP and TFTP, and deliberately no DNS -------------------------
@@ -147,7 +174,7 @@ echo "dnsmasq configuration:"
 sed 's/^/  /' "$conf"
 echo ""
 echo "the switch would fetch (login line redacted):"
-tr -d '\000' < "$served" | tr -d '\r' | sed "s/secret 5 .*/secret 5 <redacted>/" | head -20 | sed 's/^/  /'
+tr -d '\000' < "$served" | tr -d '\r' | sed "s/secret 0 .*/secret 0 <redacted>/" | head -20 | sed 's/^/  /'
 echo "  ... $(tr -d '\000' < "$served" | grep -c '' ) lines"
 
 echo ""
@@ -177,5 +204,5 @@ if [ -t 0 ]; then
 fi
 
 echo "serving; power the switch on with Auto Install armed. Ctrl-C to stop."
-trap 'echo ""; echo "stopped. Files were in $tftp_root"; rm -f "$rendered"' EXIT
+trap 'echo ""; echo "stopped; the served files are deleted"; rm -rf "$tftp_root" "$rendered"' EXIT
 sudo dnsmasq --conf-file="$conf" --no-daemon --log-facility=-

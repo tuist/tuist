@@ -19,13 +19,14 @@ same time. Only group C needs care.
 
 ### Before starting
 
-- `brew install dnsmasq`, for group B.
-- A USB Ethernet adapter, for group B. `en4`, `en5` and `en11` exist on the
-  laptop; any of them will do as long as the switch is the only thing on it.
-- A `config-hash` field on each switch's 1Password item, for group B. Take it
-  from a prepped switch's `copy startup-config tftp` export: the value after
-  `secret 5`. `rack:ztp --dry-run` refuses without it and says the same.
-- `ber1-mgmt` out of storage, for group B.
+- dnsmasq, for group B: installed with Homebrew on 2026-09-22.
+- The USB Ethernet adapter, for group B, is `en7` (`USB 10/100/1000 LAN`,
+  Realtek). `en4`, `en5` and `en11` are not physical adapters. Check with
+  `networksetup -listallhardwareports`.
+- A password on `ber1-mgmt`'s 1Password item, which `rack:ztp` reads (1Password
+  asks for Touch ID) and serves as `secret 0`. No hash to prepare.
+- `ber1-mgmt` out of storage, for group B, cabled to `en7`, and its console
+  cable in reach in case Auto Install has to be armed by hand.
 
 ### Group A: answers the biggest open question, and needs no switches at all
 
@@ -62,18 +63,26 @@ needs `ber1-mgmt`.
 touches the ToRs.
 
 ```
-sudo ifconfig en5 inet 192.168.50.1 netmask 255.255.255.0 up
-mise run rack:ztp ber1-mgmt --interface en5 --dry-run     # read what it would serve
-mise run rack:ztp ber1-mgmt --interface en5               # then serve it
+sudo ifconfig en7 inet 192.168.50.1 netmask 255.255.255.0 up
+mise run rack:ztp ber1-mgmt --interface en7 --dry-run     # read what it would serve
+mise run rack:ztp ber1-mgmt --interface en7               # then serve it (sudo)
 ```
 
-With that running, arm Auto Install on the switch over its console and power
-cycle it: `boot autoinstall persistent-mode` then `boot autoinstall start`.
-Watch dnsmasq's log for the DHCP lease and the TFTP read of `ber1-mgmt.cfg`.
+With that running, power the switch on. A factory switch may start Auto Install
+by itself; if dnsmasq logs no DHCP request within a few minutes, arm it over the
+console with `boot autoinstall auto-save` then `boot autoinstall start`.
+`auto-save` matters: without it the fetched configuration is applied and never
+saved. Do not use `persistent-mode`, which re-runs Auto Install on every boot
+and moves VLAN 1 to DHCP each time.
+
+Watch dnsmasq's log for three things in order: the DHCP lease, the TFTP read of
+`ber1-mgmt.cfg`, and the TFTP read of `fleet.pub`, which is the served file
+downloading the fleet key. The switch then moves to its site address, off the
+segment: move its cable to the rack LAN.
 
 Success is the switch coming up on its site address with the rendered
-configuration and a working login, having been touched only for power. That is
-the console cable gone from racking a switch. Confirm with
+configuration and a working key login, having been touched only for power and
+a cable. That is the console cable gone from racking a switch. Confirm with
 `mise run rack:fleet preflight ber1-mgmt`, and note the model is
 `verified: false` in models.json until its port naming is read off the unit, so
 `apply` and `replace` will refuse it until that is corrected.
@@ -81,6 +90,10 @@ the console cable gone from racking a switch. Confirm with
 If it fails, the useful question is which half: no DHCP lease is the segment or
 the interface, a lease but no TFTP read is Auto Install not armed or option 67
 not reaching it, and a read but no change is the configuration being rejected.
+A config read with no `fleet.pub` read means Auto Install did not run the
+download line: the switch has the password login only, and
+`rack:prep-switch ber1-mgmt --import-key ~/.ssh/ber1-switch-rsa.pub` over the
+console finishes the job. Record which it was.
 
 ### Group C: the live ToRs, where care is needed
 
@@ -447,17 +460,25 @@ people live on hands addresses to their laptops, so `rack:ztp` requires
 with no address, binds to exactly one interface and disables DNS entirely
 (`port=0`). Use a USB Ethernet adapter with only the switch on the other end.
 
-One thing Auto Install needs that `replace` does not: **the served config has to
-contain a login**. `replace` carries the existing one across from the switch, and
-a switch being provisioned from scratch has none of ours, so a config without
-one leaves it unreachable. The hash cannot be computed here, so it lives in the
-switch's 1Password item as a `config-hash` field, taken from a prepped switch's
-export. `rack:ztp` refuses to serve anything without it and says where to get it.
+Two things Auto Install needs that `replace` does not, because a switch being
+provisioned from scratch has none of our credentials:
+
+- **A login.** `replace` carries the existing one across from the switch. Here it
+  goes in as `user name tuist privilege admin secret 0 <password>`, with the
+  password from the switch's 1Password item, and the switch hashes it itself;
+  the CLI reference documents `secret 0` as a plaintext password. The dry run
+  writes it redacted and a real run deletes the served files when it stops.
+- **The fleet key.** It is not configuration, no export carries it, and Auto
+  Install fetches only the configuration file. So the served file runs
+  `ip ssh download v2 fleet.pub ip-address <server>` itself, ahead of
+  `interface vlan`, while the switch still has its DHCP address on the
+  segment; `rack:ztp` serves `fleet.pub` beside the config, converted to the
+  RFC4716 form the firmware wants. Whether Auto Install runs a download line is
+  what group B finds out; the fallback is `rack:prep-switch --import-key`.
 
 Still to do end to end: an isolated segment, and a switch nobody depends on,
-which is what `ber1-mgmt` is while it sits in storage. Arm it with
-`boot autoinstall persistent-mode` and `boot autoinstall start`, remembering
-that starting it moves the management interface to DHCP.
+which is what `ber1-mgmt` is while it sits in storage. See group B above for
+how to arm it.
 
 What Junos and PicOS offer over that is not the feature but its maturity. ZTP on
 those is a mainstream path that thousands of deployments use; DHCP Auto Install
