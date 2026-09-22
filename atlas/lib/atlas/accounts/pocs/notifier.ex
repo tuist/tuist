@@ -63,20 +63,18 @@ defmodule Atlas.Accounts.POCs.Notifier do
   def send_slack_request(%POC{} = poc, %AccessRequest{} = request) do
     channel = ops_channel_id()
 
-    cond do
-      is_nil(channel) ->
-        Logger.info("POC Slack notifications not configured, skipping request notification")
-        {:ok, :skipped}
+    if is_nil(channel) do
+      Logger.info("POC Slack notifications not configured, skipping request notification")
+      {:ok, :skipped}
+    else
+      blocks = request_blocks(poc, request)
+      text = "#{request.email} is requesting access to #{poc.title}"
 
-      true ->
-        blocks = request_blocks(poc, request)
-        text = "#{request.email} is requesting access to #{poc.title}"
-
-        case SlackAPI.post_message(:company, channel, text, blocks) do
-          {:ok, %{"ts" => ts}} -> {:ok, {channel, ts}}
-          {:ok, _other} -> {:ok, :sent}
-          {:error, reason} -> {:error, reason}
-        end
+      case SlackAPI.post_message(:company, channel, text, blocks) do
+        {:ok, %{"ts" => ts}} -> {:ok, {channel, ts}}
+        {:ok, _other} -> {:ok, :sent}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
@@ -93,20 +91,30 @@ defmodule Atlas.Accounts.POCs.Notifier do
   end
 
   defp request_blocks(poc, request) do
-    header =
-      "*POC access request*\n<mailto:#{request.email}|#{request.email}> " <>
-        "is asking to open *#{poc.title}*."
+    [
+      section_block(header_text(poc, request)),
+      section_block(status_line(request))
+    ]
+    |> maybe_append_metadata(poc, request)
+    |> maybe_append_action_buttons(request)
+  end
 
-    status_line =
-      case AccessRequest.status(request) do
-        :pending -> ":hourglass_flowing_sand: Waiting on the visitor to confirm their email."
-        :awaiting_approval -> ":email: Email confirmed. Approve to let them in."
-        :awaiting_email -> ":white_check_mark: Approved. Waiting on the visitor to confirm their email."
-        :granted -> ":unlock: Access granted."
-        :denied -> ":no_entry_sign: Denied."
-        :revoked -> ":lock: Revoked."
-      end
+  defp header_text(poc, request) do
+    "*POC access request*\n<mailto:#{request.email}|#{request.email}> is asking to open *#{poc.title}*."
+  end
 
+  defp status_line(request) do
+    case AccessRequest.status(request) do
+      :pending -> ":hourglass_flowing_sand: Waiting on the visitor to confirm their email."
+      :awaiting_approval -> ":email: Email confirmed. Approve to let them in."
+      :awaiting_email -> ":white_check_mark: Approved. Waiting on the visitor to confirm their email."
+      :granted -> ":unlock: Access granted."
+      :denied -> ":no_entry_sign: Denied."
+      :revoked -> ":lock: Revoked."
+    end
+  end
+
+  defp maybe_append_metadata(blocks, poc, request) do
     metadata =
       [
         {"Account", poc.account && poc.account.name},
@@ -116,46 +124,39 @@ defmodule Atlas.Accounts.POCs.Notifier do
       |> Enum.filter(fn {_k, v} -> is_binary(v) and v != "" end)
       |> Enum.map_join("\n", fn {k, v} -> "*#{k}:* #{v}" end)
 
-    blocks = [
-      %{"type" => "section", "text" => %{"type" => "mrkdwn", "text" => header}},
-      %{"type" => "section", "text" => %{"type" => "mrkdwn", "text" => status_line}}
-    ]
+    if metadata == "", do: blocks, else: blocks ++ [section_block(metadata)]
+  end
 
-    blocks =
-      if metadata != "" do
-        blocks ++ [%{"type" => "section", "text" => %{"type" => "mrkdwn", "text" => metadata}}]
-      else
-        blocks
-      end
-
-    case AccessRequest.status(request) do
-      status when status in [:pending, :awaiting_approval] ->
-        blocks ++
-          [
-            %{
-              "type" => "actions",
-              "elements" => [
-                %{
-                  "type" => "button",
-                  "style" => "primary",
-                  "text" => %{"type" => "plain_text", "text" => "Approve"},
-                  "action_id" => "poc_access:approve:" <> request.id,
-                  "value" => request.id
-                },
-                %{
-                  "type" => "button",
-                  "style" => "danger",
-                  "text" => %{"type" => "plain_text", "text" => "Deny"},
-                  "action_id" => "poc_access:deny:" <> request.id,
-                  "value" => request.id
-                }
-              ]
-            }
-          ]
-
-      _settled ->
-        blocks
+  defp maybe_append_action_buttons(blocks, request) do
+    if AccessRequest.status(request) in [:pending, :awaiting_approval] do
+      blocks ++ [action_buttons(request)]
+    else
+      blocks
     end
+  end
+
+  defp section_block(text) do
+    %{"type" => "section", "text" => %{"type" => "mrkdwn", "text" => text}}
+  end
+
+  defp action_buttons(request) do
+    %{
+      "type" => "actions",
+      "elements" => [
+        action_button("Approve", "primary", "poc_access:approve:" <> request.id, request.id),
+        action_button("Deny", "danger", "poc_access:deny:" <> request.id, request.id)
+      ]
+    }
+  end
+
+  defp action_button(label, style, action_id, value) do
+    %{
+      "type" => "button",
+      "style" => style,
+      "text" => %{"type" => "plain_text", "text" => label},
+      "action_id" => action_id,
+      "value" => value
+    }
   end
 
   defp verification_url(poc, request, plaintext_token) do

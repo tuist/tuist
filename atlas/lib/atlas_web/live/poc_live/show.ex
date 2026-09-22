@@ -278,8 +278,7 @@ defmodule AtlasWeb.POCLive.Show do
           <ul>
             <li :for={request <- @access_requests}>
               <strong>{request.email}</strong>
-              &nbsp;
-              <span>{Atlas.Accounts.POCs.AccessRequest.status(request)}</span>
+              &nbsp; <span>{Atlas.Accounts.POCs.AccessRequest.status(request)}</span>
               <span :if={request.verified_at}>&nbsp;- email confirmed</span>
               <.button
                 :if={@can_manage? and can_approve?(request)}
@@ -493,7 +492,8 @@ defmodule AtlasWeb.POCLive.Show do
 
   defp humanize(value), do: to_string(value)
 
-  defp can_approve?(request), do: is_nil(request.approved_at) and is_nil(request.denied_at) and is_nil(request.revoked_at)
+  defp can_approve?(request),
+    do: is_nil(request.approved_at) and is_nil(request.denied_at) and is_nil(request.revoked_at)
 
   defp can_deny?(request), do: is_nil(request.approved_at) and is_nil(request.denied_at) and is_nil(request.revoked_at)
 

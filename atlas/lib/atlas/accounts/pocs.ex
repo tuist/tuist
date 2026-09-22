@@ -518,8 +518,7 @@ defmodule Atlas.Accounts.POCs do
   # A signed cookie carrying (poc_id, access_request_id). Validating the
   # cookie also queries the request row so revocation takes effect
   # immediately without waiting for the cookie to expire.
-  def sign_session_cookie(%POC{} = poc, %AccessRequest{poc_id: poc_id} = request)
-      when poc.id == poc_id do
+  def sign_session_cookie(%POC{} = poc, %AccessRequest{poc_id: poc_id} = request) when poc.id == poc_id do
     Phoenix.Token.sign(AtlasWeb.Endpoint, session_token_salt(), %{
       "poc_id" => poc.id,
       "request_id" => request.id

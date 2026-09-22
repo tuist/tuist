@@ -169,8 +169,7 @@ defmodule AtlasWeb.POCLive.Public do
             <div data-part="status-card">
               <span data-part="status-title">Waiting on the Tuist team</span>
               <p>
-                Check your inbox for a verification email at
-                <strong>{@pending_request.email}</strong>. Once you confirm,
+                Check your inbox for a verification email at <strong>{@pending_request.email}</strong>. Once you confirm,
                 the Tuist team can grant access and this page will unlock on
                 its own.
               </p>
@@ -397,7 +396,7 @@ defmodule AtlasWeb.POCLive.Public do
   defp maybe_add_start_entry(entries, %{starts_on: nil}, _today), do: entries
 
   defp maybe_add_start_entry(entries, %{starts_on: %Date{} = starts_on}, today) do
-    if Date.compare(starts_on, today) == :gt do
+    if Date.after?(starts_on, today) do
       [
         %{id: "start", occurred_on: starts_on, title: "POC begins", kind: "milestone", body: nil, future?: true}
         | entries

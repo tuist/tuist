@@ -11,11 +11,16 @@ alias Atlas.Accounts.AccountHandle
 alias Atlas.Accounts.Amounts
 alias Atlas.Accounts.Contact
 alias Atlas.Accounts.Event
+alias Atlas.Accounts.FeatureInterest, as: POCFeatureInterest
 alias Atlas.Accounts.FeatureInterestAccount
 alias Atlas.Accounts.Invoice
 alias Atlas.Accounts.Outcome
 alias Atlas.Accounts.OutcomeProposal
 alias Atlas.Accounts.OutcomeReview
+alias Atlas.Accounts.POCs
+alias Atlas.Accounts.POCs.POC, as: POCSchema
+alias Atlas.Accounts.POCs.ScopeFeature, as: POCScopeFeature
+alias Atlas.Accounts.POCs.TimelineEntry, as: POCTimelineEntry
 alias Atlas.Accounts.ServiceLevel
 alias Atlas.Accounts.ServiceLevelExtractionCheck
 alias Atlas.Accounts.ServiceLevels
@@ -6236,12 +6241,6 @@ poc_seeds = [
     ]
   }
 ]
-
-alias Atlas.Accounts.FeatureInterest, as: POCFeatureInterest
-alias Atlas.Accounts.POCs
-alias Atlas.Accounts.POCs.POC, as: POCSchema
-alias Atlas.Accounts.POCs.ScopeFeature, as: POCScopeFeature
-alias Atlas.Accounts.POCs.TimelineEntry, as: POCTimelineEntry
 
 for seed <- poc_seeds do
   account = Repo.get_by(Account, account_key: seed.account_key)

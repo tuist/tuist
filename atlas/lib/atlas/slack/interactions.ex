@@ -67,30 +67,42 @@ defmodule Atlas.Slack.Interactions do
   defp normalize_result(result), do: result
 
   defp handle_company_action(action_id, target_id, opts) do
+    resolvers = [
+      &brief_action/3,
+      &recommendation_action/3,
+      &gtm_opportunity_action/3,
+      &poc_access_action/3
+    ]
+
+    Enum.find_value(resolvers, &apply(&1, [action_id, target_id, opts])) ||
+      handle_account_attention_action(action_id, target_id)
+  end
+
+  defp brief_action(action_id, target_id, opts) do
     case BriefNotifier.parse_action_id(action_id) do
-      {:ok, action} ->
-        ItemActions.handle_slack_action(action, target_id, opts)
+      {:ok, action} -> ItemActions.handle_slack_action(action, target_id, opts)
+      :error -> nil
+    end
+  end
 
-      :error ->
-        case RecommendationNotifier.parse_action_id(action_id) do
-          {:ok, action} ->
-            Outreach.handle_recommendation_slack_action(action, target_id, opts)
+  defp recommendation_action(action_id, target_id, opts) do
+    case RecommendationNotifier.parse_action_id(action_id) do
+      {:ok, action} -> Outreach.handle_recommendation_slack_action(action, target_id, opts)
+      :error -> nil
+    end
+  end
 
-          :error ->
-            case SlackNotifier.parse_action_id(action_id) do
-              {:ok, action} ->
-                GTM.handle_gtm_opportunity_slack_action(action, target_id, opts)
+  defp gtm_opportunity_action(action_id, target_id, opts) do
+    case SlackNotifier.parse_action_id(action_id) do
+      {:ok, action} -> GTM.handle_gtm_opportunity_slack_action(action, target_id, opts)
+      :error -> nil
+    end
+  end
 
-              :error ->
-                case parse_poc_access_action(action_id) do
-                  {:ok, action, request_id} ->
-                    handle_poc_access_action(action, request_id, opts)
-
-                  :error ->
-                    handle_account_attention_action(action_id, target_id)
-                end
-            end
-        end
+  defp poc_access_action(action_id, _target_id, opts) do
+    case parse_poc_access_action(action_id) do
+      {:ok, action, request_id} -> handle_poc_access_action(action, request_id, opts)
+      :error -> nil
     end
   end
 

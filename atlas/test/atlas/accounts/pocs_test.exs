@@ -4,6 +4,7 @@ defmodule Atlas.Accounts.POCsTest do
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.FeatureInterest
   alias Atlas.Accounts.POCs
+  alias Atlas.Accounts.POCs.AccessRequest
   alias Atlas.Accounts.POCs.POC
   alias Atlas.Users.User
 
@@ -249,8 +250,6 @@ defmodule Atlas.Accounts.POCsTest do
   end
 
   describe "verify_access_email/2" do
-    alias Atlas.Accounts.POCs.AccessRequest
-
     defp published_poc_for_access do
       user = user()
       account = account()

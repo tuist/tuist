@@ -64,7 +64,7 @@ defmodule Atlas.Accounts.POCs.AccessRequest do
   # The email verification link's clock. Once past this timestamp, the
   # visitor must submit the email form again to mint a fresh token.
   def verification_expired?(%__MODULE__{verification_expires_at: %DateTime{} = expires_at}) do
-    DateTime.compare(DateTime.utc_now(), expires_at) == :gt
+    DateTime.after?(DateTime.utc_now(), expires_at)
   end
 
   def verification_expired?(%__MODULE__{}), do: true
@@ -84,7 +84,7 @@ defmodule Atlas.Accounts.POCs.AccessRequest do
   def active?(%__MODULE__{} = request), do: status(request) == :granted and not expired?(request)
 
   def expired?(%__MODULE__{expires_at: %DateTime{} = expires_at}) do
-    DateTime.compare(DateTime.utc_now(), expires_at) == :gt
+    DateTime.after?(DateTime.utc_now(), expires_at)
   end
 
   def expired?(%__MODULE__{}), do: true
