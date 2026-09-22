@@ -49,6 +49,18 @@ struct CacheStorageFactoryTests {
         )
     }
 
+    @Test(
+        .withMockedEnvironment(),
+        arguments: ["", "account", "/project", "account/", "account/project/extra", " /project", "account/ "]
+    )
+    func rejectsInvalidFullHandlesBeforeResolvingRemote(fullHandle: String) async throws {
+        await #expect(throws: CacheStorageFactoryError.invalidFullHandle(fullHandle)) {
+            try await subject.cacheStorage(config: .test(fullHandle: fullHandle))
+        }
+        verify(cacheURLStore).getCacheURL(for: .any, accountHandle: .any).called(0)
+        verify(serverAuthenticationController).authenticationToken(serverURL: .any, refreshIfNeeded: .any).called(0)
+    }
+
     @Test
     func when_no_server_configuration() async throws {
         // Given

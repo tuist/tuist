@@ -1,4 +1,4 @@
-import CryptoKit
+import Crypto
 import FileSystem
 import Foundation
 import GRPCCore
@@ -135,13 +135,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     private func retry<T>(_ operation: () async throws -> T) async throws -> T {
-        for attempt in 0 ..< 3 {
+        var attempt = 0
+        while true {
             do { return try await operation() } catch let error as RPCError {
                 guard attempt < 2, [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code) else { throw error }
                 try await Task.sleep(for: .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100)))
+                attempt += 1
             }
         }
-        throw REAPICacheError.corruptBlob
     }
 
     private func batches(_ digests: [REAPI.Digest]) -> [[REAPI.Digest]] {

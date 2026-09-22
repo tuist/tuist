@@ -161,6 +161,7 @@ var tuistCASDependencies: [Target.Dependency] = [
     mockableDependency,
 ]
 var tuistREAPIDependencies: [Target.Dependency] = [
+    .product(name: "Crypto", package: "apple.swift-crypto"),
     fileSystemDependency,
     .product(name: "libzstd", package: "facebook.zstd"),
     pathDependency,

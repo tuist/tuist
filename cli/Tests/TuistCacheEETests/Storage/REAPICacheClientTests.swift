@@ -268,6 +268,61 @@ struct REAPICacheClientTests {
         }
     }
 
+    @Test(arguments: [RPCError.Code.unavailable, .permissionDenied])
+    func retriesPreserveTheServerError(code: RPCError.Code) async throws {
+        let state = WireCache()
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireActions(state: state, failure: RPCError(code: code, message: "Injected server failure")),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            let digest = REAPI.digest(Data("action".utf8))
+            let error = await #expect(throws: RPCError.self) { try await client.actionResult(for: digest) }
+            #expect(error?.code == code)
+            #expect(error?.message == "Injected server failure")
+            #expect(await state.actionQueries[digest] == (code == .unavailable ? 3 : 1))
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func batchReadCompressionIsIndependentOfUploadAndStreamCapabilities(compressed: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let data = Data(repeating: 42, count: 4096)
+        let digest = REAPI.digest(data)
+        await state.put(data, digest: digest)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, compressReads: compressed),
+            WireCapabilities(streamCompression: false, batchCompression: false),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await client.validateCapabilities()
+            let output = directory.appending(component: "output")
+            #expect(try await client.downloadAvailableBlobs([digest: output.url]) == [digest])
+            #expect(try await FileSystem().readFile(at: output) == data)
+            #expect(await state.compressedBatchReads == (compressed ? 1 : 0))
+        }
+    }
+
     @Test func rejectsMalformedCompressedBlobs() throws {
         let input = Data(repeating: 123, count: 100_000)
         let compressed = try REAPICompression.compress(input)
@@ -329,6 +384,8 @@ private actor WireCache {
     var compressedUpdates = 0
     var compressedWrites = 0
     var compressedReads = 0
+    var compressedBatchReads = 0
+    func recordCompressedBatchRead() { compressedBatchReads += 1 }
     var streamWriteBytes = 0
     func recordCompressedUpdate() { compressedUpdates += 1 }
     func recordStreamWrite(bytes: Int, compressed: Bool) {
@@ -362,6 +419,7 @@ private actor WireCache {
 
 private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceProtocol {
     let state: WireCache
+    var failure: RPCError?
     func getActionResult(
         request: ServerRequest<Build_Bazel_Remote_Execution_V2_GetActionResultRequest>,
         context _: ServerContext
@@ -370,7 +428,9 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
         #expect(Array(request.metadata[stringValues: "x-tuist-account-handle"]).first == "account")
         #expect(request.message.instanceName == "project")
         #expect(request.message.digestFunction == .sha256)
-        guard let result = try await state.lookup(request.message.actionDigest) else { throw RPCError(
+        let result = try await state.lookup(request.message.actionDigest)
+        if let failure { throw failure }
+        guard let result else { throw RPCError(
             code: .notFound,
             message: "Missing action"
         ) }
@@ -416,7 +476,11 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
         context _: ServerContext
     ) async throws -> Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse {
         try await state.beginRead()
+        #expect(request.acceptableCompressors == [.zstd])
         let blobs = await state.blobs
+        if compressReads, request.digests.contains(where: { (blobs[$0]?.count ?? 0) >= 1024 }) {
+            await state.recordCompressedBatchRead()
+        }
         return try .with { result in
             result.responses = try request.digests.map { digest in
                 try .with {

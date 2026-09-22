@@ -819,10 +819,10 @@ struct TuistCacheEEAcceptanceTests {
         let environment = try #require(Environment.mocked)
         let fileSystem = FileSystem()
         let evictedTargets: Set<String> = ["Services", "Feature"]
-        let blobs = try await fileSystem.glob(directory: environment.cacheDirectory, include: ["**/blob"]).collect()
+        let blobs = try await fileSystem.glob(directory: environment.cacheDirectory, include: ["**/blob-*"]).collect()
         var evictedActions = 0
         for blob in blobs {
-            guard let inputs = try? JSONSerialization.jsonObject(with: Data(contentsOf: blob.url)) as? [String: String],
+            guard let inputs = try? JSONSerialization.jsonObject(with: await fileSystem.readFile(at: blob)) as? [String: String],
                   let name = inputs["name"], evictedTargets.contains(name),
                   let variant = inputs["variant"], let fingerprint = inputs["fingerprint"]
             else { continue }

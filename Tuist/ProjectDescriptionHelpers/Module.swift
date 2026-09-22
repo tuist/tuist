@@ -1169,6 +1169,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .reapi:
                 [
+                    .external(name: "Crypto"),
                     .external(name: "FileSystem"),
                     .external(name: "libzstd"),
                     .target(name: Module.environment.targetName),

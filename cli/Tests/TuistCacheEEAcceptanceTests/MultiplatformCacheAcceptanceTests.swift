@@ -37,7 +37,7 @@ struct MultiplatformCacheAcceptanceTests {
         )
         let warmed = Set(try await fileSystem.glob(directory: cache, include: ["*/*.xcframework"]).collect())
         #expect(warmed.count == 2)
-        let warmedBlobs = try await fileSystem.glob(directory: cache, include: ["*/blob"]).collect()
+        let warmedBlobs = try await fileSystem.glob(directory: cache, include: ["blob-*"]).collect()
         #expect(!warmedBlobs.isEmpty)
         #expect(try await fileSystem.glob(directory: cache, include: ["action-*/result.pb"]).collect().count == 6)
         let workspace = fixture.appending(component: "Workspace.swift")
@@ -62,7 +62,7 @@ struct MultiplatformCacheAcceptanceTests {
                 "ios-simulator",
             ])
         }
-        #expect(Set(try await fileSystem.glob(directory: cache, include: ["*/blob"]).collect()) == Set(warmedBlobs))
+        #expect(Set(try await fileSystem.glob(directory: cache, include: ["blob-*"]).collect()) == Set(warmedBlobs))
         try await TuistTest.run(GenerateCommand.self, ["--path", fixture.pathString, "--no-open", "PhoneConsumer"])
         #expect(Set(try await fileSystem.glob(directory: cache, include: ["*/*.xcframework"]).collect()) == Set(after))
         for destination in ["generic/platform=iOS", "generic/platform=iOS Simulator"] {
