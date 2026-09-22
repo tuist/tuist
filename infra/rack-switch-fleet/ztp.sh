@@ -138,8 +138,17 @@ username="$(jq -r '.credentials.username' "$site_file")"
 # A switch that has never been prepped has no item yet. --create-credentials
 # makes one the way rack:prep-switch does; a dry run never creates anything.
 password=""
-if ! credentials="$(op item get "$credential_item" --vault "$vault" --format=json 2>/dev/null)"; then
+op_error="$(mktemp)"
+if ! credentials="$(op item get "$credential_item" --vault "$vault" --format=json 2>"$op_error")"; then
   credentials=""
+  # Only a missing item is something --create-credentials can fix; a locked or
+  # unapproved 1Password is not, and says so itself.
+  if ! grep -q "isn't an item" "$op_error"; then
+    echo "error: 1Password did not answer for '$credential_item':" >&2
+    sed 's/^/       /' "$op_error" >&2
+    rm -f "$op_error"
+    exit 1
+  fi
   if (( create_credentials && ! dry_run )); then
     # shellcheck disable=SC2054  # commas belong to op's own flag values
     op item create --category=login "--title=$credential_item" --vault "$vault" \
@@ -150,6 +159,7 @@ if ! credentials="$(op item get "$credential_item" --vault "$vault" --format=jso
     credentials='{"fields":[{"id":"password","value":"<redacted>"}]}'
   fi
 fi
+rm -f "$op_error"
 if [ -n "$credentials" ]; then
   password="$(jq -r '.fields[]? | select(.id == "password") | .value // empty' <<<"$credentials")"
 fi
