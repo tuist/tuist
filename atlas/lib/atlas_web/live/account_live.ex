@@ -2901,8 +2901,7 @@ defmodule AtlasWeb.AccountLive do
               <:col :let={nudge} label={gettext("Nudge")}>
                 <.text_and_description_cell
                   label={nudge.title}
-                  description={nudge_description(nudge)}
-                  truncate={false}
+                  description={nudge.rationale}
                 />
               </:col>
               <:col :let={nudge} label={gettext("Signal")}>
@@ -2921,50 +2920,46 @@ defmodule AtlasWeb.AccountLive do
               <:col :let={nudge} label="">
                 <.button_cell :if={nudge.state == "proposed"}>
                   <:button>
-                    <.button
-                      id={"claim-nudge-#{nudge.id}"}
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
                       label={gettext("Claim")}
-                      variant="secondary"
-                      size="small"
-                      type="button"
+                      size="medium"
+                      align="end"
                       phx-click="claim_nudge"
                       phx-value-id={nudge.id}
-                    />
-                  </:button>
-                  <:button>
-                    <.button
-                      id={"dismiss-nudge-#{nudge.id}"}
-                      label={gettext("Dismiss")}
-                      variant="destructive"
-                      size="small"
-                      type="button"
-                      phx-click="open_dismiss_nudge_modal"
-                      phx-value-id={nudge.id}
-                    />
+                    >
+                      <.dropdown_item
+                        id={"dismiss-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
                   </:button>
                 </.button_cell>
                 <.button_cell :if={nudge.state == "claimed"}>
                   <:button>
-                    <.button
-                      id={"release-nudge-#{nudge.id}"}
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
                       label={gettext("Release")}
-                      variant="secondary"
-                      size="small"
-                      type="button"
+                      size="medium"
+                      align="end"
                       phx-click="release_nudge"
                       phx-value-id={nudge.id}
-                    />
-                  </:button>
-                  <:button>
-                    <.button
-                      id={"dismiss-claimed-nudge-#{nudge.id}"}
-                      label={gettext("Dismiss")}
-                      variant="destructive"
-                      size="small"
-                      type="button"
-                      phx-click="open_dismiss_nudge_modal"
-                      phx-value-id={nudge.id}
-                    />
+                    >
+                      <.dropdown_item
+                        id={"dismiss-claimed-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
                   </:button>
                 </.button_cell>
               </:col>
@@ -4332,14 +4327,6 @@ defmodule AtlasWeb.AccountLive do
     socket
     |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
     |> put_flash(:info, message)
-  end
-
-  defp nudge_description(nudge) do
-    if nudge.dismissed_reason && nudge.dismissed_reason != "" do
-      "#{nudge.rationale} · #{gettext("Dismissed:")} #{nudge.dismissed_reason}"
-    else
-      nudge.rationale
-    end
   end
 
   defp nudge_state_label("pending_post"), do: gettext("Posting to Slack…")
