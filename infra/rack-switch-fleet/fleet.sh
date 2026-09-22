@@ -302,6 +302,40 @@ cmd_apply() {
   return $status
 }
 
+# Save the running configuration, but only once it matches the render, and in
+# the same connection that checked it. Its caller is a switch rack:ztp just
+# provisioned, whose startup configuration is the served file verbatim.
+cmd_save() {
+  local name="${1:-}"
+  [ -n "$name" ] || { echo "usage: rack:fleet save <device>" >&2; return 2; }
+  fleet_lock "save $name" || return 1
+  local address user key desired raw body status=0
+  address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
+  [ -n "$address" ] || { echo "error: $name is not in $SITE" >&2; return 1; }
+  user="$(jq -r '.credentials.username' "$(site_file)")"
+  key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
+  desired="$(mktemp)"; raw="$(mktemp)"; body="$(mktemp)"
+  fleet_render "$(site_file)" "$name" > "$desired"
+  (
+    trap switch_close EXIT
+    trap 'switch_close; exit 130' INT TERM
+    switch_open "$address" "$user" "$key" || exit 10
+    switch_run "$RUNNING_CONFIG" || exit 10
+    printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
+    fleet_strip_transcript "$RUNNING_CONFIG" < "$raw" > "$body"
+    fleet_diff "$desired" "$body" "rendered/$name" "live/$name" || exit 11
+    switch_run "copy running-config startup-config" || exit 12
+  ) || status=$?
+  rm -f "$desired" "$raw" "$body"
+  case "$status" in
+    0)  echo "$name: running configuration matches the render and is saved";;
+    11) echo "error: $name does not match the render, so nothing was saved" >&2;;
+    12) echo "error: $name matches the render but refused the save" >&2;;
+    *)  echo "error: $name: nothing was saved" >&2;;
+  esac
+  return "$status"
+}
+
 cmd_backup() {
   local name="${1:-}" device target
   for device in $(devices "$name"); do
@@ -498,9 +532,10 @@ cmd_preflight() {
   echo "terminal lines on $name (this connection is one of them):"
   tr -d '\000\r' < "$users" | sed -n '/tid/,$p' | sed '/^[[:space:]]*$/d;$d' | sed 's/^/  /'
   local used
-  used="$(fleet_current_connection < "$users")"
+  # A listing with no SSH task in it must not end the run under pipefail.
+  used="$(fleet_current_connection < "$users" || true)"
   if [ -n "$used" ]; then
-    echo "  this is connection $(( 10#$used + 1 )) since boot, of about seven before the daemon stops accepting"
+    echo "  this is connection $(( 10#$used + 1 )) since boot, of about eight before the daemon stops accepting"
   fi
 
   local body
@@ -519,6 +554,16 @@ cmd_preflight() {
   target="$(backup_path "$name")"
   mkdir -p "$(dirname "$target")"
   fleet_strip_transcript "$STARTUP_CONFIG" < "$startup" > "$body"
+  # Auto Install saves the file it fetched verbatim, so a switch provisioned by
+  # rack:ztp starts with its login in plaintext and a key download that runs at
+  # every boot, until its own running configuration is saved over them once.
+  if grep -qE '^user name .* secret 0 |^ip ssh download ' "$body"; then
+    status=1
+    echo ""
+    echo "$name: its startup configuration is still the file it was provisioned from, with"
+    echo "the login in plaintext and a key download that runs at every boot. Seal it with:"
+    echo "  mise run rack:fleet save $name"
+  fi
   fleet_clean < "$body" | sed -e :a -e '/^\n*$/{$d;N;};/\n$/ba' > "$target"
   echo ""
   echo "backed up $name to ${target#"$FLEET_ROOT"/}"
@@ -1085,7 +1130,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   case "$command" in
@@ -1093,6 +1138,7 @@ main() {
     diff)       cmd_diff "$@";;
     apply)      cmd_apply "$@";;
     backup)     cmd_backup "$@";;
+    save)       cmd_save "$@";;
     sessions)   cmd_sessions "$@";;
     preflight)  cmd_preflight "$@";;
     publish)    cmd_publish "$@";;

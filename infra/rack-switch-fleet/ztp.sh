@@ -318,7 +318,8 @@ fi
 
 trap 'echo ""; echo "stopped; the served files are deleted"; cleanup' EXIT
 if [ -n "$via" ]; then
-  tar -C "$tftp_root" -cf - . | on_server "tar -C '$serve_root' -xf -"
+  # macOS tags files with extended attributes that GNU tar only warns about.
+  COPYFILE_DISABLE=1 tar --no-xattrs -C "$tftp_root" -cf - . | on_server "tar -C '$serve_root' -xf -"
 fi
 echo "serving; power the switch on with Auto Install armed. Ctrl-C to stop."
 if [ -n "$via" ]; then

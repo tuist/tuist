@@ -1404,6 +1404,50 @@ cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
     [ "$output" = "0" ]
 }
 
+# --- sealing a switch that rack:ztp provisioned ------------------------------
+
+@test "preflight flags a startup configuration that is still the provisioning file" {
+    # Auto Install saves what it fetched verbatim: the login in plaintext and a
+    # key download that runs at every boot.
+    apply_fixtures
+    unsealed="$BATS_TEST_TMPDIR/unsealed.cfg"
+    { cat "$rendered"; echo "user name tuist privilege admin secret 0 NotARealPassword1"; \
+      echo "ip ssh download v2 fleet.pub ip-address 192.168.50.1"; } > "$unsealed"
+    bin="$BATS_TEST_TMPDIR/seal1"
+    apply_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_BEFORE="$rendered" FAKE_AFTER="$rendered" \
+        FAKE_STARTUP="$unsealed" FAKE_REJECT="" "$FLEET_ROOT/fleet.sh" preflight ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"mise run rack:fleet save ber1-tor-b"* ]]
+    # and the backup it writes does not carry the password
+    run grep -c NotARealPassword1 "$FLEET_ROOT/backups/ber1/ber1-tor-b.cfg"
+    [ "$output" = "0" ]
+    git -C "$FLEET_ROOT" checkout -- backups/ber1/ber1-tor-b.cfg
+}
+
+@test "save writes the running configuration only once it matches the render" {
+    apply_fixtures
+    bin="$BATS_TEST_TMPDIR/seal2"
+    apply_stub "$bin"
+    run env PATH="$bin:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" FAKE_LOG="$bin/log" \
+        FAKE_BEFORE="$drifted" FAKE_AFTER="$drifted" FAKE_STARTUP="$drifted" FAKE_REJECT="" \
+        "$FLEET_ROOT/fleet.sh" save ber1-tor-b
+    [ "$status" -eq 11 ]
+    run grep -c '^CMD copy running-config startup-config$' "$bin/log"
+    [ "$output" = "0" ]
+
+    bin="$BATS_TEST_TMPDIR/seal3"
+    apply_stub "$bin"
+    run env PATH="$bin:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" FAKE_LOG="$bin/log" \
+        FAKE_BEFORE="$rendered" FAKE_AFTER="$rendered" FAKE_STARTUP="$rendered" FAKE_REJECT="" \
+        "$FLEET_ROOT/fleet.sh" save ber1-tor-b
+    [ "$status" -eq 0 ]
+    run grep -c '^CMD copy running-config startup-config$' "$bin/log"
+    [ "$output" = "1" ]
+    run grep -c '^SESSION' "$bin/log"
+    [ "$output" = "1" ]
+}
+
 @test "a global line apply will not remove is reported as global" {
     # Tab is whitespace to `read`, so an empty leading context used to vanish and
     # shift the command into its place: `[no lldp] ` instead of `[global] no lldp`.
@@ -1766,7 +1810,10 @@ STUB
     [ -s "$state.pid" ]
     served="$(cat "$state.pid")"
     kill -9 "$ztp"
-    for _ in $(seq 1 50); do ps -p "$served" >/dev/null 2>&1 || break; sleep 0.2; done
+    for _ in $(seq 1 50); do
+        ps -p "$served" >/dev/null 2>&1 || [ -e "$(cat "$state.root")" ] || break
+        sleep 0.2
+    done
     kill "$served" 2>/dev/null || true
     run ps -p "$served"
     [ "$status" -ne 0 ]

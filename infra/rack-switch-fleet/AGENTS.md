@@ -165,6 +165,7 @@ mise run rack:fleet publish <device>        # put what preflight saw into the Ra
 mise run rack:fleet diff [device]           # live switch against the render
 mise run rack:fleet apply <device> --dry-run
 mise run rack:fleet apply <device>          # rolls itself back unless it verifies
+mise run rack:fleet save <device>           # save running, once it matches the render
 mise run rack:fleet backup [device]         # startup config into the repo
 mise run rack:fleet drift                   # every switch; non-zero on drift
 mise run rack:fleet replace <device>        # push the whole config, needs a reboot
