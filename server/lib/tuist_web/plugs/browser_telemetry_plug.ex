@@ -38,7 +38,7 @@ defmodule TuistWeb.Plugs.BrowserTelemetryPlug do
       {:ok, body, conn} when byte_size(body) <= @body_limit ->
         conn = conn |> Plug.Session.call(session_options) |> fetch_session()
 
-        with {:ok, payload} <- Jason.decode(body),
+        with {:ok, payload} <- JSON.decode(body),
              {:ok, payload} <-
                Enrichment.enrich(
                  payload,

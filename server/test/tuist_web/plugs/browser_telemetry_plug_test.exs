@@ -19,7 +19,7 @@ defmodule TuistWeb.Plugs.BrowserTelemetryPlugTest do
     :ok
   end
 
-  defp request(body \\ Jason.encode!(payload())) do
+  defp request(body \\ JSON.encode!(payload())) do
     :post
     |> conn("/-/faro/collect", body)
     |> Map.put(:secret_key_base, String.duplicate("a", 64))
