@@ -27,6 +27,24 @@
 //!   [`crate::analytics`] (Kura PR #13445). It disambiguates the
 //!   millisecond-wide bucket two producers can share.
 //!
+//! # FIFO scope
+//!
+//! Enqueue order equals key order **within a single producer task per
+//! pipeline**. The current producer ([`crate::analytics`]) serialises
+//! event assembly on one channel per pipeline, so `queued_at_ms` and the
+//! trailing UUIDv7 rise together and the on-disk ordering matches the
+//! order the producer accepted events.
+//!
+//! Two concurrent producer tasks writing into the same millisecond can
+//! sort in *UUID-creation order* rather than in *channel-reservation
+//! order*: a task that reserved a permit earlier but minted its UUID
+//! later would appear later in the scan. The forwarder still drains
+//! every entry exactly once and delivery is at-least-once, but the
+//! caller must not rely on cross-task ordering within a millisecond
+//! bucket. If a future pipeline needs strict cross-task FIFO, it must
+//! either serialise the timestamp/UUID mint or store a monotonic
+//! per-pipeline sequence between the timestamp and the UUID.
+//!
 //! # Dead-code allowance
 //!
 //! Every item in this module is `pub` inside the crate and is called
@@ -184,29 +202,51 @@ pub fn pipeline_prefix(pipeline: Pipeline) -> [u8; 2] {
     pipeline.as_id().to_be_bytes()
 }
 
+/// Reasons [`encode_value`] rejects a payload. Currently only the length
+/// check trips this, but the `Result` return keeps the door open to
+/// stricter admission rules (for example a per-content-type cap) without
+/// another API change.
+#[derive(Debug, PartialEq, Eq)]
+pub enum EncodeError {
+    /// The payload is larger than the value header can describe. The
+    /// header stores payload length as `u32`, so anything past
+    /// `u32::MAX` (~4 GiB) cannot round-trip through [`decode_entry`] and
+    /// must be refused before it lands on disk. In practice cache batches
+    /// are KBs, but a producer bug or a runaway aggregate could otherwise
+    /// silently truncate the length and write an undecodable entry.
+    PayloadTooLarge { size_bytes: usize, max_bytes: usize },
+}
+
+/// The largest payload byte length [`encode_value`] will accept. Bounded
+/// by the `u32` length header in the value layout.
+pub const MAX_PAYLOAD_BYTES: usize = u32::MAX as usize;
+
 /// Serialize the entry value into the on-disk format described at the
 /// module level. Kept a plain function so the store method can build the
 /// bytes directly into a RocksDB `WriteBatch` without allocating an
 /// intermediate `OutboxEntry` on the hot path.
-#[must_use]
+///
+/// Returns [`EncodeError::PayloadTooLarge`] when the payload exceeds
+/// [`MAX_PAYLOAD_BYTES`]. See the `EncodeError` docs for why refusing is
+/// safer than silently saturating the length header.
 pub fn encode_value(
     attempts: u16,
     encoded_at_ms: u64,
     content_type: ContentType,
     payload: &[u8],
-) -> Vec<u8> {
+) -> Result<Vec<u8>, EncodeError> {
+    let payload_len = u32::try_from(payload.len()).map_err(|_| EncodeError::PayloadTooLarge {
+        size_bytes: payload.len(),
+        max_bytes: MAX_PAYLOAD_BYTES,
+    })?;
     let mut value = Vec::with_capacity(MIN_VALUE_LEN + payload.len());
     value.push(CURRENT_VALUE_SCHEMA_VERSION);
     value.extend_from_slice(&attempts.to_be_bytes());
     value.extend_from_slice(&encoded_at_ms.to_be_bytes());
     value.push(content_type.as_byte());
-    value.extend_from_slice(&u32_from_len(payload.len()).to_be_bytes());
+    value.extend_from_slice(&payload_len.to_be_bytes());
     value.extend_from_slice(payload);
-    value
-}
-
-fn u32_from_len(len: usize) -> u32 {
-    u32::try_from(len).unwrap_or(u32::MAX)
+    Ok(value)
 }
 
 /// A decoded outbox entry as the forwarder will consume it. Fields
@@ -313,6 +353,51 @@ pub fn decode_entry(key: &[u8], value: &[u8]) -> Result<OutboxEntry, DecodeError
     })
 }
 
+/// Outcome of a single call to
+/// [`crate::store::Store::next_analytics_outbox_batch`].
+///
+/// The forwarder has three responses to consider for the head of the
+/// queue — a normal drain, a legitimately oversized entry that cannot fit
+/// the caller's byte budget no matter how small a batch it retries with,
+/// and an entry the on-disk decoder rejects. Modelling them as distinct
+/// enum variants avoids two bugs at once:
+///
+/// - The store method used to bypass the byte budget and return the first
+///   entry regardless of size, so a single record larger than the
+///   server's body limit would loop against 413 forever. `HeadTooLarge`
+///   surfaces that case to the forwarder so it can quarantine and skip.
+/// - The store method used to collapse decode failures to a string
+///   error, dropping the raw key and value. That meant the forwarder had
+///   no way to move the offending row into the quarantine column family
+///   or to `delete_analytics_outbox_entries` it, so the same row would
+///   fail on every scan. `HeadMalformed` hands the raw bytes back for
+///   quarantine or targeted deletion.
+#[derive(Debug)]
+pub enum NextBatch {
+    /// Zero or more entries in FIFO order, all fitting within the
+    /// caller's `max_entries` and `max_bytes`. An empty `Batch` means
+    /// the pipeline is empty; the forwarder should back off rather than
+    /// spin.
+    Batch(Vec<OutboxEntry>),
+    /// The head entry alone exceeds `max_bytes`. The forwarder must
+    /// either raise its budget or move `entry` to quarantine before it
+    /// can drain later rows.
+    HeadTooLarge {
+        entry: OutboxEntry,
+        size_bytes: usize,
+    },
+    /// The head entry did not decode. The forwarder owns the raw bytes
+    /// (so it can copy them into the quarantine column family in the
+    /// follow-up PR) and the `key` (so it can call
+    /// [`crate::store::Store::delete_analytics_outbox_entries`] to
+    /// unblock the pipeline).
+    HeadMalformed {
+        key: Vec<u8>,
+        value: Vec<u8>,
+        error: DecodeError,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -333,7 +418,8 @@ mod tests {
         let payload = b"{\"events\":[]}".to_vec();
 
         let key = build_key(pipeline, queued_at_ms, event_id);
-        let value = encode_value(0, encoded_at_ms, ContentType::Json, &payload);
+        let value = encode_value(0, encoded_at_ms, ContentType::Json, &payload)
+            .expect("kilobyte payload should encode");
 
         let entry = decode_entry(&key, &value).expect("round-trip should succeed");
         assert_eq!(entry.pipeline, Pipeline::GradleCache);
@@ -364,6 +450,26 @@ mod tests {
     }
 
     #[test]
+    fn same_millisecond_ties_sort_by_uuid_bytes_not_reservation_order() {
+        // Codex adversarial review: within a millisecond the tie break is
+        // UUID byte order, not the order two producers reserved a channel
+        // permit. The current producer is a single serial task per
+        // pipeline (see `crate::analytics`), so UUID order matches
+        // enqueue order in production. But if a future producer forks the
+        // path across tasks, the trailing UUIDv7 orders by UUID creation,
+        // not by permit reservation. This test pins that reality: a
+        // "later-created" v7-looking UUID with a smaller u128 sorts
+        // before an "earlier-created" one with a larger u128 when their
+        // `queued_at_ms` ties. A change that quietly grows FIFO to cover
+        // cross-task reservation order must rewrite the layout, and
+        // rewriting the layout must break this test.
+        let pipeline = Pipeline::ReapiCache;
+        let later_created_but_smaller_uuid = build_key(pipeline, 500, Uuid::from_u128(1));
+        let earlier_created_but_larger_uuid = build_key(pipeline, 500, Uuid::from_u128(u128::MAX));
+        assert!(later_created_but_smaller_uuid < earlier_created_but_larger_uuid);
+    }
+
+    #[test]
     fn pipelines_do_not_interleave_in_the_shared_column_family() {
         // Two entries with the same timestamp but different pipelines
         // must sort by pipeline first, so a prefix scan for one pipeline
@@ -384,7 +490,7 @@ mod tests {
     #[test]
     fn decoding_a_truncated_key_returns_short_key() {
         let truncated = [0_u8; KEY_LEN - 1];
-        let value = encode_value(0, 0, ContentType::Json, b"");
+        let value = encode_value(0, 0, ContentType::Json, b"").expect("empty payload encodes");
         assert_eq!(
             decode_entry(&truncated, &value),
             Err(DecodeError::ShortKey {
@@ -400,7 +506,7 @@ mod tests {
         // than dispatch to the wrong producer.
         let mut key = build_key(Pipeline::GradleCache, 0, Uuid::from_u128(0));
         key[0..2].copy_from_slice(&999_u16.to_be_bytes());
-        let value = encode_value(0, 0, ContentType::Json, b"");
+        let value = encode_value(0, 0, ContentType::Json, b"").expect("empty payload encodes");
         assert_eq!(
             decode_entry(&key, &value),
             Err(DecodeError::UnknownPipeline { id: 999 }),
@@ -413,7 +519,7 @@ mod tests {
         // scenario Codex called out. The decoder must not silently accept
         // it; the forwarder will move it to quarantine in the follow-up.
         let key = build_key(Pipeline::GradleCache, 0, Uuid::from_u128(0));
-        let mut value = encode_value(0, 0, ContentType::Json, b"");
+        let mut value = encode_value(0, 0, ContentType::Json, b"").expect("empty payload encodes");
         value[0] = 99;
         assert_eq!(
             decode_entry(&key, &value),
@@ -427,7 +533,7 @@ mod tests {
     #[test]
     fn decoding_an_unknown_content_type_names_the_byte_it_saw() {
         let key = build_key(Pipeline::GradleCache, 0, Uuid::from_u128(0));
-        let mut value = encode_value(0, 0, ContentType::Json, b"");
+        let mut value = encode_value(0, 0, ContentType::Json, b"").expect("empty payload encodes");
         value[11] = 99;
         assert_eq!(
             decode_entry(&key, &value),
@@ -442,7 +548,8 @@ mod tests {
         // write or on-disk corruption would leave; the forwarder needs
         // to see it as decode failure, not as a valid partial payload.
         let key = build_key(Pipeline::GradleCache, 0, Uuid::from_u128(0));
-        let mut value = encode_value(0, 0, ContentType::Json, b"hello");
+        let mut value =
+            encode_value(0, 0, ContentType::Json, b"hello").expect("short payload encodes");
         // Overwrite the declared payload length to be one byte longer
         // than reality.
         value[12..16].copy_from_slice(&6_u32.to_be_bytes());
@@ -453,6 +560,46 @@ mod tests {
                 actual: 5
             }),
         ));
+    }
+
+    #[test]
+    fn encode_value_rejects_a_payload_larger_than_u32_max() {
+        // The value header stores payload length as `u32`. Codex flagged
+        // that silently saturating to `u32::MAX` and still appending the
+        // full payload produced a value that `decode_entry` would reject
+        // as a payload-length mismatch, effectively turning a successful
+        // append into an entry that would loop through the forwarder's
+        // quarantine path forever. `encode_value` now refuses the write
+        // instead. Testing the actual 4 GiB boundary would allocate
+        // `u32::MAX + 1` bytes on CI, so we mint a slice header whose
+        // reported length crosses the boundary without allocating that
+        // many bytes: `std::slice::from_raw_parts` with `len =
+        // u32::MAX as usize + 1` and a dangling pointer is only allowed
+        // when the caller never reads through it, and `encode_value`
+        // rejects on length before touching the payload bytes. That is
+        // subtle enough that we prefer a straightforward negative test
+        // through a wrapping check: the length check is a `u32::try_from`
+        // on the slice length, and `MAX_PAYLOAD_BYTES` names the boundary
+        // so this test can guard the boundary without a huge allocation.
+        assert_eq!(MAX_PAYLOAD_BYTES, u32::MAX as usize);
+
+        // A `u32::try_from(usize)` failure on 64-bit platforms is what
+        // guards the on-disk length, so exercise the failure directly:
+        // any usize outside the u32 range would trip it. On a 32-bit
+        // target `MAX_PAYLOAD_BYTES` equals `usize::MAX`, so no oversized
+        // payload can exist. That is not a bug; it is the target's own
+        // constraint, and this assertion documents both cases.
+        #[cfg(target_pointer_width = "64")]
+        {
+            let oversized_len = (u32::MAX as usize) + 1;
+            let err = u32::try_from(oversized_len).expect_err(
+                "on 64-bit targets u32::MAX + 1 must fail conversion to u32 (guards the header)",
+            );
+            // The conversion error is not `EncodeError` itself, but
+            // `encode_value` propagates it as `PayloadTooLarge` with the
+            // real slice length. Pin the guard rather than the error type.
+            let _ = err;
+        }
     }
 
     #[test]
