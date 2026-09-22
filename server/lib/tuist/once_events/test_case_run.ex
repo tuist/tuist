@@ -35,6 +35,9 @@ defmodule Tuist.OnceEvents.TestCaseRun do
     field :started_at, :utc_datetime_usec
     field :finished_at, :utc_datetime_usec
 
+    # Event ingest orders rows by these, and a run emits many events per
+    # millisecond, so the microsecond precision is load bearing.
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(type: :utc_datetime_usec)
   end
 end

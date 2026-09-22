@@ -68,6 +68,9 @@ defmodule Tuist.OnceEvents.Run do
     has_many :test_case_runs, Tuist.OnceEvents.TestCaseRun, foreign_key: :once_run_id
     has_many :test_suite_runs, Tuist.OnceEvents.TestSuiteRun, foreign_key: :once_run_id
 
+    # Event ingest orders rows by these, and a run emits many events per
+    # millisecond, so the microsecond precision is load bearing.
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
     timestamps(type: :utc_datetime_usec)
   end
 end
