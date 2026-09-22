@@ -21,12 +21,28 @@ render_autoinstall() {
     return 1
   fi
 
+  # macOS ships LibreSSL as openssl, whose passwd has no -6: without this the
+  # failure is a usage dump from a tool the caller never named.
+  if ! openssl passwd -6 "" >/dev/null 2>&1; then
+    echo "error: need an openssl with SHA-512 crypt support (brew install openssl)" >&2
+    return 1
+  fi
+
   ssh_key="${ssh_key/#\~/$HOME}"
   if [ ! -f "$ssh_key" ]; then
     echo "error: no such public key: $ssh_key" >&2
     return 1
   fi
   key_material="$(tr -d '\n' < "$ssh_key")"
+  # The public and private key differ by one suffix, and this value is baked
+  # into an image, written to removable media and served over plain HTTP.
+  case "$key_material" in
+    ssh-*|ecdsa-*|sk-ssh-*|sk-ecdsa-*) ;;
+    *)
+      echo "error: $ssh_key does not look like an SSH public key" >&2
+      return 1
+      ;;
+  esac
   packages="$(jq -r '.packages | map("    - " + .) | join("\n")' <<<"$entry")"
 
   # The account is a console login of last resort; over the network only the key

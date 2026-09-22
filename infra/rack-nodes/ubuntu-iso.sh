@@ -11,8 +11,10 @@ ensure_ubuntu_iso() {
   local sums="$cache/SHA256SUMS-$release"
   curl -fsSL "$base/SHA256SUMS" -o "$sums"
 
+  # SHA256SUMS lists every point release still published, in lexical order, so
+  # the newest is the last one by version sort rather than the first line.
   local name
-  name="$(awk '/live-server-amd64\.iso$/{print $2}' "$sums" | tr -d '*' | head -1)"
+  name="$(awk '/live-server-amd64\.iso$/{print $2}' "$sums" | tr -d '*' | sort -V | tail -1)"
   if [ -z "$name" ]; then
     echo "error: no live-server-amd64 ISO listed for Ubuntu $release" >&2
     return 1

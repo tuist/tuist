@@ -112,4 +112,4 @@ Leave this running until the install is done, then stop it with Ctrl-C.
 EOF
 
 cd "$workdir"
-exec python3 -m http.server "$port" --bind "$address"
+python3 -m http.server "$port" --bind "$address"
