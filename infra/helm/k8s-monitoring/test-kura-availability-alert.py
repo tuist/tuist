@@ -15,6 +15,7 @@ assert next(item["model"]["expression"] for item in rule["data"] if item["refId"
 assert rule["isPaused"] is True
 assert rule["noDataState"] == "NoData" and rule["execErrState"] == "Error"
 assert "notification_settings" not in rule
+assert rule["labels"]["affected_service"] == "Cache", "Match the case-sensitive IRM component ID"
 
 tests = []
 for name, desired, ready, pending, firing in [

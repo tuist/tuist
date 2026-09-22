@@ -54,7 +54,7 @@
     "isPaused": true,
     "labels": {
       "severity": "critical",
-      "affected_service": "cache"
+      "affected_service": "Cache"
     },
     "annotations": {
       "summary": "Kura instance {{ $labels.statefulset }} has no ready replicas in {{ $labels.cluster }}",

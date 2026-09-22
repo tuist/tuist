@@ -3641,10 +3641,12 @@ Details` sync row), which have no rule yet.
 Merging this file does not install or enable it. Replace the folder and
 Prometheus datasource UID placeholders with this stack's existing values,
 preview the expression against production incident history, verify the IRM
-`affected_service=cache` option and environment routing, then provision and
+`affected_service=Cache` option and environment routing, then provision and
 unpause the rule. Do not add `notification_settings`; let the existing policy
 tree route by the series' environment labels. Confirm non-production alerts
 cannot open a production status-page incident before enabling IRM escalation.
+The public status API reports component ID `Cache` (verified 2026-09-22);
+component values are case-sensitive, so lowercase `cache` will not match it.
 
 ```promql
 (max by (cluster, namespace, statefulset) (
