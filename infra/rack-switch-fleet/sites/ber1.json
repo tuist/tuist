@@ -77,7 +77,8 @@
       "console_baud": 38400,
       "apply_order": 3,
       "apply_note": "There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.",
-      "ports": {}
+      "ports": {},
+      "mac": "a8:29:48:fe:b4:be"
     }
   ],
   "node_roles": {

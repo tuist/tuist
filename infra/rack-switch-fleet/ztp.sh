@@ -10,10 +10,15 @@
 # The dangerous part is not the switch, it is the DHCP server. A second DHCP
 # server on a network people live on hands out addresses to laptops and phones,
 # so this refuses to run on the interface carrying the default route and binds
-# to exactly one interface. Use a USB Ethernet adapter with the switch on the
-# other end and nothing else attached.
+# to exactly one interface, with only the switch on the other end.
+#
+# It serves from this Mac, through a USB Ethernet adapter, or with --via from a
+# Linux machine reached over SSH. The rack's edge node is the natural one: its
+# management port is the cable ber1-mgmt hangs off in the real rack, and in a
+# data center there is no laptop.
 #
 #   mise run rack:ztp <device> --interface en7 [--dry-run]
+#   mise run rack:ztp <device> --via tuist@ber1-edge --interface enp89s0 [--dry-run]
 #
 # See infra/rack-switch-fleet/AGENTS.md.
 
@@ -26,12 +31,14 @@ source "$FLEET_ROOT/lib/config.sh"
 SITE="${RACK_SITE:-ber1}"
 device=""
 interface=""
+via=""
 dry_run=0
 
 while (( $# )); do
   case "$1" in
     --interface) interface="${2:-}"; shift 2;;
     --site) SITE="${2:-}"; shift 2;;
+    --via) via="${2:-}"; shift 2;;
     --dry-run) dry_run=1; shift;;
     -*) echo "unknown flag: $1" >&2; exit 2;;
     *) device="$1"; shift;;
@@ -54,25 +61,46 @@ mac="$(jq -r '.mac // empty' <<<"$entry")"
 credential_item="$(jq -r '.credential_item' <<<"$entry")"
 vault="$(jq -r '.credentials.vault' "$site_file")"
 
+# The interface name reaches a remote shell with --via.
+if ! [[ "$interface" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "error: '$interface' is not an interface name" >&2
+  exit 2
+fi
+
+# A command on whichever machine serves: this one, or the --via host.
+on_server() {
+  if [ -n "$via" ]; then
+    ssh -o BatchMode=yes -o ConnectTimeout=10 "$via" "$1"
+  else
+    bash -c "$1"
+  fi
+}
+server="${via:-this machine}"
+
 # --- refuse to become a rogue DHCP server ------------------------------------
 
-# `route -n get` is macOS; elsewhere it fails, and under pipefail that must not
-# end the run before the guards below have said anything.
-default_interface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' || true)"
-if [ "$interface" = "$default_interface" ]; then
-  echo "error: $interface carries this machine's default route, so it is the network you" >&2
-  echo "       are on. Serving DHCP there would hand addresses to everything on it." >&2
+# A failing lookup must not end the run under pipefail before the guards below
+# have said anything, hence the `|| true`s.
+if [ -n "$via" ]; then
+  default_interfaces="$(on_server "ip route show default | awk '{print \$5}'" 2>/dev/null || true)"
+  on_server "ip link show dev $interface" >/dev/null 2>&1 || { echo "error: $server has no interface $interface" >&2; exit 1; }
+  server_ip="$(on_server "ip -4 -o addr show dev $interface | awk '{print \$4}' | cut -d/ -f1 | head -1" 2>/dev/null || true)"
+  address_hint="ssh $via 'sudo ip addr add 192.168.50.1/24 dev $interface && sudo ip link set $interface up'"
+else
+  default_interfaces="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' || true)"
+  ifconfig "$interface" >/dev/null 2>&1 || { echo "error: no interface $interface" >&2; exit 1; }
+  server_ip="$(ipconfig getifaddr "$interface" 2>/dev/null || true)"
+  address_hint="sudo ifconfig $interface inet 192.168.50.1 netmask 255.255.255.0 up"
+fi
+if grep -qx -- "$interface" <<<"$default_interfaces"; then
+  echo "error: $interface carries $server's default route, so it is a network people are" >&2
+  echo "       on. Serving DHCP there would hand addresses to everything on it." >&2
   exit 1
 fi
-if ! ifconfig "$interface" >/dev/null 2>&1; then
-  echo "error: no interface $interface" >&2
-  exit 1
-fi
-server_ip="$(ipconfig getifaddr "$interface" 2>/dev/null || true)"
 if [ -z "$server_ip" ]; then
-  echo "error: $interface has no IPv4 address, so there is nothing to serve from." >&2
+  echo "error: $interface on $server has no IPv4 address, so there is nothing to serve from." >&2
   echo "       Give it one on the isolated segment first, for example:" >&2
-  echo "         sudo ifconfig $interface inet 192.168.50.1 netmask 255.255.255.0 up" >&2
+  echo "         $address_hint" >&2
   exit 1
 fi
 
@@ -143,6 +171,21 @@ served="$tftp_root/$boot_file"
 
 # --- dnsmasq: DHCP and TFTP, and deliberately no DNS -------------------------
 
+# With --via the files are copied to the server when serving starts, so the
+# configuration names the directory they will be in there.
+serve_root="$tftp_root"
+if [ -n "$via" ]; then
+  if (( dry_run )); then
+    serve_root="<a temporary directory on $via>"
+  else
+    serve_root="$(on_server 'mktemp -d')"
+  fi
+fi
+# dnsmasq drops root once its ports are bound, and the served directory is
+# readable only by its owner because the file in it carries a password. So it
+# drops to that owner rather than to nobody, who could read nothing here.
+serve_user="$(on_server 'id -un')"
+
 conf="$tftp_root/dnsmasq.conf"
 subnet="${server_ip%.*}"
 {
@@ -150,17 +193,21 @@ subnet="${server_ip%.*}"
   echo "port=0"                      # no DNS at all
   echo "interface=$interface"
   echo "bind-interfaces"
-  echo "except-interface=lo0"
   echo "no-hosts"
   echo "no-resolv"
+  echo "user=$serve_user"
+  echo "dhcp-leasefile=$serve_root/dnsmasq.leases"
   echo "dhcp-authoritative"
   echo "dhcp-range=$subnet.100,$subnet.150,1h"
   echo "enable-tftp"
-  echo "tftp-root=$tftp_root"
+  echo "tftp-root=$serve_root"
   echo "dhcp-option=66,\"$server_ip\""
   echo "log-dhcp"
   if [ -n "$mac" ]; then
+    # Only this switch gets an answer, so even a segment that turns out not to
+    # be isolated hands nothing to anything else on it.
     echo "dhcp-host=$mac,set:$device"
+    echo "dhcp-ignore=tag:!known"
     echo "dhcp-option=tag:$device,67,\"$boot_file\""
   else
     echo "# no mac in the site definition, so every client is offered this file"
@@ -168,8 +215,8 @@ subnet="${server_ip%.*}"
   fi
 } > "$conf"
 
-echo "interface     $interface at $server_ip (default route is on ${default_interface:-none})"
-echo "serving       $boot_file from $tftp_root"
+echo "interface     $interface on $server at $server_ip (default route on $(tr '\n' ' ' <<<"${default_interfaces:-none}"))"
+echo "serving       $boot_file from $serve_root"
 echo "to            ${mac:-any client on this segment}"
 echo ""
 echo "dnsmasq configuration:"
@@ -179,11 +226,19 @@ echo "the switch would fetch (login line redacted):"
 tr -d '\000' < "$served" | tr -d '\r' | sed "s/secret 0 .*/secret 0 <redacted>/" | head -20 | sed 's/^/  /'
 echo "  ... $(tr -d '\000' < "$served" | grep -c '' ) lines"
 
+cleanup() {
+  rm -rf "$tftp_root" "$rendered"
+  if [ -n "$via" ] && (( ! dry_run )); then on_server "rm -rf '$serve_root'" || true; fi
+}
+
 echo ""
-if command -v dnsmasq >/dev/null 2>&1; then
-  echo "dnsmasq   $(command -v dnsmasq)"
+install_hint="brew install dnsmasq"
+[ -n "$via" ] && install_hint="ssh $via 'sudo apt-get install -y dnsmasq-base'"
+if dnsmasq_path="$(on_server 'command -v dnsmasq' 2>/dev/null)"; then
+  echo "dnsmasq   $dnsmasq_path on $server"
 else
-  echo "dnsmasq   NOT INSTALLED: brew install dnsmasq"
+  dnsmasq_path=""
+  echo "dnsmasq   NOT INSTALLED on $server: $install_hint"
 fi
 
 if (( dry_run )); then
@@ -192,19 +247,28 @@ if (( dry_run )); then
   exit 0
 fi
 
-command -v dnsmasq >/dev/null 2>&1 || {
-  echo "error: dnsmasq is not installed (brew install dnsmasq)" >&2
-  rm -rf "$tftp_root" "$rendered"
+[ -n "$dnsmasq_path" ] || {
+  echo "error: dnsmasq is not installed on $server ($install_hint)" >&2
+  cleanup
   exit 1
 }
 
 echo ""
-echo "This serves DHCP on $interface. Confirm nothing but the switch is on that segment."
+echo "This serves DHCP on $interface on $server. Confirm nothing but the switch is on that segment."
 if [ -t 0 ]; then
   read -r -p "start? [y/N] " answer
-  [ "$answer" = "y" ] || [ "$answer" = "Y" ] || { rm -rf "$tftp_root" "$rendered"; exit 130; }
+  [ "$answer" = "y" ] || [ "$answer" = "Y" ] || { cleanup; exit 130; }
 fi
 
+trap 'echo ""; echo "stopped; the served files are deleted"; cleanup' EXIT
+if [ -n "$via" ]; then
+  tar -C "$tftp_root" -cf - . | on_server "tar -C '$serve_root' -xf -"
+fi
 echo "serving; power the switch on with Auto Install armed. Ctrl-C to stop."
-trap 'echo ""; echo "stopped; the served files are deleted"; rm -rf "$tftp_root" "$rendered"' EXIT
-sudo dnsmasq --conf-file="$conf" --no-daemon --log-facility=-
+if [ -n "$via" ]; then
+  # A forced terminal, so that ending this end sends the remote dnsmasq a hangup
+  # rather than leaving a DHCP server running on the rack.
+  ssh -tt -o BatchMode=yes "$via" "sudo -n dnsmasq --conf-file='$serve_root/dnsmasq.conf' --no-daemon --log-facility=-"
+else
+  sudo dnsmasq --conf-file="$conf" --no-daemon --log-facility=-
+fi

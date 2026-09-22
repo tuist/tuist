@@ -26,6 +26,18 @@ setup() {
     SITE_FILE="$(fleet_site_file ber1)"
 }
 
+# A copy of the site with ber1-mgmt's MAC removed, for the paths that handle a
+# switch whose MAC nobody has recorded yet. Tools resolve a site by name under
+# sites/, so the copy has to live there; teardown removes it.
+site_without_mgmt_mac() {
+    jq '(.devices[] | select(.name == "ber1-mgmt")) |= del(.mac)' "$SITE_FILE" \
+        > "$FLEET_ROOT/sites/ber1-nomac.json"
+}
+
+teardown() {
+    rm -f "$FLEET_ROOT/sites/ber1-nomac.json"
+}
+
 # A subshell does not inherit the sourced library, so pipelines under `run` get
 # it back this way.
 fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
@@ -1142,7 +1154,8 @@ mini_referencing() {
 }
 
 @test "locate refuses a device whose MAC is unknown rather than guessing" {
-    run "$FLEET_ROOT/fleet.sh" locate ber1-mgmt
+    site_without_mgmt_mac
+    run "$FLEET_ROOT/fleet.sh" --site ber1-nomac locate ber1-mgmt
     [ "$status" -ne 0 ]
     [[ "$output" == *"no mac in the site definition"* ]]
 }
@@ -1496,6 +1509,8 @@ STUB
     [[ "$output" == *"bind-interfaces"* ]]
     # the boot file is offered to this switch by MAC, not to whoever asks
     [[ "$output" == *"dhcp-host=d4:d6:df:03:d8:b2,set:ber1-tor-b"* ]]
+    # and nothing else on the segment is answered at all
+    [[ "$output" == *"dhcp-ignore=tag:!known"* ]]
     [[ "$output" == *"67,\"ber1-tor-b.cfg\""* ]]
     # and the served file is the rendered config, with the login put back
     [[ "$output" == *'hostname "ber1-tor-b"'* ]]
@@ -1574,10 +1589,94 @@ STUB
     [[ "$output" == *"ed25519"* ]]
 }
 
+# --via: serving from a Linux machine over SSH. The ssh stub runs the remote
+# command here, against an `ip` shaped like ber1-edge: two default routes on its
+# SFP+ ports, and enp89s0 addressed on the isolated segment.
+ztp_via_stub() {
+    local dir="$1"
+    ztp_stub "$dir"
+    cat > "$dir/ssh" <<'STUB'
+#!/usr/bin/env bash
+while [ $# -gt 0 ]; do
+    case "$1" in -o) shift 2;; -*) shift;; *) break;; esac
+done
+echo "SSH $1" >> "$FAKE_LOG"; shift
+exec bash -c "$*"
+STUB
+    cat > "$dir/ip" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+    "route show default")
+        echo "default via 192.168.0.1 dev enp2s0f0np0 proto dhcp src 192.168.0.157 metric 100"
+        echo "default via 192.168.0.1 dev enp2s0f1np1 proto dhcp src 192.168.0.158 metric 100";;
+    "link show dev enp89s0"|"link show dev enp2s0f1np1") echo "5: $4: <BROADCAST,UP>";;
+    "link show dev "*) exit 1;;
+    "-4 -o addr show dev enp89s0") echo "5: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0";;
+esac
+STUB
+    chmod +x "$dir/ssh" "$dir/ip"
+    : > "$dir/log"
+}
+
+@test "--via refuses the server's default route, on any of its uplinks" {
+    bin="$BATS_TEST_TMPDIR/via1"
+    ztp_via_stub "$bin"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
+        "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp2s0f1np1 --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"carries tuist@edge's default route"* ]]
+    run grep -c '^SSH tuist@edge' "$bin/log"
+    [ "$output" -ge 1 ]
+}
+
+@test "--via refuses an interface name that could smuggle a command" {
+    bin="$BATS_TEST_TMPDIR/via2"
+    ztp_via_stub "$bin"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
+        "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface 'enp89s0;true' --dry-run
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"not an interface name"* ]]
+    run cat "$bin/log"
+    [ -z "$output" ]
+}
+
+@test "--via serves from the server, and removes what it copied there when it stops" {
+    bin="$BATS_TEST_TMPDIR/via3"
+    ztp_via_stub "$bin"
+    cat > "$bin/sudo" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = "-n" ] && shift
+exec "$@"
+STUB
+    cat > "$bin/dnsmasq" <<'STUB'
+#!/usr/bin/env bash
+conf="${1#--conf-file=}"
+root="$(sed -n 's/^tftp-root=//p' "$conf")"
+cp "$root/ber1-mgmt.cfg" "$FAKE_COPY"
+cp "$conf" "$FAKE_COPY.conf"
+echo "$root" > "$FAKE_COPY.root"
+STUB
+    chmod +x "$bin/sudo" "$bin/dnsmasq"
+    copy="$BATS_TEST_TMPDIR/via-served.cfg"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" FAKE_COPY="$copy" \
+        "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 < /dev/null
+    [ "$status" -eq 0 ]
+    # the key comes from the server's own address on the segment
+    run bash -c "tr -d '\r\000' < '$copy' | grep -c '^ip ssh download v2 fleet.pub ip-address 192.168.50.1$'"
+    [ "$output" = "1" ]
+    run bash -c "tr -d '\r\000' < '$copy' | grep -c '^user name tuist privilege admin secret 0 ExampleNotReal24chars000$'"
+    [ "$output" = "1" ]
+    # dnsmasq drops to the owner of the directory, which is the only one who can read it
+    run grep -c "^user=$(id -un)$" "$copy.conf"
+    [ "$output" = "1" ]
+    [ ! -e "$(cat "$copy.root")" ]
+}
+
 @test "ztp offers no boot file by MAC when the site definition has none" {
     bin="$BATS_TEST_TMPDIR/ztp4"
     ztp_stub "$bin"
-    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" ber1-mgmt --interface zzz0 --dry-run
+    site_without_mgmt_mac
+    run env PATH="$bin:$PATH" HOME="$bin/home" "$FLEET_ROOT/ztp.sh" --site ber1-nomac ber1-mgmt --interface zzz0 --dry-run
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-boot=ber1-mgmt.cfg"* ]]
     [[ "$output" == *"no mac in the site definition"* ]]

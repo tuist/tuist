@@ -59,14 +59,30 @@ needs `ber1-mgmt`.
 
 ### Group B: zero touch, on the bench, with a switch nobody depends on
 
-`ber1-mgmt` on a USB Ethernet adapter, nothing else on that segment. This never
-touches the ToRs.
+`ber1-mgmt` cabled to `ber1-edge`'s i226-LM port (`enp89s0`), which is where its
+management link goes in the real rack anyway, with nothing else on that segment.
+Serving from the edge node rather than a laptop is also how it would work in a
+data center. This never touches the ToRs.
 
 ```
-sudo ifconfig en7 inet 192.168.50.1 netmask 255.255.255.0 up
-mise run rack:ztp ber1-mgmt --interface en7 --dry-run     # read what it would serve
-mise run rack:ztp ber1-mgmt --interface en7               # then serve it (sudo)
+ssh tuist@<ber1-edge> 'sudo ip addr add 192.168.50.1/24 dev enp89s0 && sudo ip link set enp89s0 up'
+mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --dry-run
+mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0
 ```
+
+The address is not persisted, so a reboot of the edge node clears it. ber1-edge
+needs `dnsmasq-base` (installed 2026-09-22), and only the password read here
+asks for anything (Touch ID); sudo there is passwordless. From a laptop instead,
+use the USB Ethernet adapter and drop `--via`:
+`sudo ifconfig en7 inet 192.168.50.1 netmask 255.255.255.0 up`, then
+`--interface en7`.
+
+Before serving, check the segment really is just the switch:
+`sudo tcpdump -i enp89s0 -e -n -c 50` on the edge node should show one source
+MAC. On 2026-09-22 it showed `a8:29:48:fe:b4:be`, the SG3452 announcing itself
+over LLDP, already asking for DHCP from its factory fallback address
+192.168.0.1. That MAC is now in the site definition, and with a MAC recorded
+`rack:ztp` answers nothing else on the segment.
 
 With that running, power the switch on. A factory switch may start Auto Install
 by itself; if dnsmasq logs no DHCP request within a few minutes, arm it over the
@@ -77,8 +93,10 @@ and moves VLAN 1 to DHCP each time.
 
 Watch dnsmasq's log for three things in order: the DHCP lease, the TFTP read of
 `ber1-mgmt.cfg`, and the TFTP read of `fleet.pub`, which is the served file
-downloading the fleet key. The switch then moves to its site address, off the
-segment: move its cable to the rack LAN.
+downloading the fleet key. The switch then moves to its site address,
+192.168.0.13, still on that segment. To reach it there without moving a cable,
+give the edge node a host route to it; otherwise move the cable to a free copper
+port on a ToR, which puts it on the rack LAN.
 
 Success is the switch coming up on its site address with the rendered
 configuration and a working key login, having been touched only for power and
