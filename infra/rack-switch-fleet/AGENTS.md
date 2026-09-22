@@ -11,55 +11,95 @@ address, SSH, fleet key) before the switch has any usable network presence.
 Everything after that first touch lives here, because it applies to switches as
 a group and belongs in a reviewed change rather than in a per-device bring-up.
 
-## The next time the rack is reachable
+## Testing what is built, when the rack is reachable
 
-Both switches were left with their SSH daemons wedged, so **reboot both first**;
-that also resets the connection budget, which is about seven per boot and is the
-thing that decides how much fits in a session. `locate` and `ports` cost none,
-`preflight` costs one, `recover` two, `replace` two plus a reboot.
+Grouped by what each piece needs rather than in one sequence, because two of the
+three groups do not touch the running rack and can happen in any order or at the
+same time. Only group C needs care.
 
-**Required, on ber1-tor-b (three connections of seven).** Its running config is
-correct and its startup config still says DHCP, so it comes back on the wrong
-address until this is done.
+### Before starting
 
-1. `mise run rack:fleet locate ber1-tor-b`. Free, and tells you whether it is at
-   192.168.0.12 or somewhere the router gave it.
-2. `mise run rack:fleet recover ber1-tor-b --from <where locate found it>`. Two
-   connections. It refuses to save unless the switch identifies itself and the
-   address actually took, so a success here means it is genuinely fixed.
-3. `mise run rack:fleet preflight ber1-tor-b`. One connection, and confirms the
-   diff is clean and takes a fresh backup.
+- `brew install dnsmasq`, for group B.
+- A USB Ethernet adapter, for group B. `en4`, `en5` and `en11` exist on the
+  laptop; any of them will do as long as the switch is the only thing on it.
+- A `config-hash` field on each switch's 1Password item, for group B. Take it
+  from a prepped switch's `copy startup-config tftp` export: the value after
+  `secret 5`. `rack:ztp --dry-run` refuses without it and says the same.
+- `ber1-mgmt` out of storage, for group B.
+- Cluster access, for group A.
 
-**Required, on ber1-tor-a (one connection).** `mise run rack:fleet preflight
-ber1-tor-a` and nothing else. It was left correct and saved; this only confirms
-it.
+### Group A: answers the biggest open question, and needs no switches at all
 
-**Then one of these two, not both, because each wants a boot's worth of budget.**
+The Omada API question can be settled without touching the rack, which makes it
+the cheapest useful thing here.
 
-*The rollback capability, which is the higher value.* Whether `reboot-schedule`
-gives this hardware a confirmed commit: arm a reboot, apply to the running
-config only, verify, then cancel and save, so a change that cuts off the path
-used to make it undoes itself. Read the syntax first without probing a complete
-command with `?`, which has twice executed something. This is the one capability
-that would make changing `ber1-tor-a` safe without a person watching.
+```
+helm dependency update infra/helm/omada
+helm upgrade --install omada infra/helm/omada -n omada --create-namespace \
+  -f infra/helm/omada/values.yaml -f infra/helm/omada/values-staging.yaml
+kubectl -n omada port-forward svc/omada-omada-controller 8043:8043
+```
 
-*Or zero touch end to end.* `ber1-mgmt` out of storage on a USB Ethernet
-adapter, `mise run rack:ztp ber1-mgmt --interface <iface> --dry-run` to see what
-would be served, then without `--dry-run`, then arm Auto Install and power it
-on. This is the experiment that removes the console cable from racking a switch,
-and it costs nothing but an afternoon and a switch nobody needs.
+Then open `https://localhost:8043/doc.html` and answer one question: **which
+switch settings have write endpoints in the Open API.** Compare against the
+capability table in [omada-assessment.md](omada-assessment.md). That decides
+whether the controller path is a documented vendor API or an undocumented
+community one, which are different decisions, and it decides how much of this
+directory survives.
 
-*Or the connection-limit question.* Eight connections spaced ten minutes apart
-on a freshly booted switch, which separates a per-connection leak from a rate
-limiter and also clears the 360 second session timeout in between. Cheap to run
-and it decides whether any automated observation is possible at all.
+### Group B: zero touch, on the bench, with a switch nobody depends on
 
-**Needs setup beyond a session, so plan it separately.** The Omada prototype in
-[omada-assessment.md](omada-assessment.md) wants a controller deployed and
-`ber1-mgmt` out of storage. Reading the Open API endpoint document comes first
-and costs nothing. DHCP Auto Install wants an isolated segment with our own DHCP
-and TFTP, because the only DHCP server on the current LAN is the household
-router.
+`ber1-mgmt` on a USB Ethernet adapter, nothing else on that segment. This never
+touches the ToRs.
+
+```
+sudo ifconfig en5 inet 192.168.50.1 netmask 255.255.255.0 up
+mise run rack:ztp ber1-mgmt --interface en5 --dry-run     # read what it would serve
+mise run rack:ztp ber1-mgmt --interface en5               # then serve it
+```
+
+With that running, arm Auto Install on the switch over its console and power
+cycle it: `boot autoinstall persistent-mode` then `boot autoinstall start`.
+Watch dnsmasq's log for the DHCP lease and the TFTP read of `ber1-mgmt.cfg`.
+
+Success is the switch coming up on its site address with the rendered
+configuration and a working login, having been touched only for power. That is
+the console cable gone from racking a switch. Confirm with
+`mise run rack:fleet preflight ber1-mgmt`, and note the model is
+`verified: false` in models.json until its port naming is read off the unit, so
+`apply` and `replace` will refuse it until that is corrected.
+
+If it fails, the useful question is which half: no DHCP lease is the segment or
+the interface, a lease but no TFTP read is Auto Install not armed or option 67
+not reaching it, and a read but no change is the configuration being rejected.
+
+### Group C: the live ToRs, where care is needed
+
+Both switches were left with wedged SSH daemons, so **reboot both first**; that
+also resets the connection budget, which is about seven per boot and decides how
+much fits. `locate` and `ports` cost nothing, `preflight` one, `recover` two,
+`replace` two and a reboot.
+
+**Required, on ber1-tor-b.** Its running configuration is correct and its
+startup configuration still says DHCP, so it comes back on the wrong address
+until this is done.
+
+1. `mise run rack:fleet locate ber1-tor-b`
+2. `mise run rack:fleet recover ber1-tor-b --from <where locate found it>`
+3. `mise run rack:fleet preflight ber1-tor-b`
+
+**Required, on ber1-tor-a.** `mise run rack:fleet preflight ber1-tor-a`, and
+nothing else. It was left correct and saved; this confirms it.
+
+**Then at most one experiment**, because each wants a boot's worth of budget.
+The rollback capability is the higher value: whether `reboot-schedule` gives
+this hardware a confirmed commit, which is what would make changing
+`ber1-tor-a` safe without someone watching. The alternative is the
+connection-limit question, eight connections ten minutes apart on a fresh boot,
+which separates a leak from a rate limiter.
+
+Read any unfamiliar command's syntax without probing a complete command with
+`?`, which has twice executed something.
 
 ## Usage
 

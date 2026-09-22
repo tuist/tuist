@@ -150,6 +150,13 @@ echo "the switch would fetch (login line redacted):"
 tr -d '\000' < "$served" | tr -d '\r' | sed "s/secret 5 .*/secret 5 <redacted>/" | head -20 | sed 's/^/  /'
 echo "  ... $(tr -d '\000' < "$served" | grep -c '' ) lines"
 
+echo ""
+if command -v dnsmasq >/dev/null 2>&1; then
+  echo "dnsmasq   $(command -v dnsmasq)"
+else
+  echo "dnsmasq   NOT INSTALLED: brew install dnsmasq"
+fi
+
 if (( dry_run )); then
   echo ""
   echo "dry run, nothing served. The files are in $tftp_root"

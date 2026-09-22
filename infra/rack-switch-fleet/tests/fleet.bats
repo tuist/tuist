@@ -1355,3 +1355,13 @@ STUB
     [[ "$output" == *"dhcp-boot=ber1-mgmt.cfg"* ]]
     [[ "$output" == *"no mac in the site definition"* ]]
 }
+
+@test "ztp reports a missing dnsmasq during the dry run, not after you confirm" {
+    bin="$BATS_TEST_TMPDIR/ztp5"
+    ztp_stub "$bin"
+    # a PATH with the stubs and the basics, but deliberately no dnsmasq
+    run env PATH="$bin:/usr/bin:/bin:/usr/sbin:/sbin" "$FLEET_ROOT/ztp.sh" \
+        ber1-tor-b --interface zzz0 --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"dnsmasq"* ]]
+}
