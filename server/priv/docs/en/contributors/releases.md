@@ -7,14 +7,14 @@
 ---
 # Releases
 
-Tuist publishes new versions automatically as changes are merged to the main branch. The CLI, the server, and the Kura cache mesh all ship through release channels (canary, release candidate, stable) so the recommended install stays stable and slow-moving; cutting a release candidate and promoting it to stable are deliberate, weekly steps. The app is released continuously (the iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release)).
+Tuist publishes new versions automatically as changes are merged to the main branch. The CLI, the server, and the Kura cache server all ship through release channels (canary, release candidate, stable) so the recommended install stays stable and slow-moving; cutting a release candidate and promoting it to stable are deliberate, weekly steps. The app is released continuously (the iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release)).
 
 ## Overview
 
 We release these main components:
 - **Tuist CLI** - The command-line tool, shipped through canary, release candidate, and stable [channels](#release-channels)
 - **Tuist Server** - The backend services, shipped through the same channel model as the CLI
-- **Kura** - The cache mesh service, shipped through the same channel model as the CLI
+- **Kura** - The cache server, shipped through the same channel model as the CLI
 - **Tuist App** - The macOS and iOS apps, released continuously (iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release))
 
 Every push to `main` publishes a canary prerelease for the CLI, the server, and Kura. A stable release for each of those components is cut only when a maintainer promotes a soaked release candidate, and the weekly schedule fires all three trains in lockstep (see [Release channels](#release-channels)). The app publishes stable on every push to `main`.

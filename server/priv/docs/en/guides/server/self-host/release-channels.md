@@ -8,7 +8,7 @@
 
 # Release channels {#release-channels}
 
-The Tuist server and the Kura cache mesh ship through three GHCR image channels with different stability guarantees. The recommended install is **stable** and moves once a week: it does not advance every time a feature merges to `main`, so upgrading no longer means absorbing a batch of unrelated changes. Early adopters can still run per-commit builds on **canary**, and the **release candidate** channel lets you soak an upcoming line before it becomes stable.
+The Tuist server and the Kura cache server ship through three GHCR image channels with different stability guarantees. The recommended install is **stable** and moves once a week: it does not advance every time a feature merges to `main`, so upgrading no longer means absorbing a batch of unrelated changes. Early adopters can still run per-commit builds on **canary**, and the **release candidate** channel lets you soak an upcoming line before it becomes stable.
 
 The server and Kura both ride the same weekly train, and both fire in lockstep with the [Tuist CLI's release schedule](/en/cli/release-channels).
 
