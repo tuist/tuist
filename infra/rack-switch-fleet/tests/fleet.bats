@@ -1261,3 +1261,97 @@ run_recover() {
     run grep -c '^SESSION' "$bin/log"
     [ "$output" = "2" ]
 }
+
+# --- zero touch: serving DHCP and TFTP on an isolated segment ----------------
+
+ztp_stub() {
+    local dir="$1"
+    mkdir -p "$dir"
+    cat > "$dir/op" <<'STUB'
+#!/usr/bin/env bash
+cat <<'JSON'
+{"fields":[{"label":"config-hash","value":"$1$EXAMPLEHASHNOTREAL"}]}
+JSON
+STUB
+    cat > "$dir/ipconfig" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = "getifaddr" ] && { echo "${FAKE_IFADDR:-192.168.50.1}"; exit 0; }
+exit 1
+STUB
+    cat > "$dir/ifconfig" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+    chmod +x "$dir/op" "$dir/ipconfig" "$dir/ifconfig"
+}
+
+@test "ztp refuses without an interface, because it is a DHCP server" {
+    run "$FLEET_ROOT/ztp.sh" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"isolated segment"* ]]
+}
+
+@test "ztp refuses the interface carrying the default route" {
+    # The guard that matters: a second DHCP server on the network people are on
+    # hands addresses to their laptops.
+    local default
+    default="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')"
+    [ -n "$default" ] || skip "no default route on this machine to test against"
+    run "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface "$default"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"default route"* ]]
+}
+
+@test "ztp refuses an interface with no address" {
+    bin="$BATS_TEST_TMPDIR/ztp1"
+    ztp_stub "$bin"
+    cat > "$bin/ipconfig" <<'STUB'
+#!/usr/bin/env bash
+exit 1
+STUB
+    chmod +x "$bin/ipconfig"
+    run env PATH="$bin:$PATH" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no IPv4 address"* ]]
+}
+
+@test "ztp refuses when the 1Password item has no config hash" {
+    # A switch provisioned from scratch has none of our credentials, so a config
+    # without a login would leave it unreachable.
+    bin="$BATS_TEST_TMPDIR/ztp2"
+    ztp_stub "$bin"
+    cat > "$bin/op" <<'STUB'
+#!/usr/bin/env bash
+echo '{"fields":[]}'
+STUB
+    chmod +x "$bin/op"
+    run env PATH="$bin:$PATH" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"config-hash"* ]]
+}
+
+@test "ztp serves a config that carries a login, keyed to the switch's MAC" {
+    bin="$BATS_TEST_TMPDIR/ztp3"
+    ztp_stub "$bin"
+    run env PATH="$bin:$PATH" "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
+    [ "$status" -eq 0 ]
+    # DHCP only, never DNS, and bound to the one interface
+    [[ "$output" == *"port=0"* ]]
+    [[ "$output" == *"interface=zzz0"* ]]
+    [[ "$output" == *"bind-interfaces"* ]]
+    # the boot file is offered to this switch by MAC, not to whoever asks
+    [[ "$output" == *"dhcp-host=d4:d6:df:03:d8:b2,set:ber1-tor-b"* ]]
+    [[ "$output" == *"67,\"ber1-tor-b.cfg\""* ]]
+    # and the served file is the rendered config, with the login put back
+    [[ "$output" == *'hostname "ber1-tor-b"'* ]]
+    [[ "$output" == *"secret 5 <redacted>"* ]]
+}
+
+@test "ztp offers no boot file by MAC when the site definition has none" {
+    bin="$BATS_TEST_TMPDIR/ztp4"
+    ztp_stub "$bin"
+    run env PATH="$bin:$PATH" "$FLEET_ROOT/ztp.sh" ber1-mgmt --interface zzz0 --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"dhcp-boot=ber1-mgmt.cfg"* ]]
+    [[ "$output" == *"no mac in the site definition"* ]]
+}

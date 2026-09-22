@@ -43,6 +43,12 @@ used to make it undoes itself. Read the syntax first without probing a complete
 command with `?`, which has twice executed something. This is the one capability
 that would make changing `ber1-tor-a` safe without a person watching.
 
+*Or zero touch end to end.* `ber1-mgmt` out of storage on a USB Ethernet
+adapter, `mise run rack:ztp ber1-mgmt --interface <iface> --dry-run` to see what
+would be served, then without `--dry-run`, then arm Auto Install and power it
+on. This is the experiment that removes the console cable from racking a switch,
+and it costs nothing but an afternoon and a switch nobody needs.
+
 *Or the connection-limit question.* Eight connections spaced ten minutes apart
 on a freshly booted switch, which separates a per-connection leak from a rate
 limiter and also clears the 360 second session timeout in between. Cheap to run
@@ -73,6 +79,7 @@ mise run rack:fleet recover <device> --from <address>   # put it back and save
 mise run rack:fleet ports [device]          # what is plugged into each port
 mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
+mise run rack:ztp <device> --interface <iface>  # serve DHCP+TFTP so a switch provisions itself
 mise run rack:fleet-test                    # the suite; needs no hardware
 ```
 
@@ -369,13 +376,28 @@ running is not at the address the site definition gives it. Find it by MAC in
 the ARP table.
 
 The TFTP check settled what the path was blocked on: the export is text, so a
-rendered config is something Auto Install could be handed. What has **not** been
-done is an end-to-end test, and it should not be improvised on this network. It
-needs a DHCP server handing out options 66 and 67, and the only DHCP server on
-the rack's current LAN is the household router; standing up a second one there
-is a rogue DHCP server on a network people live on. The test wants an isolated
-segment, our own DHCP and TFTP, and a switch nobody depends on, which is what
-`ber1-mgmt` is while it sits in storage.
+rendered config is something Auto Install can be handed. **`rack:ztp` serves
+it**: dnsmasq for DHCP and TFTP, the configuration rendered from the site
+definition, and the boot file offered to one switch by MAC rather than to
+whoever asks.
+
+The dangerous half is the DHCP server, not the switch. A second one on a network
+people live on hands addresses to their laptops, so `rack:ztp` requires
+`--interface`, refuses the interface carrying the default route, refuses one
+with no address, binds to exactly one interface and disables DNS entirely
+(`port=0`). Use a USB Ethernet adapter with only the switch on the other end.
+
+One thing Auto Install needs that `replace` does not: **the served config has to
+contain a login**. `replace` carries the existing one across from the switch, and
+a switch being provisioned from scratch has none of ours, so a config without
+one leaves it unreachable. The hash cannot be computed here, so it lives in the
+switch's 1Password item as a `config-hash` field, taken from a prepped switch's
+export. `rack:ztp` refuses to serve anything without it and says where to get it.
+
+Still to do end to end: an isolated segment, and a switch nobody depends on,
+which is what `ber1-mgmt` is while it sits in storage. Arm it with
+`boot autoinstall persistent-mode` and `boot autoinstall start`, remembering
+that starting it moves the management interface to DHCP.
 
 What Junos and PicOS offer over that is not the feature but its maturity. ZTP on
 those is a mainstream path that thousands of deployments use; DHCP Auto Install
