@@ -1,0 +1,25 @@
+apiVersion: v2
+name: tuist-omada
+description: >
+  Wraps mbentley's Omada SDN Controller chart so the controller's lifecycle is
+  handled the way everything else here is, rather than by hand on a box.
+
+  Deployed to evaluate whether the controller can take over switch management
+  from infra/rack-switch-fleet's SSH driver. That question is open: TP-Link's
+  own feature list says a controller-managed switch can be configured with
+  everything the fleet renders, but whether it can be driven from git through a
+  supported API is unestablished, and the endpoint documentation is served by a
+  running controller at :8043/doc.html. So the first thing this deployment is
+  for is reading that documentation.
+
+  See infra/rack-switch-fleet/omada-assessment.md. Not wired into any
+  deployment workflow: standing it up is a deliberate act while the evaluation
+  is open.
+type: application
+version: 0.1.0
+appVersion: "5.15"
+
+dependencies:
+  - name: omada-controller-helm
+    version: "1.5.3"
+    repository: oci://registry-1.docker.io/mbentley

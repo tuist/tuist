@@ -1,0 +1,34 @@
+# Defaults shared by every environment. Anything environment-specific, and
+# anything that decides blast radius, lives in values-<env>.yaml.
+omada-controller-helm:
+  image:
+    repository: mbentley/omada-controller
+    pullPolicy: IfNotPresent
+
+  # The controller keeps its own database on disk. Losing it loses adoption
+  # state for every device, which means re-adopting the rack by hand, so this is
+  # a volume rather than emptyDir even while the evaluation is open.
+  persistence:
+    data:
+      enabled: true
+      size: 5Gi
+      accessModes:
+        - ReadWriteOnce
+    logs:
+      enabled: true
+      size: 1Gi
+      accessModes:
+        - ReadWriteOnce
+
+  # ClusterIP rather than the chart's LoadBalancer default. Devices do not
+  # discover this controller by broadcast, because they are not on the cluster's
+  # L2; they are told where it is. See the adoption note in values-staging.yaml.
+  service:
+    type: ClusterIP
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 2Gi

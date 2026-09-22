@@ -26,6 +26,7 @@ on:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - infra/helm/omada/**
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   pull_request:
@@ -34,6 +35,7 @@ on:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - infra/helm/omada/**
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   merge_group: {}
@@ -60,7 +62,7 @@ jobs:
         with:
           # Only what this needs. Installing the whole toolchain to run jq and
           # bats would cost minutes per pull request.
-          install_args: jq bats
+          install_args: jq bats helm
           cache: "false"
 
       # The committed configs are the reviewed artefact. If they no longer match
@@ -76,6 +78,17 @@ jobs:
       # first at a new site, on a machine that is not the one it was written on.
       - name: Test the console bring-up
         run: mise run rack:prep-test
+
+      # The Omada wrapper is an evaluation and is not deployed by any workflow,
+      # so nothing else would notice it going stale.
+      - name: The Omada chart still renders
+        run: |
+          set -euo pipefail
+          helm dependency update infra/helm/omada
+          helm template omada infra/helm/omada \
+            -f infra/helm/omada/values.yaml \
+            -f infra/helm/omada/values-staging.yaml > /dev/null
+          echo "renders"
 
       - name: Lint the shell
         run: |

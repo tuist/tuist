@@ -1,0 +1,28 @@
+# Staging only, and deliberately only staging: this is an evaluation, and the
+# switches it would manage carry the network the cluster runs on.
+#
+# ADOPTION ACROSS SUBNETS. A switch finds its controller by L2 broadcast on
+# UDP 29810, which does not cross from the management VLAN into the cluster. Two
+# ways across, and neither needs the chart's LoadBalancer:
+#
+#   * DHCP option 138, which is the documented path and which the rack can
+#     already serve: `mise run rack:ztp` runs a dnsmasq on an isolated segment,
+#     and option 138 is one more line in the config it generates.
+#   * Adopting the switch by hand in the controller UI, giving its address.
+#
+# Whichever is used, the controller has to be reachable from the management VLAN
+# at a stable address, which is what the tailnet is for here rather than an
+# ingress: the rack's other management paths already go that way.
+omada-controller-helm:
+  persistence:
+    data:
+      size: 5Gi
+
+  # No PoE fleet and three switches, so the small footprint is honest rather
+  # than optimistic.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
