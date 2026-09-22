@@ -189,20 +189,5 @@
             #expect(URLSession.tuistLargeTransfer.configuration.timeoutIntervalForResource == 600)
             #expect(URLSession.tuistShared.configuration.timeoutIntervalForResource == 30)
         }
-
-        @Test(.withMockedEnvironment())
-        func tuistArtifactDownload_keeps_the_large_transfer_floor_when_the_environment_lowers_the_resource_timeout(
-        ) async throws {
-            let environment = try #require(Environment.mocked)
-            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = "90"
-
-            invalidateSharedTuistURLSession()
-            defer { invalidateSharedTuistURLSession() }
-
-            let configuration = URLSession.tuistArtifactDownload.configuration
-            #expect(configuration.timeoutIntervalForResource == 600)
-            #expect(configuration.timeoutIntervalForRequest == 120)
-            #expect(URLSession.tuistArtifactDownload !== URLSession.tuistLargeTransfer)
-        }
     }
 #endif

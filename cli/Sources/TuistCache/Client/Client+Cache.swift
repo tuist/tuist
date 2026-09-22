@@ -11,9 +11,8 @@ extension Client {
     ///   - authenticationURL: The main server URL for authentication (token refresh, validation)
     ///   - serverAuthenticationController: Controller for server authentication
     ///   - session: Optional URLSession override. The CAS path passes a
-    ///     short-timeout session so a hung backend fails fast, and module cache
-    ///     downloads pass `.tuistArtifactDownload`; other callers use the shared
-    ///     session.
+    ///     short-timeout session so a hung backend fails fast; other callers use
+    ///     the shared session.
     ///   - retriesTransportErrors: Whether the retry middleware retries thrown transport
     ///     errors, including timeouts. Defaults to `true` so ordinary cache GETs retry
     ///     transient failures. The CAS download path passes `false` so a hung backend
@@ -31,11 +30,9 @@ extension Client {
         retriesTransportErrors: Bool = true,
         fullHandle: String? = nil
     ) -> Client {
-        // The CAS download stays buffered so a stalled body reaches the circuit breaker instead of resuming.
-        let resumableOperationIDs: Set<String> = [Operations.downloadModuleCacheArtifact.id]
-        return .init(
+        .init(
             serverURL: cacheURL,
-            transport: TuistURLSessionTransport(session: session, streamingOperationIDs: resumableOperationIDs),
+            transport: TuistURLSessionTransport(session: session),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 // Outside the retry middleware, so a ranged follow-up is itself
                 // retried. Middlewares nest in array order, so anything placed
@@ -45,7 +42,12 @@ extension Client {
                 // from zero, which is the failure this middleware exists to
                 // avoid. Retry never consumes the response body, so a body
                 // that dies mid-stream still reaches resume from here.
-                ArtifactResumeMiddleware(resumableOperationIDs: resumableOperationIDs),
+                ArtifactResumeMiddleware(
+                    resumableOperationIDs: [
+                        Operations.downloadXcodeArtifact.id,
+                        Operations.downloadModuleCacheArtifact.id,
+                    ]
+                ),
                 RetryMiddleware(
                     retryableRequestMethods: ["GET"],
                     retriesTransportErrors: retriesTransportErrors

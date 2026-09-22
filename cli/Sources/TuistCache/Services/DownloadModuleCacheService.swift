@@ -70,17 +70,7 @@ extension DownloadModuleCacheServiceError: HTTPStatusCodeError {
 }
 
 public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
-    private let session: @Sendable () -> URLSession
-    private let admission: TransferAdmission
-
-    public init() {
-        self.init(session: { .tuistArtifactDownload }, admission: .artifactDownloads)
-    }
-
-    init(session: @escaping @Sendable () -> URLSession, admission: TransferAdmission) {
-        self.session = session
-        self.admission = admission
-    }
+    public init() {}
 
     public func downloadModuleCacheArtifact(
         accountHandle: String,
@@ -96,21 +86,17 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
             serverAuthenticationController: serverAuthenticationController,
-            session: session(),
             fullHandle: "\(accountHandle)/\(projectHandle)"
         )
-        // Admitted until the whole body is in, resumes included.
         let fetch = {
-            try await admission.run {
-                try await fetchArtifact(
-                    client: client,
-                    accountHandle: accountHandle,
-                    projectHandle: projectHandle,
-                    hash: hash,
-                    name: name,
-                    cacheCategory: cacheCategory
-                )
-            }
+            try await fetchArtifact(
+                client: client,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                hash: hash,
+                name: name,
+                cacheCategory: cacheCategory
+            )
         }
 
         let first = try await fetch()

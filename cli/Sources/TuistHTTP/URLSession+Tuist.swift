@@ -178,15 +178,10 @@ private let sharedTuistLargeTransferURLSession = SharedTuistURLSession {
     makeTuistLargeTransferURLSession(useEnvironmentProxy: $0)
 }
 
-private let sharedTuistArtifactDownloadURLSession = SharedTuistURLSession {
-    makeTuistLargeTransferURLSession(useEnvironmentProxy: $0)
-}
-
 func invalidateSharedTuistURLSession() {
     sharedTuistURLSession.invalidate()
     sharedTuistCASURLSession.invalidate()
     sharedTuistLargeTransferURLSession.invalidate()
-    sharedTuistArtifactDownloadURLSession.invalidate()
 }
 
 extension URLSession {
@@ -210,13 +205,6 @@ extension URLSession {
     /// `tuistShared`'s wall-clock resource timeout cancels healthy transfers.
     public static var tuistLargeTransfer: URLSession {
         sharedTuistLargeTransferURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
-    }
-
-    /// A shared session for resumable artifact downloads, with the timeouts of `tuistLargeTransfer`.
-    /// Its requests go through `TransferAdmission.artifactDownloads`, because `URLSession` runs a
-    /// task's timeouts while it is queued for a connection or stream.
-    public static var tuistArtifactDownload: URLSession {
-        sharedTuistArtifactDownloadURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }
 }
 
