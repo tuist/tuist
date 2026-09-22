@@ -382,8 +382,9 @@ to out-of-band, and neither should see a first run of anything.
 
 **If it goes wrong.** The switch keeps forwarding while its management plane is
 unhappy, so the data plane is not the thing to watch. If SSH stops answering,
-the web UI on 80 and 443 is still there, and `clear line <tid>` frees a stuck
-session; a power cycle clears all of them. If the switch comes back with a
+the web UI on 80 and 443 is still there. `clear line <tid>` frees a stuck
+session, but only helps while the daemon still accepts a connection, and the
+failure above is the daemon refusing all of them; then it is a reboot. If the switch comes back with a
 configuration that is wrong rather than absent, the backup from step 3 is the
 undo, pushed the same way. If it comes back with no usable login, that is the
 console cable and `rack:prep-switch`.
@@ -507,13 +508,33 @@ arbitrary line into its negation is the same class of guess.
   spaces behind, and the normaliser needs to see the prompt to know that those
   spaces are an erased line rather than indentation. Getting this wrong makes
   every diff show whitespace drift that is not there.
-- **The session table does not reap abandoned sessions.** `exit` from privileged
-  mode drops to user EXEC and keeps the session open; only `logout` ends it.
-  Leaking sessions wedges the SSH daemon: the switch keeps forwarding and keeps
-  answering ping, the web UI stays up, and port 22 simply stops completing a
-  handshake. It did not recover within an hour. Recovery is the web UI or a
-  reboot, or `clear line`. Hence one session per run and a logout that runs even
-  when the work raised.
+- **The SSH daemon wedges after a handful of connections, and a clean logout
+  does not prevent it.** The switch keeps forwarding, keeps answering ping and
+  keeps serving its web UI while port 22 stops completing a handshake. It does
+  not recover on its own; an hour was not enough on two separate occasions.
+  Recovery is a reboot, or the web UI.
+
+  `exit` from privileged mode drops to user EXEC and keeps the session, so only
+  `logout` ends one, and this tool always logs out. That was believed to be the
+  fix and **it is not**. On 2026-09-22 `ber1-tor-b` refused its fifth connection
+  since boot with every previous one logged out cleanly and `show users` showing
+  a single line each time. The logout keeps the session table tidy; something
+  else leaks per connection.
+
+  The cause is not established. Two candidates, and they have not been
+  separated: the daemon may leak a task slot per connection, which the
+  monotonically increasing `tSshNN` name in `show users` is consistent with; or
+  the management plane may have been disturbed by the ISL flapping when
+  `ber1-tor-a` rebooted fifteen seconds earlier. The experiment that would tell
+  them apart is to open connections to a freshly booted switch, one at a time,
+  with nothing else happening in the rack, and see whether it wedges at a
+  similar count.
+
+  Until it is understood, treat connections as a consumable: **a switch tolerates
+  roughly four or five per boot.** A full pass of the runbook costs six, because
+  `sessions`, `diff` and `backup` are one each and `replace` is two. That is at
+  or over the threshold, which is worth knowing before planning a session and is
+  an argument for batching several reads into one connection.
 - **`show users` lists the terminal lines and `clear line <tid>` frees one**,
   which is the recovery that does not involve power, and
   `mise run rack:fleet sessions <device> [tid]` is the front end for it. It only
