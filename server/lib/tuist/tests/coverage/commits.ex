@@ -24,6 +24,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   alias Tuist.GitHistory
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
+  alias Tuist.Repo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Gates
@@ -70,6 +71,25 @@ defmodule Tuist.Tests.Coverage.Commits do
   state already published is kept.
   """
   def recompute(%Project{} = project, sha, opts \\ []) do
+    # A fold reads the published row, spends seconds computing reported
+    # coverage on a large suite, and writes a newer version. Two folds of the
+    # same commit at once (the completion signal and a run's scheduled fold,
+    # on any node) would each write what they read, and the later one wins:
+    # the signal's `complete` was lost exactly that way. They take turns, so
+    # each one reads what the previous one wrote.
+    {:ok, row} =
+      Repo.transaction(
+        fn ->
+          Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["coverage_commit:#{project.id}:#{sha}"])
+          fold(project, sha, opts)
+        end,
+        timeout: to_timeout(minute: 5)
+      )
+
+    row
+  end
+
+  defp fold(project, sha, opts) do
     runs = runs(project.id, sha)
     previous = summary(project.id, sha)
     reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carried_lines])))
