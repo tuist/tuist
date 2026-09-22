@@ -358,6 +358,56 @@ defmodule TuistWeb.IntegrationsLiveTest do
     render_hook(lv, "create-connection", %{})
 
     assert Tuist.Projects.get_project_by_id(project.id).default_branch == "develop"
+    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert project_id == project.id
+  end
+
+  test "rejects a repository that is not accessible to the account's GitHub App installation", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
+      {:ok, [%{id: 123, full_name: "test-org/test-repo", default_branch: "main"}]}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "victim-org/victim-repo"})
+    html = render_hook(lv, "create-connection", %{})
+
+    assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
+    assert Tuist.Projects.projects_by_vcs_repository_full_handle("victim-org/victim-repo") == []
+  end
+
+  test "rejects a repository when the installation repositories cannot be fetched", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
+      {:ok, [%{id: 123, full_name: "test-org/test-repo"}]}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation -> {:error, :unauthorized} end)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
+    html = render_hook(lv, "create-connection", %{})
+
+    assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
+    assert Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo") == []
   end
 
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do

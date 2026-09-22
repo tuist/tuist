@@ -123,7 +123,10 @@ defmodule TuistWeb.IntegrationsLive do
 
   @impl true
   def handle_event("close-add-connection-modal", _params, socket) do
-    socket = push_event(socket, "close-modal", %{id: "add-connection-modal"})
+    socket =
+      socket
+      |> clear_flash(:error)
+      |> push_event("close-modal", %{id: "add-connection-modal"})
 
     {:noreply, socket}
   end
@@ -272,7 +275,7 @@ defmodule TuistWeb.IntegrationsLive do
 
   @impl true
   def handle_event("select-repository", %{"repository" => repository_full_handle}, socket) do
-    {:noreply, assign(socket, selected_repository_full_handle: repository_full_handle)}
+    {:noreply, socket |> clear_flash(:error) |> assign(selected_repository_full_handle: repository_full_handle)}
   end
 
   @impl true
@@ -289,28 +292,45 @@ defmodule TuistWeb.IntegrationsLive do
         } = socket
       ) do
     project = get_selected_project(assigns)
-    project_id = if project, do: project.id
 
-    attrs = %{
-      project_id: project_id,
-      provider: :github,
-      repository_full_handle: repository_full_handle,
-      created_by_id: current_user.id,
-      github_app_installation_id: selected_account.github_app_installation.id
-    }
+    with %{} = installation <- assigns.github_app_installation,
+         %{} = repository <- find_installation_repository(installation, repository_full_handle),
+         {:ok, _connection} <-
+           Projects.create_vcs_connection(%{
+             project_id: if(project, do: project.id),
+             provider: :github,
+             repository_full_handle: repository.full_name,
+             created_by_id: current_user.id,
+             github_app_installation_id: installation.id
+           }) do
+      sync_default_branch(project, repository)
+      vcs_connections = vcs_connections(selected_account, force: true)
 
-    {:ok, _connection} = Projects.create_vcs_connection(attrs)
-    sync_default_branch(project, repository_full_handle, assigns)
-    vcs_connections = vcs_connections(selected_account, force: true)
+      socket =
+        socket
+        |> clear_flash()
+        |> assign(vcs_connections: vcs_connections)
+        |> assign(selected_project_id: nil)
+        |> assign(selected_repository_full_handle: nil)
+        |> push_event("close-modal", %{id: "add-connection-modal"})
 
-    socket =
-      socket
-      |> assign(vcs_connections: vcs_connections)
-      |> assign(selected_project_id: nil)
-      |> assign(selected_repository_full_handle: nil)
-      |> push_event("close-modal", %{id: "add-connection-modal"})
+      {:noreply, socket}
+    else
+      {:error, _changeset} ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard_integrations", "The project connection could not be created."))}
 
-    {:noreply, socket}
+      nil ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext(
+             "dashboard_integrations",
+             "The selected repository is not accessible to this account's GitHub App installation."
+           )
+         )}
+    end
   end
 
   @impl true
@@ -330,23 +350,28 @@ defmodule TuistWeb.IntegrationsLive do
 
   # When a project is connected to a GitHub repository, adopt the
   # repository's default branch as the project's baseline branch. The
-  # repository list is already loaded with `default_branch`, so this is a
-  # free metadata copy with no extra GitHub call. Only the initial
-  # connection syncs; a later manual edit in project settings is preserved.
-  defp sync_default_branch(nil, _repository_full_handle, _assigns), do: :ok
+  # repository list already carries `default_branch`, so this is a free
+  # metadata copy with no extra GitHub call. Only the initial connection
+  # syncs; a later manual edit in project settings is preserved.
+  defp sync_default_branch(nil, _repository), do: :ok
 
-  defp sync_default_branch(project, repository_full_handle, assigns) do
-    repository =
-      assigns
-      |> get_available_repositories()
-      |> Enum.find(&(&1.full_name == repository_full_handle))
+  defp sync_default_branch(project, %{default_branch: default_branch})
+       when is_binary(default_branch) and default_branch != "" do
+    Projects.update_project(project, %{default_branch: default_branch})
+  end
 
-    case repository do
-      %{default_branch: default_branch} when is_binary(default_branch) and default_branch != "" ->
-        Projects.update_project(project, %{default_branch: default_branch})
+  defp sync_default_branch(_project, _repository), do: :ok
 
-      _ ->
-        :ok
+  # The dropdown only lists repositories the installation can access, but
+  # the event payload is client-controlled, so the selection is checked
+  # against the installation's repositories on the server before linking.
+  defp find_installation_repository(_installation, repository_full_handle) when not is_binary(repository_full_handle),
+    do: nil
+
+  defp find_installation_repository(installation, repository_full_handle) do
+    case VCS.get_github_app_installation_repositories(installation) do
+      {:ok, repositories} -> Enum.find(repositories, &(&1.full_name == repository_full_handle))
+      _ -> nil
     end
   end
 

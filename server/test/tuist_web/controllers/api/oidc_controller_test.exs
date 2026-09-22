@@ -77,6 +77,34 @@ defmodule TuistWeb.API.OIDCControllerTest do
       assert project2.id in claims["project_ids"]
     end
 
+    test "returns 403 naming the accounts when the repository is linked from multiple accounts", %{conn: conn} do
+      project1 =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [repository_full_handle: "tuist/shared"],
+          preload: [:account]
+        )
+
+      project2 =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [repository_full_handle: "tuist/shared"],
+          preload: [:account]
+        )
+
+      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/shared"}} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+
+      response = json_response(conn, :forbidden)
+      refute response["access_token"]
+      assert response["message"] =~ "'tuist/shared' is linked to projects in multiple Tuist accounts"
+
+      assert response["message"] =~
+               "(#{Enum.join(Enum.sort([project1.account.name, project2.account.name]), ", ")})"
+    end
+
     test "returns 403 when no project is linked to the repository", %{conn: conn} do
       stub(OIDC, :claims, fn _token -> {:ok, %{repository: "nonexistent/repo"}} end)
 

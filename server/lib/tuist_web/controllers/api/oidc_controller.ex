@@ -65,14 +65,17 @@ defmodule TuistWeb.API.OIDCController do
          }},
       bad_request: {"Unsupported CI provider or missing repository claim", "application/json", Error},
       unauthorized: {"Invalid or expired OIDC token", "application/json", Error},
-      forbidden: {"No projects linked to the repository", "application/json", Error}
+      forbidden:
+        {"No projects linked to the repository, or the repository is linked from multiple accounts", "application/json",
+         Error}
     }
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
     with {:ok, claims} <- OIDC.claims(token),
          {:ok, projects} <- find_projects_by_repository(claims.repository),
-         {:ok, access_token} <- generate_token(projects) do
+         {:ok, account} <- single_account(projects),
+         {:ok, access_token} <- generate_token(account, projects) do
       conn
       |> put_status(:ok)
       |> json(%{
@@ -128,6 +131,14 @@ defmodule TuistWeb.API.OIDCController do
           message: "No projects linked to the repository. Connect your project to GitHub in the Tuist dashboard first."
         })
 
+      {:error, :ambiguous_repository, repository, account_handles} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "The repository '#{repository}' is linked to projects in multiple Tuist accounts (#{Enum.join(account_handles, ", ")}). Remove the extra connections in the Tuist dashboard so the repository is linked from a single account."
+        })
+
       {:error, reason} ->
         conn
         |> put_status(:unauthorized)
@@ -136,14 +147,28 @@ defmodule TuistWeb.API.OIDCController do
   end
 
   defp find_projects_by_repository(repository) do
-    case Projects.projects_by_vcs_repository_full_handle(repository, preload: [:account]) do
+    case Projects.projects_by_vcs_repository_full_handle(repository, preload: [:account, :vcs_connection]) do
       [] -> {:error, :no_projects}
       projects -> {:ok, projects}
     end
   end
 
-  defp generate_token(projects) do
-    account = hd(projects).account
+  # A token is scoped to one account, and project access requires the
+  # token's account to own the project. If the repository is linked from
+  # several accounts, no single token can serve every linked project, so
+  # refuse the exchange instead of picking an account by row order.
+  defp single_account([%{account: account} | _] = projects) do
+    case projects |> Enum.map(& &1.account) |> Enum.uniq_by(& &1.id) do
+      [_] ->
+        {:ok, account}
+
+      accounts ->
+        repository = hd(projects).vcs_connection.repository_full_handle
+        {:error, :ambiguous_repository, repository, accounts |> Enum.map(& &1.name) |> Enum.sort()}
+    end
+  end
+
+  defp generate_token(account, projects) do
     project_ids = Enum.map(projects, & &1.id)
 
     claims = %{

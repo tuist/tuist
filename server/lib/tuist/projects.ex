@@ -756,6 +756,7 @@ defmodule Tuist.Projects do
         join: pc in VCSConnection,
         on: pc.project_id == p.id,
         where: pc.repository_full_handle == ^vcs_repository_full_handle,
+        order_by: [asc: p.id],
         preload: ^preload
     )
   end
