@@ -6377,15 +6377,129 @@ impl Store {
         self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
     }
 
-    /// Depth of the analytics outbox in entries. Zero for the life of this
-    /// release: no producer routes through the column family yet (that
-    /// arrives with the follow-up outbox module). Exists so the metrics
-    /// registration in `Metrics::new` can publish the depth gauge from day
-    /// one, giving the follow-up producer PR a live signal to correlate
-    /// against instead of a gauge that appears for the first time under a
-    /// production incident.
+    /// Depth of the analytics outbox in entries. Zero for the life of the
+    /// release that declared the column family; goes non-zero once a
+    /// producer routes cache analytics through it.
     pub fn analytics_outbox_entry_count(&self) -> Result<usize, String> {
         self.count_cf_entries(ROCKSDB_CF_ANALYTICS_OUTBOX)
+    }
+
+    /// Append one encoded outbox entry, durably.
+    ///
+    /// Runs through the off-runtime write path so the fsync does not park
+    /// a Tokio worker. `queued_at_ms` and `event_id` become the key; the
+    /// caller owns them so the value's `encoded_at_ms` (which lands
+    /// inside the encoded payload before this method sees it) can share
+    /// the same wall-clock read.
+    ///
+    /// The follow-up outbox module wraps this with a producer-facing
+    /// helper that owns admission (memory pressure, cap enforcement).
+    /// This method is deliberately unopinionated about admission so the
+    /// forwarder can also use it, for example when moving a decoded
+    /// entry back to the live prefix after a version-skew fix.
+    ///
+    /// Marked `dead_code`-allowed because no production caller exists in
+    /// this PR; the follow-up wires it up.
+    #[allow(dead_code)]
+    pub async fn append_analytics_outbox_entry(
+        &self,
+        pipeline: crate::analytics_outbox::Pipeline,
+        queued_at_ms: u64,
+        event_id: Uuid,
+        encoded_value: &[u8],
+    ) -> Result<(), String> {
+        let key = crate::analytics_outbox::build_key(pipeline, queued_at_ms, event_id);
+        let mut batch = WriteBatch::default();
+        batch.put_cf(self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX), key, encoded_value);
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "analytics outbox append",
+            ApplyDurability::Sync,
+        )
+        .await
+    }
+
+    /// Read the oldest entries for one pipeline, bounded by count and
+    /// bytes. FIFO by key order (see the layout in
+    /// `crate::analytics_outbox` for why lexicographic key order equals
+    /// enqueue order). Returns fewer entries than `max_entries` if the
+    /// pipeline is empty or the byte budget was reached first.
+    ///
+    /// The iterator uses `IteratorMode::From(prefix, Forward)` and stops
+    /// as soon as a key steps outside the pipeline's prefix, so a
+    /// forwarder scanning one pipeline never observes another pipeline's
+    /// rows.
+    ///
+    /// Marked `dead_code`-allowed for the same reason as the append: the
+    /// follow-up outbox forwarder is the first production caller.
+    #[allow(dead_code)]
+    pub fn next_analytics_outbox_batch(
+        &self,
+        pipeline: crate::analytics_outbox::Pipeline,
+        max_entries: usize,
+        max_bytes: usize,
+    ) -> Result<Vec<crate::analytics_outbox::OutboxEntry>, String> {
+        if max_entries == 0 {
+            return Ok(Vec::new());
+        }
+        let prefix = crate::analytics_outbox::pipeline_prefix(pipeline);
+        let cf = self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX);
+        let iter = self
+            .db
+            .iterator_cf(cf, IteratorMode::From(&prefix, rocksdb::Direction::Forward));
+
+        let mut entries = Vec::new();
+        let mut total_bytes = 0_usize;
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate analytics outbox: {error}"))?;
+            if key.len() < 2 || key[0..2] != prefix {
+                // Left the pipeline's prefix; the shared column family is
+                // ordered so nothing further in this scan belongs to us.
+                break;
+            }
+            let entry_size = key.len() + value.len();
+            if !entries.is_empty() && total_bytes.saturating_add(entry_size) > max_bytes {
+                // Preserve the first entry no matter how large it is:
+                // returning an empty batch would stall a forwarder on a
+                // single oversized record forever. Anything after the
+                // first respects the caller's byte budget.
+                break;
+            }
+            let entry = crate::analytics_outbox::decode_entry(&key, &value)
+                .map_err(|error| format!("failed to decode analytics outbox entry: {error:?}"))?;
+            total_bytes = total_bytes.saturating_add(entry_size);
+            entries.push(entry);
+            if entries.len() >= max_entries {
+                break;
+            }
+        }
+        Ok(entries)
+    }
+
+    /// Delete an acknowledged batch. The keys must have been produced by
+    /// [`Self::next_analytics_outbox_batch`] or by another store method
+    /// that respects the outbox layout; passing arbitrary bytes here
+    /// removes nothing (RocksDB tolerates deletes of nonexistent keys).
+    /// Runs through the off-runtime write path for the same reason
+    /// [`Self::append_analytics_outbox_entry`] does.
+    ///
+    /// Marked `dead_code`-allowed for the same reason.
+    #[allow(dead_code)]
+    pub async fn delete_analytics_outbox_entries(&self, keys: &[Vec<u8>]) -> Result<(), String> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+        let mut batch = WriteBatch::default();
+        for key in keys {
+            batch.delete_cf(self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX), key);
+        }
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "analytics outbox delete",
+            ApplyDurability::Sync,
+        )
+        .await
     }
 
     pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {
@@ -12706,6 +12820,250 @@ mod tests {
             message.contains("analytics_outbox") || message.contains("Column families"),
             "predecessor open error should identify the missing column family, got {message}",
         );
+    }
+
+    #[tokio::test]
+    async fn append_and_read_analytics_outbox_round_trips_the_entry() {
+        // The store methods and the entry-schema module have to agree on
+        // exactly one wire shape; this test is the sole place where the
+        // agreement is exercised end-to-end. A future change that
+        // silently mangles the encoding would fail this round-trip
+        // before it reaches production.
+        let (_temp, _config, store) = temp_store();
+        let event_id = Uuid::from_u128(0x0000_0000_0000_0001);
+        let payload = b"{\"events\":[1,2,3]}";
+        let value = crate::analytics_outbox::encode_value(
+            0,
+            1_760_000_000_500,
+            crate::analytics_outbox::ContentType::Json,
+            payload,
+        );
+
+        store
+            .append_analytics_outbox_entry(
+                crate::analytics_outbox::Pipeline::GradleCache,
+                1_760_000_000_500,
+                event_id,
+                &value,
+            )
+            .await
+            .expect("append should succeed on a fresh outbox");
+
+        assert_eq!(
+            store
+                .analytics_outbox_entry_count()
+                .expect("counting after one append should succeed"),
+            1,
+        );
+
+        let batch = store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::GradleCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read after append should succeed");
+        assert_eq!(batch.len(), 1);
+        assert_eq!(batch[0].event_id, event_id);
+        assert_eq!(batch[0].payload, payload);
+        assert_eq!(batch[0].queued_at_ms, 1_760_000_000_500);
+        assert_eq!(
+            batch[0].content_type,
+            crate::analytics_outbox::ContentType::Json,
+        );
+    }
+
+    #[tokio::test]
+    async fn next_analytics_outbox_batch_returns_entries_in_fifo_order() {
+        let (_temp, _config, store) = temp_store();
+        // Append three entries out of order in insertion sequence: the
+        // one with the smallest `queued_at_ms` last, to prove that the
+        // FIFO guarantee comes from the key layout and not from the
+        // order the appends happened.
+        for &(ts, uuid_seed) in &[(300_u64, 30_u128), (100, 10), (200, 20)] {
+            let value = crate::analytics_outbox::encode_value(
+                0,
+                ts,
+                crate::analytics_outbox::ContentType::Json,
+                b"payload",
+            );
+            store
+                .append_analytics_outbox_entry(
+                    crate::analytics_outbox::Pipeline::ReapiCache,
+                    ts,
+                    Uuid::from_u128(uuid_seed),
+                    &value,
+                )
+                .await
+                .expect("append should succeed");
+        }
+
+        let batch = store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::ReapiCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read should succeed");
+        assert_eq!(
+            batch.iter().map(|e| e.queued_at_ms).collect::<Vec<_>>(),
+            vec![100, 200, 300],
+        );
+    }
+
+    #[tokio::test]
+    async fn next_analytics_outbox_batch_respects_the_byte_budget_but_never_returns_empty_with_data()
+     {
+        let (_temp, _config, store) = temp_store();
+        // Three ~2KB entries. A tiny byte budget must return exactly one
+        // entry — not zero — because a forwarder that gets an empty
+        // response would stall on a legitimately-oversized record.
+        let large_payload = vec![b'x'; 2_000];
+        for i in 0..3 {
+            let value = crate::analytics_outbox::encode_value(
+                0,
+                i as u64,
+                crate::analytics_outbox::ContentType::Json,
+                &large_payload,
+            );
+            store
+                .append_analytics_outbox_entry(
+                    crate::analytics_outbox::Pipeline::XcodeCache,
+                    i as u64,
+                    Uuid::from_u128(i as u128 + 1),
+                    &value,
+                )
+                .await
+                .expect("append should succeed");
+        }
+
+        let just_over_one = store
+            .next_analytics_outbox_batch(crate::analytics_outbox::Pipeline::XcodeCache, 10, 100)
+            .expect("read should succeed");
+        assert_eq!(
+            just_over_one.len(),
+            1,
+            "a small byte budget must still yield the first entry, not stall the forwarder",
+        );
+
+        let three_fits = store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::XcodeCache,
+                10,
+                3 * 3_000,
+            )
+            .expect("read should succeed");
+        assert_eq!(three_fits.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn next_analytics_outbox_batch_isolates_pipelines_via_prefix() {
+        // The shared column family holds every pipeline's entries. A
+        // read for one pipeline must never yield another's rows — that
+        // is the property Codex's "one CF with pipeline-prefixed keys"
+        // recommendation trades off physical isolation for. Prove it.
+        let (_temp, _config, store) = temp_store();
+        for (pipeline, seed) in [
+            (crate::analytics_outbox::Pipeline::GradleCache, 1_u128),
+            (crate::analytics_outbox::Pipeline::XcodeCache, 2),
+            (crate::analytics_outbox::Pipeline::ReapiCache, 3),
+        ] {
+            let value = crate::analytics_outbox::encode_value(
+                0,
+                42,
+                crate::analytics_outbox::ContentType::Json,
+                b"payload",
+            );
+            store
+                .append_analytics_outbox_entry(pipeline, 42, Uuid::from_u128(seed), &value)
+                .await
+                .expect("append should succeed");
+        }
+
+        for pipeline in [
+            crate::analytics_outbox::Pipeline::GradleCache,
+            crate::analytics_outbox::Pipeline::XcodeCache,
+            crate::analytics_outbox::Pipeline::ReapiCache,
+        ] {
+            let batch = store
+                .next_analytics_outbox_batch(pipeline, 10, usize::MAX)
+                .expect("read should succeed");
+            assert_eq!(
+                batch.len(),
+                1,
+                "each pipeline scan is scoped to its own prefix"
+            );
+            assert_eq!(batch[0].pipeline, pipeline);
+        }
+    }
+
+    #[tokio::test]
+    async fn delete_analytics_outbox_entries_removes_only_named_keys() {
+        let (_temp, _config, store) = temp_store();
+        for i in 0..3_u64 {
+            let value = crate::analytics_outbox::encode_value(
+                0,
+                i,
+                crate::analytics_outbox::ContentType::Json,
+                b"payload",
+            );
+            store
+                .append_analytics_outbox_entry(
+                    crate::analytics_outbox::Pipeline::GradleCache,
+                    i,
+                    Uuid::from_u128(u128::from(i) + 1),
+                    &value,
+                )
+                .await
+                .expect("append should succeed");
+        }
+
+        let batch = store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::GradleCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read should succeed");
+        assert_eq!(batch.len(), 3);
+
+        // Delete the middle one. Must leave the earliest and latest.
+        let middle_key = batch[1].key.clone();
+        store
+            .delete_analytics_outbox_entries(&[middle_key])
+            .await
+            .expect("delete should succeed");
+
+        let remaining = store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::GradleCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read should succeed");
+        assert_eq!(
+            remaining.iter().map(|e| e.queued_at_ms).collect::<Vec<_>>(),
+            vec![0, 2],
+        );
+        assert_eq!(
+            store
+                .analytics_outbox_entry_count()
+                .expect("count after delete should succeed"),
+            2,
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_analytics_outbox_entries_tolerates_an_empty_batch() {
+        // The forwarder will call delete after a successful POST. On a
+        // batch whose POST returned no rows to ack (e.g., a shed batch),
+        // the call must be a no-op rather than an error, so the drain
+        // loop does not have to special-case an empty ack list.
+        let (_temp, _config, store) = temp_store();
+        store
+            .delete_analytics_outbox_entries(&[])
+            .await
+            .expect("empty delete should succeed");
     }
 
     #[test]
