@@ -10,6 +10,7 @@ defmodule Tuist.Billing.UsageMeters do
   import Ecto.Query
 
   alias Tuist.Cache.CASEvent
+  alias Tuist.CacheEndpoints
   alias Tuist.ClickHouseRepo
   alias Tuist.Kura.Regions
   alias Tuist.Kura.UsageEvent
@@ -32,6 +33,9 @@ defmodule Tuist.Billing.UsageMeters do
   `0` for Kura traffic that did not resolve to a project. Kura artifact kinds
   other than the module, Xcode, Gradle, Bazel, Nx, and Metro caches are not
   counted.
+
+  Kura's downloads are read from its usage events, and the downloads a
+  registered cache endpoint served from its CAS events.
   """
   def cache_downloads(account_id, %DateTime{} = period_start, %DateTime{} = period_end) when is_integer(account_id) do
     kura_downloads(account_id, period_start, period_end) ++
@@ -80,34 +84,53 @@ defmodule Tuist.Billing.UsageMeters do
   end
 
   defp compilation_cache_downloads(account_id, period_start, period_end) do
-    account_id
-    |> project_ids()
-    |> Enum.chunk_every(@project_ids_chunk_size)
-    |> Enum.flat_map(fn project_ids ->
-      ClickHouseRepo.all(
-        from(e in CASEvent,
-          where: fragment("? IN (?)", e.project_id, type(^project_ids, {:array, :integer})),
-          where: e.action == "download",
-          where: e.inserted_at >= ^to_naive(period_start) and e.inserted_at < ^to_naive(period_end),
-          group_by: [fragment("toDate(?)", e.inserted_at), e.project_id],
-          select: %{
-            date: fragment("toDate(?)", e.inserted_at),
-            project_id: e.project_id,
-            bytes: fragment("sum(?)", e.size),
-            requests: fragment("count()")
+    case legacy_cache_endpoints() do
+      [] ->
+        []
+
+      endpoints ->
+        account_id
+        |> project_ids()
+        |> Enum.chunk_every(@project_ids_chunk_size)
+        |> Enum.flat_map(fn project_ids ->
+          ClickHouseRepo.all(
+            from(e in CASEvent,
+              where: fragment("? IN (?)", e.project_id, type(^project_ids, {:array, :integer})),
+              where: e.action == "download",
+              where: e.cache_endpoint in ^endpoints,
+              where: e.inserted_at >= ^to_naive(period_start) and e.inserted_at < ^to_naive(period_end),
+              group_by: [fragment("toDate(?)", e.inserted_at), e.project_id],
+              select: %{
+                date: fragment("toDate(?)", e.inserted_at),
+                project_id: e.project_id,
+                bytes: fragment("sum(?)", e.size),
+                requests: fragment("count()")
+              }
+            )
+          )
+        end)
+        |> Enum.map(fn row ->
+          %{
+            date: row.date,
+            project_id: row.project_id,
+            runners: false,
+            bytes: to_integer(row.bytes),
+            requests: to_integer(row.requests)
           }
-        )
-      )
-    end)
-    |> Enum.map(fn row ->
-      %{
-        date: row.date,
-        project_id: row.project_id,
-        runners: false,
-        bytes: to_integer(row.bytes),
-        requests: to_integer(row.requests)
-      }
-    end)
+        end)
+    end
+  end
+
+  # Kura reports a download it serves twice: once as a usage event, and once
+  # to `/webhooks/cache`, which writes a CAS event. Its rollups are the only
+  # source counted for it, so CAS events count what a registered cache
+  # endpoint served and nothing else. The webhook stores the endpoint's host
+  # while it is registered with a scheme, so both spellings go into the filter.
+  defp legacy_cache_endpoints do
+    CacheEndpoints.list_cache_endpoints()
+    |> Enum.flat_map(&[&1.url, URI.parse(&1.url).authority])
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   end
 
   @doc """

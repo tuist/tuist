@@ -3,6 +3,7 @@ defmodule Tuist.Billing.UsageMetersTest do
 
   alias Tuist.Billing.UsageMeters
   alias Tuist.Cache.CASEvent
+  alias Tuist.CacheEndpoints
   alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
   alias Tuist.Runners.Job
@@ -16,6 +17,9 @@ defmodule Tuist.Billing.UsageMetersTest do
   setup do
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
     project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+    {:ok, _endpoint} =
+      CacheEndpoints.create_cache_endpoint(%{url: "https://cache.tuist.dev", display_name: "Cache"})
 
     %{account: account, project: project}
   end
@@ -52,7 +56,7 @@ defmodule Tuist.Billing.UsageMetersTest do
           action: "download",
           size: 0,
           cas_id: "cas-#{System.unique_integer([:positive])}",
-          cache_endpoint: "https://cache.tuist.dev",
+          cache_endpoint: "cache.tuist.dev",
           inserted_at: ~N[2026-05-01 12:00:00]
         },
         attrs
@@ -188,6 +192,29 @@ defmodule Tuist.Billing.UsageMetersTest do
 
       assert UsageMeters.cache_downloads(account.id, @period_start, @period_end) == [
                %{date: ~D[2026-05-01], project_id: project.id, runners: false, bytes: 1_000, requests: 2}
+             ]
+    end
+
+    test "counts a download Kura served once, although it also reports a CAS event", %{
+      account: account,
+      project: project
+    } do
+      insert_kura_event(%{
+        account_id: account.id,
+        project_id: project.id,
+        artifact_kind: "xcode",
+        bytes: 1_000,
+        request_count: 1
+      })
+
+      insert_cas_event(%{
+        project_id: project.id,
+        size: 1_000,
+        cache_endpoint: "kura-acme-eu-east-1-0.kura-acme-eu-east-1-headless.kura.svc.cluster.local:7443"
+      })
+
+      assert UsageMeters.cache_downloads(account.id, @period_start, @period_end) == [
+               %{date: ~D[2026-05-01], project_id: project.id, runners: false, bytes: 1_000, requests: 1}
              ]
     end
   end
