@@ -335,6 +335,9 @@ server:
     collectorUrl: /-/faro/collect
     receiverHost: k8s-monitoring-alloy-receiver.observability.svc.cluster.local
     receiverPort: 12347
+    # Phase two after deploying gateway-capable pods; see ../k8s-monitoring/browser-rum.md.
+    gateway:
+      enabled: true
 
   ingress:
     enabled: true
