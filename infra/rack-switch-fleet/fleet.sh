@@ -591,7 +591,10 @@ cmd_recover() {
       *) name="$1"; shift;;
     esac
   done
-  [ -n "$name" ] && [ -n "$from" ] || { echo "usage: rack:fleet recover <device> --from <current-address>" >&2; return 2; }
+  if [ -z "$name" ] || [ -z "$from" ]; then
+    echo "usage: rack:fleet recover <device> --from <current-address>" >&2
+    return 2
+  fi
   fleet_lock "recover $name" || return 1
 
   local device address netmask vlan user key

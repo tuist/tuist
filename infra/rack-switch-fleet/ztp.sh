@@ -56,7 +56,9 @@ vault="$(jq -r '.credentials.vault' "$site_file")"
 
 # --- refuse to become a rogue DHCP server ------------------------------------
 
-default_interface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')"
+# `route -n get` is macOS; elsewhere it fails, and under pipefail that must not
+# end the run before the guards below have said anything.
+default_interface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' || true)"
 if [ "$interface" = "$default_interface" ]; then
   echo "error: $interface carries this machine's default route, so it is the network you" >&2
   echo "       are on. Serving DHCP there would hand addresses to everything on it." >&2
