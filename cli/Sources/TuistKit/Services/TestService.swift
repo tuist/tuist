@@ -588,7 +588,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let selectiveTestingGraph = computeSelectiveTestingGraph(
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
-                testPlanConfiguration: testPlanConfiguration
+                testPlanConfiguration: testPlanConfiguration,
+                requestedTestIdentifiers: testTargets
             )
 
             var writtenGraphDirectories: Set<AbsolutePath> = []
@@ -765,18 +766,23 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
-        // The shard's identifiers and the requested ones would both go out as `-only-testing`, which
-        // xcodebuild runs the union of, so a shard scoped to a whole module would run it whole
-        // however narrow the request was. Intersect them instead.
-        let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(
-            shard: shard.testIdentifiers,
-            requested: testTargets
-        )
-        if onlyTestIdentifiers.isEmpty, !shard.testIdentifiers.isEmpty {
+        // A shard run is restricted from three directions, and all three would otherwise go out as
+        // `-only-testing`, which xcodebuild runs the union of: a shard scoped to a whole module
+        // would run it whole however narrow the request was. The build job's restriction has to be
+        // restored from the products, since this runner is usually a separate job that repeats
+        // neither it nor anything else from the build command.
+        let restrictions = [
+            shard.testIdentifiers,
+            shard.selectiveTestingGraph?.requestedTestIdentifiers ?? [],
+            testTargets.map(\.description),
+        ]
+        let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
+        if onlyTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
             Logger.current.notice(
                 "Shard \(shardIndex) holds no tests the run asked for, finishing early.",
                 metadata: .section
             )
+            await cleanUpTestProducts(at: shard.testProductsPath, localTestProductsPath: localTestProductsPath)
             return
         }
 
@@ -857,11 +863,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: resultBundlePath
         )
-        // Only Tuist-owned products (downloaded or extracted) are cleaned up; user-provided local
-        // products (passed via -testProductsPath) are left in place.
-        if localTestProductsPath == nil {
-            try? await fileSystem.remove(shard.testProductsPath)
-        }
+        await cleanUpTestProducts(at: shard.testProductsPath, localTestProductsPath: localTestProductsPath)
 
         if let testError {
             throw testError
@@ -872,6 +874,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         AlertController.current.success(.alert("The project tests ran successfully"))
+    }
+
+    /// Only Tuist-owned products (downloaded or extracted for this shard) are cleaned up;
+    /// user-provided local products (passed via `-testProductsPath`) are left in place.
+    private func cleanUpTestProducts(at path: AbsolutePath, localTestProductsPath: AbsolutePath?) async {
+        guard localTestProductsPath == nil else { return }
+        try? await fileSystem.remove(path)
     }
 
     // MARK: - Test Without Building (from bundle)
@@ -1221,7 +1230,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func computeSelectiveTestingGraph(
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
-        testPlanConfiguration: TestPlanConfiguration?
+        testPlanConfiguration: TestPlanConfiguration?,
+        requestedTestIdentifiers: [TestIdentifier]
     ) -> SelectiveTestingGraph {
         guard let initialGraph = mapperEnvironment.initialGraph else {
             let attemptedTestPlans = attemptedTestPlans(
@@ -1230,7 +1240,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
             return SelectiveTestingGraph(
                 testTargetHashes: [:],
-                attemptedTestPlans: attemptedTestPlans
+                attemptedTestPlans: attemptedTestPlans,
+                requestedTestIdentifiers: requestedTestIdentifiers.map(\.description)
             )
         }
 
@@ -1261,7 +1272,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         return SelectiveTestingGraph(
             testTargetHashes: testTargetHashes,
-            attemptedTestPlans: attemptedTestPlans
+            attemptedTestPlans: attemptedTestPlans,
+            requestedTestIdentifiers: requestedTestIdentifiers.map(\.description)
         )
     }
 

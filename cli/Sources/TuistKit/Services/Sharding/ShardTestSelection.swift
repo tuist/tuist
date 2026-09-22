@@ -71,19 +71,32 @@ enum ShardTestSelection {
         )
     }
 
-    /// The `-only-testing` identifiers a shard runs, restricted to what `requested` names.
+    /// The `-only-testing` identifiers left once every restriction a run is under has been applied.
     ///
-    /// Two identifiers overlap when one is a prefix of the other, and the narrower of the two is
-    /// what runs. An empty result means the shard holds nothing the run asked for.
-    static func onlyTestIdentifiers(shard: [String], requested: [TestIdentifier]) -> [String] {
-        let requested = requested.map(\.description)
-        guard !requested.isEmpty else { return shard }
-        guard !shard.isEmpty else { return requested }
+    /// A shard run is restricted from three directions: the shard's own identifiers, what the build
+    /// job was asked to test, and what this runner was asked to test. Each one narrows the last, and
+    /// an empty restriction is no restriction at all. Two identifiers overlap when one is a prefix
+    /// of the other, and the narrower of the two survives.
+    ///
+    /// An empty result while any restriction applied means nothing is left to run, which callers
+    /// have to tell apart from the unrestricted case: passing no `-only-testing` runs everything.
+    static func onlyTestIdentifiers(_ restrictions: [[String]]) -> [String] {
+        var narrowed: [String]?
+        for restriction in restrictions where !restriction.isEmpty {
+            guard let current = narrowed else {
+                narrowed = restriction
+                continue
+            }
+            narrowed = intersect(current, restriction)
+        }
+        return narrowed ?? []
+    }
 
+    private static func intersect(_ lhs: [String], _ rhs: [String]) -> [String] {
         var narrowed: Set<String> = []
-        for shardIdentifier in shard {
-            for requestedIdentifier in requested {
-                if let identifier = narrower(shardIdentifier, requestedIdentifier) {
+        for left in lhs {
+            for right in rhs {
+                if let identifier = narrower(left, right) {
                     narrowed.insert(identifier)
                 }
             }
