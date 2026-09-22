@@ -12,6 +12,14 @@ type Metrics struct {
 	Sandboxes     *prometheus.GaugeVec
 	Workers       prometheus.Gauge
 	Operations    *prometheus.CounterVec
+	// Capacity as the server sees it in reports: the cgroup's memory
+	// limit and usage, and the data directory's disk budget, occupancy
+	// and the filesystem's free space.
+	MemoryBudgetBytes  prometheus.Gauge
+	MemoryUsedBytes    prometheus.Gauge
+	DiskBudgetBytes    prometheus.Gauge
+	DiskSandboxesBytes prometheus.Gauge
+	DiskAvailableBytes prometheus.Gauge
 }
 
 func NewMetrics(registry prometheus.Registerer) *Metrics {
@@ -39,9 +47,27 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		Operations: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "sandboxd_operations_total", Help: "Sandbox operations by op and outcome.",
 		}, []string{"op", "result"}),
+		MemoryBudgetBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "sandboxd_memory_budget_bytes", Help: "Memory limit of the daemon's cgroup, shared by every guest on the node.",
+		}),
+		MemoryUsedBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "sandboxd_memory_used_bytes", Help: "Memory the daemon's cgroup currently uses.",
+		}),
+		DiskBudgetBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "sandboxd_disk_budget_bytes", Help: "Bytes of the data filesystem sandboxes may occupy; zero when unset.",
+		}),
+		DiskSandboxesBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "sandboxd_disk_sandboxes_bytes", Help: "Bytes jails hold exclusively (rootfs deltas, workspaces, their own memory images).",
+		}),
+		DiskAvailableBytes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "sandboxd_disk_available_bytes", Help: "Free space on the filesystem behind the data directory.",
+		}),
 	}
 	if registry != nil {
-		registry.MustRegister(m.Create, m.Resume, m.Pause, m.TemplateBuild, m.Sandboxes, m.Workers, m.Operations)
+		registry.MustRegister(
+			m.Create, m.Resume, m.Pause, m.TemplateBuild, m.Sandboxes, m.Workers, m.Operations,
+			m.MemoryBudgetBytes, m.MemoryUsedBytes, m.DiskBudgetBytes, m.DiskSandboxesBytes, m.DiskAvailableBytes,
+		)
 	}
 	return m
 }

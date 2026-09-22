@@ -1138,6 +1138,7 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   memoryGiB: 20
+  diskGiB: 100
   admin:
     enabled: true
   logLevel: debug

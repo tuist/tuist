@@ -16,7 +16,7 @@ defmodule Tuist.Sandboxes.Sandbox do
   alias Tuist.Accounts.Account
   alias Tuist.Sandboxes.AgentEnvironment
 
-  @states [:creating, :running, :paused, :error, :deleted]
+  @states [:creating, :running, :resuming, :paused, :error, :deleted]
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "sandboxes" do

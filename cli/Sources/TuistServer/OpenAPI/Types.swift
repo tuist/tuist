@@ -12799,6 +12799,7 @@ public enum Components {
             @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case creating = "creating"
                 case running = "running"
+                case resuming = "resuming"
                 case paused = "paused"
                 case error = "error"
                 case deleted = "deleted"
@@ -17185,6 +17186,7 @@ public enum Operations {
                             @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case creating = "creating"
                                 case running = "running"
+                                case resuming = "resuming"
                                 case paused = "paused"
                                 case error = "error"
                                 case deleted = "deleted"
@@ -17633,6 +17635,7 @@ public enum Operations {
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
                             case running = "running"
+                            case resuming = "resuming"
                             case paused = "paused"
                             case error = "error"
                             case deleted = "deleted"
@@ -27545,6 +27548,7 @@ public enum Operations {
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
                             case running = "running"
+                            case resuming = "resuming"
                             case paused = "paused"
                             case error = "error"
                             case deleted = "deleted"
@@ -39947,6 +39951,7 @@ public enum Operations {
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
                             case running = "running"
+                            case resuming = "resuming"
                             case paused = "paused"
                             case error = "error"
                             case deleted = "deleted"
@@ -62900,6 +62905,7 @@ public enum Operations {
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
                             case running = "running"
+                            case resuming = "resuming"
                             case paused = "paused"
                             case error = "error"
                             case deleted = "deleted"

@@ -23,7 +23,15 @@ defmodule TuistWeb.SandboxNodeWebSock do
   end
 
   defp empty_info do
-    %{capacity: %{}, memory: %{}, templates: [], sandboxes: [], daemon_version: nil, firecracker_version: nil}
+    %{
+      capacity: %{},
+      memory: %{},
+      disk: %{},
+      templates: [],
+      sandboxes: [],
+      daemon_version: nil,
+      firecracker_version: nil
+    }
   end
 
   @impl WebSock
@@ -175,6 +183,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
     info
     |> maybe_merge(:capacity, frame["capacity"], &capacity/1)
     |> maybe_merge(:memory, frame["memory"], &memory/1)
+    |> maybe_merge(:disk, frame["disk"], &disk/1)
     |> maybe_merge(:templates, frame["templates"], &templates/1)
     |> maybe_merge(:sandboxes, frame["sandboxes"], &sandboxes/1)
     |> maybe_merge(:daemon_version, frame["daemon_version"], & &1)
@@ -189,6 +198,18 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   defp memory(%{} = memory), do: %{used_bytes: memory["used_bytes"]}
   defp memory(_memory), do: %{}
+
+  defp disk(%{} = disk) do
+    %{
+      total_bytes: disk["total_bytes"],
+      available_bytes: disk["available_bytes"],
+      sandboxes_bytes: disk["sandboxes_bytes"],
+      templates_bytes: disk["templates_bytes"],
+      budget_bytes: disk["budget_bytes"]
+    }
+  end
+
+  defp disk(_disk), do: %{}
 
   defp templates(templates) when is_list(templates) do
     for %{"name" => name} = template <- templates, is_binary(name) do

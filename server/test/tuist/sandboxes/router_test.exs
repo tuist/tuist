@@ -12,6 +12,7 @@ defmodule Tuist.Sandboxes.RouterTest do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.Anthropic.Client
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Router
   alias Tuist.Sandboxes.Sandbox
@@ -46,7 +47,7 @@ defmodule Tuist.Sandboxes.RouterTest do
     agent_environment: agent_environment
   } do
     stub(Environment, :anthropic_api_url_override, fn -> nil end)
-    expect(Nodes, :node_with_capacity, fn %{template: "default"} -> {:ok, "node-a"} end)
+    expect(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
     expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 100}} end)
 
     expect(Nodes, :call, fn "node-a", "start_worker", %{sandbox_id: sandbox_id, env: env}, _opts ->
@@ -80,7 +81,7 @@ defmodule Tuist.Sandboxes.RouterTest do
 
   test "adds ANTHROPIC_BASE_URL when the API URL is overridden", %{agent_environment: agent_environment} do
     stub(Environment, :anthropic_api_url_override, fn -> "http://anthropic.test" end)
-    expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+    expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
     expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
 
     expect(Nodes, :call, fn "node-a", "start_worker", %{env: env}, _opts ->
@@ -106,7 +107,7 @@ defmodule Tuist.Sandboxes.RouterTest do
       )
 
     sandbox_id = sandbox.id
-    reject(&Nodes.node_with_capacity/1)
+    reject(&Capacity.place/1)
     expect(Nodes, :call, fn "node-b", "resume", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{"restore_ms" => 50}} end)
     expect(Nodes, :call, fn "node-b", "start_worker", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
 
@@ -127,7 +128,7 @@ defmodule Tuist.Sandboxes.RouterTest do
 
     dead_id = dead.id
     expect(Nodes, :call, fn "node-b", "delete", %{sandbox_id: ^dead_id}, _opts -> {:ok, %{}} end)
-    expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+    expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
     expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
     expect(Nodes, :call, fn "node-a", "start_worker", _args, _opts -> {:ok, %{}} end)
 
@@ -140,7 +141,7 @@ defmodule Tuist.Sandboxes.RouterTest do
   end
 
   test "releases the work item when no node can host the sandbox", %{agent_environment: agent_environment} do
-    expect(Nodes, :node_with_capacity, fn _ -> {:error, :no_node} end)
+    expect(Capacity, :place, fn _ -> {:error, :no_node} end)
     expect(Client, :stop, fn "env_router", "sk-ant-router", "work_1", true -> {:ok, %{"state" => "stopped"}} end)
 
     assert {:error, :no_node} = Router.dispatch(agent_environment, work_item("session_5"))
@@ -193,7 +194,7 @@ defmodule Tuist.Sandboxes.RouterTest do
         )
 
       expect(VCS, :get_github_app_installation_for_account, fn _account_id -> {:error, :not_found} end)
-      expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
 
       expect(Nodes, :call, fn "node-a", "exec", args, opts ->
@@ -240,7 +241,7 @@ defmodule Tuist.Sandboxes.RouterTest do
         {:ok, %{token: "ghs_secret_token", expires_at: DateTime.utc_now()}}
       end)
 
-      expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
 
       expect(Nodes, :call, fn "node-a", "exec", args, opts ->
@@ -279,7 +280,7 @@ defmodule Tuist.Sandboxes.RouterTest do
       )
 
       expect(VCS, :get_github_app_installation_for_account, fn _account_id -> {:error, :not_found} end)
-      expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
 
       expect(Nodes, :call, fn "node-a", "exec", args, _opts ->
@@ -307,7 +308,7 @@ defmodule Tuist.Sandboxes.RouterTest do
       )
 
       reject(&VCS.get_github_app_installation_for_account/1)
-      expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
       expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:error, :timeout} end)
 
@@ -330,7 +331,7 @@ defmodule Tuist.Sandboxes.RouterTest do
         })
 
       reject(&VCS.get_github_app_installation_for_account/1)
-      expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
 
       expect(Nodes, :call, fn "node-a", "exec", args, _opts ->
@@ -354,7 +355,7 @@ defmodule Tuist.Sandboxes.RouterTest do
           anthropic_session_id: "session_bare"
         )
 
-      expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{}} end)
       expect(Nodes, :call, fn "node-a", "start_worker", _args, _opts -> {:ok, %{}} end)
 

@@ -147,6 +147,8 @@ spec:
               value: {{ $templateTag | quote }}
             - name: PREBUILD_SHAPES
               value: {{ .Values.sandboxes.prebuildShapes | quote }}
+            - name: DISK_BUDGET_GIB
+              value: {{ .Values.sandboxes.diskGiB | quote }}
             - name: METRICS_ADDR
               value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
             {{- if .Values.sandboxes.admin.enabled }}

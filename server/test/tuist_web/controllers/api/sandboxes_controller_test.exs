@@ -6,6 +6,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Repo
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -189,7 +190,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
   describe "sandboxes" do
     test "creates, inspects, runs commands in, pauses, resumes and deletes a sandbox", %{conn: conn, account: account} do
-      stub(Nodes, :node_with_capacity, fn %{template: "default"} -> {:ok, "node-a"} end)
+      stub(Capacity, :place, fn %{template: "default"} -> {:ok, "node-a"} end)
 
       expect(Nodes, :call, fn "node-a", "create", %{vcpus: 4}, _opts -> {:ok, %{"template_tag" => "sha-1"}} end)
 
@@ -237,7 +238,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     end
 
     test "answers 503 when no node can host the sandbox", %{conn: conn, account: account} do
-      stub(Nodes, :node_with_capacity, fn _ -> {:error, :no_node} end)
+      stub(Capacity, :place, fn _ -> {:error, :no_node} end)
 
       response =
         conn
@@ -245,6 +246,17 @@ defmodule TuistWeb.API.SandboxesControllerTest do
         |> json_response(:service_unavailable)
 
       assert response["message"] =~ "No sandbox node"
+    end
+
+    test "answers 503 when no node has memory or disk left", %{conn: conn, account: account} do
+      stub(Capacity, :place, fn _ -> {:error, :no_capacity} end)
+
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{})
+        |> json_response(:service_unavailable)
+
+      assert response["message"] =~ "memory or disk"
     end
 
     test "answers 409 for an operation the sandbox state does not allow", %{conn: conn, account: account} do

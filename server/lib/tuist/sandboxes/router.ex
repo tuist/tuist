@@ -66,7 +66,7 @@ defmodule Tuist.Sandboxes.Router do
 
   defp find_or_create_sandbox(agent_environment, session_id, item) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
-      %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating] ->
+      %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
         {:ok, sandbox}
 
       # A sandbox that died or was deleted from under us cannot be

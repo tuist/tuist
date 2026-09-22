@@ -6838,6 +6838,7 @@ components:
           enum:
             - creating
             - running
+            - resuming
             - paused
             - error
             - deleted
@@ -9525,6 +9526,7 @@ paths:
                           enum:
                             - creating
                             - running
+                            - resuming
                             - paused
                             - error
                             - deleted
@@ -9720,6 +9722,7 @@ paths:
                     enum:
                       - creating
                       - running
+                      - resuming
                       - paused
                       - error
                       - deleted
@@ -13050,6 +13053,7 @@ paths:
                     enum:
                       - creating
                       - running
+                      - resuming
                       - paused
                       - error
                       - deleted
@@ -16941,6 +16945,7 @@ paths:
                     enum:
                       - creating
                       - running
+                      - resuming
                       - paused
                       - error
                       - deleted
@@ -24373,6 +24378,7 @@ paths:
                     enum:
                       - creating
                       - running
+                      - resuming
                       - paused
                       - error
                       - deleted

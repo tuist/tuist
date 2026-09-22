@@ -7,6 +7,7 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
   alias Tuist.Sandboxes.Anthropic.Client
   alias Tuist.Sandboxes.Anthropic.Poller
   alias Tuist.Sandboxes.Anthropic.Supervisor, as: AnthropicSupervisor
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Router
 
   setup :set_mimic_global
@@ -57,6 +58,29 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
     assert_receive {:dispatched, environment_id, ^item}, 2_000
     assert environment_id == agent_environment.id
     assert Poller.whereis(agent_environment.id)
+  end
+
+  test "leaves a session item queued and backs off when no node has room for its sandbox" do
+    agent_environment = agent_environment_fixture(anthropic_environment_id: "env_full", environment_key: "sk-full")
+    test_pid = self()
+    item = work_item("work_full", %{"id" => "session_full", "type" => "session"})
+    queue_poll_responses([{:ok, item}, {:ok, item}])
+
+    stub(Capacity, :admissible?, fn environment, "session_full" ->
+      send(test_pid, {:checked, environment.id, System.monotonic_time(:millisecond)})
+      false
+    end)
+
+    reject(&Client.ack/3)
+    reject(&Router.dispatch/2)
+    reject(&Client.stop/4)
+
+    start_supervised!({Poller, agent_environment_id: agent_environment.id, idle_delay_ms: 20})
+
+    environment_id = agent_environment.id
+    assert_receive {:checked, ^environment_id, first}, 2_000
+    assert_receive {:checked, ^environment_id, second}, 3_000
+    assert second - first >= 900
   end
 
   test "force-stops a work item that is not a session" do

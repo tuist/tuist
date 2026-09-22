@@ -184,6 +184,7 @@ Node to server:
 ```
 {"type":"hello","node":"...","daemon_version":"...","firecracker_version":"...",
  "capacity":{"memory_bytes":N,"cpus":N},
+ "disk":{"total_bytes":N,"available_bytes":N,"sandboxes_bytes":N,"templates_bytes":N,"budget_bytes":N},
  "templates":[{"name":"default","tag":"sha-...","ready":true}],
  "sandboxes":[{"id":"...","state":"running","template":"default","template_tag":"...",
                "vcpus":2,"memory_mb":4096,"worker_running":false}]}
@@ -193,7 +194,7 @@ Node to server:
 {"type":"event","event":"worker_exited","sandbox_id":"...","exit_code":0,"duration_ms":1234}
 {"type":"event","event":"sandbox_died","sandbox_id":"...","reason":"..."}
 {"type":"event","event":"template_ready","name":"default","tag":"..."}
-{"type":"report","sandboxes":[...same shape as hello...],"memory":{"used_bytes":N}}
+{"type":"report","sandboxes":[...same shape as hello...],"memory":{"used_bytes":N},"disk":{...same shape as hello...}}
 ```
 
 Server to node:
@@ -236,6 +237,17 @@ acknowledged by the server's poller; the worker never polls.
   `start_worker`.
 - `worker_exited` ends the residency; the sandbox is paused after a grace
   period (default 30s) unless a new residency started meanwhile.
+- Placement budgets memory against `capacity.memory_bytes`, the daemon's
+  cgroup limit: every creating, resuming or running sandbox is charged its
+  guest memory plus 64 MiB, 512 MiB stay reserved for the daemon and the
+  VMMs, and a node the sum would overflow is skipped. Idle running sandboxes
+  (no residency) are paused, longest idle first, when nothing fits. A node
+  without room for another memory image on disk (`disk.available_bytes`,
+  plus 1 GiB headroom) or past its `disk.budget_bytes` is skipped too. The
+  poller leaves a work item unacknowledged when its sandbox would not fit
+  anywhere, so the queue holds it until a pause frees memory.
+- Sandboxes paused for longer than 14 days are deleted by a daily job; a
+  session that returns afterwards gets a fresh sandbox.
 - The account API lets an account connect an environment (Anthropic
   environment id + environment key, stored encrypted with `Tuist.Vault`),
   list and delete sandboxes, and run commands in a sandbox for validation.
@@ -243,8 +255,8 @@ acknowledged by the server's poller; the worker never polls.
 ## Not yet
 
 Diff snapshots, userfaultfd restore from object storage, cross-node resume,
-per-account egress policy, memory overcommit admission, non-root execution in
-the guest, Claude Code self-hosted runners.
+per-account egress policy, non-root execution in the guest, Claude Code
+self-hosted runners.
 
 ## Operations
 
@@ -253,7 +265,10 @@ The daemon lives in `cmd/sandboxd` with one package per concern under
 spawn, jail file prep, process tracking), `network` (netns, veth, NAT),
 `vsock` (guest agent client), `template` (discovery and per-shape snapshot
 builds), `sandbox` (lifecycle manager, metadata, metrics, command dispatch),
-`server` (WebSocket client), `admin` (bring-up HTTP API), `hostinfo`, and
+`server` (WebSocket client), `admin` (bring-up HTTP API), `hostinfo` (cgroup
+memory limit and usage, resolvers), `diskusage` (filesystem size and the
+exclusive bytes of templates and jails, deduplicated by inode and, on Linux,
+by FIEMAP extent sharing so reflink clones count only their deltas), and
 `fakevm` (a test double that emulates the Firecracker API and the guest
 agent so the manager runs end to end without KVM).
 
@@ -289,6 +304,7 @@ agent so the manager runs end to end without KVM).
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
 | `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. |
+| `DISK_BUDGET_GIB` | `0` | Share of the data filesystem jails may hold exclusively, reported as `disk.budget_bytes` for the server's placement; `0` reports no budget. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
 | `BOOT_TIMEOUT`, `TEMPLATE_BOOT_TIMEOUT` | `60s`, `2m` | Agent readiness after a restore / a cold template boot. |
 | `SHUTDOWN_TIMEOUT` | `60s` | Budget for stopping workers and pausing every running sandbox on SIGTERM; size the pod's grace period above it. |

@@ -1,5 +1,10 @@
 // Package hostinfo reads what the hello and report frames need from the
 // pod: memory capacity and usage, CPU count and the pod's resolvers.
+//
+// Memory comes from the pod's own cgroup when it has a limit: every guest
+// runs inside the daemon's cgroup, so that limit, not the node's MemTotal,
+// is the wall the server places sandboxes against. Without a cgroup limit
+// the node's meminfo is the fallback.
 package hostinfo
 
 import (
@@ -11,17 +16,50 @@ import (
 	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
 )
 
+const (
+	cgroupMemoryMax     = "/sys/fs/cgroup/memory.max"
+	cgroupMemoryCurrent = "/sys/fs/cgroup/memory.current"
+)
+
 func Capacity() protocol.Capacity {
-	total, _ := meminfo()
+	total, ok := cgroupValue(cgroupMemoryMax)
+	if !ok {
+		total, _ = meminfo()
+	}
 	return protocol.Capacity{MemoryBytes: total, CPUs: runtime.NumCPU()}
 }
 
 func MemoryUsed() uint64 {
+	if used, ok := cgroupValue(cgroupMemoryCurrent); ok {
+		return used
+	}
 	total, available := meminfo()
 	if total < available {
 		return 0
 	}
 	return total - available
+}
+
+func cgroupValue(path string) (uint64, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	return ParseCgroupValue(string(data))
+}
+
+// ParseCgroupValue reads a cgroup v2 memory file. "max" means no limit and
+// reports false so the caller falls back to the node's memory.
+func ParseCgroupValue(text string) (uint64, bool) {
+	text = strings.TrimSpace(text)
+	if text == "" || text == "max" {
+		return 0, false
+	}
+	value, err := strconv.ParseUint(text, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return value, true
 }
 
 func meminfo() (total, available uint64) {

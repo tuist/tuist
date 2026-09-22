@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/admin"
+	"github.com/tuist/tuist/infra/sandboxd/internal/diskusage"
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
 	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
 	"github.com/tuist/tuist/infra/sandboxd/internal/network"
@@ -58,6 +59,11 @@ func main() {
 	templateBootTimeout := durationEnv(logger, "TEMPLATE_BOOT_TIMEOUT", template.DefaultBootTimeout)
 	shutdownTimeout := durationEnv(logger, "SHUTDOWN_TIMEOUT", 60*time.Second)
 	templateWorkspaceGB := intEnv(logger, "TEMPLATE_WORKSPACE_GB", template.DefaultWorkspaceGB)
+	diskBudgetGiB := intEnv(logger, "DISK_BUDGET_GIB", 0)
+	if diskBudgetGiB < 0 {
+		logger.Error("DISK_BUDGET_GIB must not be negative", "value", diskBudgetGiB)
+		os.Exit(1)
+	}
 	prebuild, err := template.ParseShapes(os.Getenv("PREBUILD_SHAPES"))
 	if err != nil {
 		logger.Error("invalid PREBUILD_SHAPES", "error", err)
@@ -196,18 +202,39 @@ func main() {
 		}()
 	}
 
+	disk := diskusage.Accounter{
+		DataDir: dataDir, TemplatesDir: store.Dir, JailDir: jailBase,
+		BudgetBytes: uint64(diskBudgetGiB) << 30, //nolint:gosec // Checked non-negative above.
+	}
+	diskReport := func() protocol.DiskReport {
+		report, err := disk.Report()
+		if err != nil {
+			logger.Warn("measuring disk usage", "error", err)
+		}
+		return report
+	}
+	capacity := hostinfo.Capacity()
+	metrics.MemoryBudgetBytes.Set(float64(capacity.MemoryBytes))
+	metrics.DiskBudgetBytes.Set(float64(disk.BudgetBytes))
+	logger.Info("capacity", "memory_bytes", capacity.MemoryBytes, "cpus", capacity.CPUs, "disk_budget_bytes", disk.BudgetBytes)
+
 	serverDone := make(chan struct{})
 	if serverURL != "" {
 		serverClient = server.New(server.Config{
 			URL: serverURL, NodeName: nodeName, TokenPath: tokenPath, Log: logger,
 			Hello: func() protocol.Hello {
 				return protocol.Hello{
-					DaemonVersion: version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(),
+					DaemonVersion: version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Disk: diskReport(),
 					Templates: manager.Templates(), Sandboxes: manager.List(),
 				}
 			},
 			Report: func() protocol.Report {
-				return protocol.Report{Sandboxes: manager.List(), Memory: protocol.MemoryReport{UsedBytes: hostinfo.MemoryUsed()}}
+				used := hostinfo.MemoryUsed()
+				report := diskReport()
+				metrics.MemoryUsedBytes.Set(float64(used))
+				metrics.DiskSandboxesBytes.Set(float64(report.SandboxesBytes))
+				metrics.DiskAvailableBytes.Set(float64(report.AvailableBytes))
+				return protocol.Report{Sandboxes: manager.List(), Memory: protocol.MemoryReport{UsedBytes: used}, Disk: report}
 			},
 			Handler: func(ctx context.Context, cmd protocol.Command, stream func(protocol.Stream)) protocol.Result {
 				return sandbox.Dispatch(ctx, manager, cmd, stream)

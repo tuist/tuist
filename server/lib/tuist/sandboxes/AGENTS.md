@@ -30,8 +30,19 @@ consumer is Claude Managed Agents `self_hosted` environments.
   agent, and `agent_id` runs an existing one. The row id is generated
   before the Anthropic call and travels in the session `metadata`
   (`tuist_agent_session_id`, `repository_url`, `repository_ref`).
+- `Tuist.Sandboxes.Capacity`: memory and disk admission. Charges every
+  creating, resuming or running sandbox with its guest memory plus a
+  64 MiB VMM overhead against the node's reported cgroup limit less a
+  512 MiB daemon reserve; `place/1` reserves the ready node with the most
+  free memory (setting `node_name` under a per-node advisory lock) and
+  `admit/1` reserves the paused sandbox's own node by moving the row to
+  `resuming`. When nothing fits, idle running sandboxes (no residency)
+  are paused, longest idle first. Nodes without room for another memory
+  image on disk, or past their disk budget, are skipped. `admissible?/2`
+  is the side-effect-free check the poller runs before acknowledging a
+  work item. A node that reports no capacity is not budgeted.
 - `Tuist.Sandboxes.Nodes`: cluster-wide view of the connected nodes
-  (`connected_nodes/0`, `node_with_capacity/1`) read from
+  (`connected_nodes/0`) read from
   `Tuist.Sandboxes.NodePresence`, a `Phoenix.Presence` on `Tuist.PubSub`
   keyed by node name under `"sandbox_nodes"` with the socket pid,
   Erlang node, capacity, templates and sandboxes as meta, and `call/4`,
@@ -67,6 +78,10 @@ consumer is Claude Managed Agents `self_hosted` environments.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; pauses only when the sandbox is still running, has
   no residency and the epoch it was enqueued with is still current.
+- `Tuist.Sandboxes.Workers.RetentionWorker`: daily cron (shared crons in
+  `Tuist.Oban.RuntimeConfig`) that deletes sandboxes paused for longer
+  than 14 days, falling back to the row's last update when the node
+  paused the sandbox without the server recording `paused_at`.
 
 ## Multiple replicas
 
@@ -74,7 +89,7 @@ Web replicas form an Erlang cluster, and nothing here assumes the
 socket, the poller and the caller share a replica:
 
 - A node's socket lands on one replica and tracks itself in
-  `NodePresence`; `connected_nodes/0`, `node_with_capacity/1` and
+  `NodePresence`; `connected_nodes/0`, `Capacity.ready_nodes/1` and
   `Nodes.call/4` read presence, so `Router.dispatch` and
   `PauseSandboxWorker` work from any replica. A node with two presences
   (a reconnect racing its old socket) counts by the newest

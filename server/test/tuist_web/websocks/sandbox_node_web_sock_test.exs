@@ -3,6 +3,7 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
   use Mimic
 
   alias Tuist.Sandboxes
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias TuistWeb.SandboxNodeWebSock
 
@@ -27,6 +28,13 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
         "daemon_version" => "1.0.0",
         "firecracker_version" => "1.10.0",
         "capacity" => %{"memory_bytes" => 64_000_000_000, "cpus" => 32},
+        "disk" => %{
+          "total_bytes" => 2_000_000_000_000,
+          "available_bytes" => 1_500_000_000_000,
+          "sandboxes_bytes" => 3_000_000_000,
+          "templates_bytes" => 6_000_000_000,
+          "budget_bytes" => 200_000_000_000
+        },
         "templates" => [%{"name" => "default", "tag" => "sha-1", "ready" => true}],
         "sandboxes" => []
       },
@@ -66,6 +74,7 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
                name: ^node_name,
                templates: [%{name: "default", tag: "sha-1", ready: true}],
                capacity: %{cpus: 32},
+               disk: %{available_bytes: 1_500_000_000_000, sandboxes_bytes: 3_000_000_000, budget_bytes: 200_000_000_000},
                pid: pid,
                node: erlang_node,
                connected_at: %DateTime{}
@@ -74,8 +83,13 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
 
     assert pid == self()
     assert erlang_node == node()
-    assert {:ok, node_name} == Nodes.node_with_capacity(%{node_name: nil, template: "default"})
-    assert {:error, :no_node} == Nodes.node_with_capacity(%{node_name: nil, template: "missing"})
+
+    ready = fn template ->
+      Enum.filter(Capacity.ready_nodes(template), &(&1.name == node_name))
+    end
+
+    assert [%{name: ^node_name}] = ready.("default")
+    assert [] = ready.("missing")
 
     assert :ok = SandboxNodeWebSock.terminate(:normal, state)
     assert eventually(fn -> not Nodes.connected?(node_name) end)
@@ -197,7 +211,7 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
     template_ready = %{"type" => "event", "event" => "template_ready", "name" => "xcode", "tag" => "sha-9"}
     expect(Sandboxes, :handle_node_event, fn ^node_name, ^template_ready -> :ok end)
     assert {:ok, state} = SandboxNodeWebSock.handle_in(text(template_ready), state)
-    assert {:ok, node_name} == Nodes.node_with_capacity(%{node_name: nil, template: "xcode"})
+    assert [%{name: ^node_name}] = Enum.filter(Capacity.ready_nodes("xcode"), &(&1.name == node_name))
 
     report = %{
       "type" => "report",

@@ -89,40 +89,6 @@ defmodule Tuist.Sandboxes.Nodes do
   defp info(meta), do: Map.drop(meta, [:phx_ref, :phx_ref_prev])
 
   @doc """
-  Picks the node a sandbox should run on. A sandbox that already lives
-  on a node must stay there (its jail directory is local), so that node
-  wins when it is connected. A new sandbox goes to the least loaded
-  connected node that reports its template ready.
-  """
-  def node_with_capacity(opts) do
-    node_name = Map.get(opts, :node_name)
-    template = Map.get(opts, :template)
-
-    cond do
-      is_binary(node_name) and connected?(node_name) ->
-        {:ok, node_name}
-
-      is_binary(node_name) ->
-        {:error, :not_connected}
-
-      true ->
-        connected_nodes()
-        |> Enum.filter(&template_ready?(&1, template))
-        |> Enum.sort_by(&length(Map.get(&1, :sandboxes, [])))
-        |> case do
-          [node | _] -> {:ok, node.name}
-          [] -> {:error, :no_node}
-        end
-    end
-  end
-
-  defp template_ready?(node, template) do
-    node
-    |> Map.get(:templates, [])
-    |> Enum.any?(fn candidate -> candidate.name == template and candidate.ready end)
-  end
-
-  @doc """
   Sends `op` with `args` to the node and waits for its result. The
   command is broadcast on the node's topic, so it reaches the socket on
   whichever replica holds it; the socket process is monitored so a

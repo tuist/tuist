@@ -47,9 +47,26 @@ type Envelope struct {
 	Type string `json:"type"`
 }
 
+// Capacity is what the server budgets sandboxes against: the memory limit
+// of the daemon's own cgroup (every guest lives inside it) and the node's
+// CPU count.
 type Capacity struct {
 	MemoryBytes uint64 `json:"memory_bytes"`
 	CPUs        int    `json:"cpus"`
+}
+
+// DiskReport describes the filesystem behind the data directory and what
+// the daemon holds on it. SandboxesBytes counts only what jails own
+// exclusively (rootfs deltas, workspaces, their own memory images);
+// hardlinked and reflinked template bytes count under TemplatesBytes.
+// BudgetBytes is the share of the filesystem sandboxes may occupy, zero
+// when the node sets none.
+type DiskReport struct {
+	TotalBytes     uint64 `json:"total_bytes"`
+	AvailableBytes uint64 `json:"available_bytes"`
+	SandboxesBytes uint64 `json:"sandboxes_bytes"`
+	TemplatesBytes uint64 `json:"templates_bytes"`
+	BudgetBytes    uint64 `json:"budget_bytes"`
 }
 
 // TemplateInfo advertises a template. Ready means the kernel and rootfs are
@@ -87,6 +104,7 @@ type Hello struct {
 	DaemonVersion      string         `json:"daemon_version"`
 	FirecrackerVersion string         `json:"firecracker_version"`
 	Capacity           Capacity       `json:"capacity"`
+	Disk               DiskReport     `json:"disk"`
 	Templates          []TemplateInfo `json:"templates"`
 	Sandboxes          []SandboxInfo  `json:"sandboxes"`
 }
@@ -126,6 +144,7 @@ type Report struct {
 	Type      string        `json:"type"`
 	Sandboxes []SandboxInfo `json:"sandboxes"`
 	Memory    MemoryReport  `json:"memory"`
+	Disk      DiskReport    `json:"disk"`
 }
 
 type Command struct {

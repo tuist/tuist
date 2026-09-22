@@ -20,6 +20,7 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Anthropic.Client
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Router
 
   require Logger
@@ -114,9 +115,15 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
         %{state | backoff_ms: @min_backoff_ms}
 
       {:ok, item} ->
-        handle_item(item, agent_environment)
-        send(self(), :poll)
-        %{state | backoff_ms: @min_backoff_ms}
+        case handle_item(item, agent_environment) do
+          :backoff ->
+            Process.send_after(self(), :poll, state.backoff_ms)
+            %{state | backoff_ms: min(state.backoff_ms * 2, @max_backoff_ms)}
+
+          :ok ->
+            send(self(), :poll)
+            %{state | backoff_ms: @min_backoff_ms}
+        end
 
       {:error, reason} ->
         Logger.warning("sandboxes: work queue poll failed",
@@ -131,21 +138,27 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
     end
   end
 
-  defp handle_item(%{"id" => work_id, "data" => %{"type" => "session"}} = item, agent_environment) do
-    case Client.ack(agent_environment.anthropic_environment_id, agent_environment.environment_key, work_id) do
-      {:ok, _acknowledged} ->
-        {:ok, _pid} = Task.Supervisor.start_child(@task_supervisor, fn -> Router.dispatch(agent_environment, item) end)
-        :ok
+  # An item whose sandbox would not fit on any node stays in the queue
+  # unacknowledged: the queue re-offers it after its lease and the loop
+  # backs off, so a pause elsewhere is what lets it through, not a forced
+  # stop that would hold the turn until the session's next event.
+  defp handle_item(%{"id" => work_id, "data" => %{"type" => "session", "id" => session_id}} = item, agent_environment)
+       when is_binary(session_id) do
+    if Capacity.admissible?(agent_environment, session_id) do
+      ack_and_dispatch(work_id, item, agent_environment)
+    else
+      Logger.info("sandboxes: no capacity for work item, leaving it queued",
+        agent_environment_id: agent_environment.id,
+        work_id: work_id,
+        session_id: session_id
+      )
 
-      {:error, reason} ->
-        Logger.warning("sandboxes: failed to acknowledge work item",
-          agent_environment_id: agent_environment.id,
-          work_id: work_id,
-          reason: inspect(reason)
-        )
-
-        :ok
+      :backoff
     end
+  end
+
+  defp handle_item(%{"id" => work_id, "data" => %{"type" => "session"}} = item, agent_environment) do
+    ack_and_dispatch(work_id, item, agent_environment)
   end
 
   defp handle_item(%{"id" => work_id} = item, agent_environment) do
@@ -177,5 +190,22 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
     )
 
     :ok
+  end
+
+  defp ack_and_dispatch(work_id, item, agent_environment) do
+    case Client.ack(agent_environment.anthropic_environment_id, agent_environment.environment_key, work_id) do
+      {:ok, _acknowledged} ->
+        {:ok, _pid} = Task.Supervisor.start_child(@task_supervisor, fn -> Router.dispatch(agent_environment, item) end)
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("sandboxes: failed to acknowledge work item",
+          agent_environment_id: agent_environment.id,
+          work_id: work_id,
+          reason: inspect(reason)
+        )
+
+        :ok
+    end
   end
 end

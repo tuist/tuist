@@ -488,6 +488,12 @@ defmodule TuistWeb.API.SandboxesController do
     |> json(%{message: "No sandbox node with the template ready is connected."})
   end
 
+  defp sandbox_error(conn, :no_capacity) do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{message: "No sandbox node has memory or disk left for this sandbox."})
+  end
+
   defp sandbox_error(conn, :not_connected) do
     conn |> put_status(:service_unavailable) |> json(%{message: "The sandbox's node is not connected."})
   end

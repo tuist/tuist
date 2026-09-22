@@ -8,6 +8,7 @@ defmodule Tuist.SandboxesTest do
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
@@ -78,7 +79,7 @@ defmodule Tuist.SandboxesTest do
     test "inserts the row, boots the VM on a node with the template and records the placement" do
       account = account_fixture()
 
-      expect(Nodes, :node_with_capacity, fn %{node_name: nil, template: "default"} -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn %{node_name: nil, template: "default"} -> {:ok, "node-a"} end)
 
       expect(Nodes, :call, fn "node-a", "create", args, opts ->
         assert opts[:timeout] == 120_000
@@ -104,7 +105,7 @@ defmodule Tuist.SandboxesTest do
     test "applies the requested shape" do
       account = account_fixture()
 
-      expect(Nodes, :node_with_capacity, fn %{template: "xcode"} -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn %{template: "xcode"} -> {:ok, "node-a"} end)
 
       expect(Nodes, :call, fn "node-a",
                               "create",
@@ -119,7 +120,7 @@ defmodule Tuist.SandboxesTest do
 
     test "marks the sandbox as errored when no node can host it" do
       account = account_fixture()
-      expect(Nodes, :node_with_capacity, fn _ -> {:error, :no_node} end)
+      expect(Capacity, :place, fn _ -> {:error, :no_node} end)
 
       assert {:error, :no_node} = Sandboxes.create_sandbox(account, %{})
 
@@ -129,7 +130,7 @@ defmodule Tuist.SandboxesTest do
 
     test "marks the sandbox as errored when the node rejects the create" do
       account = account_fixture()
-      expect(Nodes, :node_with_capacity, fn _ -> {:ok, "node-a"} end)
+      expect(Capacity, :place, fn _ -> {:ok, "node-a"} end)
       expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:error, "jailer exited with status 1"} end)
 
       assert {:error, "jailer exited with status 1"} = Sandboxes.create_sandbox(account, %{})
@@ -137,7 +138,7 @@ defmodule Tuist.SandboxesTest do
     end
 
     test "rejects an invalid shape without touching a node" do
-      reject(&Nodes.node_with_capacity/1)
+      reject(&Capacity.place/1)
       assert {:error, %Ecto.Changeset{}} = Sandboxes.create_sandbox(account_fixture(), %{vcpus: 0})
     end
   end
@@ -193,6 +194,27 @@ defmodule Tuist.SandboxesTest do
 
       assert {:error, "snapshot load failed"} = Sandboxes.resume(sandbox)
       assert %Sandbox{state: :error, error_message: "snapshot load failed"} = Repo.reload!(sandbox)
+    end
+
+    test "resume/1 holds the memory reservation through the restore and drops it on a transient failure" do
+      sandbox = sandbox_fixture(state: :paused, node_name: "node-a")
+
+      expect(Nodes, :call, fn "node-a", "resume", %{sandbox_id: sandbox_id}, _opts ->
+        assert %Sandbox{state: :resuming} = Repo.get(Sandbox, sandbox_id)
+        {:error, :timeout}
+      end)
+
+      assert {:error, :timeout} = Sandboxes.resume(sandbox)
+      assert %Sandbox{state: :paused} = Repo.reload!(sandbox)
+    end
+
+    test "resume/1 refuses without touching the node when the node has no room" do
+      sandbox = sandbox_fixture(state: :paused, node_name: "node-a")
+      expect(Capacity, :admit, fn %Sandbox{state: :paused} -> {:error, :no_capacity} end)
+      reject(&Nodes.call/4)
+
+      assert {:error, :no_capacity} = Sandboxes.resume(sandbox)
+      assert %Sandbox{state: :paused} = Repo.reload!(sandbox)
     end
 
     test "ensure_running/1 resumes only when paused" do
@@ -345,6 +367,17 @@ defmodule Tuist.SandboxesTest do
   end
 
   describe "reconcile_node_report/2" do
+    test "does not downgrade a resuming sandbox the node still lists as paused" do
+      sandbox = sandbox_fixture(state: :resuming, node_name: "node-a", template_tag: "sha-1")
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{
+                 "sandboxes" => [%{"id" => sandbox.id, "state" => "paused", "template_tag" => "sha-2"}]
+               })
+
+      assert %Sandbox{state: :resuming, template_tag: "sha-2"} = Repo.reload!(sandbox)
+    end
+
     test "adopts reported sandboxes, errors the missing ones and deletes orphans" do
       reported = sandbox_fixture(state: :error, node_name: nil, error_message: "missing on node")
       moved = sandbox_fixture(state: :running, node_name: "node-b")

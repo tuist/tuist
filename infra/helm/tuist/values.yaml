@@ -2123,10 +2123,20 @@ sandboxes:
   nodePools: []
   tolerations: []
   # Memory the DaemonSet Pod reserves for guests (request == limit), so
-  # kube-scheduler keeps kata runner Pods out of it. Guests only consume the
-  # pages they touch, so this is a ceiling, not a per-sandbox reservation.
+  # kube-scheduler keeps kata runner Pods out of it. It is also the budget
+  # the server places sandboxes against: each creating, resuming or running
+  # sandbox is charged its guest memory plus a fixed VMM overhead, and a
+  # node whose sum would overflow the limit is skipped or has idle
+  # sandboxes paused first. Size it from concurrent active turns, not from
+  # the number of sessions: paused sandboxes cost disk, not memory.
   memoryGiB: 16
   cpu: "2"
+  # Share of the node's data filesystem that jails may hold exclusively
+  # (rootfs deltas, workspaces, memory images of paused sandboxes). The
+  # server stops placing sandboxes on a node that would exceed it, and
+  # always keeps one memory image plus headroom free for the next pause.
+  # 0 disables the budget and leaves only the free-space floor.
+  diskGiB: 200
   # Shapes (vcpus x memory_mb) whose template snapshot is built at daemon
   # startup instead of on the first create.
   prebuildShapes: "2x4096"

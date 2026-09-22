@@ -17,6 +17,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Repo
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
+  alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
@@ -122,6 +123,19 @@ defmodule Tuist.Sandboxes do
     )
   end
 
+  @doc """
+  Sandboxes paused since before `cutoff`. A sandbox the node reported as
+  paused without the server pausing it has no `paused_at`; its last
+  update stands in.
+  """
+  def list_sandboxes_paused_before(%DateTime{} = cutoff) do
+    Repo.all(
+      from s in Sandbox,
+        where: s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff,
+        order_by: [asc: s.paused_at]
+    )
+  end
+
   def get_sandbox(%Account{id: account_id}, id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          %Sandbox{} = sandbox <- Repo.get_by(Sandbox, id: uuid, account_id: account_id) do
@@ -179,7 +193,7 @@ defmodule Tuist.Sandboxes do
       hostname: hostname
     }
 
-    with {:ok, node_name} <- Nodes.node_with_capacity(%{node_name: nil, template: sandbox.template}),
+    with {:ok, node_name} <- Capacity.place(sandbox),
          {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
       Logger.info("sandboxes: sandbox created",
         sandbox_id: sandbox.id,
@@ -209,19 +223,27 @@ defmodule Tuist.Sandboxes do
   def ensure_running(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
 
   def resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
-    case Nodes.call(node_name, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
-      {:ok, data} ->
-        Logger.info("sandboxes: sandbox resumed", sandbox_id: sandbox.id, node: node_name, restore_ms: data["restore_ms"])
-        update_sandbox(sandbox, %{state: :running, paused_at: nil, last_active_at: now(), error_message: nil})
+    with {:ok, sandbox} <- Capacity.admit(sandbox) do
+      case Nodes.call(node_name, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
+        {:ok, data} ->
+          Logger.info("sandboxes: sandbox resumed",
+            sandbox_id: sandbox.id,
+            node: node_name,
+            restore_ms: data["restore_ms"]
+          )
 
-      # The snapshot is intact on the node's disk; a node that is away or
-      # slow is not a reason to give the sandbox up.
-      {:error, reason} when reason in @transient_node_errors ->
-        {:error, reason}
+          update_sandbox(sandbox, %{state: :running, paused_at: nil, last_active_at: now(), error_message: nil})
 
-      {:error, reason} ->
-        {:ok, _} = update_sandbox(sandbox, %{state: :error, error_message: error_message(reason)})
-        {:error, reason}
+        # The snapshot is intact on the node's disk; a node that is away or
+        # slow is not a reason to give the sandbox up.
+        {:error, reason} when reason in @transient_node_errors ->
+          {:ok, _} = update_sandbox(sandbox, %{state: :paused})
+          {:error, reason}
+
+        {:error, reason} ->
+          {:ok, _} = update_sandbox(sandbox, %{state: :error, error_message: error_message(reason)})
+          {:error, reason}
+      end
     end
   end
 
@@ -515,11 +537,15 @@ defmodule Tuist.Sandboxes do
 
   defp reconcile_reported(%Sandbox{state: :deleted}, _node_name, _reported), do: :ok
 
+  # A resume in flight holds its memory reservation through the `resuming`
+  # state; the node still lists the sandbox as paused until the restore
+  # completes, and that must not release the reservation early.
   defp reconcile_reported(%Sandbox{} = sandbox, node_name, reported) do
     attrs =
       %{node_name: node_name}
       |> maybe_put(:template_tag, reported["template_tag"])
       |> maybe_put_state(reported["state"])
+      |> then(fn attrs -> if sandbox.state == :resuming, do: Map.drop(attrs, [:state, :error_message]), else: attrs end)
 
     if Enum.any?(attrs, fn {key, value} -> Map.get(sandbox, key) != value end) do
       {:ok, _sandbox} = update_sandbox(sandbox, attrs)
@@ -567,6 +593,7 @@ defmodule Tuist.Sandboxes do
 
   defp error_message(reason) when is_binary(reason), do: reason
   defp error_message(:no_node), do: "no node with the template ready is connected"
+  defp error_message(:no_capacity), do: "no node has memory or disk left for the sandbox"
   defp error_message(:not_connected), do: "node is not connected"
   defp error_message(:node_disconnected), do: "node disconnected during the operation"
   defp error_message(:timeout), do: "node did not answer in time"

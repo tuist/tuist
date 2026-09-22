@@ -18,3 +18,15 @@ func TestParseResolvConf(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestParseCgroupValue(t *testing.T) {
+	if value, ok := ParseCgroupValue("21474836480\n"); !ok || value != 21474836480 {
+		t.Fatalf("limit = %d, %v", value, ok)
+	}
+	if _, ok := ParseCgroupValue("max\n"); ok {
+		t.Fatal("max must report no limit")
+	}
+	if _, ok := ParseCgroupValue(""); ok {
+		t.Fatal("empty must report no limit")
+	}
+}
