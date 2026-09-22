@@ -4383,8 +4383,7 @@ defmodule AtlasWeb.AccountLive do
   defp handle_send_result({:ok, %{duplicate: true}}, socket),
     do: {:noreply, refresh_nudges(socket, gettext("Email already queued in the last 15 minutes."))}
 
-  defp handle_send_result({:ok, _nudge}, socket),
-    do: {:noreply, refresh_nudges(socket, gettext("Email queued."))}
+  defp handle_send_result({:ok, _nudge}, socket), do: {:noreply, refresh_nudges(socket, gettext("Email queued."))}
 
   defp handle_send_result({:error, reason}, socket),
     do: {:noreply, put_flash(socket, :error, send_error_message(reason))}
@@ -4397,17 +4396,13 @@ defmodule AtlasWeb.AccountLive do
   defp send_error_message({:invalid_state, state}),
     do: gettext("Nudge is in state %{s}; only claimed nudges can be sent.", s: state)
 
-  defp send_error_message(:contact_missing),
-    do: gettext("This nudge has no contact. Add or edit a contact first.")
+  defp send_error_message(:contact_missing), do: gettext("This nudge has no contact. Add or edit a contact first.")
 
-  defp send_error_message(:contact_email_missing),
-    do: gettext("The nudge's contact has no email address.")
+  defp send_error_message(:contact_email_missing), do: gettext("The nudge's contact has no email address.")
 
-  defp send_error_message(:contact_bounced),
-    do: gettext("The nudge's contact is marked as bounced.")
+  defp send_error_message(:contact_bounced), do: gettext("The nudge's contact is marked as bounced.")
 
-  defp send_error_message(:contact_opted_out),
-    do: gettext("The nudge's contact has opted out of outreach.")
+  defp send_error_message(:contact_opted_out), do: gettext("The nudge's contact has opted out of outreach.")
 
   defp send_error_message(_reason), do: gettext("Could not send the nudge.")
 
