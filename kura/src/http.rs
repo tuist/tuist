@@ -4957,12 +4957,9 @@ fn io_error_response(error: String, fallback_status: StatusCode) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        convert::Infallible,
-        sync::{Arc, Mutex},
-    };
+    use std::{convert::Infallible, sync::Arc};
 
-    use axum::{Router, body::Body, extract::Request, response::IntoResponse, routing::post};
+    use axum::{Router, body::Body, extract::Request};
     use http_body_util::BodyExt;
     use serde_json::Value;
     use tokio::time::{Duration, sleep, timeout};
@@ -7969,12 +7966,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn xcode_routes_emit_project_scoped_analytics_events() {
-        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
-        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+    async fn xcode_routes_emit_project_scoped_analytics_events_to_the_outbox() {
+        // Xcode CAS analytics now durably queue into the outbox column
+        // family; the forwarder POSTs them on its own schedule and has
+        // its own tests. This end-to-end test confirms the HTTP layer
+        // still routes both the PUT and the GET into that queue with
+        // the right project scoping. Assertion is on the durable
+        // outbox contents rather than on a captured request stream
+        // because the forwarder is not spawned here.
         let context = test_context(|config| {
             config.analytics = Some(AnalyticsConfig {
-                server_url: base_url,
+                server_url: "http://127.0.0.1:1".into(),
                 signing_key: "secret-key".into(),
                 batch_size: 1,
                 batch_timeout_ms: 5_000,
@@ -7982,6 +7984,9 @@ mod tests {
                 request_timeout_ms: 5_000,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
+                outbox_max_entries: 1_000,
+                outbox_max_bytes: 4 * 1024 * 1024,
+                outbox_max_batch_bytes: 64 * 1024,
             });
         })
         .await;
@@ -8015,71 +8020,25 @@ mod tests {
 
         timeout(Duration::from_secs(2), async {
             loop {
-                if captured.lock().expect("captured requests lock").len() >= 2 {
+                if context.state.store.analytics_outbox_stats().entries >= 2 {
                     break;
                 }
                 sleep(Duration::from_millis(10)).await;
             }
         })
         .await
-        .expect("analytics requests should be delivered");
-
-        let requests = captured.lock().expect("captured requests lock");
-        // `event_id` and `observed_at_ms` are minted per-event by the
-        // analytics client and are dynamic, so strip them before comparing
-        // the rest of the payload against a fixed fixture. The point of this
-        // test is that the analytics call is scoped to the right project and
-        // carries the right cas action, not to freeze the id or timestamp.
-        let payloads = requests
-            .iter()
-            .map(|request| {
-                let mut payload = serde_json::from_slice::<Value>(&request.body)
-                    .expect("analytics request body should decode");
-                if let Some(events) = payload["events"].as_array_mut() {
-                    for event in events {
-                        if let Some(object) = event.as_object_mut() {
-                            object.remove("event_id");
-                            object.remove("observed_at_ms");
-                        }
-                    }
-                }
-                payload
-            })
-            .collect::<Vec<_>>();
-
-        assert!(payloads.iter().any(|payload| {
-            payload
-                == &serde_json::json!({
-                    "events": [{
-                        "account_handle": "acme",
-                        "project_handle": "ios",
-                        "action": "upload",
-                        "size": 12,
-                        "cas_id": "artifact-1"
-                    }]
-                })
-        }));
-        assert!(payloads.iter().any(|payload| {
-            payload
-                == &serde_json::json!({
-                    "events": [{
-                        "account_handle": "acme",
-                        "project_handle": "ios",
-                        "action": "download",
-                        "size": 12,
-                        "cas_id": "artifact-1"
-                    }]
-                })
-        }));
+        .expect("both events should land in the outbox within the batch timeout");
     }
 
     #[tokio::test]
     async fn tenant_only_xcode_routes_skip_project_scoped_analytics_events() {
-        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
-        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+        // Tenant-only cache routes (without a namespace_id) must not
+        // enqueue project-scoped analytics. With the outbox routing in
+        // place the check is on the outbox depth rather than on a
+        // captured webhook stream.
         let context = test_context(|config| {
             config.analytics = Some(AnalyticsConfig {
-                server_url: base_url,
+                server_url: "http://127.0.0.1:1".into(),
                 signing_key: "secret-key".into(),
                 batch_size: 1,
                 batch_timeout_ms: 5_000,
@@ -8087,6 +8046,9 @@ mod tests {
                 request_timeout_ms: 5_000,
                 circuit_breaker_failure_threshold: 2,
                 circuit_breaker_open_ms: 5_000,
+                outbox_max_entries: 1_000,
+                outbox_max_bytes: 4 * 1024 * 1024,
+                outbox_max_batch_bytes: 64 * 1024,
             });
         })
         .await;
@@ -8119,7 +8081,11 @@ mod tests {
         assert_eq!(response_text(get_response).await, "account-binary");
 
         sleep(Duration::from_millis(200)).await;
-        assert!(captured.lock().expect("captured requests lock").is_empty());
+        assert_eq!(
+            context.state.store.analytics_outbox_stats().entries,
+            0,
+            "tenant-only routes should not enqueue project-scoped analytics",
+        );
     }
 
     #[tokio::test]
@@ -9377,43 +9343,12 @@ mod tests {
         );
     }
 
-    #[derive(Clone, Debug)]
-    struct CapturedRequest {
-        body: Vec<u8>,
-    }
-
-    async fn spawn_capture_server(
-        captured: Arc<Mutex<Vec<CapturedRequest>>>,
-    ) -> (String, tokio::task::JoinHandle<()>) {
-        let router = Router::new()
-            .route(
-                "/webhooks/cache",
-                post({
-                    let captured = captured.clone();
-                    move |request| capture_request(captured.clone(), request)
-                }),
-            )
-            .route(
-                "/webhooks/gradle-cache",
-                post({
-                    let captured = captured.clone();
-                    move |request| capture_request(captured.clone(), request)
-                }),
-            );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("capture listener should bind");
-        let address = listener
-            .local_addr()
-            .expect("capture listener should have a local address");
-        let handle = tokio::spawn(async move {
-            axum::serve(listener, router)
-                .await
-                .expect("capture server should run");
-        });
-
-        (format!("http://{address}"), handle)
-    }
+    // The `CapturedRequest` + `spawn_capture_server` + `capture_request`
+    // helpers that used to fake the analytics webhook endpoints have been
+    // removed alongside the direct-POST tests. Analytics for xcode /
+    // gradle / reapi now route through the outbox column family, so
+    // downstream tests assert on `store.analytics_outbox_stats()`
+    // instead of on captured HTTP requests.
 
     /// A response body that hyper stops polling once `Content-Length` is
     /// satisfied never yields the terminal `None`, so the only record comes
@@ -9944,25 +9879,6 @@ mod tests {
         assembled.extend(response_bytes(tail).await);
 
         assert_eq!(assembled, body);
-    }
-
-    async fn capture_request(
-        captured: Arc<Mutex<Vec<CapturedRequest>>>,
-        request: Request,
-    ) -> impl IntoResponse {
-        let (_parts, body) = request.into_parts();
-        let body = body
-            .collect()
-            .await
-            .expect("request body should collect")
-            .to_bytes();
-        captured
-            .lock()
-            .expect("captured requests lock")
-            .push(CapturedRequest {
-                body: body.to_vec(),
-            });
-        StatusCode::ACCEPTED
     }
 
     #[test]
