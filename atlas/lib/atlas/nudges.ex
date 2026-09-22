@@ -1,0 +1,322 @@
+defmodule Atlas.Nudges do
+  @moduledoc """
+  Account outreach nudges: signals detect a moment worth reaching out about
+  and drop a card into Slack that a human claims, edits, and sends.
+
+  The pipeline is:
+
+    1. `Atlas.Nudges.Workers.EvaluateSignals` fans one job per
+       (signal, account) into `EvaluateSignalForAccount`.
+    2. That job runs the signal's `evaluate/1`. On a fresh threshold
+       crossing it opens a `SignalEpisode`, then calls `propose/3`.
+    3. `propose/3` inserts an `account_nudges` row in `pending_post`,
+       guarded by the partial-unique dedup index and the per-account rate
+       limit under a `SELECT ... FOR UPDATE` on the accounts row.
+    4. `PostNudgeCard` picks up pending rows, posts to Slack via an outbox
+       attempt row, and transitions to `proposed`.
+    5. Slack buttons flow through `Atlas.Slack.Interactions` into `claim/2`,
+       `release/1`, `dismiss/3`, all under `SELECT ... FOR UPDATE`.
+    6. `ExpireStaleNudges` sweeps rows past `expires_at` to `expired`.
+  """
+
+  import Ecto.Query
+
+  alias Atlas.Accounts.Account
+  alias Atlas.Accounts.Contact
+  alias Atlas.Nudges.Nudge
+  alias Atlas.Nudges.Proposal
+  alias Atlas.Nudges.SignalEpisode
+  alias Atlas.Nudges.SlackPostAttempt
+  alias Atlas.Repo
+  alias Atlas.Users.User
+  alias Ecto.Multi
+
+  @open_nudges_per_account 3
+
+  @doc "Open nudges for an account, newest first."
+  def list_open_nudges(%Account{id: account_id}), do: list_open_nudges(account_id)
+
+  def list_open_nudges(account_id) when is_binary(account_id) do
+    Nudge
+    |> where([n], n.account_id == ^account_id and n.state in ^Nudge.open_states())
+    |> order_by([n], desc: n.inserted_at)
+    |> Repo.all()
+  end
+
+  @doc "All nudges for an account, newest first, optionally filtered by state."
+  def list_nudges(account_or_id, opts \\ [])
+
+  def list_nudges(%Account{id: account_id}, opts), do: list_nudges(account_id, opts)
+
+  def list_nudges(account_id, opts) when is_binary(account_id) do
+    states = Keyword.get(opts, :states)
+    limit = Keyword.get(opts, :limit, 50)
+
+    Nudge
+    |> where([n], n.account_id == ^account_id)
+    |> maybe_filter_states(states)
+    |> order_by([n], desc: n.inserted_at)
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
+  def get_nudge(id) when is_binary(id), do: Repo.get(Nudge, id)
+
+  @doc """
+  Ensures an open episode exists for the given signal on this account.
+  Returns `{:opened, episode}` on a fresh open, `{:existing, episode}`
+  when one was already open.
+  """
+  def open_or_touch_episode(%Account{id: account_id}, signal, evidence \\ %{}) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    case Repo.get_by(SignalEpisode, account_id: account_id, signal: signal, state: "open") do
+      %SignalEpisode{} = existing ->
+        {:existing, existing}
+
+      nil ->
+        %SignalEpisode{}
+        |> SignalEpisode.open_changeset(%{
+          account_id: account_id,
+          signal: signal,
+          evidence: evidence
+        })
+        |> Repo.insert()
+        |> case do
+          {:ok, episode} ->
+            {:opened, %{episode | opened_at: episode.opened_at || now}}
+
+          {:error, %Ecto.Changeset{errors: errors}} ->
+            if unique_error?(errors) do
+              episode =
+                Repo.get_by!(SignalEpisode,
+                  account_id: account_id,
+                  signal: signal,
+                  state: "open"
+                )
+
+              {:existing, episode}
+            else
+              {:error, errors}
+            end
+        end
+    end
+  end
+
+  defp unique_error?(errors) do
+    Enum.any?(errors, fn {_field, {msg, _}} ->
+      String.contains?(msg, "already been taken") or String.contains?(msg, "unique") or
+        String.contains?(msg, "has already been taken")
+    end)
+  end
+
+  @doc "Closes the open episode for this account/signal, if any."
+  def close_episode(%Account{id: account_id}, signal) do
+    case Repo.get_by(SignalEpisode, account_id: account_id, signal: signal, state: "open") do
+      nil ->
+        :ok
+
+      episode ->
+        episode
+        |> SignalEpisode.close_changeset()
+        |> Repo.update()
+        |> case do
+          {:ok, _closed} -> :ok
+          {:error, _reason} = err -> err
+        end
+    end
+  end
+
+  @doc """
+  Creates a nudge from a proposal in `pending_post`. Skips when a duplicate
+  is already open (partial-unique dedup) or the account is at its open-
+  nudge rate limit. Locks the account row for the rate check so two
+  concurrent evaluators can't both squeeze past the cap.
+  """
+  def propose(%Account{id: account_id} = account, signal, %Proposal{} = proposal) do
+    Multi.new()
+    |> Multi.run(:lock_account, &lock_account(&1, &2, account_id))
+    |> Multi.run(:rate_check, &rate_check(&1, &2, account_id))
+    |> Multi.insert(:nudge, build_nudge_changeset(account, signal, proposal))
+    |> Repo.transaction()
+    |> translate_propose_result()
+  end
+
+  defp lock_account(repo, _changes, account_id) do
+    case repo.one(from a in Account, where: a.id == ^account_id, lock: "FOR UPDATE") do
+      nil -> {:error, :account_not_found}
+      %Account{} = locked -> {:ok, locked}
+    end
+  end
+
+  defp rate_check(repo, _changes, account_id) do
+    open_count =
+      repo.aggregate(
+        from(n in Nudge,
+          where: n.account_id == ^account_id and n.state in ^Nudge.open_states()
+        ),
+        :count,
+        :id
+      )
+
+    if open_count >= @open_nudges_per_account do
+      {:error, :rate_limited}
+    else
+      {:ok, open_count}
+    end
+  end
+
+  defp build_nudge_changeset(%Account{id: account_id}, signal, %Proposal{} = proposal) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    expires_at = DateTime.add(now, proposal.expires_in_days * 86_400, :second)
+
+    Nudge.create_changeset(%Nudge{}, %{
+      account_id: account_id,
+      contact_id: proposal.contact_id,
+      signal: signal,
+      dedup_key: proposal.dedup_key,
+      severity: proposal.severity,
+      title: proposal.title,
+      rationale: proposal.rationale,
+      evidence: proposal.evidence,
+      draft_subject: proposal.draft_subject,
+      draft_body: proposal.draft_body,
+      expires_at: expires_at
+    })
+  end
+
+  defp translate_propose_result({:ok, %{nudge: nudge}}), do: {:ok, nudge}
+
+  defp translate_propose_result({:error, :lock_account, :account_not_found, _}), do: {:skip, :account_not_found}
+
+  defp translate_propose_result({:error, :rate_check, :rate_limited, _}), do: {:skip, :rate_limited}
+
+  defp translate_propose_result({:error, :nudge, %Ecto.Changeset{errors: errors}, _}) do
+    if unique_error?(errors), do: {:skip, :duplicate}, else: {:error, errors}
+  end
+
+  @doc """
+  Picks a contact to draft to under the v1 policy: first contact on the
+  account with a non-empty email. Returns `nil` when none qualifies; the
+  caller decides whether to skip.
+  """
+  def select_contact_for(%Account{id: account_id}) do
+    Contact
+    |> where([c], c.account_id == ^account_id and not is_nil(c.email) and c.email != "")
+    |> order_by([c], asc: c.inserted_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc """
+  Records a fresh Slack post attempt for a nudge and returns the row.
+  Uses `on_conflict: :nothing` on `client_msg_id` so a retry after a crash
+  reuses the existing attempt row (the outbox worker then reconciles via
+  `Atlas.Slack.API.find_message_by_metadata/4` before re-posting).
+  """
+  def get_or_create_post_attempt(%Nudge{} = nudge, channel_id) do
+    client_msg_id = post_attempt_client_msg_id(nudge)
+
+    case Repo.get_by(SlackPostAttempt, client_msg_id: client_msg_id) do
+      %SlackPostAttempt{} = existing ->
+        {:ok, existing}
+
+      nil ->
+        %SlackPostAttempt{}
+        |> SlackPostAttempt.create_changeset(%{
+          nudge_id: nudge.id,
+          client_msg_id: client_msg_id,
+          channel_id: channel_id
+        })
+        |> Repo.insert()
+        |> case do
+          {:ok, attempt} ->
+            {:ok, attempt}
+
+          {:error, %Ecto.Changeset{errors: errors}} ->
+            if unique_error?(errors) do
+              {:ok, Repo.get_by!(SlackPostAttempt, client_msg_id: client_msg_id)}
+            else
+              {:error, errors}
+            end
+        end
+    end
+  end
+
+  def post_attempt_client_msg_id(%Nudge{id: id}), do: "atlas-nudge-#{id}"
+
+  def mark_post_attempt_posted(%SlackPostAttempt{} = attempt, message_ts) do
+    attempt |> SlackPostAttempt.posted_changeset(message_ts) |> Repo.update()
+  end
+
+  def mark_post_attempt_failed(%SlackPostAttempt{} = attempt, error) do
+    attempt |> SlackPostAttempt.failed_changeset(error) |> Repo.update()
+  end
+
+  def mark_nudge_posted(%Nudge{} = nudge, channel_id, message_ts) do
+    nudge
+    |> Nudge.mark_posted_changeset(%{
+      slack_channel_id: channel_id,
+      slack_message_ts: message_ts
+    })
+    |> Repo.update()
+  end
+
+  @doc "Claim a nudge under a row lock. `actor` is the Atlas user."
+  def claim(nudge_id, %User{} = actor) when is_binary(nudge_id) do
+    with_locked_nudge(nudge_id, fn nudge ->
+      nudge |> Nudge.claim_changeset(actor) |> Repo.update()
+    end)
+  end
+
+  @doc "Release a claimed nudge back to the queue."
+  def release(nudge_id) when is_binary(nudge_id) do
+    with_locked_nudge(nudge_id, fn nudge ->
+      nudge |> Nudge.release_changeset() |> Repo.update()
+    end)
+  end
+
+  @doc "Dismiss a nudge with a required reason, optionally muting future signals until `dismissed_until`."
+  def dismiss(nudge_id, attrs) when is_binary(nudge_id) and is_map(attrs) do
+    with_locked_nudge(nudge_id, fn nudge ->
+      nudge |> Nudge.dismiss_changeset(attrs) |> Repo.update()
+    end)
+  end
+
+  @doc """
+  Sweeps open nudges past `expires_at` to `expired`. Returns the list of
+  expired nudge ids so the caller (worker) can update the Slack cards.
+  """
+  def expire_stale(now \\ DateTime.utc_now() |> DateTime.truncate(:second)) do
+    Nudge
+    |> where([n], n.state in ^Nudge.open_states() and n.expires_at <= ^now)
+    |> Repo.all()
+    |> Enum.flat_map(fn nudge ->
+      case with_locked_nudge(nudge.id, fn locked ->
+             locked |> Nudge.expire_changeset() |> Repo.update()
+           end) do
+        {:ok, expired} -> [expired]
+        _other -> []
+      end
+    end)
+  end
+
+  defp with_locked_nudge(id, fun) do
+    Repo.transaction(fn ->
+      case Repo.one(from n in Nudge, where: n.id == ^id, lock: "FOR UPDATE") do
+        nil ->
+          Repo.rollback(:not_found)
+
+        nudge ->
+          case fun.(nudge) do
+            {:ok, updated} -> updated
+            {:error, reason} -> Repo.rollback(reason)
+          end
+      end
+    end)
+  end
+
+  defp maybe_filter_states(query, nil), do: query
+  defp maybe_filter_states(query, []), do: query
+  defp maybe_filter_states(query, states), do: where(query, [n], n.state in ^states)
+end

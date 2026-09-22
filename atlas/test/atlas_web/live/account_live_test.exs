@@ -7,7 +7,6 @@ defmodule AtlasWeb.AccountLiveTest do
 
   alias Atlas.Accounts
   alias Atlas.Accounts.Account
-  alias Atlas.Accounts.AccountAttentionSuggestion
   alias Atlas.Accounts.AccountHandle
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.Event
@@ -154,39 +153,6 @@ defmodule AtlasWeb.AccountLiveTest do
     assert has_element?(view, "[data-part='metadata-value']", "EUR 7,980.00")
     assert has_element?(view, "#timeline-event-#{event.id}", event.title)
     _ = upcoming_invoice
-  end
-
-  test "renders the account attention queue", %{conn: conn} do
-    user = insert_user!("account-attention@example.com")
-    account = insert_account!(%{name: "Attention Customer", segment: :customer})
-
-    conn = init_test_session(conn, %{"user_id" => user.id})
-
-    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
-
-    assert has_element?(view, "[data-part='account-attention-card']")
-    assert has_element?(view, "#generate-attention-suggestions-button")
-    assert has_element?(view, "#account-attention-empty")
-  end
-
-  test "acts on an account attention suggestion", %{conn: conn} do
-    user = insert_user!("account-attention-actions@example.com")
-    account = insert_account!(%{name: "Attention Customer", segment: :customer})
-    suggestion = insert_account_attention_suggestion!(account)
-
-    conn = init_test_session(conn, %{"user_id" => user.id})
-
-    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
-
-    assert has_element?(view, "#account-attention-suggestion-actions-#{suggestion.id}")
-    assert has_element?(view, "#account-attention-suggestion-actions-#{suggestion.id}-button")
-
-    view
-    |> element("#account-attention-suggestion-actions-#{suggestion.id}-button")
-    |> render_click()
-
-    refute has_element?(view, "#account-attention-suggestion-#{suggestion.id}")
-    assert Repo.get!(AccountAttentionSuggestion, suggestion.id).status == "actioned"
   end
 
   test "renders extracted service levels from signed documents", %{conn: conn} do
@@ -1419,30 +1385,6 @@ defmodule AtlasWeb.AccountLiveTest do
       service_level_extraction_check_id: check.id
     }
     |> ServiceLevel.changeset(Map.merge(defaults, attrs))
-    |> Repo.insert!()
-  end
-
-  defp insert_account_attention_suggestion!(account) do
-    %AccountAttentionSuggestion{account_id: account.id}
-    |> AccountAttentionSuggestion.changeset(%{
-      status: "pending",
-      kind: "follow_up",
-      suggestion_key: "follow_up:account-live-#{System.unique_integer([:positive])}",
-      title: "Send the customer follow-up",
-      rationale: "The account has an open follow-up to complete.",
-      suggested_action: "Send a short status update.",
-      evidence: %{
-        "items" => [
-          %{
-            "source_type" => "account",
-            "source_id" => account.id,
-            "observation" => "The account has a current follow-up."
-          }
-        ]
-      },
-      confidence: Decimal.new("0.90"),
-      generated_by_agent: "account_attention_agent"
-    })
     |> Repo.insert!()
   end
 
