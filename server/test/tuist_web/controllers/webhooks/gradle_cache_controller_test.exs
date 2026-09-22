@@ -84,18 +84,21 @@ defmodule TuistWeb.Webhooks.GradleCacheControllerTest do
     end
 
     # A newer Kura node sends event_id and observed_at_ms alongside the fields
-    # the current controller pattern-matches on. An older server must accept
-    # the payload and drop the unknown fields silently, so an on-premise
-    # customer whose Kura upgrades ahead of their server is never blocked. If
-    # a future change to this controller starts rejecting unknown keys, this
-    # test fails and forces a review.
-    test "accepts new-shape events with event_id and observed_at_ms and drops the unknown fields silently",
+    # the current controller pattern-matches on. The server preserves both
+    # when present: event_id becomes the row's identity, so a retried batch
+    # dedupes via the INSERT block token; observed_at_ms becomes
+    # inserted_at, so a retry that lands later still records the original
+    # observation time. Fields remain optional so an older Kura still works.
+    test "preserves event_id and observed_at_ms from the producer when present",
          %{conn: conn, project: project} do
+      event_id = "01930c0e-6e2a-7a91-9a1c-1f4e5c2d3a4b"
+      observed_at_ms = 1_760_000_000_123
+
       events_params = %{
         "events" => [
           %{
-            "event_id" => "01930c0e-6e2a-7a91-9a1c-1f4e5c2d3a4b",
-            "observed_at_ms" => 1_760_000_000_123,
+            "event_id" => event_id,
+            "observed_at_ms" => observed_at_ms,
             "account_handle" => project.account.name,
             "project_handle" => project.name,
             "action" => "upload",
@@ -119,9 +122,17 @@ defmodule TuistWeb.Webhooks.GradleCacheControllerTest do
       events = ClickHouseRepo.all(from e in CacheEvent, where: e.project_id == ^project.id)
       assert length(events) == 1
       [event] = events
+      assert event.id == event_id
       assert event.action == "upload"
       assert event.size == 1024
       assert event.cache_key == "gradle-key-newer-kura"
+
+      {:ok, expected_observed_at} = DateTime.from_unix(observed_at_ms, :millisecond)
+
+      assert NaiveDateTime.compare(
+               event.inserted_at,
+               expected_observed_at |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+             ) == :eq
     end
 
     test "rejects requests with invalid signature", %{conn: conn, project: project} do
