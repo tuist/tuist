@@ -15,6 +15,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ActOnBriefItem
   alias Atlas.MCP.Tools.AddAssetToInsurance
   alias Atlas.MCP.Tools.AddEmailAudienceSubscriber
+  alias Atlas.MCP.Tools.AddPOCScopeFeature
+  alias Atlas.MCP.Tools.AddPOCTimelineEntry
   alias Atlas.MCP.Tools.AddSpecComment
   alias Atlas.MCP.Tools.AddSupportThreadNote
   alias Atlas.MCP.Tools.AssignAsset
@@ -48,6 +50,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
   alias Atlas.MCP.Tools.CreateNote
+  alias Atlas.MCP.Tools.CreatePOC
   alias Atlas.MCP.Tools.CreatePostmortem
   alias Atlas.MCP.Tools.CreatePostmortemActionItem
   alias Atlas.MCP.Tools.CreateSocialChannelIdea
@@ -63,6 +66,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
+  alias Atlas.MCP.Tools.DeletePOC
+  alias Atlas.MCP.Tools.DeletePOCTimelineEntry
   alias Atlas.MCP.Tools.DeletePostmortem
   alias Atlas.MCP.Tools.DeletePostmortemActionItem
   alias Atlas.MCP.Tools.DeleteSocialChannelIdea
@@ -125,6 +130,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
+  alias Atlas.MCP.Tools.GetPOC
   alias Atlas.MCP.Tools.GetPostmortem
   alias Atlas.MCP.Tools.GetPostmortemActionItem
   alias Atlas.MCP.Tools.GetProjectErrorDsn
@@ -180,6 +186,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
+  alias Atlas.MCP.Tools.ListPOCs
   alias Atlas.MCP.Tools.ListPostmortemActionItems
   alias Atlas.MCP.Tools.ListPostmortems
   alias Atlas.MCP.Tools.ListProductTraces
@@ -201,6 +208,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.NotifyGTMOpportunity
   alias Atlas.MCP.Tools.PlaceAssetInService
   alias Atlas.MCP.Tools.PrepareGTMOpportunityOutreach
+  alias Atlas.MCP.Tools.PublishPOC
   alias Atlas.MCP.Tools.QueryTuistClickhouse
   alias Atlas.MCP.Tools.QueryTuistPostgres
   alias Atlas.MCP.Tools.RecallMemory
@@ -214,6 +222,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RecoverAsset
   alias Atlas.MCP.Tools.RejectOutreachCandidate
   alias Atlas.MCP.Tools.RemoveAssetFromInsurance
+  alias Atlas.MCP.Tools.RemovePOCScopeFeature
   alias Atlas.MCP.Tools.ReplyToSupportThread
   alias Atlas.MCP.Tools.RequestSpecReview
   alias Atlas.MCP.Tools.RequestTaxCertificateLetter
@@ -234,10 +243,12 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SendEmailBroadcast
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
   alias Atlas.MCP.Tools.SetFinancingLines
+  alias Atlas.MCP.Tools.SetPOCContext
   alias Atlas.MCP.Tools.TerminateFinancing
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
   alias Atlas.MCP.Tools.UnlinkProjectDomain
   alias Atlas.MCP.Tools.UnlinkProjectRepository
+  alias Atlas.MCP.Tools.UnpublishPOC
   alias Atlas.MCP.Tools.UnsubscribeEmailAudienceSubscriber
   alias Atlas.MCP.Tools.UpdateAccount
   alias Atlas.MCP.Tools.UpdateAccountTerm
@@ -248,6 +259,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateFeatureInterestAccountContext
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateNote
+  alias Atlas.MCP.Tools.UpdatePOC
+  alias Atlas.MCP.Tools.UpdatePOCTimelineEntry
   alias Atlas.MCP.Tools.UpdatePostmortem
   alias Atlas.MCP.Tools.UpdatePostmortemActionItem
   alias Atlas.MCP.Tools.UpdateSocialChannelIdea
@@ -680,7 +693,20 @@ defmodule Atlas.MCP.Server do
     MarkFinancingPaidOff,
     ExercisePurchaseOption,
     ReturnFinancing,
-    TerminateFinancing
+    TerminateFinancing,
+    ListPOCs,
+    GetPOC,
+    CreatePOC,
+    UpdatePOC,
+    DeletePOC,
+    SetPOCContext,
+    AddPOCScopeFeature,
+    RemovePOCScopeFeature,
+    AddPOCTimelineEntry,
+    UpdatePOCTimelineEntry,
+    DeletePOCTimelineEntry,
+    PublishPOC,
+    UnpublishPOC
   ]
 
   def server do
