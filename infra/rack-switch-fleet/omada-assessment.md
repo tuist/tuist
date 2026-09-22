@@ -120,6 +120,39 @@ bring-up, backups, and recovery when the controller is unavailable.
 If it does not, the finding is worth as much: it is the evidence the original
 decision was missing.
 
+## What the reconciler looks like, if adoption holds
+
+Not built, and not worth building before the prototype answers what adoption
+does. Sketched so the prototype is run with the right questions in mind.
+
+- **It lives in the rack's cluster**, staging while the rack is at home, as one
+  replica holding a `Lease` per site, which replaces the laptop-local lock.
+  Every writer goes through it, including a human, so the apply order and the
+  one-change-at-a-time rule stay properties of the system rather than of a
+  careful operator.
+- **Its input is the `RackSwitch` objects**, which already follow git into the
+  cluster. A change starts from a merged `configRevision`, never from drift on
+  its own: a change someone made during an incident is one they meant.
+- **It adopts, then converges, through the Open API.** A switch whose MAC shows
+  as pending is adopted with its login (option 138 is what makes that zero
+  touch); then the hostname, management interface, spanning-tree mode,
+  per-port settings, LLDP and SNMP are written through the endpoints in the
+  table above, in the site's apply order, one switch at a time.
+- **It pays no SSH budget to write**, because the controller keeps its own
+  management channel. It reads back what the API returns, and reads
+  spanning-tree state, which the API cannot return, over SSH once per revision
+  rather than on a timer.
+- **Its credentials** (the API client and the switch logins) come from
+  1Password through an ExternalSecret into its namespace, as everything else
+  in the cluster does; nothing in the repository carries them.
+- **Its rollback** is the controller's reboot schedule set a few minutes out
+  before a change and deleted once the read-back matches, the same shape as
+  `apply`'s confirmed commit, if the prototype shows a controller-managed switch
+  reloads its last saved configuration when it fires.
+- **It is Go**, like `infra/cluster-api-provider-tuist`, because a long-running
+  watch-and-converge loop is what controller-runtime is for and a shell loop is
+  not.
+
 ## Rollback on this hardware, now measured and built
 
 Separately from Omada, the switch has a confirmed-commit shape of its own in
