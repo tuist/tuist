@@ -92,7 +92,7 @@ metered =
         hint_text:
           dgettext(
             "marketing",
-            "Every cache shares one allowance each billing period, and traffic from Tuist Runners counts at half. A GB is 1,000,000,000 bytes."
+            "Every cache shares one allowance each billing period, and traffic from Tuist Runners counts at half."
           ),
         values: [
           "100 GB",
@@ -463,7 +463,7 @@ features = base_price ++ metered ++ included %>
                       id={"#{feature.name}-hint"}
                       size="large"
                       description={feature.hint_text}
-                      title={dgettext("marketing", "Hint")}
+                      title={feature.name}
                     >
                       <:trigger :let={attrs}>
                         <span {attrs}>

@@ -2428,11 +2428,6 @@ msgstr ""
 msgid "Footer navigation"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:466
-#, elixir-autogen, elixir-format
-msgid "Hint"
-msgstr ""
-
 #: lib/tuist_web/marketing/components/marketing_layout_components/footer.html.heex:276
 #: lib/tuist_web/marketing/components/marketing_layout_components/navbar.html.heex:660
 #, elixir-autogen, elixir-format
@@ -2582,11 +2577,6 @@ msgstr ""
 msgid "Each download from a cache is one request. Every cache shares one allowance each billing period, and requests from Tuist Runners count at half."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:93
-#, elixir-autogen, elixir-format
-msgid "Every cache shares one allowance each billing period, and traffic from Tuist Runners counts at half. A GB is 1,000,000,000 bytes."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "How are requests counted?"
@@ -2660,4 +2650,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:880
 #, elixir-autogen, elixir-format
 msgid "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:93
+#, elixir-autogen, elixir-format
+msgid "Every cache shares one allowance each billing period, and traffic from Tuist Runners counts at half."
 msgstr ""
