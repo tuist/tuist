@@ -36,13 +36,14 @@ cannot answer how a different provisioning policy would change queue latency.
 
 1. Deploy a server containing `GET /api/internal/runners/shadow_snapshot` and a
    controller image supporting `--shadow-snapshot-url` and `--shadow-interval`.
-2. The canary overlay sets `runnersController.shadowScheduler.enabled: true`
-   with `intervalSeconds: 30`. The chart supplies the in-cluster URL. No RBAC changes
+2. The canary and production overlays set
+   `runnersController.shadowScheduler.enabled: true` with `intervalSeconds: 30`.
+   The chart supplies the in-cluster URL. No RBAC changes
    are needed; authentication requires the exact configured controller SA.
-3. Verify snapshot collection, authentication, logging and overhead in canary
-   before enabling production to evaluate proposals against real demand and
-   subsequent assignments. Staging, production and the chart default remain off
-   until explicitly enabled. Production observations measure policy differences;
+3. Verify snapshot collection, authentication, logging and overhead in canary,
+   then use production to evaluate proposals against real demand and subsequent
+   assignments. Staging and the chart default remain off until explicitly
+   enabled. Production observations measure policy differences;
    they do not establish queue-time improvements without trace replay or a
    separately reviewed rollout.
 4. Set `enabled: false` to stop. No reservations, assignments or persisted state
