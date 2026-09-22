@@ -28,6 +28,71 @@ struct CleanGeneratedProjectFilesMapperTests {
         }
     }
 
+    @Test(.inTemporaryDirectory) func regeneration_preservesFilesAfterCaseOnlyTargetRename() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let project = try await makeProject(at: directory)
+        try await generate(project)
+        let renamedProject = try await makeProject(at: directory, targetName: "APP")
+
+        let files = try await generate(renamedProject)
+
+        #expect(files.count == 4)
+        for file in files {
+            #expect(try await fileSystem.exists(file))
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [
+        ("Sources", "TuistObsolete.swift"),
+        ("InfoPlists", "Obsolete-Info.plist"),
+        ("Entitlements", "Obsolete.entitlements"),
+    ])
+    func regeneration_replacesSymbolicLinkDirectoriesWithoutModifyingDestinations(
+        directoryName: String,
+        obsoleteFileName: String
+    ) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let project = try await makeProject(at: directory)
+        try await generate(project)
+        let derivedDirectory = directory.appending(components: "Derived", directoryName)
+        let destination = directory.appending(component: "External")
+        try await fileSystem.move(from: derivedDirectory, to: destination)
+        try await fileSystem.touch(destination.appending(component: obsoleteFileName))
+        let externalFiles = try await fileSystem.contentsOfDirectory(destination)
+        for file in externalFiles {
+            try await fileSystem.writeText("external contents", at: file)
+        }
+        try await fileSystem.createSymbolicLink(from: derivedDirectory, to: destination)
+
+        let files = try await generate(project)
+
+        #expect(try derivedDirectory.url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == false)
+        for file in files {
+            #expect(try await fileSystem.exists(file))
+        }
+        for file in externalFiles {
+            #expect(try await fileSystem.readTextFile(at: file) == "external contents")
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: ["Sources", "InfoPlists", "Entitlements"])
+    func regeneration_replacesDanglingSymbolicLinkDirectories(directoryName: String) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let project = try await makeProject(at: directory)
+        let derivedDirectory = directory.appending(components: "Derived", directoryName)
+        let destination = directory.appending(component: "Missing")
+        try await fileSystem.makeDirectory(at: derivedDirectory.parentDirectory)
+        try await fileSystem.createSymbolicLink(from: derivedDirectory, to: destination)
+
+        let files = try await generate(project)
+
+        #expect(try derivedDirectory.url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == false)
+        #expect(try await !fileSystem.exists(destination))
+        for file in files {
+            #expect(try await fileSystem.exists(file))
+        }
+    }
+
     @Test(.inTemporaryDirectory) func regeneration_updatesChangedGeneratedContents() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         var project = try await makeProject(at: directory)
@@ -108,7 +173,7 @@ struct CleanGeneratedProjectFilesMapperTests {
         #expect(try await fileSystem.readTextFile(at: referenced) == "let manual = true")
     }
 
-    private func makeProject(at directory: AbsolutePath) async throws -> Project {
+    private func makeProject(at directory: AbsolutePath, targetName: String = "App") async throws -> Project {
         let source = directory.appending(component: "App.swift")
         let resource = directory.appending(component: "Localizable.strings")
         let template = directory.appending(component: "Custom.stencil")
@@ -118,7 +183,7 @@ struct CleanGeneratedProjectFilesMapperTests {
         return Project.test(
             path: directory,
             targets: [.test(
-                name: "App",
+                name: targetName,
                 infoPlist: .dictionary(["Original": true]),
                 entitlements: .dictionary(["Original": true]),
                 sources: [SourceFile(path: source)],
