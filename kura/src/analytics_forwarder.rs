@@ -199,72 +199,53 @@ mod result_label {
     pub const READ_FAILED: &str = "outbox_read_failed";
 }
 
-/// Spawn one drain task per pipeline. The tasks exit cleanly when the
-/// shared [`CancellationToken`] fires. Callers own the join handles; the
-/// current wiring drops them at shutdown because the store is already
-/// durable, so an interrupted drain resumes on the next boot.
-pub fn spawn_forwarders(
-    store: Arc<Store>,
-    client: Client,
-    config: ForwarderConfig,
-    metrics: Metrics,
-    cancel: CancellationToken,
-) -> Vec<tokio::task::JoinHandle<()>> {
-    Pipeline::ALL
-        .iter()
-        .copied()
-        .map(|pipeline| {
-            let store = Arc::clone(&store);
-            let client = client.clone();
-            let config = config.clone();
-            let metrics = metrics.clone();
-            let cancel = cancel.clone();
-            tokio::spawn(async move {
-                drain_pipeline(store, client, config, metrics, pipeline, cancel).await;
-            })
-        })
-        .collect()
-}
-
 /// Wire the forwarder into [`crate::app::run`]. No-op when analytics is
-/// disabled or the peer has not received a producer that writes to the
-/// outbox column family yet — the drain loop simply idles until an
-/// entry arrives, which is the desired behavior for the pre-producer
-/// rollout window.
+/// disabled. Each pipeline runs through [`crate::replication::spawn_supervised`]
+/// so a panic in one drain loop respawns after a 1 s backoff and bumps
+/// the `background_panic_analytics_forwarder_*` metric, matching how
+/// every other long-lived background task in this crate is supervised.
 ///
-/// The tasks live until the process exits. The store is durable, so an
+/// The tasks live until the process exits; the store is durable, so an
 /// interrupted drain resumes on the next boot. The pattern matches
 /// [`crate::usage::Usage::spawn_tasks`], which follows the same "run
 /// until the runtime drops" contract.
 pub fn spawn_tasks(state: &crate::state::SharedState) {
-    let Some(analytics_config) = state.config.analytics.as_ref() else {
+    if state.config.analytics.is_none() {
         return;
-    };
+    }
 
-    let forwarder_config = ForwarderConfig::defaults(
-        analytics_config.server_url.clone(),
-        analytics_config.signing_key.clone(),
-        crate::analytics::analytics_endpoint(&state.config.node_url),
-    );
-    // The Client used elsewhere in the app is shared through the
-    // ArcSwap. Cloning the current value gives the forwarder a stable
-    // handle; a future config reload would spawn its own tasks or
-    // adopt a new client at the load site, which is out of scope here.
-    let client = (**state.client.load()).clone();
-    let cancel = CancellationToken::new();
-    let handles = spawn_forwarders(
-        Arc::clone(&state.store),
-        client,
-        forwarder_config,
-        state.metrics.clone(),
-        cancel,
-    );
-    // Drop the join handles: the drain tasks live for the process's
-    // lifetime. We intentionally do not hand them back to the caller
-    // because there is no coordinated shutdown path for background
-    // analytics work in `crate::app::run` today, and the store's
-    // durability makes an abrupt drop safe.
-    drop(handles);
+    for pipeline in Pipeline::ALL {
+        let name: &'static str = match pipeline {
+            Pipeline::GradleCache => "analytics_forwarder_gradle_cache",
+            Pipeline::XcodeCache => "analytics_forwarder_xcode_cache",
+            Pipeline::ReapiCache => "analytics_forwarder_reapi_cache",
+        };
+        crate::replication::spawn_supervised(name, state.clone(), move |state| {
+            // Every field is rebuilt per (re)spawn: on a panic, the
+            // supervisor restarts the closure, and picking up a fresh
+            // `state.client` snapshot means a TLS/cert rotation between
+            // panic and respawn is not stuck on the old handle.
+            let store = Arc::clone(&state.store);
+            let client = (**state.client.load()).clone();
+            let metrics = state.metrics.clone();
+            let analytics_config = state
+                .config
+                .analytics
+                .as_ref()
+                .expect("spawn_tasks pre-checked analytics is Some");
+            let config = ForwarderConfig::defaults(
+                analytics_config.server_url.clone(),
+                analytics_config.signing_key.clone(),
+                crate::analytics::analytics_endpoint(&state.config.node_url),
+            );
+            // No shared cancellation token: each supervised body owns
+            // its own so a panic-driven restart cannot inherit a fired
+            // token from a previous iteration. The store's durability
+            // is what makes the "drop on process exit" contract safe.
+            let cancel = CancellationToken::new();
+            drain_pipeline(store, client, config, metrics, pipeline, cancel)
+        });
+    }
 }
 
 /// Drain loop body. Exposed for tests so the loop can be run against a
