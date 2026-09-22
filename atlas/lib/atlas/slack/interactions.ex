@@ -3,6 +3,8 @@ defmodule Atlas.Slack.Interactions do
   Handles Slack interactivity payloads.
   """
 
+  alias Atlas.Accounts.POCs
+  alias Atlas.Accounts.POCs.Notifier, as: POCNotifier
   alias Atlas.Audit
   alias Atlas.Briefs.ItemActions
   alias Atlas.Briefs.Notifier, as: BriefNotifier
@@ -15,6 +17,7 @@ defmodule Atlas.Slack.Interactions do
   alias Atlas.Slack
   alias Atlas.Slack.API
   alias Atlas.Slack.User
+  alias Atlas.Users
 
   require Logger
 
@@ -64,31 +67,89 @@ defmodule Atlas.Slack.Interactions do
   defp normalize_result(result), do: result
 
   defp handle_company_action(action_id, target_id, opts) do
+    resolvers = [
+      &brief_action/3,
+      &recommendation_action/3,
+      &gtm_opportunity_action/3,
+      &poc_access_action/3,
+      &nudge_action/3
+    ]
+
+    Enum.find_value(resolvers, &apply(&1, [action_id, target_id, opts])) || :ignored
+  end
+
+  defp brief_action(action_id, target_id, opts) do
     case BriefNotifier.parse_action_id(action_id) do
-      {:ok, action} ->
-        ItemActions.handle_slack_action(action, target_id, opts)
-
-      :error ->
-        case RecommendationNotifier.parse_action_id(action_id) do
-          {:ok, action} ->
-            Outreach.handle_recommendation_slack_action(action, target_id, opts)
-
-          :error ->
-            case SlackNotifier.parse_action_id(action_id) do
-              {:ok, action} ->
-                GTM.handle_gtm_opportunity_slack_action(action, target_id, opts)
-
-              :error ->
-                handle_nudge_action(action_id, target_id, opts)
-            end
-        end
+      {:ok, action} -> ItemActions.handle_slack_action(action, target_id, opts)
+      :error -> nil
     end
   end
 
-  defp handle_nudge_action(action_id, nudge_id, opts) do
+  defp recommendation_action(action_id, target_id, opts) do
+    case RecommendationNotifier.parse_action_id(action_id) do
+      {:ok, action} -> Outreach.handle_recommendation_slack_action(action, target_id, opts)
+      :error -> nil
+    end
+  end
+
+  defp gtm_opportunity_action(action_id, target_id, opts) do
+    case SlackNotifier.parse_action_id(action_id) do
+      {:ok, action} -> GTM.handle_gtm_opportunity_slack_action(action, target_id, opts)
+      :error -> nil
+    end
+  end
+
+  defp poc_access_action(action_id, _target_id, opts) do
+    case parse_poc_access_action(action_id) do
+      {:ok, action, request_id} -> handle_poc_access_action(action, request_id, opts)
+      :error -> nil
+    end
+  end
+
+  # The nudge dispatch used to be the innermost `:error` branch in the old
+  # nested case; after the flattening rewrite it sits as the last resolver.
+  # It returns nil (not `:ignored`) so the coordinator can fall through to the
+  # shared `:ignored` sentinel at the end of `handle_company_action/3`.
+  defp nudge_action(action_id, target_id, opts) do
     case NudgesSlackNotifier.parse_action_id(action_id) do
-      {:ok, action} -> NudgesSlackActions.handle_slack_action(action, nudge_id, opts)
-      :error -> :ignored
+      {:ok, action} -> NudgesSlackActions.handle_slack_action(action, target_id, opts)
+      :error -> nil
+    end
+  end
+
+  defp parse_poc_access_action("poc_access:approve:" <> request_id), do: {:ok, :approve, request_id}
+  defp parse_poc_access_action("poc_access:deny:" <> request_id), do: {:ok, :deny, request_id}
+  defp parse_poc_access_action(_action_id), do: :error
+
+  defp handle_poc_access_action(action, request_id, opts) do
+    case Users.get_user_by_email(opts[:actor_email]) do
+      nil ->
+        {:error, :poc_access_actor_required}
+
+      user ->
+        apply_poc_access_action(action, request_id, user)
+    end
+  end
+
+  defp apply_poc_access_action(:approve, request_id, user) do
+    with {:ok, request} <- POCs.approve_access_request(request_id, user),
+         %{} = poc <- POCs.get_poc(request.poc_id) do
+      POCNotifier.refresh_slack_message(poc, request)
+      {:ok, %{message: "Approved access for #{request.email}."}}
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp apply_poc_access_action(:deny, request_id, user) do
+    with {:ok, request} <- POCs.deny_access_request(request_id, user),
+         %{} = poc <- POCs.get_poc(request.poc_id) do
+      POCNotifier.refresh_slack_message(poc, request)
+      {:ok, %{message: "Denied access for #{request.email}."}}
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -153,5 +214,7 @@ defmodule Atlas.Slack.Interactions do
   defp action_error_message(:nudge_scope_required), do: "Nudge actions require accounts:write scope."
   defp action_error_message(:unsupported_nudge_action), do: "That nudge action is not supported."
   defp action_error_message(:score_below_threshold), do: "Opportunity score is below the Slack notification threshold."
+  defp action_error_message(:poc_access_actor_required), do: "Atlas could not match your Slack email to a user."
+  defp action_error_message(:already_denied), do: "That POC access request was already denied."
   defp action_error_message(reason), do: "GTM action failed: #{inspect(reason)}"
 end

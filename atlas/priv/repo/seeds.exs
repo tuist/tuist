@@ -11,11 +11,16 @@ alias Atlas.Accounts.AccountHandle
 alias Atlas.Accounts.Amounts
 alias Atlas.Accounts.Contact
 alias Atlas.Accounts.Event
+alias Atlas.Accounts.FeatureInterest, as: POCFeatureInterest
 alias Atlas.Accounts.FeatureInterestAccount
 alias Atlas.Accounts.Invoice
 alias Atlas.Accounts.Outcome
 alias Atlas.Accounts.OutcomeProposal
 alias Atlas.Accounts.OutcomeReview
+alias Atlas.Accounts.POCs
+alias Atlas.Accounts.POCs.POC, as: POCSchema
+alias Atlas.Accounts.POCs.ScopeFeature, as: POCScopeFeature
+alias Atlas.Accounts.POCs.TimelineEntry, as: POCTimelineEntry
 alias Atlas.Accounts.ServiceLevel
 alias Atlas.Accounts.ServiceLevelExtractionCheck
 alias Atlas.Accounts.ServiceLevels
@@ -6153,4 +6158,157 @@ if spec_author && seed_project do
       {:ok, _spec} = Specs.create_spec(payload, spec_author)
     end
   end)
+end
+
+# POC public brief for the Flexport demo account. The public_token is fixed so
+# the shareable URL stays stable across `mix run priv/repo/seeds.exs` runs.
+# Dates are anchored relative to today so the "days remaining" widget and
+# progress bar always read sensibly on a fresh seed. The POC window spans two
+# weeks in the past and four weeks ahead of today.
+poc_today = Date.utc_today()
+
+poc_seeds = [
+  %{
+    account_key: "demo:flexport",
+    public_token: "5e50900c-0000-4000-8000-000000000001",
+    title: "Mobile Platform Evaluation",
+    status: "active",
+    hosting: "cloud",
+    starts_on: Date.add(poc_today, -14),
+    ends_on: Date.add(poc_today, 28),
+    summary: """
+    Six-week evaluation of **Tuist** for the Flexport mobile platform team,
+    focused on monorepo build times, CI reliability, and remote build capacity
+    for release weeks.
+    """,
+    # Leaving brand_accent_color unset so the page uses the Tuist purple
+    # default; a real POC page would set this to the customer's brand color.
+    brand_accent_color: nil,
+    brand_logo_url: nil,
+    context: %{
+      "developer_count" => 84,
+      "ci_solution" => "github_actions",
+      "git_forge" => "github",
+      "primary_language" => "swift",
+      "monorepo" => true,
+      "notes" => """
+      Two iOS apps and a shared SDK, all in one monorepo. Release week doubles
+      CI load; capacity is the biggest pain point.
+
+      Success criteria agreed with the platform leads:
+
+      - **Build time (p50)** drops by at least 40% on the mobile SDK target.
+      - **CI queue time** stays under two minutes during release week.
+      - **Cache hit rate** on release-branch CI clears 70%.
+      """
+    },
+    scope_feature_titles: ["Remote build runners"],
+    timeline_entries: [
+      %{
+        "occurred_on" => Date.to_iso8601(Date.add(poc_today, -14)),
+        "title" => "Kickoff call with mobile platform leads",
+        "kind" => "milestone",
+        "body" => """
+        Scoped the evaluation and agreed on success criteria (build time p50,
+        CI queue time, cache hit rate). Picked the **mobile SDK** as the pilot
+        target.
+        """
+      },
+      %{
+        "occurred_on" => Date.to_iso8601(Date.add(poc_today, -7)),
+        "title" => "Decision: run in Tuist-hosted mode for the evaluation",
+        "kind" => "decision",
+        "body" => """
+        Skipping self-hosted for the POC to keep infrastructure changes
+        minimal. We will revisit self-hosted for the production rollout once
+        the results are in hand.
+        """
+      },
+      %{
+        "occurred_on" => Date.to_iso8601(Date.add(poc_today, -3)),
+        "title" => "Baseline vs. Tuist benchmark run",
+        "kind" => "event",
+        "body" => """
+        Mobile SDK numbers from the benchmark run:
+
+        | Metric | Before | After |
+        | --- | --- | --- |
+        | Cold build | 8m 12s | 3m 48s |
+        | Warm build | 4m 10s | 55s |
+        | Release-branch cache hit rate | — | 78% |
+        """
+      }
+    ]
+  }
+]
+
+for seed <- poc_seeds do
+  account = Repo.get_by(Account, account_key: seed.account_key)
+
+  cond do
+    is_nil(account) ->
+      :ok
+
+    is_nil(seed_user) ->
+      :ok
+
+    true ->
+      poc_attrs = %{
+        "account_id" => account.id,
+        "title" => seed.title,
+        "status" => seed.status,
+        "hosting" => seed.hosting,
+        "starts_on" => seed.starts_on,
+        "ends_on" => seed.ends_on,
+        "summary" => seed.summary,
+        "brand_accent_color" => seed.brand_accent_color,
+        "brand_logo_url" => seed.brand_logo_url
+      }
+
+      # public_token is the stable identifier for a seeded POC, so re-runs find
+      # the same row even after the title is edited. We fall back to a
+      # title-based lookup only for POCs seeded before public_token existed.
+      poc =
+        Repo.get_by(POCSchema, public_token: seed.public_token) ||
+          Repo.get_by(POCSchema, account_id: account.id, title: seed.title)
+
+      poc =
+        case poc do
+          nil ->
+            {:ok, created} = POCs.create_poc(poc_attrs, seed_user)
+            created
+
+          existing ->
+            {:ok, updated} = POCs.update_poc(existing, poc_attrs, seed_user)
+            updated
+        end
+
+      poc =
+        if poc.public_token == seed.public_token do
+          poc
+        else
+          poc
+          |> POCSchema.public_token_changeset(seed.public_token)
+          |> Repo.update!()
+        end
+
+      {:ok, _context} = POCs.upsert_context(poc, seed.context, seed_user)
+
+      # Timeline entries and the scope-features join are cleared and re-seeded
+      # so a re-run picks up date shifts, wording tweaks, and scope changes
+      # instead of piling up historical duplicates.
+      from(entry in POCTimelineEntry, where: entry.poc_id == ^poc.id) |> Repo.delete_all()
+      from(feature in POCScopeFeature, where: feature.poc_id == ^poc.id) |> Repo.delete_all()
+
+      for title <- seed.scope_feature_titles do
+        case Repo.get_by(POCFeatureInterest, title: title) do
+          %POCFeatureInterest{id: feature_id} -> POCs.add_scope_feature(poc, feature_id, seed_user)
+          _ -> :ok
+        end
+      end
+
+      for entry <- seed.timeline_entries do
+        {:ok, _entry} = POCs.add_timeline_entry(poc, entry, seed_user)
+      end
+  end
 end
