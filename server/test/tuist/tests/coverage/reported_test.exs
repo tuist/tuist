@@ -245,11 +245,17 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   defp selective_testing(project, run, hits) do
     event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
 
-    for {target, hit} <- hits do
+    for hit <- hits do
+      {target, hit, hash} =
+        case hit do
+          {target, hit} -> {target, hit, "#{target}-hash"}
+          {target, hit, hash} -> {target, hit, hash}
+        end
+
       XcodeFixtures.xcode_target_fixture(
         command_event_id: event.id,
         name: target,
-        selective_testing_hash: "#{target}-hash",
+        selective_testing_hash: hash,
         selective_testing_hit: hit
       )
     end
@@ -271,6 +277,99 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     selective_testing(project, head, [{"AppTests", :miss}])
 
     assert %{skipped_tests_count: 0, carried_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  # TextKitTests at the base as a Swift Testing target without the
+  # attribution trait: its test recorded no evidence of its own, only the
+  # target's floor. At the head selective testing skipped it.
+  defp target_only_runs(project, account, opts \\ []) do
+    base =
+      CoverageFixtures.run_with_coverage(
+        project,
+        account,
+        [
+          file("Sources/Math.swift", [1, 1, 0]),
+          file("Sources/Text.swift", [1, 1, 1, 0]),
+          file("Tests/AppTests.swift", [1, 1], is_test: true)
+        ],
+        %{
+          git_commit_sha: "base",
+          test_modules: [
+            %{name: "AppTests", status: "success", duration: 1, test_cases: [test_case("testAdd()", "MathTests")]},
+            %{
+              name: "TextKitTests",
+              status: "success",
+              duration: 1,
+              test_cases: [test_case("testTrim()", "TextTests", Keyword.get(opts, :trim_status, "success"))]
+            }
+          ],
+          enumerated_tests: [
+            %{module: "AppTests", suite: "MathTests", name: "testAdd()"},
+            %{module: "TextKitTests", suite: "TextTests", name: "testTrim()"}
+          ],
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"],
+            scopes: [
+              %{
+                kind: "test",
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd()",
+                files: [0, 2],
+                lines: [[1, 2], [1, 1]]
+              },
+              %{kind: "target", module: "TextKitTests", suite: "", name: "", files: [1], lines: [[1, 3]]}
+            ]
+          }
+        }
+      )
+
+    selective_testing(project, base, [{"AppTests", :miss, "app"}, {"TextKitTests", :miss, "text"}])
+
+    head =
+      CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+        git_commit_sha: "head",
+        partial: true,
+        test_modules: modules([test_case("testAdd()", "MathTests")]),
+        enumerated_tests: [%{module: "AppTests", suite: "MathTests", name: "testAdd()"}]
+      })
+
+    selective_testing(project, head, [
+      {"AppTests", :miss, "app-changed"},
+      {"TextKitTests", :local, Keyword.get(opts, :head_hash, "text")}
+    ])
+  end
+
+  test "carries a target selective testing skipped whole, from its floor, when its inputs hash the same", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account)
+
+    assert %{
+             kind: "reported",
+             covered_lines: 5,
+             executable_lines: 7,
+             skipped_tests_count: 1,
+             carried_tests_count: 1,
+             gap_files_count: 0,
+             carried_from: ["base"]
+           } = Reported.compute(project, "head")
+  end
+
+  test "carries no target whose inputs hashed differently where its evidence comes from", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account, head_hash: "text-changed")
+
+    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "carries no target a test failed in where its evidence comes from", %{project: project, account: account} do
+    target_only_runs(project, account, trim_status: "failure")
+
+    assert %{kind: "partial", skipped_tests_count: 1, carried_tests_count: 0} = Reported.compute(project, "head")
   end
 
   test "a run that measured nothing refolds its commit, and only a measured one", %{

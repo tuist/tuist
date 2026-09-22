@@ -21,6 +21,13 @@ defmodule Tuist.Tests.Coverage.Reported do
     of the project;
   - the evidence holds lines, not only files, for every file that counts.
 
+  A test target selective testing skipped carries whole, from the evidence
+  of the target's own process, when the source run hashed the target the
+  same way the commit's run did: the same inputs, so the same tests over the
+  same code. The guards above apply to it as to a test. It needs no observer
+  scope per test, so it covers Swift Testing without the attribution trait
+  and tests that ran in parallel.
+
   A skipped test that fails any of these is a **gap**: nothing is carried for
   it and the figure is a lower bound, which `kind` says (`partial`). Files an
   ancestor measured that no run at the commit compiled keep their executable
@@ -141,6 +148,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       project: project,
       repository_id: repository_id,
       sha: sha,
+      run_ids: run_ids,
       observed: observed,
       blobs: run_blobs(project.id, run_ids),
       excluded: ExcludedPaths.compile(excluded)
@@ -359,17 +367,11 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp selectively_skipped_modules(_project_id, []), do: []
 
   defp selectively_skipped_modules(project_id, run_ids) do
-    events = from(e in Event, where: e.project_id == ^project_id and e.test_run_id in ^run_ids, select: e.id)
-
-    ClickHouseRepo.all(
-      from(t in XcodeTarget,
-        where:
-          t.project_id == ^project_id and t.command_event_id in subquery(events) and
-            t.selective_testing_hit in ["local", "remote"],
-        distinct: true,
-        select: t.name
-      )
-    )
+    project_id
+    |> target_hashes(run_ids)
+    |> Enum.filter(&(&1.hit in ["local", "remote"]))
+    |> Enum.map(& &1.name)
+    |> Enum.uniq()
   end
 
   defp inherit_modules(_project_id, _ranked, _schemes, []), do: []
@@ -441,23 +443,137 @@ defmodule Tuist.Tests.Coverage.Reported do
     files = source_files(context.project.id, chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
     validity = validity_cache(context, source_runs)
 
-    Enum.reduce(chosen, {[], %{}, %{}}, fn {scope_id, %{run_id: run_id, rows: test_rows}}, {kept, lines, sources} = acc ->
+    chosen
+    |> Enum.reduce({[], %{}, %{}}, fn {scope_id, %{run_id: run_id, rows: test_rows}}, acc ->
       test = tests[scope_id]
       all_rows = test_rows ++ Map.get(suites, {run_id, Evidence.suite_scope_id(test.module_name, test.suite_name)}, [])
       source = Map.put(source_runs[run_id], :run_id, run_id)
 
       if MapSet.member?(passed, {test.test_case_id, run_id}) and
            applies?(context, validity, source, all_rows, Map.get(files, run_id, %{})) do
-        counted = Enum.filter(all_rows, &counted?(context, Map.get(files, run_id, %{}), &1.path))
-
-        {[test | kept],
-         Enum.reduce(counted, lines, fn row, lines ->
-           Map.update(lines, row.path, MapSet.new(row.line_numbers), &MapSet.union(&1, MapSet.new(row.line_numbers)))
-         end), Enum.reduce(counted, sources, fn row, sources -> Map.put_new(sources, row.path, source) end)}
+        keep(acc, context, [test], all_rows, source, Map.get(files, run_id, %{}))
       else
         acc
       end
     end)
+    |> carry_targets(context, skipped, source_runs, validity)
+    |> then(fn {kept, lines, sources} -> {Enum.uniq_by(kept, & &1.test_case_id), lines, sources} end)
+  end
+
+  defp keep({kept, lines, sources}, context, tests, rows, source, source_files) do
+    counted = Enum.filter(rows, &counted?(context, source_files, &1.path))
+
+    {tests ++ kept,
+     Enum.reduce(counted, lines, fn row, lines ->
+       Map.update(lines, row.path, MapSet.new(row.line_numbers), &MapSet.union(&1, MapSet.new(row.line_numbers)))
+     end), Enum.reduce(counted, sources, fn row, sources -> Map.put_new(sources, row.path, source) end)}
+  end
+
+  # A target selective testing skipped carries whole. Its evidence is
+  # everything its test process executed, so carrying it is exact only when
+  # none of its tests ran at the commit and they are the tests that ran then:
+  # the hit says the first, and a source run that hashed the target the same
+  # says the second, since the hash covers the target's sources, its tests
+  # and everything they depend on. Every other guard is the per-test one: the
+  # target passed there, what it executed is unchanged, so are the tracked
+  # files, and the evidence holds lines. It needs no observer in the test
+  # process and no serial execution, so it covers what per-test evidence
+  # cannot: Swift Testing without the attribution trait, and tests that ran in
+  # parallel.
+  defp carry_targets(acc, context, skipped, source_runs, validity) do
+    hits =
+      context.project.id
+      |> target_hashes(context.run_ids)
+      |> Enum.filter(&(&1.hit in ["local", "remote"]))
+      |> Map.new(&{&1.name, &1.hash})
+
+    by_module = skipped |> Enum.filter(&Map.has_key?(hits, &1.module_name)) |> Enum.group_by(& &1.module_name)
+
+    if by_module == %{} do
+      acc
+    else
+      carry_targets(acc, context, {by_module, hits}, source_runs, validity, Map.keys(by_module))
+    end
+  end
+
+  defp carry_targets(acc, context, {by_module, hits}, source_runs, validity, modules) do
+    project_id = context.project.id
+    rows = evidence_rows(project_id, modules, Map.keys(source_runs), "target")
+
+    same_hash =
+      project_id
+      |> target_hashes(rows |> Enum.map(& &1.test_run_id) |> Enum.uniq())
+      |> Enum.filter(&(&1.hash == hits[&1.name]))
+      |> MapSet.new(&{&1.test_run_id, &1.name})
+
+    chosen =
+      rows
+      |> Enum.filter(&MapSet.member?(same_hash, {&1.test_run_id, &1.scope_id}))
+      |> Enum.group_by(& &1.scope_id)
+      |> Map.new(fn {module, module_rows} ->
+        run_id = module_rows |> Enum.map(& &1.test_run_id) |> Enum.uniq() |> Enum.min_by(&source_rank(source_runs[&1]))
+        {module, %{run_id: run_id, rows: Enum.filter(module_rows, &(&1.test_run_id == run_id))}}
+      end)
+
+    failed = failed_targets(project_id, chosen)
+    files = source_files(project_id, chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
+
+    Enum.reduce(chosen, acc, fn {module, %{run_id: run_id, rows: target_rows}}, acc ->
+      source = Map.put(source_runs[run_id], :run_id, run_id)
+
+      if not MapSet.member?(failed, {run_id, module}) and
+           applies?(context, validity, source, target_rows, Map.get(files, run_id, %{})) do
+        keep(acc, context, by_module[module], target_rows, source, Map.get(files, run_id, %{}))
+      else
+        acc
+      end
+    end)
+  end
+
+  # The selective-testing hash and hit each run's command event reported per
+  # target. A run that ignored selective testing still hashes its targets,
+  # and reports them as misses.
+  defp target_hashes(_project_id, []), do: []
+
+  defp target_hashes(project_id, run_ids) do
+    run_ids
+    |> Coverage.id_chunks()
+    |> Enum.flat_map(fn runs ->
+      ClickHouseRepo.all(
+        from(t in XcodeTarget,
+          join: e in Event,
+          on: e.id == t.command_event_id,
+          where:
+            t.project_id == ^project_id and e.project_id == ^project_id and e.test_run_id in ^runs and
+              not is_nil(t.selective_testing_hash),
+          distinct: true,
+          select: %{
+            test_run_id: e.test_run_id,
+            name: t.name,
+            hash: t.selective_testing_hash,
+            hit: t.selective_testing_hit
+          }
+        )
+      )
+    end)
+  end
+
+  # The targets that had a failing test in the run their evidence comes from.
+  defp failed_targets(_project_id, chosen) when chosen == %{}, do: MapSet.new()
+
+  defp failed_targets(project_id, chosen) do
+    run_ids = chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq()
+    modules = Map.keys(chosen)
+
+    from(r in TestCaseRun,
+      where:
+        r.project_id == ^project_id and r.test_run_id in ^run_ids and r.module_name in ^modules and
+          r.status == "failure",
+      distinct: true,
+      select: {r.test_run_id, r.module_name}
+    )
+    |> ClickHouseRepo.all()
+    |> MapSet.new()
   end
 
   defp source_rank(%{depth: depth, ran_at: ran_at}), do: {depth, -DateTime.to_unix(to_datetime(ran_at), :microsecond)}
