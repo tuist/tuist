@@ -1195,20 +1195,80 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(eligible_server).status == :drain_pending
     end
 
-    test "requires Air storage evidence on both the first day and today" do
-      missing_first = account()
-      missing_first_server = active_instance(missing_first, age_days: 2)
-      with_demand(missing_first, 0)
-      storage_rollups(missing_first, 0..1)
+    test "both plans reclaim old instances whose first partial day had no snapshots" do
+      for plan <- [:air, :pro] do
+        account = account(plan: plan)
+        server = active_instance(account, age_days: 30)
+        with_demand(account, 0)
+        storage_rollups(account, 0..29)
 
-      missing_today = account()
-      missing_today_server = active_instance(missing_today, age_days: 2)
-      with_demand(missing_today, 0)
-      storage_rollups(missing_today, 1..2)
+        assert :ok = Lifecycle.sweep()
+        assert reload(server).status == :drain_pending
+      end
+    end
+
+    test "reclaims Air when provisioning crosses midnight without snapshots on either boundary day" do
+      freeze_clock(~U[2026-09-22 00:30:00.000000Z])
+      account = account()
+      server = active_instance(account, age_hours: 25)
+      with_demand(account, 0, tracked_for_days: 2)
+      storage_rollups(account, [1])
 
       assert :ok = Lifecycle.sweep()
-      assert reload(missing_first_server).status == :active
-      assert reload(missing_today_server).status == :active
+      assert reload(server).status == :drain_pending
+    end
+
+    test "the midnight sweep can reclaim before today's rollup arrives" do
+      freeze_clock(~U[2026-09-22 00:00:00.000000Z])
+      account = account()
+      server = active_instance(account, age_days: 2)
+      with_demand(account, 0)
+      storage_rollups(account, 1..2)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+    end
+
+    test "a single snapshot cannot establish that a 25-hour Air instance stayed unused" do
+      account = account()
+      server = active_instance(account, age_hours: 25)
+      with_demand(account, 0)
+      storage_rollups(account, [0], snapshot_count: 1)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "coverage counts the expected snapshots from every replica" do
+      account = account()
+      server = active_instance(account, age_days: 2)
+      with_demand(account, 0)
+      storage_rollups(account, 0..2, snapshot_count: 96)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "excess samples on one day cannot compensate for thin coverage on another" do
+      account = account()
+      server = active_instance(account, age_days: 2)
+      with_demand(account, 0)
+      storage_rollups(account, [2], snapshot_count: 1000)
+      storage_rollups(account, [1], snapshot_count: 1)
+      storage_rollups(account, [0])
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "a missing full day vetoes otherwise sufficient snapshot counts" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+      with_demand(account, 0)
+      storage_rollups(account, Enum.reject(0..30, &(&1 == 12)))
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
     end
 
     test "leaves an instance alone once it has stored bytes" do
@@ -1375,6 +1435,11 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :provisioning
     end
 
+    defp freeze_clock(now) do
+      stub(DateTime, :utc_now, fn -> now end)
+      stub(Date, :utc_today, fn -> DateTime.to_date(now) end)
+    end
+
     defp unused_instance(account) do
       server = active_instance(account, age_days: 8)
       with_demand(account, 1)
@@ -1406,7 +1471,7 @@ defmodule Tuist.Kura.LifecycleTest do
               account_id: account.id,
               region: @region,
               date: Date.add(Date.utc_today(), -days),
-              snapshot_count: 96,
+              snapshot_count: 96 * @replicas,
               max_occupancy_percent: 0,
               max_live_segment_bytes: 0
             ],

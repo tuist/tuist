@@ -76,9 +76,12 @@ defmodule Tuist.Kura.Lifecycle do
   default, whatever its demand. The hourly sweep reads
   `Tuist.Environment.kura_air_unused_hours/0` and `kura_unused_days/0`.
   Air's unused-instance tracking grace is capped at its unused window; the
-  inactivity path retains the full tracking grace. Only snapshots covering
-  the whole service life count as evidence, including the first day and today
-  for Air; an instance with missing telemetry is left to the inactivity window.
+  inactivity path retains the full tracking grace. Both plans require snapshots
+  on every full service day and at least 90% of
+  the expected per-replica snapshot count, with each date capped at the time
+  in service. Partial boundary days need not have a row: provisioning and
+  rollup delivery can cross midnight. Insufficient telemetry is left to the
+  inactivity window.
   Demand does not cancel that drain, and once archived the account-region is
   provisioned again only by demand recorded after the archival.
 
@@ -128,6 +131,11 @@ defmodule Tuist.Kura.Lifecycle do
   # a rollout. Anything over the ceiling is picked up by the next pass.
   @max_provisions_per_pass 20
   @max_archival_transitions_per_pass 100
+
+  # Kura emits one snapshot per replica every 15 minutes. A region without
+  # an explicit replica count uses the controller's three-replica default.
+  @storage_snapshot_interval_seconds 900
+  @default_storage_replicas 3
 
   # Under capacity pressure, eligibility depends on each account's plan and so
   # is decided after the query. These bound the scan that looks past ineligible
@@ -633,7 +641,8 @@ defmodule Tuist.Kura.Lifecycle do
     earliest_cutoff = DateTime.add(now, -min(air_window_seconds, default_window_seconds), :second)
     air_cutoff = DateTime.add(now, -air_window_seconds, :second)
     air_tracking_cutoff = Enum.max([tracking_cutoff, air_cutoff], DateTime)
-    today = DateTime.to_date(now)
+    region = Regions.get(region_id)
+    replicas = region.provisioner_config[:replicas] || @default_storage_replicas
 
     instances =
       region_id
@@ -653,7 +662,7 @@ defmodule Tuist.Kura.Lifecycle do
       plan = Billing.effective_plan(server.account)
       started_at = service_started_at(server, lifecycle)
 
-      if never_stored?(Map.get(rollups, server.account_id, []), started_at, today, plan) do
+      if never_stored?(Map.get(rollups, server.account_id, []), started_at, now, replicas) do
         [{server, lifecycle, plan, :unused}]
       else
         []
@@ -703,15 +712,32 @@ defmodule Tuist.Kura.Lifecycle do
   defp service_started_at(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{last_returned_at: returned_at}),
     do: Enum.max([inserted_at, returned_at], DateTime)
 
-  defp never_stored?(rollups, started_at, today, plan) do
+  defp never_stored?(rollups, started_at, now, replicas) do
     started_on = DateTime.to_date(started_at)
-    in_service = Enum.filter(rollups, &(Date.compare(&1.date, started_on) != :lt))
+    today = DateTime.to_date(now)
+
+    in_service =
+      Enum.filter(rollups, &(Date.compare(&1.date, started_on) != :lt and Date.compare(&1.date, today) != :gt))
+
     snapshot_dates = MapSet.new(for rollup <- in_service, rollup.snapshot_count > 0, do: rollup.date)
+    expected = div(DateTime.diff(now, started_at), @storage_snapshot_interval_seconds) * replicas
 
-    required_dates = if plan == :air, do: Date.range(started_on, today), else: full_days_in_service(started_on, today)
+    # Boundary days can lack a row when provisioning crosses midnight or the
+    # current day's rollup has not landed. Cap each day's credit at the time
+    # actually in service so old return-day samples or extra pods cannot fill
+    # another day's gap. Counts alone cannot establish full-day continuity.
+    observed =
+      Enum.reduce(in_service, 0, fn rollup, total ->
+        day_start = DateTime.new!(rollup.date, ~T[00:00:00], "Etc/UTC")
+        day_end = DateTime.add(day_start, 1, :day)
+        first = Enum.max([day_start, started_at], DateTime)
+        last = Enum.min([day_end, now], DateTime)
+        day_expected = div(DateTime.diff(last, first), @storage_snapshot_interval_seconds) * replicas
+        total + min(rollup.snapshot_count, day_expected)
+      end)
 
-    MapSet.size(snapshot_dates) > 0 and
-      Enum.all?(required_dates, &MapSet.member?(snapshot_dates, &1)) and
+    expected > 0 and observed * 10 >= expected * 9 and
+      Enum.all?(full_days_in_service(started_on, today), &MapSet.member?(snapshot_dates, &1)) and
       not Enum.any?(in_service, &stored?/1)
   end
 

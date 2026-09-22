@@ -579,7 +579,7 @@ defmodule Tuist.Environment do
   @doc """
   Hours an Air instance may stay in service without storing anything before
   it is reclaimed. Its unused-instance tracking grace is capped at this window;
-  complete storage telemetry is still required.
+  sufficient storage telemetry is still required.
 
   Read from `TUIST_KURA_AIR_UNUSED_HOURS`.
   """

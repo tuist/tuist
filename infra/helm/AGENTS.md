@@ -9,7 +9,7 @@ This node covers Helm assets under `infra/helm/`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions
-- Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Staging keeps its five-minute sweep override for lifecycle drills.
+- Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
 - `runnersController.shadowScheduler` is enabled in the canary and production
   overlays at a 30-second interval; staging and the chart default remain disabled.
   Use canary to validate collection and production to observe real demand. Enable only after
