@@ -1792,6 +1792,25 @@ targets.append(contentsOf: [
 ])
 #endif
 
+#if !os(macOS)
+targets.append(
+    .target(
+        name: "TuistProcess",
+        dependencies: [
+            mockableDependency,
+            pathDependency,
+            subprocessDependency,
+            systemPackageDependency,
+        ],
+        path: "cli/Sources/TuistProcess",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    )
+)
+#endif
+
 #if TUIST
     import struct ProjectDescription.PackageSettings
 

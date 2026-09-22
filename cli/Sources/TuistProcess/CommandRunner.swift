@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 import Path
 import Subprocess
 #if canImport(System)
@@ -55,6 +56,7 @@ private actor StandardErrorCollector {
     }
 }
 
+@Mockable
 public protocol CommandRunning: Sendable {
     func run(
         arguments: [String],
