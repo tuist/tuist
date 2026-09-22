@@ -81,7 +81,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:13
 #: lib/tuist_web/live/bazel_invocation_live.ex:59
 #: lib/tuist_web/live/build_run_live.html.heex:218
-#: lib/tuist_web/live/once_run_live.ex:232
+#: lib/tuist_web/live/once_run_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Build Details"
 msgstr ""
@@ -106,7 +106,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:496
 #: lib/tuist_web/live/build_run_live.html.heex:512
 #: lib/tuist_web/live/build_run_live.html.heex:555
-#: lib/tuist_web/live/once_run_live.ex:266
+#: lib/tuist_web/live/once_run_live.ex:240
 #: lib/tuist_web/live/once_runs_live.ex:442
 #: lib/tuist_web/live/once_runs_live.ex:454
 #: lib/tuist_web/live/xcode_builds_live.html.heex:672
@@ -150,7 +150,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:246
 #: lib/tuist_web/live/build_run_live.html.heex:292
-#: lib/tuist_web/live/once_run_live.ex:272
+#: lib/tuist_web/live/once_run_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Built at"
 msgstr ""
@@ -304,7 +304,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:226
 #: lib/tuist_web/live/generate_runs_live.ex:260
 #: lib/tuist_web/live/generate_runs_live.html.heex:58
-#: lib/tuist_web/live/once_run_live.ex:240
+#: lib/tuist_web/live/once_run_live.ex:214
 #: lib/tuist_web/live/run_detail_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Command"
@@ -473,7 +473,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:602
 #: lib/tuist_web/live/generate_runs_live.ex:273
 #: lib/tuist_web/live/generate_runs_live.html.heex:81
-#: lib/tuist_web/live/once_run_live.ex:1152
+#: lib/tuist_web/live/once_run_live.ex:1126
 #: lib/tuist_web/live/run_detail_live.html.heex:144
 #: lib/tuist_web/live/xcode_build_runs_live.ex:219
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:80
@@ -791,7 +791,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:597
 #: lib/tuist_web/live/generate_runs_live.ex:272
 #: lib/tuist_web/live/generate_runs_live.html.heex:79
-#: lib/tuist_web/live/once_run_live.ex:1150
+#: lib/tuist_web/live/once_run_live.ex:1124
 #: lib/tuist_web/live/run_detail_live.html.heex:137
 #: lib/tuist_web/live/xcode_build_runs_live.ex:218
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:75
@@ -908,7 +908,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:639
 #: lib/tuist_web/live/build_run_live.html.heex:1191
 #: lib/tuist_web/live/build_run_live.html.heex:1524
-#: lib/tuist_web/live/once_run_live.ex:681
+#: lib/tuist_web/live/once_run_live.ex:655
 #: lib/tuist_web/live/xcode_builds_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -958,7 +958,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:252
 #: lib/tuist_web/live/build_run_live.html.heex:1593
 #: lib/tuist_web/live/generate_runs_live.ex:268
-#: lib/tuist_web/live/once_run_live.ex:253
+#: lib/tuist_web/live/once_run_live.ex:227
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:214
 #: lib/tuist_web/live/xcode_builds_live.ex:438
