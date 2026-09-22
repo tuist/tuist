@@ -6595,6 +6595,65 @@ struct TestServiceShardingTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_from_a_bundle_restores_the_builds_requested_identifiers() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(
+                testTargetHashes: [:],
+                requestedTestIdentifiers: ["AppUITests/CartA11yTests"]
+            ),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(path: temporaryDirectory, testProductsPath: testProductsPath)
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .matching { arguments in
+                arguments.containsConsecutive("-only-testing", "AppUITests/CartA11yTests")
+            })
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_from_a_bundle_fails_when_the_request_cannot_run() async throws {
+        // Asking for a suite the products were not built for is a misconfigured pipeline. Running
+        // unrestricted would run everything, and finishing quietly would report a pass for tests
+        // that never ran.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(
+                testTargetHashes: [:],
+                requestedTestIdentifiers: ["AppUITests/CartA11yTests"]
+            ),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+
+        await #expect(throws: TestServiceError.self) {
+            try await AlertController.$current.withValue(AlertController()) {
+                try await fixture.run(
+                    path: temporaryDirectory,
+                    testProductsPath: testProductsPath,
+                    testTargets: [try TestIdentifier(target: "AppUITests", class: "OnboardingFlowTests")]
+                )
+            }
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func without_building_narrows_a_module_shard_to_the_requested_suites() async throws {
         // A module-granularity shard selects the whole test target. Its identifier and the run's
         // `--test-targets` would both go out as `-only-testing`, which xcodebuild runs the union of,

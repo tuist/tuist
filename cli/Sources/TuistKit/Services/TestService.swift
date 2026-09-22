@@ -35,6 +35,7 @@ public enum TestServiceError: FatalError, Equatable {
     case shardPlanningRequiresBuildOnly
     case shardIndexRequiresWithoutBuilding
     case shardingRequiresFullHandle
+    case requestedTestsNotInProducts(requested: [String], built: [String])
 
     // Error description
 
@@ -87,6 +88,9 @@ public enum TestServiceError: FatalError, Equatable {
         case .shardingRequiresFullHandle:
             return
                 "Test sharding requires a Tuist account. The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
+        case let .requestedTestsNotInProducts(requested, built):
+            return
+                "None of the test identifiers passed to --test-targets (\(requested.joined(separator: ", "))) can run against these test products, which were built for \(built.joined(separator: ", "))."
         }
     }
 
@@ -95,7 +99,7 @@ public enum TestServiceError: FatalError, Equatable {
     public var type: ErrorType {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
-             .testIdentifierInvalid, .duplicatedTestTargets,
+             .testIdentifierInvalid, .duplicatedTestTargets, .requestedTestsNotInProducts,
              .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform,
              .shardPlanningRequiresBuildOnly, .shardIndexRequiresWithoutBuilding,
              .shardingRequiresFullHandle:
@@ -939,10 +943,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        // This job did not build the products and usually repeats nothing from the build command, so
+        // the restriction the build ran under is restored from the bundle and narrowed by whatever
+        // this job asked for on top.
+        let restrictions = [
+            selectiveTestingGraph.requestedTestIdentifiers,
+            testTargets.map(\.description),
+        ]
+        let onlyTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(restrictions)
+        if onlyTestIdentifiers.isEmpty, restrictions.contains(where: { !$0.isEmpty }) {
+            throw TestServiceError.requestedTestsNotInProducts(
+                requested: testTargets.map(\.description),
+                built: selectiveTestingGraph.requestedTestIdentifiers
+            )
+        }
+
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: testProductsPath,
-            testTargets: testTargets,
+            testTargets: [],
             skipTestTargets: skipTestTargets,
+            shardTestIdentifiers: onlyTestIdentifiers,
             testPlanConfiguration: testPlanConfiguration,
             deviceName: deviceName,
             platform: platform,
