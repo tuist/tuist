@@ -330,6 +330,30 @@ Rebooting is not a default.
 TFTP needs sudo, because TFTP is always requested on port 69 and `tftpd` only
 accepts an upload into a file that already exists and is writable.
 
+### What the first real run showed
+
+Done on 2026-09-22 against `ber1-tor-b`, with a payload that changed nothing:
+the switch already matched the render, so the run exercised export, merge, push,
+reboot and verify without altering behaviour. It worked first time. The switch
+was back in 15 seconds, the verify was clean, and the session table showed one
+line afterwards.
+
+Two things worth knowing that only the real run could show.
+
+**A clean verify does not prove the login survived.** The verify diffs the live
+config against the render, and the render omits `user name` by design, so the
+account could be gone and the diff would still be clean. What actually proves it
+is that the post-reboot read authenticates as `tuist` at all, plus a `backup`
+afterwards showing the account and `system-time ntp` both present. Check those
+rather than the success line.
+
+**The first replace strips the firmware's placeholder padding.** The device's own
+export carries long runs of `#` separators for unset sections; a rendered file
+does not, so after the first push the startup config is shorter. On `ber1-tor-b`
+that was 46 `#` lines and 33 blanks, and not one configuration line. It is
+cosmetic, it is a one-time change, and the committed backup shrinks to match.
+Worth expecting rather than discovering.
+
 ### The first real run, in order
 
 The whole path has been exercised against a fake switch, so the bugs left are
