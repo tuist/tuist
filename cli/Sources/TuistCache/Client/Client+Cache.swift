@@ -10,14 +10,14 @@ extension Client {
     ///   - cacheURL: The cache service URL
     ///   - authenticationURL: The main server URL for authentication (token refresh, validation)
     ///   - serverAuthenticationController: Controller for server authentication
-    ///   - session: Optional URLSession override. The CAS path passes a
-    ///     short-timeout session so a hung backend fails fast; other callers use
+    ///   - session: Optional URLSession override. A caller on a fail-fast path passes a
+    ///     short-timeout session so a hung backend fails fast; every current caller uses
     ///     the shared session.
     ///   - retriesTransportErrors: Whether the retry middleware retries thrown transport
     ///     errors, including timeouts. Defaults to `true` so ordinary cache GETs retry
-    ///     transient failures. The CAS download path passes `false` so a hung backend
-    ///     reaches the circuit breaker through the short `.tuistCAS` timeout instead of
-    ///     being replayed. Retryable HTTP responses such as 503 keep retrying either way.
+    ///     transient failures. A caller paired with a short-timeout session passes `false`
+    ///     so a hung backend surfaces through that timeout instead of being replayed.
+    ///     Retryable HTTP responses such as 503 keep retrying either way.
     ///   - fullHandle: The `account/project` the requests are for. Used to
     ///     narrow the cache token to that project, which matters for an
     ///     account-wide credential: without it the token carries every project
