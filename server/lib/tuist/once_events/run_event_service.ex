@@ -90,13 +90,17 @@ defmodule Tuist.OnceEvents.RunEventService do
   end
 
   defp handle_batch(batch, project) do
+    # An empty batch carries `gap_advances` instead of events, and its
+    # `seq_from` is one past the last dropped sequence, so the arithmetic
+    # below lands on that sequence and lets the client retire the lost
+    # range. Either way the ack never regresses below what we already
+    # hold, which the client treats as a fatal protocol violation.
+    stored_seq = AckStore.acked_seq(project.id, batch.run_id)
+    batch_last_seq = batch.seq_from + length(batch.events) - 1
+
     case project_events(batch, project) do
       :ok ->
-        highest_seq =
-          case batch.events do
-            [] -> AckStore.acked_seq(project.id, batch.run_id)
-            events -> batch.seq_from + length(events) - 1
-          end
+        highest_seq = max(stored_seq, batch_last_seq)
 
         AckStore.observe(project.id, batch.run_id, highest_seq)
 
@@ -108,14 +112,7 @@ defmodule Tuist.OnceEvents.RunEventService do
         # client reopen the stream and resend from where it last saw us,
         # and every projector write is idempotent, so the events in this
         # batch that did land simply replay.
-        #
-        # The floor is `seq_from - 1` rather than the stored mark because
-        # the client rejects an ack whose `expected_next_seq` regresses
-        # below what it already believes we hold (and our in-memory mark
-        # is empty after a restart).
-        resume_seq = max(AckStore.acked_seq(project.id, batch.run_id), batch.seq_from - 1)
-
-        ack(batch, project, :ACK_DISPOSITION_NEEDS_RESYNC, resume_seq)
+        ack(batch, project, :ACK_DISPOSITION_NEEDS_RESYNC, max(stored_seq, batch.seq_from - 1))
     end
   end
 
