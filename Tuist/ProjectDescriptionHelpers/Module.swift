@@ -595,7 +595,12 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .process:
-                [.external(name: "Subprocess")]
+                [
+                    .external(name: "Mockable"),
+                    .external(name: "Path"),
+                    .external(name: "Subprocess"),
+                    .external(name: "SystemPackage"),
+                ]
             case .xcodeGraph:
                 [
                     .external(name: "AnyCodable"),

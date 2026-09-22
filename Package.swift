@@ -1829,6 +1829,10 @@ var products: [Product] = [
         name: "TuistOIDC",
         targets: ["TuistOIDC"]
     ),
+    .library(
+        name: "TuistProcess",
+        targets: ["TuistProcess"]
+    ),
 ]
 
 #if os(macOS)
