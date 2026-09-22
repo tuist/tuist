@@ -569,7 +569,7 @@ defmodule Tuist.Environment do
   def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
 
   @doc """
-  Days a Kura instance may stay in service without storing anything before it
+  Days a Pro Kura instance may stay in service without storing anything before it
   is drained and reclaimed, measured from when it entered service.
 
   Read from `TUIST_KURA_UNUSED_DAYS`.
@@ -577,8 +577,18 @@ defmodule Tuist.Environment do
   def kura_unused_days, do: positive_env_integer("TUIST_KURA_UNUSED_DAYS", 7)
 
   @doc """
-  Days an account-region's demand must have been tracked before it can be
-  archived, however old the recorded demand looks.
+  Hours an Air instance may stay in service without storing anything before
+  it is reclaimed. Its unused-instance tracking grace is capped at this window;
+  sufficient storage telemetry is still required.
+
+  Read from `TUIST_KURA_AIR_UNUSED_HOURS`.
+  """
+  def kura_air_unused_hours, do: positive_env_integer("TUIST_KURA_AIR_UNUSED_HOURS", 24)
+
+  @doc """
+  Days an account-region's demand must have been tracked before inactivity
+  archival, however old the recorded demand looks. For never-used Air instances,
+  this grace is capped at `kura_air_unused_hours/0`.
 
   This is what makes enabling archival against freshly backfilled data safe, so
   it defaults to a week. Staging sets it to zero, where the backfill is not the
@@ -622,18 +632,16 @@ defmodule Tuist.Environment do
   Cron schedule for the Kura archival sweep, which decides that an instance
   has gone a full inactive window without cache demand.
 
-  Daily by default, matching the 90-day production window: deciding more often
-  than the window's own granularity changes nothing. It is configurable so a
-  deployment running a short window can sweep at a matching cadence, since a
-  daily sweep against a one-day window would leave an instance eligible for up
-  to another day before anything looked at it.
+  Hourly by default so an unused Air instance is considered within an hour of
+  its eligibility window, rather than waiting until midnight.
+  Deployments can override the cadence to match their lifecycle windows.
 
   Read from `TUIST_KURA_ARCHIVAL_SWEEP_CRON`.
   """
   def kura_archival_sweep_cron do
     case System.get_env("TUIST_KURA_ARCHIVAL_SWEEP_CRON") do
-      nil -> "@daily"
-      "" -> "@daily"
+      nil -> "@hourly"
+      "" -> "@hourly"
       schedule -> String.trim(schedule)
     end
   end

@@ -34,8 +34,10 @@ defmodule Atlas.MCP.ServerTest do
     tools = response["result"]["tools"]
 
     assert Enum.any?(tools, &(&1["name"] == "list_accounts"))
-    assert Enum.any?(tools, &(&1["name"] == "act_on_account_attention_suggestion"))
     assert Enum.any?(tools, &(&1["name"] == "list_account_attention_suggestions"))
+    assert Enum.any?(tools, &(&1["name"] == "list_account_nudges"))
+    assert Enum.any?(tools, &(&1["name"] == "claim_nudge"))
+    assert Enum.any?(tools, &(&1["name"] == "dismiss_nudge"))
     refute Enum.any?(tools, &(&1["name"] == "list_account_outcomes"))
     refute Enum.any?(tools, &(&1["name"] == "generate_account_outcome_proposals"))
     assert Enum.any?(tools, &(&1["name"] == "create_account"))

@@ -52,8 +52,6 @@ defmodule AtlasWeb.AccountLive do
          |> assign(:staged_screenshots, [])
          |> assign(:overview_summary_processing, false)
          |> assign(:overview_summary_error, nil)
-         |> assign(:attention_suggestions_processing, false)
-         |> assign(:attention_suggestions_error, nil)
          |> assign(:outcome_proposals_processing, false)
          |> assign(:outcome_proposals_error, nil)
          |> assign_favicon(account)
@@ -470,56 +468,6 @@ defmodule AtlasWeb.AccountLive do
              Accounts.generate_outcome_proposals(account_id)
            end)
          end)}
-    end
-  end
-
-  def handle_event("generate_attention_suggestions", _params, socket) do
-    cond do
-      socket.assigns.attention_suggestions_processing ->
-        {:noreply, socket}
-
-      is_nil(LLMs.config()) ->
-        {:noreply,
-         assign(
-           socket,
-           :attention_suggestions_error,
-           gettext("Language model is not configured. Set LLM_API_KEY and LLM_MODEL on the server.")
-         )}
-
-      true ->
-        account_id = socket.assigns.account.id
-        audit_context = Audit.current_context()
-
-        {:noreply,
-         socket
-         |> assign(:attention_suggestions_processing, true)
-         |> assign(:attention_suggestions_error, nil)
-         |> start_async(:attention_suggestions_generation, fn ->
-           Audit.with_context(audit_context, fn ->
-             Accounts.generate_account_attention_suggestions(account_id)
-           end)
-         end)}
-    end
-  end
-
-  def handle_event("act_on_account_attention_suggestion", %{"id" => id, "action" => action}, socket) do
-    case Accounts.get_account_attention_suggestion(socket.assigns.account, id) do
-      nil ->
-        {:noreply, put_flash(socket, :error, gettext("Account suggestion not found."))}
-
-      suggestion ->
-        case apply_account_attention_action(action, suggestion) do
-          {:ok, _suggestion} ->
-            account = Accounts.get_account(socket.assigns.account.id)
-
-            {:noreply,
-             socket
-             |> assign_account(account)
-             |> put_flash(:info, account_attention_action_message(action))}
-
-          {:error, _reason} ->
-            {:noreply, put_flash(socket, :error, gettext("Could not update the account suggestion."))}
-        end
     end
   end
 
@@ -990,44 +938,6 @@ defmodule AtlasWeb.AccountLive do
       end
 
     {:noreply, socket}
-  end
-
-  def handle_async(:attention_suggestions_generation, {:ok, {:ok, _suggestions}}, socket) do
-    account = Accounts.get_account(socket.assigns.account.id)
-
-    {:noreply,
-     socket
-     |> assign(:attention_suggestions_processing, false)
-     |> assign(:attention_suggestions_error, nil)
-     |> assign_account(account)}
-  end
-
-  def handle_async(:attention_suggestions_generation, {:ok, {:error, :llm_not_configured}}, socket) do
-    {:noreply,
-     socket
-     |> assign(:attention_suggestions_processing, false)
-     |> assign(
-       :attention_suggestions_error,
-       gettext("Language model is not configured. Set LLM_API_KEY and LLM_MODEL on the server.")
-     )}
-  end
-
-  def handle_async(:attention_suggestions_generation, {:ok, {:error, reason}}, socket) do
-    Logger.error("Account attention suggestion generation failed: #{inspect(reason)}")
-
-    {:noreply,
-     socket
-     |> assign(:attention_suggestions_processing, false)
-     |> assign(:attention_suggestions_error, gettext("Could not generate account suggestions. Please try again."))}
-  end
-
-  def handle_async(:attention_suggestions_generation, {:exit, reason}, socket) do
-    Logger.error("Account attention suggestion generation crashed: #{inspect(reason)}")
-
-    {:noreply,
-     socket
-     |> assign(:attention_suggestions_processing, false)
-     |> assign(:attention_suggestions_error, gettext("Could not generate account suggestions. Please try again."))}
   end
 
   def handle_async(:outcome_proposals_generation, {:ok, {:error, :llm_not_configured}}, socket) do
@@ -2901,137 +2811,6 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
-        title={gettext("Account attention")}
-        icon="bulb"
-        data-part="account-attention-card"
-      >
-        <:actions>
-          <.button
-            id="generate-attention-suggestions-button"
-            label={
-              if @attention_suggestions_processing,
-                do: gettext("Reviewing account…"),
-                else: gettext("Refresh suggestions")
-            }
-            variant="secondary"
-            size="small"
-            type="button"
-            phx-click="generate_attention_suggestions"
-            disabled={@attention_suggestions_processing}
-          />
-        </:actions>
-        <.card_section data-part="account-attention-section">
-          <p data-part="account-attention-description">
-            {gettext(
-              "Atlas watches account context, customer activity, and product usage, then posts the next useful follow-up to Slack."
-            )}
-          </p>
-
-          <div
-            :if={pending_attention_suggestions(@account) != []}
-            id="account-attention-suggestions"
-            data-part="account-attention-suggestions"
-          >
-            <div
-              :for={suggestion <- pending_attention_suggestions(@account)}
-              id={"account-attention-suggestion-#{suggestion.id}"}
-              data-part="account-attention-suggestion"
-            >
-              <div data-part="account-attention-suggestion-content">
-                <div data-part="account-attention-suggestion-heading">
-                  <span data-part="account-attention-suggestion-title">{suggestion.title}</span>
-                  <.badge
-                    label={account_attention_kind_label(suggestion.kind)}
-                    color="information"
-                    style="light-fill"
-                  />
-                  <span data-part="account-attention-suggestion-confidence">
-                    {account_attention_confidence(suggestion.confidence)}
-                  </span>
-                </div>
-                <p data-part="account-attention-suggestion-rationale">{suggestion.rationale}</p>
-                <p data-part="account-attention-suggestion-action">
-                  <span>{gettext("Suggested next step:")}</span>
-                  {suggestion.suggested_action}
-                </p>
-              </div>
-              <div data-part="account-attention-suggestion-controls">
-                <.badge
-                  label={account_attention_status_label(suggestion.status)}
-                  color={account_attention_status_color(suggestion.status)}
-                  style="light-fill"
-                />
-                <div data-part="account-attention-suggestion-actions">
-                  <.button_dropdown
-                    id={"account-attention-suggestion-actions-#{suggestion.id}"}
-                    label={gettext("Done")}
-                    size="medium"
-                    align="end"
-                    phx-click="act_on_account_attention_suggestion"
-                    phx-value-id={suggestion.id}
-                    phx-value-action="done"
-                  >
-                    <.dropdown_item
-                      id={"snooze-account-attention-suggestion-#{suggestion.id}"}
-                      value="snooze"
-                      label={gettext("Next week")}
-                      on_click="act_on_account_attention_suggestion"
-                      phx-value-id={suggestion.id}
-                      phx-value-action="snooze"
-                    >
-                      <:left_icon><.calendar_week /></:left_icon>
-                    </.dropdown_item>
-                    <.dropdown_item
-                      id={"dismiss-account-attention-suggestion-#{suggestion.id}"}
-                      value="dismiss"
-                      label={gettext("Not relevant")}
-                      on_click="act_on_account_attention_suggestion"
-                      phx-value-id={suggestion.id}
-                      phx-value-action="dismiss"
-                    >
-                      <:left_icon><.circle_x /></:left_icon>
-                    </.dropdown_item>
-                  </.button_dropdown>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <.account_empty_state
-            :if={
-              pending_attention_suggestions(@account) == [] and not @attention_suggestions_processing
-            }
-            id="account-attention-empty"
-            title={gettext("No follow-up needs attention right now")}
-            subtitle={
-              gettext(
-                "Add agent guidance when a customer has strategic usage patterns Atlas should watch."
-              )
-            }
-          />
-
-          <div
-            :if={@attention_suggestions_processing}
-            id="account-attention-processing"
-            data-part="account-attention-processing"
-            aria-live="polite"
-          >
-            <span data-part="account-attention-spinner" aria-hidden="true"></span>
-            <span>{gettext("Reviewing account evidence…")}</span>
-          </div>
-
-          <div
-            :if={@attention_suggestions_error}
-            id="account-attention-error"
-            data-part="account-attention-error"
-            role="alert"
-          >
-            {@attention_suggestions_error}
-          </div>
-        </.card_section>
-      </.card>
-
-      <.card
         :if={false}
         title={gettext("Customer Outcomes")}
         icon="checkup_list"
@@ -4312,53 +4091,6 @@ defmodule AtlasWeb.AccountLive do
   end
 
   defp pending_outcome_proposals(_account), do: []
-
-  defp pending_attention_suggestions(%{attention_suggestions: suggestions}) when is_list(suggestions) do
-    Enum.filter(suggestions, &(&1.status in ["pending", "snoozed"]))
-  end
-
-  defp pending_attention_suggestions(_account), do: []
-
-  defp apply_account_attention_action("done", suggestion) do
-    Accounts.action_account_attention_suggestion(suggestion)
-  end
-
-  defp apply_account_attention_action("snooze", suggestion) do
-    until = DateTime.utc_now() |> DateTime.add(7, :day) |> DateTime.truncate(:second)
-    Accounts.snooze_account_attention_suggestion(suggestion, until)
-  end
-
-  defp apply_account_attention_action("dismiss", suggestion) do
-    Accounts.dismiss_account_attention_suggestion(suggestion)
-  end
-
-  defp apply_account_attention_action(_action, _suggestion), do: {:error, :unsupported_account_attention_action}
-
-  defp account_attention_action_message("done"), do: gettext("Suggestion marked done.")
-  defp account_attention_action_message("snooze"), do: gettext("Suggestion snoozed until next week.")
-  defp account_attention_action_message("dismiss"), do: gettext("Suggestion marked not relevant.")
-
-  defp account_attention_kind_label("follow_up"), do: gettext("Follow-up")
-  defp account_attention_kind_label("usage_change"), do: gettext("Usage change")
-  defp account_attention_kind_label("renewal"), do: gettext("Renewal")
-  defp account_attention_kind_label("adoption"), do: gettext("Adoption")
-  defp account_attention_kind_label("value_proof"), do: gettext("Value proof")
-  defp account_attention_kind_label("relationship"), do: gettext("Relationship")
-  defp account_attention_kind_label(_kind), do: gettext("Follow-up")
-
-  defp account_attention_status_label("pending"), do: gettext("Ready")
-  defp account_attention_status_label("snoozed"), do: gettext("Snoozed")
-  defp account_attention_status_label(_status), do: gettext("Ready")
-
-  defp account_attention_status_color("snoozed"), do: "neutral"
-  defp account_attention_status_color(_status), do: "information"
-
-  defp account_attention_confidence(%Decimal{} = confidence) do
-    percentage = confidence |> Decimal.mult(100) |> Decimal.round(0) |> Decimal.to_integer()
-    gettext("%{percentage}%", percentage: percentage)
-  end
-
-  defp account_attention_confidence(_confidence), do: gettext("Unknown confidence")
 
   defp outcome_proposal_subject(%OutcomeProposal{proposal_type: "new_outcome", title: title}), do: title
 

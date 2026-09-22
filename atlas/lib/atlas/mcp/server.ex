@@ -11,7 +11,6 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.ActivateInsurancePolicy
-  alias Atlas.MCP.Tools.ActOnAccountAttentionSuggestion
   alias Atlas.MCP.Tools.ActOnBriefItem
   alias Atlas.MCP.Tools.AddAssetToInsurance
   alias Atlas.MCP.Tools.AddEmailAudienceSubscriber
@@ -27,6 +26,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CancelInsurancePolicy
   alias Atlas.MCP.Tools.CheckLetterDelivery
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
+  alias Atlas.MCP.Tools.ClaimNudge
   alias Atlas.MCP.Tools.CompleteOutreachNextStep
   alias Atlas.MCP.Tools.ConfirmTaxCertificateDelivery
   alias Atlas.MCP.Tools.ConvertGTMOpportunity
@@ -79,6 +79,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DetachDocumentFromFinancing
   alias Atlas.MCP.Tools.DetachDocumentFromInsuranceClaim
   alias Atlas.MCP.Tools.DetachDocumentFromInsurancePolicy
+  alias Atlas.MCP.Tools.DismissNudge
   alias Atlas.MCP.Tools.DismissOutreachNextStep
   alias Atlas.MCP.Tools.DisposeAsset
   alias Atlas.MCP.Tools.EditAssetMetadata
@@ -100,7 +101,6 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.FinanceDeleteTransactionAttachment
   alias Atlas.MCP.Tools.FinanceGetTransaction
   alias Atlas.MCP.Tools.FinanceListTransactionAttachments
-  alias Atlas.MCP.Tools.GenerateAccountAttentionSuggestions
   alias Atlas.MCP.Tools.GenerateEnterpriseContract
   alias Atlas.MCP.Tools.GenerateLeadershipBrief
   alias Atlas.MCP.Tools.GenerateOutreachNextStep
@@ -152,6 +152,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListAccountIncidentContacts
   alias Atlas.MCP.Tools.ListAccountInvoices
   alias Atlas.MCP.Tools.ListAccountLetters
+  alias Atlas.MCP.Tools.ListAccountNudges
   alias Atlas.MCP.Tools.ListAccounts
   alias Atlas.MCP.Tools.ListAccountServiceLevels
   alias Atlas.MCP.Tools.ListAccountTerms
@@ -303,7 +304,7 @@ defmodule Atlas.MCP.Server do
   4. If the user asks only for an order form, fetch only the appropriate order form rather than the full contract package. Use `order-form-tuist-hosted.docx` for a hosted deal and `order-form-self-hosted.docx` for a self-hosted deal. Ask the user when the hosting model cannot be determined from their request, conversation context, or the latest commercial term.
   5. Do not invent missing legal, billing, signatory, date, or renewal fields. Ask the user for required values that are absent from both their request and Atlas.
 
-  When account evidence may imply a useful next follow-up, call `generate_account_attention_suggestions`. Treat the result as a suggestion for review and use `list_account_attention_suggestions` to avoid repeating an unresolved or dismissed suggestion. Use `act_on_account_attention_suggestion` only after the user explicitly chooses to mark a suggestion done, snooze it, or dismiss it. Use `update_account` with `attention_context` when the user provides strategic account guidance, such as why a product capability is important to the relationship.
+  Signals detect the moments worth reaching out about (see the nudges pipeline in `Atlas.Nudges`) and drop cards into Slack for a human to claim. Use `list_account_nudges` to see the account's open and historical nudges, `claim_nudge` to take ownership of an open card, and `dismiss_nudge` (with a required reason and optional `mute_days`) to close one out. Use `update_account` with `attention_context` when the user provides strategic account guidance, such as why a product capability is important to the relationship.
 
   For outbound prospecting, Apollo is only a search provider and Atlas is the source of truth. Use `search_apollo_outreach` to discover people, `list_outreach_candidates` to review the Atlas-owned queue, and `enroll_outreach_candidate` or `reject_outreach_candidate` to make an explicit decision. Do not treat Apollo saved contacts as outreach state. Use `get_outreach_next_step` to read Atlas's guided suggestion. Use `generate_outreach_next_step` when the user asks for a fresh analysis. Only call `complete_outreach_next_step` after the user confirms the action happened, and use `dismiss_outreach_next_step` with specific feedback when the suggestion is not useful. Atlas never sends LinkedIn invitations or messages automatically.
 
@@ -554,8 +555,10 @@ defmodule Atlas.MCP.Server do
     ListAccountInvoices,
     CreateStripeDraftInvoice,
     EditStripeDraftInvoice,
-    ActOnAccountAttentionSuggestion,
+    ClaimNudge,
+    DismissNudge,
     ListAccountAttentionSuggestions,
+    ListAccountNudges,
     ListAccountServiceLevels,
     ListDocuments,
     GetDocument,
@@ -569,7 +572,6 @@ defmodule Atlas.MCP.Server do
     UpdateNote,
     UpdateAccount,
     MarkAccountNotAccount,
-    GenerateAccountAttentionSuggestions,
     CreateAccountNote,
     CreateContact,
     UpdateContact,

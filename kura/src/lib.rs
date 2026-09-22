@@ -1,6 +1,8 @@
 mod accelerated_file_serving;
 mod action_cache_refs;
 mod analytics;
+mod analytics_forwarder;
+mod analytics_outbox;
 mod app;
 mod artifact;
 mod auth;

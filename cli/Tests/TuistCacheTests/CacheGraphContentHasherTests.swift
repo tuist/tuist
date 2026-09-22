@@ -3,6 +3,8 @@ import Mockable
 import Testing
 import struct TSCUtility.Version
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistHasher
 import TuistSupport
 import TuistTesting
@@ -28,6 +30,32 @@ struct CacheGraphContentHasherTests {
             versionFetcher: CacheVersionFetcher(),
             defaultConfigurationFetcher: defaultConfigurationFetcher
         )
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedSwiftVersionProvider, arguments: [false, true])
+    func computesSDKFingerprintsOnlyForModernCaching(legacy: Bool) async throws {
+        Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = legacy ? "1" : nil
+        let target = Target.test(name: "Shared", destinations: [.iPhone, .mac], product: .staticFramework)
+        let project = Project.test(path: "/synthetic", targets: [target], type: .external(hash: "revision"))
+        let graphTarget = GraphTarget(path: project.path, target: target, project: project)
+        let graph = Graph.test(projects: [project.path: project])
+        given(graphContentHasher).contentHashes(for: .any, include: .any, destination: .any, additionalStrings: .any)
+            .willReturn([graphTarget: .test()])
+        given(defaultConfigurationFetcher).fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        given(try #require(SwiftVersionProvider.mocked)).swiftlangVersion().willReturn("test")
+        let hasher = CacheGraphContentHasher(
+            graphContentHasher: graphContentHasher, contentHasher: ContentHasher(),
+            versionFetcher: CacheVersionFetcher(), defaultConfigurationFetcher: defaultConfigurationFetcher
+        )
+        let result = try await hasher.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+        #expect(result[graphTarget]?.binaryCacheFingerprints.count == (legacy ? 0 : 3))
     }
 
     @Test(

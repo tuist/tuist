@@ -1,0 +1,98 @@
+name: Server Canary Release
+
+# Every Server-touching commit to main publishes a canary prerelease
+# (server@X.Y.0-canary.N). Canaries are the bleeding edge: marked as a
+# GitHub prerelease, never moved to "Latest", and never push :latest on
+# GHCR, so self-hosted operators pinning `ghcr.io/tuist/tuist:<semver>` or
+# `:latest` never pick them up unless they opt in explicitly.
+#
+# Stable releases are NOT cut from main. A line is frozen onto a
+# releases/server-<major>.<minor>.x branch and published as an RC
+# (server-rc.yml), soaks, then is promoted to stable X.Y.0
+# (server-promote.yml). Canary always targets the next unreleased minor:
+# once an RC line is cut, main's canary advances to the following minor.
+#
+# NOTE: this workflow is orthogonal to server-production-deployment.yml.
+# That pipeline continues to build and deploy `sha-<SHA>` images to the
+# canary and production Kubernetes environments per commit; this workflow
+# only publishes the semver-tagged image that self-hosted operators pin.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/**
+      - tuist_common/**
+      - noora/**
+      - mise/tasks/server/**
+      - mise/tasks/release/components.json
+      - .github/workflows/server-release.yml
+      - .github/workflows/server-rc.yml
+      - .github/workflows/server-promote.yml
+      - .github/workflows/server-build-publish.yml
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+
+concurrency:
+  # Serialize all Server publishing (canaries, RCs, promotions) through one
+  # ref-independent group. They all derive the next version from the tag set
+  # and create tags, so they must never run concurrently. Queue rather than
+  # cancel so each release publishes atomically. server-rc.yml and
+  # server-promote.yml share this group.
+  group: server-publish
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  resolve:
+    name: Resolve canary version
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+      should_publish: ${{ steps.resolve.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: resolve
+        run: |
+          set -euo pipefail
+          # Skip if HEAD is already published as a canary (e.g. a re-run):
+          # the build is expensive and would only mint a duplicate at the
+          # same SHA.
+          if git tag --points-at HEAD | grep -qE '^server@[0-9]+\.[0-9]+\.0-canary\.[0-9]+$'; then
+            echo "HEAD already has a server canary tag; skipping."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          mise run --no-deps --skip-tools server:release:channel-version -- canary
+
+  build-publish:
+    name: Build and publish canary
+    needs: resolve
+    if: needs.resolve.outputs.should_publish == 'true'
+    uses: ./.github/workflows/server-build-publish.yml
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ github.sha }}
+      changelog_from: ${{ needs.resolve.outputs.changelog_from }}
+      make_latest: false
+      prerelease: true
+    secrets: inherit
