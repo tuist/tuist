@@ -33,4 +33,4 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.
 
-- Kura rename regressions cover byte-for-byte manifest stability, retired-handle ownership, production rollout gating, historical identity backfill, mesh authentication, original CA enrollment and usage attribution. Migration SQL tests use transaction-local shadow tables.
+- Kura rename regressions cover stable workload/peer identity with migrating client endpoints, retired-handle ownership, production rollout gating, historical identity backfill, mesh authentication, original CA enrollment, usage attribution and signed analytics ingestion through original/intermediate/current account handles. Migration SQL tests use transaction-local shadow tables.
