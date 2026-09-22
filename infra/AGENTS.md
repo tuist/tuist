@@ -27,7 +27,10 @@ handful cannot carry a reconcile loop, and saying so is not a failure to aim at
 the principle; it is the principle meeting a vendor. When that happens, record
 what the constraint costs, keep the manual path honest, and let it inform what
 gets bought next. See [`rack-switch-fleet/AGENTS.md`](rack-switch-fleet/AGENTS.md)
-for a worked example of both halves, including the price of the alternative.
+for a worked example of both halves, including the price of the alternative, and
+[`rack-switch-fleet/omada-assessment.md`](rack-switch-fleet/omada-assessment.md)
+for a case where checking the constraint showed the original decision had
+assumed one that was not there.
 
 ## Layout
 

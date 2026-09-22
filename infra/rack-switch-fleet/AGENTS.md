@@ -631,6 +631,24 @@ arbitrary line into its negation is the same class of guess.
 
 ## Why not the Omada SDN controller
 
-Standalone mode exposes the full feature set. Controller mode limits what can be
-configured and wants to own the configuration itself, which is the opposite of a
-desired state rendered from git.
+**This is under active reassessment and the original reasoning does not hold.**
+See [omada-assessment.md](omada-assessment.md).
+
+The decision was recorded as "controller mode limits the feature set and wants
+to own the configuration". Checked against TP-Link's own list of what a
+controller-managed switch can do, everything this directory renders is
+supported: management address and VLAN, hostname, RSTP, per-port spanning tree,
+LLDP, VLANs, port configuration. The capability objection was wrong.
+
+What is real is that there is no fully supported write API. The Open API is
+documented and authenticated but its published material covers site creation;
+the community Terraform provider states that the undocumented web API is the
+only surface with full coverage, does not implement spanning tree, and is
+v0.6.x. So the choice is between two unsupported things: this SSH driver, or a
+community provider on an API the vendor can change. That is a different and
+better question than the one the original decision answered.
+
+The assessment also carries the prototype that would settle it, and a
+confirmed-commit shape using the switch's own `reboot-schedule` that would give
+this tool automatic recovery from a change that cuts off the path used to make
+it. Neither needs new hardware.
