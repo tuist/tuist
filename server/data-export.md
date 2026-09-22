@@ -199,6 +199,12 @@ these records beyond the account handle. Sign-in attempts additionally carry an
 explicit outcome. Logs deliberately exclude credentials, tokens, and request
 bodies.
 
+### Browser performance telemetry
+
+When Faro collection is enabled, browser measurements, events and error reports are forwarded through Alloy to Grafana Cloud Loki (`service_name="tuist-web"`). Existing browser-reported fields include page URL/referrer, user agent, ephemeral Faro session ID, navigation ID, timestamps, web-vital values and timing attribution. With the optional browser telemetry gateway enabled, measurements also carry a schema version, reported-page surface, server-validated authenticated/anonymous state at collection time, trusted Cloudflare collector-request Ray ID (when available), metadata-quality reason and automation status (`unknown` in this version). These fields support incident investigation and population/ingestion-quality monitoring.
+
+The gateway checks the session token using the existing account database but does not add user/account IDs or retain the token in telemetry. It strips Faro user metadata and forwards no incoming cookies or authorization headers. It preserves browser-supplied measurements and other metadata, so URLs or error details can still contain identifying information. There is no new database table or storage bucket. Retention follows the Grafana Cloud Logs retention configured for the observability stack, not a new repository-defined duration. This operational telemetry is not in the standard export archive; relevant records can be searched in Loki using available session, navigation, Ray-ID or page/time context for a transparency request. It is not a complete account-indexed browsing history.
+
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
