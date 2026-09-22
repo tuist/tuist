@@ -37,6 +37,36 @@ defmodule Tuist.Billing.UsagePricing do
   def included_passing_test_cases, do: @included_passing_test_cases
 
   @doc """
+  What each meter's Stripe Price has to charge: the allowance it includes at
+  no cost, in the unit the meter reports, then `cents` per `per_units` of it.
+
+  The Prices are provisioned from this, so a rate or an allowance changes in
+  one place rather than in Stripe and here.
+  """
+  def meter_prices do
+    [
+      %{
+        event_name: @egress_meter,
+        included: div(@included_egress_bytes, @bytes_per_megabyte),
+        cents: @cents_per_egress_gigabyte,
+        per_units: div(@bytes_per_gigabyte, @bytes_per_megabyte)
+      },
+      %{
+        event_name: @request_meter,
+        included: @included_requests,
+        cents: @cents_per_thousand_requests,
+        per_units: 1_000
+      },
+      %{
+        event_name: @passing_test_case_meter,
+        included: @included_passing_test_cases,
+        cents: @cents_per_million_passing_test_cases,
+        per_units: 1_000_000
+      }
+    ]
+  end
+
+  @doc """
   The values reported to Stripe for `[period_start, period_end)`. Runner
   traffic is halved before reporting, so the shared allowance applies to what
   is left.

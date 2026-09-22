@@ -11,6 +11,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.UsagePricing
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -947,6 +948,189 @@ defmodule Tuist.BillingTest do
                %{price: "enterprise.usage"},
                %{price: "enterprise.flat.monthly", quantity: 0}
              ]
+    end
+  end
+
+  describe "switching a subscription to usage-based pricing" do
+    setup do
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]},
+          "runners" => %{"runner_macos_compute_unit_milliseconds" => "runner.macos"},
+          "usage_meters" => %{
+            "cache_egress_megabytes" => "meter.egress",
+            "cache_requests" => "meter.requests",
+            "passing_test_cases" => "meter.tests"
+          }
+        }
+      end)
+
+      %{account: Accounts.get_account_from_user(user)}
+    end
+
+    test "reads no Price while any meter is still reporting-only" do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "usage_meters" => %{
+            "cache_egress_megabytes" => "meter.egress",
+            "cache_requests" => "",
+            "passing_test_cases" => "meter.tests"
+          }
+        }
+      end)
+
+      assert Billing.usage_meter_price_ids() == []
+    end
+
+    test "a switched account subscribes to a Price per meter instead of the plan's", %{account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      customer_id = account.customer_id
+
+      expect(Session, :create, fn %{
+                                    success_url: "success_url",
+                                    line_items: [
+                                      %{price: "meter.egress"},
+                                      %{price: "meter.requests"},
+                                      %{price: "meter.tests"},
+                                      %{price: "runner.macos"},
+                                      %{price: "pro.flat.monthly", quantity: 1}
+                                    ],
+                                    mode: "subscription",
+                                    customer: ^customer_id
+                                  } ->
+        {:ok, %{url: "session_url"}}
+      end)
+
+      assert Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"}) ==
+               {:ok, {:external_redirect, "session_url"}}
+    end
+
+    test "an account that has not switched keeps the plan's usage Price", %{account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> false end)
+
+      expect(Session, :create, fn %{line_items: [%{price: "pro.usage"} | _]} ->
+        {:ok, %{url: "session_url"}}
+      end)
+
+      assert Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"}) ==
+               {:ok, {:external_redirect, "session_url"}}
+    end
+
+    test "a subscription carrying the meters is still the pro plan", %{account: account} do
+      Billing.on_subscription_change(%{
+        id: "sub_switched",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: nil,
+        items: %{
+          data: [
+            %{price: %{id: "meter.egress"}},
+            %{price: %{id: "meter.requests"}},
+            %{price: %{id: "meter.tests"}},
+            %{price: %{id: "pro.flat.monthly"}}
+          ]
+        },
+        trial_end: nil
+      })
+
+      assert %{plan: :pro} = Billing.get_current_active_subscription(account)
+    end
+
+    test "a subscription carrying only some of the meters is still the pro plan", %{account: account} do
+      Billing.on_subscription_change(%{
+        id: "sub_half_switched",
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: nil,
+        items: %{data: [%{price: %{id: "meter.egress"}}, %{price: %{id: "pro.flat.monthly"}}]},
+        trial_end: nil
+      })
+
+      assert %{plan: :pro} = Billing.get_current_active_subscription(account)
+    end
+
+    test "the switch adds the missing meters, drops the usage Price, and turns the flag on", %{account: account} do
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_switching",
+        plan: :pro,
+        status: "active"
+      )
+
+      stub(Stripe.Subscription, :retrieve, fn "sub_switching" ->
+        {:ok,
+         %Stripe.Subscription{
+           items: %{
+             data: [
+               %{id: "si_usage", price: %{id: "pro.usage"}},
+               %{id: "si_flat", price: %{id: "pro.flat.monthly"}},
+               %{id: "si_runner", price: %{id: "runner.macos"}},
+               %{id: "si_egress", price: %{id: "meter.egress"}}
+             ]
+           }
+         }}
+      end)
+
+      parent = self()
+
+      expect(Stripe.Subscription, :update, fn "sub_switching", params ->
+        send(parent, {:params, params})
+        {:ok, %{}}
+      end)
+
+      expect(FunWithFlags, :enable, fn :usage_based_pricing, [for_actor: enabled_for] ->
+        send(parent, {:enabled_for, enabled_for.id})
+        {:ok, true}
+      end)
+
+      assert Billing.switch_to_usage_based_pricing(account) == {:ok, :switched}
+
+      assert_received {:params, params}
+      assert params.proration_behavior == "none"
+
+      assert params.items == [
+               %{id: "si_usage", deleted: true},
+               %{price: "meter.requests"},
+               %{price: "meter.tests"}
+             ]
+
+      account_id = account.id
+      assert_received {:enabled_for, ^account_id}
+    end
+
+    test "the switch is refused while the meters have no Price", %{account: account} do
+      stub(Environment, :stripe_prices, fn -> %{"usage_meters" => %{"cache_egress_megabytes" => ""}} end)
+
+      assert Billing.switch_to_usage_based_pricing(account) == {:error, :usage_meter_prices_not_configured}
+    end
+
+    test "the hold keeps the flag off for a subscribed account but not an Air one", %{account: account} do
+      air_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture(customer_id: "customer_air"))
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_pro",
+        plan: :pro,
+        status: "active"
+      )
+
+      BillingFixtures.subscription_fixture(
+        account_id: air_account.id,
+        subscription_id: "sub_air",
+        plan: :air,
+        status: "active"
+      )
+
+      expect(FunWithFlags, :disable, fn :usage_based_pricing, [for_actor: _held] -> {:ok, false} end)
+
+      assert [%{id: held_id}] = Billing.hold_usage_based_pricing_for_existing_subscriptions()
+      assert held_id == account.id
+    end
+
+    test "the switch is refused for an account with no subscription", %{account: account} do
+      assert Billing.switch_to_usage_based_pricing(account) == {:error, :no_subscription}
     end
   end
 

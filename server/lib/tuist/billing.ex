@@ -15,6 +15,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.TokenUsage
   alias Tuist.Billing.UsagePricing
   alias Tuist.CommandEvents
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Trials
@@ -22,6 +23,8 @@ defmodule Tuist.Billing do
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
+  @usage_meter_event_names ["cache_egress_megabytes", "cache_requests", "passing_test_cases"]
+
   @payment_thresholds %{remote_cache_hits: 200}
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
 
@@ -497,8 +500,8 @@ defmodule Tuist.Billing do
     available_prices = Tuist.Environment.stripe_prices()
 
     usage_prices =
-      available_prices[plan]["usage"]
-      |> List.wrap()
+      plan
+      |> usage_price_ids(account, available_prices)
       |> Enum.map(&%{price: &1})
 
     flat_prices =
@@ -508,6 +511,24 @@ defmodule Tuist.Billing do
       |> Enum.take(1)
 
     usage_prices ++ runner_subscription_items(available_prices, account) ++ flat_prices
+  end
+
+  # An account on usage-based pricing carries a Price per meter where the
+  # plan's own usage Price would be. Until every meter has one, the plan
+  # keeps its Price, so an environment that is halfway through being
+  # configured bills the way it did rather than not at all.
+  defp usage_price_ids(plan, account, available_prices) do
+    case usage_meter_price_ids() do
+      [] ->
+        List.wrap(available_prices[plan]["usage"])
+
+      price_ids ->
+        if FeatureFlags.usage_based_pricing_enabled?(account) do
+          price_ids
+        else
+          List.wrap(available_prices[plan]["usage"])
+        end
+    end
   end
 
   @doc """
@@ -671,6 +692,107 @@ defmodule Tuist.Billing do
       nil -> []
       price_id -> Enum.filter(stripe_subscription.items.data, &(subscription_item_price_id(&1) == price_id))
     end
+  end
+
+  @doc """
+  Holds usage-based pricing off for every account that already has a
+  subscription, other than Air ones, and answers with the accounts held.
+
+  Turning the flag on for everyone then reaches Air accounts and every
+  account created afterwards, while each existing subscription keeps the
+  pricing it signed up on until its own switch. Per-account gates win over
+  the boolean gate, and `switch_to_usage_based_pricing/1` releases an
+  account by enabling its own.
+  """
+  def hold_usage_based_pricing_for_existing_subscriptions do
+    from(s in Subscription,
+      where: s.status in ["active", "trialing"] and s.plan != :air,
+      preload: :account
+    )
+    |> Repo.all()
+    |> Enum.uniq_by(& &1.account_id)
+    |> Enum.map(fn %Subscription{account: account} ->
+      {:ok, false} = FunWithFlags.disable(:usage_based_pricing, for_actor: account)
+      account
+    end)
+  end
+
+  @doc """
+  Moves the account's subscription onto the usage-based meters: one
+  subscription item per meter, in place of the plan's usage Price, and the
+  flag turned on for the account so the nightly sync reports those meters.
+
+  Runner and prepaid items are left alone, as is a meter item the
+  subscription already carries: deleting a metered item discards the usage
+  that accrued on it this cycle. Run this at a renewal, when the usage Price
+  it removes has already been invoiced.
+  """
+  def switch_to_usage_based_pricing(%Account{} = account) do
+    case {usage_meter_price_ids(), get_current_active_subscription(account)} do
+      {[], _} ->
+        {:error, :usage_meter_prices_not_configured}
+
+      {_price_ids, nil} ->
+        {:error, :no_subscription}
+
+      {price_ids, %Subscription{subscription_id: subscription_id}} ->
+        with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
+             {:ok, _} <- apply_usage_meter_items(subscription_id, stripe_subscription, price_ids),
+             {:ok, true} <- FunWithFlags.enable(:usage_based_pricing, for_actor: account) do
+          {:ok, :switched}
+        end
+    end
+  end
+
+  defp apply_usage_meter_items(subscription_id, stripe_subscription, price_ids) do
+    present = MapSet.new(stripe_subscription.items.data, &subscription_item_price_id/1)
+    legacy = legacy_usage_price_ids()
+
+    additions =
+      price_ids
+      |> Enum.reject(&MapSet.member?(present, &1))
+      |> Enum.map(&%{price: &1})
+
+    deletions =
+      stripe_subscription.items.data
+      |> Enum.filter(&MapSet.member?(legacy, subscription_item_price_id(&1)))
+      |> Enum.map(&%{id: &1.id, deleted: true})
+
+    case deletions ++ additions do
+      [] ->
+        {:ok, :unchanged}
+
+      items ->
+        # The meters start from zero on a subscription that has just
+        # renewed, and the usage Price being removed was invoiced by that
+        # renewal. Proration would settle both against the same period.
+        Stripe.Subscription.update(subscription_id, %{items: items, proration_behavior: "none"})
+    end
+  end
+
+  # Every plan's own usage Price, which is what the meters replace. Read
+  # across plans rather than from the account's own, so a subscription that
+  # carries another plan's leftover usage item is cleaned up by the switch
+  # rather than billed twice.
+  defp legacy_usage_price_ids do
+    (Tuist.Environment.stripe_prices() || %{})
+    |> Enum.filter(&plan_prices?/1)
+    |> Enum.flat_map(fn {_plan, prices} -> List.wrap(prices["usage"]) end)
+    |> MapSet.new()
+  end
+
+  @doc """
+  The Prices the usage-based meters are billed on, or `[]` while any of them
+  is still reporting-only.
+
+  All or nothing: a subscription carrying a Price for some of the meters and
+  not the others would charge for part of the usage the pricing quotes.
+  """
+  def usage_meter_price_ids do
+    prices = Map.get(Tuist.Environment.stripe_prices() || %{}, "usage_meters", %{})
+    price_ids = Enum.map(@usage_meter_event_names, &Map.get(prices, &1))
+
+    if Enum.all?(price_ids, &(is_binary(&1) and &1 != "")), do: price_ids, else: []
   end
 
   @doc """
@@ -865,11 +987,23 @@ defmodule Tuist.Billing do
       usage = List.wrap(plan_prices["usage"])
 
       # The subscription must:
-      #   - Include all the usage-based prices
+      #   - Include all the usage-based prices, or the Price of every
+      #     usage-based meter, which is what a subscription switched to
+      #     usage-based pricing carries in their place
       #   - Include the flat price
-      Enum.all?(usage, &Enum.member?(subscription_prices, &1)) and
+      (Enum.all?(usage, &Enum.member?(subscription_prices, &1)) or
+         usage_meters_subscribed?(subscription_prices)) and
         Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     end
+  end
+
+  # Both shapes have to resolve to the same plan for as long as the rollout
+  # has subscriptions on either side of the switch. One of the meters'
+  # Prices is enough, so a swap that only partly applied still resolves to
+  # its plan rather than raising at the next webhook; running the switch
+  # again adds whatever is missing.
+  defp usage_meters_subscribed?(subscription_prices) do
+    Enum.any?(usage_meter_price_ids(), &Enum.member?(subscription_prices, &1))
   end
 
   def get_customer_by_id(customer_id) do
