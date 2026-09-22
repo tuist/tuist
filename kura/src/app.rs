@@ -337,6 +337,13 @@ async fn initialize_and_serve(
     bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
     Usage::spawn_tasks(state.clone());
+    // The analytics outbox forwarder drains the shared column family into
+    // the server's webhook endpoints. In this release the pipeline is
+    // empty because no producer routes through it yet, so the tasks idle
+    // on the depth gauge; landing them ahead of the producer switch keeps
+    // activation independent from the code change that starts filling
+    // the outbox.
+    crate::analytics_forwarder::spawn_tasks(&state);
 
     if let Some(registration) =
         crate::registration::RegistrationConfig::from_env(&state.config.node_url)

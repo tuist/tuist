@@ -33,13 +33,14 @@
 //!
 //! # Rollout ordering
 //!
-//! The forwarder ships before the producer routing switch. Compiled but
-//! not called from [`crate::app::run`] yet: PR#4 flips the producer to
-//! append events to the outbox column family and wires the forwarder in
-//! the same commit so activation is atomic. Landing this scaffold first
-//! keeps the store methods it depends on covered by tests without
-//! coupling to a producer-side gate. The `#[allow(dead_code)]` at the
-//! module level exists for exactly that reason.
+//! The forwarder is wired into [`crate::app::run`] via
+//! [`spawn_tasks`], but the producer has not yet been flipped to append
+//! events to the outbox column family. The drain loops therefore idle
+//! against an empty pipeline until the follow-up producer PR lands.
+//! Landing the wiring first means the producer switch is a one-line
+//! routing change rather than a scaffold-plus-routing change, and any
+//! entries that end up in the outbox during a late rollout land in a
+//! release that already drains them.
 //!
 //! # Bounds
 //!
@@ -96,8 +97,6 @@
 //! matches the pre-outbox in-memory path byte-for-byte, so a server
 //! that has not rolled yet keeps accepting the same body shape and the
 //! same headers.
-
-#![allow(dead_code)]
 
 use std::{sync::Arc, time::Duration};
 
@@ -204,10 +203,6 @@ mod result_label {
 /// shared [`CancellationToken`] fires. Callers own the join handles; the
 /// current wiring drops them at shutdown because the store is already
 /// durable, so an interrupted drain resumes on the next boot.
-///
-/// Not invoked from [`crate::app::run`] in this PR; the follow-up PR
-/// that flips the producer to the outbox wires this at startup in the
-/// same commit.
 pub fn spawn_forwarders(
     store: Arc<Store>,
     client: Client,
@@ -229,6 +224,47 @@ pub fn spawn_forwarders(
             })
         })
         .collect()
+}
+
+/// Wire the forwarder into [`crate::app::run`]. No-op when analytics is
+/// disabled or the peer has not received a producer that writes to the
+/// outbox column family yet — the drain loop simply idles until an
+/// entry arrives, which is the desired behavior for the pre-producer
+/// rollout window.
+///
+/// The tasks live until the process exits. The store is durable, so an
+/// interrupted drain resumes on the next boot. The pattern matches
+/// [`crate::usage::Usage::spawn_tasks`], which follows the same "run
+/// until the runtime drops" contract.
+pub fn spawn_tasks(state: &crate::state::SharedState) {
+    let Some(analytics_config) = state.config.analytics.as_ref() else {
+        return;
+    };
+
+    let forwarder_config = ForwarderConfig::defaults(
+        analytics_config.server_url.clone(),
+        analytics_config.signing_key.clone(),
+        crate::analytics::analytics_endpoint(&state.config.node_url),
+    );
+    // The Client used elsewhere in the app is shared through the
+    // ArcSwap. Cloning the current value gives the forwarder a stable
+    // handle; a future config reload would spawn its own tasks or
+    // adopt a new client at the load site, which is out of scope here.
+    let client = (**state.client.load()).clone();
+    let cancel = CancellationToken::new();
+    let handles = spawn_forwarders(
+        Arc::clone(&state.store),
+        client,
+        forwarder_config,
+        state.metrics.clone(),
+        cancel,
+    );
+    // Drop the join handles: the drain tasks live for the process's
+    // lifetime. We intentionally do not hand them back to the caller
+    // because there is no coordinated shutdown path for background
+    // analytics work in `crate::app::run` today, and the store's
+    // durability makes an abrupt drop safe.
+    drop(handles);
 }
 
 /// Drain loop body. Exposed for tests so the loop can be run against a

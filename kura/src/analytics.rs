@@ -767,7 +767,7 @@ fn observed_at_ms_now() -> u64 {
         .unwrap_or(0)
 }
 
-fn analytics_endpoint(node_url: &str) -> String {
+pub(crate) fn analytics_endpoint(node_url: &str) -> String {
     let Some(url) = reqwest::Url::parse(node_url).ok() else {
         return node_url.to_owned();
     };
