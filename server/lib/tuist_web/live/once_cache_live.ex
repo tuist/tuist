@@ -20,17 +20,8 @@ defmodule TuistWeb.OnceCacheLive do
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
-  def mount(
-        _params,
-        _session,
-        %{assigns: %{selected_project: project, selected_account: account}} = socket
-      ) do
-    {:ok,
-     socket
-     |> assign(
-       :head_title,
-       "#{dgettext("dashboard", "Once Cache")} · #{account.name}/#{project.name} · Tuist"
-     )}
+  def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
+    {:ok, assign(socket, :head_title, "#{dgettext("dashboard", "Once Cache")} · #{account.name}/#{project.name} · Tuist")}
   end
 
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
@@ -558,17 +549,14 @@ defmodule TuistWeb.OnceCacheLive do
       },
       transfer_trend: trend(previous_summary.transfer_bytes, summary.transfer_bytes),
       latency_trend: trend(previous_summary.latency_ms, summary.latency_ms),
-      throughput_trend:
-        trend(previous_summary.throughput_bytes_per_second, summary.throughput_bytes_per_second)
+      throughput_trend: trend(previous_summary.throughput_bytes_per_second, summary.throughput_bytes_per_second)
     })
   end
 
-  defp analytics_has_data?(analytics, "cache_hit_rate"),
-    do: Enum.any?(analytics.lookup_values, &(&1 > 0))
+  defp analytics_has_data?(analytics, "cache_hit_rate"), do: Enum.any?(analytics.lookup_values, &(&1 > 0))
 
-  defp analytics_has_data?(analytics, widget)
-       when widget in ["cache_transfer", "cache_latency", "cache_throughput"],
-       do: Enum.any?(analytics.observation_values, &(&1 > 0))
+  defp analytics_has_data?(analytics, widget) when widget in ["cache_transfer", "cache_latency", "cache_throughput"],
+    do: Enum.any?(analytics.observation_values, &(&1 > 0))
 
   defp analytics_has_data?(_analytics, _widget), do: false
 
@@ -749,8 +737,7 @@ defmodule TuistWeb.OnceCacheLive do
   defp latency_title("write"), do: dgettext("dashboard_projects", "Write latency")
   defp latency_title(_), do: dgettext("dashboard_projects", "Cache latency")
 
-  defp throughput_title("downloads"),
-    do: dgettext("dashboard_projects", "Cache download throughput")
+  defp throughput_title("downloads"), do: dgettext("dashboard_projects", "Cache download throughput")
 
   defp throughput_title("uploads"), do: dgettext("dashboard_projects", "Cache upload throughput")
   defp throughput_title(_), do: dgettext("dashboard_projects", "Cache throughput")
@@ -761,15 +748,10 @@ defmodule TuistWeb.OnceCacheLive do
   defp cache_observations_empty_state_title(true),
     do: dgettext("dashboard_projects", "No cache observations in the selected period")
 
-  defp cache_observations_empty_state_title(_),
-    do: dgettext("dashboard_projects", "No cache observations yet")
+  defp cache_observations_empty_state_title(_), do: dgettext("dashboard_projects", "No cache observations yet")
 
   defp cache_invocations_empty_state_title(true),
-    do:
-      dgettext(
-        "dashboard_projects",
-        "No cache activity associated with a run in the selected period"
-      )
+    do: dgettext("dashboard_projects", "No cache activity associated with a run in the selected period")
 
   defp cache_invocations_empty_state_title(_),
     do: dgettext("dashboard_projects", "No cache activity associated with a run yet")

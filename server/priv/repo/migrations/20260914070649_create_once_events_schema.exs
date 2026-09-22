@@ -102,7 +102,8 @@ defmodule Tuist.Repo.Migrations.CreateOnceEventsSchema do
     create index(:once_actions, [:project_id, :finished_at])
 
     create constraint(:once_actions, :once_actions_result_bound,
-             check: "result in ('succeeded','failed','skipped','cancelled','timed_out','infrastructure_error')"
+             check:
+               "result in ('succeeded','failed','skipped','cancelled','timed_out','infrastructure_error')"
            )
   end
 end

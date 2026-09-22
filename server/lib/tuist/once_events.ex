@@ -10,9 +10,10 @@ defmodule Tuist.OnceEvents do
 
   * `"once:project:<project_id>"` — a new run or run-state change under this
     project.
-  * `"once:run:<run_id>"` — an action was ingested for this run, or the run
-    finalized. Payload is `{:run_updated, run_id}` or `{:action_ingested,
-    run_id}`.
+  * `"once:run:<project_id>:<run_id>"` — an action was ingested for this run,
+    or the run finalized. Payload is `{:run_updated, run_id}` or
+    `{:action_ingested, run_id}`. Scoped by project because the run id is
+    chosen by the client.
   """
   import Ecto.Query
 
@@ -73,7 +74,7 @@ defmodule Tuist.OnceEvents do
 
     with {:ok, run} <- result do
       broadcast_project(run.project_id, {:run_updated, run.run_id})
-      broadcast_run(run.run_id, {:run_updated, run.run_id})
+      broadcast_run(run, {:run_updated, run.run_id})
       {:ok, run}
     end
   end
@@ -139,7 +140,7 @@ defmodule Tuist.OnceEvents do
 
     case Repo.transaction(multi) do
       {:ok, %{action: {_count, action}}} ->
-        broadcast_run(run.run_id, {:action_ingested, run.run_id})
+        broadcast_run(run, {:action_ingested, run.run_id})
         {:ok, action}
 
       {:error, _step, reason, _changes} ->
@@ -166,7 +167,7 @@ defmodule Tuist.OnceEvents do
 
     with {:ok, updated} <- Repo.update(changeset) do
       broadcast_project(updated.project_id, {:run_updated, updated.run_id})
-      broadcast_run(updated.run_id, {:run_updated, updated.run_id})
+      broadcast_run(updated, {:run_updated, updated.run_id})
       {:ok, updated}
     end
   end
@@ -190,9 +191,15 @@ defmodule Tuist.OnceEvents do
     event_attrs =
       event_attrs
       |> Map.put_new(:observed_at, now)
-      |> Map.put(:id, UUIDv7.generate())
       |> Map.put(:inserted_at, now)
       |> Map.put(:updated_at, now)
+
+    # The transport replays a batch whenever an ack is lost, so the row
+    # id is derived from the event's own identity rather than generated.
+    # A replayed event then collides on the primary key, `on_conflict:
+    # :nothing` drops it, and the `count == 1` guard below keeps the
+    # run's byte and latency roll-ups from being applied twice.
+    event_attrs = Map.put(event_attrs, :id, cache_event_id(event_attrs))
 
     kind = Map.get(event_attrs, :kind)
     bytes = Map.get(event_attrs, :bytes_transferred, 0)
@@ -225,7 +232,10 @@ defmodule Tuist.OnceEvents do
       Multi.new()
       |> Multi.run(:event, fn repo, _ ->
         {count, _} =
-          repo.insert_all(CacheEvent, [event_attrs], on_conflict: :nothing)
+          repo.insert_all(CacheEvent, [event_attrs],
+            on_conflict: :nothing,
+            conflict_target: :id
+          )
 
         {:ok, count}
       end)
@@ -243,7 +253,7 @@ defmodule Tuist.OnceEvents do
 
     case Repo.transaction(multi) do
       {:ok, _} ->
-        broadcast_run(run.run_id, {:cache_event_ingested, run.run_id})
+        broadcast_run(run, {:cache_event_ingested, run.run_id})
         :ok
 
       {:error, _step, reason, _changes} ->
@@ -273,7 +283,7 @@ defmodule Tuist.OnceEvents do
     }
 
     {_count, _} = Repo.insert_all(SystemSample, [row], on_conflict: :nothing)
-    broadcast_run(run.run_id, {:system_sampled, run.run_id})
+    broadcast_run(run, {:system_sampled, run.run_id})
     :ok
   end
 
@@ -315,37 +325,36 @@ defmodule Tuist.OnceEvents do
     # so `on_conflict` cherry-picks the fields the current message
     # actually carried. `finished_at` only advances forward.
     update_fields =
-      [
-        set: [
-          planned_case_count:
-            dynamic_coalesce(:planned_case_count, row.planned_case_count),
-          finished_at: dynamic_coalesce(:finished_at, row.finished_at)
-        ]
-      ]
-      |> maybe_replace_totals(row)
-
-    {_count, inserted_rows} =
-      Repo.insert_all(TestSuiteRun, [row],
-        on_conflict: update_fields,
-        conflict_target: [:once_run_id, :target_execution_id, :suite_id],
-        returning: [:inserted_at, :updated_at]
+      maybe_replace_totals(
+        [
+          set: [
+            planned_case_count: dynamic_coalesce(:planned_case_count, row.planned_case_count),
+            finished_at: dynamic_coalesce(:finished_at, row.finished_at)
+          ]
+        ],
+        row
       )
 
-    fresh_insert? =
-      case inserted_rows do
-        [%{inserted_at: inserted_at, updated_at: updated_at}] -> inserted_at == updated_at
-        _ -> false
-      end
+    Repo.insert_all(TestSuiteRun, [row],
+      on_conflict: update_fields,
+      conflict_target: [:once_run_id, :target_execution_id, :suite_id]
+    )
 
-    if fresh_insert? do
-      Repo.update_all(
-        from(r in Run, where: r.id == ^run.id),
-        inc: [test_suite_count: 1],
-        set: [heartbeat_at: now]
-      )
-    end
+    # Counted from the suite rows rather than incremented. An upsert
+    # cannot tell an insert from an update through `returning` here
+    # (`update_fields` deliberately leaves `updated_at` alone so a
+    # start-only event does not clobber a completion), so a replayed
+    # `TestSuiteStarted` would otherwise look fresh and inflate the
+    # count on every retry.
+    suite_count_query =
+      from(s in TestSuiteRun, where: s.once_run_id == ^run.id, select: count(s.id))
 
-    broadcast_run(run.run_id, {:test_suite_ingested, run.run_id})
+    Repo.update_all(
+      from(r in Run, where: r.id == ^run.id),
+      set: [test_suite_count: Repo.one(suite_count_query), heartbeat_at: now]
+    )
+
+    broadcast_run(run, {:test_suite_ingested, run.run_id})
     :ok
   end
 
@@ -426,16 +435,51 @@ defmodule Tuist.OnceEvents do
       end
     end)
 
-    broadcast_run(run.run_id, {:test_case_ingested, run.run_id})
+    broadcast_run(run, {:test_case_ingested, run.run_id})
     :ok
   end
 
   # Helpers -------------------------------------------------------------
 
+  # A cache event has no id of its own on the wire, so one is derived
+  # from the fields that identify it within a run. Two events that agree
+  # on all of them are the same observation replayed, not two transfers:
+  # a genuine second transfer of the same object differs in at least
+  # `observed_at`, which the producer stamps per event.
+  defp cache_event_id(attrs) do
+    [
+      attrs[:once_run_id],
+      attrs[:kind],
+      attrs[:category],
+      attrs[:target_execution_id],
+      attrs[:content_hash],
+      attrs[:cache_decision_id],
+      attrs[:outcome],
+      attrs[:observed_at] && DateTime.to_iso8601(attrs[:observed_at]),
+      attrs[:bytes_transferred],
+      attrs[:content_size_bytes]
+    ]
+    |> Enum.map_join("\0", &to_string/1)
+    |> uuid_from_seed()
+  end
+
+  # Formats the first 16 bytes of a SHA-256 digest as a UUID so the value
+  # fits the table's `uuid` primary key. The version and variant nibbles
+  # are stamped to keep it a well-formed v5-style name-based UUID.
+  defp uuid_from_seed(seed) do
+    <<a::32, b::16, _::4, c::12, _::2, d::14, e::48, _rest::binary>> =
+      :crypto.hash(:sha256, seed)
+
+    <<a::32, b::16, 5::4, c::12, 2::2, d::14, e::48>>
+    |> Base.encode16(case: :lower)
+    |> then(fn <<p1::binary-8, p2::binary-4, p3::binary-4, p4::binary-4, p5::binary-12>> ->
+      "#{p1}-#{p2}-#{p3}-#{p4}-#{p5}"
+    end)
+  end
+
   defp maybe_truncate(nil), do: nil
 
-  defp maybe_truncate(%DateTime{} = dt),
-    do: DateTime.truncate(dt, :microsecond)
+  defp maybe_truncate(%DateTime{} = dt), do: DateTime.truncate(dt, :microsecond)
 
   defp safe_string_or_nil(nil), do: nil
   defp safe_string_or_nil(""), do: nil
@@ -469,8 +513,7 @@ defmodule Tuist.OnceEvents do
     end
   end
 
-  defp dynamic_coalesce(field, incoming),
-    do: dynamic([r], fragment("coalesce(?, ?)", ^incoming, field(r, ^field)))
+  defp dynamic_coalesce(field, incoming), do: dynamic([r], fragment("coalesce(?, ?)", ^incoming, field(r, ^field)))
 
   @doc """
   List every SystemSampled sample for a run in wall-clock order.
@@ -607,22 +650,21 @@ defmodule Tuist.OnceEvents do
       |> maybe_filter_kind(kind)
       |> select([r], %{
         total: count(r.id),
-        failed:
-          sum(fragment("(case when coalesce(?, 0) <> 0 then 1 else 0 end)", r.exit_status)),
+        failed: sum(fragment("(case when coalesce(?, 0) <> 0 then 1 else 0 end)", r.exit_status)),
         duration_sum: coalesce(sum(r.wall_ms), 0)
       })
       |> Repo.one()
 
     total = (row && row.total) || 0
-    failed = to_integer(row && row.failed) || 0
-    duration_sum = to_integer(row && row.duration_sum) || 0
+    failed = to_integer(row && row.failed)
+    duration_sum = to_integer(row && row.duration_sum)
     passed = max(total - failed, 0)
 
     %{
       total: total,
       failed: failed,
       passed: passed,
-      success_rate: if(total > 0, do: passed / total * 100.0, else: nil),
+      success_rate: if(total > 0, do: passed / total * 100.0),
       avg_duration_ms: if(total > 0, do: div(duration_sum, total), else: 0)
     }
   end
@@ -675,7 +717,7 @@ defmodule Tuist.OnceEvents do
       hits: hits,
       misses: misses,
       total_lookups: total,
-      hit_rate: if(total > 0, do: hits / total * 100.0, else: nil),
+      hit_rate: if(total > 0, do: hits / total * 100.0),
       content_download_bytes: run.cache_bytes_downloaded || 0,
       content_upload_bytes: run.cache_bytes_uploaded || 0,
       content_saved_bytes: run.cache_bytes_saved || 0
@@ -709,10 +751,8 @@ defmodule Tuist.OnceEvents do
       action_write_latency_ms: safe_avg(write_ms, write_count),
       content_download_count: download_count,
       content_upload_count: upload_count,
-      content_download_throughput_bytes_per_second:
-        throughput(run.cache_bytes_downloaded || 0, read_ms),
-      content_upload_throughput_bytes_per_second:
-        throughput(run.cache_bytes_uploaded || 0, write_ms)
+      content_download_throughput_bytes_per_second: throughput(run.cache_bytes_downloaded || 0, read_ms),
+      content_upload_throughput_bytes_per_second: throughput(run.cache_bytes_uploaded || 0, write_ms)
     }
   end
 
@@ -908,12 +948,6 @@ defmodule Tuist.OnceEvents do
     end
   end
 
-  defp maybe_filter_view(query, "content-objects"),
-    do: where(query, [e], e.kind in ["upload", "download"] and not is_nil(e.content_hash))
-
-  defp maybe_filter_view(query, _),
-    do: where(query, [e], e.category == "action_cache" or is_nil(e.category))
-
   defp maybe_filter_search(query, ""), do: query
 
   defp maybe_filter_search(query, search) do
@@ -939,20 +973,23 @@ defmodule Tuist.OnceEvents do
     PubSub.subscribe(@pubsub, project_topic(project_id))
   end
 
-  def subscribe_run(run_id) do
-    PubSub.subscribe(@pubsub, run_topic(run_id))
+  def subscribe_run(project_id, run_id) do
+    PubSub.subscribe(@pubsub, run_topic(project_id, run_id))
   end
 
   defp broadcast_project(project_id, message) do
     PubSub.broadcast(@pubsub, project_topic(project_id), message)
   end
 
-  defp broadcast_run(run_id, message) do
-    PubSub.broadcast(@pubsub, run_topic(run_id), message)
+  defp broadcast_run(%{project_id: project_id, run_id: run_id}, message) do
+    PubSub.broadcast(@pubsub, run_topic(project_id, run_id), message)
   end
 
   defp project_topic(project_id), do: "once:project:#{project_id}"
-  defp run_topic(run_id), do: "once:run:#{run_id}"
+
+  # The run id is chosen by the client, so it is scoped by project to keep
+  # two projects that happen to pick the same one off each other's topic.
+  defp run_topic(project_id, run_id), do: "once:run:#{project_id}:#{run_id}"
 
   defp maybe_filter_kind(query, nil), do: query
   defp maybe_filter_kind(query, kind), do: where(query, [r], r.kind == ^kind)

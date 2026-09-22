@@ -149,6 +149,17 @@ defmodule Once.Events.V1.Severity do
   field :SEVERITY_ERROR, 3
 end
 
+defmodule Once.Events.V1.ResourceScope do
+  @moduledoc false
+  use Protobuf, enum: true, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :RESOURCE_SCOPE_UNSPECIFIED, 0
+  field :RESOURCE_SCOPE_HOST, 1
+  field :RESOURCE_SCOPE_CONTAINER, 2
+  field :RESOURCE_SCOPE_PROCESS, 3
+  field :RESOURCE_SCOPE_WORKER, 4
+end
+
 defmodule Once.Events.V1.GetServerCapabilitiesRequest do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
@@ -190,8 +201,6 @@ defmodule Once.Events.V1.ServerCapabilities do
   field :safe_literal_allowlist_version, 11,
     type: :string,
     json_name: "safeLiteralAllowlistVersion"
-
-  field :live_url_template, 12, type: :string, json_name: "liveUrlTemplate"
 end
 
 defmodule Once.Events.V1.ArgvHashKey do
@@ -218,6 +227,7 @@ defmodule Once.Events.V1.RunEventBatch do
 
   field :seq_from, 4, type: :uint64, json_name: "seqFrom"
   field :events, 5, repeated: true, type: Once.Events.V1.RunEvent
+  field :producer_dropped_events, 6, type: :uint64, json_name: "producerDroppedEvents"
 end
 
 defmodule Once.Events.V1.GapAdvance do
@@ -242,6 +252,7 @@ defmodule Once.Events.V1.BatchAck do
   field :retry_after_ms, 7, type: :uint32, json_name: "retryAfterMs"
   field :max_in_flight_batches, 8, type: :uint32, json_name: "maxInFlightBatches"
   field :finalization, 9, type: Once.Events.V1.RunFinalization, enum: true
+  field :dashboard_url, 10, type: :string, json_name: "dashboardUrl"
 end
 
 defmodule Once.Events.V1.RunEventAck do
@@ -253,6 +264,7 @@ defmodule Once.Events.V1.RunEventAck do
   field :expected_next_seq, 3, type: :uint64, json_name: "expectedNextSeq"
   field :observed_high_water_seq, 4, type: :uint64, json_name: "observedHighWaterSeq"
   field :finalization, 5, type: Once.Events.V1.RunFinalization, enum: true
+  field :dashboard_url, 6, type: :string, json_name: "dashboardUrl"
 end
 
 defmodule Once.Events.V1.ContentRef do
@@ -274,7 +286,7 @@ defmodule Once.Events.V1.RunEvent do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
 
-  oneof :payload, 0
+  oneof(:payload, 0)
 
   field :seq, 1, type: :uint64
   field :epoch_ms, 2, type: :int64, json_name: "epochMs"
@@ -327,6 +339,21 @@ defmodule Once.Events.V1.RunEvent do
   field :action_completed, 37,
     type: Once.Events.V1.ActionCompleted,
     json_name: "actionCompleted",
+    oneof: 0
+
+  field :target_phase_completed, 38,
+    type: Once.Events.V1.TargetPhaseCompleted,
+    json_name: "targetPhaseCompleted",
+    oneof: 0
+
+  field :action_attempt_started, 39,
+    type: Once.Events.V1.ActionAttemptStarted,
+    json_name: "actionAttemptStarted",
+    oneof: 0
+
+  field :action_attempt_completed, 45,
+    type: Once.Events.V1.ActionAttemptCompleted,
+    json_name: "actionAttemptCompleted",
     oneof: 0
 
   field :test_suite_started, 40,
@@ -423,7 +450,7 @@ defmodule Once.Events.V1.ArgvToken do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
 
-  oneof :token, 0
+  oneof(:token, 0)
 
   field :safe_literal, 1, type: :string, json_name: "safeLiteral", oneof: 0
   field :flag_key, 2, type: :string, json_name: "flagKey", oneof: 0
@@ -466,6 +493,7 @@ defmodule Once.Events.V1.RunCompleted do
   field :cancellation_reason, 2, type: :string, json_name: "cancellationReason"
   field :wall_ms, 3, type: :int64, json_name: "wallMs"
   field :totals, 4, type: Once.Events.V1.RunTotals
+  field :producer_dropped_events, 5, type: :uint64, json_name: "producerDroppedEvents"
 end
 
 defmodule Once.Events.V1.RunTotals.TargetsByResultEntry do
@@ -551,12 +579,14 @@ defmodule Once.Events.V1.TargetQueued do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
 
+  alias Once.Events.V1.ContentRef
+
   field :target_execution_id, 1, type: :string, json_name: "targetExecutionId"
   field :target_instance_id, 2, type: :string, json_name: "targetInstanceId"
   field :kind, 3, type: :string
   field :capability, 4, type: :string
-  field :action_digest, 5, type: Once.Events.V1.ContentRef, json_name: "actionDigest"
-  field :input_digest, 6, type: Once.Events.V1.ContentRef, json_name: "inputDigest"
+  field :action_digest, 5, type: ContentRef, json_name: "actionDigest"
+  field :input_digest, 6, type: ContentRef, json_name: "inputDigest"
   field :dep_target_executions, 7, repeated: true, type: :string, json_name: "depTargetExecutions"
   field :attempt, 8, type: :uint32
 end
@@ -634,6 +664,43 @@ defmodule Once.Events.V1.ActionCompleted do
   field :prepare_ms, 11, type: :int64, json_name: "prepareMs"
   field :execute_ms, 12, type: :int64, json_name: "executeMs"
   field :cache_key, 13, type: :string, json_name: "cacheKey"
+  field :selected_attempt, 14, type: :uint32, json_name: "selectedAttempt"
+end
+
+defmodule Once.Events.V1.ActionAttemptStarted do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :target_execution_id, 1, type: :string, json_name: "targetExecutionId"
+  field :capability, 2, type: :string
+  field :action_index, 3, type: :uint32, json_name: "actionIndex"
+  field :attempt, 4, type: :uint32
+  field :worker_id, 5, type: :string, json_name: "workerId"
+end
+
+defmodule Once.Events.V1.ActionAttemptCompleted do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :target_execution_id, 1, type: :string, json_name: "targetExecutionId"
+  field :capability, 2, type: :string
+  field :action_index, 3, type: :uint32, json_name: "actionIndex"
+  field :attempt, 4, type: :uint32
+  field :result, 5, type: Once.Events.V1.TargetResult, enum: true
+  field :exit_code, 6, type: :int32, json_name: "exitCode"
+  field :duration_ms, 7, type: :int64, json_name: "durationMs"
+  field :was_cached, 8, type: :bool, json_name: "wasCached"
+end
+
+defmodule Once.Events.V1.TargetPhaseCompleted do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :target_execution_id, 1, type: :string, json_name: "targetExecutionId"
+  field :phase, 2, type: :string
+  field :worker_id, 3, type: :string, json_name: "workerId"
+  field :start_at_epoch_ms, 4, type: :int64, json_name: "startAtEpochMs"
+  field :duration_ms, 5, type: :int64, json_name: "durationMs"
 end
 
 defmodule Once.Events.V1.TestSuiteStarted do
@@ -698,16 +765,11 @@ defmodule Once.Events.V1.TestCaseCompleted do
   field :was_flaky, 3, type: :bool, json_name: "wasFlaky"
   field :duration_ms, 4, type: :int64, json_name: "durationMs"
   field :failure, 5, type: Once.Events.V1.TestFailure
-
-  # Self-describing so retrospective results do not require a fabricated
-  # `TestCaseStarted` or a server-side join to identify the case.
   field :case_id, 6, type: :string, json_name: "caseId"
   field :name, 7, type: :string
   field :suite_id, 8, type: :string, json_name: "suiteId"
   field :attempt, 9, type: :uint32
 
-  # Prefer this presence-aware measurement; the legacy `duration_ms` is
-  # zero when a retrospective report omits timing.
   field :observed_duration_ms, 10,
     proto3_optional: true,
     type: :int64,
@@ -761,7 +823,7 @@ defmodule Once.Events.V1.LogScope do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
 
-  oneof :scope, 0
+  oneof(:scope, 0)
 
   field :run, 1, type: Once.Events.V1.RunScope, oneof: 0
   field :target_execution_id, 2, type: :string, json_name: "targetExecutionId", oneof: 0
@@ -791,17 +853,19 @@ defmodule Once.Events.V1.CacheMissReason do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
 
+  alias Once.Events.V1.MissReasonKind
+
   field :cache_decision_id, 1, type: :string, json_name: "cacheDecisionId"
   field :target_execution_id, 2, type: :string, json_name: "targetExecutionId"
 
   field :primary_reason, 3,
-    type: Once.Events.V1.MissReasonKind,
+    type: MissReasonKind,
     json_name: "primaryReason",
     enum: true
 
   field :all_reasons, 4,
     repeated: true,
-    type: Once.Events.V1.MissReasonKind,
+    type: MissReasonKind,
     json_name: "allReasons",
     enum: true
 
@@ -823,7 +887,7 @@ defmodule Once.Events.V1.BaselineResolution do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
 
-  oneof :kind, 0
+  oneof(:kind, 0)
 
   field :reference, 1, type: Once.Events.V1.BaselineReference, oneof: 0
 
@@ -912,23 +976,6 @@ defmodule Once.Events.V1.CacheStoreReused do
   field :bytes_saved, 6, type: :uint64, json_name: "bytesSaved"
 end
 
-defmodule Once.Events.V1.SystemSampled do
-  @moduledoc false
-  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
-
-  field :at_epoch_ms, 1, type: :int64, json_name: "atEpochMs"
-  field :cpu_percent, 2, type: :float, json_name: "cpuPercent"
-  field :memory_bytes, 3, type: :uint64, json_name: "memoryBytes"
-
-  field :network_in_bytes_per_second, 4,
-    type: :uint64,
-    json_name: "networkInBytesPerSecond"
-
-  field :network_out_bytes_per_second, 5,
-    type: :uint64,
-    json_name: "networkOutBytesPerSecond"
-end
-
 defmodule Once.Events.V1.ArtifactPublished do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
@@ -943,13 +990,15 @@ defmodule Once.Events.V1.DiagnosticEmitted do
   @moduledoc false
   use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
 
+  alias Once.Events.V1.Location
+
   field :target_execution_id, 1, type: :string, json_name: "targetExecutionId"
   field :severity, 2, type: Once.Events.V1.Severity, enum: true
   field :tool, 3, type: :string
   field :code, 4, type: :string
   field :message, 5, type: :string
-  field :primary, 6, type: Once.Events.V1.Location
-  field :related, 7, repeated: true, type: Once.Events.V1.Location
+  field :primary, 6, type: Location
+  field :related, 7, repeated: true, type: Location
   field :fingerprint, 8, type: :string
   field :snippet, 9, type: Once.Events.V1.ContentRef
 end
@@ -965,20 +1014,36 @@ defmodule Once.Events.V1.Location do
   field :end_column, 5, type: :uint32, json_name: "endColumn"
 end
 
+defmodule Once.Events.V1.SystemSampled do
+  @moduledoc false
+  use Protobuf, protoc_gen_elixir_version: "0.17.0", syntax: :proto3
+
+  field :at_epoch_ms, 1, type: :int64, json_name: "atEpochMs"
+  field :cpu_percent, 2, type: :float, json_name: "cpuPercent"
+  field :memory_bytes, 3, type: :uint64, json_name: "memoryBytes"
+  field :network_in_bytes_per_second, 4, type: :uint64, json_name: "networkInBytesPerSecond"
+  field :network_out_bytes_per_second, 5, type: :uint64, json_name: "networkOutBytesPerSecond"
+  field :resource_id, 6, type: :string, json_name: "resourceId"
+  field :scope, 7, type: Once.Events.V1.ResourceScope, enum: true
+  field :interval_ms, 8, type: :uint32, json_name: "intervalMs"
+end
+
 defmodule Once.Events.V1.RunEventService.Service do
   @moduledoc false
 
   use GRPC.Service, name: "once.events.v1.RunEventService", protoc_gen_elixir_version: "0.17.0"
 
-  rpc :GetServerCapabilities,
-      Once.Events.V1.GetServerCapabilitiesRequest,
-      Once.Events.V1.ServerCapabilities
+  rpc(
+    :GetServerCapabilities,
+    Once.Events.V1.GetServerCapabilitiesRequest,
+    Once.Events.V1.ServerCapabilities
+  )
 
-  rpc :GetArgvHashKey, Once.Events.V1.GetArgvHashKeyRequest, Once.Events.V1.ArgvHashKey
+  rpc(:GetArgvHashKey, Once.Events.V1.GetArgvHashKeyRequest, Once.Events.V1.ArgvHashKey)
 
-  rpc :PublishRunEvents, stream(Once.Events.V1.RunEventBatch), stream(Once.Events.V1.BatchAck)
+  rpc(:PublishRunEvents, stream(Once.Events.V1.RunEventBatch), stream(Once.Events.V1.BatchAck))
 
-  rpc :GetRunAck, Once.Events.V1.GetRunAckRequest, Once.Events.V1.RunEventAck
+  rpc(:GetRunAck, Once.Events.V1.GetRunAckRequest, Once.Events.V1.RunEventAck)
 end
 
 defmodule Once.Events.V1.RunEventService.Stub do

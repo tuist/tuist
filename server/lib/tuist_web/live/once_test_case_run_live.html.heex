@@ -54,13 +54,13 @@
     <.tab_menu_horizontal_item
       label={dgettext("dashboard_tests", "Overview")}
       selected={@selected_tab == "overview"}
-      patch={"?tab=overview"}
+      patch="?tab=overview"
       replace={true}
     />
     <.tab_menu_horizontal_item
       label={dgettext("dashboard_tests", "Failures")}
       selected={@selected_tab == "failures"}
-      patch={"?tab=failures"}
+      patch="?tab=failures"
       replace={true}
     />
   </.tab_menu_horizontal>
@@ -138,7 +138,6 @@
         </div>
       </.card_section>
     </.card>
-
   </div>
 
   <div :if={@selected_tab == "failures"} data-part="failures">

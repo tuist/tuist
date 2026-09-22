@@ -31,7 +31,7 @@ defmodule TuistWeb.OnceRunLive do
 
       run ->
         if connected?(socket) do
-          OnceEvents.subscribe_run(run_id)
+          OnceEvents.subscribe_run(project.id, run_id)
         end
 
         {:ok,
@@ -60,7 +60,10 @@ defmodule TuistWeb.OnceRunLive do
         "filter_cache_val",
         "cache_view",
         "cache_search",
-        "cache_page"
+        "cache_page",
+        "cache_outcome",
+        "cache_sort_by",
+        "cache_sort_order"
       ])
 
     active_filters = Filter.Operations.decode_filters_from_query(query, socket.assigns.available_filters)
@@ -87,7 +90,7 @@ defmodule TuistWeb.OnceRunLive do
     cache_sort_order = if query["cache_sort_order"] == "asc", do: "asc", else: "desc"
 
     parsed_uri = URI.parse(uri)
-    base_path = parsed_uri.path |> String.trim_trailing("/cache")
+    base_path = String.trim_trailing(parsed_uri.path, "/cache")
 
     {:noreply,
      socket
@@ -101,7 +104,9 @@ defmodule TuistWeb.OnceRunLive do
        sort_order: sort_order,
        selected_cache_view: selected_cache_view,
        cache_search: query["cache_search"] || "",
-       cache_outcome: cache_outcome
+       cache_outcome: cache_outcome,
+       cache_sort_by: cache_sort_by,
+       cache_sort_order: cache_sort_order
      )
      |> load_actions()
      |> load_cache()}
@@ -204,7 +209,9 @@ defmodule TuistWeb.OnceRunLive do
         <.tab_menu_horizontal_item
           label={dgettext("dashboard_projects", "Once Cache")}
           selected={@live_action == :cache}
-          patch={~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{@run.run_id}/cache"}
+          patch={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{@run.run_id}/cache"
+          }
         />
       </.tab_menu_horizontal>
       <.once_cache_tab
@@ -221,210 +228,210 @@ defmodule TuistWeb.OnceRunLive do
         path={@run_path}
       />
       <div :if={@live_action == :overview}>
-      <.card
-        title={dgettext("dashboard_builds", "Build Details")}
-        icon="chart_arcs"
-        data-part="build-details"
-      >
-        <.card_section data-part="build-details-section">
-          <div data-part="metadata-grid">
-            <div data-part="metadata-row">
-              <div data-part="metadata" data-field="command">
-                <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
-                <span data-part="command-label">{command_display(@run)}</span>
-                <span :if={redacted_command?(@run)} data-part="command-note">
-                  {dgettext(
-                    "dashboard_projects",
-                    "Argument values are redacted by Once before this command is sent to Tuist."
-                  )}
-                </span>
+        <.card
+          title={dgettext("dashboard_builds", "Build Details")}
+          icon="chart_arcs"
+          data-part="build-details"
+        >
+          <.card_section data-part="build-details-section">
+            <div data-part="metadata-grid">
+              <div data-part="metadata-row">
+                <div data-part="metadata" data-field="command">
+                  <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
+                  <span data-part="command-label">{command_display(@run)}</span>
+                  <span :if={redacted_command?(@run)} data-part="command-note">
+                    {dgettext(
+                      "dashboard_projects",
+                      "Argument values are redacted by Once before this command is sent to Tuist."
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div data-part="metadata-row">
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
+                  <.badge
+                    label={run_status_label(@run)}
+                    color={run_status_badge_color(@run)}
+                    style="fill"
+                    size="large"
+                  />
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Kind")}</div>
+                  <.badge label={kind_label(@run.kind)} color="primary" style="fill" size="large" />
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
+                  <span data-part="label">
+                    <.history /> {format_duration_ms(@run.wall_ms)}
+                  </span>
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_builds", "Built at")}</div>
+                  <span data-part="label">{DateFormatter.format_with_timezone(
+                    @run.started_at,
+                    @user_timezone
+                  )}</span>
+                </div>
+              </div>
+
+              <div data-part="metadata-row">
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Actions")}</div>
+                  <span data-part="label">{format_number(@run.total_actions)}</span>
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Cache hits")}</div>
+                  <span data-part="label">{format_number(@run.cached_actions)}</span>
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Executed")}</div>
+                  <span data-part="label">{format_number(@run.executed_actions)}</span>
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Failed")}</div>
+                  <span data-part="label">{format_number(@run.failed_actions)}</span>
+                </div>
+              </div>
+
+              <div data-part="metadata-row">
+                <div :if={git_rev_present?(@run)} data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Commit")}</div>
+                  <span data-part="label"><.git_commit />{git_short_sha(@run.git_rev)}</span>
+                </div>
+                <div :if={host_class_present?(@run)} data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Host")}</div>
+                  <span data-part="label">{@run.host_class}</span>
+                </div>
+                <div :if={once_version_present?(@run)} data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Once version")}</div>
+                  <span data-part="label">{@run.once_version}</span>
+                </div>
+                <div data-part="metadata">
+                  <div data-part="title">{dgettext("dashboard_projects", "Run identifier")}</div>
+                  <span data-part="label">{@run.run_id}</span>
+                </div>
               </div>
             </div>
+          </.card_section>
+        </.card>
 
-            <div data-part="metadata-row">
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
-                <.badge
-                  label={run_status_label(@run)}
-                  color={run_status_badge_color(@run)}
-                  style="fill"
-                  size="large"
+        <.card
+          title={dgettext("dashboard_projects", "Actions")}
+          icon="subtask"
+          data-part="once-actions-card"
+        >
+          <.card_section data-part="once-actions-section">
+            <div data-part="filters">
+              <.form for={%{}} id="once-actions-search-form" phx-change="search" phx-submit="search">
+                <.text_input
+                  type="search"
+                  id="once-actions-search"
+                  name="search"
+                  placeholder={dgettext("dashboard_projects", "Search actions or targets...")}
+                  show_suffix={false}
+                  value={@search}
+                  phx-debounce="200"
                 />
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Kind")}</div>
-                <.badge label={kind_label(@run.kind)} color="primary" style="fill" size="large" />
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>
-                <span data-part="label">
-                  <.history /> {format_duration_ms(@run.wall_ms)}
-                </span>
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "Built at")}</div>
-                <span data-part="label">{DateFormatter.format_with_timezone(
-                  @run.started_at,
-                  @user_timezone
-                )}</span>
-              </div>
-            </div>
-
-            <div data-part="metadata-row">
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Actions")}</div>
-                <span data-part="label">{format_number(@run.total_actions)}</span>
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Cache hits")}</div>
-                <span data-part="label">{format_number(@run.cached_actions)}</span>
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Executed")}</div>
-                <span data-part="label">{format_number(@run.executed_actions)}</span>
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Failed")}</div>
-                <span data-part="label">{format_number(@run.failed_actions)}</span>
-              </div>
-            </div>
-
-            <div data-part="metadata-row">
-              <div :if={git_rev_present?(@run)} data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Commit")}</div>
-                <span data-part="label"><.git_commit />{git_short_sha(@run.git_rev)}</span>
-              </div>
-              <div :if={host_class_present?(@run)} data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Host")}</div>
-                <span data-part="label">{@run.host_class}</span>
-              </div>
-              <div :if={once_version_present?(@run)} data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Once version")}</div>
-                <span data-part="label">{@run.once_version}</span>
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_projects", "Run identifier")}</div>
-                <span data-part="label">{@run.run_id}</span>
-              </div>
-            </div>
-          </div>
-        </.card_section>
-      </.card>
-
-      <.card
-        title={dgettext("dashboard_projects", "Actions")}
-        icon="subtask"
-        data-part="once-actions-card"
-      >
-        <.card_section data-part="once-actions-section">
-          <div data-part="filters">
-            <.form for={%{}} id="once-actions-search-form" phx-change="search" phx-submit="search">
-              <.text_input
-                type="search"
-                id="once-actions-search"
-                name="search"
-                placeholder={dgettext("dashboard_projects", "Search actions or targets...")}
-                show_suffix={false}
-                value={@search}
-                phx-debounce="200"
+              </.form>
+              <.filter_dropdown
+                id="once-actions-filter-dropdown"
+                label={dgettext("dashboard_projects", "Filter")}
+                available_filters={@available_filters}
+                active_filters={@active_filters}
               />
-            </.form>
-            <.filter_dropdown
-              id="once-actions-filter-dropdown"
-              label={dgettext("dashboard_projects", "Filter")}
-              available_filters={@available_filters}
-              active_filters={@active_filters}
-            />
-          </div>
-          <div :if={Enum.any?(@active_filters)} data-part="active-filters">
-            <.active_filter :for={filter <- @active_filters} filter={filter} />
-          </div>
-          <div :if={Enum.any?(@actions)} data-part="once-actions-table">
-            <.table id="once-actions-table" rows={@actions} row_key={& &1.id}>
-              <:col
-                :let={action}
-                label={dgettext("dashboard_projects", "Action")}
-                patch={column_patch(assigns, "action")}
-                sort_order={@sort_by == "action" && @sort_order}
-              >
-                <.text_and_description_cell
-                  label={action_label(action)}
-                  description={action.target_execution_id}
-                />
-              </:col>
-              <:col
-                :let={action}
-                label={dgettext("dashboard_projects", "Status")}
-                patch={column_patch(assigns, "status")}
-                sort_order={@sort_by == "status" && @sort_order}
-              >
-                <.status_badge_cell
-                  label={action_status_label(action.result)}
-                  status={action_status_variant(action)}
-                />
-              </:col>
-              <:col
-                :let={action}
-                label={dgettext("dashboard_projects", "Cache")}
-                patch={column_patch(assigns, "cache")}
-                sort_order={@sort_by == "cache" && @sort_order}
-              >
-                <.badge_cell
-                  label={
-                    if action.was_cached,
-                      do: dgettext("dashboard_projects", "Hit"),
-                      else: dgettext("dashboard_projects", "Miss")
-                  }
-                  color={if action.was_cached, do: "success", else: "neutral"}
-                />
-              </:col>
-              <:col
-                :let={action}
-                label={dgettext("dashboard_projects", "Duration")}
-                patch={column_patch(assigns, "duration")}
-                sort_order={@sort_by == "duration" && @sort_order}
-              >
-                <.text_cell label={format_duration_ms(action.duration_ms)} icon="history" />
-              </:col>
-              <:col
-                :let={action}
-                label={dgettext("dashboard_projects", "Finished")}
-                patch={column_patch(assigns, "finished")}
-                sort_order={@sort_by == "finished" && @sort_order}
-              >
-                <.text_cell label={
-                  DateFormatter.format_with_timezone(action.finished_at, @user_timezone)
-                } />
-              </:col>
-            </.table>
-            <.pagination_group
-              :if={@total_pages > 1}
-              current_page={@page}
-              number_of_pages={@total_pages}
-              page_patch={&table_patch(@query, %{"page" => to_string(&1)})}
-            />
-          </div>
-          <.empty_card_section
-            :if={Enum.empty?(@actions)}
-            title={empty_title(assigns)}
-          >
-            <:image>
-              <img
-                src={~p"/images/empty_line_chart_light.png"}
-                data-theme="light"
-                loading="lazy"
-                decoding="async"
+            </div>
+            <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+              <.active_filter :for={filter <- @active_filters} filter={filter} />
+            </div>
+            <div :if={Enum.any?(@actions)} data-part="once-actions-table">
+              <.table id="once-actions-table" rows={@actions} row_key={& &1.id}>
+                <:col
+                  :let={action}
+                  label={dgettext("dashboard_projects", "Action")}
+                  patch={column_patch(assigns, "action")}
+                  sort_order={@sort_by == "action" && @sort_order}
+                >
+                  <.text_and_description_cell
+                    label={action_label(action)}
+                    description={action.target_execution_id}
+                  />
+                </:col>
+                <:col
+                  :let={action}
+                  label={dgettext("dashboard_projects", "Status")}
+                  patch={column_patch(assigns, "status")}
+                  sort_order={@sort_by == "status" && @sort_order}
+                >
+                  <.status_badge_cell
+                    label={action_status_label(action.result)}
+                    status={action_status_variant(action)}
+                  />
+                </:col>
+                <:col
+                  :let={action}
+                  label={dgettext("dashboard_projects", "Cache")}
+                  patch={column_patch(assigns, "cache")}
+                  sort_order={@sort_by == "cache" && @sort_order}
+                >
+                  <.badge_cell
+                    label={
+                      if action.was_cached,
+                        do: dgettext("dashboard_projects", "Hit"),
+                        else: dgettext("dashboard_projects", "Miss")
+                    }
+                    color={if action.was_cached, do: "success", else: "neutral"}
+                  />
+                </:col>
+                <:col
+                  :let={action}
+                  label={dgettext("dashboard_projects", "Duration")}
+                  patch={column_patch(assigns, "duration")}
+                  sort_order={@sort_by == "duration" && @sort_order}
+                >
+                  <.text_cell label={format_duration_ms(action.duration_ms)} icon="history" />
+                </:col>
+                <:col
+                  :let={action}
+                  label={dgettext("dashboard_projects", "Finished")}
+                  patch={column_patch(assigns, "finished")}
+                  sort_order={@sort_by == "finished" && @sort_order}
+                >
+                  <.text_cell label={
+                    DateFormatter.format_with_timezone(action.finished_at, @user_timezone)
+                  } />
+                </:col>
+              </.table>
+              <.pagination_group
+                :if={@total_pages > 1}
+                current_page={@page}
+                number_of_pages={@total_pages}
+                page_patch={&table_patch(@query, %{"page" => to_string(&1)})}
               />
-              <img
-                src={~p"/images/empty_line_chart_dark.png"}
-                data-theme="dark"
-                loading="lazy"
-                decoding="async"
-              />
-            </:image>
-          </.empty_card_section>
-        </.card_section>
-      </.card>
+            </div>
+            <.empty_card_section
+              :if={Enum.empty?(@actions)}
+              title={empty_title(assigns)}
+            >
+              <:image>
+                <img
+                  src={~p"/images/empty_line_chart_light.png"}
+                  data-theme="light"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <img
+                  src={~p"/images/empty_line_chart_dark.png"}
+                  data-theme="dark"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </:image>
+            </.empty_card_section>
+          </.card_section>
+        </.card>
       </div>
     </div>
     """
@@ -566,7 +573,9 @@ defmodule TuistWeb.OnceRunLive do
               id="once-cache-actions-breakdown"
               type="bar"
               series={cache_action_breakdown_series(@cache)}
-              extra_options={cache_breakdown_chart_options(dgettext("dashboard_projects", "Action cache lookups"))}
+              extra_options={
+                cache_breakdown_chart_options(dgettext("dashboard_projects", "Action cache lookups"))
+              }
               x_axis_min={0}
               x_axis_max={@cache.hits + @cache.misses}
             />
@@ -575,7 +584,7 @@ defmodule TuistWeb.OnceRunLive do
             :if={
               @selected_cache_view == "content-objects" and
                 @cache_detail_metrics.content_download_count +
-                    @cache_detail_metrics.content_upload_count > 0
+                  @cache_detail_metrics.content_upload_count > 0
             }
             data-part="cache-breakdown-card-section"
           >
@@ -590,7 +599,9 @@ defmodule TuistWeb.OnceRunLive do
               id="once-cache-content-breakdown"
               type="bar"
               series={cache_content_breakdown_series(@cache_detail_metrics)}
-              extra_options={cache_breakdown_chart_options(dgettext("dashboard_projects", "Content objects"))}
+              extra_options={
+                cache_breakdown_chart_options(dgettext("dashboard_projects", "Content objects"))
+              }
               x_axis_min={0}
               x_axis_max={
                 @cache_detail_metrics.content_download_count +
@@ -640,9 +651,7 @@ defmodule TuistWeb.OnceRunLive do
                 dgettext("dashboard_projects", "Average throughput for downloaded content objects.")
               }
               value={
-                format_throughput(
-                  @cache_detail_metrics.content_download_throughput_bytes_per_second
-                )
+                format_throughput(@cache_detail_metrics.content_download_throughput_bytes_per_second)
               }
               empty={cache_summary_empty?(@cache)}
             />
@@ -653,9 +662,7 @@ defmodule TuistWeb.OnceRunLive do
                 dgettext("dashboard_projects", "Average throughput for uploaded content objects.")
               }
               value={
-                format_throughput(
-                  @cache_detail_metrics.content_upload_throughput_bytes_per_second
-                )
+                format_throughput(@cache_detail_metrics.content_upload_throughput_bytes_per_second)
               }
               empty={cache_summary_empty?(@cache)}
             />
@@ -761,7 +768,9 @@ defmodule TuistWeb.OnceRunLive do
             :if={@cache_total_pages > 1}
             current_page={@cache_current_page}
             number_of_pages={@cache_total_pages}
-            page_patch={fn page -> cache_page_patch(@path, @selected_cache_view, @cache_search, page) end}
+            page_patch={
+              fn page -> cache_page_patch(@path, @selected_cache_view, @cache_search, page) end
+            }
             data-part="cache-pagination"
           />
         </div>
@@ -900,8 +909,7 @@ defmodule TuistWeb.OnceRunLive do
   # so the column is "Hit" and the badge reads Hit/Missed. The
   # Content Objects table lives on transfer direction, so the column
   # is "Status" and the badge reads Download/Upload.
-  defp cache_status_column_label("content-objects"),
-    do: dgettext("dashboard_projects", "Status")
+  defp cache_status_column_label("content-objects"), do: dgettext("dashboard_projects", "Status")
 
   defp cache_status_column_label(_), do: dgettext("dashboard_projects", "Hit")
 
@@ -1011,7 +1019,6 @@ defmodule TuistWeb.OnceRunLive do
   defp truncate_hash(hash) when byte_size(hash) <= 12, do: hash
   defp truncate_hash(hash), do: binary_part(hash, 0, 12) <> "…"
 
-
   defp load_cache(socket) do
     assigns = socket.assigns
     run = assigns.run
@@ -1033,6 +1040,8 @@ defmodule TuistWeb.OnceRunLive do
         view: view,
         search: search,
         outcome: outcome,
+        sort_by: assigns.cache_sort_by,
+        sort_order: assigns.cache_sort_order,
         limit: @page_size,
         offset: (page - 1) * @page_size
       )
@@ -1137,7 +1146,6 @@ defmodule TuistWeb.OnceRunLive do
   defp once_version_present?(_), do: false
 
   defp git_short_sha(rev) when is_binary(rev), do: String.slice(rev, 0, 12)
-  defp git_short_sha(_), do: ""
 
   defp run_status_label(%{finalization: "finalized", exit_status: 0}), do: dgettext("dashboard_builds", "Passed")
 

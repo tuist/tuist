@@ -60,13 +60,14 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
             a.duration_ms
           )
       })
-      |> Repo.one() || %{
-        read_ms: 0,
-        write_ms: 0,
-        avg_ms: 0,
-        read_ms_total: 0,
-        write_ms_total: 0
-      }
+      |> Repo.one() ||
+        %{
+          read_ms: 0,
+          write_ms: 0,
+          avg_ms: 0,
+          read_ms_total: 0,
+          write_ms_total: 0
+        }
 
     transfer_row =
       CacheEvent
@@ -207,8 +208,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
       |> select([a, r], %{
         bucket: fragment("min(?)", r.started_at),
         lookups: count(a.id),
-        hits:
-          sum(fragment("(case when ? then 1 else 0 end)", a.was_cached)),
+        hits: sum(fragment("(case when ? then 1 else 0 end)", a.was_cached)),
         read_ms:
           fragment(
             "coalesce(avg(case when ? then ? end), 0)",
@@ -246,14 +246,10 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
       |> select([e, r], %{
         bucket: fragment("min(?)", r.started_at),
         observations: count(e.id),
-        download_bytes:
-          fragment("coalesce(sum(case when ? = 'download' then ? end), 0)", e.kind, e.bytes_transferred),
-        upload_bytes:
-          fragment("coalesce(sum(case when ? = 'upload' then ? end), 0)", e.kind, e.bytes_transferred),
-        download_ms:
-          fragment("coalesce(sum(case when ? = 'download' then ? end), 0)", e.kind, e.duration_ms),
-        upload_ms:
-          fragment("coalesce(sum(case when ? = 'upload' then ? end), 0)", e.kind, e.duration_ms)
+        download_bytes: fragment("coalesce(sum(case when ? = 'download' then ? end), 0)", e.kind, e.bytes_transferred),
+        upload_bytes: fragment("coalesce(sum(case when ? = 'upload' then ? end), 0)", e.kind, e.bytes_transferred),
+        download_ms: fragment("coalesce(sum(case when ? = 'download' then ? end), 0)", e.kind, e.duration_ms),
+        upload_ms: fragment("coalesce(sum(case when ? = 'upload' then ? end), 0)", e.kind, e.duration_ms)
       })
       |> Repo.all()
 
@@ -339,8 +335,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
       latency_ms: latency_ms,
       read_ms: read_ms,
       write_ms: write_ms,
-      throughput:
-        safe_throughput(download_bytes + upload_bytes, read_ms_total + write_ms_total),
+      throughput: safe_throughput(download_bytes + upload_bytes, read_ms_total + write_ms_total),
       download_throughput: safe_throughput(download_bytes, read_ms_total),
       upload_throughput: safe_throughput(upload_bytes, write_ms_total)
     }
@@ -381,7 +376,9 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
 
   defp period_datetimes(opts) do
     case {Keyword.get(opts, :start_datetime), Keyword.get(opts, :end_datetime)} do
-      {%DateTime{} = s, %DateTime{} = e} -> {s, e}
+      {%DateTime{} = s, %DateTime{} = e} ->
+        {s, e}
+
       _ ->
         end_dt = DateTime.utc_now()
         {DateTime.add(end_dt, -30 * 86_400, :second), end_dt}
@@ -396,13 +393,14 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
   defp bucket_range(start_dt, end_dt, :day) do
     start_date = DateTime.to_date(start_dt)
     end_date = DateTime.to_date(end_dt)
-    Date.range(start_date, end_date) |> Enum.map(&Date.to_iso8601/1)
+    start_date |> Date.range(end_date) |> Enum.map(&Date.to_iso8601/1)
   end
 
   defp bucket_range(start_dt, end_dt, :hour) do
     start_dt = %{start_dt | minute: 0, second: 0, microsecond: {0, 0}}
     end_dt = %{end_dt | minute: 0, second: 0, microsecond: {0, 0}}
-    diff = DateTime.diff(end_dt, start_dt, :second) |> div(3600)
+    diff = end_dt |> DateTime.diff(start_dt, :second) |> div(3600)
+
     Enum.map(0..diff, fn h ->
       start_dt |> DateTime.add(h * 3600, :second) |> DateTime.to_iso8601()
     end)
@@ -410,8 +408,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
 
   defp bucket_key(%DateTime{} = dt, :day), do: dt |> DateTime.to_date() |> Date.to_iso8601()
 
-  defp bucket_key(%DateTime{} = dt, :hour),
-    do: %{dt | minute: 0, second: 0, microsecond: {0, 0}} |> DateTime.to_iso8601()
+  defp bucket_key(%DateTime{} = dt, :hour), do: DateTime.to_iso8601(%{dt | minute: 0, second: 0, microsecond: {0, 0}})
 
   defp bucket_key(%NaiveDateTime{} = ndt, granularity) do
     ndt |> DateTime.from_naive!("Etc/UTC") |> bucket_key(granularity)
@@ -423,7 +420,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
 
   defp percentile(sorted, p) do
     idx = min(round(p * (length(sorted) - 1)), length(sorted) - 1)
-    Enum.at(sorted, idx) |> Float.round(1)
+    sorted |> Enum.at(idx) |> Float.round(1)
   end
 
   defp safe_throughput(_bytes, 0), do: 0

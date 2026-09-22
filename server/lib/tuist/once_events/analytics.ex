@@ -95,12 +95,9 @@ defmodule Tuist.OnceEvents.Analytics do
             )
           ),
         average_duration_ms: fragment("coalesce(avg(?), 0)", r.wall_ms),
-        median_duration_ms:
-          fragment("coalesce(percentile_cont(0.5) within group (order by ?), 0)", r.wall_ms),
-        p90_duration_ms:
-          fragment("coalesce(percentile_cont(0.9) within group (order by ?), 0)", r.wall_ms),
-        p99_duration_ms:
-          fragment("coalesce(percentile_cont(0.99) within group (order by ?), 0)", r.wall_ms)
+        median_duration_ms: fragment("coalesce(percentile_cont(0.5) within group (order by ?), 0)", r.wall_ms),
+        p90_duration_ms: fragment("coalesce(percentile_cont(0.9) within group (order by ?), 0)", r.wall_ms),
+        p99_duration_ms: fragment("coalesce(percentile_cont(0.99) within group (order by ?), 0)", r.wall_ms)
       })
       |> Repo.one()
 
@@ -148,20 +145,17 @@ defmodule Tuist.OnceEvents.Analytics do
             )
           ),
         average_duration_ms: fragment("coalesce(avg(?), 0)", r.wall_ms),
-        median_duration_ms:
-          fragment("coalesce(percentile_cont(0.5) within group (order by ?), 0)", r.wall_ms),
-        p90_duration_ms:
-          fragment("coalesce(percentile_cont(0.9) within group (order by ?), 0)", r.wall_ms),
-        p99_duration_ms:
-          fragment("coalesce(percentile_cont(0.99) within group (order by ?), 0)", r.wall_ms)
+        median_duration_ms: fragment("coalesce(percentile_cont(0.5) within group (order by ?), 0)", r.wall_ms),
+        p90_duration_ms: fragment("coalesce(percentile_cont(0.9) within group (order by ?), 0)", r.wall_ms),
+        p99_duration_ms: fragment("coalesce(percentile_cont(0.99) within group (order by ?), 0)", r.wall_ms)
       })
       |> Repo.all()
 
     by_bucket = Map.new(rows, fn row -> {truncate_bucket(row.bucket, granularity), row} end)
     dates = full_bucket_range(start_dt, end_dt, granularity)
 
-    {total_values, success_rate_values, failed_values,
-     average_duration_values, median_duration_values, p90_duration_values, p99_duration_values} =
+    {total_values, success_rate_values, failed_values, average_duration_values, median_duration_values,
+     p90_duration_values, p99_duration_values} =
       Enum.reduce(dates, {[], [], [], [], [], [], []}, fn date, acc ->
         row = Map.get(by_bucket, date, empty_bucket())
 
@@ -172,10 +166,8 @@ defmodule Tuist.OnceEvents.Analytics do
         failed = to_number(row.failed)
         success_rate = if total > 0, do: successful / total * 100.0, else: 0.0
 
-        {[total | t], [success_rate | sr], [failed | fv],
-         [to_number(row.average_duration_ms) | avg],
-         [to_number(row.median_duration_ms) | p50],
-         [to_number(row.p90_duration_ms) | p90],
+        {[total | t], [success_rate | sr], [failed | fv], [to_number(row.average_duration_ms) | avg],
+         [to_number(row.median_duration_ms) | p50], [to_number(row.p90_duration_ms) | p90],
          [to_number(row.p99_duration_ms) | p99]}
       end)
 
@@ -247,21 +239,28 @@ defmodule Tuist.OnceEvents.Analytics do
   defp apply_flop_filters(query, filters) do
     Enum.reduce(filters, query, fn filter, q ->
       case {filter.field, filter.op, filter.value} do
-        {:status, :==, "success"} -> where(q, [r], r.finalization == "finalized" and r.exit_status == 0)
-        {:status, :==, "failure"} -> where(q, [r], r.finalization == "finalized" and r.exit_status != 0)
+        {:status, :==, "success"} ->
+          where(q, [r], r.finalization == "finalized" and r.exit_status == 0)
+
+        {:status, :==, "failure"} ->
+          where(q, [r], r.finalization == "finalized" and r.exit_status != 0)
+
         {:command, :=~, term} when is_binary(term) and term != "" ->
           pattern = "%" <> String.replace(term, ~r/[\\%_]/, fn c -> "\\" <> c end) <> "%"
           where(q, [r], ilike(r.command_display, ^pattern) or ilike(r.kind, ^pattern))
 
-        _ -> q
+        _ ->
+          q
       end
     end)
   end
 
   defp apply_flop_order(query, order_by, order_directions) do
-    Enum.zip(order_by, order_directions)
+    order_by
+    |> Enum.zip(order_directions)
     |> Enum.reduce(query, fn {field, direction}, q ->
       column = map_order_field(field)
+
       case direction do
         :asc -> order_by(q, [r], asc_nulls_last: field(r, ^column))
         _ -> order_by(q, [r], desc_nulls_last: field(r, ^column))
@@ -320,7 +319,9 @@ defmodule Tuist.OnceEvents.Analytics do
 
   defp period_datetimes(opts) do
     case {Keyword.get(opts, :start_datetime), Keyword.get(opts, :end_datetime)} do
-      {%DateTime{} = s, %DateTime{} = e} -> {s, e}
+      {%DateTime{} = s, %DateTime{} = e} ->
+        {s, e}
+
       _ ->
         end_dt = DateTime.utc_now()
         start_dt = DateTime.add(end_dt, -30 * 86_400, :second)
@@ -333,11 +334,11 @@ defmodule Tuist.OnceEvents.Analytics do
     if diff_hours <= 48, do: :hour, else: :day
   end
 
-  # ecto raises on selected/1 in older versions; use plain field
-  defp selected(x), do: x
+  defp truncate_bucket(%DateTime{} = dt, :day), do: dt |> DateTime.to_date() |> Date.to_iso8601()
 
-  defp truncate_bucket(%DateTime{} = dt, :day), do: DateTime.to_date(dt) |> Date.to_iso8601()
-  defp truncate_bucket(%DateTime{} = dt, :hour), do: %{dt | minute: 0, second: 0, microsecond: {0, 0}} |> DateTime.to_iso8601()
+  defp truncate_bucket(%DateTime{} = dt, :hour),
+    do: DateTime.to_iso8601(%{dt | minute: 0, second: 0, microsecond: {0, 0}})
+
   defp truncate_bucket(%NaiveDateTime{} = ndt, granularity) do
     ndt
     |> DateTime.from_naive!("Etc/UTC")
@@ -347,13 +348,14 @@ defmodule Tuist.OnceEvents.Analytics do
   defp full_bucket_range(start_dt, end_dt, :day) do
     start_date = DateTime.to_date(start_dt)
     end_date = DateTime.to_date(end_dt)
-    Date.range(start_date, end_date) |> Enum.map(&Date.to_iso8601/1)
+    start_date |> Date.range(end_date) |> Enum.map(&Date.to_iso8601/1)
   end
 
   defp full_bucket_range(start_dt, end_dt, :hour) do
     start_dt = %{start_dt | minute: 0, second: 0, microsecond: {0, 0}}
     end_dt = %{end_dt | minute: 0, second: 0, microsecond: {0, 0}}
-    diff_hours = DateTime.diff(end_dt, start_dt, :second) |> div(3600)
+    diff_hours = end_dt |> DateTime.diff(start_dt, :second) |> div(3600)
+
     Enum.map(0..diff_hours, fn h ->
       start_dt |> DateTime.add(h * 3600, :second) |> DateTime.to_iso8601()
     end)

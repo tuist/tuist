@@ -1,13 +1,23 @@
 defmodule Tuist.OnceEventsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
+  alias Once.Events.V1.AckDisposition
   alias Once.Events.V1.ActionCompleted
+  alias Once.Events.V1.BatchAck
+  alias Once.Events.V1.CacheDownload
+  alias Once.Events.V1.ContentRef
   alias Once.Events.V1.RunCompleted
   alias Once.Events.V1.RunEvent
+  alias Once.Events.V1.RunEventBatch
   alias Once.Events.V1.TargetCompleted
+  alias Once.Events.V1.TestCaseCompleted
+  alias Once.Events.V1.TestSuiteStarted
   alias Tuist.OnceEvents
+  alias Tuist.OnceEvents.AckStore
   alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.RunEventService
+  alias Tuist.OnceEvents.TestCaseRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
@@ -135,9 +145,99 @@ defmodule Tuist.OnceEventsTest do
     end
   end
 
+  test "a replayed cache event neither duplicates the row nor doubles the transfer roll-up", %{run: run} do
+    download = %CacheDownload{
+      target_execution_id: "mise",
+      content: %ContentRef{digest: "abc123", size_bytes: 4096},
+      bytes_transferred: 4096,
+      duration_ms: 12
+    }
+
+    project(run, download)
+    project(run, download)
+
+    reloaded = OnceEvents.get_run(run.project_id, run.run_id)
+
+    assert OnceEvents.count_cache_events(reloaded, view: "content-objects", search: "", outcome: nil) == 1
+    assert reloaded.cache_bytes_downloaded == 4096
+    assert reloaded.cache_action_read_count == 1
+  end
+
+  test "a replayed test suite start does not inflate the run's suite count", %{run: run} do
+    started = %TestSuiteStarted{target_execution_id: "mise", suite_id: "unit", planned_case_count: 3}
+
+    project(run, started)
+    project(run, started)
+    project(run, %TestSuiteStarted{target_execution_id: "mise", suite_id: "integration"})
+
+    assert OnceEvents.get_run(run.project_id, run.run_id).test_suite_count == 2
+  end
+
+  test "an attempt carried only by the legacy composite id still separates retries", %{run: run} do
+    for attempt <- [1, 2] do
+      project(run, %TestCaseCompleted{
+        test_case_execution_id: "mise#tests::flaky##{attempt}",
+        result: :TEST_CASE_RESULT_FAILED,
+        duration_ms: 5
+      })
+    end
+
+    attempts =
+      TestCaseRun
+      |> where(once_run_id: ^run.id)
+      |> select([c], c.attempt)
+      |> Repo.all()
+      |> Enum.sort()
+
+    assert attempts == [1, 2]
+  end
+
   defmodule HeadersAdapter do
     @moduledoc false
     def get_headers(headers), do: headers
+  end
+
+  test "a batch whose projection fails is not acknowledged as accepted", %{project: project, run: run} do
+    stub(OnceEvents, :ingest_action, fn _run, _attrs -> raise "postgres is down" end)
+
+    batch = %RunEventBatch{
+      run_id: run.run_id,
+      batch_id: "batch-1",
+      seq_from: 7,
+      events: [
+        %RunEvent{
+          seq: 7,
+          epoch_ms: 1_789_405_000_000,
+          payload:
+            {:action_completed, %ActionCompleted{target_execution_id: "mise", capability: "build", action_index: 0}}
+        }
+      ]
+    }
+
+    RunEventService.publish_run_events([batch], reply_stream(project))
+
+    assert_received {:ack, %BatchAck{} = ack}
+    assert ack.disposition == AckDisposition.value(:ACK_DISPOSITION_NEEDS_RESYNC)
+    # The failing event is seq 7, so the client must resend from there.
+    assert ack.acked_seq == 6
+    assert ack.expected_next_seq == 7
+    assert AckStore.acked_seq(project.id, run.run_id) == 0
+  end
+
+  test "acknowledgement state does not leak across projects that reuse a run id", %{project: project, run: run} do
+    other_project = ProjectsFixtures.project_fixture()
+
+    AckStore.observe(project.id, run.run_id, 42)
+
+    assert AckStore.acked_seq(project.id, run.run_id) == 42
+    assert AckStore.acked_seq(other_project.id, run.run_id) == 0
+  end
+
+  test "the acknowledged sequence never walks backwards", %{project: project, run: run} do
+    AckStore.observe(project.id, run.run_id, 42)
+    AckStore.observe(project.id, run.run_id, 7)
+
+    assert AckStore.acked_seq(project.id, run.run_id) == 42
   end
 
   test "authenticates the configured project slug and rejects another project", %{project: project} do
@@ -157,8 +257,26 @@ defmodule Tuist.OnceEventsTest do
         %ActionCompleted{} -> :action_completed
         %TargetCompleted{} -> :target_completed
         %RunCompleted{} -> :run_completed
+        %CacheDownload{} -> :cache_download
+        %TestSuiteStarted{} -> :test_suite_started
+        %TestCaseCompleted{} -> :test_case_completed
       end
 
     Projector.project(%RunEvent{epoch_ms: 1_789_405_000_000, payload: {kind, payload}}, run.project_id, run.run_id)
+  end
+
+  defp reply_stream(project) do
+    test_process = self()
+
+    %GRPC.Server.Stream{
+      adapter: HeadersAdapter,
+      payload: %{"authorization" => "Bearer " <> project.token},
+      __interface__: %{
+        send_reply: fn stream, reply, _opts ->
+          send(test_process, {:ack, reply})
+          stream
+        end
+      }
+    }
   end
 end

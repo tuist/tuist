@@ -645,6 +645,26 @@ defmodule Tuist.Application do
     :ok
   end
 
+  # gRPC listener for `once.events.v1`. Off by default (mode = env), on
+  # when `TUIST_ONCE_EVENTS_GRPC=on`. The port defaults to 4001 so it does
+  # not collide with the Phoenix endpoint on 4000.
+  defp once_events_grpc_children do
+    if String.downcase(System.get_env("TUIST_ONCE_EVENTS_GRPC") || "off") == "on" do
+      port =
+        "TUIST_ONCE_EVENTS_GRPC_PORT"
+        |> System.get_env()
+        |> case do
+          nil -> 4001
+          "" -> 4001
+          value -> String.to_integer(value)
+        end
+
+      [{GRPC.Server.Supervisor, endpoint: Tuist.OnceEvents.GRPCEndpoint, port: port, start_server: true}]
+    else
+      []
+    end
+  end
+
   def redis_opts do
     %URI{} = parsed_url = URI.parse(Environment.redis_url())
 
@@ -674,25 +694,6 @@ defmodule Tuist.Application do
           end
 
         Keyword.merge(opts, auth_opts)
-    end
-  end
-
-  # gRPC listener for `once.events.v1`. Off by default (mode = env), on
-  # when `TUIST_ONCE_EVENTS_GRPC=on`. The port defaults to 4001 so it does
-  # not collide with the Phoenix endpoint on 4000.
-  defp once_events_grpc_children do
-    if String.downcase(System.get_env("TUIST_ONCE_EVENTS_GRPC") || "off") == "on" do
-      port =
-        System.get_env("TUIST_ONCE_EVENTS_GRPC_PORT")
-        |> case do
-          nil -> 4001
-          "" -> 4001
-          value -> String.to_integer(value)
-        end
-
-      [{GRPC.Server.Supervisor, endpoint: Tuist.OnceEvents.GRPCEndpoint, port: port, start_server: true}]
-    else
-      []
     end
   end
 

@@ -24,11 +24,8 @@ message ServerCapabilities {
   uint32 finalization_grace_ms = 9;
   uint32 dedup_retention_seconds = 10;
   string safe_literal_allowlist_version = 11;
-  // Absolute URL template the client renders into a "See it live" link
-  // and prints immediately after the run is minted. Substitutions are
-  // `{account}`, `{project}`, and `{run_id}`; the server chooses the
-  // path shape.
-  string live_url_template = 12;
+  reserved 12;
+  reserved "live_url_template";
 }
 
 message ArgvHashKey {
@@ -44,6 +41,9 @@ message RunEventBatch {
   repeated GapAdvance gap_advances = 3;
   uint64 seq_from = 4;
   repeated RunEvent events = 5;
+  // Cumulative count dropped by the producer's event bus before assignment
+  // of sequence numbers. Unlike gap_advances, these have no sequence range.
+  uint64 producer_dropped_events = 6;
 }
 
 message GapAdvance {
@@ -62,6 +62,8 @@ message BatchAck {
   uint32 retry_after_ms = 7;
   uint32 max_in_flight_batches = 8;
   RunFinalization finalization = 9;
+  // Canonical absolute dashboard link, available after durable run creation.
+  string dashboard_url = 10;
 }
 
 message RunEventAck {
@@ -70,6 +72,7 @@ message RunEventAck {
   uint64 expected_next_seq = 3;
   uint64 observed_high_water_seq = 4;
   RunFinalization finalization = 5;
+  string dashboard_url = 6;
 }
 
 enum AckDisposition {
@@ -91,6 +94,7 @@ enum RunFinalization {
 
 message ContentRef {
   HashAlgorithm hash_algorithm = 1;
+  // Raw digest bytes, not hexadecimal text.
   bytes digest = 2;
   uint64 size_bytes = 3;
   string namespace = 4;
@@ -125,6 +129,9 @@ message RunEvent {
     TargetCancelled    target_cancelled    = 35;
     TargetRetried      target_retried      = 36;
     ActionCompleted    action_completed    = 37;
+    TargetPhaseCompleted target_phase_completed = 38;
+    ActionAttemptStarted action_attempt_started = 39;
+    ActionAttemptCompleted action_attempt_completed = 45;
 
     TestSuiteStarted   test_suite_started  = 40;
     TestSuiteCompleted test_suite_completed = 41;
@@ -143,6 +150,8 @@ message RunEvent {
 
     ArtifactPublished  artifact_published  = 70;
     DiagnosticEmitted  diagnostic_emitted  = 71;
+
+    SystemSampled      system_sampled      = 80;
   }
 }
 
@@ -194,6 +203,7 @@ message RunCompleted {
   string cancellation_reason = 2;
   int64 wall_ms = 3;
   RunTotals totals = 4;
+  uint64 producer_dropped_events = 5;
 }
 
 enum RunResult {
@@ -307,12 +317,11 @@ message TargetRetried {
   string reason = 4;
 }
 
-// One declared action inside a target has finished. This is the
-// sub-target granularity that RFC 0008 anticipates but did not enumerate
-// in v0 of the proto: a `Rustc`/`Ld`/`Link` inside one target, or
-// `build-script-build` vs `rustc` in a cargo target. Together with
-// `TargetCompleted` the projector renders the actions view Bazel calls
-// "Compiling foo.cc" / "Linking libfoo.a".
+// Exactly one declared action outcome. Identity within a run is the tuple
+// (target_execution_id, capability, action_index). The index is zero-based
+// declaration order, never completion order; identifier is a display label.
+// A new target attempt must use a new target_execution_id. Cached target
+// reuse emits the retained actions with current-run timing, not old spans.
 message ActionCompleted {
   string target_execution_id = 1;
   string capability = 2;         // "build", "test", ...
@@ -322,6 +331,66 @@ message ActionCompleted {
   bool was_cached = 6;
   int64 duration_ms = 7;
   int32 exit_code = 8;
+  // Wall-clock start time of the action, in epoch milliseconds. When
+  // present the projector prefers this over `envelope.epoch_ms -
+  // duration_ms`, which collapses many actions that all completed
+  // inside one millisecond bucket.
+  int64 start_at_epoch_ms = 9;
+  // Stable identifier of the worker (tokio task / OS thread / target
+  // execution scheduler) that ran this action. The dashboard groups
+  // rows in the flame graph by worker, matching Bazel's per-tid
+  // rendering.
+  string worker_id = 10;
+  // Split of `duration_ms` into the two phases the CLI observes.
+  // `prepare_ms` covers arg files, input fingerprinting, and action
+  // digest; `execute_ms` covers cache probe + (on a miss) command
+  // execution and output upload. The server renders each as its own
+  // sub-span on the worker's lane so a cache-heavy build shows what
+  // filled the wall clock instead of a sea of 1 ms dashes. Zero when
+  // unknown (cached-replay actions).
+  int64 prepare_ms = 11;
+  int64 execute_ms = 12;
+  // Hex digest the action probed against the content-addressable store,
+  // action_digest. Shown as the "Cache key" column on the Cacheable
+  // Actions view of the dashboard.
+  string cache_key = 13;
+  // Zero means no attempt executed in this run, as with retained target reuse.
+  // Otherwise this selects one attempt from the matching tuple below.
+  uint32 selected_attempt = 14;
+}
+
+// The tuple (target_execution_id, capability, action_index, attempt) is a
+// run-local identity. An attempt begins when a worker starts preparing it;
+// a later retry uses the next attempt number and may use another worker.
+message ActionAttemptStarted {
+  string target_execution_id = 1;
+  string capability = 2;
+  uint32 action_index = 3;
+  uint32 attempt = 4;
+  string worker_id = 5;
+}
+
+message ActionAttemptCompleted {
+  string target_execution_id = 1;
+  string capability = 2;
+  uint32 action_index = 3;
+  uint32 attempt = 4;
+  TargetResult result = 5;
+  int32 exit_code = 6;
+  int64 duration_ms = 7;
+  bool was_cached = 8;
+}
+
+// Observed target-level work, excluded from declared-action counts.
+// Phase names are extensible and ecosystem-neutral. Unknown names are shown
+// as opaque labels. worker_id identifies a run-local scheduling lane, not a
+// physical host or a promise of thread affinity.
+message TargetPhaseCompleted {
+  string target_execution_id = 1;
+  string phase = 2;
+  string worker_id = 3;
+  int64 start_at_epoch_ms = 4;
+  int64 duration_ms = 5;
 }
 
 message TestSuiteStarted {
@@ -334,7 +403,7 @@ message TestSuiteCompleted {
   string target_execution_id = 1;
   string suite_id = 2;
   TestTotals totals = 3;
-  ContentRef junit_digest = 4;
+  ContentRef result_report_digest = 4;
 }
 
 message TestTotals {
@@ -346,6 +415,7 @@ message TestTotals {
   uint32 cancelled = 6;
   uint32 flaky_final_pass = 7;
   uint32 flaky_final_fail = 8;
+  uint32 unknown = 9;
 }
 
 message TestCaseStarted {
@@ -366,6 +436,15 @@ message TestCaseCompleted {
   bool was_flaky = 3;
   int64 duration_ms = 4;
   TestFailure failure = 5;
+  // Self-describing so retrospective results do not require a fabricated
+  // start event or a server-side join to identify the case.
+  string case_id = 6;
+  string name = 7;
+  string suite_id = 8;
+  uint32 attempt = 9;
+  // Prefer this presence-aware measurement; the legacy duration_ms is zero
+  // when a retrospective report omits timing.
+  optional int64 observed_duration_ms = 10;
 }
 
 enum TestCaseResult {
@@ -376,6 +455,7 @@ enum TestCaseResult {
   TEST_CASE_RESULT_TIMED_OUT = 4;
   TEST_CASE_RESULT_ERRORED = 5;
   TEST_CASE_RESULT_CANCELLED = 6;
+  TEST_CASE_RESULT_UNKNOWN = 7;
 }
 
 message TestCaseRetried {
@@ -554,4 +634,42 @@ enum Severity {
   SEVERITY_NOTE = 1;
   SEVERITY_WARNING = 2;
   SEVERITY_ERROR = 3;
+}
+
+// Periodic host-resource sample published while a run executes so the
+// dashboard's timeline can plot CPU, memory, and network usage over
+// wall-clock. Sampled at a bounded cadence (1 Hz by default) from a
+// single background task on the client. The projector stores each
+// sample as one row and derives the timeline series at read time.
+message SystemSampled {
+  // The sample's own wall-clock instant. Enveloping RunEvent.epoch_ms
+  // is for display only; RunEvent.seq defines stream order.
+  int64 at_epoch_ms = 1;
+
+  // Whole-host CPU utilisation from 0 to 100. Averaged across cores
+  // so a 4-core machine at full load reports 100, not 400.
+  float cpu_percent = 2;
+
+  // Whole-host memory usage in bytes, matching what a process manager
+  // would report as "used".
+  uint64 memory_bytes = 3;
+
+  // Network transfer rate at sample time, in bytes per second, summed
+  // across all interfaces. Direction is the transport's own point of
+  // view: `in` is bytes coming into the host, `out` is bytes leaving.
+  uint64 network_in_bytes_per_second = 4;
+  uint64 network_out_bytes_per_second = 5;
+  // A run-local identity, never a hostname or globally stable device key.
+  string resource_id = 6;
+  ResourceScope scope = 7;
+  // Actual interval used to derive rates; zero means unavailable.
+  uint32 interval_ms = 8;
+}
+
+enum ResourceScope {
+  RESOURCE_SCOPE_UNSPECIFIED = 0;
+  RESOURCE_SCOPE_HOST = 1;
+  RESOURCE_SCOPE_CONTAINER = 2;
+  RESOURCE_SCOPE_PROCESS = 3;
+  RESOURCE_SCOPE_WORKER = 4;
 }

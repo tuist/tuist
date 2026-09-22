@@ -55,12 +55,10 @@ defmodule Tuist.OnceEvents.Projector do
       # for older clients, which collapses many actions into the same
       # millisecond bucket but keeps the run projectable.
       start_ms =
-        cond do
-          is_integer(action.start_at_epoch_ms) and action.start_at_epoch_ms > 0 ->
-            action.start_at_epoch_ms
-
-          true ->
-            ev.epoch_ms - (action.duration_ms || 0)
+        if is_integer(action.start_at_epoch_ms) and action.start_at_epoch_ms > 0 do
+          action.start_at_epoch_ms
+        else
+          ev.epoch_ms - (action.duration_ms || 0)
         end
 
       OnceEvents.ingest_action(run, %{
@@ -166,11 +164,7 @@ defmodule Tuist.OnceEvents.Projector do
     :ok
   end
 
-  def project(
-        %RunEvent{payload: {:test_suite_started, %TestSuiteStarted{} = started}} = ev,
-        project_id,
-        run_id
-      ) do
+  def project(%RunEvent{payload: {:test_suite_started, %TestSuiteStarted{} = started}} = ev, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
       OnceEvents.ingest_test_suite_run(run, %{
         target_execution_id: safe_string(started.target_execution_id),
@@ -183,11 +177,7 @@ defmodule Tuist.OnceEvents.Projector do
     :ok
   end
 
-  def project(
-        %RunEvent{payload: {:test_suite_completed, %TestSuiteCompleted{} = completed}} = ev,
-        project_id,
-        run_id
-      ) do
+  def project(%RunEvent{payload: {:test_suite_completed, %TestSuiteCompleted{} = completed}} = ev, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
       totals = completed.totals || %{}
 
@@ -211,18 +201,14 @@ defmodule Tuist.OnceEvents.Projector do
     :ok
   end
 
-  def project(
-        %RunEvent{payload: {:test_case_completed, %TestCaseCompleted{} = completed}} = ev,
-        project_id,
-        run_id
-      ) do
+  def project(%RunEvent{payload: {:test_case_completed, %TestCaseCompleted{} = completed}} = ev, project_id, run_id) do
     with %{} = run <- OnceEvents.get_run(project_id, run_id) do
       # `TestCaseCompleted` carries its own identity so a retrospective
       # report never needs a matching `TestCaseStarted`. The legacy
       # `test_case_execution_id` (target#case#attempt) is still there
       # for older clients, so we split it as the fallback path.
       composite = safe_string(completed.test_case_execution_id)
-      {target_execution_id, composite_case_id} = split_execution_id(composite)
+      {target_execution_id, composite_case_id, composite_attempt} = split_execution_id(composite)
 
       case_id =
         nil_if_empty(completed.case_id) ||
@@ -241,16 +227,14 @@ defmodule Tuist.OnceEvents.Projector do
       started_at =
         if duration_ms > 0 do
           DateTime.add(finished_at, -duration_ms, :millisecond)
-        else
-          nil
         end
 
       OnceEvents.ingest_test_case_run(run, %{
         target_execution_id: safe_string(target_execution_id),
         suite_id: safe_string(suite_id),
         case_id: case_id,
-        name: safe_string(completed.name) |> non_empty_or(case_id),
-        attempt: max(completed.attempt || 1, 1),
+        name: completed.name |> safe_string() |> non_empty_or(case_id),
+        attempt: attempt(completed.attempt, composite_attempt),
         result: test_case_result(completed.result),
         duration_ms: duration_ms,
         failure_message: extract_failure_message(completed.failure),
@@ -260,23 +244,6 @@ defmodule Tuist.OnceEvents.Projector do
     end
 
     :ok
-  end
-
-  defp split_execution_id(id) when is_binary(id) do
-    case String.split(id, "#", parts: 3) do
-      [target, case_id, _attempt] -> {target, case_id}
-      [target, case_id] -> {target, case_id}
-      _ -> {"", nil}
-    end
-  end
-
-  defp split_execution_id(_), do: {"", nil}
-
-  defp observed_or_declared_duration(%TestCaseCompleted{} = completed) do
-    case completed.observed_duration_ms do
-      value when is_integer(value) and value > 0 -> value
-      _ -> completed.duration_ms || 0
-    end
   end
 
   def project(%RunEvent{payload: {:system_sampled, %SystemSampled{} = sample}} = ev, project_id, run_id) do
@@ -302,6 +269,39 @@ defmodule Tuist.OnceEvents.Projector do
   end
 
   def project(_other, _project_id, _run_id), do: :ok
+
+  defp split_execution_id(id) when is_binary(id) do
+    case String.split(id, "#", parts: 3) do
+      [target, case_id, attempt] -> {target, case_id, parse_attempt(attempt)}
+      [target, case_id] -> {target, case_id, nil}
+      _ -> {"", nil, nil}
+    end
+  end
+
+  defp parse_attempt(value) do
+    case Integer.parse(value) do
+      {attempt, ""} when attempt > 0 -> attempt
+      _ -> nil
+    end
+  end
+
+  # `attempt` is part of the row's uniqueness, so losing it collapses a
+  # retried case onto its first run. Clients that predate the explicit
+  # field only carry it inside `target#case#attempt`, hence the fallback.
+  defp attempt(declared, composite) do
+    cond do
+      is_integer(declared) and declared > 0 -> declared
+      is_integer(composite) and composite > 0 -> composite
+      true -> 1
+    end
+  end
+
+  defp observed_or_declared_duration(%TestCaseCompleted{} = completed) do
+    case completed.observed_duration_ms do
+      value when is_integer(value) and value > 0 -> value
+      _ -> completed.duration_ms || 0
+    end
+  end
 
   defp safe_float(nil), do: 0.0
   defp safe_float(n) when is_number(n), do: n / 1
@@ -361,7 +361,6 @@ defmodule Tuist.OnceEvents.Projector do
   defp nil_if_empty(_), do: nil
 
   defp non_empty_or("", fallback), do: fallback || ""
-  defp non_empty_or(nil, fallback), do: fallback || ""
   defp non_empty_or(binary, _), do: binary
 
   @test_case_passed TestCaseResult.value(:TEST_CASE_RESULT_PASSED)
@@ -387,8 +386,7 @@ defmodule Tuist.OnceEvents.Projector do
 
   defp extract_failure_message(nil), do: nil
 
-  defp extract_failure_message(%{message: msg}) when is_binary(msg) and msg != "",
-    do: String.slice(msg, 0, 4000)
+  defp extract_failure_message(%{message: msg}) when is_binary(msg) and msg != "", do: String.slice(msg, 0, 4000)
 
   defp extract_failure_message(_), do: nil
 
@@ -398,10 +396,6 @@ defmodule Tuist.OnceEvents.Projector do
       s -> s
     end
   end
-
-  defp nil_if_empty(""), do: nil
-  defp nil_if_empty(nil), do: nil
-  defp nil_if_empty(s) when is_binary(s), do: s
 
   # Serialize the argv tokens into a JSON-friendly shape so the dashboard
   # can render them without proto knowledge.

@@ -55,8 +55,7 @@ defmodule Tuist.OnceEvents.RunEventService do
       raw_event_retention_available: false,
       finalization_grace_ms: @finalization_grace_ms,
       dedup_retention_seconds: @dedup_retention_seconds,
-      safe_literal_allowlist_version: @safe_literal_allowlist_version,
-      live_url_template: live_url_template()
+      safe_literal_allowlist_version: @safe_literal_allowlist_version
     }
   end
 
@@ -91,38 +90,76 @@ defmodule Tuist.OnceEvents.RunEventService do
   end
 
   defp handle_batch(batch, project) do
-    Enum.each(batch.events, fn event ->
-      try do
-        Projector.project(event, project.id, batch.run_id)
-      rescue
-        error ->
+    case project_events(batch, project) do
+      :ok ->
+        highest_seq =
+          case batch.events do
+            [] -> AckStore.acked_seq(project.id, batch.run_id)
+            events -> batch.seq_from + length(events) - 1
+          end
+
+        AckStore.observe(project.id, batch.run_id, highest_seq)
+
+        ack(batch, project, :ACK_DISPOSITION_ACCEPTED, highest_seq)
+
+      {:error, _reason} ->
+        # Nothing durable happened for the failing event, so the ack must
+        # not move the high-water mark past it. `NEEDS_RESYNC` makes the
+        # client reopen the stream and resend from where it last saw us,
+        # and every projector write is idempotent, so the events in this
+        # batch that did land simply replay.
+        #
+        # The floor is `seq_from - 1` rather than the stored mark because
+        # the client rejects an ack whose `expected_next_seq` regresses
+        # below what it already believes we hold (and our in-memory mark
+        # is empty after a restart).
+        resume_seq = max(AckStore.acked_seq(project.id, batch.run_id), batch.seq_from - 1)
+
+        ack(batch, project, :ACK_DISPOSITION_NEEDS_RESYNC, resume_seq)
+    end
+  end
+
+  defp ack(batch, project, disposition, acked_seq) do
+    %BatchAck{
+      run_id: batch.run_id,
+      batch_id: batch.batch_id,
+      disposition: AckDisposition.value(disposition),
+      acked_seq: acked_seq,
+      expected_next_seq: acked_seq + 1,
+      observed_high_water_seq: acked_seq,
+      retry_after_ms: 0,
+      max_in_flight_batches: 0,
+      finalization: finalization_state(batch.run_id, project.id),
+      dashboard_url: dashboard_url(project, batch.run_id)
+    }
+  end
+
+  defp project_events(batch, project) do
+    Enum.reduce_while(batch.events, :ok, fn event, _acc ->
+      case project_event(event, project.id, batch.run_id) do
+        :ok ->
+          {:cont, :ok}
+
+        {:error, error} ->
           Logger.error(
             "Once event projector failed: " <>
               inspect(error) <>
               " (run_id=" <> to_string(batch.run_id) <> ")"
           )
+
+          {:halt, {:error, error}}
       end
     end)
+  end
 
-    highest_seq =
-      case batch.events do
-        [] -> AckStore.acked_seq(batch.run_id)
-        events -> batch.seq_from + length(events) - 1
-      end
-
-    AckStore.observe(batch.run_id, highest_seq)
-
-    %BatchAck{
-      run_id: batch.run_id,
-      batch_id: batch.batch_id,
-      disposition: AckDisposition.value(:ACK_DISPOSITION_ACCEPTED),
-      acked_seq: highest_seq,
-      expected_next_seq: highest_seq + 1,
-      observed_high_water_seq: highest_seq,
-      retry_after_ms: 0,
-      max_in_flight_batches: 0,
-      finalization: finalization_state(batch.run_id, project.id)
-    }
+  # The projector reaches Ecto, which raises rather than returning a tagged
+  # tuple. This is the transport boundary, so an unexpected crash is turned
+  # into a retryable ack instead of taking the stream (and the run) down.
+  defp project_event(event, project_id, run_id) do
+    Projector.project(event, project_id, run_id)
+    :ok
+  rescue
+    error -> {:error, error}
   end
 
   # ---- GetRunAck -----------------------------------------------------
@@ -130,12 +167,15 @@ defmodule Tuist.OnceEvents.RunEventService do
   def get_run_ack(req, stream) do
     project = require_project!(stream)
 
+    acked_seq = AckStore.acked_seq(project.id, req.run_id)
+
     %RunEventAck{
       run_id: req.run_id,
-      acked_seq: AckStore.acked_seq(req.run_id),
-      expected_next_seq: AckStore.expected_next_seq(req.run_id),
-      observed_high_water_seq: AckStore.acked_seq(req.run_id),
-      finalization: finalization_state(req.run_id, project.id)
+      acked_seq: acked_seq,
+      expected_next_seq: acked_seq + 1,
+      observed_high_water_seq: acked_seq,
+      finalization: finalization_state(req.run_id, project.id),
+      dashboard_url: dashboard_url(project, req.run_id)
     }
   end
 
@@ -226,8 +266,11 @@ defmodule Tuist.OnceEvents.RunEventService do
     }
   end
 
-  defp live_url_template do
+  # The client prints this as the run's "See it live" link. It replaced the
+  # templated `ServerCapabilities.live_url_template`, which the protocol
+  # reserved so the server, not the client, owns the path shape.
+  defp dashboard_url(%Project{} = project, run_id) do
     origin = Environment.app_url(route_type: :app)
-    origin <> "/{account}/{project}/once/runs/{run_id}"
+    "#{origin}/#{project.account.name}/#{project.name}/once/runs/#{run_id}"
   end
 end

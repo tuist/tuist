@@ -168,7 +168,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       response = json_response(conn, 200)
       assert %{"events" => [url]} = response
       assert url =~ ~r/^grpcs?:\/\/build\./
-      assert response["live_url_template"] =~ ~r/{account}\/{project}\/once\/runs\/{run_id}/
+      refute Map.has_key?(response, "live_url_template")
     end
 
     test "returns the endpoints named by TUIST_ONCE_EVENTS_ENDPOINTS when configured", %{conn: conn} do
