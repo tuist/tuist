@@ -26,10 +26,10 @@ defmodule Tuist.Repo.Migrations.CreateOnceTestRuns do
       add :cancelled_cases, :integer, default: 0, null: false
 
       add :duration_ms, :bigint, default: 0, null: false
-      add :started_at, :utc_datetime_usec
-      add :finished_at, :utc_datetime_usec
+      add :started_at, :timestamptz
+      add :finished_at, :timestamptz
 
-      timestamps(type: :utc_datetime_usec)
+      timestamps(type: :timestamptz)
     end
 
     create index(:once_test_suite_runs, [:once_run_id])
@@ -65,10 +65,10 @@ defmodule Tuist.Repo.Migrations.CreateOnceTestRuns do
       add :result, :string, size: 32, null: false
       add :duration_ms, :bigint, default: 0, null: false
       add :failure_message, :text
-      add :started_at, :utc_datetime_usec
-      add :finished_at, :utc_datetime_usec
+      add :started_at, :timestamptz
+      add :finished_at, :timestamptz
 
-      timestamps(type: :utc_datetime_usec)
+      timestamps(type: :timestamptz)
     end
 
     create index(:once_test_case_runs, [:once_run_id])
