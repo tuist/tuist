@@ -68,7 +68,8 @@ func (r *RBD) exists(name string) (bool, error) {
 	return false, nil
 }
 func (r *RBD) device(name string) (string, error) {
-	out, err := r.rbd("device", "list", "--format", "json")
+	// Device discovery is host-local and does not accept pool/namespace flags.
+	out, err := r.command("rbd", "device", "list", "--format", "json")
 	if err != nil {
 		return "", err
 	}

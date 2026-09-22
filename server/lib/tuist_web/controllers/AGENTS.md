@@ -36,3 +36,5 @@ This area owns Phoenix controllers for HTML and API endpoints.
   through Kubernetes TokenReview. Allocation binds the actual executed Linux job
   to GitHub App run/repository metadata; reports are node-bound. Never accept a
   workflow credential as an agent or user-supplied scope/branch identity.
+- Missing cache-volume metadata returns `delete` until the authenticated agent
+  reports state `deleted`, then `forget` to release its durable local journal.

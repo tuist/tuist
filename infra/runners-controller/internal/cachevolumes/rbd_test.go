@@ -21,7 +21,11 @@ func scriptedRBD(t *testing.T, script []commandResult) (*RBD, func()) {
 		Mount: func(string, string) error { return nil }, Unmount: func(string, string) error { return nil }}
 	r.Run = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		t.Helper()
-		if name == "rbd" {
+		if name == "rbd" && strings.Contains(strings.Join(args, " "), "device list") {
+			if strings.Join(args, " ") != "device list --format json" {
+				t.Fatal("unsupported device discovery flags:", args)
+			}
+		} else if name == "rbd" {
 			if strings.Join(args[:6], " ") != "--pool pool --namespace ns --id client" {
 				t.Fatal("unscoped command")
 			}
@@ -138,6 +142,20 @@ func TestRBDReferencedSnapshotSurvivesDeleteUntilRetry(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("retained mountpoint after retry")
+	}
+	done()
+}
+
+func TestDeviceDiscoveryFiltersHostMappings(t *testing.T) {
+	r, done := scriptedRBD(t, []commandResult{{"rbd device list --format json", `[
+ {"pool":"other","namespace":"ns","name":"` + image + `","device":"/dev/rbd1"},
+ {"pool":"pool","namespace":"other","name":"` + image + `","device":"/dev/rbd2"},
+ {"pool":"pool","namespace":"ns","name":"other","device":"/dev/rbd3"},
+ {"pool":"pool","namespace":"ns","name":"` + image + `","device":"/dev/rbd4"}
+ ]`, nil}})
+	device, err := r.device(image)
+	if err != nil || device != "/dev/rbd4" {
+		t.Fatalf("device = %q, error = %v", device, err)
 	}
 	done()
 }

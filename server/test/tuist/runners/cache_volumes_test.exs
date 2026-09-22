@@ -215,6 +215,27 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert volume(account).head_id == second.id
   end
 
+  test "acknowledging an unmounted allocation releases its retired parent", %{job: job, account: account} do
+    {:ok, parent} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", parent.id, report("sealed"))
+    {:ok, rejected} = CacheVolumes.allocate_for_job(job, identity(), attrs("rejected"))
+    {:ok, replacement} = CacheVolumes.allocate_for_job(job, identity(), attrs("replacement"))
+    assert rejected.parent_id == parent.id
+    assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", replacement.id, report("sealed"))
+    assert volume(account).head_id == replacement.id
+    assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", parent.id, report("sealed"))
+
+    assert {:ok, %{action: "forget"}} = CacheVolumes.report("node", rejected.id, %{"state" => "deleted"})
+    assert {:ok, %{action: "forget"}} = CacheVolumes.report("node", rejected.id, %{"state" => "deleted"})
+    rejected_use = Repo.get!(Usage, rejected.id)
+    assert rejected_use.status == "discarded"
+    assert rejected_use.finished_at
+    assert rejected_use.deleted_at
+    assert is_nil(rejected_use.attached_at)
+    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", parent.id, report("sealed"))
+  end
+
   test "PR clones consume the shared parent but are discarded", %{job: job, account: account} do
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job)

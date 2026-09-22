@@ -204,10 +204,17 @@ func (s *Store) allocate(identity Identity, pod, uid string) (Slot, error) {
 			}
 		}
 	}
+	slot := Slot{Identity: identity, PodName: pod, PodUID: uid, State: "allocated", Warm: identity.ParentID != "", UsedAt: time.Now().UTC()}
 	if active >= s.MaxSlots || perPod >= 8 {
+		// The server already allocated this use and pinned its parent. No local
+		// storage exists yet, but its deletion acknowledgement must survive a
+		// restart or a failed report so the server can release that reference.
+		slot.State = "deleted"
+		if err = s.save(slot); err != nil {
+			return Slot{}, err
+		}
 		return Slot{}, errors.New("cache capacity reached")
 	}
-	slot := Slot{Identity: identity, PodName: pod, PodUID: uid, State: "allocated", Warm: identity.ParentID != "", UsedAt: time.Now().UTC()}
 	// Persist the remote resource identity before creating it. A lost response or
 	// restart resumes exactly this clone; it never reformats an exposed filesystem.
 	if err = s.save(slot); err != nil {

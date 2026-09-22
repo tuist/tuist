@@ -36,4 +36,6 @@ This directory contains ExUnit tests for the Tuist Server.
   and retention. Lifecycle tests use the real database row locks and queries.
   Storage coverage includes account totals, missing measurements, size-change
   history, retry deduplication, deletion acknowledgements and cascading retention.
+  Controller coverage must distinguish orphan deletion instructions from the
+  final `forget` acknowledgement for an authenticated deleted-state report.
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.

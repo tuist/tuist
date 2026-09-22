@@ -24,7 +24,8 @@ defmodule TuistWeb.RunnerCacheVolumesController do
 
           {:error, :not_found} ->
             # Metadata is cascaded on account deletion. Agents still fence writers.
-            conn |> put_resp_header("cache-control", "no-store") |> json(%{action: "delete"})
+            action = if params["state"] == "deleted", do: "forget", else: "delete"
+            conn |> put_resp_header("cache-control", "no-store") |> json(%{action: action})
 
           _ ->
             send_resp(conn, :forbidden, "")

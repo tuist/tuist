@@ -2,6 +2,7 @@ package cachevolumes
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -229,5 +230,70 @@ func TestScratchCleanupWaitsForMountsAndNeverFollowsSymlinks(t *testing.T) {
 	}
 	if _, err := os.Lstat(filepath.Join(s.path, "pods", "orphan")); !os.IsNotExist(err) {
 		t.Fatal("orphan retained")
+	}
+}
+
+func TestRejectedAdmissionSurvivesRestartAndReportFailure(t *testing.T) {
+	for _, perPod := range []bool{false, true} {
+		t.Run(fmt.Sprintf("per-pod-%t", perPod), func(t *testing.T) {
+			s, b := newStore(t)
+			count := 1
+			s.MaxSlots = 1
+			if perPod {
+				count = 8
+				s.MaxSlots = 100
+			}
+			for i := 1; i <= count; i++ {
+				x := identity(fmt.Sprintf("00000000-0000-0000-0000-%012d", i))
+				x.Scope = fmt.Sprintf("%064x", i)
+				if _, err := s.Acquire(x, "p", "u"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rejected := identity("00000000-0000-0000-0000-000000000099")
+			rejected.ParentID = third
+			if _, err := s.Acquire(rejected, "p", "u"); err == nil {
+				t.Fatal("accepted over capacity")
+			}
+			reopened, err := Open(s.path, b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reopened.Close()
+			reopened.MaxSlots = 100
+			if _, err := reopened.Acquire(rejected, "p", "u"); err == nil {
+				t.Fatal("retry attached a rejected lease")
+			}
+			seen := false
+			report := func(slot Slot, _ bool) (string, error) {
+				if slot.ID != rejected.ID {
+					return "hold", nil
+				}
+				seen = true
+				if slot.State != "deleted" {
+					t.Fatalf("rejected lease state = %s", slot.State)
+				}
+				return "", errors.New("server unavailable")
+			}
+			gone := func(string, string) (bool, error) { return true, nil }
+			if err := reopened.Reconcile(gone, report); err == nil || !seen {
+				t.Fatal("rejected allocation was not durably reported")
+			}
+			if err := reopened.Reconcile(gone, func(slot Slot, _ bool) (string, error) {
+				if slot.ID == rejected.ID {
+					return "forget", nil
+				}
+				return "hold", nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			slots, err := reopened.slots()
+			if err != nil || len(slots) != count {
+				t.Fatalf("rejected journal retained: %v, %v", slots, err)
+			}
+			if b.attached != count || b.deleted != 0 {
+				t.Fatal("storage created or deleted for rejected allocation")
+			}
+		})
 	}
 }

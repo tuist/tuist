@@ -9,6 +9,11 @@ Ceph RBD private clones used by `cmd/cache-volumes`. See
   bind agent requests to source pod IP, node and UID. Never trust forwarded IPs.
 - Persist the resource identity before creation. Each job has its own image.
   Retry operations without formatting exposed filesystems or publishing twice.
+- Host/per-pod admission rejection must journal the server-issued allocation as
+  deleted before returning. Reconcile its acknowledgement across report failures
+  and restarts so the server can release parent references; never attach retries
+  of that rejected lease. Device discovery is host-local and must omit RBD pool
+  and namespace arguments, then filter mappings by pool, namespace and image.
 - Seal/delete require API pod absence AND kubelet-directory absence. Completion,
   terminal phases, timeouts, and API failures are not writer fences.
 - Snapshot protection and server references preserve parents of active clones.
