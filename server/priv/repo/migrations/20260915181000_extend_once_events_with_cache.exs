@@ -1,6 +1,15 @@
 defmodule Tuist.Repo.Migrations.ExtendOnceEventsWithCache do
   use Ecto.Migration
 
+  # Every table this migration touches (once_runs, once_actions,
+  # once_cache_events, once_system_samples, once_test_suite_runs,
+  # once_test_case_runs) is introduced by this same unreleased change, so
+  # the first time this runs there is no populated table to lock and no
+  # concurrent reader to block.
+  # excellent_migrations:safety-assured-for-this-file check_constraint_added
+  # excellent_migrations:safety-assured-for-this-file column_added_with_default
+  # excellent_migrations:safety-assured-for-this-file index_not_concurrently
+
   @moduledoc """
   Adds cache byte roll-ups to `once_runs` and a `once_cache_events` table
   so the Once run dashboard can render the same Cache tab shape as
