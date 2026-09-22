@@ -82,7 +82,7 @@
       flex-direction: column;
       gap: var(--noora-spacing-3);
       border: 1px solid var(--noora-surface-border-primary);
-      border-radius: var(--noora-corner-radius-medium, 8px);
+      border-radius: var(--noora-radius-4);
       padding: var(--noora-spacing-5);
 
       & > [data-part="header"] {
@@ -116,10 +116,10 @@
             }
 
             & > [data-part="chip"][data-color="in"] {
-              color: var(--noora-chart-purple, #7c5cff);
+              color: var(--noora-chart-primary);
             }
             & > [data-part="chip"][data-color="out"] {
-              color: var(--noora-chart-blue, #4c8dff);
+              color: var(--noora-chart-secondary);
             }
           }
         }
@@ -249,44 +249,44 @@
           }
 
           & > [data-part="bar"][data-category="Compilation"] {
-            background: var(--noora-chart-purple, #7c5cff);
+            background: var(--noora-chart-primary);
           }
           & > [data-part="bar"][data-category="Linking"] {
-            background: var(--noora-chart-blue, #4c8dff);
+            background: var(--noora-chart-secondary);
           }
           & > [data-part="bar"][data-category="Scripts"] {
-            background: var(--noora-chart-green, #2ecc71);
+            background: var(--noora-chart-tertiary);
           }
           & > [data-part="bar"][data-category="File preparation"] {
-            background: var(--noora-chart-teal, #26c6da);
+            background: var(--noora-chart-quaternary);
           }
           & > [data-part="bar"][data-category="Fetching"] {
-            background: var(--noora-chart-orange, #ff9f43);
+            background: var(--noora-orange-500);
           }
           & > [data-part="bar"][data-category="Other"] {
-            background: var(--noora-chart-neutral, #94a3b8);
+            background: var(--noora-surface-label-tertiary);
           }
         }
       }
     }
 
     & > [data-part="flame-legend"] > [data-part="chip"][data-category="Compilation"] > [data-part="dot"] {
-      background: var(--noora-chart-purple, #7c5cff);
+      background: var(--noora-chart-primary);
     }
     & > [data-part="flame-legend"] > [data-part="chip"][data-category="Linking"] > [data-part="dot"] {
-      background: var(--noora-chart-blue, #4c8dff);
+      background: var(--noora-chart-secondary);
     }
     & > [data-part="flame-legend"] > [data-part="chip"][data-category="Scripts"] > [data-part="dot"] {
-      background: var(--noora-chart-green, #2ecc71);
+      background: var(--noora-chart-tertiary);
     }
     & > [data-part="flame-legend"] > [data-part="chip"][data-category="File preparation"] > [data-part="dot"] {
-      background: var(--noora-chart-teal, #26c6da);
+      background: var(--noora-chart-quaternary);
     }
     & > [data-part="flame-legend"] > [data-part="chip"][data-category="Fetching"] > [data-part="dot"] {
-      background: var(--noora-chart-orange, #ff9f43);
+      background: var(--noora-orange-500);
     }
     & > [data-part="flame-legend"] > [data-part="chip"][data-category="Other"] > [data-part="dot"] {
-      background: var(--noora-chart-neutral, #94a3b8);
+      background: var(--noora-surface-label-tertiary);
     }
   }
 
@@ -365,41 +365,41 @@
     }
 
     & [data-part="lane"][data-category="Compilation"] > [data-part="lane-track"] > [data-part="bar"] {
-      background: var(--noora-chart-purple, #7c5cff);
+      background: var(--noora-chart-primary);
     }
     & [data-part="lane"][data-category="Linking"] > [data-part="lane-track"] > [data-part="bar"] {
-      background: var(--noora-chart-blue, #4c8dff);
+      background: var(--noora-chart-secondary);
     }
     & [data-part="lane"][data-category="Scripts"] > [data-part="lane-track"] > [data-part="bar"] {
-      background: var(--noora-chart-green, #2ecc71);
+      background: var(--noora-chart-tertiary);
     }
     & [data-part="lane"][data-category="File preparation"] > [data-part="lane-track"] > [data-part="bar"] {
-      background: var(--noora-chart-teal, #26c6da);
+      background: var(--noora-chart-quaternary);
     }
     & [data-part="lane"][data-category="Fetching"] > [data-part="lane-track"] > [data-part="bar"] {
-      background: var(--noora-chart-orange, #ff9f43);
+      background: var(--noora-orange-500);
     }
     & [data-part="lane"][data-category="Other"] > [data-part="lane-track"] > [data-part="bar"] {
-      background: var(--noora-chart-neutral, #94a3b8);
+      background: var(--noora-surface-label-tertiary);
     }
 
     & [data-part="steps-legend"] > [data-part="chip"][data-category="Compilation"] > [data-part="dot"] {
-      background: var(--noora-chart-purple, #7c5cff);
+      background: var(--noora-chart-primary);
     }
     & [data-part="steps-legend"] > [data-part="chip"][data-category="Linking"] > [data-part="dot"] {
-      background: var(--noora-chart-blue, #4c8dff);
+      background: var(--noora-chart-secondary);
     }
     & [data-part="steps-legend"] > [data-part="chip"][data-category="Scripts"] > [data-part="dot"] {
-      background: var(--noora-chart-green, #2ecc71);
+      background: var(--noora-chart-tertiary);
     }
     & [data-part="steps-legend"] > [data-part="chip"][data-category="File preparation"] > [data-part="dot"] {
-      background: var(--noora-chart-teal, #26c6da);
+      background: var(--noora-chart-quaternary);
     }
     & [data-part="steps-legend"] > [data-part="chip"][data-category="Fetching"] > [data-part="dot"] {
-      background: var(--noora-chart-orange, #ff9f43);
+      background: var(--noora-orange-500);
     }
     & [data-part="steps-legend"] > [data-part="chip"][data-category="Other"] > [data-part="dot"] {
-      background: var(--noora-chart-neutral, #94a3b8);
+      background: var(--noora-surface-label-tertiary);
     }
   }
 
