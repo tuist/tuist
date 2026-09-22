@@ -247,12 +247,6 @@ server:
       value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
-    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
-      # The production default is @daily, which would leave an instance
-      # eligible for up to another day against the one-day window above.
-      # Hourly closes that to an hour; staging's */5 buys nothing here, where
-      # nobody is watching a single instance through its cycle.
-      value: "0 * * * *"
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # This environment's rollouts run expedited, so the value only shapes
     # interim-paced ordering here; kept aligned with production.
