@@ -28,6 +28,7 @@ Published to `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`:
 | 26.5            | `:26-5`            | `/Applications/Xcode_26.5.app`       | _(none — already major-minor)_ |
 | 26.4.1          | `:26-4-1`          | `/Applications/Xcode_26.4.1.app`     | `Xcode_26.4.app` → `Xcode_26.4.1.app` |
 | 26.3            | `:26-3`            | `/Applications/Xcode_26.3.app`       | _(none — already major-minor)_ |
+| 26.1.1          | `:26-1-1`          | `/Applications/Xcode_26.1.1.app`     | `Xcode_26.1.app` → `Xcode_26.1.1.app` |
 | 26.0.1          | `:26-0-1`          | `/Applications/Xcode_26.0.1.app`     | `Xcode_26.0.app` → `Xcode_26.0.1.app` |
 
 When `xcode_version` carries a patch component (three-segment
@@ -80,7 +81,12 @@ thin runtime on top — ~2 min instead of ~30.
 - iOS / tvOS / watchOS / visionOS simulator runtimes from
   `xcodebuild -downloadAllPlatforms`.
 - The Metal compiler toolchain from
-  `xcodebuild -downloadComponent MetalToolchain`.
+  `xcodebuild -downloadComponent MetalToolchain -buildVersion <build>`,
+  where `<build>` is the toolchain Apple's downloadable index
+  (`index2.dvtdownloadableindex`, `xcodeToOtherDownloadablesMappings`)
+  maps the Xcode build to. Apple publishes some toolchains under a
+  different build than the Xcode's own (26.4.1: 17E202 to 17E188), and
+  a plain `-downloadComponent` then fails with `Failed fetching catalog`.
 - Dev tools via brew: `xcodes`, `xcbeautify`, `swiftformat`,
   `swiftlint`, `swiftgen`, `licenseplist`, `mint`, `carthage`,
   `fastlane`, `cocoapods`, `libimobiledevice`, `ideviceinstaller`,
@@ -103,10 +109,8 @@ mirror that holds every Xcode .xip we've published. CAPI-managed
 builder Macs can rotate without breaking CI; the workflow has no
 session state to lose.
 
-**Why this one stays on GHCR.** Every image this workflow *publishes*
-goes to the Tuist OCI registry on the tailnet, but the .xip mirror it
-*reads* deliberately does not follow, and it is the only artifact in
-the set that is not anonymously pullable (hence the explicit `oras
+**Why this one stays on GHCR.** The .xip mirror is the only artifact
+in the set that is not anonymously pullable (hence the explicit `oras
 login ghcr.io` in the workflow). The reason is the writer, not the
 reader: the mirror's only writer is `mise run xcode-mirror:upload`
 running on a maintainer's Mac over a home link. Measured from one with
@@ -192,24 +196,27 @@ gets the same toolchain.
 ```
 gh workflow run macos-xcode-image.yml -f xcode_version=26.4.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.3
+gh workflow run macos-xcode-image.yml -f xcode_version=26.1.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.0.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.5
 gh workflow run macos-xcode-image.yml -f xcode_version=26.6
 gh workflow run macos-xcode-image.yml -f xcode_version=27.0
 ```
 
-Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.0.1 → `:26-0-1`,
+Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.1.1 → `:26-1-1`, 26.0.1 → `:26-0-1`,
 26.5 → `:26-5`, 26.6 → `:26-6`, 27.0 → `:27-0`. Each invocation
 publishes a fresh image — multiple Xcode versions exist in GHCR
 side-by-side under their respective tags, and the customer
 fleet's profile picker chooses between them.
 
 The current Tahoe-era profile set is:
+- `:27-2-beta` (channel `:27-2-beta`)
 - `:27-0`
 - `:26-6`
 - `:26-5`
 - `:26-4-1`
 - `:26-3`
+- `:26-1-1`
 - `:26-0-1`
 
 Exact tags are immutable: a patch bump from Apple (26.4.1 to
@@ -227,13 +234,10 @@ automatically roll customer runners to Xcode 26.5. To promote:
 
 1. Trigger this workflow with the new `xcode_version`. Verify the
    tag appears in GHCR.
-2. Add the version to `infra/runner-image/profiles.json`. That list
-   is the build matrix `server-production-deployment.yml` expands,
-   and it sits under the runner-image component's `include_paths`,
-   so editing it both reshapes the matrix and triggers a
-   runner-image release. Commit with a `feat(runner-image): ...`
-   message so check-releases picks it up. To retire an Xcode, drop
-   its entry. The `:macos-<dashes>` tag stays in GHCR for
+2. Add the version to `infra/runner-image/profiles.json` with a
+   `feat(runner-image): ...` commit. `runner-image-release.yml`
+   builds the new profile and carries the others over. To retire an
+   Xcode, drop its entry. The `:macos-<dashes>` tag stays in GHCR for
    lingering pins; use `runner-image.yml` dispatch for one-off
    refreshes.
 3. Add a matching `runnersFleet.xcodeVersions` entry in
@@ -241,17 +245,18 @@ automatically roll customer runners to Xcode 26.5. To promote:
    `xcodeOverrides` entry in each of the three managed env values
    files. The catalog entry is what renders the RunnerPool and what
    the Runner Profiles dropdown offers; `default: true` marks the
-   version `runs-on: tuist-macos` resolves to. A catalog entry with
-   no runner image built for it renders a pool that can never pull.
+   version `runs-on: tuist-macos` resolves to. Land this after the
+   `runner-image@` release that publishes the new profile: a catalog
+   entry deployed before it renders a pool whose image does not exist.
 4. Bump the inline `XCODE_VERSION` on
    `server-production-deployment.yml`'s
    `release-xcresult-processor-image.Build image` step in the same
    commit so the processor doesn't lag a newly-active runner profile.
-5. After merge, `release-runner-image` rebuilds
-   `tuist-runner:macos-<xcode-version-dashes>-<semver>` against the
-   new base and the chart's pools pick it up on deploy;
-   `release-xcresult-processor-image` does the same on the next
-   server release.
+5. After merge, `runner-image-release.yml` publishes
+   `tuist-runner:macos-<xcode-version-dashes>-<semver>` and dispatches
+   the deploy that rolls the pools onto it;
+   `release-xcresult-processor-image` rebuilds on the next server
+   release.
 
 ## Promoting an Xcode beta
 
@@ -276,14 +281,9 @@ Once wired, a beta bump needs **no repo change**:
    major: `-downloadAllPlatforms` pulls simulator runtimes Apple
    has not cached anywhere yet, and a ~50 GB upload follows.
 
-The next runner-image release rebuilds the `27.0-beta` profile
-against the moved channel and the deploy rolls the pool. Those fire
-every few days, so the beta lands well inside Apple's fortnightly
-cadence. To skip the wait on an urgent beta, `gh workflow run
-runner-image.yml -f xcode_version=27.0-beta` publishes
-`tuist-runner:macos-27-0-beta-<sha8>` immediately; pin it with an
-`xcodeOverrides["27.0-beta"].imageTag` in the env values files and
-drop the pin once the ordinary release has caught up.
+Moving the channel dispatches `runner-image-release.yml`, which
+rebuilds only the `27.0-beta` profile against it and dispatches the
+deploy that rolls the pool.
 
 The immutable `:27-0-beta-<n>` tags are what make a bad beta
 recoverable: rebuild the runner image from the previous one and

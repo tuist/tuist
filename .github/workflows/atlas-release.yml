@@ -1,0 +1,252 @@
+name: Atlas Release
+
+# Cuts a versioned release of the Atlas image, publishes it to GHCR
+# under `ghcr.io/tuist/atlas:<version>` + `:latest`, records an
+# `atlas@X.Y.Z` git tag + GitHub Release, and rolls the new version
+# out to the atlas-production cluster with `helm upgrade`. Release
+# and deploy live in the same workflow so a merge to `main` ships
+# straight to production — same shape server-deployment.yml uses.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - atlas/**
+      - infra/helm/atlas/**
+      - infra/k8s/atlas/**
+      - mise/tasks/release/components.json
+      - .github/workflows/atlas-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  # Serialize atlas publishing through one ref-independent group: it
+  # derives the next version from the atlas@ tag set and creates a
+  # tag, so two runs must never overlap. Queue rather than cancel so
+  # an in-flight publish is never torn.
+  group: atlas-release
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+
+jobs:
+  check:
+    name: Check for releasable changes
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      should-release: ${{ steps.check.outputs.atlas-should-release }}
+      next-version: ${{ steps.check.outputs.atlas-next-version }}
+      next-version-number: ${{ steps.check.outputs.atlas-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run --skip-tools release:check atlas
+
+  release:
+    name: Release Atlas
+    needs: check
+    if: needs.check.outputs.should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        working-directory: atlas
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^atlas@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff --include-path "atlas/**/*" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "atlas/**/*" --config cliff.toml --repository "../" 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG.md
+        working-directory: atlas
+        run: git cliff --include-path "atlas/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check.outputs.next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        # The repo's default Workflow Permissions is set to
+        # "Read and write permissions", so the auto GITHUB_TOKEN
+        # already has packages:write and can push (and create) the
+        # ghcr.io/tuist/atlas package under the tuist org. Matches
+        # what cache-release.yml uses for ghcr.io/tuist/cache.
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          # Context is the monorepo root so the builder can COPY both
+          # atlas/ and noora/ (atlas depends on noora via `path: "../noora"`).
+          context: .
+          file: atlas/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            ATLAS_VERSION=${{ needs.check.outputs.next-version-number }}
+            MIX_ENV=prod
+          tags: |
+            ghcr.io/tuist/atlas:${{ needs.check.outputs.next-version-number }}
+            ghcr.io/tuist/atlas:latest
+
+      - name: Create Atlas GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Atlas ${{ needs.check.outputs.next-version-number }}
+          tag_name: ${{ needs.check.outputs.next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/atlas:${{ needs.check.outputs.next-version-number }}`
+
+            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+
+  deploy:
+    name: Deploy to atlas-production
+    needs: [check, release]
+    if: needs.check.outputs.should-release == 'true'
+    runs-on: tuist-linux
+    environment:
+      name: production
+      url: https://atlas.tuist.dev
+    timeout-minutes: 20
+    env:
+      HELM_CHART_PATH: infra/helm/atlas
+      HELM_RELEASE_NAME: atlas
+      NAMESPACE: atlas-production
+      IMAGE_TAG: ${{ needs.check.outputs.next-version-number }}
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - uses: 1password/install-cli-action@v4
+
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.ATLAS_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: atlas-production" \
+            --vault atlas-k8s-production --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+
+      - name: Verify cluster reachability
+        # Fail fast if the 1P-stored kubeconfig points at an unreachable
+        # apiserver. Without this, helm upgrade would hang for `--timeout`
+        # against a phantom endpoint and partially mutate cluster state
+        # before erroring.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+
+      - name: Recover stuck release
+        run: |
+          status=$(helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" -o json 2>/dev/null \
+            | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+          echo "Current release status: ${status:-<none>}"
+          case "$status" in
+            pending-install)
+              echo "Release stuck in pending-install; uninstalling."
+              helm uninstall "$HELM_RELEASE_NAME" -n "$NAMESPACE" --wait || true
+              ;;
+            pending-upgrade|pending-rollback)
+              echo "Release stuck in $status; rolling back to last deployed revision."
+              helm rollback "$HELM_RELEASE_NAME" -n "$NAMESPACE" --wait --timeout 5m || true
+              ;;
+          esac
+
+      - name: helm upgrade --install
+        # --force-conflicts: Helm 4 applies chart objects server-side, so a
+        # field previously owned by another manager (e.g. a manual
+        # `kubectl patch` on the atlas-app ExternalSecret's .spec.data) makes
+        # the apply fail with a field-ownership conflict, and the automatic
+        # rollback fails the same way, leaving the release stuck in `failed`.
+        # Forcing conflicts lets Helm's field manager reclaim those fields
+        # instead of erroring, which is the desired outcome: the chart is the
+        # source of truth for the objects it renders.
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            --set image.tag="$IMAGE_TAG" \
+            --set env.SENTRY_RELEASE="$IMAGE_TAG" \
+            --force-conflicts \
+            --rollback-on-failure --timeout 15m --wait
+
+      - name: Diagnostics on failure
+        # Public-repo CI logs are viewable by anyone. Keep this step to
+        # high-level rollout state only. Anything richer than status +
+        # events risks leaking Atlas application log lines (customer
+        # emails, account names) or the shape of ExternalSecret wiring
+        # (1Password vault + item names). Operators fetch describe/logs
+        # from the cluster directly when they actually need them.
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::pod status"
+          kubectl -n "$NAMESPACE" get pods --no-headers 2>&1 \
+            | awk '{print $1, $2, $3, $4, $5}' || true
+          echo "::endgroup::"
+          echo "::group::rollout status"
+          kubectl -n "$NAMESPACE" rollout status deploy/atlas --timeout=30s || true
+          echo "::endgroup::"
+          echo "::group::recent Warning events (reasons only)"
+          kubectl -n "$NAMESPACE" get events \
+            --field-selector type=Warning \
+            --sort-by=.lastTimestamp \
+            -o custom-columns=LAST:.lastTimestamp,REASON:.reason,KIND:.involvedObject.kind 2>&1 \
+            | tail -30 || true
+          echo "::endgroup::"
+
+      - name: Smoke test
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deploy/atlas --timeout=10m
+          kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+            --command -- curl -fsS "http://atlas/ready"

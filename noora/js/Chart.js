@@ -110,6 +110,37 @@ const formatters = {
   formatHours: (el) => (value, _) => {
     return formatHours(value);
   },
+  firstAndLastDate: (el) => {
+    let lastIndex = null;
+    return (value, index) => {
+      if (lastIndex === null) {
+        const chart = echarts.getInstanceByDom(
+          el.querySelector("[data-part='chart']"),
+        );
+        const option = chart?.getOption();
+        const axis =
+          option?.xAxis?.[0] ??
+          option?.xAxis ??
+          option?.yAxis?.[0] ??
+          option?.yAxis;
+        const data = axis?.data;
+        if (Array.isArray(data) && data.length > 0) {
+          lastIndex = data.length - 1;
+        }
+      }
+      if (index !== 0 && index !== lastIndex) {
+        return "";
+      }
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return value;
+      }
+      return date.toLocaleDateString(navigator.language, {
+        day: "numeric",
+        month: "short",
+      });
+    };
+  },
 };
 
 const tooltipFormatters = {

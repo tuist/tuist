@@ -44,7 +44,7 @@ jobs:
     # shape restores the headroom from before the default downsize (#11052).
     runs-on: tuist-linux-large
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:16
@@ -78,7 +78,7 @@ jobs:
           working-directory: .
       - uses: ./.github/actions/mise-install
         with:
-          install: "erlang elixir asdf:aeons/asdf-minio github:ClickHouse/ClickHouse"
+          install: "erlang elixir github:minio/minio github:ClickHouse/ClickHouse"
           cache: "true"
           working-directory: server
       - uses: actions/setup-java@v5

@@ -1,8 +1,8 @@
 ---
-title: "Kura: a distributed build cache for Xcode, Bazel, and Gradle"
+title: "Kura: a distributed cache for the Tuist module cache, Xcode, Bazel, and Gradle"
 category: "engineering"
 tags: ["engineering", "kura", "cache", "infrastructure", "rust", "build-systems"]
-excerpt: "How Tuist built Kura, a distributed build cache in Rust, to serve Xcode, Bazel, and Gradle builds with low latency, bounded resources, and global replication."
+excerpt: "How Tuist built Kura, a distributed build cache in Rust, to serve the Tuist module cache and Xcode, Bazel, and Gradle builds with low latency, bounded resources, and global replication."
 author: pepicrft
 live: true
 cta_title: "Build system caching that works from anywhere."
@@ -141,5 +141,7 @@ We tied the migration to an update of the Tuist command-line tool, which enables
 Getting the resource bounds right was one of the hardest engineering challenges in building Kura, and it took several iterations to arrive at a design we were comfortable operating for other teams. We had to account for the work a node does while serving requests, replicating artifacts, and reclaiming space, while building the Kubernetes foundation that lets us place and operate those nodes across regions. We're proud of what we've put together, and happy with where those iterations led us, even as real workloads continue to teach us where to improve it. We're now increasing capacity in existing regions and adding new ones to meet the cache demands of developers and organizations building with Tuist.
 
 What we want is for any developer to ask their coding agent to set up Tuist for a project and start benefiting from caching right away, whether the next build runs on a laptop, their company's machines, or a hosted runner. Making that possible means **treating caching as a global infrastructure problem**, with useful artifacts available wherever a developer needs them and access that doesn't depend on buying compute from the same provider. Kura brings us closer to that goal, giving us a foundation we can keep extending as more developers, build systems, and regions become part of it.
+
+If you'd like to opt into the new cache, update the Tuist command-line tool to [4.207.0](https://github.com/tuist/tuist/releases/tag/4.207.0) or later. From that version, cache traffic is routed through Kura by default, so updating is all it takes to start using it.
 
 If this resonates with you and you'd like us to help optimize your setup, [let's chat](https://cal.tuist.dev/team/tuist/tuist). Making builds faster is a problem we're obsessed with, and we love working with teams to understand how they build, explore new toolchains, and figure out where caching can make a difference, whether they're starting a new project or improving a setup they've relied on for years.

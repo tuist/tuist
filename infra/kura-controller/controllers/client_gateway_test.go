@@ -52,7 +52,7 @@ func TestClientGatewaySharesRolloutAndPrimaryHandover(t *testing.T) {
 			if err := r.reconcilePublicIngress(ctx, instance); err != nil {
 				t.Fatal(err)
 			}
-			if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
+			if err := r.reconcileGRPCIngress(ctx, instance, nil, nil, ""); err != nil {
 				t.Fatal(err)
 			}
 			if err := r.reconcilePublicCertificate(ctx, instance); err != nil {

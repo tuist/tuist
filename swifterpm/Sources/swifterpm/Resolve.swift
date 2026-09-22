@@ -158,7 +158,15 @@ enum PackageResolver {
     /// Returns true when SwifterPM cannot restore every pinned dependency from
     /// its own source cache. In that case native SwiftPM is the shortest
     /// correct path: it is already responsible for fetching each missing pin.
-    static func shouldUseNativeColdPath(packageDir: URL, cacheRoot: URL) async throws -> Bool {
+    ///
+    /// Registry pins are probed the same way, against the checksum marker the cache keeps
+    /// inside each registry release. Keying the cache path on identity, version and registry
+    /// URL alone is what makes that probe possible without asking the registry anything.
+    static func shouldUseNativeColdPath(
+        packageDir: URL,
+        cacheRoot: URL,
+        registryConfig: RegistryConfig
+    ) async throws -> Bool {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         guard try await fileSystem.exists(resolvedPath.absolutePath) else {
             return true
@@ -175,11 +183,18 @@ enum PackageResolver {
         }
 
         for pin in pins {
-            // A registry source path includes the archive checksum, which is
-            // only available after a registry request. Do not make that extra
-            // request just to probe the cache on a cold installation.
             guard PinKind.isSourceControl(pin.kind) else {
-                return true
+                guard PinKind.isRegistry(pin.kind) else {
+                    return true
+                }
+                guard try await WorkspaceRestorer.cachedRegistrySourceExists(
+                    cacheRoot: cacheRoot,
+                    registryConfig: registryConfig,
+                    pin: pin
+                ) else {
+                    return true
+                }
+                continue
             }
             let source = try Cache.sourcePath(root: cacheRoot, pin: pin)
             guard try await fileSystem.exists(source.appendingPathComponent("Package.swift").absolutePath) else {
@@ -269,12 +284,20 @@ enum PackageResolver {
     /// never saw the removed dependency in the first place.
     ///
     /// Package.resolved is rewritten in place so both the warm and cold
-    /// paths see the pruned seed. `workspace-state.json` is cleared when
-    /// pruning happens, because SwiftPM otherwise re-associates the seed
-    /// with the stale checkout state and still reaches for the orphan.
+    /// paths see the pruned seed. Reachable package manifests are inspected
+    /// from version-specific cached sources or registry downloads before a
+    /// pin is considered orphaned. Unversioned scratch checkouts and local
+    /// repositories may describe another revision and cannot establish reachability.
+    /// If a reachable manifest is unavailable or cannot be evaluated, pruning
+    /// is skipped and normal resolution handles the current requirements.
+    ///
+    /// `workspace-state.json` is cleared when pruning happens, because SwiftPM
+    /// otherwise re-associates the seed with the stale checkout state and still
+    /// reaches for the orphan.
     static func pruneStalePinsIfNeeded(
         packageDir: URL,
         scratchDir: URL,
+        cacheRoot: URL,
         disableSandbox: Bool
     ) async throws {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
@@ -298,8 +321,39 @@ enum PackageResolver {
             disableSandbox: disableSandbox
         )
         for localPackage in localPackages {
-            for dep in try ManifestParser.dependencies(localPackage.manifest) {
-                expectedIdentities.insert(dep.identity.lowercased())
+            for dependency in try ManifestParser.dependencies(localPackage.manifest) {
+                expectedIdentities.insert(dependency.identity.lowercased())
+            }
+        }
+        var identitiesToInspect = Array(expectedIdentities)
+        var inspectedIdentities = Set<String>()
+        while let identity = identitiesToInspect.popLast() {
+            guard inspectedIdentities.insert(identity).inserted,
+                  let pin = resolved.pins.first(where: {
+                      $0.identity.lowercased() == identity
+                  })
+            else {
+                continue
+            }
+
+            // A pin that is not directly declared can still be a valid
+            // transitive dependency. Only prune once every reachable package
+            // has a materialized manifest that we can inspect. If a direct
+            // package is unavailable, retaining the unknown pins is safer than
+            // deleting a valid transitive lock entry.
+            guard let manifest = try? await manifestForPin(
+                pin,
+                scratchDir: scratchDir,
+                cacheRoot: cacheRoot,
+                disableSandbox: disableSandbox
+            ), let dependencies = try? ManifestParser.dependencies(manifest) else {
+                return
+            }
+            for dependency in dependencies {
+                let dependencyIdentity = dependency.identity.lowercased()
+                if expectedIdentities.insert(dependencyIdentity).inserted {
+                    identitiesToInspect.append(dependencyIdentity)
+                }
             }
         }
 
@@ -316,6 +370,39 @@ enum PackageResolver {
         if try await fileSystem.exists(workspaceStatePath.absolutePath) {
             try? await fileSystem.removePath(workspaceStatePath)
         }
+    }
+
+    private static func manifestForPin(
+        _ pin: ResolvedPin,
+        scratchDir: URL,
+        cacheRoot: URL,
+        disableSandbox: Bool
+    ) async throws -> Any? {
+        var candidates: [URL] = []
+        if PinKind.isRegistry(pin.kind),
+           let subpath = try? PinKind.registryDownloadSubpath(pin)
+        {
+            candidates.append(
+                scratchDir
+                    .appendingPathComponent("registry/downloads")
+                    .appendingPathComponent(subpath)
+            )
+        }
+        if let cached = try? Cache.sourcePath(root: cacheRoot, pin: pin) {
+            candidates.append(cached)
+        }
+        for candidate in candidates {
+            guard try await fileSystem.exists(
+                candidate.appendingPathComponent("Package.swift").absolutePath
+            ) else {
+                continue
+            }
+            return try await ManifestLoader.dumpPackage(
+                packageDir: candidate,
+                disableSandbox: disableSandbox
+            )
+        }
+        return nil
     }
 
     /// Load the resolved pins for `packageDir`, resolving fresh only when

@@ -7,12 +7,6 @@
 ---
 # Bazel build insights {#bazel-build-insights}
 
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link> with Bazel selected as the build system
-> - `tuist bazel setup` has been run in the workspace (see <.localized_link href="/guides/features/cache/bazel-cache">Bazel cache</.localized_link>)
-
 Every completed `build`, `test`, and other Bazel command shows up on the project's **Invocations** dashboard: command kind, exit status, start and finish time, duration, and the cache hits, misses, downloads, and uploads that Bazel attributed to that same invocation.
 
 Invocation data is delivered through Bazel's [Build Event Protocol](https://bazel.build/remote/bep). Setup wires it in for you when you run `tuist bazel setup`; no extra flags are required to start seeing invocations.

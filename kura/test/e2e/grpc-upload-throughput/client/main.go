@@ -33,12 +33,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v3"
 )
@@ -377,49 +379,82 @@ type loadResult struct {
 	message  string
 }
 
+// Wire lengths include protobuf bytes, gRPC envelopes and encoded headers,
+// but exclude HTTP/2 and TCP framing.
+type loadWireStats struct{ received atomic.Int64 }
+
+func (s *loadWireStats) TagRPC(ctx context.Context, _ *stats.RPCTagInfo) context.Context { return ctx }
+func (s *loadWireStats) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.Context {
+	return ctx
+}
+func (s *loadWireStats) HandleConn(context.Context, stats.ConnStats) {}
+func (s *loadWireStats) HandleRPC(_ context.Context, event stats.RPCStats) {
+	switch event := event.(type) {
+	case *stats.InPayload:
+		s.received.Add(int64(event.WireLength))
+	case *stats.InHeader:
+		s.received.Add(int64(event.WireLength))
+	case *stats.InTrailer:
+		s.received.Add(int64(event.WireLength))
+	}
+}
+
 // runConcurrentLoad measures the many-small-writes shape used by build caches.
-// All workers share one HTTP/2 connection and begin together, which catches
+// Workers share one HTTP/2 connection by default and begin together, which catches
 // admission policies that are safe for large blobs but reject ordinary burst
 // concurrency independently of actual message size.
 func runConcurrentLoad() error {
 	target := env("LOAD_TARGET", kuraUpstream)
 	operation := env("LOAD_OPERATION", "write")
 	concurrency := envInt("LOAD_CONCURRENCY", 100)
+	connections := envInt("LOAD_CONNECTIONS", 1)
 	requests := envInt("LOAD_REQUESTS", concurrency)
 	keyspace := envInt("LOAD_KEYSPACE", requests)
 	seedBase := envInt("LOAD_SEED_BASE", 1000000)
 	size := envInt("LOAD_SIZE_KB", 256) * 1024
 	chunk := envInt("CHUNK_KB", 64) * 1024
-	if concurrency < 1 || requests < 1 || keyspace < 1 || size < 1 || chunk < 1 {
-		return fmt.Errorf("load concurrency, requests, keyspace, size, and chunk must be positive")
+	if connections < 1 || concurrency < 1 || requests < 1 || keyspace < 1 || size < 1 || chunk < 1 {
+		return fmt.Errorf("load connections, concurrency, requests, keyspace, size, and chunk must be positive")
 	}
 	if operation != "write" && operation != "read" {
 		return fmt.Errorf("LOAD_OPERATION must be write or read")
 	}
 
-	conn, err := grpc.NewClient(target,
+	wireStats := &loadWireStats{}
+	options := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(64<<20)),
-	)
-	if err != nil {
-		return err
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(64 << 20)),
+		grpc.WithStatsHandler(wireStats),
 	}
-	defer conn.Close()
-	client := bs.NewByteStreamClient(conn)
-	readResources := make([]string, requests)
+	if window := envInt("LOAD_STREAM_WINDOW_BYTES", 0); window > 0 {
+		options = append(options, grpc.WithStaticStreamWindowSize(int32(window)))
+	}
+	clients := make([]bs.ByteStreamClient, connections)
+	for index := range clients {
+		conn, err := grpc.NewClient(target, options...)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		clients[index] = bs.NewByteStreamClient(conn)
+	}
+	readResources := make([]string, min(requests, keyspace))
 	if operation == "read" {
-		for request := 0; request < requests; request++ {
-			readResources[request] = readResourceName(size, seedBase+request%keyspace)
+		for request := range readResources {
+			readResources[request] = readResourceName(size, seedBase+request)
 		}
 	}
 
-	for attempt := 0; attempt < 60; attempt++ {
-		if err := uploadBlob(client, 4096, chunk, 900000+attempt); err == nil {
-			break
-		} else if attempt == 59 {
-			return fmt.Errorf("warmup/readiness failed: %w", err)
+	for _, client := range clients {
+		for attempt := 0; attempt < 60; attempt++ {
+			if err := uploadBlob(client, 4096, chunk, 900000+attempt); err == nil {
+				break
+			} else if attempt == 59 {
+				return fmt.Errorf("warmup/readiness failed: %w", err)
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
-		time.Sleep(100 * time.Millisecond)
+
 	}
 
 	jobs := make(chan int)
@@ -427,6 +462,7 @@ func runConcurrentLoad() error {
 	start := make(chan struct{})
 	var workers sync.WaitGroup
 	for worker := 0; worker < concurrency; worker++ {
+		client := clients[worker%len(clients)]
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
@@ -435,7 +471,7 @@ func runConcurrentLoad() error {
 				began := time.Now()
 				var err error
 				if operation == "read" {
-					err = downloadBlob(client, readResources[seed], size)
+					err = downloadBlob(client, readResources[seed%len(readResources)], size)
 				} else {
 					err = uploadBlob(client, size, chunk, seedBase+seed)
 				}
@@ -448,6 +484,9 @@ func runConcurrentLoad() error {
 					code:     status.Code(err),
 					message:  message,
 				}
+				if delay := time.Duration(envInt("LOAD_MIN_REQUEST_MS", 0))*time.Millisecond - time.Since(began); delay > 0 {
+					time.Sleep(delay)
+				}
 			}
 		}()
 	}
@@ -458,6 +497,7 @@ func runConcurrentLoad() error {
 		close(jobs)
 	}()
 
+	wireStats.received.Store(0)
 	wallStarted := time.Now()
 	close(start)
 	workers.Wait()
@@ -498,18 +538,20 @@ func runConcurrentLoad() error {
 		fmt.Printf("first errors=%v\n", firstErrorByCode)
 	}
 	encoded, _ := json.Marshal(map[string]any{
-		"requests":       requests,
-		"operation":      operation,
-		"keyspace":       keyspace,
-		"seed_base":      seedBase,
-		"concurrency":    concurrency,
-		"size_kb":        size / 1024,
-		"wall_ms":        wall.Milliseconds(),
-		"requests_per_s": round2(float64(requests) / wall.Seconds()),
-		"codes":          codesByName,
-		"p50_ms":         percentile(50).Milliseconds(),
-		"p95_ms":         percentile(95).Milliseconds(),
-		"p99_ms":         percentile(99).Milliseconds(),
+		"requests":            requests,
+		"operation":           operation,
+		"keyspace":            keyspace,
+		"seed_base":           seedBase,
+		"concurrency":         concurrency,
+		"connections":         connections,
+		"size_kb":             size / 1024,
+		"wall_ms":             wall.Milliseconds(),
+		"requests_per_s":      round2(float64(requests) / wall.Seconds()),
+		"codes":               codesByName,
+		"p50_ms":              percentile(50).Milliseconds(),
+		"p95_ms":              percentile(95).Milliseconds(),
+		"p99_ms":              percentile(99).Milliseconds(),
+		"received_grpc_bytes": wireStats.received.Load(),
 	})
 	fmt.Printf("LOAD_RESULT_JSON %s\n", encoded)
 	if codesByName[codes.OK.String()] != requests || len(codesByName) != 1 {
@@ -622,6 +664,9 @@ func downloadBlob(client bs.ByteStreamClient, resource string, expectedSize int)
 		return err
 	}
 	received := 0
+	hash := sha256.New()
+	bytesPerSecond := envInt("LOAD_READ_BYTES_PER_SECOND", 0)
+	started := time.Now()
 	for {
 		response, err := stream.Recv()
 		if err == io.EOF {
@@ -631,9 +676,19 @@ func downloadBlob(client bs.ByteStreamClient, resource string, expectedSize int)
 			return err
 		}
 		received += len(response.GetData())
+		hash.Write(response.GetData())
+		if bytesPerSecond > 0 {
+			if delay := time.Duration(float64(received)/float64(bytesPerSecond)*float64(time.Second)) - time.Since(started); delay > 0 {
+				time.Sleep(delay)
+			}
+		}
 	}
 	if received != expectedSize {
 		return fmt.Errorf("read %d bytes, expected %d", received, expectedSize)
+	}
+	parts := strings.Split(resource, "/")
+	if hex.EncodeToString(hash.Sum(nil)) != parts[len(parts)-2] {
+		return fmt.Errorf("download digest does not match resource")
 	}
 	return nil
 }

@@ -24,15 +24,18 @@ public struct XCResultParser: Sendable {
     private let fileSystem: FileSysteming
     private let commandRunner: CommandRunning
     private let ipsCrashReportParser: IPSCrashReportParsing
+    private let coverageParser: XcodeCoverageParsing
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
         commandRunner: CommandRunning = CommandRunner(),
-        ipsCrashReportParser: IPSCrashReportParsing = IPSCrashReportParser()
+        ipsCrashReportParser: IPSCrashReportParsing = IPSCrashReportParser(),
+        coverageParser: XcodeCoverageParsing? = nil
     ) {
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
         self.ipsCrashReportParser = ipsCrashReportParser
+        self.coverageParser = coverageParser ?? XcodeCoverageParser(fileSystem: fileSystem, commandRunner: commandRunner)
     }
 
     private func secondsToMilliseconds(_ seconds: Double) -> Int {
@@ -96,6 +99,18 @@ public struct XCResultParser: Sendable {
             attachmentsDirectory: attachmentsDirectory,
             xcresultPath: path
         )
+    }
+
+    /// Reads the bundle's code coverage against the ``XcodeCoverageManifest`` the client wrote
+    /// into it. Nil for a bundle without a manifest, which has no coverage to tie to a repository.
+    public func parseCoverage(path: AbsolutePath) async throws -> XcodeCoverageReport? {
+        let manifestPath = path.appending(component: XcodeCoverageManifest.fileName)
+        guard try await fileSystem.exists(manifestPath) else { return nil }
+        let manifest = try JSONDecoder().decode(
+            XcodeCoverageManifest.self,
+            from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
+        )
+        return try await coverageParser.parse(resultBundlePath: path, manifest: manifest)
     }
 
     public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {

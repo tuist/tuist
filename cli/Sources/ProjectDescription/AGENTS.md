@@ -17,3 +17,4 @@ This module provides manifest-facing types used to describe projects, targets, a
 ## Related Context
 - cli/Sources/TuistLoader/AGENTS.md
 - cli/Sources/TuistGenerator/AGENTS.md
+- `includeLocalPackageTestTargets` opts local path package tests into generation, including cross-package products available through `Tuist/Package.swift`; remote package tests stay excluded.

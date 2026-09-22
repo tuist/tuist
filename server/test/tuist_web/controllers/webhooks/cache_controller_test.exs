@@ -100,6 +100,47 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
       assert event3.cache_endpoint == "test-cache-node.tuist.dev"
     end
 
+    # A newer Kura node sends event_id and observed_at_ms alongside the fields
+    # the current controller pattern-matches on. An older server must accept
+    # the payload and drop the unknown fields silently, so an on-premise
+    # customer whose Kura upgrades ahead of their server is never blocked. If
+    # a future change to this controller starts rejecting unknown keys, this
+    # test fails and forces a review.
+    test "accepts new-shape events with event_id and observed_at_ms and drops the unknown fields silently",
+         %{conn: conn, project: project} do
+      events_params = %{
+        "events" => [
+          %{
+            "event_id" => "01930c0e-6e2a-7a91-9a1c-1f4e5c2d3a4b",
+            "observed_at_ms" => 1_760_000_000_123,
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "action" => "upload",
+            "size" => 1024,
+            "cas_id" => "abc123-newer-kura"
+          }
+        ]
+      }
+
+      {body, signature} = sign_request(events_params)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "test-cache-node.tuist.dev")
+        |> post(~p"/webhooks/cache", body)
+
+      assert json_response(conn, 202) == %{}
+
+      events = ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
+      assert length(events) == 1
+      [event] = events
+      assert event.action == "upload"
+      assert event.size == 1024
+      assert event.cas_id == "abc123-newer-kura"
+    end
+
     test "rejects requests with invalid signature", %{conn: conn, project: project} do
       # Given
       events_params = %{

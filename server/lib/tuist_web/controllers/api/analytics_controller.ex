@@ -8,6 +8,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.VCS
+  alias Tuist.VCS.RemoteURL
   alias Tuist.Xcode
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
@@ -525,7 +526,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     git_commit_sha = Map.get(body_params, :git_commit_sha)
     git_ref = Map.get(body_params, :git_ref)
-    git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
+    git_remote_url_origin = body_params |> Map.get(:git_remote_url_origin) |> RemoteURL.strip_credentials()
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)

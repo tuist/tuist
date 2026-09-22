@@ -1322,6 +1322,23 @@ defmodule Tuist.TestsTest do
   end
 
   describe "create_test/1" do
+    test "sets the version a created run is kept by instead of leaving it to the server" do
+      # `inserted_at` is the version test_runs keeps the latest row by. Left to
+      # the column default, each ClickHouse server stamps its own clock, so two
+      # servers holding the same writes can keep different versions of a run.
+
+      # When
+      {:ok, test_run} = RunsFixtures.test_fixture()
+
+      # Then
+      assert %NaiveDateTime{} = test_run.inserted_at
+
+      %{rows: [[stored]]} =
+        IngestRepo.query!("SELECT inserted_at FROM test_runs FINAL WHERE id = {id:UUID}", %{"id" => test_run.id})
+
+      assert NaiveDateTime.compare(stored, test_run.inserted_at) == :eq
+    end
+
     test "persists test case runs and their arguments without relying on the asynchronous batch" do
       # Given
       # The client uploads attachments and crash reports as soon as it gets these

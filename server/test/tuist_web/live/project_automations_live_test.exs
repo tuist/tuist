@@ -31,6 +31,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       {:ok, lv, _html} = open(context.conn, context.organization, context.project)
       html = render_hook(lv, "open_create_automation_modal", %{})
       assert html =~ "Counting matching tests"
+      assert html =~ "unless they recover and then match again"
       assert_receive {:counting, first_task, %{"threshold" => 10.0}}
 
       monitor = Process.monitor(first_task)

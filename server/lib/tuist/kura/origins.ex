@@ -45,8 +45,13 @@ defmodule Tuist.Kura.Origins do
   @doc """
   Counts one cache-endpoint resolution from `origin`. Safe from any request:
   one ETS counter update, and a no-op before the buffer has started.
+
+  With `persist: true` the count is written through instead, for a request
+  whose origin placement is about to read on whichever node acts on it.
   """
-  def record_demand(account_id, origin), do: record(account_id, origin, @demand_position)
+  def record_demand(account_id, origin, opts \\ []) do
+    record(account_id, origin, @demand_position, Keyword.get(opts, :persist, false))
+  end
 
   @doc """
   The origin itself, from what the request path resolved. `nil` when it could
@@ -59,7 +64,7 @@ defmodule Tuist.Kura.Origins do
   @doc """
   Counts one cache-using run from `origin`.
   """
-  def record_run(account_id, origin), do: record(account_id, origin, @run_position)
+  def record_run(account_id, origin), do: record(account_id, origin, @run_position, false)
 
   @doc """
   Folds this node's buffer into the day's rollups. Called on the flush timer,
@@ -129,13 +134,13 @@ defmodule Tuist.Kura.Origins do
 
   defp schedule_flush(interval), do: Process.send_after(self(), :flush, interval)
 
-  defp record(account_id, {:ok, origin}, position), do: record(account_id, origin, position)
+  defp record(account_id, {:ok, origin}, position, persist?), do: record(account_id, origin, position, persist?)
 
-  defp record(account_id, origin, position) when is_integer(account_id) and is_binary(origin) do
+  defp record(account_id, origin, position, persist?) when is_integer(account_id) and is_binary(origin) do
     Telemetry.origin_attribution(signal(position), :ok)
     key = {account_id, origin, Date.utc_today()}
 
-    if Environment.kura_demand_write_through_repo?() do
+    if persist? or Environment.kura_demand_write_through_repo?() do
       upsert_all([row_for(key, counts_for(position))])
     else
       :ets.update_counter(@table, key, {position, 1}, {key, 0, 0})
@@ -149,19 +154,19 @@ defmodule Tuist.Kura.Origins do
   # An unattributed request is counted nowhere: see the moduledoc. It is still
   # counted as a request nobody could place, because otherwise an edge that
   # stopped reporting locations is indistinguishable from a quiet fleet.
-  defp record(account_id, {:error, reason}, position) when is_integer(account_id) do
+  defp record(account_id, {:error, reason}, position, _persist?) when is_integer(account_id) do
     Telemetry.origin_attribution(signal(position), reason)
 
     :ok
   end
 
-  defp record(account_id, _origin, position) when is_integer(account_id) do
+  defp record(account_id, _origin, position, _persist?) when is_integer(account_id) do
     Telemetry.origin_attribution(signal(position), :no_location)
 
     :ok
   end
 
-  defp record(_account_id, _origin, _position), do: :ok
+  defp record(_account_id, _origin, _position, _persist?), do: :ok
 
   defp signal(@demand_position), do: :resolution
   defp signal(@run_position), do: :run

@@ -5,10 +5,8 @@ name: Runner Image
 # <branch>` when probing image contents or smoke-testing a Packer
 # change before merging.
 #
-# The push-on-main flow lives in server-production-deployment.yml's runner-image-build +
-# release-runner-image jobs — that's the path that publishes the
-# immutable per-release profile tags and pins
-# runnersFleet.runnerImage in the chart. This workflow's
+# Releases go through runner-image-release.yml, which publishes the
+# immutable per-release profile tags the chart pins. This workflow's
 # `:macos-<dashes>-<git-sha>` tag is dispatch-only and not consumed
 # by the chart.
 #
@@ -26,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       xcode_version:
-        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1, 27.0-beta-6). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin. This is also the build path for betas, which never enter that matrix."
+        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1, 27.0-beta-6). Use this to refresh a profile that's not in profiles.json without cutting a release."
         required: true
       runner_version:
         description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
@@ -76,8 +74,6 @@ jobs:
           RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
         run: |
           set -euo pipefail
-          # Single-profile dispatch. The multi-profile rebuild loop
-          # is in server-production-deployment.yml's runner-image-build matrix.
           BASE_TAG="${XCODE//./-}"
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
           PROFILE="macos-${BASE_TAG}"

@@ -42,15 +42,25 @@ pub fn same_endpoint(a: &str, b: &str) -> bool {
     a.trim_end_matches('/') == b.trim_end_matches('/')
 }
 
-/// The endpoint the CLI would use for `full_handle` right now, or `None` when
-/// it cannot be asked. `None` is not "no endpoint" — the caller keeps what it
-/// has, because a CLI that is missing, unauthenticated or offline says nothing
-/// about where the cache moved.
-pub fn resolve(
-    tuist_bin: &str,
-    server_url: Option<&str>,
-    full_handle: &str,
-) -> Option<ResolvedEndpoint> {
+/// The status `tuist cache config` exits with while the account's cache is
+/// being prepared and has no endpoint yet (`EX_TEMPFAIL`).
+pub const BEING_PREPARED_EXIT_CODE: i32 = 75;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Resolution {
+    /// The endpoint the CLI would use right now.
+    Endpoint(ResolvedEndpoint),
+    /// The account's cache has no endpoint yet and is being prepared, which
+    /// takes seconds.
+    BeingPrepared,
+    /// The CLI could not be asked or gave no usable answer. Not "no endpoint":
+    /// a CLI that is missing, unauthenticated or offline says nothing about
+    /// where the cache moved, so the caller keeps what it has.
+    Unknown,
+}
+
+/// What the CLI answers for `full_handle` right now.
+pub fn resolve(tuist_bin: &str, server_url: Option<&str>, full_handle: &str) -> Resolution {
     let mut command = Command::new(tuist_bin);
     // The full handle is positional, not an option.
     command
@@ -62,11 +72,21 @@ pub fn resolve(
         command.arg("--url").arg(url);
     }
 
-    let output = command.output().ok()?;
-    if !output.status.success() {
-        return None;
+    match command.output() {
+        Ok(output) => resolution_from_output(
+            output.status.code(),
+            &String::from_utf8_lossy(&output.stdout),
+        ),
+        Err(_) => Resolution::Unknown,
     }
-    resolution_from_json(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn resolution_from_output(exit_code: Option<i32>, stdout: &str) -> Resolution {
+    match exit_code {
+        Some(0) => resolution_from_json(stdout).map_or(Resolution::Unknown, Resolution::Endpoint),
+        Some(BEING_PREPARED_EXIT_CODE) => Resolution::BeingPrepared,
+        _ => Resolution::Unknown,
+    }
 }
 
 /// The argv `resolve` runs, so the command's shape is asserted rather than
@@ -206,6 +226,26 @@ mod tests {
 
         assert_eq!(resolution.endpoints, None);
         assert_eq!(resolution.lists("https://acme.kura.tuist.dev"), None);
+    }
+
+    #[test]
+    fn tells_a_cache_being_prepared_apart_from_a_failure() {
+        let stdout = r#"{"url":"https://acme.kura.tuist.dev"}"#;
+
+        assert_eq!(
+            resolution_from_output(Some(BEING_PREPARED_EXIT_CODE), ""),
+            Resolution::BeingPrepared
+        );
+        assert_eq!(resolution_from_output(Some(1), ""), Resolution::Unknown);
+        assert_eq!(resolution_from_output(None, ""), Resolution::Unknown);
+        assert_eq!(
+            resolution_from_output(Some(0), "not json"),
+            Resolution::Unknown
+        );
+        assert_eq!(
+            resolution_from_output(Some(0), stdout),
+            Resolution::Endpoint(resolution_from_json(stdout).unwrap())
+        );
     }
 
     #[test]

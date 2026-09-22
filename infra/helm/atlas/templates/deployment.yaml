@@ -1,0 +1,200 @@
+{{- $appSecret := include "atlas.appSecretName" . -}}
+{{- $pgSecret := include "atlas.postgresAppSecret" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "atlas.fullname" . }}
+  labels:
+    {{- include "atlas.webLabels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      # Keep this on the original immutable Deployment selector. Services and
+      # PDBs use the component-specific web selector below.
+      {{- include "atlas.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        {{- include "atlas.webSelectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "atlas.fullname" . }}
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecretName }}
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        # Wait for CNPG to be reachable, then run migrations. Folded into
+        # the pod's startup rather than a Helm hook to avoid the chicken-
+        # and-egg with the chart's own ServiceAccount / Secret / CNPG
+        # Cluster, which can't be hooks themselves (Cluster would lose
+        # data on each upgrade). Ecto's advisory-lock makes concurrent
+        # migrations across replicas safe — only one wins, the rest no-op.
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Must be bash, not sh — `/dev/tcp/host/port` is a bash builtin.
+          # debian-bookworm-slim's /bin/sh is dash, which silently fails
+          # the probe (ENOENT) and loops forever.
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              echo "Waiting for ${PGHOST}:${PGPORT}…"
+              until (echo > /dev/tcp/$PGHOST/$PGPORT) >/dev/null 2>&1; do sleep 2; done
+              export DATABASE_URL="ecto://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}"
+              exec /app/bin/atlas eval "Atlas.Release.migrate"
+          env:
+            - name: PHX_HOST
+              value: {{ .Values.host | quote }}
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: password
+            - name: PGHOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: host
+            - name: PGPORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: port
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: dbname
+            {{- include "atlas.clickhouseEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ $appSecret }}
+      containers:
+        - name: atlas
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # CNPG exposes credentials via PG* env vars; we splice them
+          # into a libpq-style URL the Phoenix runtime expects, then exec
+          # the release. Done in shell rather than runtime.exs so atlas's
+          # config stays vanilla DATABASE_URL.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              export DATABASE_URL="ecto://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}"
+              exec /app/bin/server
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: PHX_HOST
+              value: {{ .Values.host | quote }}
+            - name: PORT
+              value: {{ .Values.service.targetPort | quote }}
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- if .Values.tuistServer.enabled }}
+            - name: TUIST_SERVER_INTERNAL_URL
+              value: {{ .Values.tuistServer.internalUrl | quote }}
+            - name: TUIST_SERVER_TOKEN_PATH
+              value: {{ printf "%s/token" .Values.tuistServer.tokenMountPath | quote }}
+            {{- end }}
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: password
+            - name: PGHOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: host
+            - name: PGPORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: port
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: dbname
+            {{- include "atlas.clickhouseEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ $appSecret }}
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          lifecycle:
+            preStop:
+              # Give the ingress a beat to stop routing new traffic before
+              # the BEAM shuts down; avoids 502s during a rolling deploy.
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.tuistServer.enabled }}
+          volumeMounts:
+            - name: tuist-server-token
+              mountPath: {{ .Values.tuistServer.tokenMountPath }}
+              readOnly: true
+          {{- end }}
+      {{- if .Values.tuistServer.enabled }}
+      volumes:
+        # Projected ServiceAccount token scoped to the Tuist server audience.
+        # The Tuist server verifies it offline against Atlas' pinned JWKS
+        # (InternalAtlasAuthPlug); the kubelet rotates the file in place.
+        - name: tuist-server-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: {{ .Values.tuistServer.tokenAudience | quote }}
+                  expirationSeconds: {{ .Values.tuistServer.tokenExpirationSeconds }}
+      {{- end }}

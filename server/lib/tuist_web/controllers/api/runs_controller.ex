@@ -15,6 +15,7 @@ defmodule TuistWeb.API.RunsController do
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.Tests
+  alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
@@ -849,6 +850,8 @@ defmodule TuistWeb.API.RunsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    body_params = RemoteURL.strip_credentials_from_params(body_params)
+
     run_params =
       body_params
       |> Map.put(:project, selected_project)

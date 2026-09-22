@@ -415,9 +415,8 @@ internal fun recordingStartedAt(
 
 internal fun <T> downsample(samples: List<T>, maxCount: Int): List<T> {
     if (samples.size <= maxCount || maxCount < 2) return samples
-    val step = (samples.size - 1).toDouble() / (maxCount - 1).toDouble()
     return (0 until maxCount).map { i ->
-        samples[minOf((i * step).toInt(), samples.size - 1)]
+        samples[(i.toLong() * (samples.size - 1) / (maxCount - 1)).toInt()]
     }
 }
 

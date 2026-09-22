@@ -896,28 +896,16 @@ func (prober *fakePeerPathProber) Probe(_ context.Context, address string, _ str
 	return prober.fail[address]
 }
 
-func TestPeerDNSEndpointDeletedWhenFailoverIPMissing(t *testing.T) {
+// With no failover IP the peer record names the box the pods run on, and there
+// is none while no pod is scheduled, as when every pod is being replaced. The
+// record keeps its last target meanwhile rather than going out of DNS, where
+// resolvers would cache the NXDOMAIN.
+func TestPeerDNSEndpointKeptUntilATargetIsKnown(t *testing.T) {
 	ctx := context.Background()
-	scheme := runtime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	scheme.AddKnownTypeWithName(dnsEndpointGVK, &unstructured.Unstructured{})
-	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{dnsEndpointGVK.GroupVersion()})
-	mapper.Add(dnsEndpointGVK, meta.RESTScopeNamespace)
+	scheme, mapper := dnsEndpointScheme(t)
 
-	// A DNSEndpoint left over from when the region's failover IP was configured.
-	existing := &unstructured.Unstructured{}
-	existing.SetGroupVersionKind(dnsEndpointGVK)
-	existing.SetNamespace("kura")
-	existing.SetName("kura-acme-peer-dns")
-
+	existing := publicDNSEndpoint("kura-acme-peer-dns", "peer.acme-eu-west.kura.tuist.dev", "203.0.113.50")
 	instance := hostNetworkPeerInstance("kura-acme", "eu-west", "peer.acme-eu-west.kura.tuist.dev")
-	// No failover IP, and the fake client has no pods, so there is no node-IP
-	// fallback target either -> the stale DNSEndpoint must be torn down.
 	instance.Spec.MeshPeerFailoverIP = ""
 
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing).Build()
@@ -929,8 +917,32 @@ func TestPeerDNSEndpointDeletedWhenFailoverIPMissing(t *testing.T) {
 
 	got := &unstructured.Unstructured{}
 	got.SetGroupVersionKind(dnsEndpointGVK)
+	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-peer-dns", Namespace: "kura"}, got); err != nil {
+		t.Fatalf("expected the peer DNSEndpoint to be kept while no target is known, got %v", err)
+	}
+	if targets := recordTargets(t, got); len(targets) != 1 || targets[0] != "203.0.113.50" {
+		t.Fatalf("expected the record to keep its last target, got %v", targets)
+	}
+}
+
+func TestPeerDNSEndpointDeletedWhenPeerHostCleared(t *testing.T) {
+	ctx := context.Background()
+	scheme, mapper := dnsEndpointScheme(t)
+
+	existing := publicDNSEndpoint("kura-acme-peer-dns", "peer.acme-eu-west.kura.tuist.dev", "203.0.113.10")
+	instance := hostNetworkPeerInstance("kura-acme", "eu-west", "")
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	if err := reconciler.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(dnsEndpointGVK)
 	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-peer-dns", Namespace: "kura"}, got); !apierrors.IsNotFound(err) {
-		t.Fatalf("expected the stale DNSEndpoint to be deleted, got %v", err)
+		t.Fatalf("expected the peer DNSEndpoint to be deleted once the peer host is cleared, got %v", err)
 	}
 }
 

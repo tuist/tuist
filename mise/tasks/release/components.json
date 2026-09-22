@@ -67,6 +67,20 @@
       "include_paths": ["cache/**/*"]
     },
     {
+      "name": "atlas",
+      "tag_prefix": "atlas@",
+      "tag_regex": "^atlas@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "atlas/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": [
+        "atlas/**/*",
+        "infra/helm/atlas/**/*",
+        "infra/k8s/atlas/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/atlas-release.yml"
+      ]
+    },
+    {
       "name": "kura",
       "tag_prefix": "kura@",
       "tag_regex": "^kura@[0-9]+\\.[0-9]+\\.[0-9]+$",

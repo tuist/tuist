@@ -17,6 +17,7 @@ use rocksdb::{
     ReadOptions, WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
+use sha2::Digest as _;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
     sync::{Mutex, Notify, RwLock, Semaphore},
@@ -486,6 +487,7 @@ pub struct AcceleratedArtifactFile {
     pub size: u64,
     pub content_type: String,
     pub version_ms: u64,
+    pub content_sha256: Option<String>,
 }
 
 impl AsyncRead for ArtifactReader {
@@ -677,6 +679,7 @@ struct StagedBackfillSegmentApply {
     location: SegmentLocation,
     size: u64,
     origin_region: Option<String>,
+    content_sha256: Option<String>,
 }
 
 impl StagedBackfillSegmentApply {
@@ -690,6 +693,7 @@ impl StagedBackfillSegmentApply {
             branch: None,
             trunk: None,
             origin_region: self.origin_region.as_deref(),
+            content_sha256: self.content_sha256.as_deref(),
             sync_feed_row,
             server_stamped: false,
         }
@@ -709,6 +713,7 @@ struct StagedBackfillInlineApply {
     artifact_id: String,
     bytes: Vec<u8>,
     origin_region: Option<String>,
+    content_sha256: Option<String>,
 }
 
 impl StagedBackfillInlineApply {
@@ -722,6 +727,7 @@ impl StagedBackfillInlineApply {
             branch: self.branch.as_deref(),
             trunk: None,
             origin_region: self.origin_region.as_deref(),
+            content_sha256: self.content_sha256.as_deref(),
             sync_feed_row,
             server_stamped: false,
         }
@@ -757,6 +763,9 @@ struct PersistArtifactSpec<'a> {
     /// client write, the carried value for a replicated one, `None` when
     /// the peer forwarded none (design §4.1).
     origin_region: Option<&'a str>,
+    /// The uploading client's declared, already-verified SHA-256 of the
+    /// bytes, or the value a peer carried. Never computed here.
+    content_sha256: Option<&'a str>,
     /// Whether the change earns an arrival-feed row (design §3.1's echo
     /// rule): a client write or a cross-region apply does, an apply that
     /// arrived from the sibling never does.
@@ -797,6 +806,8 @@ enum TombstoneVersion {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ApplyProvenance<'a> {
     pub origin_region: Option<&'a str>,
+    /// The content digest the peer's manifest carried, applied unchanged.
+    pub content_sha256: Option<&'a str>,
     pub sync_feed_row: bool,
 }
 
@@ -805,6 +816,7 @@ impl ApplyProvenance<'static> {
     /// routes: it may have crossed a region boundary, so it earns a row.
     pub const PUSHED: Self = Self {
         origin_region: None,
+        content_sha256: None,
         sync_feed_row: true,
     };
 }
@@ -1647,6 +1659,7 @@ impl Store {
         key: &str,
         content_type: &str,
         staged: StagedArtifactPath<'_>,
+        content_sha256: Option<&str>,
     ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -1657,6 +1670,7 @@ impl Store {
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
+            content_sha256,
             sync_feed_row: true,
             server_stamped: true,
         };
@@ -1711,6 +1725,7 @@ impl Store {
             branch: None,
             trunk: None,
             origin_region: provenance.origin_region,
+            content_sha256: provenance.content_sha256,
             sync_feed_row: provenance.sync_feed_row,
             server_stamped: false,
         };
@@ -1921,6 +1936,7 @@ impl Store {
             created_at_ms: persisted_version_ms,
             branch: spec.branch.map(str::to_owned),
             origin_region: spec.origin_region.map(str::to_owned),
+            content_sha256: spec.content_sha256.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -2046,6 +2062,7 @@ impl Store {
                 size: manifest.size,
                 content_type: manifest.content_type.clone(),
                 version_ms: manifest.version_ms,
+                content_sha256: manifest.content_sha256.clone(),
             }));
         }
 
@@ -2058,6 +2075,7 @@ impl Store {
                 size: manifest.size,
                 content_type: manifest.content_type.clone(),
                 version_ms: manifest.version_ms,
+                content_sha256: manifest.content_sha256.clone(),
             }));
         }
 
@@ -2820,6 +2838,7 @@ impl Store {
             created_at_ms: persisted_version_ms,
             branch: branch.map(str::to_owned),
             origin_region: spec.origin_region.map(str::to_owned),
+            content_sha256: spec.content_sha256.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -3016,7 +3035,7 @@ impl Store {
     ) -> Result<(SegmentLocation, Vec<SegmentReference>, u64), String> {
         let drop_cached_pages = file_cache_policy.should_drop(
             self.memory.should_reclaim_file_cache(),
-            self.memory.transient_reserved_bytes(),
+            self.memory.foreground_transient_reserved_bytes(),
         );
         if self.positioned_segment_writes_enabled()
             && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES
@@ -3355,7 +3374,7 @@ impl Store {
                     >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                     && file_cache_policy.should_drop(
                         self.memory.should_reclaim_file_cache(),
-                        self.memory.transient_reserved_bytes(),
+                        self.memory.foreground_transient_reserved_bytes(),
                     )
                 {
                     let destination = writer
@@ -3422,7 +3441,7 @@ impl Store {
             let drop_final_range = copied > advised_through
                 && file_cache_policy.should_drop(
                     self.memory.should_reclaim_file_cache(),
-                    self.memory.transient_reserved_bytes(),
+                    self.memory.foreground_transient_reserved_bytes(),
                 );
             if drop_final_range {
                 let destination = writer
@@ -4756,6 +4775,7 @@ impl Store {
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
+            content_sha256: None,
             sync_feed_row: true,
             server_stamped: true,
         };
@@ -4805,6 +4825,7 @@ impl Store {
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
+            content_sha256: None,
             sync_feed_row: true,
             server_stamped: true,
         };
@@ -4838,6 +4859,7 @@ impl Store {
             branch: None,
             trunk: None,
             origin_region: Some(&self.region),
+            content_sha256: None,
             sync_feed_row: true,
             server_stamped: true,
         };
@@ -4939,6 +4961,7 @@ impl Store {
             branch,
             trunk,
             origin_region: Some(&self.region),
+            content_sha256: None,
             sync_feed_row: true,
             server_stamped: true,
         };
@@ -4974,6 +4997,7 @@ impl Store {
             branch: None,
             trunk: None,
             origin_region: None,
+            content_sha256: None,
             sync_feed_row: false,
             server_stamped: false,
         };
@@ -5046,6 +5070,7 @@ impl Store {
             branch,
             trunk,
             origin_region: provenance.origin_region,
+            content_sha256: provenance.content_sha256,
             sync_feed_row: provenance.sync_feed_row,
             server_stamped: false,
         };
@@ -5076,6 +5101,7 @@ impl Store {
         version_ms: u64,
         branch: Option<&str>,
         origin_region: Option<&str>,
+        content_sha256: Option<&str>,
     ) -> Result<BackfillStageOutcome, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -5086,6 +5112,7 @@ impl Store {
             branch,
             trunk: None,
             origin_region,
+            content_sha256,
             sync_feed_row: batch.feed_rows,
             server_stamped: false,
         };
@@ -5110,6 +5137,7 @@ impl Store {
                 artifact_id,
                 bytes: bytes.to_vec(),
                 origin_region: origin_region.map(str::to_owned),
+                content_sha256: content_sha256.map(str::to_owned),
             }));
         Ok(BackfillStageOutcome::Staged)
     }
@@ -5135,6 +5163,7 @@ impl Store {
         staged: StagedArtifactPath<'_>,
         version_ms: u64,
         origin_region: Option<&str>,
+        content_sha256: Option<&str>,
     ) -> Result<BackfillStageOutcome, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -5145,6 +5174,7 @@ impl Store {
             branch: None,
             trunk: None,
             origin_region,
+            content_sha256,
             sync_feed_row: batch.feed_rows,
             server_stamped: false,
         };
@@ -5181,6 +5211,7 @@ impl Store {
                 location,
                 size,
                 origin_region: origin_region.map(str::to_owned),
+                content_sha256: content_sha256.map(str::to_owned),
             }));
         Ok(BackfillStageOutcome::Staged)
     }
@@ -6069,14 +6100,25 @@ impl Store {
         upload_id: &str,
         expected_parts: &[u32],
     ) -> Result<ArtifactManifest, MultipartError> {
-        self.complete_multipart_upload_and_replicate(upload_id, expected_parts)
+        self.complete_multipart_upload_and_replicate(upload_id, expected_parts, None)
             .await
     }
 
+    /// `expected_sha256`, when the client declared one at complete time, is the
+    /// lowercase hex SHA-256 the ASSEMBLED bytes must reproduce. The assembly
+    /// loop below already streams every byte through a copy buffer, so the hash
+    /// rides that pass for free; a mismatch refuses the persist and DROPS the
+    /// whole session — a whole-object digest cannot say which part is wrong, and
+    /// the client's retry opens a fresh session anyway, so kept parts would only
+    /// hold multipart capacity until the TTL (mirroring the REAPI lane's
+    /// validate_digest_bytes — the artifact key here is an input-derived cache
+    /// key, so this declaration is the only content claim the server can check).
+    /// A verified digest is stored on the manifest and served back on downloads.
     pub async fn complete_multipart_upload_and_replicate(
         &self,
         upload_id: &str,
         expected_parts: &[u32],
+        expected_sha256: Option<&str>,
     ) -> Result<ArtifactManifest, MultipartError> {
         if expected_parts.is_empty()
             || expected_parts.len() > MAX_MULTIPART_PARTS
@@ -6116,6 +6158,7 @@ impl Store {
         let mut assembled_bytes = 0_u64;
         let mut advised_through = 0_u64;
         let mut copy_buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+        let mut hasher = expected_sha256.map(|_| sha2::Sha256::new());
 
         for part_number in expected_parts {
             let part = upload
@@ -6142,6 +6185,9 @@ impl Store {
                 if read == 0 {
                     break;
                 }
+                if let Some(hasher) = hasher.as_mut() {
+                    hasher.update(&copy_buffer[..read]);
+                }
                 assembled
                     .write_all(&copy_buffer[..read])
                     .await
@@ -6154,7 +6200,7 @@ impl Store {
                 assembled_bytes = assembled_bytes.saturating_add(read as u64);
                 if file_cache_policy.should_drop(
                     self.memory.should_reclaim_file_cache(),
-                    self.memory.transient_reserved_bytes(),
+                    self.memory.foreground_transient_reserved_bytes(),
                 ) && assembled_bytes.saturating_sub(advised_through)
                     >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                 {
@@ -6186,6 +6232,27 @@ impl Store {
             MultipartError::Other(format!("failed to flush assembled artifact: {error}"))
         })?;
 
+        // Refuse before persist, and drop the whole session with it: a
+        // whole-object digest cannot say which part is wrong, and the client's
+        // retry opens a fresh session, so kept parts would only hold multipart
+        // capacity. The early return drops `cleanup`, which removes the
+        // assembled temp file.
+        if let (Some(expected), Some(hasher)) = (expected_sha256, hasher) {
+            let actual = hex::encode(hasher.finalize());
+            if actual != expected {
+                if let Err(error) = self.abort_multipart_upload_locked(upload_id).await {
+                    tracing::warn!(
+                        upload_id,
+                        "failed to drop a multipart upload refused for a checksum mismatch; the stale-upload sweep reclaims it: {error}"
+                    );
+                }
+                return Err(MultipartError::ChecksumMismatch {
+                    expected: expected.to_owned(),
+                    actual,
+                });
+            }
+        }
+
         let key = module_key(&upload.category, &upload.hash, &upload.name);
         let manifest = self
             .persist_artifact_from_path_and_replicate(
@@ -6194,6 +6261,7 @@ impl Store {
                 &key,
                 "application/octet-stream",
                 StagedArtifactPath::new(&assembled_path, file_cache_policy),
+                expected_sha256,
             )
             .await
             .map_err(MultipartError::Other)?
@@ -8935,7 +9003,10 @@ fn estimated_manifest_working_bytes(manifest: &ArtifactManifest) -> usize {
         .saturating_add(manifest.key.len())
         .saturating_add(manifest.content_type.len())
         .saturating_add(manifest.blob_path.as_ref().map_or(0, String::len))
-        .saturating_add(manifest.segment_id.as_ref().map_or(0, String::len));
+        .saturating_add(manifest.segment_id.as_ref().map_or(0, String::len))
+        .saturating_add(manifest.branch.as_ref().map_or(0, String::len))
+        .saturating_add(manifest.origin_region.as_ref().map_or(0, String::len))
+        .saturating_add(manifest.content_sha256.as_ref().map_or(0, String::len));
     std::mem::size_of::<ArtifactManifest>()
         .saturating_add(strings)
         .saturating_mul(2)
@@ -9265,6 +9336,13 @@ impl ExistenceCache {
 fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
+    let optional_branch = manifest.branch.as_deref().map(str::len).unwrap_or(0);
+    let optional_origin_region = manifest.origin_region.as_deref().map(str::len).unwrap_or(0);
+    let optional_content_sha256 = manifest
+        .content_sha256
+        .as_deref()
+        .map(str::len)
+        .unwrap_or(0);
     // The artifact id has one allocation inside the manifest and one shared
     // by the HashMap key and AccessOrder's BTreeMap value. The retained
     // manifest has one allocation header for its reference counts.
@@ -9274,6 +9352,9 @@ fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
         + manifest.content_type.len()
         + optional_blob_path
         + optional_segment_id
+        + optional_branch
+        + optional_origin_region
+        + optional_content_sha256
         + std::mem::size_of::<ArtifactManifest>()
         + std::mem::size_of::<usize>() * 2
 }
@@ -10377,6 +10458,7 @@ mod tests {
                         branch: None,
                         trunk: None,
                         origin_region: None,
+                        content_sha256: None,
                         sync_feed_row: false,
                         server_stamped: true,
                     };
@@ -10863,6 +10945,7 @@ mod tests {
             peer_tls: None,
             public_tls: None,
             https_port: 0,
+            gateway_grpc_port: None,
             accelerated_file_serving: AcceleratedFileServingConfig {
                 enabled: true,
                 mode: AcceleratedFileServingMode::Splice,
@@ -12584,6 +12667,7 @@ mod tests {
                 StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
                 version_ms,
                 None,
+                None,
             )
             .await
             .expect("segmented record should stage")
@@ -12606,6 +12690,7 @@ mod tests {
                 "application/octet-stream",
                 body,
                 version_ms,
+                None,
                 None,
                 None,
             )
@@ -13349,12 +13434,86 @@ mod tests {
             created_at_ms: 90,
             branch: None,
             origin_region: None,
+            content_sha256: None,
         });
 
         let first = cache.get("artifact").expect("manifest should be cached");
         let second = cache.get("artifact").expect("manifest should stay cached");
 
         assert!(Arc::ptr_eq(&first, &second));
+    }
+
+    #[test]
+    fn manifest_size_estimates_count_the_content_digest() {
+        let undeclared = ArtifactManifest {
+            artifact_id: "artifact".into(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".into(),
+            key: "key".into(),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".into()),
+            segment_offset: Some(1024),
+            size: 512 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: None,
+            origin_region: None,
+            content_sha256: None,
+        };
+        let declared = ArtifactManifest {
+            content_sha256: Some("0".repeat(64)),
+            ..undeclared.clone()
+        };
+
+        assert_eq!(
+            estimated_manifest_bytes(&declared) - estimated_manifest_bytes(&undeclared),
+            64
+        );
+        assert_eq!(
+            estimated_manifest_working_bytes(&declared)
+                - estimated_manifest_working_bytes(&undeclared),
+            128
+        );
+    }
+
+    #[test]
+    fn manifest_size_estimates_count_branch_and_origin_region() {
+        let without = ArtifactManifest {
+            artifact_id: "artifact".into(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "namespace".into(),
+            key: "key".into(),
+            content_type: "application/octet-stream".into(),
+            inline: false,
+            blob_path: None,
+            segment_id: Some("segment".into()),
+            segment_offset: Some(1024),
+            size: 512 * 1024,
+            version_ms: 100,
+            created_at_ms: 90,
+            branch: None,
+            origin_region: None,
+            content_sha256: None,
+        };
+        let branch = "feature/manifest-accounting".repeat(8);
+        let origin_region = "eu-central".to_owned();
+        let with = ArtifactManifest {
+            branch: Some(branch.clone()),
+            origin_region: Some(origin_region.clone()),
+            ..without.clone()
+        };
+        let strings = branch.len() + origin_region.len();
+
+        assert_eq!(
+            estimated_manifest_bytes(&with) - estimated_manifest_bytes(&without),
+            strings
+        );
+        assert_eq!(
+            estimated_manifest_working_bytes(&with) - estimated_manifest_working_bytes(&without),
+            strings * 2
+        );
     }
 
     #[test]
@@ -13381,6 +13540,7 @@ mod tests {
             created_at_ms: 90,
             branch: Some("branch".repeat(16)),
             origin_region: None,
+            content_sha256: None,
         });
 
         let measure = |clone_under_lock: bool| {
@@ -13461,6 +13621,7 @@ mod tests {
             created_at_ms: 90,
             branch: Some("branch".repeat(16)),
             origin_region: None,
+            content_sha256: None,
         });
 
         let measure = |retained: bool| {
@@ -13941,6 +14102,7 @@ mod tests {
             created_at_ms: 100,
             branch: None,
             origin_region: None,
+            content_sha256: None,
         };
 
         store
@@ -17040,6 +17202,7 @@ mod tests {
             created_at_ms,
             branch: None,
             origin_region: None,
+            content_sha256: None,
         };
         let record = encode_manifest_record(&manifest).expect("manifest should encode");
         (artifact_id, record)
@@ -18679,7 +18842,7 @@ mod tests {
                 .is_err()
         );
         store
-            .complete_multipart_upload_and_replicate(&uploads[0], &[1])
+            .complete_multipart_upload_and_replicate(&uploads[0], &[1], None)
             .await
             .expect("a session above the reduced cap should still complete");
         assert_eq!(store.snapshot().unwrap().multipart_uploads, 8);
@@ -18708,6 +18871,41 @@ mod tests {
         store
             .try_start_multipart_upload("acme", "ios", "builds", "recovered", "Module")
             .expect("recovered headroom should admit another session");
+    }
+
+    #[tokio::test]
+    async fn multipart_completion_beyond_the_window_fits_beside_other_uploads() {
+        const MIB: u64 = 1024 * 1024;
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.memory_soft_limit_bytes = 64 * MIB;
+            config.memory_hard_limit_bytes = 128 * MIB;
+        });
+        assert_eq!(store.memory.transient_capacity_bytes(), 64 * MIB);
+        let upload_id = store
+            .try_start_multipart_upload("acme", "ios", "builds", "large", "Module")
+            .expect("session should start");
+        for part_number in 1..=2 {
+            let part = config.tmp_dir.join(format!("part-{part_number}"));
+            std::fs::write(&part, vec![0_u8; 10 * MIB as usize]).expect("part should be written");
+            store
+                .add_multipart_part(&upload_id, part_number, &part, 10 * MIB)
+                .await
+                .expect("part should upload");
+        }
+        // Assembly copies parts already on disk under the bounded policy, so it
+        // is charged one drop interval rather than the whole window.
+        let _other_uploads = store
+            .memory
+            .try_reserve_foreground_memory(48 * MIB)
+            .expect("the pool should admit the other uploads");
+
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            store.complete_multipart_upload_and_replicate(&upload_id, &[1, 2], None),
+        )
+        .await
+        .expect("completion should not queue behind the other uploads")
+        .expect("completion should succeed");
     }
 
     #[test]
@@ -18956,6 +19154,7 @@ mod tests {
                             &key,
                             "application/octet-stream",
                             StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
+                            None,
                         )
                         .await
                 } else {

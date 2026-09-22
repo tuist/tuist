@@ -48,10 +48,14 @@ struct InspectTestCommandServiceTests {
         given(xcResultService)
             .parse(path: .any, rootDirectory: .any)
             .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: []))
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
 
         given(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -96,6 +100,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,
@@ -137,6 +142,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
@@ -181,6 +187,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
@@ -251,6 +258,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
                 config: .any,
                 shardPlanId: .any,
@@ -329,6 +337,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .any,
                 config: .any,
                 shardPlanId: .any,
@@ -370,6 +379,7 @@ struct InspectTestCommandServiceTests {
         verify(uploadResultBundleService)
             .uploadTestSummary(
                 testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(nil),
                 config: .any,
                 shardPlanId: .any,

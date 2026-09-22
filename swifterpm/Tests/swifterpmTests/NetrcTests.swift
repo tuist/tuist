@@ -290,7 +290,25 @@ struct NetrcTests {
             let defaults = try await Netrc.resolve(
                 SwifterPMNetrcConfiguration(), environment: [:])
             #expect(defaults.swiftPackageArguments.isEmpty)
+
+            let keychainDisabled = try await Netrc.resolve(
+                SwifterPMNetrcConfiguration(disableKeychain: true), environment: [:])
+            #expect(keychainDisabled.swiftPackageArguments == ["--disable-keychain"])
         }
+    }
+
+    @Test
+    func disableKeychainSurfacesOnNetrc() async throws {
+        // `HTTPAuthorization.header` gates `KeychainAuthorization.credential(for:)`
+        // on this flag, matching SwiftPM's `getAuthorizationProvider`. A regression
+        // that fails to thread it into `Environment.netrc` silently re-enables the
+        // OS credential store for source-control and binary artifact downloads.
+        let enabled = try await Netrc.resolve(SwifterPMNetrcConfiguration(), environment: [:])
+        #expect(!enabled.keychainDisabled)
+
+        let disabled = try await Netrc.resolve(
+            SwifterPMNetrcConfiguration(disableKeychain: true), environment: [:])
+        #expect(disabled.keychainDisabled)
     }
 
     @Test

@@ -178,7 +178,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let project = Project.test(
@@ -242,7 +241,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [missingPluginPath]
         )
         let project = Project.test(name: "TestProject", settings: .test(base: [:]))
@@ -278,7 +276,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let project = Project.test(name: "TestProject", settings: .test(base: [:]))
@@ -320,7 +317,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let project = Project.test(
@@ -392,39 +388,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(mappedProject.settings.base["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
     }
 
-    @Test(.inTemporaryDirectory, .withMockedXcodeController)
-    func map_whenKuraDisabled_addsLegacyRemoteServiceSettings() async throws {
-        // Given: no kura flag → the legacy per-project daemon path
-        try stubXcodeVersion(Version(26, 0, 0))
-        let fullHandle = "test-org/test-project"
-        let tuist = Tuist(
-            project: .generated(
-                .test(
-                    generationOptions: .test(enableCaching: true)
-                )
-            ),
-            fullHandle: fullHandle,
-            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            url: Constants.URLs.production
-        )
-        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist, kuraEnabled: false)
-        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
-
-        // When
-        let (mappedProject, _) = try await subject.map(project: project)
-
-        // Then: Xcode's built-in remote-cache service (daemon socket), not the plugin
-        let baseSettings = mappedProject.settings.base
-        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
-        #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
-        #expect(
-            baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
-                == .string(Environment.current.cacheSocketPathString(for: fullHandle))
-        )
-        #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == nil)
-        #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
-    }
-
     /// A target that overrides `OTHER_SWIFT_FLAGS` without `$(inherited)` shadows the
     /// project-level flags entirely, so `-cas-plugin-option tuist-instance=<handle>` is
     /// never handed to the compiler frontend for that target. With `-cache-compile-job`
@@ -452,7 +415,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         // A Notification Service Extension–style target: `OTHER_SWIFT_FLAGS` set at the
@@ -526,7 +488,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let inheritingTarget = Target.test(
@@ -584,7 +545,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let debugConfiguration = Configuration.test(
@@ -643,7 +603,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let project = Project.test(name: "TestProject", settings: .test(base: [:]))
@@ -655,6 +614,98 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(
             mappedProject.settings.base["COMPILATION_CACHE_PLUGIN_PATH"]
                 == .string("$HOME/.local/share/mise/libtuist_cas_plugin.dylib")
+        )
+    }
+
+    /// The copy `tuist setup cache` installs keeps the same path across Tuist versions,
+    /// so it wins over the plugin shipped inside a versioned install.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, .withMockedEnvironment())
+    func map_whenSetupInstalledThePlugin_writesTheInstalledPluginPath() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let installedPluginPath = Environment.current.casPluginInstallPath()
+        let shippedPluginPath = Environment.current.homeDirectory
+            .appending(components: [
+                ".local",
+                "share",
+                "mise",
+                "installs",
+                "tuist",
+                "4.206.0",
+                "bin",
+                "libtuist_cas_plugin.dylib",
+            ])
+        for pluginPath in [installedPluginPath, shippedPluginPath] {
+            try await FileSystem().makeDirectory(at: pluginPath.parentDirectory)
+            try await FileSystem().touch(pluginPath)
+        }
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginCandidates: [installedPluginPath, shippedPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then
+        #expect(
+            mappedProject.settings.base["COMPILATION_CACHE_PLUGIN_PATH"]
+                == .string("$HOME/.local/state/tuist/libtuist_cas_plugin.dylib")
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController, .withMockedEnvironment())
+    func map_whenSetupDidNotInstallThePlugin_writesTheShippedPluginPath() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 0, 0))
+        let installedPluginPath = Environment.current.casPluginInstallPath()
+        let shippedPluginPath = Environment.current.homeDirectory
+            .appending(components: [
+                ".local",
+                "share",
+                "mise",
+                "installs",
+                "tuist",
+                "4.206.0",
+                "bin",
+                "libtuist_cas_plugin.dylib",
+            ])
+        try await FileSystem().makeDirectory(at: shippedPluginPath.parentDirectory)
+        try await FileSystem().touch(shippedPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginCandidates: [installedPluginPath, shippedPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then
+        #expect(
+            mappedProject.settings.base["COMPILATION_CACHE_PLUGIN_PATH"]
+                == .string("$HOME/.local/share/mise/installs/tuist/4.206.0/bin/libtuist_cas_plugin.dylib")
         )
     }
 
@@ -683,7 +734,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let project = Project.test(name: "TestProject", settings: .test(base: [:]))
@@ -719,7 +769,6 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
-            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let project = Project.test(name: "TestProject", settings: .test(base: [:]))

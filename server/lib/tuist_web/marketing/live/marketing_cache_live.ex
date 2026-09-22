@@ -7,15 +7,10 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Stats
-  alias TuistWeb.Marketing.Design
   alias TuistWeb.Marketing.SocialCards
 
   embed_templates "marketing_cache_live/*"
-  # The redesigned template lives in new/; the suffix keeps its function name
-  # (cache_new/1) distinct from the legacy cache/1.
-  embed_templates "marketing_cache_live/new/*", suffix: "_new"
 
-  def render(%{new_design: true} = assigns), do: cache_new(assigns)
   def render(assigns), do: cache(assigns)
 
   def mount(_params, session, socket) do
@@ -35,8 +30,6 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
       # the request's CSP nonce (only the dead render matters — CSP is
       # enforced against the initial response's header).
       |> assign(:csp_nonce, get_csp_nonce())
-
-    socket = assign(socket, :new_design, Design.new?(socket.assigns[:current_user]))
 
     {:ok, socket}
   end

@@ -863,6 +863,60 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
     }
 }
 
+struct GenerateAcceptanceTestAppWithSPMFrameworkBundleIdentifiers {
+    @Test(.withFixture("generated_app_with_spm_framework_bundle_identifiers"), .inTemporaryDirectory)
+    func app_with_spm_framework_bundle_identifiers() async throws {
+        let fixturePath = try fixtureDirectory()
+        let derivedData = try derivedDataPath()
+        let commandRunner = CommandRunner()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await commandRunner.runAndWait(arguments: [
+            "/usr/bin/xcodebuild", "build",
+            "-workspace", fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS Simulator",
+            "-derivedDataPath", derivedData.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        let appPath = derivedData.appending(components: "Build", "Products", "Debug-iphonesimulator", "App.app")
+        let bundleIdentifiers = try ["IssueReporting", "_IssueReporting"].map { framework in
+            let plistPath = appPath.appending(components: "Frameworks", "\(framework).framework", "Info.plist")
+            let plist = try #require(
+                try PropertyListSerialization.propertyList(from: Data(contentsOf: plistPath.url), format: nil)
+                    as? [String: Any]
+            )
+            return try #require(plist["CFBundleIdentifier"] as? String)
+        }
+        #expect(Set(bundleIdentifiers).count == 2)
+
+        try await TestingSimulators.acquiringPoolLock {
+            let simulatorID = try await commandRunner.run(arguments: [
+                "/usr/bin/xcrun", "simctl", "create", "BundleIdentifiers-\(UUID().uuidString)", "iPhone 16 Pro",
+            ]).concatenatedString(including: [.standardOutput]).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            do {
+                try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorID])
+                try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "bootstatus", simulatorID, "-b"])
+                try await commandRunner.runAndWait(arguments: [
+                    "/usr/bin/xcrun", "simctl", "install", simulatorID, appPath.pathString,
+                ])
+                try await commandRunner.runAndWait(arguments: [
+                    "/usr/bin/xcrun", "simctl", "launch", simulatorID, "dev.tuist.BundleIdentifiers",
+                ])
+            } catch {
+                try? await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorID])
+                throw error
+            }
+            try await commandRunner.runAndWait(arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorID])
+        }
+    }
+}
+
 struct GenerateAcceptanceTestAppWithNativePackageStaticChain {
     /// Pins package compiler-setting propagation through static target chains while ensuring
     /// package object files are linked only by the final binary.
