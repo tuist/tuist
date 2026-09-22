@@ -12,7 +12,6 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
   setup :set_mimic_global
 
   setup do
-    start_supervised!({Registry, keys: :unique, name: AnthropicSupervisor.registry()})
     start_supervised!({Task.Supervisor, name: AnthropicSupervisor.task_supervisor()})
     :ok
   end

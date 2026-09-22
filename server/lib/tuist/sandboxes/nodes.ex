@@ -1,102 +1,71 @@
 defmodule Tuist.Sandboxes.Nodes do
   @moduledoc """
-  Registry of connected sandboxd nodes and the request/response bridge
-  onto their WebSocket processes.
+  Cluster-wide view of the connected sandboxd nodes and the
+  request/response bridge onto their WebSocket processes.
 
-  Each `TuistWeb.SandboxNodeWebSock` registers itself under its node name
-  on `hello` and keeps the value (capacity, templates, sandboxes) fresh
-  from `report` frames. `call/4` sends a command to the socket process and
+  Each `TuistWeb.SandboxNodeWebSock` tracks itself in
+  `Tuist.Sandboxes.NodePresence` under its node name on `hello`, keeps
+  the meta (capacity, templates, sandboxes) fresh from `report` frames
+  and subscribes to the node's command topic. `call/4` broadcasts a
+  command on that topic from whichever replica the caller runs on and
   blocks the caller until the node's `result` frame arrives, relaying
-  `stream` frames to an optional callback in between. Registry entries
+  `stream` frames to an optional callback in between. Presences
   disappear with the socket process, so a node is "connected" exactly
-  while its socket is alive.
+  while its socket is alive somewhere in the cluster.
 
   Callers inside the application always use `call/4` with an explicit
   options list, so the call can be intercepted as one function in tests.
   """
 
-  @registry __MODULE__
+  alias Phoenix.PubSub
+  alias Tuist.Sandboxes.NodePresence
+
+  @pubsub Tuist.PubSub
+  @presence_topic "sandbox_nodes"
   @default_timeout to_timeout(minute: 1)
   @long_timeout to_timeout(second: 120)
-  @supersede_timeout to_timeout(second: 5)
-  @supersede_poll_ms 50
 
-  def child_spec(_opts) do
-    Registry.child_spec(keys: :unique, name: @registry)
-  end
+  def presence_topic, do: @presence_topic
 
-  def register(node_name, info) when is_binary(node_name) and is_map(info) do
-    register(node_name, info, 1)
-  end
+  def topic(node_name) when is_binary(node_name), do: "sandbox_node:" <> node_name
 
-  defp register(node_name, info, retries) do
-    case Registry.register(@registry, node_name, info) do
-      {:ok, _owner} ->
-        :ok
+  @doc """
+  Runs on the socket process: subscribes it to the node's command topic,
+  tells any older socket for the same node name to close and tracks the
+  socket's presence with `info` plus its pid, Erlang node and connection
+  time.
+  """
+  def track(node_name, info) when is_binary(node_name) and is_map(info) do
+    :ok = PubSub.subscribe(@pubsub, topic(node_name))
+    :ok = PubSub.broadcast_from(@pubsub, self(), topic(node_name), :sandbox_node_superseded)
+    meta = Map.merge(info, %{pid: self(), node: node(), connected_at: DateTime.utc_now()})
 
-      {:error, {:already_registered, pid}} when retries > 0 ->
-        supersede(node_name, pid)
-        register(node_name, info, retries - 1)
-
-      {:error, {:already_registered, _pid}} ->
-        {:error, :already_registered}
+    case NodePresence.track(self(), @presence_topic, node_name, meta) do
+      {:ok, _ref} -> :ok
+      {:error, reason} -> {:error, reason}
     end
-  end
-
-  # A reconnect from the same node is a fresh hello: the previous socket
-  # is told to close and waited on until it exits or gives the name up,
-  # then killed if it does neither, so the new one can register.
-  defp supersede(node_name, pid) do
-    ref = Process.monitor(pid)
-    send(pid, :sandbox_node_superseded)
-    deadline = System.monotonic_time(:millisecond) + @supersede_timeout
-    await_release(node_name, pid, ref, deadline)
-  end
-
-  defp await_release(node_name, pid, ref, deadline) do
-    receive do
-      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-    after
-      @supersede_poll_ms ->
-        cond do
-          not registered_to?(node_name, pid) ->
-            Process.demonitor(ref, [:flush])
-            :ok
-
-          System.monotonic_time(:millisecond) >= deadline ->
-            Process.exit(pid, :kill)
-
-            receive do
-              {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-            after
-              @supersede_timeout -> :ok
-            end
-
-          true ->
-            await_release(node_name, pid, ref, deadline)
-        end
-    end
-  end
-
-  defp registered_to?(node_name, pid) do
-    match?([{^pid, _info}], Registry.lookup(@registry, node_name))
-  end
-
-  def unregister(node_name) when is_binary(node_name) do
-    Registry.unregister(@registry, node_name)
   end
 
   def update(node_name, info) when is_binary(node_name) and is_map(info) do
-    case Registry.update_value(@registry, node_name, fn _ -> info end) do
-      {_new, _old} -> :ok
-      :error -> {:error, :not_connected}
+    case NodePresence.update(self(), @presence_topic, node_name, &Map.merge(&1, info)) do
+      {:ok, _ref} -> :ok
+      {:error, _reason} -> {:error, :not_connected}
     end
   end
 
+  def untrack(node_name) when is_binary(node_name) do
+    :ok = NodePresence.untrack(self(), @presence_topic, node_name)
+    PubSub.unsubscribe(@pubsub, topic(node_name))
+  end
+
   def lookup(node_name) when is_binary(node_name) do
-    case Registry.lookup(@registry, node_name) do
-      [{pid, info}] -> {:ok, pid, info}
-      [] -> {:error, :not_connected}
+    case NodePresence.get_by_key(@presence_topic, node_name) do
+      %{metas: [_ | _] = metas} ->
+        %{pid: pid} = meta = latest(metas)
+        {:ok, pid, info(meta)}
+
+      _none ->
+        {:error, :not_connected}
     end
   end
 
@@ -107,11 +76,17 @@ defmodule Tuist.Sandboxes.Nodes do
   end
 
   def connected_nodes do
-    @registry
-    |> Registry.select([{{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2", :"$3"}}]}])
-    |> Enum.map(fn {name, pid, info} -> Map.merge(info, %{name: name, pid: pid}) end)
+    @presence_topic
+    |> NodePresence.list()
+    |> Enum.map(fn {name, %{metas: metas}} -> metas |> latest() |> info() |> Map.put(:name, name) end)
     |> Enum.sort_by(& &1.name)
   end
+
+  # A node reconnecting before its previous socket is gone has two
+  # presences for a moment; the newest connection is the live one.
+  defp latest(metas), do: Enum.max_by(metas, & &1.connected_at, DateTime)
+
+  defp info(meta), do: Map.drop(meta, [:phx_ref, :phx_ref_prev])
 
   @doc """
   Picks the node a sandbox should run on. A sandbox that already lives
@@ -148,7 +123,10 @@ defmodule Tuist.Sandboxes.Nodes do
   end
 
   @doc """
-  Sends `op` with `args` to the node and waits for its result.
+  Sends `op` with `args` to the node and waits for its result. The
+  command is broadcast on the node's topic, so it reaches the socket on
+  whichever replica holds it; the socket process is monitored so a
+  socket that dies mid-call answers `{:error, :node_disconnected}`.
 
   Options:
 
@@ -164,7 +142,7 @@ defmodule Tuist.Sandboxes.Nodes do
     with {:ok, pid, _info} <- lookup(node_name) do
       ref = make_ref()
       monitor = Process.monitor(pid)
-      send(pid, {:sandbox_command, ref, to_string(op), args, self()})
+      :ok = PubSub.broadcast(@pubsub, topic(node_name), {:sandbox_command, ref, to_string(op), args, self()})
       deadline = System.monotonic_time(:millisecond) + timeout
       await(ref, monitor, deadline, on_stream)
     end

@@ -342,11 +342,11 @@ defmodule Tuist.Application do
         {Cachex, [:tuist, []]},
         Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
+        Tuist.Sandboxes.NodePresence,
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         Tuist.Kura.Demand,
         Tuist.Kura.Origins,
-        Tuist.Sandboxes.Nodes,
         TuistCommon.GitHub.RateLimit,
         TuistWeb.Telemetry
       ] ++
@@ -517,9 +517,9 @@ defmodule Tuist.Application do
     end
   end
 
-  # The Anthropic work pollers run on every web pod (each polls with its
-  # own worker id; the queue hands an item to one of them). Tests drive
-  # the poller and manager directly.
+  # Every web pod runs the manager; the pollers it starts are cluster
+  # singletons (`:global`), so the fleet polls each environment once.
+  # Tests drive the poller and manager directly.
   defp sandboxes_children do
     if Environment.web?() and not Environment.test?() do
       [Tuist.Sandboxes.Anthropic.Supervisor]

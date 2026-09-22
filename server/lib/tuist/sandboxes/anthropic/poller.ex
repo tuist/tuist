@@ -2,6 +2,10 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   @moduledoc """
   One long-polling loop per enabled agent environment.
 
+  One instance runs per environment in the whole cluster: the poller is
+  registered under a `:global` name, so a second replica starting it
+  gets `already_started`.
+
   Every iteration blocks on the work queue for up to 999ms. A session
   item is acknowledged right away (the queue's unacknowledged lease is a
   few seconds, shorter than a VM resume) and handed to
@@ -20,7 +24,6 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
 
   require Logger
 
-  @registry Tuist.Sandboxes.Anthropic.PollerRegistry
   @task_supervisor Tuist.Sandboxes.Anthropic.TaskSupervisor
   @block_ms 999
   @idle_delay_ms 250
@@ -30,20 +33,20 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
 
   def start_link(opts) do
     agent_environment_id = Keyword.fetch!(opts, :agent_environment_id)
-    GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, via(agent_environment_id)))
+    GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, name(agent_environment_id)))
   end
 
-  def via(agent_environment_id), do: {:via, Registry, {@registry, agent_environment_id}}
+  def name(agent_environment_id), do: {:global, {__MODULE__, agent_environment_id}}
 
   def whereis(agent_environment_id) do
-    case Registry.lookup(@registry, agent_environment_id) do
-      [{pid, _value}] -> pid
-      [] -> nil
+    case :global.whereis_name({__MODULE__, agent_environment_id}) do
+      :undefined -> nil
+      pid -> pid
     end
   end
 
   def running_agent_environment_ids do
-    Registry.select(@registry, [{{:"$1", :_, :_}, [], [:"$1"]}])
+    for {__MODULE__, agent_environment_id} <- :global.registered_names(), do: agent_environment_id
   end
 
   def worker_id, do: "tuist-#{node()}"

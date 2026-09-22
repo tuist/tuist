@@ -1,11 +1,13 @@
 defmodule TuistWeb.SandboxNodeWebSock do
   @moduledoc """
   Server side of a sandboxd node connection (protocol in
-  `infra/sandboxd/AGENTS.md`). Registers the node in
-  `Tuist.Sandboxes.Nodes` on `hello`, turns `{:sandbox_command, ...}`
-  messages from `Nodes.call/4` into `command` frames and routes the
-  node's `result`/`stream` frames back to the waiting caller by id.
-  Events and reports go straight to the `Tuist.Sandboxes` context.
+  `infra/sandboxd/AGENTS.md`). Tracks the node in
+  `Tuist.Sandboxes.NodePresence` and subscribes to its command topic on
+  `hello` (both through `Tuist.Sandboxes.Nodes`), turns the
+  `{:sandbox_command, ...}` messages `Nodes.call/4` broadcasts into
+  `command` frames and routes the node's `result`/`stream` frames back
+  to the waiting caller by id. Events and reports go straight to the
+  `Tuist.Sandboxes` context.
   """
 
   @behaviour WebSock
@@ -17,7 +19,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   @impl WebSock
   def init(%{node_name: node_name}) do
-    {:ok, %{node_name: node_name, registered?: false, pending: %{}, next_id: 1, info: empty_info()}}
+    {:ok, %{node_name: node_name, tracked?: false, pending: %{}, next_id: 1, info: empty_info()}}
   end
 
   defp empty_info do
@@ -41,7 +43,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
   defp handle_frame("hello", frame, state) do
     info = merge_info(state.info, frame)
 
-    case register(state, info) do
+    case track(state, info) do
       :ok ->
         Logger.info("sandboxes: node connected",
           node: state.node_name,
@@ -52,7 +54,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
         )
 
         :ok = Sandboxes.reconcile_node_report(state.node_name, frame)
-        {:ok, %{state | registered?: true, info: info}}
+        {:ok, %{state | tracked?: true, info: info}}
 
       {:error, reason} ->
         Logger.warning("sandboxes: node registration failed", node: state.node_name, reason: inspect(reason))
@@ -107,11 +109,21 @@ defmodule TuistWeb.SandboxNodeWebSock do
   end
 
   @impl WebSock
+  # Commands arrive over the node's PubSub topic, which an older socket for
+  # the same node may still be subscribed to for a moment after a reconnect.
+  # Only the socket presence currently names for the node forwards them, so
+  # a command in that window runs once.
   def handle_info({:sandbox_command, ref, op, args, from}, state) do
-    id = "c#{state.next_id}"
-    frame = JSON.encode!(%{type: "command", id: id, op: op, args: args})
-    pending = Map.put(state.pending, id, {ref, from})
-    {:push, {:text, frame}, %{state | next_id: state.next_id + 1, pending: pending}}
+    case Nodes.lookup(state.node_name) do
+      {:ok, pid, _info} when pid == self() ->
+        id = "c#{state.next_id}"
+        frame = JSON.encode!(%{type: "command", id: id, op: op, args: args})
+        pending = Map.put(state.pending, id, {ref, from})
+        {:push, {:text, frame}, %{state | next_id: state.next_id + 1, pending: pending}}
+
+      _superseded_or_untracked ->
+        {:ok, state}
+    end
   end
 
   def handle_info(:sandbox_node_superseded, state) do
@@ -126,7 +138,7 @@ defmodule TuistWeb.SandboxNodeWebSock do
     node_name = Map.get(state, :node_name)
     pending = Map.get(state, :pending, %{})
 
-    if Map.get(state, :registered?) and is_binary(node_name), do: Nodes.unregister(node_name)
+    if Map.get(state, :tracked?) and is_binary(node_name), do: Nodes.untrack(node_name)
 
     Enum.each(pending, fn {_id, {ref, from}} ->
       send(from, {:sandbox_result, ref, {:error, :node_disconnected}})
@@ -141,10 +153,10 @@ defmodule TuistWeb.SandboxNodeWebSock do
     :ok
   end
 
-  defp register(%{registered?: true} = state, info), do: Nodes.update(state.node_name, info)
-  defp register(state, info), do: Nodes.register(state.node_name, info)
+  defp track(%{tracked?: true} = state, info), do: Nodes.update(state.node_name, info)
+  defp track(state, info), do: Nodes.track(state.node_name, info)
 
-  defp put_info(%{registered?: true} = state, info) do
+  defp put_info(%{tracked?: true} = state, info) do
     _ = Nodes.update(state.node_name, info)
     %{state | info: info}
   end

@@ -6,8 +6,10 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
   alias Tuist.Sandboxes.Nodes
   alias TuistWeb.SandboxNodeWebSock
 
-  # The test process plays the socket process: it runs the callbacks,
-  # so `Nodes.call/4` from a task lands its command message here.
+  # The test process plays the socket process: it runs the callbacks, so
+  # it is the process tracked in presence and subscribed to the node's
+  # topic, and a `Nodes.call/4` from any other process lands its command
+  # message here.
   setup do
     stub(Sandboxes, :reconcile_node_report, fn _node, _report -> :ok end)
     node_name = "node-#{System.unique_integer([:positive])}"
@@ -32,7 +34,17 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
     )
   end
 
-  test "hello registers the node with its templates and reconciles its sandboxes", %{
+  # Presence converges asynchronously, so lookups right after a track or
+  # an untrack are polled briefly instead of asserted once.
+  defp eventually(fun, attempts \\ 50) do
+    cond do
+      fun.() -> true
+      attempts == 0 -> false
+      true -> Process.sleep(10) && eventually(fun, attempts - 1)
+    end
+  end
+
+  test "hello tracks the node with its templates and reconciles its sandboxes", %{
     node_name: node_name,
     state: state
   } do
@@ -45,20 +57,31 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
     end)
 
     assert {:ok, state} = SandboxNodeWebSock.handle_in(text(report), state)
-    assert state.registered?
+    assert state.tracked?
     assert_received :reconciled
+    assert eventually(fn -> Nodes.connected?(node_name) end)
 
-    assert [%{name: ^node_name, templates: [%{name: "default", tag: "sha-1", ready: true}], capacity: %{cpus: 32}}] =
-             Enum.filter(Nodes.connected_nodes(), &(&1.name == node_name))
+    assert [
+             %{
+               name: ^node_name,
+               templates: [%{name: "default", tag: "sha-1", ready: true}],
+               capacity: %{cpus: 32},
+               pid: pid,
+               node: erlang_node,
+               connected_at: %DateTime{}
+             }
+           ] = Enum.filter(Nodes.connected_nodes(), &(&1.name == node_name))
 
+    assert pid == self()
+    assert erlang_node == node()
     assert {:ok, node_name} == Nodes.node_with_capacity(%{node_name: nil, template: "default"})
     assert {:error, :no_node} == Nodes.node_with_capacity(%{node_name: nil, template: "missing"})
 
     assert :ok = SandboxNodeWebSock.terminate(:normal, state)
-    refute Nodes.connected?(node_name)
+    assert eventually(fn -> not Nodes.connected?(node_name) end)
   end
 
-  test "commands round-trip through the socket and stream frames reach the caller", %{
+  test "a call from a process that did not track the socket reaches it and stream frames reach the caller", %{
     node_name: node_name,
     state: state
   } do
@@ -72,6 +95,7 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
       end)
 
     assert_receive {:sandbox_command, ref, "exec", %{sandbox_id: "s1"}, from}
+    assert from == task.pid
 
     assert {:push, {:text, frame}, state} =
              SandboxNodeWebSock.handle_info(
@@ -110,12 +134,32 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
 
     assert :ok = SandboxNodeWebSock.terminate(:remote, state)
     assert {:error, :node_disconnected} = Task.await(task)
-    refute Nodes.connected?(node_name)
+    assert eventually(fn -> not Nodes.connected?(node_name) end)
     assert {:error, :not_connected} = Nodes.call(node_name, "create", %{}, [])
   end
 
+  test "a socket that dies mid-call fails the call with node_disconnected", %{node_name: node_name} do
+    test_pid = self()
+
+    {:ok, socket} =
+      Task.start(fn ->
+        {:ok, state} = SandboxNodeWebSock.init(%{node_name: node_name})
+        {:ok, _state} = SandboxNodeWebSock.handle_in(text(hello(node_name)), state)
+        send(test_pid, :tracked)
+
+        receive do
+          {:sandbox_command, _ref, "exec", _args, _from} -> :ok
+        end
+      end)
+
+    assert_receive :tracked
+    assert eventually(fn -> match?({:ok, ^socket, _info}, Nodes.lookup(node_name)) end)
+
+    assert {:error, :node_disconnected} = Nodes.call(node_name, "exec", %{sandbox_id: "s1", cmd: ["ls"]}, [])
+  end
+
   test "a reconnect supersedes the previous socket", %{node_name: node_name, state: state} do
-    {:ok, _state} = SandboxNodeWebSock.handle_in(text(hello(node_name)), state)
+    {:ok, state} = SandboxNodeWebSock.handle_in(text(hello(node_name)), state)
 
     replacement =
       Task.async(fn ->
@@ -127,10 +171,10 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
 
     assert_receive :sandbox_node_superseded
 
-    assert {:stop, :normal, {1000, "superseded"}, _state} =
+    assert {:stop, :normal, {1000, "superseded"}, state} =
              SandboxNodeWebSock.handle_info(:sandbox_node_superseded, state)
 
-    Nodes.unregister(node_name)
+    assert :ok = SandboxNodeWebSock.terminate(:normal, state)
 
     assert {pid, _state} = Task.await(replacement)
     assert pid == replacement.pid
