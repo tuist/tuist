@@ -879,7 +879,7 @@ defmodule TuistWeb.Marketing.MarketingController do
             {dgettext("marketing", "What counts as cache egress and requests?"),
              dgettext(
                "marketing",
-               "Egress is the data your builds download from Tuist's caches, across the module, Xcode, Gradle, Bazel, Nx, and Metro caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
+               "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
              )},
             {dgettext("marketing", "Is usage on Tuist Runners billed differently?"),
              dgettext(

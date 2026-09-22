@@ -2572,11 +2572,6 @@ msgstr ""
 msgid "Cache requests"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:87
-#, elixir-autogen, elixir-format
-msgid "Data downloaded from the module, Xcode, Gradle, Bazel, Nx, and Metro caches. Uploads and storage are free."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "Downloads served from any of your caches."
@@ -2585,11 +2580,6 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Each download from a cache is one request. Every cache shares one allowance each billing period, and requests from Tuist Runners count at half."
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:880
-#, elixir-autogen, elixir-format
-msgid "Egress is the data your builds download from Tuist's caches, across the module, Xcode, Gradle, Bazel, Nx, and Metro caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:93
@@ -2660,4 +2650,14 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "per additional million"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Data downloaded from the Module, Xcode, Gradle, and Bazel caches. Uploads and storage are free."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:880
+#, elixir-autogen, elixir-format
+msgid "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
 msgstr ""
