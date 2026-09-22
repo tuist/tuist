@@ -342,6 +342,16 @@ struct REAPICacheClientTests {
         #expect(try REAPICompression.decompress(compressed + compressed, size: 200_000) == input + input)
     }
 
+    /// The production guards with their seconds scaled down: a message is still allowed the time
+    /// it takes at `slowestBytesPerSecond`, which is what keeps a slow transfer from being cut,
+    /// but a test does not wait minutes to watch a stalled one give up.
+    private static var impatientGuards: REAPICacheClient.TransferGuards {
+        var guards = REAPICacheClient.TransferGuards()
+        guards.idleTimeout = .milliseconds(200)
+        guards.slowestBytesPerSecond = 512 * 1024
+        return guards
+    }
+
     /// Incompressible, so a plan that cuts a read after a byte count cuts both encodings.
     private static func blob(_ size: Int) -> Data {
         var generator = SystemRandomNumberGenerator()
@@ -434,7 +444,7 @@ struct REAPICacheClientTests {
             let client = try await REAPICacheClient(
                 endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
                 accountHandle: "account", instanceName: "project",
-                transferIdleTimeout: .milliseconds(300)
+                guards: Self.impatientGuards
             ) { "token" }
             let path = directory.appending(component: "stalled").url
             let start = ContinuousClock.now
@@ -446,6 +456,71 @@ struct REAPICacheClientTests {
             #expect(start.duration(to: .now) < .seconds(10))
             #expect(try Data(contentsOf: path) == body)
             #expect(await state.readOffsets[digest] == [0, 8192, 16384])
+        }
+    }
+
+    /// A message counts as activity only once it is whole, and Kura chunks reads at 512 KiB, so on
+    /// a slow link the first message can take far longer than the idle timeout on its own.
+    @Test(.inTemporaryDirectory) func waitsOutAMessageThatTakesLongerThanTheIdleTimeout() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(256 * 1024)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        // Longer than the 200 ms idle timeout, well inside the 1 s a 512 KiB message is allowed.
+        await state.plan([.delayFirstMessage(.milliseconds(700))], for: digest)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireBytes(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards
+            ) { "token" }
+            let path = directory.appending(component: "slow-first-message").url
+
+            try await client.downloadBlob(digest, to: path)
+
+            #expect(try Data(contentsOf: path) == body)
+            // One read, so the slow first message was waited out rather than cut and retried.
+            #expect(await state.readOffsets[digest] == [0])
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func retriesAnUploadThatStalls() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(3 * 1024 * 1024)
+        let digest = REAPI.digest(body)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+        await state.planWrites([.hang(after: 1024 * 1024)])
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state), WireBytes(state: state), WireCapabilities(),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards
+            ) { "token" }
+
+            try await client.uploadBlobs([digest: source])
+
+            // The stalled attempt was cut and the blob uploaded again from its first byte.
+            #expect(await state.writeAttempts == 2)
+            #expect(await state.blobs[digest] == body)
         }
     }
 
@@ -529,6 +604,17 @@ private actor WireCache {
         guard var plans = readPlans[digest], let plan = plans.first else { return .complete }
         plans.removeFirst()
         readPlans[digest] = plans
+        return plan
+    }
+
+    /// What each successive ByteStream write does, consumed in order.
+    private var writePlans: [WritePlan] = []
+    var writeAttempts = 0
+    func planWrites(_ plans: [WritePlan]) { writePlans = plans }
+    func nextWritePlan() -> WritePlan {
+        writeAttempts += 1
+        guard let plan = writePlans.first else { return .complete }
+        writePlans.removeFirst()
         return plan
     }
 
@@ -636,6 +722,16 @@ private enum ReadPlan: Sendable {
     case cut(after: Int)
     /// Serves this many bytes, then delivers nothing further.
     case hang(after: Int)
+    /// Waits, then serves the rest of the blob, the way a slow link delivers a large message.
+    case delayFirstMessage(Duration)
+}
+
+/// How a scripted ByteStream write ends.
+private enum WritePlan: Sendable {
+    /// Accepts the whole blob.
+    case complete
+    /// Accepts this many bytes, then stops reading the request.
+    case hang(after: Int)
 }
 
 private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
@@ -658,9 +754,10 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
             data = try REAPICompression.compress(Data(data))[...]
             await state.recordCompressedRead()
         }
+        if case let .delayFirstMessage(delay) = plan { try await Task.sleep(for: delay) }
         let served: Int
         switch plan {
-        case .complete: served = data.count
+        case .complete, .delayFirstMessage: served = data.count
         case let .cut(after), let .hang(after): served = min(after, data.count)
         }
         let payload = Data(data.prefix(served))
@@ -669,7 +766,7 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
                 .write(.with { $0.data = payload.subdata(in: offset ..< min(offset + 16384, payload.count)) })
         }
         switch plan {
-        case .complete: return
+        case .complete, .delayFirstMessage: return
         case .cut: throw RPCError(code: .unavailable, message: "Injected mid-stream failure")
         case .hang: try await Task.sleep(for: .seconds(30))
         }
@@ -679,6 +776,7 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
         request: RPCAsyncSequence<Google_Bytestream_WriteRequest, any Error>,
         context _: ServerContext
     ) async throws -> Google_Bytestream_WriteResponse {
+        let plan = await state.nextWritePlan()
         var data = Data()
         var digest: REAPI.Digest?
         var finished = false
@@ -691,6 +789,7 @@ private struct WireBytes: Google_Bytestream_ByteStream.SimpleServiceProtocol {
             compressed = message.resourceName.contains("/compressed-blobs/zstd/")
             data.append(message.data)
             finished = message.finishWrite
+            if case let .hang(after) = plan, data.count >= after { try await Task.sleep(for: .seconds(30)) }
         }
         let expected = try #require(digest)
         #expect(finished)

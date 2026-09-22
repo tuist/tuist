@@ -27,14 +27,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private let compression = Mutex((stream: false, batchUpload: false))
     private let fileSystem: FileSysteming
     private let token: @Sendable () async throws -> String
-    private let transferIdleTimeout: Duration
+    private let guards: TransferGuards
 
     public init(
         endpoint: GRPCEndpoint,
         accountHandle: String,
         instanceName: String,
         fileSystem: FileSysteming = FileSystem(),
-        transferIdleTimeout: Duration = REAPICacheClient.defaultTransferIdleTimeout,
+        guards: TransferGuards = .default,
         token: @escaping @Sendable () async throws -> String
     ) async throws {
         var clients: [GRPCClient<HTTP2ClientTransport.Posix>] = []
@@ -61,7 +61,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         self.accountHandle = accountHandle
         self.token = token
         self.fileSystem = fileSystem
-        self.transferIdleTimeout = transferIdleTimeout
+        self.guards = guards
     }
 
     deinit {
@@ -87,40 +87,69 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         return options
     }
 
-    /// How long a transfer may deliver nothing before its attempt is given up on. A read then
-    /// resumes from the byte it reached, so this is the guard a stalled transfer hits, not a
-    /// wall-clock limit on a transfer that keeps receiving data.
-    public static let defaultTransferIdleTimeout: Duration = .seconds(30)
+    /// What a transfer is held to while it runs.
+    public struct TransferGuards: Sendable {
+        /// How long a transfer may be idle on top of the time its largest message legitimately
+        /// takes. A read then resumes from the byte it reached, so this is the guard a stalled
+        /// transfer hits, not a wall-clock limit on a transfer that keeps receiving data.
+        public var idleTimeout: Duration = .seconds(30)
 
-    /// The slowest link a transfer's deadline is sized for. It only bounds a trickle: an idle
-    /// transfer is cut by `transferIdleTimeout`, and a read that is cut resumes where it stopped.
-    private static let slowestBytesPerSecond: Int64 = 4096
+        /// The slowest link a transfer is sized for, used for both call deadlines and for how
+        /// long a message may legitimately take to arrive.
+        public var slowestBytesPerSecond: Int64 = 4096
+
+        /// The largest message a server is expected to send, which is what the idle guard waits
+        /// for before the first message of a transfer arrives. Kura reads chunk at 512 KiB.
+        public var largestExpectedMessageBytes: Int64 = 512 * 1024
+
+        public init() {}
+
+        public static let `default` = TransferGuards()
+    }
 
     /// Cap on consecutive read attempts that get no further into a blob. An attempt that reaches
     /// further resets it, so a download that keeps progressing keeps resuming.
     private static let maximumStalledReadAttempts = 3
 
+    /// How much of a blob one upload message carries.
+    private static let uploadChunkBytes = 1024 * 1024
+
     /// A deadline for a call carrying `bytes`, which a link at `slowestBytesPerSecond` meets.
     private func options(forBytes bytes: Int64) -> CallOptions {
         var options = options
-        options.timeout = .seconds(120 + max(0, bytes) / Self.slowestBytesPerSecond)
+        options.timeout = .seconds(120 + max(0, bytes) / guards.slowestBytesPerSecond)
         return options
     }
 
-    /// Runs `operation`, failing it once `heartbeat` has not been called for `transferIdleTimeout`.
+    /// Runs `operation`, failing it once nothing has been transferred for longer than a message
+    /// may take. `heartbeat` reports the bytes of each message as it is sent or received, because
+    /// a message only counts as activity once it is whole: a link at `slowestBytesPerSecond`
+    /// needs `bytes / slowestBytesPerSecond` for one, and cutting sooner would abandon a transfer
+    /// that is still being delivered.
     private func withIdleGuard<T: Sendable>(
-        _ operation: @escaping @Sendable (@escaping @Sendable () -> Void) async throws -> T
+        expectedMessageBytes: Int,
+        _ operation: @escaping @Sendable (@escaping @Sendable (Int) -> Void) async throws -> T
     ) async throws -> T {
-        let lastActivity = Mutex(ContinuousClock.now)
+        let state = Mutex(IdleGuardState(largestMessageBytes: Int64(expectedMessageBytes)))
+        let guards = guards
         return try await withThrowingTaskGroup(of: IdleGuardOutcome<T>.self) { group in
             group.addTask {
-                .delivered(try await operation { lastActivity.withLock { $0 = ContinuousClock.now } })
+                .delivered(try await operation { bytes in
+                    state.withLock {
+                        $0.lastActivity = ContinuousClock.now
+                        $0.largestMessageBytes = max($0.largestMessageBytes, Int64(bytes))
+                    }
+                })
             }
             group.addTask {
                 while true {
-                    let idleFor = lastActivity.withLock { ContinuousClock.now - $0 }
-                    guard idleFor < self.transferIdleTimeout else { return .idle }
-                    try await Task.sleep(for: self.transferIdleTimeout - idleFor)
+                    let allowance = state.withLock {
+                        guards.idleTimeout
+                            + .seconds($0.largestMessageBytes / guards.slowestBytesPerSecond)
+                            - (ContinuousClock.now - $0.lastActivity)
+                    }
+                    guard allowance > .zero else { return .idle }
+                    try await Task.sleep(for: allowance)
                 }
             }
             defer { group.cancelAll() }
@@ -131,13 +160,18 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         }
     }
 
+    private struct IdleGuardState {
+        var lastActivity = ContinuousClock.now
+        var largestMessageBytes: Int64
+    }
+
     private enum IdleGuardOutcome<T: Sendable>: Sendable {
         case delivered(T)
         case idle
     }
 
-    /// Whether a failed read attempt can be resumed. A refusal of the request itself, such as a
-    /// missing blob or rejected credentials, is not retried; a transfer that broke is.
+    /// Whether a failed transfer can be tried again. A refusal of the request itself, such as a
+    /// missing blob or rejected credentials, is not retried; a transfer that broke or stalled is.
     private static func isResumable(_ error: any Error) -> Bool {
         if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
         guard let error = error as? RPCError else { return false }
@@ -198,12 +232,21 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private func retry<T>(_ operation: () async throws -> T) async throws -> T {
         var attempt = 0
         while true {
-            do { return try await operation() } catch let error as RPCError {
-                guard attempt < 2, [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code) else { throw error }
+            do { return try await operation() } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                guard attempt < 2, Self.isRetryable(error) else { throw error }
                 try await Task.sleep(for: .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100)))
                 attempt += 1
             }
         }
+    }
+
+    /// A transfer that stalled is tried again like a transient server failure: a write carries the
+    /// blob from its first byte, so the attempt it replaces delivered nothing that can be kept.
+    private static func isRetryable(_ error: any Error) -> Bool {
+        if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
+        guard let error = error as? RPCError else { return false }
+        return [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code)
     }
 
     private func batches(_ digests: [REAPI.Digest]) -> [[REAPI.Digest]] {
@@ -408,7 +451,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         let sentBytes = Mutex<Int64>(0)
         // A write cannot resume: a stream carries the blob from its first byte, and the committed
         // size of an unfinished upload is not reported, so a broken attempt starts over.
-        let committedSize = try await withIdleGuard { heartbeat in
+        let committedSize = try await withIdleGuard(expectedMessageBytes: Self.uploadChunkBytes) { heartbeat in
             let request = StreamingClientRequest<Google_Bytestream_WriteRequest>(
                 metadata: try await self.metadata()
             ) { writer in
@@ -418,7 +461,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 var offset: Int64 = 0
                 var consumed: Int64 = 0
                 repeat {
-                    let input = try handle.read(upToCount: 1024 * 1024) ?? Data()
+                    let input = try handle.read(upToCount: Self.uploadChunkBytes) ?? Data()
                     consumed += Int64(input.count)
                     guard consumed <= digest.sizeBytes, !input.isEmpty || consumed == digest.sizeBytes else {
                         throw REAPICacheError.corruptBlob
@@ -435,7 +478,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         })
                         offset += Int64(data.count)
                         sentBytes.withLock { $0 = offset }
-                        heartbeat()
+                        heartbeat(data.count)
                     }
                 } while consumed < digest.sizeBytes
             }
@@ -523,7 +566,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         // the hash describe the same prefix of the blob.
         try handle.truncate(atOffset: UInt64(offset))
         try handle.seek(toOffset: UInt64(offset))
-        try await withIdleGuard { heartbeat in
+        try await withIdleGuard(expectedMessageBytes: Int(guards.largestExpectedMessageBytes)) { heartbeat in
             try await Google_Bytestream_ByteStream.Client(wrapping: self.client).read(
                 .with {
                     $0.resourceName = "\(self.instanceName)/\(encoding)/\(digest.hash)/\(digest.sizeBytes)"
@@ -541,7 +584,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                     progress.consumed(data)
                 }
                 for try await message in response.messages {
-                    heartbeat()
+                    heartbeat(message.data.count)
                     if let decoder { try decoder.decode(message.data, consume: consume) } else { try consume(message.data) }
                 }
                 // A stream that ends early is resumed instead of being called corrupt, so the
