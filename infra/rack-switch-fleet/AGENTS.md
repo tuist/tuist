@@ -80,9 +80,21 @@ also resets the connection budget, which is about seven per boot and decides how
 much fits. `locate` and `ports` cost nothing, `preflight` one, `recover` two,
 `replace` two and a reboot.
 
-**Required, on ber1-tor-b.** Its running configuration is correct and its
-startup configuration still says DHCP, so it comes back on the wrong address
-until this is done.
+**Done on 2026-09-23.** `ber1-tor-b` came back on DHCP at 192.168.0.82 as
+predicted; `locate` found it, `recover` put it back and saved, and its startup
+configuration now carries the static address. `ber1-tor-a` confirmed clean.
+Kept below as the procedure for the next switch that moves.
+
+Two things the real run showed. `recover`'s first session always leaks a
+terminal line, because changing the address ends the session before a logout can
+reach the switch; it now clears that line itself, in the session that saves.
+And a save written by the switch from its running configuration puts the
+firmware's `#` padding back, while one pushed by `replace` does not, so the
+committed backup flips between the two forms. Only padding changes; the diff
+ignores it.
+
+`clear line <tid>` was also exercised for the first time, on the line that
+leak left, and freed it.
 
 1. `mise run rack:fleet locate ber1-tor-b`
 2. `mise run rack:fleet recover ber1-tor-b --from <where locate found it>`

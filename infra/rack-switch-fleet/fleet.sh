@@ -465,7 +465,7 @@ cmd_preflight() {
   echo "terminal lines on $name (this connection is one of them):"
   tr -d '\000\r' < "$users" | sed -n '/tid/,$p' | sed '/^[[:space:]]*$/d;$d' | sed 's/^/  /'
   local used
-  used="$(tr -d '\000\r' < "$users" | grep -oE 'tSsh[0-9]+' | head -1 | tr -dc '0-9')"
+  used="$(fleet_current_connection < "$users")"
   if [ -n "$used" ]; then
     echo "  this is connection $(( 10#$used + 1 )) since boot, of about seven before the daemon stops accepting"
   fi
@@ -587,7 +587,10 @@ cmd_recover() {
     switch_open "$from" "$user" "$key" || exit 10
     switch_run "configure" 30 || exit 11
     switch_run "interface vlan $vlan" 30 || exit 12
-    switch_run "ip address $address $netmask" 20 || exit 0
+    # Its failure is the session dropping as the address moves, which is the
+    # expected outcome; whether the address actually took is checked in session
+    # two, so the driver's timeout message would only read as a false alarm.
+    switch_run "ip address $address $netmask" 20 2>/dev/null || echo "session dropped as the address moved, as expected"
   ) || setup=$?
   case "$setup" in
     0)  ;;
@@ -623,6 +626,15 @@ cmd_recover() {
     switch_run "$RUNNING_CONFIG" 90 || exit 12
     printf '%s' "$SWITCH_OUTPUT" | tr -d '\r' | grep -qF "ip address $address $netmask" || exit 21
     switch_run "copy running-config startup-config" 60 || exit 13
+    # Session one could not log out, because changing the address is what ended
+    # it, so its line is still held and counts against the five concurrent
+    # clients. Saved already, so none of this is fatal.
+    if switch_run "show users" 20; then
+      leaked="$(printf '%s' "$SWITCH_OUTPUT" | fleet_predecessor_line)"
+      if [ -n "$leaked" ] && switch_run "clear line $leaked" 20; then
+        echo "cleared line $leaked, which session one left behind"
+      fi
+    fi
   ) || status=$?
   case "$status" in
     0)  ;;

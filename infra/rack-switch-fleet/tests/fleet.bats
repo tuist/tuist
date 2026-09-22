@@ -1185,6 +1185,7 @@ while IFS= read -r line; do
         logout) exit 0;;
         "show system-info") printf ' System Name          - %s\r\n' "$FAKE_NAME";;
         "show running-config") printf '%s\r\n' "$FAKE_RUNNING";;
+        "show users") printf 'tid\tvty\tname\tsock\ttype\r\n4\t---\ttSsh00\t7\tSSH\r\n5\t---\ttSsh01\t9\tSSH\r\n';;
     esac
     printf '\r\nsw#'
 done
@@ -1260,6 +1261,12 @@ run_recover() {
     # one session to move it, one to verify and save
     run grep -c '^SESSION' "$bin/log"
     [ "$output" = "2" ]
+    # and the line session one could not log out of is cleared, after the save
+    run grep -c 'CMD clear line 4' "$bin/log"
+    [ "$output" = "1" ]
+    run bash -c "grep -n 'CMD copy running-config\\|CMD clear line' '$bin/log' | cut -d: -f1 | paste -sd' ' -"
+    set -- $output
+    [ "$1" -lt "$2" ]
 }
 
 # --- zero touch: serving DHCP and TFTP on an isolated segment ----------------
@@ -1364,4 +1371,34 @@ STUB
         ber1-tor-b --interface zzz0 --dry-run
     [ "$status" -eq 0 ]
     [[ "$output" == *"dnsmasq"* ]]
+}
+
+# --- reading show users, from real output on 2026-09-23 ----------------------
+
+@test "the current connection is the newest task, not the first one listed" {
+    # Preflight on ber1-tor-b listed tSsh00 (a line recover leaked) and tSsh02
+    # (itself), and reported "connection 1" because it read the first match.
+    users="$(printf 'tid\tvty\tname\tsock\ttype\n4\t---\ttSsh00\t7\tSSH\n5\t---\ttSsh02\t9\tSSH\n')"
+    run fleet_sh "printf '%s' '$users' | fleet_current_connection"
+    [ "$output" = "02" ]
+}
+
+@test "recover's leaked line is the task directly below the session that follows it" {
+    users="$(printf 'tid\tvty\tname\tsock\ttype\n4\t---\ttSsh05\t7\tSSH\n6\t---\ttSsh06\t9\tSSH\n')"
+    run fleet_sh "printf '%s' '$users' | fleet_predecessor_line"
+    [ "$output" = "4" ]
+}
+
+@test "a line that is not the direct predecessor is left alone" {
+    # It could be an operator's own SSH or web session. Clearing whatever else is
+    # listed would reach it; matching the one task number session one had does not.
+    users="$(printf 'tid\tvty\tname\tsock\ttype\n4\t---\ttSsh00\t7\tSSH\n5\t---\ttSsh02\t9\tSSH\n')"
+    run fleet_sh "printf '%s' '$users' | fleet_predecessor_line"
+    [ -z "$output" ]
+}
+
+@test "with only its own line listed, there is nothing to clear" {
+    users="$(printf 'tid\tvty\tname\tsock\ttype\n5\t---\ttSsh03\t8\tSSH\n')"
+    run fleet_sh "printf '%s' '$users' | fleet_predecessor_line"
+    [ -z "$output" ]
 }

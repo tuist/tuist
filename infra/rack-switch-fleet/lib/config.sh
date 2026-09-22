@@ -473,3 +473,26 @@ fleet_render_k8s() {
       } + (if ($ports | length) > 0 then { ports: $ports } else {} end))
     }' | yq -P -
 }
+
+
+# Which terminal line is this connection, from `show users` output. The firmware
+# names each connection's task tSshNN with N only ever increasing, so the newest
+# task is this one. Reading the first match instead reported "connection 1" on a
+# switch where two earlier connections were still listed.
+fleet_current_connection() {
+  tr -d '\000\r' | grep -oE 'tSsh[0-9]+' | sed 's/tSsh//' | sort -n | tail -1
+}
+
+# The line the connection before this one left behind, if it is still there.
+#
+# `recover` changes a switch's address from inside a session, which kills that
+# session's TCP connection before any logout can reach the switch, and this
+# firmware never reclaims a line it was not told to close. So recover leaks
+# exactly one line every time, and it is always the task numbered one below the
+# session that follows it. Matching on that, rather than clearing whatever else
+# is listed, keeps an operator's own SSH or web session out of reach.
+fleet_predecessor_line() {
+  tr -d '\000\r' | awk '
+    $3 ~ /^tSsh[0-9]+$/ { n = substr($3, 5) + 0; tid[n] = $1; if (n > newest) newest = n; seen = 1 }
+    END { if (seen && ((newest - 1) in tid)) print tid[newest - 1] }'
+}
