@@ -18,7 +18,9 @@ defmodule Atlas.Accounts.POCs.Notifier do
   alias Atlas.Accounts.POCs.AccessRequest
   alias Atlas.Accounts.POCs.POC
   alias Atlas.Mailer
+  alias Atlas.Slack
   alias Atlas.Slack.API, as: SlackAPI
+  alias Atlas.Slack.Channel
   alias AtlasWeb.Endpoint
 
   require Logger
@@ -168,8 +170,23 @@ defmodule Atlas.Accounts.POCs.Notifier do
   defp brand_label(%POC{account: %{name: name}}) when is_binary(name) and name != "", do: name
   defp brand_label(%POC{title: title}), do: title
 
-  # Deployments configure ATLAS_POC_ACCESS_SLACK_CHANNEL_ID with the channel
-  # ops watches for these requests. Absent config means no Slack ping is
-  # sent, and operators approve from the Atlas dashboard instead.
-  defp ops_channel_id, do: System.get_env("ATLAS_POC_ACCESS_SLACK_CHANNEL_ID")
+  # POC access requests are posted to #customers by default because that is
+  # where account owners already track engagement with the account. The env
+  # var stays as an escape hatch for staging or one-off overrides. When
+  # neither is set (bot has never seen the channel, no override configured),
+  # we skip the Slack ping and operators approve from the Atlas dashboard.
+  @default_ops_channel_name "customers"
+
+  defp ops_channel_id do
+    case System.get_env("ATLAS_POC_ACCESS_SLACK_CHANNEL_ID") do
+      id when is_binary(id) and id != "" ->
+        id
+
+      _ ->
+        case Slack.find_channel_by_name(:company, @default_ops_channel_name) do
+          %Channel{channel_id: channel_id} -> channel_id
+          _ -> nil
+        end
+    end
+  end
 end
