@@ -8,22 +8,29 @@ defmodule TuistWeb.OverviewLive do
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    socket =
-      socket
-      |> assign(
-        :head_title,
-        "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
-      )
-      |> assign(OpenGraph.og_image_assigns("overview"))
-
-    socket =
-      if Project.xcode_project?(project) do
-        TuistWeb.XcodeOverviewLive.assign_mount(socket)
-      else
+    if Project.once_project?(project) do
+      # Once projects have their own dashboard shape; the shared overview
+      # assigns are all Xcode/Gradle/Bazel-flavored, so route straight there
+      # instead of trying to render a mismatched overview.
+      {:ok, push_navigate(socket, to: ~p"/#{account.name}/#{project.name}/once")}
+    else
+      socket =
         socket
-      end
+        |> assign(
+          :head_title,
+          "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
+        )
+        |> assign(OpenGraph.og_image_assigns("overview"))
 
-    {:ok, socket}
+      socket =
+        if Project.xcode_project?(project) do
+          TuistWeb.XcodeOverviewLive.assign_mount(socket)
+        else
+          socket
+        end
+
+      {:ok, socket}
+    end
   end
 
   def handle_event(
@@ -86,6 +93,9 @@ defmodule TuistWeb.OverviewLive do
 
     socket =
       cond do
+        Project.once_project?(project) ->
+          socket
+
         Project.gradle_project?(project) ->
           TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, full_uri.path)
 

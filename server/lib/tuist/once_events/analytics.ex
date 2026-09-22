@@ -1,0 +1,404 @@
+defmodule Tuist.OnceEvents.Analytics do
+  @moduledoc """
+  Bazel-shaped analytics for Once runs.
+
+  The Once builds page reuses the same layout as the Bazel builds page
+  (`TuistWeb.BazelInvocationsLive`), so this module exposes functions
+  whose signatures and return shapes mirror `Tuist.Bazel`'s analytics
+  API. The only difference is the data source: Once runs instead of
+  Bazel invocations. Every row/summary/series field the render reads
+  from Bazel data is present here in the same shape.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.OnceEvents.Run
+  alias Tuist.Repo
+
+  @doc """
+  List Once runs with pagination + sorting + filters, shaped like
+  `Tuist.Bazel.list_invocations/3` so the same LiveView render can
+  consume them.
+  """
+  def list_invocations(project_id, flop_params \\ %{}, opts \\ []) do
+    commands = Keyword.get(opts, :commands)
+
+    base =
+      Run
+      |> where([r], r.project_id == ^project_id)
+      |> maybe_filter_kinds(commands)
+      |> maybe_filter_period(opts)
+      |> apply_flop_filters(Map.get(flop_params, :filters, []))
+
+    order_by = Map.get(flop_params, :order_by, [:finished_at])
+    order_directions = Map.get(flop_params, :order_directions, [:desc])
+
+    page = Map.get(flop_params, :page, 1)
+    page_size = Map.get(flop_params, :page_size, 20)
+
+    total_count = Repo.aggregate(base, :count, :id)
+    total_pages = max(1, ceil_div(total_count, page_size))
+    current_page = max(1, min(page, total_pages))
+
+    rows =
+      base
+      |> apply_flop_order(order_by, order_directions)
+      |> limit(^page_size)
+      |> offset(^((current_page - 1) * page_size))
+      |> Repo.all()
+      |> Enum.map(&to_invocation/1)
+
+    meta = %{current_page: current_page, total_pages: total_pages, total_count: total_count}
+    {rows, meta}
+  end
+
+  @doc """
+  True if the project has any Once runs, optionally filtered by kind.
+  """
+  def invocations_present?(project_id, commands \\ nil) do
+    Run
+    |> where([r], r.project_id == ^project_id)
+    |> maybe_filter_kinds(commands)
+    |> limit(1)
+    |> Repo.aggregate(:count, :id)
+    |> Kernel.>(0)
+  end
+
+  @doc """
+  Aggregate summary numbers over `opts` (kind + period). Shape matches
+  `Tuist.Bazel.summary/2`: total, successful, failed, average and
+  percentile durations. Percentiles come from Postgres
+  `percentile_cont`.
+  """
+  def summary(project_id, opts \\ []) do
+    commands = Keyword.get(opts, :commands)
+
+    row =
+      Run
+      |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
+      |> maybe_filter_kinds(commands)
+      |> maybe_filter_period(opts)
+      |> select([r], %{
+        total: count(r.id),
+        successful:
+          sum(
+            fragment(
+              "(case when coalesce(?, -1) = 0 then 1 else 0 end)",
+              r.exit_status
+            )
+          ),
+        failed:
+          sum(
+            fragment(
+              "(case when coalesce(?, 0) <> 0 then 1 else 0 end)",
+              r.exit_status
+            )
+          ),
+        average_duration_ms: fragment("coalesce(avg(?), 0)", r.wall_ms),
+        median_duration_ms:
+          fragment("coalesce(percentile_cont(0.5) within group (order by ?), 0)", r.wall_ms),
+        p90_duration_ms:
+          fragment("coalesce(percentile_cont(0.9) within group (order by ?), 0)", r.wall_ms),
+        p99_duration_ms:
+          fragment("coalesce(percentile_cont(0.99) within group (order by ?), 0)", r.wall_ms)
+      })
+      |> Repo.one()
+
+    normalize_summary(row || empty_summary())
+  end
+
+  @doc """
+  Time-bucketed series over the selected period. Same shape as
+  `Tuist.Bazel.invocation_analytics/2`: `dates` + one `_values` list
+  per widget. Bucket granularity is `:hour` if the period is short
+  (<=48h), otherwise `:day`.
+  """
+  def invocation_analytics(project_id, opts \\ []) do
+    commands = Keyword.get(opts, :commands)
+    {start_dt, end_dt} = period_datetimes(opts)
+    granularity = granularity_for(start_dt, end_dt)
+
+    rows =
+      Run
+      |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
+      |> maybe_filter_kinds(commands)
+      |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> group_by([r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
+      |> select([r], %{
+        # `min(started_at)` under the group is always the bucket
+        # boundary, but reuses aggregation instead of trying to
+        # reference the truncated expression twice — Ecto renumbers
+        # positional `?` parameters per clause so the group_by and
+        # select fragments end up as distinct expressions in the
+        # generated SQL and Postgres refuses the query.
+        bucket: min(r.started_at),
+        total: count(r.id),
+        successful:
+          sum(
+            fragment(
+              "(case when coalesce(?, -1) = 0 then 1 else 0 end)",
+              r.exit_status
+            )
+          ),
+        failed:
+          sum(
+            fragment(
+              "(case when coalesce(?, 0) <> 0 then 1 else 0 end)",
+              r.exit_status
+            )
+          ),
+        average_duration_ms: fragment("coalesce(avg(?), 0)", r.wall_ms),
+        median_duration_ms:
+          fragment("coalesce(percentile_cont(0.5) within group (order by ?), 0)", r.wall_ms),
+        p90_duration_ms:
+          fragment("coalesce(percentile_cont(0.9) within group (order by ?), 0)", r.wall_ms),
+        p99_duration_ms:
+          fragment("coalesce(percentile_cont(0.99) within group (order by ?), 0)", r.wall_ms)
+      })
+      |> Repo.all()
+
+    by_bucket = Map.new(rows, fn row -> {truncate_bucket(row.bucket, granularity), row} end)
+    dates = full_bucket_range(start_dt, end_dt, granularity)
+
+    {total_values, success_rate_values, failed_values,
+     average_duration_values, median_duration_values, p90_duration_values, p99_duration_values} =
+      Enum.reduce(dates, {[], [], [], [], [], [], []}, fn date, acc ->
+        row = Map.get(by_bucket, date, empty_bucket())
+
+        {t, sr, fv, avg, p50, p90, p99} = acc
+
+        total = to_number(row.total)
+        successful = to_number(row.successful)
+        failed = to_number(row.failed)
+        success_rate = if total > 0, do: successful / total * 100.0, else: 0.0
+
+        {[total | t], [success_rate | sr], [failed | fv],
+         [to_number(row.average_duration_ms) | avg],
+         [to_number(row.median_duration_ms) | p50],
+         [to_number(row.p90_duration_ms) | p90],
+         [to_number(row.p99_duration_ms) | p99]}
+      end)
+
+    %{
+      dates: Enum.map(dates, &format_bucket(&1, granularity)),
+      total_values: Enum.reverse(total_values),
+      success_rate_values: Enum.reverse(success_rate_values),
+      failed_values: Enum.reverse(failed_values),
+      average_duration_values: Enum.reverse(average_duration_values),
+      median_duration_values: Enum.reverse(median_duration_values),
+      p90_duration_values: Enum.reverse(p90_duration_values),
+      p99_duration_values: Enum.reverse(p99_duration_values)
+    }
+  end
+
+  @doc """
+  Configuration Insights: average build duration per `once_version`.
+  Same shape as `Tuist.Bazel.build_duration_analytics_by_version/2`
+  (`[%{category, value}]`).
+  """
+  def build_duration_analytics_by_version(project_id, opts \\ []) do
+    commands = Keyword.get(opts, :commands)
+
+    Run
+    |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
+    |> maybe_filter_kinds(commands)
+    |> maybe_filter_period(opts)
+    |> where([r], not is_nil(r.once_version) and r.once_version != "")
+    |> group_by([r], r.once_version)
+    |> select([r], %{
+      category: r.once_version,
+      value: fragment("coalesce(avg(?), 0)", r.wall_ms)
+    })
+    |> order_by([r], asc: r.once_version)
+    |> Repo.all()
+    |> Enum.map(fn row -> Map.update!(row, :value, &to_number/1) end)
+  end
+
+  # ---- Internals --------------------------------------------------------
+
+  defp maybe_filter_kinds(query, nil), do: query
+  defp maybe_filter_kinds(query, []), do: query
+
+  defp maybe_filter_kinds(query, [_ | _] = commands) do
+    kinds = Enum.map(commands, &normalize_command/1)
+    where(query, [r], r.kind in ^kinds)
+  end
+
+  defp maybe_filter_kinds(query, single) when is_binary(single) do
+    where(query, [r], r.kind == ^normalize_command(single))
+  end
+
+  defp normalize_command("build"), do: "build"
+  defp normalize_command("test"), do: "test"
+  defp normalize_command(other), do: to_string(other)
+
+  defp maybe_filter_period(query, opts) do
+    with %DateTime{} = start_dt <- Keyword.get(opts, :start_datetime),
+         %DateTime{} = end_dt <- Keyword.get(opts, :end_datetime) do
+      where(query, [r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+    else
+      _ -> query
+    end
+  end
+
+  # Only two invocation-level filters land here: `:status` (mapped to
+  # exit_status) and `:command` (mapped to kind). Anything else is a
+  # no-op so a stale query string never crashes the page.
+  defp apply_flop_filters(query, filters) do
+    Enum.reduce(filters, query, fn filter, q ->
+      case {filter.field, filter.op, filter.value} do
+        {:status, :==, "success"} -> where(q, [r], r.finalization == "finalized" and r.exit_status == 0)
+        {:status, :==, "failure"} -> where(q, [r], r.finalization == "finalized" and r.exit_status != 0)
+        {:command, :=~, term} when is_binary(term) and term != "" ->
+          pattern = "%" <> String.replace(term, ~r/[\\%_]/, fn c -> "\\" <> c end) <> "%"
+          where(q, [r], ilike(r.command_display, ^pattern) or ilike(r.kind, ^pattern))
+
+        _ -> q
+      end
+    end)
+  end
+
+  defp apply_flop_order(query, order_by, order_directions) do
+    Enum.zip(order_by, order_directions)
+    |> Enum.reduce(query, fn {field, direction}, q ->
+      column = map_order_field(field)
+      case direction do
+        :asc -> order_by(q, [r], asc_nulls_last: field(r, ^column))
+        _ -> order_by(q, [r], desc_nulls_last: field(r, ^column))
+      end
+    end)
+  end
+
+  defp map_order_field(:command), do: :command_display
+  defp map_order_field(:status), do: :exit_status
+  defp map_order_field(:duration_ms), do: :wall_ms
+  defp map_order_field(:finished_at), do: :finalized_at
+  defp map_order_field(other), do: other
+
+  # Cast a Run row into the shape `BazelInvocationsLive` expects:
+  # invocation_id, command (kind), status, duration_ms, finished_at,
+  # cache (nested with hit_rate/download/upload), plus a couple of
+  # display helpers.
+  defp to_invocation(%Run{} = run) do
+    hits = run.cached_actions || 0
+    total = run.total_actions || 0
+
+    hit_rate =
+      if total > 0 do
+        Float.round(hits / total * 100.0, 1)
+      end
+
+    %{
+      invocation_id: run.run_id,
+      command: display_command(run),
+      target_patterns: [],
+      status: if(finalized_success?(run), do: "success", else: "failure"),
+      duration_ms: run.wall_ms || 0,
+      finished_at: run.finalized_at || run.started_at,
+      is_ci: false,
+      cache: %{
+        hit_rate: hit_rate,
+        download_bytes: run.cache_bytes_downloaded || 0,
+        upload_bytes: run.cache_bytes_uploaded || 0
+      }
+    }
+  end
+
+  defp finalized_success?(%{finalization: "finalized", exit_status: 0}), do: true
+  defp finalized_success?(_), do: false
+
+  defp display_command(run) do
+    cond do
+      is_binary(run.command_display) and run.command_display != "" -> run.command_display
+      is_binary(run.kind) and run.kind != "" -> "once " <> run.kind
+      true -> "once"
+    end
+  end
+
+  defp ceil_div(a, b) when b > 0, do: div(a + b - 1, b)
+  defp ceil_div(_, _), do: 1
+
+  defp period_datetimes(opts) do
+    case {Keyword.get(opts, :start_datetime), Keyword.get(opts, :end_datetime)} do
+      {%DateTime{} = s, %DateTime{} = e} -> {s, e}
+      _ ->
+        end_dt = DateTime.utc_now()
+        start_dt = DateTime.add(end_dt, -30 * 86_400, :second)
+        {start_dt, end_dt}
+    end
+  end
+
+  defp granularity_for(start_dt, end_dt) do
+    diff_hours = DateTime.diff(end_dt, start_dt, :second) / 3600
+    if diff_hours <= 48, do: :hour, else: :day
+  end
+
+  # ecto raises on selected/1 in older versions; use plain field
+  defp selected(x), do: x
+
+  defp truncate_bucket(%DateTime{} = dt, :day), do: DateTime.to_date(dt) |> Date.to_iso8601()
+  defp truncate_bucket(%DateTime{} = dt, :hour), do: %{dt | minute: 0, second: 0, microsecond: {0, 0}} |> DateTime.to_iso8601()
+  defp truncate_bucket(%NaiveDateTime{} = ndt, granularity) do
+    ndt
+    |> DateTime.from_naive!("Etc/UTC")
+    |> truncate_bucket(granularity)
+  end
+
+  defp full_bucket_range(start_dt, end_dt, :day) do
+    start_date = DateTime.to_date(start_dt)
+    end_date = DateTime.to_date(end_dt)
+    Date.range(start_date, end_date) |> Enum.map(&Date.to_iso8601/1)
+  end
+
+  defp full_bucket_range(start_dt, end_dt, :hour) do
+    start_dt = %{start_dt | minute: 0, second: 0, microsecond: {0, 0}}
+    end_dt = %{end_dt | minute: 0, second: 0, microsecond: {0, 0}}
+    diff_hours = DateTime.diff(end_dt, start_dt, :second) |> div(3600)
+    Enum.map(0..diff_hours, fn h ->
+      start_dt |> DateTime.add(h * 3600, :second) |> DateTime.to_iso8601()
+    end)
+  end
+
+  defp format_bucket(iso, _granularity), do: iso
+
+  defp to_number(nil), do: 0
+  defp to_number(%Decimal{} = d), do: Decimal.to_float(d)
+  defp to_number(n) when is_number(n), do: n
+  defp to_number(_), do: 0
+
+  defp normalize_summary(row) do
+    %{
+      total: to_number(row.total),
+      successful: to_number(row.successful),
+      failed: to_number(row.failed),
+      average_duration_ms: to_number(row.average_duration_ms),
+      median_duration_ms: to_number(row.median_duration_ms),
+      p90_duration_ms: to_number(row.p90_duration_ms),
+      p99_duration_ms: to_number(row.p99_duration_ms)
+    }
+  end
+
+  defp empty_summary do
+    %{
+      total: 0,
+      successful: 0,
+      failed: 0,
+      average_duration_ms: 0,
+      median_duration_ms: 0,
+      p90_duration_ms: 0,
+      p99_duration_ms: 0
+    }
+  end
+
+  defp empty_bucket do
+    %{
+      total: 0,
+      successful: 0,
+      failed: 0,
+      average_duration_ms: 0,
+      median_duration_ms: 0,
+      p90_duration_ms: 0,
+      p99_duration_ms: 0
+    }
+  end
+end

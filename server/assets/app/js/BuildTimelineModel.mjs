@@ -50,6 +50,14 @@ export function categoryFor(category, source = "xcode") {
     if (["Copy", "Sync", "ProcessResources"].includes(type)) return "resource";
     if (/^Link/.test(type)) return "link";
   }
+  if (source === "once") {
+    if (category === "Rustc") return "compile";
+    if (category === "Link") return "link";
+    if (["Build script", "Build script (rustc)"].includes(category)) return "script";
+    if (["Materialize", "File preparation"].includes(category)) return "resource";
+    if (category === "Fetching") return "fetch";
+    if (category === "Analysis/setup") return "setup";
+  }
   if (["compile", "link", "script", "resource", "other", "failure"].includes(category)) return category;
   if (category === "Rustc" || /compil|swiftmodule|bridgingheader|javac/i.test(category)) return "compile";
   if (["CppLink", "CppArchive"].includes(category) || /linker|staticlibrary/i.test(category)) return "link";
@@ -123,6 +131,20 @@ export function layoutEvents(events, range) {
   const visible = range
     ? events.filter((event) => event.end > range.start && event.start_ms < range.start + range.span)
     : events;
+
+  // If every event carries a stable `lane` (server-assigned, e.g. one
+  // lane per worker), honor it verbatim so rows read like Bazel's
+  // per-thread swimlanes. Otherwise fall back to non-overlap packing.
+  if (visible.length && visible.every((event) => Number.isFinite(event.lane))) {
+    let maxLane = 0;
+    for (const event of visible) {
+      event.y = 8 + event.lane * ROW_HEIGHT;
+      if (event.lane > maxLane) maxLane = event.lane;
+    }
+    const lanes = maxLane + 1;
+    return { events: visible, lanes, height: lanes * ROW_HEIGHT + 16 };
+  }
+
   const heap = [];
   const available = [];
   let lanes = 0;

@@ -1,6 +1,7 @@
 {{- if and .Values.server.enabled .Values.server.bazelEvents.enabled }}
 {{- $serviceName := include "tuist.componentName" (dict "root" . "component" "server") }}
 {{- $ingress := .Values.server.bazelEvents }}
+{{- $grpc := .Values.server.eventsGrpc.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -8,10 +9,13 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
-  {{- with $ingress.annotations }}
   annotations:
+    {{- with $ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
+    {{- if $grpc }}
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    {{- end }}
 spec:
   {{- with $ingress.className }}
   ingressClassName: {{ . | quote }}
@@ -32,5 +36,5 @@ spec:
               service:
                 name: {{ $serviceName }}
                 port:
-                  name: http
+                  name: {{ ternary "grpc" "http" $grpc }}
 {{- end }}

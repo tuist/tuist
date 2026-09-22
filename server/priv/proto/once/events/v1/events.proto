@@ -1,0 +1,557 @@
+syntax = "proto3";
+package once.events.v1;
+
+service RunEventService {
+  rpc GetServerCapabilities(GetServerCapabilitiesRequest) returns (ServerCapabilities);
+  rpc GetArgvHashKey(GetArgvHashKeyRequest) returns (ArgvHashKey);
+  rpc PublishRunEvents(stream RunEventBatch) returns (stream BatchAck);
+  rpc GetRunAck(GetRunAckRequest) returns (RunEventAck);
+}
+
+message GetServerCapabilitiesRequest {}
+message GetRunAckRequest { string run_id = 1; }
+message GetArgvHashKeyRequest { string project_id = 1; }
+
+message ServerCapabilities {
+  repeated string supported_protocol_versions = 1;
+  uint32 max_batch_bytes = 2;
+  uint32 max_event_bytes = 3;
+  uint32 max_unacked_events = 4;
+  uint32 max_log_chunk_bytes = 5;
+  repeated string required_features = 6;
+  bool log_ingestion_available = 7;
+  bool raw_event_retention_available = 8;
+  uint32 finalization_grace_ms = 9;
+  uint32 dedup_retention_seconds = 10;
+  string safe_literal_allowlist_version = 11;
+  // Absolute URL template the client renders into a "See it live" link
+  // and prints immediately after the run is minted. Substitutions are
+  // `{account}`, `{project}`, and `{run_id}`; the server chooses the
+  // path shape.
+  string live_url_template = 12;
+}
+
+message ArgvHashKey {
+  string key_id = 1;
+  bytes key_bytes = 2;
+  int64 expires_at_epoch_ms = 3;
+  uint32 grace_after_expiry_ms = 4;
+}
+
+message RunEventBatch {
+  string run_id = 1;
+  string batch_id = 2;
+  repeated GapAdvance gap_advances = 3;
+  uint64 seq_from = 4;
+  repeated RunEvent events = 5;
+}
+
+message GapAdvance {
+  uint64 first_dropped_seq = 1;
+  uint64 last_dropped_seq = 2;
+  string reason = 3;
+}
+
+message BatchAck {
+  string run_id = 1;
+  string batch_id = 2;
+  AckDisposition disposition = 3;
+  uint64 acked_seq = 4;
+  uint64 expected_next_seq = 5;
+  uint64 observed_high_water_seq = 6;
+  uint32 retry_after_ms = 7;
+  uint32 max_in_flight_batches = 8;
+  RunFinalization finalization = 9;
+}
+
+message RunEventAck {
+  string run_id = 1;
+  uint64 acked_seq = 2;
+  uint64 expected_next_seq = 3;
+  uint64 observed_high_water_seq = 4;
+  RunFinalization finalization = 5;
+}
+
+enum AckDisposition {
+  ACK_DISPOSITION_UNSPECIFIED = 0;
+  ACK_DISPOSITION_ACCEPTED = 1;
+  ACK_DISPOSITION_REJECTED_STALE = 2;
+  ACK_DISPOSITION_REJECTED_INVALID = 3;
+  ACK_DISPOSITION_NEEDS_RESYNC = 4;
+}
+
+enum RunFinalization {
+  RUN_FINALIZATION_UNSPECIFIED = 0;
+  RUN_FINALIZATION_ACTIVE = 1;
+  RUN_FINALIZATION_FINALIZING = 2;
+  RUN_FINALIZATION_FINALIZED = 3;
+  RUN_FINALIZATION_FINALIZATION_PENDING = 4;
+  RUN_FINALIZATION_LOST = 5;
+}
+
+message ContentRef {
+  HashAlgorithm hash_algorithm = 1;
+  bytes digest = 2;
+  uint64 size_bytes = 3;
+  string namespace = 4;
+  string media_type = 5;
+}
+
+enum HashAlgorithm {
+  HASH_ALGORITHM_UNSPECIFIED = 0;
+  HASH_ALGORITHM_BLAKE3 = 1;
+  HASH_ALGORITHM_SHA256 = 2;
+}
+
+message RunEvent {
+  uint64 seq = 1;
+  int64 epoch_ms = 2;
+  int64 mono_ns = 3;
+
+  oneof payload {
+    RunStarted         run_started         = 10;
+    RunFinalizing      run_finalizing      = 11;
+    RunCompleted       run_completed       = 12;
+    RunHeartbeat       run_heartbeat       = 13;
+
+    GraphCompiled      graph_compiled      = 20;
+    TargetInstance     target_instance     = 21;
+
+    TargetQueued       target_queued       = 30;
+    TargetStarted      target_started      = 31;
+    TargetPhase        target_phase        = 32;
+    TargetWait         target_wait         = 33;
+    TargetCompleted    target_completed    = 34;
+    TargetCancelled    target_cancelled    = 35;
+    TargetRetried      target_retried      = 36;
+    ActionCompleted    action_completed    = 37;
+
+    TestSuiteStarted   test_suite_started  = 40;
+    TestSuiteCompleted test_suite_completed = 41;
+    TestCaseStarted    test_case_started   = 42;
+    TestCaseCompleted  test_case_completed = 43;
+    TestCaseRetried    test_case_retried   = 44;
+
+    LogChunk           log_chunk           = 50;
+    LogTruncated       log_truncated       = 51;
+
+    CacheProbe         cache_probe         = 60;
+    CacheMissReason    cache_miss_reason   = 61;
+    CacheUpload        cache_upload        = 62;
+    CacheDownload      cache_download      = 63;
+    CacheStoreReused   cache_store_reused  = 64;
+
+    ArtifactPublished  artifact_published  = 70;
+    DiagnosticEmitted  diagnostic_emitted  = 71;
+  }
+}
+
+message RunStarted {
+  string once_version = 1;
+  string protocol_version = 2;
+  string host_class = 3;
+  string git_rev = 4;
+  bool git_dirty = 5;
+  repeated ArgvToken argv_normalized = 6;
+  string argv_hash_key_id = 7;
+  string safe_literal_allowlist_version = 8;
+  string cwd_relative = 9;
+  string env_fingerprint = 10;
+  ContentRef root_graph_digest = 11;
+  string project_id = 12;
+  EffectiveLimits effective_limits = 13;
+}
+
+message ArgvToken {
+  oneof token {
+    string safe_literal = 1;
+    string flag_key = 2;
+    NamedValue named_value = 3;
+    string opaque_value_hash = 4;
+  }
+}
+
+message NamedValue {
+  string key = 1;
+  string value_shape_hash = 2;
+}
+
+message EffectiveLimits {
+  uint32 max_batch_bytes = 1;
+  uint32 max_event_bytes = 2;
+  uint32 max_unacked_events = 3;
+  uint32 max_log_chunk_bytes = 4;
+  bool log_ingestion_enabled = 5;
+  bool raw_event_retention_enabled = 6;
+}
+
+message RunFinalizing {
+  int64 declared_drain_ms = 1;
+}
+
+message RunCompleted {
+  RunResult result = 1;
+  string cancellation_reason = 2;
+  int64 wall_ms = 3;
+  RunTotals totals = 4;
+}
+
+enum RunResult {
+  RUN_RESULT_UNSPECIFIED = 0;
+  RUN_RESULT_SUCCEEDED = 1;
+  RUN_RESULT_FAILED = 2;
+  RUN_RESULT_CANCELLED = 3;
+  RUN_RESULT_TIMED_OUT = 4;
+  RUN_RESULT_INFRASTRUCTURE_ERROR = 5;
+}
+
+message RunTotals {
+  map<string, uint32> targets_by_result = 1;
+  map<string, uint32> cases_by_result = 2;
+  double cache_hit_rate = 3;
+  uint64 cache_bytes_downloaded = 4;
+  uint64 cache_bytes_uploaded = 5;
+  uint64 cache_bytes_saved = 6;
+}
+
+message RunHeartbeat {}
+
+message GraphCompiled {
+  ContentRef graph_digest = 1;
+  uint32 target_count = 2;
+  map<string, uint32> kind_histogram = 3;
+  repeated string roots = 4;
+}
+
+message TargetInstance {
+  string target_instance_id = 1;
+  string target_id = 2;
+  ContentRef configuration_digest = 3;
+}
+
+message TargetQueued {
+  string target_execution_id = 1;
+  string target_instance_id = 2;
+  string kind = 3;
+  string capability = 4;
+  ContentRef action_digest = 5;
+  ContentRef input_digest = 6;
+  repeated string dep_target_executions = 7;
+  uint32 attempt = 8;
+}
+
+message TargetStarted {
+  string target_execution_id = 1;
+  string worker_class = 2;
+}
+
+message TargetPhase {
+  string target_execution_id = 1;
+  Phase phase = 2;
+}
+
+enum Phase {
+  PHASE_UNSPECIFIED = 0;
+  PHASE_QUEUED = 1;
+  PHASE_CACHE_CHECKING = 2;
+  PHASE_PREPARING = 3;
+  PHASE_EXECUTING = 4;
+  PHASE_CAPTURING = 5;
+  PHASE_PUBLISHING = 6;
+}
+
+message TargetWait {
+  string target_execution_id = 1;
+  WaitReason reason = 2;
+  string blocking_target_execution_id = 3;
+  string resource_kind = 4;
+}
+
+enum WaitReason {
+  WAIT_REASON_UNSPECIFIED = 0;
+  WAIT_REASON_DEPENDENCY_WAIT = 1;
+  WAIT_REASON_RESOURCE_WAIT = 2;
+  WAIT_REASON_WORKER_WAIT = 3;
+  WAIT_REASON_THROTTLED = 4;
+  WAIT_REASON_INFRASTRUCTURE = 5;
+}
+
+message TargetCompleted {
+  string target_execution_id = 1;
+  TargetResult result = 2;
+  bool was_cached = 3;
+  optional int32 exit_code = 4;
+  ContentRef evidence_digest = 5;
+  int64 duration_ms = 6;
+}
+
+enum TargetResult {
+  TARGET_RESULT_UNSPECIFIED = 0;
+  TARGET_RESULT_SUCCEEDED = 1;
+  TARGET_RESULT_FAILED = 2;
+  TARGET_RESULT_SKIPPED = 3;
+  TARGET_RESULT_CANCELLED = 4;
+  TARGET_RESULT_TIMED_OUT = 5;
+  TARGET_RESULT_INFRASTRUCTURE_ERROR = 6;
+}
+
+message TargetCancelled {
+  string target_execution_id = 1;
+  string reason = 2;
+}
+
+message TargetRetried {
+  string previous_target_execution_id = 1;
+  string new_target_execution_id = 2;
+  uint32 new_attempt = 3;
+  string reason = 4;
+}
+
+// One declared action inside a target has finished. This is the
+// sub-target granularity that RFC 0008 anticipates but did not enumerate
+// in v0 of the proto: a `Rustc`/`Ld`/`Link` inside one target, or
+// `build-script-build` vs `rustc` in a cargo target. Together with
+// `TargetCompleted` the projector renders the actions view Bazel calls
+// "Compiling foo.cc" / "Linking libfoo.a".
+message ActionCompleted {
+  string target_execution_id = 1;
+  string capability = 2;         // "build", "test", ...
+  uint32 action_index = 3;       // position within the target's ordered action list
+  string identifier = 4;         // Starlark-declared identity, may be empty
+  TargetResult result = 5;
+  bool was_cached = 6;
+  int64 duration_ms = 7;
+  int32 exit_code = 8;
+}
+
+message TestSuiteStarted {
+  string target_execution_id = 1;
+  string suite_id = 2;
+  optional uint32 planned_case_count = 3;
+}
+
+message TestSuiteCompleted {
+  string target_execution_id = 1;
+  string suite_id = 2;
+  TestTotals totals = 3;
+  ContentRef junit_digest = 4;
+}
+
+message TestTotals {
+  uint32 passed = 1;
+  uint32 failed = 2;
+  uint32 skipped = 3;
+  uint32 errored = 4;
+  uint32 timed_out = 5;
+  uint32 cancelled = 6;
+  uint32 flaky_final_pass = 7;
+  uint32 flaky_final_fail = 8;
+}
+
+message TestCaseStarted {
+  string test_case_execution_id = 1;
+  string target_execution_id = 2;
+  string case_id = 3;
+  string name = 4;
+  string class_name = 5;
+  string file = 6;
+  string parameters = 7;
+  repeated string tags = 8;
+  uint32 attempt = 9;
+}
+
+message TestCaseCompleted {
+  string test_case_execution_id = 1;
+  TestCaseResult result = 2;
+  bool was_flaky = 3;
+  int64 duration_ms = 4;
+  TestFailure failure = 5;
+}
+
+enum TestCaseResult {
+  TEST_CASE_RESULT_UNSPECIFIED = 0;
+  TEST_CASE_RESULT_PASSED = 1;
+  TEST_CASE_RESULT_FAILED = 2;
+  TEST_CASE_RESULT_SKIPPED = 3;
+  TEST_CASE_RESULT_TIMED_OUT = 4;
+  TEST_CASE_RESULT_ERRORED = 5;
+  TEST_CASE_RESULT_CANCELLED = 6;
+}
+
+message TestCaseRetried {
+  string previous_test_case_execution_id = 1;
+  string new_test_case_execution_id = 2;
+  uint32 new_attempt = 3;
+  string reason = 4;
+}
+
+message TestFailure {
+  string message = 1;
+  string expected = 2;
+  string actual = 3;
+  ContentRef stack_digest = 4;
+}
+
+message LogChunk {
+  LogScope scope = 1;
+  Stream stream = 2;
+  int64 offset = 3;
+  bytes bytes = 4;
+}
+
+message LogTruncated {
+  LogScope scope = 1;
+  Stream stream = 2;
+  int64 bytes_dropped = 3;
+  int64 since_offset = 4;
+}
+
+message LogScope {
+  oneof scope {
+    RunScope run = 1;
+    string target_execution_id = 2;
+    string test_case_execution_id = 3;
+  }
+}
+
+message RunScope {}
+
+enum Stream {
+  STREAM_UNSPECIFIED = 0;
+  STREAM_STDOUT = 1;
+  STREAM_STDERR = 2;
+}
+
+message CacheProbe {
+  string cache_decision_id = 1;
+  string target_execution_id = 2;
+  ContentRef action_digest = 3;
+  string tier = 4;
+  uint32 tier_index = 5;
+  CacheOutcome outcome = 6;
+  int64 duration_ms = 7;
+  string error_class = 8;
+}
+
+enum CacheOutcome {
+  CACHE_OUTCOME_UNSPECIFIED = 0;
+  CACHE_OUTCOME_HIT = 1;
+  CACHE_OUTCOME_MISS = 2;
+  CACHE_OUTCOME_ERROR = 3;
+  CACHE_OUTCOME_BYPASSED = 4;
+}
+
+message CacheMissReason {
+  string cache_decision_id = 1;
+  string target_execution_id = 2;
+  MissReasonKind primary_reason = 3;
+  repeated MissReasonKind all_reasons = 4;
+  MissAnalysisStatus analysis_status = 5;
+  repeated string differing_inputs = 6;
+  uint32 differing_inputs_total_count = 7;
+  bool differing_inputs_truncated = 8;
+  BaselineResolution baseline_resolution = 9;
+}
+
+enum MissReasonKind {
+  MISS_REASON_KIND_UNSPECIFIED = 0;
+  MISS_REASON_KIND_FIRST_SEEN = 1;
+  MISS_REASON_KIND_INPUTS_CHANGED = 2;
+  MISS_REASON_KIND_COMMAND_CHANGED = 3;
+  MISS_REASON_KIND_ENV_CHANGED = 4;
+  MISS_REASON_KIND_TOOL_CHANGED = 5;
+  MISS_REASON_KIND_SALT_CHANGED = 6;
+  MISS_REASON_KIND_UNKNOWN = 7;
+}
+
+enum MissAnalysisStatus {
+  MISS_ANALYSIS_STATUS_UNSPECIFIED = 0;
+  MISS_ANALYSIS_STATUS_COMPLETE = 1;
+  MISS_ANALYSIS_STATUS_PARTIAL = 2;
+  MISS_ANALYSIS_STATUS_TRUNCATED = 3;
+  MISS_ANALYSIS_STATUS_UNAVAILABLE = 4;
+}
+
+message BaselineResolution {
+  oneof kind {
+    BaselineReference reference = 1;
+    BaselineNoneAvailable none_available = 2;
+    BaselineNotAttempted not_attempted = 3;
+    BaselineUnavailable unavailable = 4;
+  }
+}
+
+message BaselineReference {
+  string previous_run_id = 1;
+  string previous_target_instance_id = 2;
+  string previous_target_execution_id = 3;
+  ContentRef previous_action_digest = 4;
+  string selection_reason = 5;
+}
+
+message BaselineNoneAvailable {}
+message BaselineNotAttempted { string skip_reason = 1; }
+message BaselineUnavailable { string failure_reason = 1; }
+
+message CacheUpload {
+  string cache_decision_id = 1;
+  string target_execution_id = 2;
+  ContentRef content = 3;
+  string tier = 4;
+  string kind = 5;
+  int64 duration_ms = 6;
+  uint64 bytes_transferred = 7;
+}
+
+message CacheDownload {
+  string cache_decision_id = 1;
+  string target_execution_id = 2;
+  ContentRef content = 3;
+  string tier = 4;
+  string kind = 5;
+  int64 duration_ms = 6;
+  uint64 bytes_transferred = 7;
+}
+
+message CacheStoreReused {
+  string cache_decision_id = 1;
+  string target_execution_id = 2;
+  ContentRef content = 3;
+  string tier = 4;
+  string kind = 5;
+  uint64 bytes_saved = 6;
+}
+
+message ArtifactPublished {
+  string target_execution_id = 1;
+  string kind = 2;
+  ContentRef content = 3;
+  string workspace_relative_path = 4;
+}
+
+message DiagnosticEmitted {
+  string target_execution_id = 1;
+  Severity severity = 2;
+  string tool = 3;
+  string code = 4;
+  string message = 5;
+  Location primary = 6;
+  repeated Location related = 7;
+  string fingerprint = 8;
+  ContentRef snippet = 9;
+}
+
+message Location {
+  string file = 1;
+  uint32 start_line = 2;
+  uint32 start_column = 3;
+  uint32 end_line = 4;
+  uint32 end_column = 5;
+}
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_NOTE = 1;
+  SEVERITY_WARNING = 2;
+  SEVERITY_ERROR = 3;
+}

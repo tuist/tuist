@@ -24,4 +24,10 @@ spec:
     - name: metrics
       port: 9091
       targetPort: 9091
+    {{- if .Values.server.eventsGrpc.enabled }}
+    - name: grpc
+      port: {{ .Values.server.service.grpcPort | default 4001 }}
+      targetPort: {{ .Values.server.service.grpcTargetPort | default 4001 }}
+      appProtocol: grpc
+    {{- end }}
 {{- end }}

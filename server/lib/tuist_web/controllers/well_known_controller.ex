@@ -69,39 +69,43 @@ defmodule TuistWeb.WellKnownController do
   field as "not offered." Endpoints are always returned as a list so the
   client picks one per its own policy (latency probe, region hint,
   first-listed). Empty list means "not offered."
+
+  `live_url_template` lets the CLI print a browser link immediately after the
+  run is minted, without a round-trip. `{account}`, `{project}`, and
+  `{run_id}` are the only substitutions the client performs.
   """
   def once_discovery(conn, _params) do
     origin = RequestOrigin.from_conn(conn)
 
     json(conn, %{
-      events: %{
-        endpoints: events_endpoints(origin)
-      }
+      events: events_endpoints(origin),
+      live_url_template: origin <> "/{account}/{project}/once/runs/{run_id}"
     })
   end
 
-  # The Once event protocol treats each advertised URL as the full endpoint a
-  # client should POST invocation batches to. The path is a server
-  # implementation detail; this deployment happens to host it under
-  # `/api/events/invocations`, but a different backend could put it anywhere
-  # and clients would follow discovery without noticing.
-  @events_ingestion_path "/api/events/invocations"
-
+  # The Once event protocol speaks gRPC over HTTP/2. This deployment fronts it
+  # on `build.<host>` so a client that discovered a request origin of
+  # `https://tuist.dev` learns to open a gRPC channel against
+  # `grpcs://build.tuist.dev`. `TUIST_ONCE_EVENTS_ENDPOINTS` overrides the
+  # default for split topologies (regional ingest, dedicated tier).
   defp events_endpoints(origin) do
-    case System.get_env("TUIST_EVENTS_ENDPOINTS") do
-      nil ->
-        [%{url: origin <> @events_ingestion_path}]
-
-      "" ->
-        [%{url: origin <> @events_ingestion_path}]
-
-      value ->
+    case System.get_env("TUIST_ONCE_EVENTS_ENDPOINTS") do
+      value when is_binary(value) and value != "" ->
         value
         |> String.split(",", trim: true)
         |> Enum.map(&String.trim/1)
         |> Enum.reject(&(&1 == ""))
-        |> Enum.map(&%{url: &1})
+
+      _ ->
+        [default_events_endpoint(origin)]
     end
+  end
+
+  defp default_events_endpoint(origin) do
+    uri = URI.parse(origin)
+    scheme = if uri.scheme == "https", do: "grpcs", else: "grpc"
+    host = uri.host || "localhost"
+    "#{scheme}://build.#{host}"
   end
 
   def openai_apps_challenge(conn, _params) do
