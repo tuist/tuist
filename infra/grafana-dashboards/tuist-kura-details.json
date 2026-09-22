@@ -7532,7 +7532,7 @@
               "transformations": []
             }
           },
-          "description": "Analytics-outbox RocksDB column family entry count. Empty for the life of the release that declares the column family; goes non-zero when the follow-up producer PR routes cache analytics through it. Correlates with kura_analytics_batches_total{result=~\"error_.*\"} — a rising outbox depth on a pod whose batches are hitting the network means retries are queueing rather than dropping.\n\nPrometheus name: `kura_analytics_outbox_depth_entries`",
+          "description": "Analytics-outbox RocksDB column family entry count. Empty for the life of the release that declares the column family; goes non-zero when the follow-up producer PR routes cache analytics through it. Correlates with kura_analytics_batches_total_total{result=~\"error_.*\"} — a rising outbox depth on a pod whose batches are hitting the network means retries are queueing rather than dropping. (The double `_total` suffix is how the counter is scraped; see the existing `analytics_batches_total (rate)` panel above.)\n\nPrometheus name: `kura_analytics_outbox_depth_entries`",
           "id": 243,
           "links": [],
           "title": "analytics_outbox_depth_entries",
