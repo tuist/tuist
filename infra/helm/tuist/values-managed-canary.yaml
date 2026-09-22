@@ -844,6 +844,9 @@ kataContainers:
   enabled: true
 
 runnersController:
+  shadowScheduler:
+    enabled: true
+    intervalSeconds: 30
   features:
     dindImage: true
     registryMirror: true

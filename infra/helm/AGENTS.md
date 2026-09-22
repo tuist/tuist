@@ -9,7 +9,9 @@ This node covers Helm assets under `infra/helm/`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions
-- `runnersController.shadowScheduler` is disabled by default. Enable only after
+- `runnersController.shadowScheduler` is disabled by default and enabled in the
+  canary overlay at a 30-second interval. Validate collection and overhead there
+  before enabling production for observations against real demand. Enable only after
   both the controller flags and server snapshot endpoint are deployed; disabling
   stops observations without changing runner execution. See
   `../runners-controller/shadow-scheduler.md`.
