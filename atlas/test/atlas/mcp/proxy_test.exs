@@ -5,6 +5,7 @@ defmodule Atlas.MCP.ProxyTest do
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Proxy.Config
   alias Atlas.MCP.Proxy.Server
+  alias Atlas.MCP.Tools.GetMCPConnectionStatus
   alias Atlas.Users.User
 
   setup :verify_on_exit!
@@ -540,6 +541,169 @@ defmodule Atlas.MCP.ProxyTest do
   test "returns a clear error for invalid direct tool call arguments" do
     assert {:error, "Proxy tool calls require a string server name, string tool name, and map arguments."} =
              Proxy.call_tool("grafana", "query_prometheus", [])
+  end
+
+  test "discovers and calls tools on an upstream that does not assign a session ID" do
+    stub(Req, :post, fn request ->
+      refute Map.has_key?(request.headers, "mcp-session-id")
+
+      result =
+        case request.options.json["method"] do
+          "initialize" -> %{"protocolVersion" => "2025-03-26"}
+          "notifications/initialized" -> nil
+          "tools/list" -> %{"tools" => [%{"name" => "query", "inputSchema" => %{"type" => "object"}}]}
+          "tools/call" -> %{"content" => [%{"type" => "text", "text" => "ok"}]}
+        end
+
+      {:ok,
+       %Req.Response{status: 200, body: %{"jsonrpc" => "2.0", "id" => request.options.json["id"], "result" => result}}}
+    end)
+
+    assert {:ok, [%{"name" => "query"}]} = Proxy.list_tools("grafana")
+    assert {:ok, %{"content" => [%{"text" => "ok"}]}} = Proxy.call_tool("grafana", "query", %{})
+  end
+
+  test "an upstream failure stays visible and its diagnostic retries after recovery" do
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+    expect(Req, :post, fn _ -> {:ok, %Req.Response{status: 503, body: "sensitive-upstream-body"}} end)
+
+    assert [%{"name" => "grafana__atlas_connection_status"} = diagnostic] = Proxy.list_hoisted_tools(conn)
+    assert diagnostic["description"] =~ "HTTP 503"
+    refute inspect(diagnostic) =~ "sensitive-upstream-body"
+    assert diagnostic["inputSchema"]["properties"] == %{}
+
+    expect_initialize()
+    expect_initialized_notification()
+    expect_tools_list([%{"name" => "query", "inputSchema" => %{"type" => "object"}}])
+
+    assert {:ok, %{"structuredContent" => status}} =
+             Proxy.call_hoisted_tool(conn, "grafana__atlas_connection_status", %{})
+
+    assert status["status"] == "available"
+    assert [%{"name" => "grafana__query"}] = status["tools"]
+  end
+
+  test "a failing upstream does not hide healthy upstream tools" do
+    [grafana] = proxy_config()[:servers]
+    config = [servers: [grafana, Map.put(grafana, "name", "healthy")]]
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+    expect(Req, :post, fn _ -> {:error, %Req.TransportError{reason: :timeout}} end)
+    expect_initialize()
+    expect_initialized_notification()
+    expect_tools_list([%{"name" => "query", "inputSchema" => %{"type" => "object"}}])
+
+    assert [%{"name" => "grafana__atlas_connection_status"}, %{"name" => "healthy__query"}] =
+             Proxy.list_hoisted_tools(conn, config)
+  end
+
+  test "live diagnostics distinguish upstream authorization and transient failures without response bodies" do
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+
+    for {status, code, retryable} <- [
+          {401, "upstream_unauthorized", false},
+          {403, "upstream_forbidden", false},
+          {429, "http_error", true},
+          {503, "http_error", true}
+        ] do
+      expect(Req, :post, fn _ -> {:ok, %Req.Response{status: status, body: "secret"}} end)
+      assert {:ok, result} = Proxy.connection_status(conn, "grafana")
+      assert result.status == code
+      assert result.http_status == status
+      assert result.stage == "initialize"
+      assert result.retryable == retryable
+      assert result.tools == []
+      refute inspect(result) =~ "secret"
+    end
+  end
+
+  test "live diagnostics preserve the failed discovery stage and redact JSON-RPC bodies" do
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+    expect_initialize()
+    expect_initialized_notification()
+
+    expect(Req, :post, fn _ ->
+      {:ok, %Req.Response{status: 200, body: %{"error" => %{"message" => "secret", "code" => -32_603}}}}
+    end)
+
+    assert {:ok, %{status: "rpc_error", stage: "tools/list", tools: []} = result} =
+             Proxy.connection_status(conn, "grafana")
+
+    refute inspect(result) =~ "secret"
+  end
+
+  test "malformed discovery responses produce diagnostics instead of crashing the catalog" do
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+
+    for tools <- [[%{"name" => "query", "_meta" => "invalid"}], [nil], [%{"description" => "missing name"}]] do
+      expect_initialize()
+      expect_initialized_notification()
+      expect_tools_list(tools)
+      assert [%{"name" => "grafana__atlas_connection_status"}] = Proxy.list_hoisted_tools(conn)
+    end
+  end
+
+  test "diagnostics distinguish a temporary refresh outage from required upstream authorization" do
+    stub(Config, :get, fn -> tuist_proxy_config() end)
+    user = %User{id: "user-1"}
+    conn = %{assigns: %{current_user: user}}
+    stub(Atlas.MCP, :proxyable_operator_grant, fn _, _ -> nil end)
+    expect(Atlas.MCP, :access_token_for, fn ^user, _ -> {:error, :refresh_unavailable} end)
+
+    assert {:ok, %{status: "refresh_unavailable", stage: "authorization", retryable: true, tools: []}} =
+             Proxy.connection_status(conn, "tuist")
+
+    expect(Atlas.MCP, :access_token_for, fn ^user, _ -> {:error, {:refresh_failed, "sensitive-refresh-body"}} end)
+
+    assert {:ok, %{status: "refresh_failed", retryable: false, tools: []} = status} =
+             Proxy.connection_status(conn, "tuist")
+
+    assert status.message =~ "/admin/mcps"
+    refute inspect(status) =~ "sensitive-refresh-body"
+  end
+
+  test "diagnostics require a user and current upstream group access, even for a previously advertised name" do
+    conn = %{assigns: %{current_user: %User{id: "user-1"}, mcp_claims: %{"mcp_tool_groups" => []}}}
+    reject(Req, :post, 1)
+
+    assert {:error, _} = Proxy.connection_status(nil, "grafana")
+    assert {:error, _} = Proxy.connection_status(conn, "grafana")
+    assert {:error, _} = Proxy.call_hoisted_tool(conn, "grafana__atlas_connection_status", %{})
+    assert {:error, _} = Proxy.connection_status(conn, "not-configured")
+  end
+
+  test "diagnostics never reuse another user's schemas or schemas from before revocation" do
+    stub(Config, :get, fn -> tuist_proxy_config() end)
+    first = %User{id: "user-1"}
+    second = %User{id: "user-2"}
+    first_conn = %{assigns: %{current_user: first}}
+    second_conn = %{assigns: %{current_user: second}}
+
+    stub(Atlas.MCP, :proxyable_operator_grant, fn _, _ -> nil end)
+    expect(Atlas.MCP, :access_token_for, 3, fn ^first, _ -> {:ok, "token-1"} end)
+    expect_initialize("https://tuist.example/mcp")
+    expect_initialized_notification()
+
+    expect_tools_list([
+      %{"name" => "read", "annotations" => %{"readOnlyHint" => true}},
+      %{"name" => "write", "annotations" => %{"readOnlyHint" => false}}
+    ])
+
+    assert {:ok, %{tools: [%{"name" => "tuist__read"}]}} = Proxy.connection_status(first_conn, "tuist")
+
+    expect(Atlas.MCP, :access_token_for, fn ^second, _ -> {:error, :authorization_required} end)
+    assert {:ok, %{status: "authorization_required", tools: []}} = Proxy.connection_status(second_conn, "tuist")
+
+    expect(Atlas.MCP, :access_token_for, fn ^first, _ -> {:error, :authorization_required} end)
+    assert {:ok, %{status: "authorization_required", tools: []}} = Proxy.connection_status(first_conn, "tuist")
+  end
+
+  test "permanent diagnostic tool checks live state and validates its structured output" do
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+    expect(Req, :post, fn _ -> {:error, %Req.TransportError{reason: :timeout}} end)
+    response = GetMCPConnectionStatus.call(conn, %{"server" => "grafana"})
+    assert response["structuredContent"]["status"] == "transport_error"
+    assert response["structuredContent"]["retryable"]
+    refute response["isError"]
   end
 
   defp expect_initialize do

@@ -127,6 +127,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetFinancing
   alias Atlas.MCP.Tools.GetGTMOpportunity
   alias Atlas.MCP.Tools.GetInsurancePolicy
+  alias Atlas.MCP.Tools.GetMCPConnectionStatus
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
@@ -449,6 +450,7 @@ defmodule Atlas.MCP.Server do
     DescribeTuistClickhouseTable
   ]
   @static_tools [
+    GetMCPConnectionStatus,
     ListEngineeringProjects,
     GetEngineeringProject,
     CreateEngineeringProject,
