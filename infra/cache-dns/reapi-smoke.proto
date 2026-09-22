@@ -1,0 +1,31 @@
+syntax = "proto3";
+package build.bazel.remote.execution.v2;
+
+// Wire-compatible subset of the REAPI used by bazel-remote-apis 0.27.0.
+// Kept dependency-free so staging probes do not need server reflection.
+message Digest { string hash = 1; int64 size_bytes = 2; }
+message Status { int32 code = 1; string message = 2; }
+message BatchUpdateBlobsRequest {
+  string instance_name = 1;
+  message Request { Digest digest = 1; bytes data = 2; int32 compressor = 3; }
+  repeated Request requests = 2;
+  int32 digest_function = 5;
+}
+message BatchUpdateBlobsResponse {
+  message Response { Digest digest = 1; Status status = 2; }
+  repeated Response responses = 1;
+}
+message BatchReadBlobsRequest {
+  string instance_name = 1;
+  repeated Digest digests = 2;
+  repeated int32 acceptable_compressors = 3;
+  int32 digest_function = 4;
+}
+message BatchReadBlobsResponse {
+  message Response { Digest digest = 1; bytes data = 2; Status status = 3; int32 compressor = 4; }
+  repeated Response responses = 1;
+}
+service ContentAddressableStorage {
+  rpc BatchUpdateBlobs(BatchUpdateBlobsRequest) returns (BatchUpdateBlobsResponse);
+  rpc BatchReadBlobs(BatchReadBlobsRequest) returns (BatchReadBlobsResponse);
+}
