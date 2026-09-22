@@ -100,7 +100,13 @@ server:
   publicPageChallenge:
     enabled: true
 
-  replicaCount: 1
+  # Two clustered replicas so staging exercises the cross-pod paths
+  # (PubSub routing to sandbox node sockets, :global singletons) that
+  # only production had before.
+  replicaCount: 2
+  cluster:
+    enabled: true
+    applicationName: tuist
 
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
