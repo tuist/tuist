@@ -1,0 +1,11 @@
+// Wire-compatible subset of google/bytestream/bytestream.proto.
+syntax = "proto3";
+package google.bytestream;
+service ByteStream {
+  rpc Read(ReadRequest) returns (stream ReadResponse) {}
+  rpc Write(stream WriteRequest) returns (WriteResponse) {}
+}
+message ReadRequest { string resource_name = 1; int64 read_offset = 2; int64 read_limit = 3; }
+message ReadResponse { bytes data = 10; }
+message WriteRequest { string resource_name = 1; int64 write_offset = 2; bool finish_write = 3; bytes data = 10; }
+message WriteResponse { int64 committed_size = 1; }

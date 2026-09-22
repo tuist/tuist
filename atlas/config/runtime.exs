@@ -419,6 +419,12 @@ if object_storage_bucket not in [nil, ""] do
     System.get_env("ATLAS_OBJECT_STORAGE_SECRET_ACCESS_KEY") ||
       raise "environment variable ATLAS_OBJECT_STORAGE_SECRET_ACCESS_KEY is required when ATLAS_OBJECT_STORAGE_BUCKET is set"
 
+  # Real contract templates live in the private `contracts/templates/` prefix of
+  # the same bucket; only the placeholder stubs are checked into the repo. Once
+  # the bucket is configured, the download controller and the MCP tool serve the
+  # real bytes from S3.
+  config :atlas, Atlas.Contracts, source: :s3
+
   config :atlas, :object_storage,
     endpoint_url: System.get_env("ATLAS_OBJECT_STORAGE_ENDPOINT_URL", "https://fsn1.your-objectstorage.com"),
     region: System.get_env("ATLAS_OBJECT_STORAGE_REGION", "fsn1"),
@@ -525,35 +531,13 @@ case System.get_env("MCP_PROXY_SERVERS") do
     end
 end
 
-slack_agent_channel_policies =
-  case System.get_env("ATLAS_SLACK_AGENT_CHANNEL_POLICIES") do
-    value when value in [nil, ""] ->
-      []
+# Fallback Slack channel for engineering-errors alerts posted by
+# `Atlas.Engineering.Errors.IssueCoalescer` and `Atlas.Engineering.Errors.DropAlerter`.
+# Used when a project has no explicit `slack_alert_channel` set. Defaults to
+# `#errors` in the Tuist company workspace.
+default_alert_slack_channel = System.get_env("ATLAS_DEFAULT_ALERT_SLACK_CHANNEL", "C061VCZC2V8")
 
-    value ->
-      case JSON.decode(value) do
-        {:ok, policies} when is_list(policies) ->
-          policies
-
-        _ ->
-          raise "environment variable ATLAS_SLACK_AGENT_CHANNEL_POLICIES must be a JSON array"
-      end
-  end
-
-slack_agent_identities =
-  case System.get_env("ATLAS_SLACK_AGENT_IDENTITIES") do
-    value when value in [nil, ""] ->
-      []
-
-    value ->
-      case JSON.decode(value) do
-        {:ok, identities} when is_list(identities) ->
-          identities
-
-        _ ->
-          raise "environment variable ATLAS_SLACK_AGENT_IDENTITIES must be a JSON array"
-      end
-  end
+config :atlas, :default_alert_slack_channel, default_alert_slack_channel
 
 # Slack app credentials. Atlas keeps one company Slack app. The signing
 # secret is app-wide; the bot token can be captured through the install
@@ -567,10 +551,7 @@ config :atlas, :slack,
   bot_token: System.get_env("SLACK_COMPANY_BOT_TOKEN"),
   bot_name: System.get_env("ATLAS_SLACK_BOT_NAME") || System.get_env("SLACK_COMPANY_BOT_NAME")
 
-config :atlas, :slack_agent,
-  mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_MCP_USER_EMAIL") || "pedro@tuist.dev",
-  identities: slack_agent_identities,
-  channel_policies: slack_agent_channel_policies
+config :atlas, :slack_agent, mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_MCP_USER_EMAIL") || "pedro@tuist.dev"
 
 # Sentry error reporting. Only configured when SENTRY_DSN is set so dev
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is
@@ -587,27 +568,43 @@ if sentry_dsn = System.get_env("SENTRY_DSN") do
 end
 
 # Single language model provider used by all AI features. LLM_MODEL takes a
-# ReqLLM "provider:model_id" string. Hive exposes an OpenAI-compatible endpoint:
-#   LLM_API_KEY=<Hive inference token>
-#   LLM_MODEL=openai:Balanced
-#   LLM_BASE_URL=https://hive.tuist.dev/inference/v1
-# LLM_BASE_URL is optional for providers that ship a default endpoint.
-case language_model_api_key do
-  nil ->
-    :ok
+# ReqLLM "provider:model_id" string. Two modes are supported:
+#
+#   Remote — an OpenAI-compatible upstream is called over HTTPS:
+#     LLM_API_KEY=<bearer token>
+#     LLM_MODEL=openai:gpt-4o-mini
+#     LLM_BASE_URL=https://api.openai.com/v1     # optional for OpenAI itself
+#
+#   Local — atlas hosts the inference relay itself. ReqLLM's HTTP calls
+#   are routed in-process through Atlas.LLMs.LocalTransport, which
+#   dispatches to Atlas.Inference.relay_request/3. No API key and no
+#   model string in env: the profile marked atlas_inference: true in
+#   the `inference_model_bindings` table is the default for chat, and
+#   atlas_embedding: true is the default for embeddings.
+#     LLM_MODE=local
+llm_mode = present_env.(["LLM_MODE"])
+llm_config = Application.get_env(:atlas, :llm, [])
 
-  api_key ->
+cond do
+  llm_mode == "local" ->
+    config :atlas, :llm,
+      mode: :local,
+      receive_timeout: Keyword.get(llm_config, :receive_timeout)
+
+  language_model_api_key != nil ->
     model =
       present_env.(["LLM_MODEL"]) ||
         raise "environment variable LLM_MODEL is required when LLM_API_KEY is set"
 
-    llm_config = Application.get_env(:atlas, :llm, [])
-
     config :atlas, :llm,
-      api_key: api_key,
+      mode: :remote,
+      api_key: language_model_api_key,
       model: model,
       base_url: present_env.(["LLM_BASE_URL"]),
       receive_timeout: Keyword.get(llm_config, :receive_timeout)
+
+  true ->
+    :ok
 end
 
 if config_env() == :prod do
@@ -686,6 +683,19 @@ if config_env() in [:dev, :test] do
     secret_key: "dev-only-guardian-secret-do-not-use-in-prod-aaaaaaaaaaaaaaaa"
 end
 
+# ClickHouse (Engineering.Errors) - separate instance from Tuist server's analytics DB.
+# Feature-gated so Atlas can boot without ClickHouse in dev/test.
+parse_boolean = fn
+  nil -> false
+  "" -> false
+  "true" -> true
+  "1" -> true
+  _ -> false
+end
+
+clickhouse_enabled? =
+  parse_boolean.(System.get_env("ATLAS_CLICKHOUSE_ENABLED", if(config_env() == :dev, do: "false", else: "false")))
+
 # Internal Tuist server API, used by the `*_tuist_postgres*` MCP tools for
 # read-only database access. Atlas authenticates with a projected ServiceAccount
 # token (audience `tuist-server`) read from `token_path`; the file is absent in
@@ -697,3 +707,44 @@ config :atlas, :ops, reason_form_url: System.get_env("ATLAS_OPS_REASON_FORM_URL"
 config :atlas, :tuist_server,
   base_url: System.get_env("TUIST_SERVER_INTERNAL_URL") || "https://tuist.dev",
   token_path: System.get_env("TUIST_SERVER_TOKEN_PATH") || "/var/run/secrets/tuist/token"
+
+if clickhouse_enabled? do
+  clickhouse_database =
+    System.get_env("ATLAS_CLICKHOUSE_DATABASE") ||
+      case config_env() do
+        :dev ->
+          DevInstance.database_name("atlas_dev")
+
+        :test ->
+          DevInstance.database_name("atlas_test", partition: System.get_env("MIX_TEST_PARTITION"))
+
+        _env ->
+          "atlas"
+      end
+
+  clickhouse_config = [
+    hostname: System.get_env("ATLAS_CLICKHOUSE_HOST", "127.0.0.1"),
+    port: System.get_env("ATLAS_CLICKHOUSE_PORT", "8123") |> String.to_integer(),
+    database: clickhouse_database,
+    username: System.get_env("ATLAS_CLICKHOUSE_USERNAME", "default"),
+    password: System.get_env("ATLAS_CLICKHOUSE_PASSWORD") || System.get_env("SECRET_KEY_BASE"),
+    pool_size: System.get_env("ATLAS_CLICKHOUSE_POOL_SIZE", "5") |> String.to_integer(),
+    settings: [session_timezone: "UTC"]
+  ]
+
+  ingest_repo_config =
+    clickhouse_config
+    |> Keyword.put(
+      :flush_interval_ms,
+      System.get_env("ATLAS_INGEST_FLUSH_INTERVAL_MS", "2000") |> String.to_integer()
+    )
+    |> Keyword.put(
+      :max_buffer_size,
+      System.get_env("ATLAS_INGEST_MAX_BUFFER_SIZE", "1048576") |> String.to_integer()
+    )
+
+  config :atlas, Atlas.ClickHouseRepo, Keyword.put(clickhouse_config, :read_only, true)
+  config :atlas, Atlas.IngestRepo, ingest_repo_config
+  config :atlas, :clickhouse_enabled, true
+  config :atlas, :ecto_repos, [Atlas.Repo, Atlas.IngestRepo]
+end

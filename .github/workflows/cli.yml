@@ -86,8 +86,9 @@ concurrency:
 jobs:
   cli-lint:
     name: Lint
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
+    if: github.repository == 'tuist/tuist'
     permissions:
       contents: read
       id-token: write
@@ -127,12 +128,12 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -162,12 +163,12 @@ jobs:
 
   cli-cache:
     name: Cache
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -206,12 +207,12 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -247,12 +248,12 @@ jobs:
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
-    if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
@@ -294,7 +295,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     permissions:
@@ -391,7 +392,7 @@ jobs:
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 60
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:
@@ -432,7 +433,7 @@ jobs:
     container:
       image: swift:6.2
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Restore cache
@@ -485,7 +486,7 @@ jobs:
     container:
       image: swift:6.2
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Restore cache

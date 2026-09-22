@@ -435,7 +435,7 @@ defmodule Atlas.Finance.Sync do
         target_id: summary.source_id,
         target_label: source_key,
         metadata: %{
-          "path" => "/finance",
+          "path" => "/commercial/finance",
           "source_key" => source_key,
           "accounts_seen" => summary.accounts_seen,
           "transactions_seen" => summary.transactions_seen
@@ -454,7 +454,7 @@ defmodule Atlas.Finance.Sync do
         metadata:
           Map.merge(
             %{
-              "path" => "/finance",
+              "path" => "/commercial/finance",
               "source_key" => source_key
             },
             audit_failure_metadata(reason)

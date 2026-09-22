@@ -60,7 +60,7 @@ defmodule Atlas.Accounts.Briefs.Adapter do
         fingerprint: "accounts:outcome_proposal:#{proposal.account_id}:#{proposal.proposal_key}",
         source_type: "account_outcome_proposal",
         source_id: proposal.id,
-        source_path: "/sales/accounts/#{proposal.account_id}",
+        source_path: "/commercial/sales/accounts/#{proposal.account_id}",
         due_at: DateTime.add(period.end_at, 7, :day),
         evidence: proposal_evidence(proposal)
       }
@@ -87,7 +87,7 @@ defmodule Atlas.Accounts.Briefs.Adapter do
         fingerprint: "accounts:outcome:#{outcome.id}:#{kind}",
         source_type: "account_outcome",
         source_id: outcome.id,
-        source_path: "/sales/accounts/#{outcome.account_id}",
+        source_path: "/commercial/sales/accounts/#{outcome.account_id}",
         due_at: DateTime.add(period.end_at, 7, :day),
         evidence: [
           %{

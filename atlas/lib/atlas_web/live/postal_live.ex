@@ -69,7 +69,7 @@ defmodule AtlasWeb.PostalLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/postal?#{updated_params}")
+     |> push_patch(to: ~p"/outbound/postal?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -79,7 +79,7 @@ defmodule AtlasWeb.PostalLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/postal?#{updated_params}")
+     |> push_patch(to: ~p"/outbound/postal?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -159,7 +159,7 @@ defmodule AtlasWeb.PostalLive do
       %Letter{} = letter ->
         case letter_document(letter) do
           nil -> {:noreply, put_flash(socket, :error, gettext("This letter document is no longer available."))}
-          document -> {:noreply, push_navigate(socket, to: ~p"/documents/#{document.id}")}
+          document -> {:noreply, push_navigate(socket, to: ~p"/library/documents/#{document.id}")}
         end
 
       _letter ->
@@ -241,7 +241,7 @@ defmodule AtlasWeb.PostalLive do
             label={gettext("Open documents")}
             variant="secondary"
             size="medium"
-            navigate={~p"/documents"}
+            navigate={~p"/library/documents"}
           >
             <:icon_left><.file /></:icon_left>
           </.button>
@@ -294,7 +294,7 @@ defmodule AtlasWeb.PostalLive do
                     :if={letter.account}
                     id={"postal-letter-account-#{letter.id}"}
                     data-part="account-link"
-                    navigate={~p"/sales/accounts/#{letter.account.id}"}
+                    navigate={~p"/commercial/sales/accounts/#{letter.account.id}"}
                   >
                     {letter.account.name}
                   </.link>
@@ -352,7 +352,7 @@ defmodule AtlasWeb.PostalLive do
                     label={letter_document_label(letter)}
                     variant="secondary"
                     size="medium"
-                    navigate={~p"/documents/#{letter_document(letter).id}"}
+                    navigate={~p"/library/documents/#{letter_document(letter).id}"}
                   >
                     <:icon_left><.file /></:icon_left>
                   </.button>
@@ -555,7 +555,7 @@ defmodule AtlasWeb.PostalLive do
       |> WebQuery.put_present("sort-order", if(sort_by, do: sort_order))
       |> Map.merge(Filter.Operations.encode_filters_to_query(active_filters))
 
-    ~p"/postal?#{params}"
+    ~p"/outbound/postal?#{params}"
   end
 
   defp normalize_sort_by(value) when value in @sortable_fields, do: value

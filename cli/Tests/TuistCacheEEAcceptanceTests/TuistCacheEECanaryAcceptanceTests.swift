@@ -20,6 +20,7 @@ import TuistServer
 import TuistSupport
 import TuistTestCommand
 import TuistTesting
+import TuistTestSupport
 import XcodeProj
 @testable import TuistCacheEE
 @testable import TuistKit
@@ -149,10 +150,18 @@ struct TuistCacheEECanaryAcceptanceTests {
             ["--path", fixtureDirectory.pathString]
         )
 
+        let fileSystem = FileSystem()
+        let binaries = try CacheDirectoriesProvider().cacheDirectory(for: .binaries)
+        #expect(try await !fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
+        try await TuistTest.run(CleanCommand.self, ["binaries", "--path", fixtureDirectory.pathString])
+        #expect(try await fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
+
         // When: Generate with focus on App
         try await TuistTest.run(
             GenerateCommand.self, ["App", "--path", fixtureDirectory.pathString, "--no-open"]
         )
+
+        #expect(try await !fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
 
         // Then: Cached frameworks should be linked as xcframeworks
         try TuistAcceptanceTest.expectXCFrameworkLinked(
@@ -358,16 +367,12 @@ struct TuistCacheEECanaryAcceptanceTests {
 
     /// Where `mise run build` in `cas-plugin` leaves the plugin dylib and the proxy binary.
     ///
-    /// Resolved from the source tree, the way `Fixtures.directory` is, rather than from
+    /// Resolved from the checkout path captured in `TUIST_CONFIG_SRCROOT`, rather than from
     /// `TUIST_CAS_PLUGIN_PATH`: `xcodebuild test-without-building` runs the bundle with the
     /// environment captured into the xctestrun at build time, so a variable exported by the
     /// CI job never reaches this process.
     private func casPluginBuildDirectory() throws -> AbsolutePath {
-        try AbsolutePath(validating: #filePath)
-            .parentDirectory
-            .parentDirectory
-            .parentDirectory
-            .parentDirectory
+        TestPaths.repositoryRoot
             .appending(components: "cas-plugin", "target", "release")
     }
 

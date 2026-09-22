@@ -17,6 +17,7 @@ defmodule Atlas.Accounts do
   alias Atlas.Accounts.Event
   alias Atlas.Accounts.EventRouting
   alias Atlas.Accounts.FeatureInterests
+  alias Atlas.Accounts.HandleRegistry
   alias Atlas.Accounts.Invoices
   alias Atlas.Accounts.OrderForms
   alias Atlas.Accounts.Outcome
@@ -236,6 +237,7 @@ defmodule Atlas.Accounts do
       |> reject_parent_account_cycle(account)
 
     attention_relevant_change? = attention_relevant_change?(changeset)
+    handle_snapshot_relevant_change? = handle_snapshot_relevant_change?(changeset)
 
     case Repo.update(changeset) do
       {:ok, updated} = result ->
@@ -244,11 +246,34 @@ defmodule Atlas.Accounts do
         if attention_relevant_change?,
           do: enqueue_account_attention_suggestion_generation(updated.id, "account_updated")
 
+        if handle_snapshot_relevant_change?,
+          do: broadcast_account_snapshot_change(updated)
+
         result
 
       error ->
         error
     end
+  end
+
+  # Fields the HandleRegistry snapshot copies out of accounts. Any change
+  # to one of these needs a broadcast so nodes rewrite their cached
+  # entries; a change outside this list is invisible to the registry.
+  defp handle_snapshot_relevant_change?(changeset) do
+    Enum.any?([:name, :primary_domain, :plan_tier, :account_key], &Map.has_key?(changeset.changes, &1))
+  end
+
+  defp broadcast_account_snapshot_change(%Account{} = account) do
+    HandleRegistry.broadcast_change(%{
+      action: :account_updated,
+      account_id: account.id,
+      entry: %{
+        account_key: account.account_key,
+        name: account.name,
+        primary_domain: account.primary_domain,
+        plan_tier: account.plan_tier
+      }
+    })
   end
 
   defp attention_relevant_change?(changeset) do
@@ -748,7 +773,7 @@ defmodule Atlas.Accounts do
           {:ok, updated} ->
             audit_account("account.commercial_summary.synced", updated, %{
               "changed" => Audit.changeset_changes(changeset),
-              "path" => "/sales/accounts/#{updated.id}",
+              "path" => "/commercial/sales/accounts/#{updated.id}",
               "term_id" => term.id
             })
 
@@ -794,8 +819,12 @@ defmodule Atlas.Accounts do
     changeset
     |> Repo.insert()
     |> tap(fn
-      {:ok, account_handle} -> audit_account_handle("account_handle.created", account_handle, changeset)
-      _result -> :ok
+      {:ok, account_handle} ->
+        audit_account_handle("account_handle.created", account_handle, changeset)
+        broadcast_handle_upsert(account, account_handle)
+
+      _result ->
+        :ok
     end)
   end
 
@@ -807,10 +836,28 @@ defmodule Atlas.Accounts do
       account_handle ->
         Repo.delete(account_handle)
         |> tap(fn
-          {:ok, deleted} -> audit_account_handle("account_handle.deleted", deleted, %{})
-          _result -> :ok
+          {:ok, deleted} ->
+            audit_account_handle("account_handle.deleted", deleted, %{})
+            HandleRegistry.broadcast_change(%{action: :delete, handle: deleted.handle})
+
+          _result ->
+            :ok
         end)
     end
+  end
+
+  defp broadcast_handle_upsert(%Account{} = account, %AccountHandle{} = handle) do
+    HandleRegistry.broadcast_change(%{
+      action: :upsert,
+      handle: handle.handle,
+      entry: %{
+        account_id: account.id,
+        account_key: account.account_key,
+        name: account.name,
+        primary_domain: account.primary_domain,
+        plan_tier: account.plan_tier
+      }
+    })
   end
 
   defp audit_account(action, %Account{} = account, metadata_or_changeset, opts \\ []) do
@@ -928,7 +975,7 @@ defmodule Atlas.Accounts do
   defp put_metadata(metadata, key, value), do: Map.put(metadata, key, value)
 
   defp put_account_path(metadata, account_id) when is_binary(account_id) and account_id != "" do
-    Map.put_new(metadata, "path", "/sales/accounts/#{account_id}")
+    Map.put_new(metadata, "path", "/commercial/sales/accounts/#{account_id}")
   end
 
   defp put_account_path(metadata, _account_id), do: metadata

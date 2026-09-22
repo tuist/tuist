@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import Mockable
 import Path
@@ -21,7 +22,7 @@ struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
     private let farCacheURL = URL(string: "https://far-cache.tuist.dev")!
-    private func makeSubject() -> (
+    private func makeSubject(cacheURLError: CacheURLStoreError? = nil) -> (
         subject: CacheConfigCommandService,
         serverEnvironmentService: MockServerEnvironmentServicing,
         serverAuthenticationController: MockServerAuthenticationControlling,
@@ -51,9 +52,15 @@ struct CacheConfigCommandServiceTests {
             .parse(.any)
             .willReturn((accountHandle: "my-account", projectHandle: "my-project"))
 
-        given(cacheURLStore)
-            .getCacheURL(for: .any, accountHandle: .any)
-            .willReturn(cacheURL)
+        if let cacheURLError {
+            given(cacheURLStore)
+                .getCacheURL(for: .any, accountHandle: .any)
+                .willThrow(cacheURLError)
+        } else {
+            given(cacheURLStore)
+                .getCacheURL(for: .any, accountHandle: .any)
+                .willReturn(cacheURL)
+        }
 
         given(cacheURLStore)
             .getCacheEndpoints(for: .any, accountHandle: .any)
@@ -185,6 +192,36 @@ struct CacheConfigCommandServiceTests {
         let output = ui()
         #expect(output.contains("\"endpoints\""))
         #expect(output.contains("far-cache.tuist.dev"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
+    func run_exits_with_a_temporary_failure_while_the_remote_cache_is_being_prepared() async throws {
+        // Given
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            _,
+            _,
+            _,
+            _,
+            _
+        ) = makeSubject(cacheURLError: .endpointBeingPrepared)
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("account-token-123"))
+
+        // When/Then
+        await #expect(throws: ExitCode(75)) {
+            try await subject.run(
+                fullHandle: "my-account/my-project",
+                json: false,
+                forceRefresh: false,
+                directory: nil,
+                url: nil
+            )
+        }
+        #expect(ui().contains("The remote cache is being prepared"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies())

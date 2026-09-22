@@ -16,6 +16,8 @@ defmodule AtlasWeb.AccountLiveTest do
   alias Atlas.Accounts.OutcomeProposal
   alias Atlas.Accounts.ServiceLevel
   alias Atlas.Accounts.ServiceLevelExtractionCheck
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Document
   alias Atlas.Letters
   alias Atlas.Repo
@@ -32,7 +34,7 @@ defmodule AtlasWeb.AccountLiveTest do
     account = insert_tax_certificate_account!(suffix)
     conn = init_test_session(conn, %{"user_id" => executive.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#tax-certificate-request-modal [data-part='trigger']")
     refute has_element?(view, "[data-part='government-letters-card']")
@@ -44,7 +46,7 @@ defmodule AtlasWeb.AccountLiveTest do
     account = insert_tax_certificate_account!(suffix)
     conn = init_test_session(conn, %{"user_id" => employee.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     refute has_element?(view, "[data-part='government-letters-card']")
     refute has_element?(view, "#tax-certificate-request-modal")
@@ -60,7 +62,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => executive.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "[data-part='ready-to-sign-tax-certificate-requests-card']")
 
@@ -130,7 +132,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account")
     assert has_element?(view, "[data-part='overview-card']", "Handles")
@@ -160,7 +162,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "[data-part='account-attention-card']")
     assert has_element?(view, "#generate-attention-suggestions-button")
@@ -174,7 +176,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account-attention-suggestion-actions-#{suggestion.id}")
     assert has_element?(view, "#account-attention-suggestion-actions-#{suggestion.id}-button")
@@ -209,7 +211,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account-service-level-#{service_level.id}", "Monthly uptime")
     assert has_element?(view, "#account-service-level-#{service_level.id}", "99.9% monthly uptime")
@@ -233,7 +235,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(
              view,
@@ -254,7 +256,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     refute has_element?(view, "[data-part='documents-card']")
     refute has_element?(view, "#account-documents-list")
@@ -272,7 +274,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     render_submit(view, "add_note", %{
       "note" => %{"body" => "Pricing call lined up with the procurement team."}
@@ -320,7 +322,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     render_submit(view, "save_outcome", %{
       "outcome" => %{
@@ -444,7 +446,7 @@ defmodule AtlasWeb.AccountLiveTest do
       })
 
     conn = init_test_session(conn, %{"user_id" => user.id})
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#suggest-outcomes-button")
     assert has_element?(view, "#account-outcome-proposals")
@@ -514,7 +516,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     rendered = render(view)
     body_selector = "#timeline-event-#{event.id} [data-part='timeline-event-body']"
@@ -537,7 +539,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
       conn = init_test_session(conn, %{"user_id" => user.id})
 
-      {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+      {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
       render_hook(view, "screenshot_pasted", %{
         "data" => Base.encode64(<<0, 0, 0>>),
@@ -561,7 +563,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
       conn = init_test_session(conn, %{"user_id" => user.id})
 
-      {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+      {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
       render_hook(view, "screenshot_pasted", %{
         "data" => Base.encode64(<<0, 0, 0>>),
@@ -592,7 +594,7 @@ defmodule AtlasWeb.AccountLiveTest do
       end)
 
       conn = init_test_session(conn, %{"user_id" => user.id})
-      {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+      {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
       first_screenshot = Base.encode64(<<137, 80, 78, 71>>)
 
@@ -647,7 +649,7 @@ defmodule AtlasWeb.AccountLiveTest do
       end)
 
       conn = init_test_session(conn, %{"user_id" => user.id})
-      {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+      {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
       render_hook(view, "screenshot_pasted", %{
         "data" => Base.encode64(<<137, 80, 78, 71>>),
@@ -672,7 +674,7 @@ defmodule AtlasWeb.AccountLiveTest do
         })
 
       conn = init_test_session(conn, %{"user_id" => user.id})
-      {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+      {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
       first_screenshot = Base.encode64(<<137, 80, 78, 71>>)
 
@@ -796,7 +798,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account-slack-channel-link", "Company / #fixture-channel")
     _ = channel
@@ -878,7 +880,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     refute has_element?(view, "[data-part='invoices-card']")
   end
@@ -918,7 +920,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     refute has_element?(view, "[data-part='invoices-source-label']")
     assert has_element?(view, "#account-invoices-table", "TUIST-8002")
@@ -953,13 +955,13 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account-invoices-table", "TUIST-PAGE-6")
     refute has_element?(view, "#account-invoices-table", "TUIST-PAGE-1")
     assert has_element?(view, "a[href*='invoices-page=2']")
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}?invoices-page=2")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}?invoices-page=2")
 
     assert has_element?(view, "#account-invoices-table", "TUIST-PAGE-1")
     refute has_element?(view, "#account-invoices-table", "TUIST-PAGE-6")
@@ -977,7 +979,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "[data-part='overview-card']", "Handles")
     assert has_element?(view, "#edit-account-button")
@@ -1009,7 +1011,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     render_submit(view, "save_contact", %{
       "contact" => %{
@@ -1054,7 +1056,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     view
     |> element("#edit-contact-button-#{contact.id}")
@@ -1093,7 +1095,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     render_submit(view, "save_account", %{
       "account" => %{
@@ -1124,7 +1126,7 @@ defmodule AtlasWeb.AccountLiveTest do
     assert updated_account.stripe_customer_id == "cus_123"
 
     assert has_element?(view, "#account [data-part='label']", "Acme Group")
-    assert has_element?(view, "#account-parent-link[href='/sales/accounts/#{parent.id}']", "Acme Holding")
+    assert has_element?(view, "#account-parent-link[href='/commercial/sales/accounts/#{parent.id}']", "Acme Holding")
     assert has_element?(view, "[data-part='metadata-value']", "deliveryhero.example")
     assert has_element?(view, "[data-part='metadata-value']", "Customer")
     assert has_element?(view, "#account-stripe-link[href='https://dashboard.stripe.com/customers/cus_123']")
@@ -1144,7 +1146,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     render_submit(view, "save_account", %{
       "account" => %{
@@ -1171,7 +1173,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     render_submit(view, "save_account", %{
       "account" => %{
@@ -1196,7 +1198,7 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     render_submit(view, "save_account", %{
       "account" => %{
@@ -1222,11 +1224,11 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account-actions-dropdown")
 
-    assert {:error, {:live_redirect, %{to: "/sales/accounts"}}} =
+    assert {:error, {:live_redirect, %{to: "/commercial/sales/accounts"}}} =
              render_click(view, "delete_account")
 
     refute Repo.get(Account, account.id)
@@ -1245,11 +1247,11 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account-actions-dropdown")
 
-    assert {:error, {:live_redirect, %{to: "/sales/accounts"}}} =
+    assert {:error, {:live_redirect, %{to: "/commercial/sales/accounts"}}} =
              render_click(view, "mark_not_account")
 
     stored = Repo.get!(Account, account.id)
@@ -1269,20 +1271,33 @@ defmodule AtlasWeb.AccountLiveTest do
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
-    {:ok, view, _html} = live(conn, ~p"/sales/accounts/#{account.id}")
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert {:ok, %Account{}} = Accounts.delete_account(account)
 
     assert has_element?(view, "#account-actions-dropdown")
 
-    assert {:error, {:live_redirect, %{to: "/sales/accounts"}}} =
+    assert {:error, {:live_redirect, %{to: "/commercial/sales/accounts"}}} =
              render_click(view, "delete_account")
   end
 
   defp insert_user!(email, attrs \\ %{}) do
-    %User{}
-    |> User.changeset(Map.merge(%{email: email, name: "Atlas User"}, attrs))
-    |> Repo.insert!()
+    {role, attrs} = Map.pop(attrs, :role)
+
+    user =
+      %User{}
+      |> User.changeset(Map.merge(%{email: email, name: "Atlas User"}, attrs))
+      |> Repo.insert!()
+
+    if role == :executive do
+      executive_role = Roles.ensure_executive_role!()
+
+      %UserRole{}
+      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
+      |> Repo.insert!()
+    end
+
+    user
   end
 
   defp insert_tax_certificate_account!(suffix) do

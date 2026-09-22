@@ -244,7 +244,7 @@ defmodule AtlasWeb.AccountsLive do
           <.table
             id="accounts-table"
             rows={@accounts}
-            row_navigate={fn account -> ~p"/sales/accounts/#{account.id}" end}
+            row_navigate={fn account -> ~p"/commercial/sales/accounts/#{account.id}" end}
           >
             <:col
               :let={account}
@@ -350,7 +350,7 @@ defmodule AtlasWeb.AccountsLive do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Account created."))
-         |> push_navigate(to: ~p"/sales/accounts/#{account.id}")}
+         |> push_navigate(to: ~p"/commercial/sales/accounts/#{account.id}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :account_form, to_form(changeset, as: "account"))}
@@ -369,7 +369,7 @@ defmodule AtlasWeb.AccountsLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/sales/accounts?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/sales/accounts?#{updated_params}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
@@ -379,7 +379,7 @@ defmodule AtlasWeb.AccountsLive do
 
     {:noreply,
      socket
-     |> push_patch(to: ~p"/sales/accounts?#{updated_params}")
+     |> push_patch(to: ~p"/commercial/sales/accounts?#{updated_params}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
@@ -413,7 +413,7 @@ defmodule AtlasWeb.AccountsLive do
       |> WebQuery.put_present("sort-order", if(sort_by, do: sort_order))
       |> Map.merge(Filter.Operations.encode_filters_to_query(active_filters))
 
-    ~p"/sales/accounts?#{params}"
+    ~p"/commercial/sales/accounts?#{params}"
   end
 
   defp assign_new_account_form(socket) do

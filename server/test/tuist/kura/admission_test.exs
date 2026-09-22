@@ -9,6 +9,7 @@ defmodule Tuist.Kura.AdmissionTest do
   alias Tuist.Kura
   alias Tuist.Kura.Admission
   alias Tuist.Kura.Capacity
+  alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -66,6 +67,107 @@ defmodule Tuist.Kura.AdmissionTest do
     assert {:error, :capacity_exhausted} = Admission.admit_replacements?(region, [{current, candidate}])
   end
 
+  # The region-wide totals cannot see that the scheduler places each replica
+  # whole on one node, so admitting on them alone leaves an instance Pending
+  # and its rolling rebuild deadlocked on a volume that will not release.
+  test "refuses a claim increase the region has room for and no node can place" do
+    account = account()
+    {:ok, region} = Regions.fetch("us-east")
+    region_id = region.id
+    current = pending_server(account, region_id)
+    candidate = %{current | storage_claim_size: "16Gi"}
+
+    stub(Capacity, :pressure_line_gib, fn ^region_id -> 1000 end)
+    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+    stub(Capacity, :placeable?, fn ^region, %Server{storage_claim_size: "16Gi"} -> false end)
+
+    assert {:error, :capacity_unplaceable} = Admission.admit_replacements?(region, [{current, candidate}])
+  end
+
+  test "admits a claim increase that the instance's own replicas make room for" do
+    account = account()
+    {:ok, region} = Regions.fetch("us-east")
+    region_id = region.id
+    current = pending_server(account, region_id)
+    candidate = %{current | storage_claim_size: "16Gi"}
+
+    stub(Capacity, :pressure_line_gib, fn ^region_id -> 1000 end)
+    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+    stub(Capacity, :placeable?, fn ^region, _server -> true end)
+
+    assert :ok = Admission.admit_replacements?(region, [{current, candidate}])
+  end
+
+  # A refusal here blocks every legitimate claim growth in the region, so a
+  # reading that is merely missing must never produce one.
+  test "admits a claim increase while the per-node reading is unavailable" do
+    account = account()
+    {:ok, region} = Regions.fetch("us-east")
+    region_id = region.id
+    current = pending_server(account, region_id)
+    candidate = %{current | storage_claim_size: "16Gi"}
+
+    stub(Capacity, :pressure_line_gib, fn ^region_id -> 1000 end)
+    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+    stub(Capacity, :placeable?, fn ^region, _server -> nil end)
+
+    assert :ok = Admission.admit_replacements?(region, [{current, candidate}])
+  end
+
+  test "refuses a new instance no node can place" do
+    account = account()
+    {:ok, region} = Regions.fetch("us-east")
+    region_id = region.id
+
+    stub(Capacity, :pressure_line_gib, fn ^region_id -> 1000 end)
+    stub(Capacity, :reserved_gib, fn ^region_id -> 0 end)
+    stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+    stub(Capacity, :placeable?, fn ^region, _server -> false end)
+
+    assert {:error, :capacity_unplaceable} = Admission.admit?(region, candidate(account, region.id))
+  end
+
+  test "reports a region over its line as exhausted rather than unplaceable" do
+    account = account()
+    {:ok, region} = Regions.fetch("us-east")
+    region_id = region.id
+
+    stub(Capacity, :pressure_line_gib, fn ^region_id -> 31 end)
+    stub(Capacity, :reserved_gib, fn ^region_id -> 16 end)
+    stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+    stub(Capacity, :placeable?, fn ^region, _server -> false end)
+
+    assert {:error, :capacity_exhausted} = Admission.admit?(region, candidate(account, region.id))
+  end
+
+  # The refusal has to reach the sweep intact: it is what the apply rolls back
+  # on, and what the refusal metric is tagged with.
+  test "rolls a sizing apply back, and says which refusal it was" do
+    account = account()
+    server = pending_server(account, "us-east")
+
+    proposal =
+      Repo.insert!(%ClaimProposal{
+        account_id: account.id,
+        region: "us-east",
+        direction: :grow,
+        current_claim_size: "8Gi",
+        recommended_claim_size: "16Gi",
+        status: :open
+      })
+
+    stub(Capacity, :pressure_line_gib, fn "us-east" -> 1000 end)
+    stub(Capacity, :reserved_gib, fn "us-east" -> 16 end)
+    stub(Capacity, :placeable?, fn _region, _server -> false end)
+
+    assert {:error, {"us-east", :capacity_unplaceable}} = Kura.apply_claim_proposal(proposal, "automatic")
+    assert Repo.get!(Server, server.id).storage_claim_size == "8Gi"
+    assert Repo.get!(ClaimProposal, proposal.id).status == :open
+  end
+
   test "fails closed when the capacity measurement is unavailable" do
     account = account()
     {:ok, region} = Regions.fetch("us-east")
@@ -74,6 +176,59 @@ defmodule Tuist.Kura.AdmissionTest do
     stub(Capacity, :pressure_line_gib, fn ^region_id -> nil end)
 
     assert {:error, :capacity_unknown} = Admission.admit?(region, candidate(account, region.id))
+  end
+
+  describe "headroom_gib/1" do
+    test "is the pressure line less the observed reservation when the cluster has seen every row" do
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+      pending_server(account(), region_id)
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
+      stub(Capacity, :reserved_gib, fn ^region_id -> 40 end)
+      stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+
+      assert Admission.headroom_gib(region) == 60
+    end
+
+    test "counts rows the cluster has not observed yet, the way admission does" do
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+      pending_server(account(), region_id)
+      pending_server(account(), region_id)
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
+      stub(Capacity, :reserved_gib, fn ^region_id -> 0 end)
+      stub(Capacity, :resident_gib, fn ^region, _server -> 16 end)
+
+      assert Admission.headroom_gib(region) == 68
+    end
+
+    test "is negative when reservations already sit above the pressure line" do
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> 100 end)
+      stub(Capacity, :reserved_gib, fn ^region_id -> 110 end)
+
+      assert Admission.headroom_gib(region) == -10
+    end
+
+    test "is nil when the region cannot be read, which admission refuses" do
+      {:ok, region} = Regions.fetch("us-east")
+      region_id = region.id
+
+      stub(Capacity, :pressure_line_gib, fn ^region_id -> nil end)
+
+      assert Admission.headroom_gib(region) == nil
+    end
+
+    test "is unbounded when admission is not enforced" do
+      {:ok, region} = Regions.fetch("us-east")
+      stub(Environment, :kura_capacity_admission_required?, fn -> false end)
+
+      assert Admission.headroom_gib(region) == :unbounded
+    end
   end
 
   test "rejects cold provisioning before a server row is written" do

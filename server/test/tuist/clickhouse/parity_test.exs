@@ -1,7 +1,41 @@
 defmodule Tuist.ClickHouse.ParityTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Tuist.ClickHouse.Parity
+
+  describe "compare/1" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_bare_metal_url, fn -> "http://in-cluster:8123" end)
+      :ok
+    end
+
+    defp stub_ledger(repo, versions) do
+      stub(repo, :query!, fn sql, _params, _opts ->
+        if sql =~ "schema_migrations", do: %{rows: Enum.map(versions, &[&1])}, else: %{rows: []}
+      end)
+    end
+
+    defp compare do
+      Parity.compare(source_repo: Tuist.IngestRepo, target_repo: Tuist.ClickHouseRepo, tables: [], derived: [])
+    end
+
+    test "reports the ledger versions missing on the destination and the ones only it has" do
+      stub_ledger(Tuist.IngestRepo, [20_260_901_000_000, 20_260_910_150_000, 20_260_911_140_000])
+      stub_ledger(Tuist.ClickHouseRepo, [20_260_901_000_000, 20_260_911_140_000, 20_260_912_090_000])
+
+      assert {:ok, %{migrations: migrations}} = compare()
+
+      assert migrations == %{missing_on_destination: [20_260_910_150_000], only_on_destination: [20_260_912_090_000]}
+    end
+
+    test "reports no ledger drift when both servers hold the same versions" do
+      stub_ledger(Tuist.IngestRepo, [20_260_901_000_000, 20_260_910_150_000])
+      stub_ledger(Tuist.ClickHouseRepo, [20_260_910_150_000, 20_260_901_000_000])
+
+      assert {:ok, %{migrations: %{missing_on_destination: [], only_on_destination: []}}} = compare()
+    end
+  end
 
   describe "ttl_expression/1" do
     test "reads the expression a table's TTL deletes rows by" do

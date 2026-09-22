@@ -160,7 +160,7 @@ async fn membership_task_loop(state: SharedState) {
             .update_discovered_peer_nodes(membership_update.known_peer_count);
         state.sync.evaluate(&state);
         state.maybe_mark_serving().await;
-        sleep(Duration::from_secs(2)).await;
+        sleep(state.membership_poll_interval().await).await;
     }
 }
 

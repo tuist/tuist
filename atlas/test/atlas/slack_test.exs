@@ -33,7 +33,7 @@ defmodule Atlas.SlackTest do
       assert channel.account_id == account.id
 
       activity = Repo.get_by!(Activity, action: "slack_channel.tracked", target_id: channel.id)
-      assert activity.metadata["path"] == "/sales/accounts/#{account.id}"
+      assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
     end
 
     test "update_channel_account/2 links a channel to an account", %{account: account} do

@@ -57,9 +57,9 @@ defaults:
 jobs:
   swift-test:
     name: Swift Tests (XCActivityLogParser)
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:
       run:
         working-directory: server/native/xcactivitylog_nif
@@ -76,9 +76,9 @@ jobs:
   # binary, so this job guards both.
   swift-test-xcresult:
     name: Swift Tests (XCResultParser)
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:
       run:
         working-directory: server/native/xcresult_nif
@@ -99,7 +99,7 @@ jobs:
     # pattern as `setup-server-mix` callers.
     runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -235,7 +235,7 @@ jobs:
     # headroom this job had before the default was downsized (#11052).
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     # Local `mix test` compiles only the "en" locale for fast cold builds
     # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
     # locale set so the `:locale`-tagged i18n tests run and are covered here.
@@ -294,7 +294,7 @@ jobs:
     # publish, so the three cannot drift apart.
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     env:
       # Matches the Test job. Several locale assertions live in tests that carry
       # no `:locale` tag, so they run either way and fail against the "en"-only
@@ -357,6 +357,7 @@ jobs:
     name: Credo
     runs-on: tuist-linux
     timeout-minutes: 15
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -368,7 +369,7 @@ jobs:
     name: Format
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise
@@ -396,6 +397,7 @@ jobs:
     name: Image budget
     runs-on: tuist-linux
     timeout-minutes: 5
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - name: Install image inspection tools
@@ -415,7 +417,7 @@ jobs:
     name: esbuild
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -459,7 +461,7 @@ jobs:
     name: Security
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -480,7 +482,7 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -597,7 +599,7 @@ jobs:
     # 4 vCPU / 16 GB shape restores the headroom from before #11052.
     runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     services:
       postgres:
         image: postgres:16

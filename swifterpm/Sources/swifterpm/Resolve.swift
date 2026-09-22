@@ -158,7 +158,15 @@ enum PackageResolver {
     /// Returns true when SwifterPM cannot restore every pinned dependency from
     /// its own source cache. In that case native SwiftPM is the shortest
     /// correct path: it is already responsible for fetching each missing pin.
-    static func shouldUseNativeColdPath(packageDir: URL, cacheRoot: URL) async throws -> Bool {
+    ///
+    /// Registry pins are probed the same way, against the checksum marker the cache keeps
+    /// inside each registry release. Keying the cache path on identity, version and registry
+    /// URL alone is what makes that probe possible without asking the registry anything.
+    static func shouldUseNativeColdPath(
+        packageDir: URL,
+        cacheRoot: URL,
+        registryConfig: RegistryConfig
+    ) async throws -> Bool {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         guard try await fileSystem.exists(resolvedPath.absolutePath) else {
             return true
@@ -175,11 +183,18 @@ enum PackageResolver {
         }
 
         for pin in pins {
-            // A registry source path includes the archive checksum, which is
-            // only available after a registry request. Do not make that extra
-            // request just to probe the cache on a cold installation.
             guard PinKind.isSourceControl(pin.kind) else {
-                return true
+                guard PinKind.isRegistry(pin.kind) else {
+                    return true
+                }
+                guard try await WorkspaceRestorer.cachedRegistrySourceExists(
+                    cacheRoot: cacheRoot,
+                    registryConfig: registryConfig,
+                    pin: pin
+                ) else {
+                    return true
+                }
+                continue
             }
             let source = try Cache.sourcePath(root: cacheRoot, pin: pin)
             guard try await fileSystem.exists(source.appendingPathComponent("Package.swift").absolutePath) else {

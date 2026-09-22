@@ -152,7 +152,7 @@ defmodule Atlas.Outreach.CandidateNotifier do
   defp segment_label(segment) when is_binary(segment), do: segment
   defp segment_label(_segment), do: "Not available"
 
-  defp outreach_url, do: url(~p"/gtm/outreach")
+  defp outreach_url, do: url(~p"/commercial/gtm/outreach")
 
   defp slack_channel_id(opts) do
     channel_id =

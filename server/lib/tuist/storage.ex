@@ -145,6 +145,30 @@ defmodule Tuist.Storage do
     result
   end
 
+  @doc """
+  Discards the parts of an unfinished multipart upload. An upload that no
+  longer exists, because it completed or was already aborted, is not an error.
+  """
+  def multipart_abort(object_key, upload_id, actor) do
+    case storage_provider(actor) do
+      # Azure discards uncommitted blocks on its own.
+      :azure_blob ->
+        :ok
+
+      :s3 ->
+        {config, bucket_name} = s3_config_and_bucket(actor)
+
+        bucket_name
+        |> ExAws.S3.abort_multipart_upload(object_key, upload_id)
+        |> ExAws.request(with_http_opts(config, @metadata_http_opts))
+        |> case do
+          {:ok, _response} -> :ok
+          {:error, {:http_error, 404, _}} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
   defp report_multipart_complete_failure(_object_key, _upload_id, :ok), do: :ok
 
   defp report_multipart_complete_failure(_object_key, _upload_id, {:error, :multipart_upload_not_found}), do: :ok

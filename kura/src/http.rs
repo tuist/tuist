@@ -8025,11 +8025,25 @@ mod tests {
         .expect("analytics requests should be delivered");
 
         let requests = captured.lock().expect("captured requests lock");
+        // `event_id` and `observed_at_ms` are minted per-event by the
+        // analytics client and are dynamic, so strip them before comparing
+        // the rest of the payload against a fixed fixture. The point of this
+        // test is that the analytics call is scoped to the right project and
+        // carries the right cas action, not to freeze the id or timestamp.
         let payloads = requests
             .iter()
             .map(|request| {
-                serde_json::from_slice::<Value>(&request.body)
-                    .expect("analytics request body should decode")
+                let mut payload = serde_json::from_slice::<Value>(&request.body)
+                    .expect("analytics request body should decode");
+                if let Some(events) = payload["events"].as_array_mut() {
+                    for event in events {
+                        if let Some(object) = event.as_object_mut() {
+                            object.remove("event_id");
+                            object.remove("observed_at_ms");
+                        }
+                    }
+                }
+                payload
             })
             .collect::<Vec<_>>();
 

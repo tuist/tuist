@@ -20,7 +20,7 @@ defmodule AtlasWeb.DocumentLive do
         {:ok,
          socket
          |> put_flash(:error, gettext("Document not found."))
-         |> push_navigate(to: ~p"/documents")}
+         |> push_navigate(to: ~p"/library/documents")}
     end
   end
 
@@ -33,7 +33,7 @@ defmodule AtlasWeb.DocumentLive do
             <.breadcrumb
               id="document-breadcrumb-documents"
               label={gettext("Documents")}
-              phx-click={JS.navigate(~p"/documents")}
+              phx-click={JS.navigate(~p"/library/documents")}
             />
             <.breadcrumb id="document-breadcrumb-current" label={@document.title} />
           </.breadcrumbs>
@@ -47,7 +47,7 @@ defmodule AtlasWeb.DocumentLive do
             label={gettext("View account")}
             variant="secondary"
             size="medium"
-            navigate={~p"/sales/accounts/#{@document.account.id}"}
+            navigate={~p"/commercial/sales/accounts/#{@document.account.id}"}
           >
             <:icon_left>
               <.icon name="user" />
@@ -89,7 +89,7 @@ defmodule AtlasWeb.DocumentLive do
                   :if={@document.account}
                   id="document-account-link"
                   data-part="account-link"
-                  navigate={~p"/sales/accounts/#{@document.account.id}"}
+                  navigate={~p"/commercial/sales/accounts/#{@document.account.id}"}
                 >
                   {@document.account.name}
                 </.link>

@@ -22,13 +22,14 @@ defmodule Atlas.MCP.Tools.ListDocumentsTest do
 
     assert result.id == document.id
     assert result.account.name == "Acme"
-    assert result.account.url =~ "/sales/accounts/#{account.id}"
+    assert result.account.url =~ "/commercial/sales/accounts/#{account.id}"
   end
 
   test "rejects non-executive users" do
     conn = %{role: :employee} |> insert_user!() |> mcp_conn()
 
-    assert {:error, "Document tools are only available to executives."} = execute_tool(ListDocuments, conn, %{})
+    assert {:error, "Document tools require the documents:read scope."} =
+             execute_tool(ListDocuments, conn, %{})
   end
 
   defp insert_document!(attrs) do

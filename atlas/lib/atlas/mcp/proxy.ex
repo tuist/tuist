@@ -573,10 +573,10 @@ defmodule Atlas.MCP.Proxy do
         {:ok, token}
 
       {:error, :authorization_required} ->
-        {:error, "MCP server #{server.name} needs authorization. Open /mcps to connect it."}
+        {:error, "MCP server #{server.name} needs authorization. Open /admin/mcps to connect it."}
 
       {:error, {:refresh_failed, _reason}} ->
-        {:error, "MCP server #{server.name} needs authorization. Open /mcps to reconnect it."}
+        {:error, "MCP server #{server.name} needs authorization. Open /admin/mcps to reconnect it."}
 
       {:error, reason} ->
         {:error, "MCP server #{server.name} authorization failed: #{inspect(reason)}"}

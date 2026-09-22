@@ -90,7 +90,7 @@ defmodule AtlasWeb.SalesLive do
           <.table
             id="sales-renewals-table"
             rows={@upcoming_renewals}
-            row_navigate={fn account -> ~p"/sales/accounts/#{account.id}" end}
+            row_navigate={fn account -> ~p"/commercial/sales/accounts/#{account.id}" end}
           >
             <:col :let={account} label={gettext("Account")}>
               <.text_and_description_cell
@@ -198,7 +198,7 @@ defmodule AtlasWeb.SalesLive do
             rows={@attention_items}
           >
             <:col :let={outcome} label={gettext("Account")}>
-              <.link navigate={~p"/sales/accounts/#{outcome.account.id}"} data-part="link">
+              <.link navigate={~p"/commercial/sales/accounts/#{outcome.account.id}"} data-part="link">
                 <.text_and_description_cell
                   label={outcome.account.name}
                   description={outcome.account.primary_domain || "-"}

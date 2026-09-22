@@ -9,7 +9,7 @@ defmodule AtlasWeb.LicenseCheckoutController do
     user = conn.assigns[:current_user]
 
     cond do
-      not Users.executive?(user) ->
+      not Users.has_scope?(user, "licenses:write") ->
         conn
         |> put_status(:forbidden)
         |> text("Licenses are only available to executives.")
@@ -40,7 +40,7 @@ defmodule AtlasWeb.LicenseCheckoutController do
       {:error, reason} ->
         conn
         |> put_flash(:error, Licenses.error_message(reason))
-        |> redirect(to: ~p"/sales/licenses")
+        |> redirect(to: ~p"/commercial/sales/licenses")
     end
   end
 end

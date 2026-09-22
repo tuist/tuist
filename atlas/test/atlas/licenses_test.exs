@@ -44,8 +44,8 @@ defmodule Atlas.LicensesTest do
     assert activity.actor_id == user.id
     assert activity.interface == "dashboard"
     assert activity.target_label == "Acme Labs"
-    assert activity.metadata["path"] == "/sales/licenses"
-    assert activity.metadata["account_path"] == "/sales/accounts/#{customer.id}"
+    assert activity.metadata["path"] == "/commercial/sales/licenses"
+    assert activity.metadata["account_path"] == "/commercial/sales/accounts/#{customer.id}"
     refute inspect(activity.metadata) =~ license.key
   end
 
@@ -194,7 +194,7 @@ defmodule Atlas.LicensesTest do
     activity = Repo.get_by!(Activity, action: "license.air_gapped_checked_out")
     assert activity.actor_id == user.id
     assert activity.target_id == license.id
-    assert activity.metadata["path"] == "/sales/licenses"
+    assert activity.metadata["path"] == "/commercial/sales/licenses"
     refute inspect(activity.metadata) =~ "certificate"
   end
 

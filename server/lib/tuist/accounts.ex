@@ -31,8 +31,10 @@ defmodule Tuist.Accounts do
   alias Tuist.Kura
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Origins
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
+  alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
@@ -944,6 +946,7 @@ defmodule Tuist.Accounts do
          |> String.replace(".", "-")
          |> String.replace("_", "-")
          |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+         |> String.trim("-")
          |> String.downcase()) <> suffix
 
     password = Keyword.get(opts, :password, "")
@@ -2670,6 +2673,7 @@ defmodule Tuist.Accounts do
       end
 
     purge_account_cache_masters(account)
+    purge_account_gitlab_caches(account)
     result
   end
 
@@ -2706,6 +2710,20 @@ defmodule Tuist.Accounts do
       :ok
   end
 
+  # Retention would expire these once the account ID no longer resolves, but
+  # not before the window passes. Best-effort, like the cache-master purge.
+  defp purge_account_gitlab_caches(account) do
+    Tuist.Storage.delete_all_objects(GitLabCache.account_prefix(account), account)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge GitLab cache archives on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
+  end
+
   def organization?(account), do: !is_nil(account.organization_id)
   def user?(account), do: !is_nil(account.user_id)
 
@@ -2735,13 +2753,21 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Returns cache endpoint URLs for the given account handle and cache technology.
+  The cache endpoints for an account handle, plus whether a dedicated instance
+  is expected to start serving shortly.
 
-  The `technology` argument is driven by the `kura` client feature flag header.
-  When `:kura`, the account's provisioned Kura endpoints are returned if it has
-  any, so routing to Kura is opt-in from the CLI alone. In every other case
-  (technology is `:default`, or the account has no Kura endpoint), the custom
-  and default endpoint fallback behavior is preserved.
+  `technology` is how the client is routed:
+
+  - `:kura`, the default, for clients that no longer send the `kura` client
+    feature flag. They get the account's Kura endpoints and never the
+    Tuist-hosted legacy cache nodes: while no instance is serving, a
+    lifecycle-managed account gets no endpoints, and an account that has never
+    routed through Kura gets only its own custom endpoints.
+  - `:kura_with_legacy_fallback` for earlier clients that send the `kura` client
+    feature flag. They get the account's Kura endpoints, and the Tuist-hosted
+    legacy cache nodes while no instance is serving.
+  - `:legacy` for earlier clients that do not. They get the account's custom
+    endpoints, or the Tuist-hosted legacy cache nodes.
 
   Custom endpoints are only returned when:
   - The account exists
@@ -2751,16 +2777,7 @@ defmodule Tuist.Accounts do
 
   Preview environments use the same routing as production: a `kura_servers`
   row per account points at the preview's `KuraInstance`, and the Lua hook
-  enforces tenant matching strictly. The earlier "shared mesh" override that
-  short-circuited per-account routing is gone (see PR #11348 review).
-  """
-  def get_cache_endpoints_for_handle(account_handle, technology \\ :default) do
-    cache_endpoints_for_handle(account_handle, technology)
-  end
-
-  @doc """
-  The cache endpoints for an account handle, plus whether a dedicated instance
-  is expected to start serving shortly.
+  enforces tenant matching strictly.
 
   `provisioning` is true when the account is under the demand-driven Kura
   lifecycle and has no Kura endpoint right now: archived and just asked for by
@@ -2773,92 +2790,90 @@ defmodule Tuist.Accounts do
   getting one, so a region at capacity does not turn every refused account into
   a poller.
   """
-  def get_cache_resolution_for_handle(account_handle, technology \\ :default, origin \\ nil) do
-    if Environment.tuist_hosted?() and technology == :kura and is_binary(account_handle) do
-      hosted_kura_resolution(account_handle, origin)
-    else
-      %{endpoints: cache_endpoints_for_handle(account_handle, technology), provisioning: false}
+  def get_cache_resolution_for_handle(account_handle, technology \\ :kura, origin \\ nil) do
+    cond do
+      not Environment.tuist_hosted?() ->
+        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
+
+      technology == :legacy ->
+        %{endpoints: legacy_cache_endpoint_urls(account_handle), provisioning: false}
+
+      is_binary(account_handle) ->
+        hosted_kura_resolution(account_handle, technology, origin)
+
+      technology == :kura ->
+        %{endpoints: [], provisioning: false}
+
+      true ->
+        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
     end
   end
 
   # Resolved in one pass so `provisioning` is derived from the same Kura
   # endpoint lookup that produced `endpoints`, rather than a second query that
   # could disagree with it.
-  defp hosted_kura_resolution(account_handle, origin) do
+  defp hosted_kura_resolution(account_handle, technology, origin) do
     case get_account_by_handle(account_handle) do
       %Account{} = account ->
-        Demand.record(account.id, origin)
+        # A Kura client asking where to send cache traffic is the request
+        # boundary the demand-driven lifecycle measures: it covers the Xcode,
+        # Module, and Gradle lanes uniformly, and it is the same call whether
+        # the client is a developer machine or a runner. The write is buffered
+        # in memory and flushed periodically, so this stays one ETS insert,
+        # except for the request this node acts on: the job placing that
+        # instance may run on another node, so the origin it places from is
+        # written through first.
+        #
+        # Acting is claimed rather than done on every request. Every client of
+        # an account with nothing serving asks, and asks again every
+        # `@provisioning_cache_max_age` seconds, so without the claim a CI
+        # fleet — or an account its region keeps refusing, which never stops
+        # asking — would pay a write-through and a unique job insert per
+        # request forever, to schedule work that is deduplicated anyway.
+        urls = kura_cache_endpoint_urls(account, Origins.value(origin))
+        provisioning? = urls == [] and Demand.instance_expected?(account)
+        kick? = provisioning? and Demand.claim_provision_kick(account.id)
+        Demand.record(account.id, origin, persist_origin: kick?)
+        if kick?, do: {:ok, _job} = ProvisionOnDemandWorker.enqueue(account)
 
-        case kura_cache_endpoint_urls(account, Origins.value(origin)) do
-          [] ->
-            %{
-              endpoints: absent_kura_endpoint_urls(account),
-              provisioning: Demand.instance_expected?(account)
-            }
-
-          urls ->
-            %{endpoints: urls, provisioning: false}
+        case urls do
+          [] -> %{endpoints: absent_kura_endpoint_urls(account, technology), provisioning: provisioning?}
+          urls -> %{endpoints: urls, provisioning: false}
         end
 
       _ ->
-        %{endpoints: CacheEndpoints.active_endpoint_urls(), provisioning: false}
+        endpoints = if technology == :kura, do: [], else: CacheEndpoints.active_endpoint_urls()
+        %{endpoints: endpoints, provisioning: false}
     end
   end
 
-  defp cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
-    if Environment.tuist_hosted?() do
-      hosted_cache_endpoints_for_handle(account_handle, technology)
-    else
-      CacheEndpoints.active_endpoint_urls()
-    end
-  end
-
-  defp cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
-
-  defp hosted_cache_endpoints_for_handle(account_handle, technology) do
+  defp legacy_cache_endpoint_urls(account_handle) when is_binary(account_handle) do
     case get_account_by_handle(account_handle) do
-      %Account{} = account -> cache_endpoint_urls(account, technology)
+      %Account{} = account -> custom_cache_endpoint_urls(account)
       _ -> CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  defp cache_endpoint_urls(%Account{} = account, :kura) do
-    # A Kura-capable client asking where to send cache traffic is the request
-    # boundary the demand-driven lifecycle measures: it covers the Xcode,
-    # Module, and Gradle lanes uniformly, and it is the same call whether the
-    # client is a developer machine or a runner. The write is buffered in
-    # memory and flushed periodically, so this stays one ETS insert.
-    Demand.record(account.id)
+  defp legacy_cache_endpoint_urls(_account_handle), do: CacheEndpoints.active_endpoint_urls()
 
-    case kura_cache_endpoint_urls(account) do
-      [] -> absent_kura_endpoint_urls(account)
-      endpoints -> endpoints
-    end
-  end
-
-  defp cache_endpoint_urls(%Account{} = account, :default) do
-    custom_cache_endpoint_urls(account)
-  end
-
-  # What to answer while the account has no Kura instance serving — archived,
+  # What to answer while the account has no Kura instance serving: archived,
   # provisioning, draining, or refused for capacity. For an account under the
-  # demand-driven lifecycle that is the Tuist-hosted default lane, not the
-  # account's own custom endpoints: routing archived accounts down the
-  # custom-endpoint path would make archival the thing that keeps that path
-  # alive, and the legacy teardown the migration is aiming at could never
-  # complete. Accounts that have never routed through Kura keep the
-  # custom-endpoint behaviour.
+  # demand-driven lifecycle that is not the account's own custom endpoints:
+  # routing archived accounts down the custom-endpoint path would make archival
+  # the thing that keeps that path alive. Accounts that have never routed
+  # through Kura keep the custom-endpoint behaviour.
   #
-  # This lane is a different content store from the account's Kura instance,
-  # not a backing store for it, so an archived account gets cold misses here
-  # rather than its own artifacts. Once the lane is retired this returns an
-  # empty list, which every build-path caller in the CLI degrades to building
-  # locally.
-  defp absent_kura_endpoint_urls(%Account{} = account) do
-    if Demand.lifecycle_managed?(account) do
-      CacheEndpoints.active_endpoint_urls()
-    else
-      custom_cache_endpoint_urls(account)
+  # Earlier clients with the `kura` flag get the Tuist-hosted legacy lane
+  # instead, a different content store from the account's Kura instance, so an
+  # archived account gets cold misses there rather than its own artifacts.
+  # `:kura` clients never get that lane: they build locally while they wait for
+  # the instance.
+  defp absent_kura_endpoint_urls(%Account{} = account, technology) do
+    case {Demand.lifecycle_managed?(account), technology} do
+      {true, :kura} -> []
+      {true, :kura_with_legacy_fallback} -> CacheEndpoints.active_endpoint_urls()
+      {false, :kura} -> account |> custom_cache_endpoints() |> Enum.map(& &1.url)
+      {false, :kura_with_legacy_fallback} -> custom_cache_endpoint_urls(account)
     end
   end
 
@@ -2887,7 +2902,7 @@ defmodule Tuist.Accounts do
   Two sources, each read from the record that owns it: Tuist-managed instances
   from `kura_servers`, and enrolled self-hosted nodes from their registration
   heartbeats. Whether these are handed to the CLI at all is decided upstream by
-  the `kura` client feature flag, so provisioning is the only server-side gate.
+  how the client is routed, so provisioning is the only server-side gate.
 
   Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`) derives
   its in-cluster fallback from these, rather than a parallel query that could

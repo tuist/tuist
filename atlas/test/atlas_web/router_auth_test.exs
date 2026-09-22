@@ -3,16 +3,16 @@ defmodule AtlasWeb.RouterAuthTest do
 
   @authenticated_paths [
     "/",
-    "/sales",
-    "/sales/accounts",
-    "/sales/accounts/some-id",
-    "/gtm/content",
+    "/commercial/sales",
+    "/commercial/sales/accounts",
+    "/commercial/sales/accounts/some-id",
+    "/commercial/gtm/content",
     "/admin/users",
-    "/mcps",
+    "/admin/mcps",
     "/mcps/grafana/authorize",
     "/mcps/grafana/callback",
-    "/sessions",
-    "/sessions/some-id"
+    "/admin/sessions",
+    "/admin/sessions/some-id"
   ]
 
   for path <- @authenticated_paths do
@@ -22,9 +22,9 @@ defmodule AtlasWeb.RouterAuthTest do
     end
   end
 
-  test "GET / redirects to /sales when authenticated", %{conn: conn} do
+  test "GET / renders the overview page when authenticated", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
     conn = get(conn, "/")
-    assert redirected_to(conn) == "/sales"
+    assert html_response(conn, 200) =~ ~s(id="overview")
   end
 end

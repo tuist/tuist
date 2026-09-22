@@ -9,6 +9,7 @@ defmodule AtlasWeb.Router do
   alias AtlasWeb.Plugs.AdminAuth
   alias AtlasWeb.Plugs.AllowSupportChatEmbedding
   alias AtlasWeb.Plugs.FetchCurrentUser
+  alias AtlasWeb.Plugs.InferenceAuthentication
   alias AtlasWeb.Plugs.MCPAuth
   alias AtlasWeb.Plugs.RequireAuth
   alias Plug.Swoosh.MailboxPreview
@@ -47,6 +48,11 @@ defmodule AtlasWeb.Router do
     plug MCPAuth
   end
 
+  pipeline :inference do
+    plug :accepts, ["json", "event-stream"]
+    plug InferenceAuthentication
+  end
+
   scope "/", AtlasWeb do
     get "/ready", HealthController, :ready
   end
@@ -78,6 +84,14 @@ defmodule AtlasWeb.Router do
     forward "/mcp", StreamableHTTP, server: Server
   end
 
+  scope "/inference/v1", AtlasWeb do
+    pipe_through :inference
+
+    get "/models", InferenceController, :models
+    post "/chat/completions", InferenceController, :chat_completions
+    post "/embeddings", InferenceController, :embeddings
+  end
+
   scope "/api", AtlasWeb do
     pipe_through [:api]
 
@@ -101,6 +115,12 @@ defmodule AtlasWeb.Router do
     # Direct-to-storage document upload used by the `Local` storage backend in
     # dev and test. Production uses S3-compatible presigned URLs instead.
     put "/documents/uploads/local/:token", DocumentUploadController, :put
+  end
+
+  scope "/api", AtlasWeb.ErrorsAPI do
+    pipe_through [:api]
+
+    post "/:project_id/envelope/", EnvelopeController, :create
   end
 
   scope "/api", AtlasWeb do
@@ -138,6 +158,10 @@ defmodule AtlasWeb.Router do
     get "/email/subscriptions/confirm/:token", GTMSubscriptionController, :confirm
     get "/email/subscriptions/unsubscribe/:token", GTMSubscriptionController, :unsubscribe
     get "/support/chat/verify/:token", SupportChatVerificationController, :confirm
+
+    live_session :public_postmortem, layout: false do
+      live "/p/postmortems/:share_token", PostmortemLive.Public
+    end
   end
 
   scope "/", AtlasWeb do
@@ -175,78 +199,157 @@ defmodule AtlasWeb.Router do
     live_session :authenticated_dashboard,
       on_mount: [{AtlasWeb.LayoutLive, :default}],
       layout: {AtlasWeb.Layouts, :dashboard} do
-      live "/sales", SalesLive, :index
-      live "/sales/accounts", AccountsLive, :index
-      live "/sales/accounts/:id", AccountLive, :show
-      live "/sales/feature-interests", FeatureInterestsLive, :index
-      live "/sales/feature-interests/:id", FeatureInterestsLive, :show
-      live "/gtm/content", GTMLive, :content
-      live "/gtm/content/:id", GTMLive, :idea
-      live "/gtm/social", GTMLive, :social
-      live "/gtm/social/:id", GTMLive, :social_idea
-      live "/gtm/outreach", OutreachContactsLive, :index
-      live "/gtm/outreach/:id", OutreachContactsLive, :show
-      live "/support", SupportLive, :index
-      live "/support/:id", SupportLive, :show
-      live "/email", GTMEmailLive, :index
-      live "/email/audiences/:id", GTMEmailLive, :audience
-      live "/mcps", MCPLive, :index
-      live "/memory", Admin.MemoryLive, :index
-      live "/memory/:id", Admin.MemoryLive, :show
+      live "/", OverviewLive, :index
+      live "/commercial/sales", SalesLive, :index
+      live "/commercial/sales/accounts", AccountsLive, :index
+      live "/commercial/sales/accounts/:id", AccountLive, :show
+      live "/commercial/sales/feature-interests", FeatureInterestsLive, :index
+      live "/commercial/sales/feature-interests/:id", FeatureInterestsLive, :show
+      live "/commercial/gtm/content", GTMLive, :content
+      live "/commercial/gtm/content/:id", GTMLive, :idea
+      live "/commercial/gtm/social", GTMLive, :social
+      live "/commercial/gtm/social/:id", GTMLive, :social_idea
+      live "/commercial/gtm/outreach", OutreachContactsLive, :index
+      live "/commercial/gtm/outreach/:id", OutreachContactsLive, :show
+      live "/commercial/support", SupportLive, :index
+      live "/commercial/support/:id", SupportLive, :show
+      live "/outbound/email", GTMEmailLive, :index
+      live "/outbound/email/audiences/:id", GTMEmailLive, :audience
+      live "/library/notes", NotesLive, :index
+      live "/library/notes/new", NotesLive, :new
+      live "/library/notes/:id", NotesLive, :show
+      live "/engineering/projects", ProjectLive.Index, :index
+      live "/engineering/projects/:id", ProjectLive.Show, :show
+      live "/engineering/domains", DomainLive.Index, :index
+      live "/engineering/domains/:id", DomainLive.Show, :show
+      live "/engineering/errors", ErrorsLive.Index, :index
+      live "/engineering/errors/:id", ErrorsLive.Show, :show
+      live "/engineering/errors/:id/events/:event_id", ErrorsLive.Event, :event
+      live "/engineering/postmortems", PostmortemLive.Index
+      live "/engineering/postmortems/new", PostmortemLive.Form, :new
+      live "/engineering/postmortems/:number", PostmortemLive.Show
+      live "/engineering/postmortems/:number/edit", PostmortemLive.Form, :edit
+      live "/engineering/specs", SpecLive.Index
+      live "/engineering/specs/new", SpecLive.Form, :new
+      live "/engineering/specs/:number", SpecLive.Show
+      live "/engineering/specs/:number/edit", SpecLive.Form, :edit
+    end
+
+    live_session :scoped_finance,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "finance:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/commercial/finance", FinanceLive, :index
+      live "/commercial/finance/vendors", FinanceVendorLive, :index
+    end
+
+    live_session :scoped_documents,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "documents:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/library/documents", DocumentsLive, :index
+      live "/library/documents/:id", DocumentLive, :show
+    end
+
+    live_session :scoped_letters,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "letters:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/outbound/postal", PostalLive, :index
+    end
+
+    live_session :scoped_licenses,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "licenses:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/commercial/sales/licenses", LicensesLive, :index
+    end
+
+    live_session :scoped_assets,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "assets:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/operations/hardware", HardwareLive, :index
+      live "/operations/hardware/financings", FinancingsLive, :index
+      live "/operations/hardware/financings/:id", FinancingShowLive, :show
+      live "/operations/hardware/data-centers", DataCentersLive, :index
+      live "/operations/hardware/data-centers/:id", DataCenterShowLive, :show
+      live "/operations/hardware/:id", HardwareShowLive, :show
+    end
+
+    live_session :scoped_insurance,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "insurance:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/operations/hardware/insurance", InsuranceLive, :index
+      live "/operations/hardware/insurance/:id", InsuranceShowLive, :show
+    end
+
+    live_session :scoped_admin,
+      on_mount: [{AtlasWeb.LayoutLive, {:scope, "admin:read"}}],
+      layout: {AtlasWeb.Layouts, :dashboard} do
+      live "/admin/mcps", MCPLive, :index
       live "/admin/memory", Admin.MemoryLive, :index
       live "/admin/memory/:id", Admin.MemoryLive, :show
-      live "/sessions", SessionsLive, :index
-      live "/sessions/:id", SessionLive, :show
-      live "/notes", NotesLive, :index
-      live "/notes/new", NotesLive, :new
-      live "/notes/:id", NotesLive, :show
-    end
+      live "/admin/sessions", SessionsLive, :index
+      live "/admin/sessions/:id", SessionLive, :show
 
-    live_session :executive_dashboard,
-      on_mount: [{AtlasWeb.LayoutLive, :executive}],
-      layout: {AtlasWeb.Layouts, :dashboard} do
-      live "/finance", FinanceLive, :index
-      live "/finance/vendors", FinanceVendorLive, :index
-      live "/documents", DocumentsLive, :index
-      live "/documents/:id", DocumentLive, :show
-      live "/postal", PostalLive, :index
-      live "/sales/licenses", LicensesLive, :index
-      live "/hardware", HardwareLive, :index
-      live "/hardware/financings", FinancingsLive, :index
-      live "/hardware/financings/:id", FinancingShowLive, :show
-      live "/hardware/data-centers", DataCentersLive, :index
-      live "/hardware/data-centers/:id", DataCenterShowLive, :show
-      live "/hardware/insurance", InsuranceLive, :index
-      live "/hardware/insurance/:id", InsuranceShowLive, :show
-      live "/hardware/:id", HardwareShowLive, :show
-    end
-
-    live_session :admin_dashboard,
-      on_mount: [{AtlasWeb.LayoutLive, :admin}],
-      layout: {AtlasWeb.Layouts, :dashboard} do
       scope "/admin", Admin do
         live "/audit", AuditLive, :index
-        live "/identities", IdentitiesLive, :index
         live "/users", UsersLive, :index
+        live "/roles", RolesLive, :index
+        live "/roles/new", RolesLive, :new
+        live "/roles/:id", RolesLive, :edit
+        live "/inference", InferenceLive, :index
+        live "/inference/profiles", InferenceLive, :index
+        live "/inference/profiles/:id", InferenceProfileLive, :show
+        live "/inference/providers", InferenceProvidersLive, :index
+        live "/inference/tokens/:id", InferenceTokenLive, :show
       end
     end
 
-    get "/", PageController, :root
+    # Document download URLs are stable public paths (email attachments, share
+    # links). Keep them at /documents/... even though the dashboard view lives
+    # under /library/documents.
     get "/documents/:id/download", DocumentDownloadController, :show
-    # Optional trailing filename so browser file viewers show a meaningful
-    # name instead of "download"; bare or stale names redirect here.
     get "/documents/:id/download/:filename", DocumentDownloadController, :show
+    # Support message attachment URLs are referenced from delivered emails.
     get "/support/messages/:message_id/original", SupportMessageController, :original
     get "/support/messages/:message_id/attachments", SupportMessageController, :attachment
     get "/support/messages/:message_id/download", SupportMessageController, :download
     get "/support/messages/:message_id/download/:filename", SupportMessageController, :download
-    get "/sales/licenses/:id/air-gapped", LicenseCheckoutController, :show
+    get "/commercial/sales/licenses/:id/air-gapped", LicenseCheckoutController, :show
+    # MCP OAuth callback URLs are registered with external providers; do not
+    # move.
     get "/mcps/:server_name/authorize", MCPOAuthController, :authorize
     get "/mcps/:server_name/callback", MCPOAuthController, :callback
     get "/mcps/:server_name/operator-grant", MCPOAuthController, :operator_grant
     get "/slack/install", SlackInstallController, :new
     get "/slack/install/callback", SlackInstallController, :callback
     delete "/logout", AuthController, :delete
+  end
+
+  # Legacy redirects — keep executives' muscle memory working after the
+  # sidebar/routes reshuffle. These preserve the old top-level entries by
+  # bouncing to their new group-qualified home.
+  scope "/", AtlasWeb do
+    pipe_through [:browser, :require_auth]
+
+    get "/sales", LegacyRedirectController, :sales_index
+    get "/sales/*rest", LegacyRedirectController, :sales
+    get "/finance", LegacyRedirectController, :finance_index
+    get "/finance/*rest", LegacyRedirectController, :finance
+    get "/gtm/*rest", LegacyRedirectController, :gtm
+    get "/support", LegacyRedirectController, :support_index
+    get "/email", LegacyRedirectController, :email_index
+    get "/email/audiences/:id", LegacyRedirectController, :email_audience
+    get "/postal", LegacyRedirectController, :postal_index
+    get "/hardware", LegacyRedirectController, :hardware_index
+    get "/hardware/*rest", LegacyRedirectController, :hardware
+    get "/documents", LegacyRedirectController, :documents_index
+    get "/documents/:id", LegacyRedirectController, :documents_show
+    get "/notes", LegacyRedirectController, :notes_index
+    get "/notes/new", LegacyRedirectController, :notes_new
+    get "/notes/:id", LegacyRedirectController, :notes_show
+    get "/mcps", LegacyRedirectController, :mcps_index
+    get "/sessions", LegacyRedirectController, :sessions_index
+    get "/sessions/:id", LegacyRedirectController, :sessions_show
+    get "/memory", LegacyRedirectController, :memory_index
+    get "/memory/:id", LegacyRedirectController, :memory_show
   end
 
   # Admin dashboards (Oban, LiveDashboard) - protected by basic auth

@@ -119,7 +119,7 @@ defmodule Atlas.Search do
         account_id: opportunity.account_id,
         title: first_present([opportunity.company_name, opportunity.domain, "Go-to-market opportunity"]),
         body: join_text([opportunity.signal_summary, opportunity.rationale, opportunity.rejected_reason]),
-        path: "/gtm/outreach",
+        path: "/commercial/gtm/outreach",
         metadata:
           compact_map(%{
             "company_name" => opportunity.company_name,
@@ -143,7 +143,7 @@ defmodule Atlas.Search do
         account_id: opportunity && opportunity.account_id,
         title: first_present([signal.title, "Go-to-market signal"]),
         body: join_text([signal.excerpt, Enum.join(signal.matched_terms || [], ", ")]),
-        path: opportunity && "/gtm/outreach",
+        path: opportunity && "/commercial/gtm/outreach",
         metadata:
           compact_map(%{
             "source" => signal.source,
@@ -167,7 +167,7 @@ defmodule Atlas.Search do
         source_id: idea.id,
         title: first_present([idea.title, "Blog post idea"]),
         body: idea.description,
-        path: "/gtm/content/#{idea.id}",
+        path: "/commercial/gtm/content/#{idea.id}",
         metadata:
           compact_map(%{
             "status" => idea.status,
@@ -186,7 +186,7 @@ defmodule Atlas.Search do
         source_id: note.id,
         title: note.title,
         body: note.content,
-        path: "/notes/#{note.id}",
+        path: "/library/notes/#{note.id}",
         metadata: %{
           "visibility" => note.visibility,
           "created_by_id" => note.created_by_id
@@ -203,7 +203,7 @@ defmodule Atlas.Search do
         source_id: idea.id,
         title: first_present([idea.title, "Social channel idea"]),
         body: social_channel_idea_body(idea),
-        path: "/gtm/social/#{idea.id}",
+        path: "/commercial/gtm/social/#{idea.id}",
         metadata:
           compact_map(%{
             "status" => idea.status,
@@ -639,7 +639,7 @@ defmodule Atlas.Search do
     |> Map.new()
   end
 
-  defp account_path(account_id) when is_binary(account_id), do: "/sales/accounts/#{account_id}"
+  defp account_path(account_id) when is_binary(account_id), do: "/commercial/sales/accounts/#{account_id}"
   defp account_path(_account_id), do: nil
 
   defp format_value(nil), do: nil

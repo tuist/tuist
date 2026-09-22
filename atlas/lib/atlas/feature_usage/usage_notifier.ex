@@ -219,7 +219,7 @@ defmodule Atlas.FeatureUsage.UsageNotifier do
   defp account_link(account), do: account |> account_name() |> escape_mrkdwn()
 
   defp account_url(id) do
-    url(~p"/sales/accounts/#{id}")
+    url(~p"/commercial/sales/accounts/#{id}")
   rescue
     _error -> nil
   end

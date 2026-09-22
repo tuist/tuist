@@ -37,9 +37,8 @@ packer {
 # ~30 min.
 #
 # Active Xcode versions baked per release are listed in
-# `infra/runner-image/profiles.json`. `check-releases` reads that list
-# into `server-production-deployment.yml`'s `runner-image-build`
-# matrix, which fans out one build per profile, publishing one
+# `infra/runner-image/profiles.json`. `runner-image-release.yml`
+# publishes one
 # `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag each
 # that the managed envs' charts reference via
 # `runnersFleet.runnerImageSemver`. Keep the list aligned with
@@ -114,7 +113,7 @@ variable "runner_version" {
   # against GitHub's broker-deprecation message on cold boot.
   # Renovate watches actions/runner releases (see renovate.json's
   # custom regex manager keyed off the marker comment below) and
-  # opens `fix(runner-image): …` PRs which release-runner-image
+  # opens `fix(runner-image): …` PRs which runner-image-release.yml
   # picks up to rebuild + bump the chart's image pin. Renovate PRs
   # auto-merge on green CI, same flow we use for other external
   # deps; falling more than ~1 release behind would re-introduce
@@ -319,10 +318,24 @@ build {
   # only exposes a downloaded toolchain to the user that installed
   # it. Running the download as `runner` registers it for the user
   # jobs run as.
+  #
+  # The toolchain build is passed explicitly: without it `xcodebuild`
+  # asks Apple for a toolchain under the Xcode's own build, and Apple
+  # publishes some under a different one (Xcode 26.4.1 is 17E202, its
+  # toolchain 17E188). Apple's downloadable index maps one to the
+  # other; the last match is the one Xcode itself picks when there
+  # are several.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc 'xcodebuild -downloadComponent MetalToolchain'"
+      "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
+      "INDEX=$(mktemp)",
+      "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
+      "METAL_BUILD=''",
+      "for i in $(seq 0 $(($(plutil -extract xcodeToOtherDownloadablesMappings raw -o - \"$INDEX\") - 1))); do if [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetType raw -o - \"$INDEX\")\" = metalToolchain ] && [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.xcodeBuildUpdate raw -o - \"$INDEX\")\" = \"$XCODE_BUILD\" ]; then METAL_BUILD=$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetBuildUpdate raw -o - \"$INDEX\"); fi; done",
+      "rm -f \"$INDEX\"",
+      "[ -n \"$METAL_BUILD\" ] || { echo \"Apple's downloadable index maps no Metal Toolchain to Xcode build $XCODE_BUILD\" >&2; exit 1; }",
+      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc \"xcodebuild -downloadComponent MetalToolchain -buildVersion $METAL_BUILD\""
     ]
   }
 

@@ -26,7 +26,7 @@ registry:
   publicHost: tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: production
-  sentryEnv: prod
+  sentryEnv: production
   poolSize: "10"
   ingress:
     host: registry.tuist.dev
@@ -90,6 +90,13 @@ server:
   config:
     atlasEmail:
       enabled: true
+    # Point server error reporting at the Atlas error-tracking ingest
+    # (atlas.tuist.dev) instead of the Hive ingest. The `dsn_atlas`
+    # field on the SENTRY 1P item was added alongside the existing
+    # `dsn` field, so rollback is `sentryDsn: dsn` on the same item.
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
   # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
@@ -394,14 +401,15 @@ kuraController:
   sentry:
     externalSecret:
       enabled: true
-      # Points at the self-hosted Hive ingest (../hive) so Kura errors land in
-      # the Kura project on hive.tuist.dev. The `kura-sentry-hive` 1P item in
-      # `tuist-k8s-production` holds the Hive DSN under the default
+      # Points at the self-hosted Atlas ingest (../atlas) so Kura errors land in
+      # the Kura project on atlas.tuist.dev. The `kura-sentry-atlas` 1P item in
+      # `tuist-k8s-production` holds the Atlas DSN under the default
       # `KURA_SENTRY_DSN` field and MUST exist before this merges; a
       # remoteRef whose item is missing fails the whole `kura-shared-secrets`
-      # sync. The prior `kura-sentry` item is kept in the vault as a rollback:
-      # flip this back to `kura-sentry` and reroll.
-      item: kura-sentry-hive
+      # sync. The prior `kura-sentry-hive` (Hive) and `kura-sentry` (hosted
+      # sentry.io) items are kept in the vault as rollbacks: flip this back to
+      # either and reroll.
+      item: kura-sentry-atlas
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
 # (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
@@ -519,9 +527,8 @@ clickhouse:
   managed:
     enabled: false
     # One replica to begin with, which is the shape staging proved end to end,
-    # so the copy and the soak can start as soon as a box lands. Two replicas
-    # need a volume per replica and the database initialised on each of them;
-    # until those exist, this being 2 would leave the second pod Pending.
+    # so the copy and the soak can start as soon as a box lands. A second one
+    # needs its own box, named in `persistence.localVolume.nodeNames`.
     #
     # A single replica is not the shape to *finish* on: after the cutover the
     # system of record would live on one machine, with the backups below as the
@@ -846,10 +853,12 @@ kuraFleet:
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
 # 4096 MiB) while the 2x1 TB NVMe would hold eight.
 #
-# Every box in this fleet must be the same offer AND datacenter: Dedibox
-# adoption matches both exactly (FindAdoptableServer), unlike the ovhFleets
-# entries, which substring-match the offer and prefix-match the datacenter. A
-# box of any other shape is never adopted, and nothing reports why.
+# Every box in this fleet must be in the same datacenter: Dedibox adoption
+# matches the datacenter exactly (FindAdoptableServer), unlike the ovhFleets
+# entries, which prefix-match it. The offer is left unset, so the tag and the
+# datacenter scope adoption and the pool mixes Pro-9-XS and Pro-5-L boxes (same
+# EPYC 7281 and 2x1 TB NVMe). A box in any other datacenter is never adopted,
+# and nothing reports why.
 #
 # Raise replicas only once each box reports `installed`. Prep is
 # `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
@@ -857,11 +866,11 @@ kuraFleet:
 # per-account project quota, then tags the box into the pool.
 dediboxFleet:
   enabled: true
-  # Two boxes: the original plus sd-184776 (DC5, delivered 2026-09-02).
-  replicas: 2
+  # Three boxes: the original plus sd-184776 (DC5, delivered 2026-09-02) and
+  # the Pro-5-L sd-148144 (DC5, delivered 2026-09-17).
+  replicas: 3
   machine:
     adoptTag: tuist-kura-production
-    offer: Pro-9-XS
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
@@ -901,7 +910,7 @@ vultrFleets:
   # region out of service without touching the box.
   us-central:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
@@ -1002,11 +1011,12 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-east:
     enabled: true
-    # Three boxes since 2026-09-11. At two the region reserved 1292 GiB against
-    # an admission line of 1303 (85% of allocatable), so Admission refused every
-    # storage claim growth here — and a claim is account-scoped, so that refusal
-    # also blocked the regions the same accounts run in that did have room.
-    replicas: 3
+    # Four boxes: three since 2026-09-11 plus ns1027689 (vin1, 2026-09-18). At
+    # two the region reserved 1292 GiB against an admission line of 1303 (85% of
+    # allocatable), so Admission refused every storage claim growth here — and a
+    # claim is account-scoped, so that refusal also blocked the regions the same
+    # accounts run in that did have room.
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
@@ -1023,7 +1033,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 1
+    replicas: 2
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1173,57 +1183,50 @@ macosFleet:
   runnerCacheVolume:
     gib: 80
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib is the sparse per-master ceiling; of it the CAS gets casGib,
-    # the binary cache the rest minus a ~2 GiB reserve. A typical binary master
-    # is ~2.4 GB, so the ~7 GiB binary budget still holds ~3x headroom while the
-    # CAS rides the same clone/promote/converge path. The guest is fail-safe: a
+    # masterCapGib is the capacity of every cache image: the room a job has.
+    # The image is sparse, so capacity costs nothing on the host until written,
+    # and teardown compacts the image it promotes, so a master takes on the host
+    # what it holds. A master created at a smaller cap is grown to this one when
+    # the host next installs it, at its account's next promote or convergence.
+    #
+    # Inside the image the two caches share one budget, the cap less a
+    # reserve of max(2 GiB, 20% of the cap): 24 GiB at 30, and 6 GiB of room a
+    # job always starts with before anything prunes. The guest divides the
+    # budget by what each cache holds, at attach and again at teardown, so an
+    # account that barely uses one cache leaves its share to the other, and a
+    # cache that holds nothing yet keeps 2 GiB to grow from. The compiler is
+    # given the compilation cache's limit whole as COMPILATION_CACHE_LIMIT_SIZE:
+    # llcas and the teardown prune rotate a store once its primary passes half
+    # of it, so it already covers both generations. The guest is fail-safe: a
     # store it cannot write falls back to a VM-local cold compilation cache, so
     # a bad budget costs warmth, not the job.
     #
-    # casGib is what the store may OCCUPY, not the limit the compiler is given:
-    # that is half of it, because llcas keeps a primary generation plus the
-    # demoted upstream that is still the warm cache. 11 here is 5.5 GiB per
-    # generation, and 11 + 7 + 2 reserve is the 20 GiB cap exactly.
+    # casGib turns the compilation cache on. It also sets the fixed split that
+    # runner images older than the division by use still apply, 14 GiB for the
+    # compilation cache and 10 GiB for the binary cache, because tart-kubelet
+    # and the runner image roll out separately.
     #
-    # Before that halving the compiler was handed the whole 11 GiB per
-    # generation, so a correctly pruning store wanted ~22 GiB inside a 20 GiB
-    # image — which is what the measured masters showed (17-18 GB of CAS against
-    # a 2.2 GB binary cache) and why this account's volume filled every ~2 days.
-    # Raising masterCapGib is NOT the alternative fix; see the admission
-    # arithmetic below.
+    # The cap is bounded by admission and the evictor, not by taste. Admission
+    # reserves the cap for every branch running a job, and a branch is reserved
+    # when it is materialized for one, not at VM boot. The evictor keeps
+    # 1.2 x cap free. Masters count at what they hold, so on this 80 GiB volume
+    # a cap of 30 leaves 44 GiB for masters: one account near its 24 GiB of
+    # limits beside several small ones, or around 14 accounts of 3 GiB. One job
+    # growing to the cap still leaves 50 GiB, and two overlapping ones 20.
     #
-    # The cap is bounded by admission, not by taste. Admission reserves
-    # masterCapGib for the branch it is admitting plus every branch already
-    # live, so with B branches already held the resident masters that survive
-    # are gib/cap - (B+1). A host runs one job VM, but a branch is reserved at
-    # VM BOOT rather than at dispatch, so a booted warm standby holds one too:
-    # B is 0 or 1 depending on the pool. At cap 28 that leaves 1 or 0 masters —
-    # which is what the fleet showed, hosts flapping between one master and
-    # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
-    # covers the account set with dispatch affinity scoring on residency.
-    #
-    # Raising gib is NOT the alternative fix. Masters that survive scale as
-    # gib/cap, so holding 3 at cap 28 needs gib 140, which raises the volume's
-    # PEAK claim on the shared boot container by 60 GiB. There is no room for
-    # that: the container is 460 GiB with ~330 GiB free idle, but a single job
-    # VM's CoW growth transiently takes it to 42-61 GiB, and the volume already
-    # reaches its 80 GiB quota (observed down to 0.5 GiB free). Restoring
-    # residents raises the volume's sustained floor, not that peak, which is
-    # why it fits where a bigger quota would not. gib also needs a host
-    # replacement (the provisioning script never resizes), while cap is an
-    # operator flag that rolls in place, so cap is the tunable one.
-    #
-    # If the tail ever does starve job VMs, lower gib rather than raising cap:
-    # masters fill to roughly gib - cap, so a smaller cap yields MORE total
-    # master bytes. gib is the footprint lever, cap is the master-count lever.
+    # Raising gib is NOT the alternative. The volume shares the Mac's 460 GiB
+    # disk with the goldens and the job VMs, and a job VM's own writes take the
+    # disk's free space down to 40-57 GiB (7 days to 2026-09-18). A bigger
+    # volume, once full, lowers that floor by the same amount. gib also needs a
+    # host replacement, because the provisioning script never resizes.
     #
     # Retuning either value changes how many accounts a host keeps hot, and
     # therefore how often dispatch can place a job warm. Nothing needs to be
     # kept in sync for that: the host advertises the masters it actually holds
     # as Node labels and the server reads them, so this arithmetic bounds the
     # fleet's behaviour without also being a number the server has to be told.
-    masterCapGib: 20
-    casGib: 11
+    masterCapGib: 30
+    casGib: 14
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
@@ -1446,12 +1449,11 @@ runnersFleet:
         # across all 15 macOS Nodes.
         maxPods: 5
         guestCapacity: 2
-        # 240 GiB against the M2-L's 80. Not a nicety — at 80 the dual
-        # guest host would hold FEWER hot accounts than a single-guest
-        # M2-L does today. Resident masters are `gib/masterCapGib -
-        # (liveBranches + 1)` and a branch is reserved at VM boot, so
-        # two guests means liveBranches reaches 2: at 80/20 that is
-        # 4 - 3 = 1 master, or 0. At 240/20 it is 12 - 3 = 9.
+        # 240 GiB against the M2-L's 80. Not a nicety: admission reserves
+        # masterCapGib for every branch running a job, and two guests run
+        # two, so at 80 GiB and a 30 GiB cap only 20 GiB would be left for
+        # masters. At 240 GiB it is 180 GiB, with masters counted at what
+        # they hold.
         #
         # The M2-L cannot simply be raised to match; that is the point
         # of the SKU. Its 460 GiB container has ~330 GiB free idle and
@@ -1569,6 +1571,11 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
     "27.0":
       autoscaling:
         enabled: true
@@ -1638,6 +1645,9 @@ kataContainers:
   enabled: true
 
 runnersController:
+  shadowScheduler:
+    enabled: true
+    intervalSeconds: 30
   features:
     dindImage: true
     registryMirror: true

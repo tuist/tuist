@@ -40,7 +40,19 @@ defmodule Atlas.MCP.Tools.AssetsToolsTest do
     assert {:error, message} =
              ListAssets.execute(mcp_conn(non_exec), %{})
 
-    assert message =~ "executives"
+    assert message =~ "assets:read"
+  end
+
+  test "list_assets narrows the fleet by category" do
+    server = insert_asset!(%{name: "CI runner", category: "server"})
+    _laptop = insert_asset!(%{name: "MBP", category: "laptop"})
+
+    assert {:ok, %{assets: assets, count: count}} =
+             execute_tool(ListAssets, executive_mcp_conn(), %{"category" => "server"})
+
+    assert count == length(assets)
+    assert Enum.all?(assets, &(&1.category == "server"))
+    assert Enum.any?(assets, &(&1.id == server.id))
   end
 
   test "list_assets searches by serial number" do
@@ -74,7 +86,7 @@ defmodule Atlas.MCP.Tools.AssetsToolsTest do
 
     assert payload.id == asset.id
     assert payload.name == "MBP"
-    assert payload.hardware_url =~ "/hardware/#{asset.id}"
+    assert payload.hardware_url =~ "/operations/hardware/#{asset.id}"
   end
 
   test "create_asset accepts a minimal payload and returns the created asset" do

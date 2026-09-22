@@ -8,6 +8,8 @@ defmodule Atlas.Documents.Embedding do
   base URL and model.
   """
 
+  alias Atlas.LLMs.LocalTransport
+
   @default_model "text-embedding-3-small"
   @max_input_terms 200
   @max_input_characters 1_000
@@ -47,13 +49,20 @@ defmodule Atlas.Documents.Embedding do
 
   defp request_embedding(config, model, input, req) do
     request =
-      Req.new(
+      [
         method: :post,
         url: config[:base_url] |> URI.parse() |> URI.append_path("/embeddings") |> URI.to_string(),
         auth: {:bearer, config[:api_key]},
         receive_timeout: config[:receive_timeout],
         json: %{model: model, input: input}
-      )
+      ]
+      |> then(fn base ->
+        case config[:req_http_options] do
+          nil -> base
+          extra when is_list(extra) -> base ++ extra
+        end
+      end)
+      |> Req.new()
 
     case req.(request) do
       {:ok, %Req.Response{status: status, body: %{"data" => [%{"embedding" => embedding} | _]}}}
@@ -73,25 +82,43 @@ defmodule Atlas.Documents.Embedding do
   defp fetch_config(opts) do
     documents_config = Application.get_env(:atlas, :documents, [])
     llm_config = Application.get_env(:atlas, :llm, [])
-    api_key = present([opts[:api_key], documents_config[:embedding_api_key], llm_config[:api_key]])
 
-    if present?(api_key) do
-      {:ok,
-       %{
-         api_key: api_key,
-         base_url:
-           present([
-             opts[:base_url],
-             documents_config[:embedding_base_url],
-             llm_config[:base_url],
-             "https://api.openai.com/v1"
-           ]),
-         model: present([opts[:model], documents_config[:embedding_model], @default_model]),
-         receive_timeout:
-           opts[:receive_timeout] || Keyword.get(documents_config, :embedding_receive_timeout, :timer.seconds(60))
-       }}
-    else
-      {:error, :embedding_not_configured}
+    cond do
+      opts[:mode] == :local or Keyword.get(llm_config, :mode) == :local ->
+        {:ok,
+         %{
+           # `LocalTransport` ignores the api_key, but Req requires a truthy
+           # value for the `auth:` header to be set.
+           api_key: "local",
+           # Dummy base URL — the plug intercepts before Req touches the
+           # network. Kept for URI.append_path/2 to construct a valid URL.
+           base_url: "http://atlas-local",
+           model: present([opts[:model], documents_config[:embedding_model], @default_model]),
+           receive_timeout:
+             opts[:receive_timeout] ||
+               Keyword.get(documents_config, :embedding_receive_timeout, :timer.seconds(60)),
+           req_http_options: opts[:req_http_options] || [plug: {LocalTransport, []}]
+         }}
+
+      api_key = present([opts[:api_key], documents_config[:embedding_api_key], llm_config[:api_key]]) ->
+        {:ok,
+         %{
+           api_key: api_key,
+           base_url:
+             present([
+               opts[:base_url],
+               documents_config[:embedding_base_url],
+               llm_config[:base_url],
+               "https://api.openai.com/v1"
+             ]),
+           model: present([opts[:model], documents_config[:embedding_model], @default_model]),
+           receive_timeout:
+             opts[:receive_timeout] ||
+               Keyword.get(documents_config, :embedding_receive_timeout, :timer.seconds(60))
+         }}
+
+      true ->
+        {:error, :embedding_not_configured}
     end
   end
 

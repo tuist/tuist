@@ -735,7 +735,7 @@ defmodule Atlas.Outreach.Recommendations do
         "created_count" => if(recommendation, do: 1, else: 0),
         "considered_count" => considered_count,
         "recommendation_id" => recommendation && recommendation.id,
-        "path" => "/gtm/outreach/#{contact.id}"
+        "path" => "/commercial/gtm/outreach/#{contact.id}"
       }
     })
   end
@@ -751,7 +751,7 @@ defmodule Atlas.Outreach.Recommendations do
           "account_id" => contact.account_id,
           "job_id" => job.id,
           "source" => source,
-          "path" => "/gtm/outreach/#{contact.id}"
+          "path" => "/commercial/gtm/outreach/#{contact.id}"
         }
       },
       actor: actor
@@ -771,7 +771,7 @@ defmodule Atlas.Outreach.Recommendations do
           "action_type" => recommendation.action_type,
           "status" => recommendation.status,
           "review_reason" => recommendation.review_reason,
-          "path" => "/gtm/outreach/#{recommendation.contact_id}"
+          "path" => "/commercial/gtm/outreach/#{recommendation.contact_id}"
         }
       },
       actor: actor
@@ -788,7 +788,7 @@ defmodule Atlas.Outreach.Recommendations do
         "contact_id" => recommendation.contact_id,
         "slack_channel_id" => recommendation.slack_notification_channel_id,
         "slack_thread_ts" => recommendation.slack_notification_thread_ts,
-        "path" => "/gtm/outreach/#{recommendation.contact_id}"
+        "path" => "/commercial/gtm/outreach/#{recommendation.contact_id}"
       }
     })
   end

@@ -949,12 +949,18 @@ defmodule TuistWeb.Router do
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
     get "/runners/desired_replicas", RunnersController, :desired_replicas
+    get "/runners/shadow_snapshot", RunnerShadowController, :snapshot
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/cache/download", RunnerJobCacheController, :download
+    post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
+    post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
+    post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
+    post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
   end
 
   scope "/api/internal", TuistWeb.Internal do

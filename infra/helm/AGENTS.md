@@ -9,6 +9,12 @@ This node covers Helm assets under `infra/helm/`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions
+- `runnersController.shadowScheduler` is enabled in the canary and production
+  overlays at a 30-second interval; staging and the chart default remain disabled.
+  Use canary to validate collection and production to observe real demand. Enable only after
+  both the controller flags and server snapshot endpoint are deployed; disabling
+  stops observations without changing runner execution. See
+  `../runners-controller/shadow-scheduler.md`.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.
@@ -19,6 +25,7 @@ This node covers Helm assets under `infra/helm/`.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+- Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
 - When filtering metrics, preserve every side of absence-based alerts. The
   macOS PN VLAN check needs both `node_load1` and VLAN transmit series in
   non-production; keeping only liveness falsely reports a missing interface.

@@ -52,7 +52,7 @@ registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
   deployEnv: staging
-  sentryEnv: stag
+  sentryEnv: staging
   ingress:
     host: registry-staging.tuist.dev
     tlsSecretName: registry-staging-tls
@@ -69,6 +69,18 @@ registry:
 server:
   kuraCapacityAdmission:
     enabled: true
+
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-staging` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
+  config:
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
 
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
@@ -358,7 +370,8 @@ clickhouse:
         # required rather than optional because the pool-label binding it
         # replaces is safe only at one node, and an environment that grew a
         # second one would otherwise regress silently.
-        nodeName: bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8
+        nodeNames:
+          - bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8
     # Dual writes come before the backfill, not after it. From the moment this
     # is on, every new row reaches both servers; the backfill then copies what
     # was written before a stated cutoff. Doing it the other way round leaves
@@ -783,6 +796,13 @@ rackFleet:
   # prototype declared while it is offline; remove it, and clear the host's
   # status.quarantined, once the box answers SSH again.
   replicas: 0
+  # FORCED (no service node): the subnet router is an operator laptop on the
+  # same home LAN, and this is its address there. The rack's service nodes
+  # replace it, one entry each. It needs a DHCP reservation for the same reason
+  # the host's address does: if it changes, the host's SSH guard drops the
+  # router again until this is updated.
+  sshIngressAllowCIDRs:
+    - 192.168.0.223/32
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
@@ -872,11 +892,13 @@ macosFleet:
   runnerCacheVolume:
     gib: 40
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
-    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free (the
-    # split cacheImageSplit(28, 16) pins). The guest is fail-safe (an
-    # unusable store falls back to a VM-local cold compilation cache, never
-    # fails the job), so a bad budget costs warmth, not the build.
+    # masterCapGib 28 is the sparse per-master ceiling. The two caches share
+    # 22.4 GiB of it (the cap less a 20% reserve), divided by use in the
+    # guest. casGib turns the CAS on and sets the fixed split older runner
+    # images apply: 16 GiB for the CAS, 6.4 GiB for the binary cache. The
+    # guest is fail-safe (an unusable store falls back to a VM-local cold
+    # compilation cache, never fails the job), so a bad budget costs warmth,
+    # not the build.
     masterCapGib: 28
     casGib: 16
   # Share the pre-ordered pool with runnersFleet (same prefix
@@ -1006,6 +1028,11 @@ runnersFleet:
   # allocator caps the joint sum so two pools both asking for 9
   # don't double-book the cluster.
   xcodeOverrides:
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
     "27.0":
       autoscaling:
         enabled: true

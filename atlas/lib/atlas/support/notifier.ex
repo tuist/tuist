@@ -214,7 +214,7 @@ defmodule Atlas.Support.Notifier do
   defp user_label(%User{email: email}), do: email
   defp user_label(_user), do: "the team"
 
-  defp thread_url(%Thread{id: id}), do: url(~p"/support/#{id}")
+  defp thread_url(%Thread{id: id}), do: url(~p"/commercial/support/#{id}")
 
   defp truncate(text, maximum) when is_binary(text) and byte_size(text) > maximum,
     do: String.slice(text, 0, maximum - 1) <> "…"

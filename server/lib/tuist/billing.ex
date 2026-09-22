@@ -557,15 +557,62 @@ defmodule Tuist.Billing do
       |> List.wrap()
       |> Enum.map(&%{price: &1})
 
-    # Enterprise is negotiated per-deal; start the subscription with 0 seats
-    # so sales can fill in the actual quantity on Stripe without us guessing.
-    flat_prices =
-      available_prices["enterprise"]["flat_monthly"]
-      |> List.wrap()
-      |> Enum.take(1)
-      |> Enum.map(&%{price: &1, quantity: 0})
+    runner_prices = runner_subscription_items(available_prices, account)
+    fixed_currency_items = usage_prices ++ runner_prices
 
-    usage_prices ++ runner_subscription_items(available_prices, account) ++ flat_prices
+    flat_prices =
+      case List.wrap(available_prices["enterprise"]["flat_monthly"]) do
+        [] ->
+          []
+
+        [price_id] ->
+          [%{price: price_id, quantity: 0}]
+
+        candidates ->
+          # Stripe pins a customer's subscriptions to a single currency, so
+          # an EUR-priced enterprise item on a USD-pinned customer is
+          # rejected ("All items must have pricing in the same currency").
+          # Pick the configured price whose currency matches the customer's,
+          # or when Stripe has not pinned one yet, the currency the other
+          # subscription items already lock the subscription into.
+          [%{price: pick_enterprise_flat_price(candidates, account.customer_id, fixed_currency_items), quantity: 0}]
+      end
+
+    fixed_currency_items ++ flat_prices
+  end
+
+  defp pick_enterprise_flat_price(candidates, customer_id, fixed_currency_items) do
+    target = customer_currency(customer_id) || currency_of_items(fixed_currency_items)
+
+    case target do
+      nil -> hd(candidates)
+      currency -> Enum.find(candidates, hd(candidates), &price_currency_matches?(&1, currency))
+    end
+  end
+
+  defp currency_of_items(items) do
+    Enum.find_value(items, fn %{price: price_id} ->
+      case Stripe.Price.retrieve(price_id) do
+        {:ok, %{currency: c}} when is_binary(c) -> String.downcase(c)
+        _ -> nil
+      end
+    end)
+  end
+
+  defp price_currency_matches?(price_id, currency) do
+    case Stripe.Price.retrieve(price_id) do
+      {:ok, %{currency: c}} when is_binary(c) -> String.downcase(c) == currency
+      _ -> false
+    end
+  end
+
+  defp customer_currency(nil), do: nil
+
+  defp customer_currency(customer_id) do
+    case Stripe.Customer.retrieve(customer_id) do
+      {:ok, %{currency: currency}} when is_binary(currency) -> String.downcase(currency)
+      _ -> nil
+    end
   end
 
   # An account on a runner trial carries no runner item, which is what

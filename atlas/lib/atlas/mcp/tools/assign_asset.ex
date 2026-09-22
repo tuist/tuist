@@ -26,7 +26,7 @@ defmodule Atlas.MCP.Tools.AssignAsset do
   end
 
   def execute(conn, %{"asset_id" => asset_id, "user_id" => user_id, "on" => on} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          {:ok, date} <- parse_date(on),
          %_{} = asset <- Assets.get_asset(asset_id),
          %User{} = user <- Repo.get(User, user_id) do

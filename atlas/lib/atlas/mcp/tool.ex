@@ -107,13 +107,22 @@ defmodule Atlas.MCP.Tool do
     end
   end
 
-  def authorize_executive(conn, label \\ "Finance tools") do
+  @doc """
+  Ensure the caller holds the required scope. `scope` is a string like
+  `"finance:write"`. `label` is used in error messages so a client sees which
+  family of tools requested the permission.
+  """
+  def authorize_scope(conn, scope, label) when is_binary(scope) and is_binary(label) do
     case current_user(conn) do
       %User{} = user ->
-        if Users.executive?(user), do: :ok, else: {:error, "#{label} are only available to executives."}
+        if Users.has_scope?(user, scope) do
+          :ok
+        else
+          {:error, "#{label} require the #{scope} scope."}
+        end
 
       _user ->
-        {:error, "#{label} require an authenticated executive user."}
+        {:error, "#{label} require an authenticated user with the #{scope} scope."}
     end
   end
 
@@ -140,47 +149,47 @@ defmodule Atlas.MCP.Tool do
   end
 
   def account_url(account_id) when is_binary(account_id) do
-    url(~p"/sales/accounts/#{account_id}")
+    url(~p"/commercial/sales/accounts/#{account_id}")
   end
 
   def note_url(note_id) when is_binary(note_id) do
-    url(~p"/notes/#{note_id}")
+    url(~p"/library/notes/#{note_id}")
   end
 
   def hardware_url do
-    url(~p"/hardware")
+    url(~p"/operations/hardware")
   end
 
   def asset_url(asset_id) when is_binary(asset_id) do
-    url(~p"/hardware/#{asset_id}")
+    url(~p"/operations/hardware/#{asset_id}")
   end
 
   def financings_url do
-    url(~p"/hardware/financings")
+    url(~p"/operations/hardware/financings")
   end
 
   def financing_url(financing_id) when is_binary(financing_id) do
-    url(~p"/hardware/financings/#{financing_id}")
+    url(~p"/operations/hardware/financings/#{financing_id}")
   end
 
   def data_centers_url do
-    url(~p"/hardware/data-centers")
+    url(~p"/operations/hardware/data-centers")
   end
 
   def data_center_url(data_center_id) when is_binary(data_center_id) do
-    url(~p"/hardware/data-centers/#{data_center_id}")
+    url(~p"/operations/hardware/data-centers/#{data_center_id}")
   end
 
   def insurance_policies_url do
-    url(~p"/hardware/insurance")
+    url(~p"/operations/hardware/insurance")
   end
 
   def insurance_policy_url(policy_id) when is_binary(policy_id) do
-    url(~p"/hardware/insurance/#{policy_id}")
+    url(~p"/operations/hardware/insurance/#{policy_id}")
   end
 
   def licenses_url do
-    url(~p"/sales/licenses")
+    url(~p"/commercial/sales/licenses")
   end
 
   def iso8601(nil), do: nil

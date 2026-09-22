@@ -303,8 +303,8 @@ defmodule Atlas.Licenses do
       metadata:
         Map.merge(metadata, %{
           "account_id" => account.id,
-          "account_path" => "/sales/accounts/#{account.id}",
-          "path" => "/sales/licenses"
+          "account_path" => "/commercial/sales/accounts/#{account.id}",
+          "path" => "/commercial/sales/licenses"
         })
     })
   end

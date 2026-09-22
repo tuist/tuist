@@ -98,7 +98,7 @@ defmodule Atlas.Search.Federated do
       account_name: hit.account_name,
       title: hit.title,
       excerpt: hit.excerpt,
-      path: "/documents/#{hit.document_id}",
+      path: "/library/documents/#{hit.document_id}",
       metadata:
         compact_map(%{
           "document_id" => hit.document_id,

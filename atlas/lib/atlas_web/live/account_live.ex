@@ -38,7 +38,7 @@ defmodule AtlasWeb.AccountLive do
         {:ok,
          socket
          |> put_flash(:error, gettext("Account not found."))
-         |> push_navigate(to: ~p"/sales/accounts")}
+         |> push_navigate(to: ~p"/commercial/sales/accounts")}
 
       account ->
         {:ok,
@@ -278,7 +278,7 @@ defmodule AtlasWeb.AccountLive do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Account deleted."))
-         |> push_navigate(to: ~p"/sales/accounts")}
+         |> push_navigate(to: ~p"/commercial/sales/accounts")}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to delete account."))}
@@ -293,7 +293,7 @@ defmodule AtlasWeb.AccountLive do
         {:noreply,
          socket
          |> put_flash(:info, gettext("Account marked as not an account."))
-         |> push_navigate(to: ~p"/sales/accounts")}
+         |> push_navigate(to: ~p"/commercial/sales/accounts")}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Failed to mark account as not an account."))}
@@ -1067,7 +1067,7 @@ defmodule AtlasWeb.AccountLive do
           label={gettext("Accounts")}
           variant="secondary"
           size="medium"
-          navigate={~p"/sales/accounts"}
+          navigate={~p"/commercial/sales/accounts"}
         >
           <:icon_left>
             <.icon name="arrow_left" />
@@ -1805,7 +1805,7 @@ defmodule AtlasWeb.AccountLive do
                   :if={@account.parent_account}
                   id="account-parent-link"
                   data-part="account-relationship-link"
-                  navigate={~p"/sales/accounts/#{@account.parent_account.id}"}
+                  navigate={~p"/commercial/sales/accounts/#{@account.parent_account.id}"}
                 >
                   {@account.parent_account.name}
                 </.link>
@@ -1848,7 +1848,7 @@ defmodule AtlasWeb.AccountLive do
                     :for={child_account <- @account.child_accounts}
                     id={"account-child-link-#{child_account.id}"}
                     data-part="account-relationship-link"
-                    navigate={~p"/sales/accounts/#{child_account.id}"}
+                    navigate={~p"/commercial/sales/accounts/#{child_account.id}"}
                   >
                     {child_account.name}
                   </.link>
@@ -1949,7 +1949,7 @@ defmodule AtlasWeb.AccountLive do
             label={gettext("View all")}
             variant="secondary"
             size="small"
-            navigate={~p"/sales/feature-interests"}
+            navigate={~p"/commercial/sales/feature-interests"}
           />
         </:actions>
         <.card_section data-part="account-feature-interest-section">
@@ -1966,7 +1966,7 @@ defmodule AtlasWeb.AccountLive do
               <div data-part="account-feature-interest-heading">
                 <.link
                   id={"account-feature-interest-link-#{interest.id}"}
-                  navigate={~p"/sales/feature-interests/#{interest.id}"}
+                  navigate={~p"/commercial/sales/feature-interests/#{interest.id}"}
                   data-part="account-feature-interest-title"
                 >
                   {interest.title}
@@ -2001,7 +2001,7 @@ defmodule AtlasWeb.AccountLive do
                   :if={account_feature_interest_event(interest)}
                   id={"account-feature-interest-source-#{interest.id}"}
                   navigate={
-                    "/sales/accounts/#{@account.id}#timeline-event-#{account_feature_interest_event(interest).id}"
+                    "/commercial/sales/accounts/#{@account.id}#timeline-event-#{account_feature_interest_event(interest).id}"
                   }
                   data-part="account-feature-interest-source"
                 >
@@ -2013,7 +2013,7 @@ defmodule AtlasWeb.AccountLive do
                       account_feature_interest_thread(interest)
                   }
                   id={"account-feature-interest-source-#{interest.id}"}
-                  navigate={~p"/support/#{account_feature_interest_thread(interest).id}"}
+                  navigate={~p"/commercial/support/#{account_feature_interest_thread(interest).id}"}
                   data-part="account-feature-interest-source"
                 >
                   {gettext("Open source conversation")}
@@ -2051,7 +2051,7 @@ defmodule AtlasWeb.AccountLive do
               :for={document <- @account.documents}
               id={"account-document-#{document.id}"}
               data-part="document-item"
-              navigate={~p"/documents/#{document.id}"}
+              navigate={~p"/library/documents/#{document.id}"}
             >
               <span data-part="document-title">{document.title}</span>
               <span data-part="document-meta">
@@ -2231,7 +2231,7 @@ defmodule AtlasWeb.AccountLive do
                   label={gettext("History")}
                   variant="secondary"
                   size="small"
-                  navigate={~p"/gtm/outreach/#{contact.id}"}
+                  navigate={~p"/commercial/gtm/outreach/#{contact.id}"}
                 />
                 <.button
                   id={"edit-contact-button-#{contact.id}"}
@@ -2801,7 +2801,7 @@ defmodule AtlasWeb.AccountLive do
                     :if={service_level.document_id}
                     id={"service-level-document-#{service_level.id}"}
                     data-part="service-level-document-link"
-                    navigate={~p"/documents/#{service_level.document_id}"}
+                    navigate={~p"/library/documents/#{service_level.document_id}"}
                   >
                     {service_level_document_title(service_level)}
                   </.link>
@@ -4131,7 +4131,7 @@ defmodule AtlasWeb.AccountLive do
     |> assign(:outcome_review_form, nil)
     |> clear_outcome_proposal_modal()
     |> assign_note_form(account)
-    |> assign(:leadership?, Users.executive?(socket.assigns.current_user))
+    |> assign(:leadership?, Users.has_scope?(socket.assigns.current_user, "briefs:read"))
     |> assign_tax_certificate_request_form(account)
     |> assign(:signed_tax_certificate_upload_form, to_form(%{}, as: "signed_tax_certificate"))
   end

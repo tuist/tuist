@@ -249,6 +249,7 @@ defmodule Tuist do
       Runners.Workers.PruneArchivedLogsWorker,
       Runners.Claims,
       Runners.GitLab,
+      Runners.GitLab.Cache,
       Runners.GitLab.Connection,
       Runners.GitLab.Job,
       Runners.GitLab.LogParser,
@@ -276,6 +277,7 @@ defmodule Tuist do
       Runners.Profiles,
       Runners.RunnerSession,
       Runners.RunnerSessions,
+      Runners.Shadow.Snapshot,
       Runners.PromExPlugin,
       Runners.Telemetry,
       Kubernetes.Client

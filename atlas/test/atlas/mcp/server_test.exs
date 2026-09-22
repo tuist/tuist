@@ -4,6 +4,7 @@ defmodule Atlas.MCP.ServerTest do
 
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Server
+  alias Atlas.Users
   alias Atlas.Users.User
 
   setup :verify_on_exit!
@@ -245,9 +246,10 @@ defmodule Atlas.MCP.ServerTest do
     assert Enum.any?(tools, &(&1["name"] == "edit_stripe_draft_invoice"))
   end
 
-  test "hides audit tools from non-executive MCP sessions" do
-    conn = %{assigns: %{current_user: %User{role: :employee}}}
+  test "hides audit tools from MCP sessions without admin scope" do
+    conn = %{assigns: %{current_user: %User{}}}
 
+    stub(Users, :has_scope?, fn %User{}, "admin:read" -> false end)
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
 
     response =
@@ -273,9 +275,10 @@ defmodule Atlas.MCP.ServerTest do
     refute Enum.any?(tools, &(&1["name"] == "check_letter_delivery"))
   end
 
-  test "shows audit tools to executive MCP sessions" do
-    conn = %{assigns: %{current_user: %User{role: :executive}}}
+  test "shows audit tools to MCP sessions with admin scope" do
+    conn = %{assigns: %{current_user: %User{}}}
 
+    stub(Users, :has_scope?, fn %User{}, "admin:read" -> true end)
     expect(Proxy, :list_hoisted_tools, fn ^conn -> [] end)
 
     response =
@@ -305,7 +308,9 @@ defmodule Atlas.MCP.ServerTest do
     owner = Ecto.Adapters.SQL.Sandbox.start_owner!(Atlas.Repo, shared: false)
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(owner) end)
 
-    conn = %{assigns: %{current_user: %User{role: :executive}}}
+    conn = %{assigns: %{current_user: %User{}}}
+
+    stub(Users, :has_scope?, fn %User{}, _scope -> true end)
 
     response =
       Server.handle_message(conn, %{

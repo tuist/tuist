@@ -6,6 +6,8 @@ defmodule Atlas.LettersTest do
   alias Atlas.Accounts.Account
   alias Atlas.Audit
   alias Atlas.Audit.Activity
+  alias Atlas.Authorization.Roles
+  alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Storage
   alias Atlas.Letters
   alias Atlas.Letters.Config
@@ -97,7 +99,7 @@ defmodule Atlas.LettersTest do
     activity = Repo.get_by!(Activity, action: "letter.tax_certificate_prepared", target_id: letter.id)
     assert activity.actor_id == executive.id
     assert activity.interface == "dashboard"
-    assert activity.metadata["path"] == "/sales/accounts/#{account.id}"
+    assert activity.metadata["path"] == "/commercial/sales/accounts/#{account.id}"
 
     upload_activity = Repo.get_by!(Activity, action: "letter.document_attached", target_id: letter.id)
     assert upload_activity.metadata["signed_document_id"] == signed.signed_document_id
@@ -250,7 +252,7 @@ defmodule Atlas.LettersTest do
     assert ready.recipient_city == "Berlin"
 
     upload_activity = Repo.get_by!(Activity, action: "letter.uploaded", target_id: uploaded.id)
-    assert upload_activity.metadata["path"] == "/postal"
+    assert upload_activity.metadata["path"] == "/outbound/postal"
   end
 
   test "persists a delivery confirmation after a leadership status check" do
@@ -401,14 +403,26 @@ defmodule Atlas.LettersTest do
   defp insert_user!(attrs) do
     suffix = System.unique_integer([:positive])
 
+    {role, attrs} = Map.pop(attrs, :role)
+
     defaults = %{
       email: "letter-user-#{suffix}@tuist.dev",
-      name: "Letter User",
-      role: :employee
+      name: "Letter User"
     }
 
-    %User{}
-    |> User.changeset(Map.merge(defaults, attrs))
-    |> Repo.insert!()
+    user =
+      %User{}
+      |> User.changeset(Map.merge(defaults, attrs))
+      |> Repo.insert!()
+
+    if role == :executive do
+      executive_role = Roles.ensure_executive_role!()
+
+      %UserRole{}
+      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
+      |> Repo.insert!()
+    end
+
+    user
   end
 end

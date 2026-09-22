@@ -23,7 +23,7 @@ defmodule Atlas.MCP.Tools.InstallAssetInDataCenter do
   end
 
   def execute(conn, %{"asset_id" => asset_id, "data_center_id" => dc_id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = asset <- Assets.get_asset(asset_id),
          %_{} = dc <- Assets.get_data_center(dc_id) do
       opts =

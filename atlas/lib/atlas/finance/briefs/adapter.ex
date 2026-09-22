@@ -102,7 +102,7 @@ defmodule Atlas.Finance.Briefs.Adapter do
           suggested_action: List.first(readout.next_steps),
           completion_condition: "Leadership has reviewed the risk and recorded an owner or resolution.",
           fingerprint: "finance:weekly:#{fingerprint(concern.title)}",
-          source_path: "/finance",
+          source_path: "/commercial/finance",
           due_at: DateTime.add(context.period_end, 7, :day),
           evidence: evidence
         }
@@ -126,7 +126,7 @@ defmodule Atlas.Finance.Briefs.Adapter do
             suggested_action: step,
             completion_condition: "The follow-up is completed and its result is recorded.",
             fingerprint: "finance:weekly:follow_up:#{index}:#{fingerprint(step)}",
-            source_path: "/finance",
+            source_path: "/commercial/finance",
             due_at: DateTime.add(context.period_end, 7, :day),
             evidence: evidence
           }

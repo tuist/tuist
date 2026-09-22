@@ -24,7 +24,8 @@ import java.util.concurrent.TimeUnit
 open class TuistHttpClients(
     private val useEnvironmentProxy: Boolean = true,
     private val proxyURLProvider: () -> String? = { environmentProxyURL() },
-    private val environmentVariables: Map<String, String> = System.getenv()
+    private val environmentVariables: Map<String, String> = System.getenv(),
+    private val pluginVersion: String? = PluginVersion.current
 ) {
 
     val javaProxy: java.net.Proxy? by lazy {
@@ -36,6 +37,7 @@ open class TuistHttpClients(
             .connectTimeout(DEFAULT_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(DEFAULT_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .addInterceptor(FeatureFlagsInterceptor(environmentVariables))
+            .addInterceptor(PluginVersionInterceptor(pluginVersion))
             .applyProxy()
             .build()
     }
@@ -76,6 +78,7 @@ open class TuistHttpClients(
         FeatureFlagsHeaders.headerValue(environmentVariables)?.let { headerValue ->
             connection.setRequestProperty(FeatureFlagsHeaders.HEADER_NAME, headerValue)
         }
+        pluginVersion?.let { connection.setRequestProperty(PluginVersion.HEADER_NAME, it) }
         return connection
     }
 

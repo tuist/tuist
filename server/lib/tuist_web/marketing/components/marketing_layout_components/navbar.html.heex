@@ -89,7 +89,7 @@ developers_items = [
 ]
 
 # Ordered for the dropdown's row-flow 2-column grid: left column is
-# About/Hive/Customers, right column Slack/Forum/Newsletter/GitHub.
+# About/Customers/Newsletter, right column Slack/Forum/GitHub.
 resources_items = [
   %{
     icon: :users,
@@ -102,16 +102,6 @@ resources_items = [
     title: dgettext("marketing", "Slack"),
     subtitle: dgettext("marketing", "Join the community slack"),
     href: "https://slack.tuist.dev"
-  },
-  %{
-    icon: :subtask,
-    title: dgettext("marketing", "Hive"),
-    subtitle:
-      dgettext(
-        "marketing",
-        "Track requests, bug reports, feedback and Grafana alerts in one place"
-      ),
-    href: "https://hive.tuist.dev"
   },
   %{
     icon: :message_circle,

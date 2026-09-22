@@ -243,7 +243,7 @@ defmodule Atlas.Accounts.FeatureInterests do
         target_type: "feature_interest",
         target_id: interest.id,
         target_label: interest.title,
-        metadata: %{"path" => "/sales/feature-interests/#{interest.id}"}
+        metadata: %{"path" => "/commercial/sales/feature-interests/#{interest.id}"}
       },
       actor: actor
     )
@@ -267,9 +267,9 @@ defmodule Atlas.Accounts.FeatureInterests do
   defp interest_metadata(account, event, interest_account) do
     %{
       "account_id" => account.id,
-      "account_path" => "/sales/accounts/#{account.id}",
+      "account_path" => "/commercial/sales/accounts/#{account.id}",
       "account_event_id" => event && event.id,
-      "account_event_path" => event && "/sales/accounts/#{account.id}#timeline-event-#{event.id}",
+      "account_event_path" => event && "/commercial/sales/accounts/#{account.id}#timeline-event-#{event.id}",
       "feature_interest_account_id" => interest_account.id
     }
   end

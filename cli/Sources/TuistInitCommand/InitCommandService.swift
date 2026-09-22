@@ -5,6 +5,7 @@ import Noora
 import Path
 import TuistAlert
 import TuistAuthCommand
+import TuistBazelCommand
 import TuistConstants
 import TuistEnvironment
 import TuistServer
@@ -175,8 +176,7 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
             let fullHandle = try await connectToServer(
                 named: projectName,
                 answers: answers,
-                buildSystem: .gradle,
-                skipServerPrompt: true
+                buildSystem: .gradle
             )
             try await writeTuistToml(fullHandle: fullHandle, at: projectDirectory)
             if let fullHandle {
@@ -184,6 +184,25 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
                     "Your project dashboard is available at \(.link(title: fullHandle, href: "https://tuist.dev/\(fullHandle)"))",
                     "Accelerate your builds with the \(.link(title: "Gradle remote cache", href: "https://tuist.dev/en/docs/guides/features/cache/gradle-cache"))",
                     "Get insights into your \(.link(title: "builds", href: "https://tuist.dev/en/docs/guides/features/build-insights/gradle")) and \(.link(title: "tests", href: "https://tuist.dev/en/docs/guides/features/test-insights/gradle"))",
+                ])
+            }
+        case .connectBazelWorkspace:
+            projectDirectory = directory
+            let projectName = answers?.generatedProjectName
+                ?? prompter.promptProjectName(defaultName: projectDirectory.basename)
+            let fullHandle = try await connectToServer(
+                named: projectName,
+                answers: answers,
+                buildSystem: .bazel
+            )
+            try await writeTuistToml(fullHandle: fullHandle, at: projectDirectory)
+            if fullHandle != nil {
+                try await BazelSetupCommandService().run(
+                    directory: projectDirectory.pathString
+                )
+                nextSteps.append(contentsOf: [
+                    "Add \(.command(".bazelrc.tuist")) to your \(.command(".gitignore")) — the credential-helper path and cache region are per-machine",
+                    "Run \(.command("bazel build //...")) to see cache activity",
                 ])
             }
         }
@@ -201,6 +220,8 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
         let successMessage: TerminalText = switch workflowType {
         case .connectGradleProject:
             "Add the Tuist plugin to your \(.command("settings.gradle.kts")) to finish the Gradle integration:\n\n  \(.command("plugins { id(\"dev.tuist\") version \"\(Constants.gradlePluginVersion)\" }"))"
+        case .connectBazelWorkspace:
+            "Bazel workspace connected. Commit the \(.command("try-import")) line in \(.command(".bazelrc"))."
         #if os(macOS)
             case .createGeneratedProject, .connectProjectOrSwiftPackage:
                 "You are all set to explore the Tuist universe"
@@ -290,14 +311,13 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
     private func connectToServer(
         named projectHandle: String,
         answers: InitPromptAnswers?,
-        buildSystem: Components.Schemas.Project.build_systemPayload,
-        skipServerPrompt: Bool = false
+        buildSystem: Components.Schemas.Project.build_systemPayload
     ) async throws -> String? {
-        if !skipServerPrompt {
-            let integrateWithServer =
-                answers?.integrateWithServer ?? prompter.promptIntegrateWithServer()
-            guard integrateWithServer else { return nil }
-        }
+        // Server integration is assumed opted-in for the interactive flow;
+        // agents can opt out with `--no-server` at the CLI, which surfaces here
+        // as `answers?.integrateWithServer == false`.
+        let integrateWithServer = answers?.integrateWithServer ?? true
+        guard integrateWithServer else { return nil }
 
         let serverURL = try serverEnvironmentService.url(
             configServerURL: Constants.URLs.production)
@@ -424,13 +444,15 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
         ) async throws -> InitPromptingWorkflowType {
             let xcodeProjectsAndWorkspaces = try await findXcodeProjectsAndWorkspaces(
                 in: directory)
+            let bazelWorkspaceDetected = try await isBazelWorkspace(directory)
             return answers?.workflowType
                 ?? prompter
                 .promptWorkflowType(
                     xcodeProjectOrWorkspace:
                     xcodeProjectsAndWorkspaces
                         .first(where: \.isWorkspace)
-                        ?? xcodeProjectsAndWorkspaces.first(where: \.isProject)
+                        ?? xcodeProjectsAndWorkspaces.first(where: \.isProject),
+                    bazelWorkspaceDetected: bazelWorkspaceDetected
                 )
         }
 
@@ -455,10 +477,24 @@ public struct InitCommandService { // swiftlint:disable:this type_body_length
         }
     #else
         private func promptedWorkflowType(
-            in _: AbsolutePath,
-            answers _: InitPromptAnswers?
+            in directory: AbsolutePath,
+            answers: InitPromptAnswers?
         ) async throws -> InitPromptingWorkflowType {
-            .connectGradleProject
+            let bazelWorkspaceDetected = try await isBazelWorkspace(directory)
+            return answers?.workflowType
+                ?? prompter.promptWorkflowType(
+                    xcodeProjectOrWorkspace: nil,
+                    bazelWorkspaceDetected: bazelWorkspaceDetected
+                )
         }
     #endif
+
+    private func isBazelWorkspace(_ directory: AbsolutePath) async throws -> Bool {
+        for marker in ["WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel"] {
+            if try await fileSystem.exists(directory.appending(component: marker)) {
+                return true
+            }
+        }
+        return false
+    }
 }

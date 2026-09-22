@@ -31,7 +31,7 @@ defmodule Atlas.Coordination.Briefs.Adapter do
       fingerprint: "company:claim:#{claim.claim_kind}:#{claim.subject_account_id}",
       source_type: "cross_domain_claim",
       source_id: claim.id,
-      source_path: "/sales/accounts/#{claim.subject_account_id}",
+      source_path: "/commercial/sales/accounts/#{claim.subject_account_id}",
       due_at: DateTime.add(period.end_at, 7, :day),
       evidence: claim_evidence(claim)
     }

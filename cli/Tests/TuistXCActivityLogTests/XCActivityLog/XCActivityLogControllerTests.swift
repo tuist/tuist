@@ -5,6 +5,7 @@ import Path
 import Testing
 import TuistEnvironment
 import TuistSupport
+import TuistTestSupport
 
 @testable import TuistTesting
 @testable import TuistXCActivityLog
@@ -21,8 +22,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseCleanBuildXCActivityLog() async throws {
         // Given
-        let cleanBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/clean-build.xcactivitylog"))
+        let cleanBuildXCActivityLog = TestPaths.fixturesDirectory.appending(component: "clean-build.xcactivitylog")
 
         // When
         let got = try await subject.parse(cleanBuildXCActivityLog)
@@ -33,8 +33,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseBuildWithWarningXCActivityLog() async throws {
         // Given
-        let buildWithWarningXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-warning.xcactivitylog"))
+        let buildWithWarningXCActivityLog = TestPaths.fixturesDirectory.appending(component: "build-with-warning.xcactivitylog")
 
         // When
         let got = try await subject.parse(buildWithWarningXCActivityLog)
@@ -46,8 +45,7 @@ struct XCActivityLogControllerTests {
 
     @Test func xcode_26_2() async throws {
         // Given
-        let incrementalBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_2.xcactivitylog"))
+        let incrementalBuildXCActivityLog = TestPaths.fixturesDirectory.appending(component: "xcode_26_2.xcactivitylog")
 
         // When
         let got = try await subject.parse(incrementalBuildXCActivityLog)
@@ -58,8 +56,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseCleanBuildWithCompilationCacheXCActivityLog() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_4_clean_build_with_cache.xcactivitylog"))
+        let logPath = TestPaths.fixturesDirectory.appending(component: "xcode_26_4_clean_build_with_cache.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -70,8 +67,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseIncrementalBuildWithCompilationCacheXCActivityLog() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_4_incremental_build_with_cache.xcactivitylog"))
+        let logPath = TestPaths.fixturesDirectory.appending(component: "xcode_26_4_incremental_build_with_cache.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -82,12 +78,8 @@ struct XCActivityLogControllerTests {
 
     @Test func parseIncrementalBuildWithCompilationCacheMultiplatformXCActivityLog() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(
-                try RelativePath(
-                    validating: "../../Fixtures/xcode_26_incremental_build_with_cache_multiplatform.xcactivitylog"
-                )
-            )
+        let logPath = TestPaths.fixturesDirectory
+            .appending(component: "xcode_26_incremental_build_with_cache_multiplatform.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -98,8 +90,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseIncrementalBuildXCActivityLog() async throws {
         // Given
-        let incrementalBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/incremental-build.xcactivitylog"))
+        let incrementalBuildXCActivityLog = TestPaths.fixturesDirectory.appending(component: "incremental-build.xcactivitylog")
 
         // When
         let got = try await subject.parse(incrementalBuildXCActivityLog)
@@ -110,8 +101,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseFailedBuildXCActivityLog() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/failed-build.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(component: "failed-build.xcactivitylog")
 
         // When
         let got = try await subject.parse(xcactivityLog)
@@ -649,8 +639,7 @@ struct XCActivityLogControllerTests {
     }
 
     private func writeActivityLog(at path: AbsolutePath, truncatedTo bytes: Int? = nil) throws {
-        let fixture = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/clean-build.xcactivitylog"))
+        let fixture = TestPaths.fixturesDirectory.appending(component: "clean-build.xcactivitylog")
         let contents = try Data(contentsOf: fixture.url)
         try (bytes.map { Data(contents.prefix($0)) } ?? contents).write(to: path.url)
     }
@@ -658,8 +647,7 @@ struct XCActivityLogControllerTests {
     @Test(.withMockedEnvironment())
     func parseFailedBuildXCActivityLogWithMissesAndRemoteHits() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/failed-build-with-cache-misses.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(component: "failed-build-with-cache-misses.xcactivitylog")
         let environment = try #require(Environment.mocked)
         environment.cacheDirectory = xcactivityLog.parentDirectory.appending(component: "cache")
 
@@ -680,8 +668,10 @@ struct XCActivityLogControllerTests {
     @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithRemoteHits() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-remote-hits/build-with-remote-hits.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(
+            components: "build-with-remote-hits",
+            "build-with-remote-hits.xcactivitylog"
+        )
         let environment = try #require(Environment.mocked)
         environment.stateDirectory = xcactivityLog.parentDirectory.appending(component: "state")
 
@@ -727,8 +717,10 @@ struct XCActivityLogControllerTests {
     @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithUploads() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-uploads/build-with-uploads.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(
+            components: "build-with-uploads",
+            "build-with-uploads.xcactivitylog"
+        )
         let environment = try #require(Environment.mocked)
         environment.stateDirectory = xcactivityLog.parentDirectory.appending(component: "state")
 
@@ -750,8 +742,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseXcode26CASCleanBuild() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_cas_clean_build.xcactivitylog"))
+        let logPath = TestPaths.fixturesDirectory.appending(component: "xcode_26_cas_clean_build.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -762,8 +753,7 @@ struct XCActivityLogControllerTests {
 
     @Test func parseXcode26CASIncrementalBuild() async throws {
         // Given
-        let logPath = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_cas_incremental_build.xcactivitylog"))
+        let logPath = TestPaths.fixturesDirectory.appending(component: "xcode_26_cas_incremental_build.xcactivitylog")
 
         // When
         let got = try await subject.parse(logPath)
@@ -775,8 +765,7 @@ struct XCActivityLogControllerTests {
     @Test(.withMockedEnvironment())
     func parseBuildXCActivityLogWithLocalHits() async throws {
         // Given
-        let xcactivityLog = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../../Fixtures/build-with-local-hits.xcactivitylog"))
+        let xcactivityLog = TestPaths.fixturesDirectory.appending(component: "build-with-local-hits.xcactivitylog")
 
         // When
         let got = try await subject.parse(xcactivityLog)

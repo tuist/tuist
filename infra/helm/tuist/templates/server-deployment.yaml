@@ -180,6 +180,10 @@ spec:
             - name: TUIST_FARO_COLLECTOR_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- if .Values.server.faro.receiverHost }}
+            - name: TUIST_FARO_RECEIVER_URL
+              value: {{ printf "http://%s:%v/collect" .Values.server.faro.receiverHost .Values.server.faro.receiverPort | quote }}
+            {{- end }}
             {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
             - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
               value: {{ . | quote }}
@@ -433,7 +437,7 @@ spec:
             {{- end }}
             {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
-            {{- include "tuist.clickhouseBareMetalEnv" . | nindent 12 }}
+            {{- include "tuist.clickhouseManagedEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

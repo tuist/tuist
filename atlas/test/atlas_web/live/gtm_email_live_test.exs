@@ -11,13 +11,13 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, subscriber} = GTM.create_email_subscriber(%{email: "reader@example.com", source: "website"})
     {:ok, _membership} = GTM.add_email_audience_subscriber(audience, subscriber)
 
-    {:ok, view, _html} = live(conn, ~p"/email")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email")
 
     assert has_element?(view, "#email")
     assert has_element?(view, "#email-audiences-table", "Digest")
     assert has_element?(view, "#email-subscribers-table", "reader@example.com")
-    assert has_element?(view, ~s(a[href="/email"] [data-selected]))
-    refute has_element?(view, ~s(#sidebar-gtm a[href="/email"]))
+    assert has_element?(view, ~s(a[href="/outbound/email"] [data-selected]))
+    refute has_element?(view, ~s(#sidebar-gtm a[href="/outbound/email"]))
     assert has_element?(view, "#new-email-subscriber-modal")
     assert has_element?(view, "#new-email-audience-modal")
   end
@@ -27,7 +27,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, _matching} = GTM.create_email_audience(%{name: "Product digest", description: "Weekly"})
     {:ok, _other} = GTM.create_email_audience(%{name: "Marketing list", description: "Promotions"})
 
-    {:ok, view, _html} = live(conn, ~p"/email")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email")
 
     assert has_element?(view, "#email-audiences-table", "Product digest")
     assert has_element?(view, "#email-audiences-table", "Marketing list")
@@ -46,7 +46,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, _} = GTM.create_email_subscriber(%{email: "pending@example.com", source: "website", status: "pending"})
 
     filter_params = %{"filter_subscribers_status_op" => "==", "filter_subscribers_status_val" => "pending"}
-    {:ok, view, _html} = live(conn, ~p"/email?#{filter_params}")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email?#{filter_params}")
 
     assert has_element?(view, "#email-subscribers-table", "pending@example.com")
     refute has_element?(view, "#email-subscribers-table", "subscribed@example.com")
@@ -58,7 +58,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, _} = GTM.create_email_subscriber(%{email: "subscribed@example.com", source: "website", status: "subscribed"})
     {:ok, _} = GTM.create_email_subscriber(%{email: "pending@example.com", source: "website", status: "pending"})
 
-    {:ok, view, _html} = live(conn, ~p"/email")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email")
 
     render_click(view, "add_filter", %{"value" => "subscribers_status"})
 
@@ -77,7 +77,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, _} = GTM.create_email_subscriber(%{email: "pending-reader@example.com", source: "website", status: "pending"})
     {:ok, _} = GTM.create_email_subscriber(%{email: "pending-writer@example.com", source: "website", status: "pending"})
 
-    {:ok, view, _html} = live(conn, ~p"/email")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email")
 
     view
     |> form("#email-subscribers-search-form", %{"search" => %{"query" => "reader"}})
@@ -100,7 +100,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, _} = GTM.create_email_audience(%{name: "Loops digest", source_id: "loops"})
     {:ok, _} = GTM.create_email_audience(%{name: "Atlas digest", source_id: "atlas"})
 
-    {:ok, view, _html} = live(conn, ~p"/email")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email")
 
     render_click(view, "add_filter", %{"value" => "audiences_source"})
 
@@ -118,7 +118,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {conn, _user} = log_in_user(conn)
     {:ok, _} = GTM.create_email_audience(%{name: "Digest"})
 
-    {:ok, view, _html} = live(conn, ~p"/email")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email")
 
     # The dropdown renders nothing when every filter has been rejected for
     # having no options, which is what happened when Source was the only one.
@@ -140,7 +140,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, view, _html} =
       live(
         conn,
-        ~p"/email?#{%{"filter_audiences_subscribers_op" => "==", "filter_audiences_subscribers_val" => "present"}}"
+        ~p"/outbound/email?#{%{"filter_audiences_subscribers_op" => "==", "filter_audiences_subscribers_val" => "present"}}"
       )
 
     assert has_element?(view, "#email-audiences-table", "Populated digest")
@@ -149,7 +149,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, view, _html} =
       live(
         conn,
-        ~p"/email?#{%{"filter_audiences_subscribers_op" => "==", "filter_audiences_subscribers_val" => "absent"}}"
+        ~p"/outbound/email?#{%{"filter_audiences_subscribers_op" => "==", "filter_audiences_subscribers_val" => "absent"}}"
       )
 
     assert has_element?(view, "#email-audiences-table", "Empty digest")
@@ -178,7 +178,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, view, _html} =
       live(
         conn,
-        ~p"/email?#{%{"filter_audiences_broadcasts_op" => "==", "filter_audiences_broadcasts_val" => "present"}}"
+        ~p"/outbound/email?#{%{"filter_audiences_broadcasts_op" => "==", "filter_audiences_broadcasts_val" => "present"}}"
       )
 
     assert has_element?(view, "#email-audiences-table", "Broadcast digest")
@@ -191,7 +191,10 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, _} = GTM.create_email_subscriber(%{email: "subscribed@example.com", source: "website", status: "subscribed"})
 
     {:ok, view, _html} =
-      live(conn, ~p"/email?#{%{"filter_subscribers_status_op" => "!=", "filter_subscribers_status_val" => "pending"}}")
+      live(
+        conn,
+        ~p"/outbound/email?#{%{"filter_subscribers_status_op" => "!=", "filter_subscribers_status_val" => "pending"}}"
+      )
 
     assert has_element?(view, "#email-subscribers-table", "subscribed@example.com")
     refute has_element?(view, "#email-subscribers-table", "pending@example.com")
@@ -211,7 +214,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
       "filter_subscribers_source_val" => "website"
     }
 
-    {:ok, view, _html} = live(conn, ~p"/email?#{filter_params}")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email?#{filter_params}")
 
     assert has_element?(view, "#email-audiences-table", "Loops digest")
     refute has_element?(view, "#email-audiences-table", "Atlas digest")
@@ -228,7 +231,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
 
     {:ok, _audience} = GTM.create_email_audience(%{name: "Digest"})
 
-    {:ok, view, _html} = live(conn, ~p"/email?subscribers-page=2")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email?subscribers-page=2")
 
     # 30 subscribers is two pages, one audience is not, and a pagination
     # control for a single page is noise.
@@ -238,7 +241,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
 
   test "creates a subscriber from the modal form", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "email-editor@tuist.dev"})
-    {:ok, view, _html} = live(conn, ~p"/email")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email")
 
     render_submit(view, "create_subscriber", %{
       "subscriber" => %{
@@ -256,7 +259,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
 
   test "creates a dynamic customer audience from the modal form", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{email: "email-editor@tuist.dev"})
-    {:ok, view, _html} = live(conn, ~p"/email")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email")
     name = "Enterprise accounts #{System.unique_integer([:positive])}"
 
     render_submit(view, "create_audience", %{
@@ -273,9 +276,9 @@ defmodule AtlasWeb.GTMEmailLiveTest do
 
     audience = GTM.get_email_audience_by_slug("enterprise-accounts-#{String.split(name, " ") |> List.last()}")
     assert audience.rules["recipient_source"] == "incident_contacts"
-    assert_redirect(view, ~p"/email/audiences/#{audience.id}")
+    assert_redirect(view, ~p"/outbound/email/audiences/#{audience.id}")
 
-    {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
 
     assert has_element?(view, "#email-audience-widget-members", "Dynamic")
     assert has_element?(view, "#email-audience-members-table", "No matching contacts")
@@ -285,11 +288,11 @@ defmodule AtlasWeb.GTMEmailLiveTest do
   test "deletes an unused manual audience from its detail page", %{conn: conn} do
     {conn, _user} = log_in_user(conn)
     {:ok, audience} = GTM.create_email_audience(%{name: "Disposable #{System.unique_integer([:positive])}"})
-    {:ok, index_view, _html} = live(conn, ~p"/email")
+    {:ok, index_view, _html} = live(conn, ~p"/outbound/email")
 
     refute has_element?(index_view, "#delete-email-audience-#{audience.id}")
 
-    {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
 
     assert has_element?(view, "#email-delete-audience-card")
     assert has_element?(view, "#delete-email-audience-#{audience.id}")
@@ -304,7 +307,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     {:ok, audience} = GTM.create_email_audience(%{name: "Digest"})
     {:ok, subscriber} = GTM.create_email_subscriber(%{email: "recipient@example.com", source: "dashboard"})
 
-    {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+    {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
 
     render_submit(view, "add_subscriber", %{"membership" => %{"subscriber_id" => subscriber.id}})
 
@@ -346,7 +349,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
       add_member(audience, "one@example.com", "subscribed")
       add_member(audience, "two@example.com", "unsubscribed")
 
-      {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+      {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
 
       assert has_element?(view, "#email-audience-widget-subscribed", "1")
       assert has_element?(view, "#email-audience-widget-members", "2")
@@ -354,7 +357,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     end
 
     test "renders the empty states inside the tables", %{conn: conn, audience: audience} do
-      {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+      {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
 
       # The empty state belongs to the table's slot; rendered beside the table
       # it lands outside the styled container and reads as unstyled text.
@@ -365,11 +368,11 @@ defmodule AtlasWeb.GTMEmailLiveTest do
     test "paginates the members", %{conn: conn, audience: audience} do
       for index <- 1..30, do: add_member(audience, "member-#{index}@example.com", "subscribed")
 
-      {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+      {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
       assert has_element?(view, "#email-members-pagination")
       assert has_element?(view, "#email-audience-members-table", "member-1@example.com")
 
-      {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}?members-page=2")
+      {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}?members-page=2")
       refute has_element?(view, "#email-audience-members-table", "member-1@example.com")
     end
 
@@ -377,7 +380,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
       {:ok, subscriber} =
         GTM.create_email_subscriber(%{email: "candidate@example.com", source: "website"})
 
-      {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+      {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
 
       refute subscriber.id in audience_member_option_values(view)
 
@@ -390,7 +393,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
       add_member(audience, "keeper@example.com", "subscribed")
       add_member(audience, "other@example.com", "subscribed")
 
-      {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+      {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
 
       view
       |> form("#email-members-search-form", %{"search" => %{"query" => "keeper"}})
@@ -404,7 +407,7 @@ defmodule AtlasWeb.GTMEmailLiveTest do
       add_member(audience, "still-in@example.com", "subscribed")
       add_member(audience, "left@example.com", "unsubscribed")
 
-      {:ok, view, _html} = live(conn, ~p"/email/audiences/#{audience.id}")
+      {:ok, view, _html} = live(conn, ~p"/outbound/email/audiences/#{audience.id}")
 
       render_click(view, "add_filter", %{"value" => "members_status"})
 

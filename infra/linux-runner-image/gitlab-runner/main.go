@@ -83,12 +83,15 @@ func (t *jobTrace) Cancel() bool {
 	return t.JobTrace.Cancel()
 }
 
-func execute(job assignment, buildsDir string) error {
+func execute(job assignment, buildsDir, resultFile string) error {
 	if job.URL == "" || job.Payload.ID <= 0 || job.Payload.Token == "" || job.ReportToken == "" || job.ReportURL == "" {
 		return errors.New("incomplete GitLab assignment")
 	}
 	command, err := os.Executable()
 	if err != nil {
+		return err
+	}
+	if err := registerCacheAdapter(job); err != nil {
 		return err
 	}
 	provider := shell.NewProvider(command)
@@ -100,6 +103,7 @@ func execute(job assignment, buildsDir string) error {
 		RunnerSettings: common.RunnerSettings{
 			Executor: "shell", Shell: "bash", BuildsDir: buildsDir,
 			CacheDir: filepath.Join(buildsDir, ".gitlab-cache"),
+			Cache:    cacheConfig(),
 		},
 	}
 	credentials := &common.JobCredentials{ID: job.Payload.ID, Token: job.Payload.Token}
@@ -124,8 +128,14 @@ func execute(job assignment, buildsDir string) error {
 			_ = trace.Success()
 		}
 		trace.mu.Lock()
-		outcome := map[string]any{"exit_status": trace.exitCode, "cancelled": trace.cancelled}
+		exitCode, cancelled := trace.exitCode, trace.cancelled
 		trace.mu.Unlock()
+		if resultFile != "" {
+			if err := os.WriteFile(resultFile, []byte(jobResult(exitCode, cancelled)), 0o644); err != nil {
+				fmt.Fprintln(os.Stderr, "Tuist job result could not be written")
+			}
+		}
+		outcome := map[string]any{"exit_status": exitCode, "cancelled": cancelled}
 		if err := report(job, "finish", outcome); err != nil {
 			fmt.Fprintln(os.Stderr, "Tuist job completion report failed")
 		}
@@ -169,6 +179,20 @@ func execute(job assignment, buildsDir string) error {
 		}
 	}
 	return err
+}
+
+// jobResult names the job's outcome for the machine's own teardown, which
+// promotes the cache volume only after a job that succeeded. The process exit
+// status cannot carry it: job outcomes deliberately exit zero.
+func jobResult(exitCode int, cancelled bool) string {
+	switch {
+	case cancelled:
+		return "canceled"
+	case exitCode == 0:
+		return "succeeded"
+	default:
+		return "failed"
+	}
 }
 
 func report(job assignment, endpoint string, body any) error {
@@ -238,7 +262,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "tuist-gitlab-runner"
 	app.Version = common.AppVersion.ShortLine()
-	app.Flags = []cli.Flag{cli.StringFlag{Name: "job-file"}, cli.StringFlag{Name: "builds-dir", Value: "work"}}
+	app.Flags = []cli.Flag{cli.StringFlag{Name: "job-file"}, cli.StringFlag{Name: "builds-dir", Value: "work"}, cli.StringFlag{Name: "result-file"}}
 	// The shell executor invokes these commands on its own executable for
 	// artifact and cache operations, exactly as the upstream runner does.
 	app.Commands = []cli.Command{
@@ -256,7 +280,7 @@ func main() {
 		if err := json.NewDecoder(io.LimitReader(file, 32*1024*1024)).Decode(&job); err != nil {
 			return errors.New("invalid GitLab assignment")
 		}
-		return execute(job, ctx.String("builds-dir"))
+		return execute(job, ctx.String("builds-dir"), ctx.String("result-file"))
 	}
 	if err := app.Run(os.Args); err != nil {
 		// Errors from the executor may include repository URLs or job data.

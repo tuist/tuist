@@ -256,7 +256,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress, sharedSecret).WithStatusSubresource(instance).Build(),
 		Scheme:             scheme,
 		GRPCClusterIssuer:  "letsencrypt-prod",
-		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces",
+		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces",
 		Environment:        "canary",
 	}
 
@@ -381,7 +381,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		env["KURA_INTERNAL_TLS_KEY_PATH"] == "" {
 		t.Fatal("expected internal peer mTLS env paths to be configured")
 	}
-	if got := env[otlpTracesEndpointEnvVar]; got != "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces" {
+	if got := env[otlpTracesEndpointEnvVar]; got != "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces" {
 		t.Fatalf("expected default OTLP traces endpoint, got %q", got)
 	}
 	if got := env[environmentEnvVar]; got != "canary" {
@@ -1516,7 +1516,7 @@ func TestKuraInstanceReconcilePreservesExplicitOTLPTracesEndpoint(t *testing.T) 
 	reconciler := &KuraInstanceReconciler{
 		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
 		Scheme:             scheme,
-		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces",
+		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces",
 	}
 
 	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
@@ -1917,7 +1917,7 @@ func TestKuraInstanceReconcileLeavesStorageAloneOnImageChange(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(legacyInstance, "", "production", "", false, false),
+			Template:             podTemplate(legacyInstance, "", "production", "", false, false, false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
 		},
 	}
@@ -2354,7 +2354,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &replicas,
 			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-			Template:             podTemplate(instance, "", "production", "", false, false),
+			Template:             podTemplate(instance, "", "production", "", false, false, false),
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
 		},
 	}
@@ -2412,7 +2412,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "", "production", "", false, false)
+	stsTemplate := podTemplate(instance, "", "production", "", false, false, false)
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}
@@ -4727,8 +4727,8 @@ func TestTemplateServesGatewayGRPCOnlyAlongsideARestart(t *testing.T) {
 		})
 	}
 
-	withGateway := podTemplate(instance, "", "production", "", false, true).Spec.Containers[0]
-	withoutGateway := podTemplate(instance, "", "production", "", false, false).Spec.Containers[0]
+	withGateway := podTemplate(instance, "", "production", "", false, true, false).Spec.Containers[0]
+	withoutGateway := podTemplate(instance, "", "production", "", false, false, false).Spec.Containers[0]
 	if !podDeclaresContainerPort(&corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{withGateway}}}, "grpc", gatewayGRPCPort) {
 		t.Fatal("expected a gateway template to declare the grpc container port")
 	}

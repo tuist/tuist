@@ -39,22 +39,6 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   @doc """
-  The claim sizing measures an account against: what its governed instances
-  are pinned at, then the sized claim, then the plan's. The pinned value is
-  what the telemetry describes, and it outlives a change to the plan
-  constants, so a lowered default cannot make a running instance look smaller
-  than it is.
-  """
-  def measured_claim_size(%Account{id: account_id} = account) do
-    pinned =
-      [account_id]
-      |> pinned_claims()
-      |> Map.get(account_id)
-
-    pinned || PlacerClaims.claim_for(account) || PlacerClaims.plan_claim_size(account)
-  end
-
-  @doc """
   One page of the account's sizing decisions, newest first, returned with the
   Flop meta the pagination component reads.
   """
@@ -83,15 +67,17 @@ defmodule Tuist.Kura.ClaimProposals do
   end
 
   @doc """
-  Open proposals, oldest first, capped at `limit`. What the automatic mode
-  drains; the cap bounds how much a sweep may resize in one pass so a
-  miscalibrated threshold cannot rebuild the fleet in one night.
+  Open proposals, growths first and then oldest first: the order the automatic
+  mode tries them in. A growth waiting leaves an account shedding content it
+  needs, while a shrink waiting only holds disk, so a month's shrinks landing
+  on the same day cannot hold growth back for hours. How many it may apply is
+  the worker's budget to bound, not this list's length: a proposal the cluster
+  refuses stays open at the head of it.
   """
-  def open_proposals(limit) do
+  def open_proposals do
     ClaimProposal
     |> where([proposal], proposal.status == :open)
-    |> order_by([proposal], asc: proposal.inserted_at)
-    |> limit(^limit)
+    |> order_by([proposal], asc: fragment("? <> 'grow'", proposal.direction), asc: proposal.inserted_at)
     |> Repo.all()
   end
 
@@ -151,51 +137,26 @@ defmodule Tuist.Kura.ClaimProposals do
       placer_claims: placer_claims,
       open_proposals: open_proposals,
       last_applied_proposals: last_applied_proposals,
-      pinned_claims: pinned_claims(account_ids)
+      region_claims: PlacerClaims.region_claims(account_ids)
     }
-  end
-
-  # Largest, because a baseline under what an instance holds turns a proposed
-  # grow into a silent shrink of that instance's volume.
-  defp pinned_claims(account_ids) do
-    Server
-    |> where([server], server.account_id in ^account_ids)
-    |> where([server], server.region in ^governed_region_ids())
-    |> where([server], server.status not in ^Tuist.Kura.volumeless_statuses())
-    |> where([server], not is_nil(server.storage_claim_size))
-    |> select([server], {server.account_id, server.storage_claim_size})
-    |> Repo.all()
-    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-    |> Map.new(fn {account_id, claims} -> {account_id, largest_claim(claims)} end)
-    |> Map.reject(fn {_account_id, claim} -> is_nil(claim) end)
-  end
-
-  defp largest_claim(claims) do
-    claims
-    |> Enum.flat_map(fn claim ->
-      case Regions.parse_storage_quantity(claim) do
-        {:ok, bytes} -> [{claim, bytes}]
-        :error -> []
-      end
-    end)
-    |> case do
-      [] -> nil
-      parsed -> parsed |> Enum.max_by(&elem(&1, 1)) |> elem(0)
-    end
   end
 
   defp converge_account(account, inputs, today, policy) do
     open = Map.get(inputs.open_proposals, account.id)
     placer_claim = Map.get(inputs.placer_claims, account.id)
+    region_claims = Map.get(inputs.region_claims, account.id, %{})
 
     current =
-      Map.get(inputs.pinned_claims, account.id) ||
-        (placer_claim && placer_claim.claim_size) ||
-        PlacerClaims.plan_claim_size(account)
+      PlacerClaims.resolve_claim_size(
+        account,
+        PlacerClaims.largest_claim(Map.values(region_claims)),
+        placer_claim && placer_claim.claim_size
+      )
 
     context = %{
       plan: AccountPolicies.sizing_plan(account),
       current_claim_size: current,
+      region_claim_sizes: region_claims,
       rollups: Map.get(inputs.rollups, account.id, []),
       last_resized_at: placer_claim && placer_claim.updated_at,
       capped_resize_from: capped_resize_from(Map.get(inputs.last_applied_proposals, account.id), policy),
