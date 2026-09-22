@@ -557,6 +557,9 @@ defmodule Tuist.Billing do
       |> List.wrap()
       |> Enum.map(&%{price: &1})
 
+    runner_prices = runner_subscription_items(available_prices, account)
+    fixed_currency_items = usage_prices ++ runner_prices
+
     flat_prices =
       case List.wrap(available_prices["enterprise"]["flat_monthly"]) do
         [] ->
@@ -569,21 +572,31 @@ defmodule Tuist.Billing do
           # Stripe pins a customer's subscriptions to a single currency, so
           # an EUR-priced enterprise item on a USD-pinned customer is
           # rejected ("All items must have pricing in the same currency").
-          # Pick the configured price whose currency matches the customer's.
-          [%{price: pick_price_for_customer(candidates, account.customer_id), quantity: 0}]
+          # Pick the configured price whose currency matches the customer's,
+          # or when Stripe has not pinned one yet, the currency the other
+          # subscription items already lock the subscription into.
+          [%{price: pick_enterprise_flat_price(candidates, account.customer_id, fixed_currency_items), quantity: 0}]
       end
 
-    usage_prices ++ runner_subscription_items(available_prices, account) ++ flat_prices
+    fixed_currency_items ++ flat_prices
   end
 
-  defp pick_price_for_customer(prices, customer_id) do
-    case customer_currency(customer_id) do
-      nil ->
-        hd(prices)
+  defp pick_enterprise_flat_price(candidates, customer_id, fixed_currency_items) do
+    target = customer_currency(customer_id) || currency_of_items(fixed_currency_items)
 
-      currency ->
-        Enum.find(prices, hd(prices), &price_currency_matches?(&1, currency))
+    case target do
+      nil -> hd(candidates)
+      currency -> Enum.find(candidates, hd(candidates), &price_currency_matches?(&1, currency))
     end
+  end
+
+  defp currency_of_items(items) do
+    Enum.find_value(items, fn %{price: price_id} ->
+      case Stripe.Price.retrieve(price_id) do
+        {:ok, %{currency: c}} when is_binary(c) -> String.downcase(c)
+        _ -> nil
+      end
+    end)
   end
 
   defp price_currency_matches?(price_id, currency) do
