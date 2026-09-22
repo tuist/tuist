@@ -119,7 +119,7 @@ console finishes the job. Record which it was.
 ### Group C: the live ToRs, where care is needed
 
 Both switches were left with wedged SSH daemons, so **reboot both first**; that
-also resets the connection budget, which is about seven per boot and decides how
+also resets the connection budget, about eight per boot, which decides how
 much fits. `locate` and `ports` cost nothing, `preflight` one, `recover` two,
 `replace` two and a reboot.
 
@@ -527,8 +527,9 @@ connections, the ninth refused.
 Not squeamishness: two measured properties of this hardware.
 
 **A reconcile loop cannot afford it.** A switch stops accepting SSH after about
-seven connections in a boot. Observing costs one. Hourly checks are twenty-four
-a day, so a loop takes a switch out daily without changing anything, and the
+eight connections in a boot, and spacing them ten minutes apart only stretched
+that to ten. Observing costs one. Hourly checks are twenty-four a day, so a
+loop takes a switch out within half a day without changing anything, and the
 failure looks like a healthy switch because it keeps forwarding. Anything
 automated has to batch its reads the way `preflight` does, or run rarely enough
 to be worth a slot.
@@ -724,15 +725,20 @@ arbitrary line into its negation is the same class of guess.
   ever open. Nothing in the vendor's CLI documents a per-boot total, which is
   what a designed limit would have, and is consistent with this being a defect.
 
-  Three experiments separate the explanations, all needing a freshly booted
-  switch and none of them expensive:
+  **Spacing does not reclaim it**, measured on 2026-09-22. On a fresh boot, one
+  short session every ten minutes (one gap was three): all ten were accepted,
+  `tSsh00` through `tSsh09`, each listing only itself, and the eleventh, ten
+  seconds after the tenth, timed out at the TCP connect with the same wedge.
+  Ten minutes clears the 360 second session timeout, so neither a rate limiter
+  with a short window nor the timeout reclaiming slots explains it. Spacing
+  bought two or three connections over back-to-back runs, not a budget that
+  refills. Treat it as a per-boot count of roughly eight to ten. A reconcile
+  loop is still out: even one read an hour exhausts a switch within half a day.
 
-  - spacing eight connections over ten minutes says whether the limit counts
-    connections or measures a rate: a leak will not care about the spacing, a
-    limiter will. Ten minutes also clears the 360 second session timeout, so it
-    tests reclamation at the same time.
-
-  Until one of those is run, plan around seven and do not assume the knob helps.
+  The run armed `reboot-schedule in 115` without saving before its first
+  connection, so the wedge it ended in cleared itself: the switch rebooted onto
+  its saved configuration on schedule with nobody touching it. That is the
+  pattern for any experiment that may end in a wedge.
 
   One trap when measuring this. `logout` makes the switch close the connection,
   so ssh exits 255 and prints "Connection closed by remote host" on a completely
@@ -746,8 +752,8 @@ arbitrary line into its negation is the same class of guess.
   like an obvious cause and was not: with the rack quiet, a switch wedges on its
   own at the same point.
 
-  **Treat connections as a consumable: seven per boot.** A full pass of the
-  runbook costs six of them, because `sessions`, `diff` and `backup` are one
+  **Treat connections as a consumable: about eight per boot, ten at best.** A
+  full pass of the runbook costs six of them, because `sessions`, `diff` and `backup` are one
   each and `replace` is two. That leaves one spare, which is too close to plan a
   working session around, and is the argument for batching several reads into a
   single connection rather than for logging out more carefully.
@@ -827,6 +833,13 @@ arbitrary line into its negation is the same class of guess.
   shows up as drift. Use the relative `in` form only: the clock comes back as
   2006-01-01 after a reboot while NTP is not syncing, so `at <time>` fires at the
   wrong moment.
+- **The SG3452 ignores broadcast DHCP replies.** Its DHCP client (firmware 1.30)
+  sets the broadcast flag, and dnsmasq, following RFC 2131, broadcasts back;
+  the switch never answers those, whatever they carry, while it takes a home
+  router's unicast offer within 4 ms. Measured on `ber1-mgmt` on 2026-09-22 by
+  capturing both. `rack:ztp --via` addresses the replies to the switch's MAC
+  with an egress rule on the served port, which needs a Linux server and a MAC
+  in the site definition; from a Mac it cannot, so serve an SG3452 `--via`.
 - **Firmware lines are not interchangeable.** Hardware `1.20` takes `1.20.x`,
   `V1.6` takes `1.0.x`, and the `V1.6` builds carry higher dates and lower
   version numbers, so "newest" is the wrong instinct and flashing across lines
