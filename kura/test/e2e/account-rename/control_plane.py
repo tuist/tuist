@@ -5,6 +5,7 @@ import pathlib
 import sys
 
 handle = "original"
+aliases = [handle]
 
 
 class ControlPlane(http.server.BaseHTTPRequestHandler):
@@ -20,14 +21,18 @@ class ControlPlane(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        self.respond({"peers": [], "account_handle": handle,
+        self.respond({"peers": [], "account_handle": handle, "account_aliases": aliases,
+                      "endpoint_redirects": {name + ".example.com": "https://" + handle + ".example.com"
+                                             for name in aliases if name != handle},
                       "refresh_interval_seconds": 1, "replication_pull": False})
 
     def do_POST(self):
         global handle
         self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        if self.path == "/rename":
-            handle = "renamed"
+        if self.path in ("/rename", "/rename-again", "/rename-back"):
+            handle = {"/rename": "renamed", "/rename-again": "latest", "/rename-back": "original"}[self.path]
+            if handle not in aliases:
+                aliases.append(handle)
             self.respond({})
         elif self.path == "/oauth2/introspect":
             self.respond({"active": True, "sub": "test", "principal_kind": "account",

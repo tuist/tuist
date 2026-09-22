@@ -103,6 +103,8 @@ defmodule Tuist.Kura.Mesh do
        %{
          tenant_id: Identity.tenant_id(account),
          account_handle: account.name,
+         account_aliases: Identity.handles(account),
+         endpoint_redirects: Identity.endpoint_redirects(account),
          certificate_pem: certificate.certificate_pem,
          ca_certificate_pem: certificate.ca_certificate_pem,
          not_after: certificate.not_after,

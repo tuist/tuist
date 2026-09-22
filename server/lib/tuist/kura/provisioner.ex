@@ -164,14 +164,14 @@ defmodule Tuist.Kura.Provisioner do
   @doc "Calls `public_url/3` on the region's provisioner."
   def public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.public_url(Identity.tenant_id(account), region, ref)
+      region.provisioner.public_url(account.name, region, ref)
     end
   end
 
   @doc "Calls `grpc_public_url/3` on the region's provisioner."
   def grpc_public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.grpc_public_url(Identity.tenant_id(account), region, ref)
+      region.provisioner.grpc_public_url(account.name, region, ref)
     end
   end
 

@@ -17,7 +17,7 @@ defmodule Tuist.Kura.IdentityTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.KuraFixtures
 
-  test "renaming preserves the complete workload manifest, endpoints and tenant owner" do
+  test "renaming migrates client endpoints while preserving workload, peer and storage identity" do
     account = AccountsFixtures.organization_fixture().account
     tenant = account.name
     region = Regions.get("eu-west")
@@ -33,12 +33,19 @@ defmodule Tuist.Kura.IdentityTest do
     assert Identity.account(tenant).id == account.id
     assert Accounts.get_account_by_handle(tenant) == nil
     assert KubernetesController.provision(renamed, region, %Server{}) == {:ok, ref}
-    assert KubernetesController.manifest(ref, "0.52.1", renamed, region, renamed_server) == before
-    assert Provisioner.public_url(renamed, renamed_server) == url
-    assert Provisioner.grpc_public_url(renamed, renamed_server) == Provisioner.grpc_public_url(account, server)
+    after_rename = KubernetesController.manifest(ref, "0.52.1", renamed, region, renamed_server)
+    endpoint_fields = ["publicHost", "grpcPublicHost", "privateHost", "clientHostAliases"]
+    assert Map.drop(after_rename["spec"], endpoint_fields) == Map.drop(before["spec"], endpoint_fields)
+    assert after_rename["metadata"]["name"] == before["metadata"]["name"]
+    assert after_rename["spec"]["clientHostAliases"] == [URI.parse(url).host]
+    assert Provisioner.public_url(renamed, renamed_server) != url
+    assert Provisioner.grpc_public_url(renamed, renamed_server) != Provisioner.grpc_public_url(account, server)
+    assert Provisioner.internal_url(renamed, renamed_server) == Provisioner.internal_url(account, server)
 
-    assert KubernetesController.manifest_revision(server, region) ==
+    refute KubernetesController.manifest_revision(server, region) ==
              KubernetesController.manifest_revision(renamed_server, region)
+
+    assert Identity.account_for_handle(tenant).id == account.id
 
     expect(Capacity, :egress_headroom, fn region_id, handle ->
       assert region_id == region.id
@@ -50,6 +57,37 @@ defmodule Tuist.Kura.IdentityTest do
 
     assert Identity.account_ids([tenant, String.upcase(renamed.name)]) ==
              %{tenant => account.id, String.upcase(renamed.name) => account.id}
+  end
+
+  test "redirects wait for activated URLs and every alias points directly to the latest name" do
+    account = AccountsFixtures.organization_fixture().account
+    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+    original_url = Provisioner.public_url(account, server)
+    server = server |> Ecto.Changeset.change(url: original_url) |> Repo.update!()
+    {:ok, renamed} = Accounts.update_account(account, %{name: "middle-#{account.id}"})
+    assert Identity.endpoint_redirects(renamed) == %{}
+    middle_url = Provisioner.public_url(renamed, server)
+    server = server |> Ecto.Changeset.change(url: middle_url) |> Repo.update!()
+    assert Identity.endpoint_redirects(renamed) == %{URI.parse(original_url).host => middle_url}
+    {:ok, latest} = Accounts.update_account(renamed, %{name: "latest-#{account.id}"})
+    assert Identity.endpoint_redirects(latest) == %{}
+    latest_url = Provisioner.public_url(latest, server)
+    server |> Ecto.Changeset.change(url: latest_url) |> Repo.update!()
+
+    assert Identity.endpoint_redirects(latest) == %{
+             URI.parse(original_url).host => latest_url,
+             URI.parse(middle_url).host => latest_url
+           }
+
+    {:ok, restored} = Accounts.update_account(latest, %{name: account.name})
+    server |> Ecto.Changeset.change(url: original_url) |> Repo.update!()
+
+    assert Identity.endpoint_redirects(restored) == %{
+             URI.parse(latest_url).host => original_url,
+             URI.parse(middle_url).host => original_url
+           }
+
+    assert Identity.handles(restored) == Enum.sort([account.name, renamed.name, latest.name])
   end
 
   test "retired handles cannot be reused by another account, including changeset creation" do

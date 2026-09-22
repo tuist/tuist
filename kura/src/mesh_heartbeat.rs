@@ -120,6 +120,10 @@ struct MeshHeartbeat<'a> {
 struct MeshHeartbeatResponse {
     #[serde(default)]
     account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
     // Deliberately NOT defaulted: `false` is the destructive value (it
     // triggers a recovery re-enrollment, which mints fresh certificates), so
     // a response that merely lacks the field — shape drift, an intermediary
@@ -139,6 +143,10 @@ struct MeshHeartbeatResponse {
 struct MeshPeersResponse {
     #[serde(default)]
     account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
     #[serde(default)]
     peers: Vec<String>,
     #[serde(default)]
@@ -182,7 +190,11 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
                         "mesh heartbeat recovered"
                     );
                 }
-                state.update_account_handle(payload.account_handle.as_deref());
+                state.update_account_identity(
+                    payload.account_handle.as_deref(),
+                    payload.account_aliases.as_deref(),
+                    payload.endpoint_redirects.as_ref(),
+                );
                 apply_peers(&state, payload.peers).await;
                 apply_roles(&state, payload.peer_roles);
                 if !payload.mesh_member {
@@ -231,7 +243,11 @@ async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
                         "mesh peer synchronization recovered"
                     );
                 }
-                state.update_account_handle(payload.account_handle.as_deref());
+                state.update_account_identity(
+                    payload.account_handle.as_deref(),
+                    payload.account_aliases.as_deref(),
+                    payload.endpoint_redirects.as_ref(),
+                );
                 apply_peers(&state, payload.peers).await;
                 apply_roles(&state, payload.peer_roles);
                 // First successful fetch lifts the boot serving gate.
@@ -462,7 +478,7 @@ mod tests {
         })
         .await
         .unwrap();
-        assert_eq!(ctx.state.account_handle.load().as_str(), "renamed");
+        assert_eq!(ctx.state.account_identity.load().handle.as_str(), "renamed");
         assert_eq!(ctx.state.config.tenant_id, "original");
         sync.abort();
         server.abort();

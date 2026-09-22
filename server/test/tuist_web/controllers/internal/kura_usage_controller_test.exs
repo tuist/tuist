@@ -236,8 +236,9 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
   test "self-hosted usage retains attribution across a rename", %{conn: conn} do
     account = AccountsFixtures.organization_fixture().account
-    tenant = account.kura_tenant_id
-    {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+    {:ok, middle} = Accounts.update_account(account, %{name: "middle-#{account.id}"})
+    tenant = middle.name
+    {:ok, renamed} = Accounts.update_account(middle, %{name: "renamed-#{account.id}"})
     stub(SelfHostedClients, :verify, fn "self-hosted-client", "self-hosted-secret" -> {:ok, renamed} end)
     event_id = "renamed-usage-#{account.id}"
 

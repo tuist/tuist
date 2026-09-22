@@ -36,6 +36,8 @@ const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
 pub struct EnrollmentOutcome {
     pub tenant_id: String,
     pub account_handle: Option<String>,
+    pub account_aliases: Option<Vec<String>>,
+    pub endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
     pub peers: Vec<String>,
     pub managed_peers: Vec<String>,
     pub renew_after_seconds: u64,
@@ -57,6 +59,10 @@ struct EnrollmentResponse {
     tenant_id: String,
     #[serde(default)]
     account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
     certificate: String,
     ca_certificate: String,
     #[serde(default)]
@@ -217,6 +223,8 @@ async fn enroll(inputs: &EnrollmentInputs) -> Result<EnrollmentOutcome, String> 
     Ok(EnrollmentOutcome {
         tenant_id: body.tenant_id,
         account_handle: body.account_handle,
+        account_aliases: body.account_aliases,
+        endpoint_redirects: body.endpoint_redirects,
         peers: body.peers,
         managed_peers: body.managed_peers,
         renew_after_seconds: body.renew_after_seconds,

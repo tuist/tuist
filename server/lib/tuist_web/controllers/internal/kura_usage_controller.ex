@@ -80,7 +80,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
   # the whole batch on any foreign `tenant_id` keeps a customer's node from
   # attributing traffic or storage telemetry to another account.
   defp events_scoped_to_account?(events, %Account{} = account) do
-    handles = [String.downcase(account.name), Identity.tenant_id(account)]
+    handles = Identity.handles(account)
     Enum.all?(events, &(String.downcase(to_string(&1["tenant_id"])) in handles))
   end
 

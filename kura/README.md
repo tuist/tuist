@@ -136,7 +136,7 @@ Kura exposes multiple cache protocols behind one service. Public HTTPS supports 
 
 Artifact GETs on those HTTP routes are resumable. Kura advertises `Accept-Ranges: bytes` on every artifact response, accepts a single `bytes=` range on the request, and answers it with `206 Partial Content` and a `Content-Range` header. A client whose download is cut short should re-request with `Range: bytes=<bytes it already has>-` and append, rather than restarting from zero. Multi-range requests are served whole; a range starting past the end of the artifact is refused with `416 Range Not Satisfiable` and a `Content-Range: bytes */<size>` header.
 
-Account renames preserve the configured storage tenant and update authorization through mesh responses. See [account identity and rollout](docs/account-renames.md) before enabling renames on an existing mesh.
+Account renames preserve the storage and peer tenant while migrating regional client endpoints to the new name. Historical names remain DNS/TLS/routing aliases; HTTP clients can negotiate a non-cacheable 307 redirect with `x-tuist-accept-endpoint-redirect: 1`, while gRPC continues serving through the alias. See [account identity and rollout](docs/account-renames.md) before enabling renames on an existing mesh.
 
 For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests carry their namespace explicitly through the gRPC `instance_name`/`resource_name`, and may declare the account with the `x-kura-tenant-id` metadata header (the gRPC analog of the `tenant_id` query param above).
 

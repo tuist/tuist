@@ -311,7 +311,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       self_hosted_peers(account, region, entitlements),
       entitlements,
       effective_egress(account, region, entitlements)
-    )
+    ) <> endpoint_identity_revision(account)
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -357,7 +357,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
     claim = storage_claim(account, region, server)
     egress = effective_egress(account, region, entitlements)
-    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress)
+
+    revision =
+      manifest_revision_string(region, claim, external_peers, entitlements, egress) <> endpoint_identity_revision(account)
+
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -383,9 +386,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # Only the steady-state (`:none`) server publishes the account's
           # customer endpoints. Warm handoffs remain disabled in production
           # until the peer endpoint has a stable account-region owner.
-          "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
-          "privateHost" => if(owns_public_endpoints?(server), do: private_host(account_handle, region)),
-          "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
+          "publicHost" => if(owns_public_endpoints?(server), do: public_host(account.name, region)),
+          "privateHost" => if(owns_public_endpoints?(server), do: private_host(account.name, region)),
+          "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account.name, region)),
+          "clientHostAliases" => if(owns_public_endpoints?(server), do: client_host_aliases(account, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
@@ -418,6 +422,34 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
     }
+  end
+
+  defp client_host_aliases(account, region) do
+    hosts =
+      account
+      |> Identity.handles()
+      |> Enum.reject(&(&1 == String.downcase(account.name)))
+      |> Enum.map(fn handle ->
+        if Regions.private?(region), do: private_host(handle, region), else: public_host(handle, region)
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    if hosts == [], do: nil, else: hosts
+  end
+
+  defp endpoint_identity_revision(account) do
+    handles = Identity.handles(account)
+
+    if handles == [Identity.tenant_id(account)] and String.downcase(account.name) == Identity.tenant_id(account) do
+      ""
+    else
+      digest =
+        :sha256 |> :crypto.hash(Enum.join([String.downcase(account.name) | handles], "\n")) |> Base.encode16(case: :lower)
+
+      "-endpoints-" <> binary_part(digest, 0, 16)
+    end
   end
 
   defp public_host(handle, %Regions{provisioner_config: %{public_host_template: template} = config}) do

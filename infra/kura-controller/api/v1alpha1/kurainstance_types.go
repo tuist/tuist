@@ -12,6 +12,9 @@ type KuraInstanceSpec struct {
 	Image         string `json:"image"`
 	Replicas      *int32 `json:"replicas,omitempty"`
 	PublicHost    string `json:"publicHost,omitempty"`
+	// ClientHostAliases retain renamed client endpoints on the same backend.
+	// They affect DNS, ingress and public TLS only, never workload or peer identity.
+	ClientHostAliases []string `json:"clientHostAliases,omitempty"`
 	// Deprecated: the value is ignored. gRPC co-hosts on PublicHost (see
 	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
 	// Retained for backward compatibility.

@@ -4083,7 +4083,7 @@ pub(super) async fn authorize_build_event_request(
         return Err(Status::unavailable("server is draining"));
     }
 
-    let account_handle = usage_tenant_id(metadata, &state.account_handle.load());
+    let account_handle = usage_tenant_id(metadata, &state.account_identity.load().handle);
     let Some(auth) = state.auth.as_ref() else {
         return Ok(account_handle);
     };

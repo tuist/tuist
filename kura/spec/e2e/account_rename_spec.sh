@@ -54,7 +54,26 @@ Describe 'account rename through managed discovery'
       sleep 0.1
     done
     [ "$status" = 200 ] && [ "$(cat "$RENAME_TMP/body")" = 'cached before rename' ] || { printf 'rename read status: %s\n' "$status" >&2; cat "$RENAME_TMP/body" "$RENAME_TMP/kura.log" >&2; return 1; }
-    [ "$(curl -fsS -H 'Authorization: Bearer test' "$RENAME_URL/api/cache/gradle/key?tenant_id=original&namespace_id=ios")" = 'cached before rename' ] || return 1
+    for step in 'rename-again latest' 'rename-back original'; do
+      read -r action canonical <<< "$step"
+      curl -fsS -X POST "$CONTROL_URL/$action" >/dev/null || return 1
+      # A Host override exercises the real runtime's redirect path locally;
+      # the controller suite separately validates real DNS/TLS/ingress renders.
+      source=renamed.example.com
+      for _ in $(seq 1 100); do
+        status=$(curl -sS -o /dev/null -D "$RENAME_TMP/headers" -w '%{http_code}' \
+          -H 'Authorization: Bearer test' -H "Host: $source" -H 'x-tuist-accept-endpoint-redirect: 1' \
+          "$RENAME_URL/api/cache/gradle/key?tenant_id=renamed&namespace_id=ios")
+        if [ "$status" = 307 ] && grep -qi "location: https://$canonical.example.com/api/cache/gradle/key?tenant_id=renamed&namespace_id=ios" "$RENAME_TMP/headers"; then break; fi
+        sleep 0.1
+      done
+      [ "$status" = 307 ] || return 1
+      grep -qi "location: https://$canonical.example.com/api/cache/gradle/key?tenant_id=renamed&namespace_id=ios" "$RENAME_TMP/headers" || return 1
+      grep -qi 'cache-control: no-store' "$RENAME_TMP/headers" || return 1
+      for alias in original renamed latest; do
+        [ "$(curl -fsS -H 'Authorization: Bearer test' -H "Host: $alias.example.com" "$RENAME_URL/api/cache/gradle/key?tenant_id=$alias&namespace_id=ios")" = 'cached before rename' ] || return 1
+      done
+    done
     [ "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer test' "$RENAME_URL/api/cache/gradle/key?tenant_id=other&namespace_id=ios")" = 403 ] || return 1
     [ "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer test' "$RENAME_URL/api/cache/gradle/key?tenant_id=renamed&namespace_id=other")" = 403 ]
   }

@@ -31,6 +31,8 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       |> json_response(200)
 
     assert response["account_handle"] == renamed.name
+    assert tenant in response["account_aliases"]
+    assert response["endpoint_redirects"] == %{}
 
     conn
     |> recycle()

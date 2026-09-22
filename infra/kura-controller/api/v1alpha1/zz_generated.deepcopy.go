@@ -61,6 +61,9 @@ func (in *KuraInstanceList) DeepCopyObject() runtime.Object {
 
 func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 	*out = *in
+	if in.ClientHostAliases != nil {
+		out.ClientHostAliases = append([]string{}, in.ClientHostAliases...)
+	}
 	if in.Replicas != nil {
 		out.Replicas = new(int32)
 		*out.Replicas = *in.Replicas

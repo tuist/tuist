@@ -3,6 +3,7 @@
 This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
+- Cache endpoint discovery resolves retained account handles through `Kura.Identity` and still authorizes the caller against the owning account before using its current name. Mesh responses carry current handles, retained aliases and activated endpoint redirect targets; do not treat a historical handle as authorization.
 - `RunnerShadowController` exposes a bounded read-only demand snapshot only to
   the configured runners-controller principal via `RunnerControllerAuth`.
   It contains cross-account identifiers and must use `private, no-store`.

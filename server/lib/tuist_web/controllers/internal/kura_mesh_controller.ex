@@ -23,6 +23,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
             |> json(%{
               tenant_id: enrollment.tenant_id,
               account_handle: enrollment.account_handle,
+              account_aliases: enrollment.account_aliases,
+              endpoint_redirects: enrollment.endpoint_redirects,
               certificate: enrollment.certificate_pem,
               ca_certificate: enrollment.ca_certificate_pem,
               not_after: enrollment.not_after,
@@ -81,6 +83,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
         json(conn, %{
           mesh_member: view.mesh_member,
           account_handle: account.name,
+          account_aliases: Identity.handles(account),
+          endpoint_redirects: Identity.endpoint_redirects(account),
           peers: view.peers,
           replication_pull: Mesh.replication_pull?(account),
           heartbeat_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
@@ -119,6 +123,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
         json(conn, %{
           peers: Mesh.self_hosted_peer_urls(account),
           account_handle: account.name,
+          account_aliases: Identity.handles(account),
+          endpoint_redirects: Identity.endpoint_redirects(account),
           peer_roles: peer_roles(account, credential_kind),
           replication_pull: Mesh.replication_pull?(account),
           refresh_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
@@ -189,7 +195,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
   end
 
   defp tenant_mismatch?(%{"tenant_id" => tenant_id}, account) when is_binary(tenant_id) do
-    String.downcase(tenant_id) != Identity.tenant_id(account)
+    String.downcase(tenant_id) not in Identity.handles(account)
   end
 
   defp tenant_mismatch?(_params, _account), do: false
