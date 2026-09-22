@@ -184,9 +184,12 @@ from that, so `us1-tor-a` will differ from `ber1-tor-a` only in site variables
 and nothing about a switch gets typed twice.
 
 Port naming is a property of the hardware rather than of the rack, so it lives
-in `models.py`. A model whose port naming has not been read off a live unit is
+in `models.json`. A model whose port naming has not been read off a live unit is
 marked `verified: false`: it renders, so the design can be reviewed, but `apply`
-refuses it. `tl-sg3452` is currently unverified.
+refuses it. `tl-sg3452` is currently unverified. Its ports 49 to 52 are Gigabit
+SFP, so `gigabitEthernet` like the rest: the unit is the non-X SG3452 (Atlas:
+"48x RJ-45, 4x SFP"), and an earlier `ten-gigabitEthernet` guess would have put
+four interfaces it does not have into its zero-touch configuration.
 
 ## Ports, and the machines on the other end
 
