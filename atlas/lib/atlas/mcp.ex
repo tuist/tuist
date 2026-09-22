@@ -554,10 +554,21 @@ defmodule Atlas.MCP do
         {:ok, session.access_token}
 
       {:error, reason} ->
-        mark_oauth_session_needs_authorization(session, reason)
-        {:error, {:refresh_failed, reason}}
+        if transient_refresh_error?(reason) do
+          {:error, :refresh_unavailable}
+        else
+          mark_oauth_session_needs_authorization(session, reason)
+          {:error, {:refresh_failed, reason}}
+        end
     end
   end
+
+  # A timeout, rate limit or upstream outage is not evidence of revocation.
+  # Preserve the refresh credential for the next request/worker run, but do not
+  # return an expired access token while refresh is unavailable.
+  defp transient_refresh_error?({:http, status, _body}), do: status == 429 or status in 500..599
+  defp transient_refresh_error?(%Req.TransportError{}), do: true
+  defp transient_refresh_error?(_reason), do: false
 
   defp audit_oauth_session_refresh(%OAuthSession{} = session) do
     Audit.record(
