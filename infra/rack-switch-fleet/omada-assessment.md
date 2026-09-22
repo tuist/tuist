@@ -74,9 +74,10 @@ The API is no longer one of them. These are.
 preserved, replaced or merged, and whether the management address survives, has
 not been established. That is the first thing the prototype answers.
 
-**Model support is assumed, not tried.** The firmware carries controller
-settings, since `no controller cloud-based` is in the running configuration,
-which suggests the SX3832 and SG3452 can be adopted. Nothing has been adopted.
+**Model support is likely, not tried.** The firmware carries controller
+settings, since `no controller cloud-based` is in the running configuration, and
+the 6.3.0.45 web bundle's device table lists both `SX3832` and `TL-SG3452`,
+hardware version 1.0. Nothing has been adopted.
 
 **The controller is another thing to run.** A
 [Helm chart exists](https://github.com/mbentley/docker-omada-controller/blob/master/helm/omada-controller-helm/README.md),
