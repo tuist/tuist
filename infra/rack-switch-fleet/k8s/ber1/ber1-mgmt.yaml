@@ -1,0 +1,16 @@
+apiVersion: tuist.dev/v1alpha1
+kind: RackSwitch
+metadata:
+  name: ber1-mgmt
+  labels:
+    tuist.dev/site: ber1
+    tuist.dev/role: mgmt
+spec:
+  site: ber1
+  role: mgmt
+  model: tl-sg3452
+  managementAddress: 192.168.0.13
+  applyOrder: 3
+  applyNote: There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.
+  credentialItem: ber1-mgmt switch admin
+  configRevision: 993a498c8d573bf0

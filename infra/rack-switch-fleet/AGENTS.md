@@ -17,6 +17,7 @@ a group and belongs in a reviewed change rather than in a per-device bring-up.
 mise run rack:fleet render                  # write the desired configs
 mise run rack:fleet render --check          # fail if they are out of date
 mise run rack:fleet preflight <device>      # users, drift and a backup, in ONE connection
+mise run rack:fleet publish <device>        # put what preflight saw into the RackSwitch status
 mise run rack:fleet diff [device]           # live switch against the render
 mise run rack:fleet apply <device> --dry-run
 mise run rack:fleet apply <device>
@@ -228,224 +229,52 @@ So when the first mini is racked it gets a node here for its cable and its ToR,
 pointing at its `RackHost` for everything else. Not a second description of the
 machine.
 
-## Would this be better as Kubernetes objects?
+## The switches as Kubernetes objects
 
-Partly, and the part that is cheap has been done: the join above is the
-reference-not-copy shape a `RackSwitch` and a `RackSite` would give, without the
-machinery. The rest is a real design direction and not a refactor to reach for
-yet, for two reasons this rack has demonstrated rather than predicted.
+A switch is a `RackSwitch` in the `tuist.dev` group, so its state is visible next
+to the `RackHost`s behind it rather than only in somebody's terminal. The CRD is
+`infra/helm/tuist/crds/tuist.dev_rackswitches.yaml`, hand-written and in `crds/`
+for the same reasons as `RunnerPool`: helm applies that directory first and does
+not touch it on upgrade, so a schema change goes out of band.
 
-**A reconcile loop cannot afford this hardware.** The switch stops accepting SSH
-after seven connections in a boot. A controller that observes on a timer
-exhausts it in under a day and then cannot reach it to fix anything, and the
-failure looks like a healthy switch, because it keeps forwarding. Anything
-automated here has to be parsimonious in a way the usual reconcile pattern is
-not, which is a constraint on the controller's design rather than an argument
-against having one.
+**Spec is rendered, not maintained.** `rack:fleet render` writes `k8s/<site>/`
+beside `configs/<site>/` from the same site definition, so the cluster's view of
+a switch cannot drift from the configuration rendered for it, and CI fails if
+the committed objects are stale. The object names the 1Password item holding the
+login and never carries the login.
 
-**The controller would sit inside the failure domain it manages.** The cluster's
-own nodes are in this rack, behind these switches, on a management path that
-runs through them. A controller that reboots `ber1-tor-a` reboots its own route
-to `ber1-tor-a`. That is workable with care, and it is the reason the console
-path and the operator CLI stay whichever way the rest goes.
+**Status is pushed by an operator**, with `rack:fleet publish`, which runs a
+preflight and records drift, reachability, when it was verified and how many of
+the boot's connections have been spent. It is reported against the
+`configRevision` it was measured with, so a status can never be read as applying
+to a revision it did not see.
 
-What would genuinely be better as objects is observation and status: desired
-against applied revision, drift, reachability, last verification. Those are
-reads, they suit a status subresource, and they are what someone actually wants
-on a dashboard.
+### Why there is no controller
 
-Correcting drift automatically is cheaper than it first looks, and an earlier
-version of this file got that wrong. `apply` sends the missing commands to the
-running configuration and saves, with **no reboot at all**; only `replace` costs
-one, because a startup configuration does nothing until the switch restarts. So
-"every correction costs a reboot" was false, and the real objections are the
-other two.
+Not squeamishness: two measured properties of this hardware.
 
-The first is the budget again, and it bites the observer harder than the
-corrector. Checking drift costs a connection each time. Hourly checks are
-twenty-four a day against a switch that tolerates seven per boot, so a naive
-observation loop takes the switch out daily without changing anything. Anything
-automated has to either batch its reads the way `preflight` does or run rarely
-enough to be worth the slot, and that is a real design constraint rather than a
-detail.
+**A reconcile loop cannot afford it.** A switch stops accepting SSH after about
+seven connections in a boot. Observing costs one. Hourly checks are twenty-four
+a day, so a loop takes a switch out daily without changing anything, and the
+failure looks like a healthy switch because it keeps forwarding. Anything
+automated has to batch its reads the way `preflight` does, or run rarely enough
+to be worth a slot.
 
-The second is that correction is not always right. A change made during an
-incident is a change someone meant, and reverting it automatically at 3am is
-worse than drifting. Tying changes to an approved revision keeps that decision
-with a person without giving up the detection.
+**The controller would sit in the failure domain it manages.** The cluster's own
+nodes are behind these switches. A controller reconciling `ber1-tor-a` reconciles
+its own route to `ber1-tor-a`. That is workable with care, and it is why the
+console path and the operator CLI stay whichever way the rest goes.
 
-The sensible order, if it is picked up: keep this driver, model observation
-first, leave changes manual, and only then consider a controller that sequences
-them.
+Correcting drift automatically is cheaper than it looks, and an earlier version
+of this file said otherwise. `apply` sends the missing commands to the running
+configuration and saves, with **no reboot**; only `replace` costs one. So the
+objection is not the reboot. It is that observing is what burns the budget, and
+that a change made during an incident is one somebody meant, which is why
+changes stay tied to an approved revision rather than being reconciled.
 
-ToR B also carries a spare LR optic, pre-provisioned so WAN failover is a matter
-of moving the LC jumper rather than sourcing hardware. Its port is not recorded
-yet; the note on the device is.
-
-## Three things that were checked on the hardware first
-
-These were read off the live `ber1-tor-b` before any of this was written,
-because each one decides the shape of the tool.
-
-**Does the CLI survive a paste over SSH?** Yes. The console's defect, where a
-line written in one burst arrives with characters missing and produces
-`enableshow system-info`, is a console defect only. Multi-line blocks over SSH
-arrive intact, so there is no need for a one-character-at-a-time driver here.
-
-**Is `show running-config` a complete, re-appliable dump?** Yes. It is text, it
-is the same syntax as the configuration file, it ends with `end`, and it covers
-the globals, the management interface and every port. That is what makes a diff
-worth acting on rather than advisory.
-
-**Does the configuration round-trip as readable text? Yes**, answered on
-2026-09-21 with `mise run rack:fleet probe-tftp ber1-tor-b`. The export is 2742
-bytes, 99% printable: the device's own configuration syntax, CRLF throughout,
-ending `end` plus one NUL byte. The commands are
-
-```
-copy startup-config tftp ip-address <server> filename <name>
-copy tftp startup-config ip-address <server> filename <name>
-```
-
-Three representations of that switch now agree. What this repository renders,
-what the switch prints for `show running-config`, and what it writes over TFTP
-all normalise to the same 81 lines.
-
-So a whole-config replace is possible, and it is the better shape: idempotent by
-construction, and it collapses the change path and the disaster-recovery path
-into one piece of code, at the cost of a reboot per change that the A/B pair is
-what makes affordable. DHCP Auto Install has something to serve too.
-
-### What the byte comparison caught
-
-Comparing the export against the render byte for byte, rather than after
-normalising, turns up what a normalised diff hides by design. The render is
-missing exactly two lines the device holds: `system-time ntp`, and the
-`user name` line carrying the admin hash. Both are deliberately unmanaged, which
-is right for a file committed to git and **fatal for a file written over the
-switch's startup config**. Pushing the render as it stands deletes the account
-used to log in and leaves the console as the only way back.
-
-`lib/merge.awk` carries each unmanaged line across from the switch's current
-export, re-inserting it in front of whichever configuration line followed it on
-the device, so ordering is derived rather than hard-coded. `fleet_device_file`
-then applies the CRLF and trailing-NUL encoding read off a real export.
-`replace` refuses to push a file with no `user name` line in it at all, which is
-the guard of last resort.
-
-**"Exactly two lines" is evidence from one switch, not a fleet law.** It was
-measured on `ber1-tor-b`: one device, one model, one firmware, against what the
-render covers today. `ber1-tor-a` is the same model but holds configuration that
-switch has never had, the WAN optic and the router uplink. `ber1-mgmt` is a
-different model entirely. Neither's unmanaged set has been measured.
-
-So the durable thing is the method, not the number: **diff the render against
-the device's own export byte for byte before the first push to each device**,
-again whenever the render changes what it covers, and again after a firmware
-change. A normalised diff will not show this, by construction, because
-normalising is what hides the unmanaged lines.
-
-`FLEET_UNMANAGED` in `lib/config.sh` is the single definition, read by both the
-normaliser and the merger, because two copies of that list drift and a pattern
-added to one but not the other is a line that reads as absent and then gets
-deleted. And because the list cannot be trusted to be complete on a device it
-was not measured on, `replace` names every line it would remove before it
-pushes, in two groups.
-
-A removal is **declared** when the pushed file states the opposite of it: the
-render says `no lldp`, the device says `lldp`. Somebody asked for that. A
-removal is **undeclared** when the pushed file says nothing about the subject at
-all, which is the unmeasured case: configuration this device has that the render
-does not model. Only the second group gets the loud block and the differently
-worded confirmation.
-
-They are separated rather than listed together because merging them makes the
-dangerous one quieter the more the fleet uses deliberate removals. Three
-intended removals plus one unmodelled line reads as a routine four-item list,
-and that is the shape that trains people to skip the prompt. Keeping them apart
-means the alarming question only fires when something is genuinely unaccounted
-for, and stays alarming.
-
-## Replacing a switch's configuration
-
-```
-mise run rack:fleet replace <device> --dry-run    # export, merge, show the diff
-mise run rack:fleet replace <device>              # push; takes effect on reboot
-mise run rack:fleet replace <device> --reboot     # push, reboot, verify
-```
-
-It exports the switch's current startup config over TFTP, merges the unmanaged
-lines into the render, shows what would change, and pushes the result. Without
-`--reboot` it stops there, because a replaced startup config does nothing until
-the switch restarts. With `--reboot` it answers the firmware's `(Y/N)`, waits
-for the switch to go away and come back, re-reads it and diffs against the
-render.
-
-Nothing is ever confirmed on the switch's say-so: a command that asks `(Y/N)`
-and was not run through `switch_run_confirm` waits out its timeout instead.
-Rebooting is not a default.
-
-TFTP needs sudo, because TFTP is always requested on port 69 and `tftpd` only
-accepts an upload into a file that already exists and is writable.
-
-### What the first real run showed
-
-Done on 2026-09-22 against `ber1-tor-b`, with a payload that changed nothing:
-the switch already matched the render, so the run exercised export, merge, push,
-reboot and verify without altering behaviour. It worked first time. The switch
-was back in 15 seconds, the verify was clean, and the session table showed one
-line afterwards.
-
-Two things worth knowing that only the real run could show.
-
-**A clean verify does not prove the login survived.** The verify diffs the live
-config against the render, and the render omits `user name` by design, so the
-account could be gone and the diff would still be clean. What actually proves it
-is that the post-reboot read authenticates as `tuist` at all, plus a `backup`
-afterwards showing the account and `system-time ntp` both present. Check those
-rather than the success line.
-
-**The first replace strips the firmware's placeholder padding.** The device's own
-export carries long runs of `#` separators for unset sections; a rendered file
-does not, so after the first push the startup config is shorter. On `ber1-tor-b`
-that was 46 `#` lines and 33 blanks, and not one configuration line. It is
-cosmetic, it is a one-time change, and the committed backup shrinks to match.
-Worth expecting rather than discovering.
-
-### The first real run, in order
-
-The whole path has been exercised against a fake switch, so the bugs left are
-the ones only real hardware shows. Do it in this order:
-
-1. `mise run rack:fleet preflight ber1-tor-b`. One connection, and it answers
-   all three of the questions worth asking first: which terminal lines are in
-   use and how many connections this boot has left, whether the switch matches
-   the render, and a fresh backup in the repository before the first write. Read
-   the diff if it is not clean, before doing anything else: either the switch
-   changed under us or the render did.
-2. `mise run rack:fleet replace ber1-tor-b --dry-run`. Read the merged file it
-   names, and check the `user name` line is in it. If there is a "would LOSE
-   these, and the render says nothing about them" block, stop and read it: that
-   is configuration the switch has which the render does not model. The other
-   block, the one headed by the render saying the opposite, is the change
-   itself. This is the last cheap step.
-3. `mise run rack:fleet replace ber1-tor-b --reboot`.
-
-That is four connections of the seven, and the reboot in the last step resets
-the count anyway. Running `sessions`, `diff` and `backup` separately instead
-costs three more and is the thing to avoid.
-
-Only `ber1-tor-b`. `ber1-tor-a` carries the WAN and `ber1-mgmt` is the only path
-to out-of-band, and neither should see a first run of anything.
-
-**If it goes wrong.** The switch keeps forwarding while its management plane is
-unhappy, so the data plane is not the thing to watch. If SSH stops answering,
-the web UI on 80 and 443 is still there. `clear line <tid>` frees a stuck
-session, but only helps while the daemon still accepts a connection, and the
-failure above is the daemon refusing all of them; then it is a reboot. If the switch comes back with a
-configuration that is wrong rather than absent, the backup from step 3 is the
-undo, pushed the same way. If it comes back with no usable login, that is the
-console cable and `rack:prep-switch`.
+If it is picked up: keep this driver, keep changes manual, and only then
+consider a controller that sequences them, with a `Lease` for the coordination
+the per-rack lock does today.
 
 ## Apply ordering, which is enforced rather than written down## Apply ordering, which is enforced rather than written down
 

@@ -25,6 +25,7 @@ on:
     paths:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
+      - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   pull_request:
@@ -32,6 +33,7 @@ on:
     paths:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
+      - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   merge_group: {}

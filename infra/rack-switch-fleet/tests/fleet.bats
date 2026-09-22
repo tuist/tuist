@@ -945,3 +945,69 @@ mini_referencing() {
     run fleet_check_rack_hosts "$SITE_FILE"
     [ "$status" -eq 0 ]
 }
+
+# --- the switches as objects -------------------------------------------------
+
+@test "a switch renders as a RackSwitch whose spec comes from the site definition" {
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"kind: RackSwitch"* ]]
+    [[ "$output" == *"name: ber1-tor-b"* ]]
+    [[ "$output" == *"managementAddress: 192.168.0.12"* ]]
+    [[ "$output" == *"applyOrder: 1"* ]]
+    [[ "$output" == *"model: sx3832"* ]]
+}
+
+@test "the object names the credential item and never carries the credential" {
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b"
+    [[ "$output" == *"credentialItem:"* ]]
+    [[ "$output" != *"secret 5"* ]]
+    [[ "$output" != *'$1$'* ]]
+}
+
+@test "configRevision is the digest of the configuration that was rendered" {
+    site="$BATS_TEST_TMPDIR/rev.json"
+    before="$(bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_config_revision '$SITE_FILE' ber1-tor-b")"
+    jq '.services.lldp = false' "$SITE_FILE" > "$site"
+    after="$(bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_config_revision '$site' ber1-tor-b")"
+    [ -n "$before" ]
+    [ "$before" != "$after" ]
+
+    # and the object reports the same digest as the config it was rendered beside
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b | grep configRevision"
+    [[ "$output" == *"$before"* ]]
+}
+
+@test "the committed objects are what the site definition renders" {
+    for device in ber1-tor-b ber1-tor-a ber1-mgmt; do
+        bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' $device" \
+            > "$BATS_TEST_TMPDIR/$device.yaml"
+        run diff -u "$FLEET_ROOT/k8s/ber1/$device.yaml" "$BATS_TEST_TMPDIR/$device.yaml"
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "the object carries the port map, so the cluster sees what is plugged in" {
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b"
+    [[ "$output" == *"port: 25"* ]]
+    [[ "$output" == *"peer: ber1-edge"* ]]
+    [[ "$output" == *"purpose: isl"* ]]
+}
+
+@test "a switch with no assigned ports still renders a valid object" {
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-mgmt"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"kind: RackSwitch"* ]]
+    [[ "$output" != *"ports:"* ]]
+}
+
+@test "the CRD the objects are written against exists and declares a status subresource" {
+    crd="$FLEET_ROOT/../helm/tuist/crds/tuist.dev_rackswitches.yaml"
+    [ -f "$crd" ]
+    run yq -r '.spec.names.kind' "$crd"
+    [ "$output" = "RackSwitch" ]
+    run yq -r '.spec.versions[0].subresources | has("status")' "$crd"
+    [ "$output" = "true" ]
+    run yq -r '.spec.versions[0].name' "$crd"
+    [ "$output" = "v1alpha1" ]
+}

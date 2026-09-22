@@ -435,3 +435,41 @@ fleet_check_rack_hosts() {
     return 1
   fi
 }
+
+
+# The digest a status is reported against, so an observation can never be read
+# as applying to a revision it did not see.
+fleet_config_revision() {
+  local site_file="$1" name="$2"
+  fleet_render "$site_file" "$name" | shasum -a 256 | cut -c1-16
+}
+
+# A switch as a RackSwitch object, rendered from the site definition rather than
+# maintained beside it. Spec only: status belongs to whoever observed the
+# switch, and nothing here has.
+fleet_render_k8s() {
+  local site_file="$1" name="$2" device revision
+  device="$(fleet_device "$site_file" "$name")" || return 1
+  revision="$(fleet_config_revision "$site_file" "$name")"
+  jq -n --argjson d "$device" \
+        --arg site "$(jq -r '.site' "$site_file")" \
+        --arg revision "$revision" \
+        --argjson ports "$(fleet_port_map "$site_file" "$name" | jq -R -s '
+            split("\n") | map(select(length > 0) | split("\t")) |
+            map({port: (.[0] | tonumber), purpose: .[1], peer: .[2], detail: .[3]})')" '
+    {
+      apiVersion: "tuist.dev/v1alpha1",
+      kind: "RackSwitch",
+      metadata: { name: $d.name, labels: { "tuist.dev/site": $site, "tuist.dev/role": $d.role } },
+      spec: ({
+        site: $site,
+        role: $d.role,
+        model: $d.model,
+        managementAddress: $d.mgmt_address,
+        applyOrder: $d.apply_order,
+        applyNote: $d.apply_note,
+        credentialItem: $d.credential_item,
+        configRevision: $revision
+      } + (if ($ports | length) > 0 then { ports: $ports } else {} end))
+    }' | yq -P -
+}

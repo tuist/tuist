@@ -20,6 +20,7 @@ STARTUP_CONFIG="show startup-config"
 site_file() { fleet_site_file "$SITE"; }
 
 config_path() { echo "$FLEET_ROOT/configs/$SITE/$1.cfg"; }
+k8s_path()    { echo "$FLEET_ROOT/k8s/$SITE/$1.yaml"; }
 backup_path() { echo "$FLEET_ROOT/backups/$SITE/$1.cfg"; }
 
 devices() {
@@ -54,21 +55,35 @@ cmd_render() {
     esac
   done
   rendered="$(mktemp)"
+  local object
+  object="$(mktemp)"
   for device in $(devices "$name"); do
     target="$(config_path "$device")"
     mkdir -p "$(dirname "$target")"
     fleet_render "$(site_file)" "$device" > "$rendered"
+    # The RackSwitch object is derived from the same site definition, so the
+    # cluster's view of a switch cannot drift from the configuration rendered
+    # for it. Its configRevision is the digest of exactly this file.
+    local object_target
+    object_target="$(k8s_path "$device")"
+    mkdir -p "$(dirname "$object_target")"
+    fleet_render_k8s "$(site_file)" "$device" > "$object"
     if (( check )); then
       if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
         echo "stale: ${target#"$FLEET_ROOT"/}" >&2
         stale=1
       fi
+      if ! diff -q "$object" "$object_target" >/dev/null 2>&1; then
+        echo "stale: ${object_target#"$FLEET_ROOT"/}" >&2
+        stale=1
+      fi
     else
       cp "$rendered" "$target"
-      echo "rendered ${target#"$FLEET_ROOT"/}"
+      cp "$object" "$object_target"
+      echo "rendered ${target#"$FLEET_ROOT"/} and ${object_target#"$FLEET_ROOT"/}"
     fi
   done
-  rm -f "$rendered"
+  rm -f "$rendered" "$object"
   if (( stale )); then
     echo "the rendered configs no longer match the site definition; run 'mise run rack:fleet render'" >&2
     return 1
@@ -462,6 +477,73 @@ cmd_preflight() {
   return "$status"
 }
 
+# Put what a preflight saw into the switch's RackSwitch status.
+#
+# Reported against the configRevision it was measured with, so a status can
+# never be read as applying to a revision it did not see. Run by an operator,
+# not by a loop: observing costs a connection, and a switch has about seven per
+# boot, so an hourly check would take one out daily without changing anything.
+#
+# Status only. Nothing here changes a switch, and nothing in the cluster changes
+# one either; `apply` and `replace` stay deliberate.
+cmd_publish() {
+  local name="${1:-}" namespace="${NAMESPACE:-tuist}" dry_run=0
+  while (( $# )); do
+    case "$1" in
+      --dry-run) dry_run=1; shift;;
+      --namespace) namespace="${2:-}"; shift 2;;
+      -*) echo "unknown flag: $1" >&2; return 2;;
+      *) name="$1"; shift;;
+    esac
+  done
+  [ -n "$name" ] || { echo "usage: rack:fleet publish <device> [--dry-run]" >&2; return 2; }
+  fleet_device "$(site_file)" "$name" >/dev/null || return 1
+
+  local address revision drift reachable connections verified status=0
+  address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
+  revision="$(fleet_config_revision "$(site_file)" "$name")"
+  verified="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  local report
+  report="$(mktemp)"
+  if cmd_preflight "$name" > "$report" 2>&1; then
+    drift=none; reachable=true
+  elif grep -q 'drifted' "$report"; then
+    drift=drifted; reachable=true
+  else
+    drift=unknown; reachable=false
+  fi
+  connections="$(grep -oE 'connection [0-9]+ since boot' "$report" | grep -oE '[0-9]+' | head -1)"
+  sed 's/^/  /' "$report"
+  rm -f "$report"
+
+  local patch
+  patch="$(jq -n --arg r "$revision" --arg d "$drift" --argjson reach "$reachable" \
+                 --arg v "$verified" --argjson c "${connections:-0}" --arg a "$address" '
+    { status: { observedRevision: $r, drift: $d, reachable: $reach, lastVerified: $v,
+                connectionsUsedSinceBoot: $c,
+                message: ("observed at " + $a + " by rack:fleet publish") } }')"
+
+  echo ""
+  if (( dry_run )); then
+    echo "would patch rackswitch/$name status in namespace $namespace:"
+    printf '%s\n' "$patch" | yq -P - | sed 's/^/  /'
+    return 0
+  fi
+  if ! command -v kubectl >/dev/null 2>&1; then
+    echo "error: kubectl is needed to publish; --dry-run prints the patch instead" >&2
+    return 1
+  fi
+  kubectl -n "$namespace" patch rackswitch "$name" --type merge --subresource status \
+    -p "$patch" || status=$?
+  if (( status )); then
+    echo "error: could not patch rackswitch/$name. The observation above still stands;" >&2
+    echo "       only recording it in the cluster failed." >&2
+    return "$status"
+  fi
+  echo "published $name: drift=$drift reachable=$reachable revision=$revision"
+}
+
 # The switch's terminal lines, and how to free one.
 #
 # This firmware does not reap a session a client abandoned, and it only frees
@@ -788,7 +870,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|diff|apply|replace|backup|drift|ports|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|replace|backup|drift|ports|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   case "$command" in
@@ -798,6 +880,7 @@ main() {
     backup)     cmd_backup "$@";;
     sessions)   cmd_sessions "$@";;
     preflight)  cmd_preflight "$@";;
+    publish)    cmd_publish "$@";;
     ports)      cmd_ports "$@";;
     replace)    cmd_replace "$@";;
     drift)      cmd_drift "$@";;

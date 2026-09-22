@@ -1,0 +1,25 @@
+apiVersion: tuist.dev/v1alpha1
+kind: RackSwitch
+metadata:
+  name: ber1-tor-a
+  labels:
+    tuist.dev/site: ber1
+    tuist.dev/role: tor
+spec:
+  site: ber1
+  role: tor
+  model: sx3832
+  managementAddress: 192.168.0.11
+  applyOrder: 2
+  applyNote: Carries the WAN optic and the router uplink, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.
+  credentialItem: ber1-tor-a switch admin
+  configRevision: cd41335d6cf22751
+  ports:
+    - port: 24
+      purpose: wan
+      peer: router
+      detail: copper
+    - port: 32
+      purpose: isl
+      peer: ber1-tor-b
+      detail: dac
