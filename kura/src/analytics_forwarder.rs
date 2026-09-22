@@ -40,6 +40,62 @@
 //! keeps the store methods it depends on covered by tests without
 //! coupling to a producer-side gate. The `#[allow(dead_code)]` at the
 //! module level exists for exactly that reason.
+//!
+//! # Bounds
+//!
+//! Kura is bound by memory, disk, CPU, and egress on every mesh node
+//! (`kura/CLAUDE.md#resource-budgets`). The drain loop stays inside
+//! all four at the shape it ships with:
+//!
+//! - **Memory.** One tick decodes at most `max_batch_entries` entries
+//!   into `Vec<OutboxEntry>` before POSTing, bounded by
+//!   `max_batch_bytes` (default 512 KiB). Across three pipelines the
+//!   steady-state working set is ~1.5 MiB. Decoded entries drop at
+//!   the end of the tick; `delivered_keys` never grows past
+//!   `max_batch_entries`. Payload bytes are cloned once for
+//!   [`reqwest::RequestBuilder::body`] and released with the response.
+//!   No file-backed mmap and no per-request pool allocation, so this
+//!   traffic does not surface in the pressure tier signal.
+//! - **Disk.** Each successful drain issues one `WriteBatch` of `N`
+//!   deletes through `write_batch_with_durability_off_runtime` with
+//!   `ApplyDurability::Sync`. That is one fsync per batch, not per
+//!   entry, and it runs on the store's blocking pool so it never parks
+//!   a Tokio worker. Quarantine deletes are the same shape: one fsync
+//!   per quarantined row.
+//! - **CPU.** Per-entry work is HMAC-SHA256 over the payload plus one
+//!   reqwest send. No JSON parse, no re-encode: the payload is opaque
+//!   bytes the producer already serialised. Idle and failure sleeps
+//!   are real timers, not spin loops; the failure backoff uses AWS-
+//!   style full jitter capped at `failure_backoff_ms_max` so a fleet-
+//!   wide outage cannot produce a synchronised retry storm.
+//! - **Egress.** One POST per outbox entry, one request-body clone per
+//!   POST, no per-entry reconnect (reqwest keepalive). The producer
+//!   controls how many events land in each entry, so cross-pipeline
+//!   parallelism (three drain tasks) plus intra-pipeline batching at
+//!   the producer is what sets steady-state throughput. Egress is not
+//!   shaped through [`crate::bandwidth::BandwidthLimiter`] because
+//!   analytics traffic does not go over the peer path; the pre-outbox
+//!   in-memory analytics runtime followed the same rule.
+//!
+//! # Cancellation
+//!
+//! `drain_pipeline` races the whole tick against the shared
+//! [`CancellationToken`], so a shutdown fires within one poll pass
+//! rather than waiting for a reqwest deadline. Dropping the tick
+//! future cancels the in-flight POST cleanly and leaves the entry in
+//! the outbox for redelivery on the next boot. That is safe because
+//! the delete only runs after a 2xx response; a mid-flight POST that
+//! races the cancel drops before it can ack anything.
+//!
+//! # Rollout skew
+//!
+//! No on-disk format changes here. The entry-schema types this module
+//! depends on ([`crate::analytics_outbox`]) are the same ones a peer
+//! at either side of a rolling deploy encodes and decodes, so a mixed-
+//! version fleet still drains its outbox. The webhook wire contract
+//! matches the pre-outbox in-memory path byte-for-byte, so a server
+//! that has not rolled yet keeps accepting the same body shape and the
+//! same headers.
 
 #![allow(dead_code)]
 
@@ -131,15 +187,17 @@ impl ForwarderConfig {
 /// Result label a drain tick reports to
 /// [`Metrics::record_analytics_batch`]. Kept a bounded `&'static str`
 /// so Prometheus label cardinality on the reused `result` column stays
-/// finite.
+/// finite. Every constant here is a live emit path — the idle tick and
+/// a circuit-breaker path both exist upstream in [`crate::analytics`]
+/// but the forwarder does not report either; the idle case is silent
+/// (a scrape sees the depth gauge instead) and a circuit breaker is
+/// deferred to the follow-up PR that ships end-to-end backpressure.
 mod result_label {
     pub const OK: &str = "outbox_forward_ok";
-    pub const IDLE: &str = "outbox_forward_idle";
     pub const HEAD_TOO_LARGE: &str = "outbox_head_too_large";
     pub const HEAD_MALFORMED: &str = "outbox_head_malformed";
     pub const DELETE_FAILED: &str = "outbox_delete_failed";
     pub const READ_FAILED: &str = "outbox_read_failed";
-    pub const CIRCUIT_OPEN: &str = "outbox_forward_circuit_open";
 }
 
 /// Spawn one drain task per pipeline. The tasks exit cleanly when the
@@ -197,7 +255,26 @@ pub async fn drain_pipeline(
             return;
         }
 
-        match tick(&store, &client, &config, &metrics, pipeline).await {
+        // Race the whole tick against cancellation so a mid-POST
+        // shutdown does not have to wait for the reqwest future to
+        // return on its own. Dropping the tick future cancels the
+        // in-flight reqwest cleanly and leaves the entry in the outbox
+        // for redelivery on the next boot, which is safe because the
+        // ack delete only runs after a 2xx response. The store's
+        // durability guarantees do the rest.
+        let outcome = tokio::select! {
+            biased;
+            () = cancel.cancelled() => {
+                info!(
+                    pipeline = pipeline.as_label(),
+                    "analytics outbox forwarder cancelled mid-tick",
+                );
+                return;
+            }
+            outcome = tick(&store, &client, &config, &metrics, pipeline) => outcome,
+        };
+
+        match outcome {
             TickOutcome::Delivered { .. } => {
                 consecutive_failures = 0;
             }
@@ -774,5 +851,44 @@ mod tests {
             let delay = jittered_backoff(attempt, 10, 200);
             assert!(delay <= Duration::from_millis(200));
         }
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn drain_pipeline_returns_promptly_on_cancellation() {
+        // Bounded-design invariant: shutdown must not have to wait for a
+        // POST timeout. `drain_pipeline` races the whole tick against
+        // cancellation, so firing the cancel token has to unwind within
+        // one poll pass even on an empty pipeline that is sleeping on
+        // the idle timer.
+        let ctx = test_context(|_| {}).await;
+        let store = Arc::clone(&ctx.state.store);
+        let client = Client::new();
+        let metrics = ctx.state.metrics.clone();
+        let mut cfg = config("http://127.0.0.1:1".to_owned());
+        cfg.idle_backoff_ms = 60_000;
+        let cancel = CancellationToken::new();
+
+        let cancel_child = cancel.clone();
+        let handle = tokio::spawn(async move {
+            drain_pipeline(
+                store,
+                client,
+                cfg,
+                metrics,
+                Pipeline::GradleCache,
+                cancel_child,
+            )
+            .await;
+        });
+
+        // Give the task one poll pass to reach the idle sleep, then
+        // cancel. Paused time means the idle timer will not fire; the
+        // task can only exit through the cancellation branch.
+        tokio::task::yield_now().await;
+        cancel.cancel();
+        tokio::time::timeout(Duration::from_secs(1), handle)
+            .await
+            .expect("drain_pipeline must return promptly on cancellation")
+            .expect("task should not panic");
     }
 }
