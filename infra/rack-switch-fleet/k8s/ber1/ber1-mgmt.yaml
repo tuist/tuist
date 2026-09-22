@@ -13,4 +13,4 @@ spec:
   applyOrder: 3
   applyNote: There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.
   credentialItem: ber1-mgmt switch admin
-  configRevision: cac2711ad4a8527f
+  configRevision: d72cb0ccb7fad179

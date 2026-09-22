@@ -148,7 +148,12 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
 }
 
 @test "a model whose ports were never confirmed is never applied" {
-    run "$FLEET_ROOT/fleet.sh" apply ber1-mgmt --dry-run
+    # Every committed model is confirmed now, so a copy of the tool with one
+    # marked otherwise stands in for the next model bought.
+    copy="$BATS_TEST_TMPDIR/fleet-copy"
+    cp -R "$FLEET_ROOT" "$copy"
+    jq '.["tl-sg3452"].verified = false' "$FLEET_ROOT/models.json" > "$copy/models.json"
+    run env FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" "$copy/fleet.sh" apply ber1-mgmt --dry-run
     [ "$status" -ne 0 ]
     [[ "$output" == *"never been read"* ]]
 }
