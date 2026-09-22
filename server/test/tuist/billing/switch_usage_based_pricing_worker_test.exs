@@ -40,6 +40,15 @@ defmodule Tuist.Billing.Workers.SwitchUsageBasedPricingWorkerTest do
     assert SwitchUsageBasedPricingWorker.perform(%Oban.Job{args: %{}}) == :ok
   end
 
+  test "says nothing about an account that was already switched" do
+    stub(Billing, :switch_to_usage_based_pricing, fn _account -> {:ok, :unchanged} end)
+
+    logs =
+      ExUnit.CaptureLog.capture_log(fn -> assert SwitchUsageBasedPricingWorker.perform(%Oban.Job{args: %{}}) == :ok end)
+
+    refute logs =~ "usage-based pricing"
+  end
+
   test "reports the accounts it could not switch", %{account: account} do
     stub(Billing, :switch_to_usage_based_pricing, fn _account -> {:error, :no_subscription} end)
 

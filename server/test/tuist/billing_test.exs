@@ -1128,6 +1128,35 @@ defmodule Tuist.BillingTest do
       assert Enum.map(Billing.accounts_with_pro_subscriptions(), & &1.id) == [account.id]
     end
 
+    test "the hold covers a subscription that is not paying but could recover", %{account: account} do
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "past_due")
+
+      cancelled = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      BillingFixtures.subscription_fixture(account_id: cancelled.id, plan: :pro, status: "canceled")
+
+      expect(FunWithFlags, :disable, fn :usage_based_pricing, [for_actor: _held] -> {:ok, false} end)
+
+      assert %{held: [%{id: held_id}]} = Billing.hold_usage_based_pricing_for_existing_subscriptions()
+      assert held_id == account.id
+    end
+
+    test "the hold reports a gate it could not write instead of stopping", %{account: account} do
+      other = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro, status: "active")
+      BillingFixtures.subscription_fixture(account_id: other.id, plan: :pro, status: "active")
+
+      account_id = account.id
+
+      stub(FunWithFlags, :disable, fn :usage_based_pricing, [for_actor: held] ->
+        if held.id == account_id, do: {:error, :redis_down}, else: {:ok, false}
+      end)
+
+      assert %{held: [%{id: held_id}], failed: [{^account_id, :redis_down}]} =
+               Billing.hold_usage_based_pricing_for_existing_subscriptions()
+
+      assert held_id == other.id
+    end
+
     test "the hold keeps the flag off for a subscribed account but not an Air one", %{account: account} do
       air_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture(customer_id: "customer_air"))
 
@@ -1147,7 +1176,7 @@ defmodule Tuist.BillingTest do
 
       expect(FunWithFlags, :disable, fn :usage_based_pricing, [for_actor: _held] -> {:ok, false} end)
 
-      assert [%{id: held_id}] = Billing.hold_usage_based_pricing_for_existing_subscriptions()
+      assert %{held: [%{id: held_id}], failed: []} = Billing.hold_usage_based_pricing_for_existing_subscriptions()
       assert held_id == account.id
     end
 

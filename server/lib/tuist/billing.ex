@@ -25,6 +25,12 @@ defmodule Tuist.Billing do
   # with the values on Stripe.
   @usage_meter_event_names ["cache_egress_megabytes", "cache_requests", "passing_test_cases"]
 
+  # Every status a subscription can come back to `active` from. A hold has
+  # to cover them: an unheld subscription that recovers after the global
+  # gate is on reports the meters while still carrying the usage Price, so
+  # neither is billed.
+  @holdable_subscription_statuses ~w(active trialing past_due unpaid paused incomplete)
+
   @payment_thresholds %{remote_cache_hits: 200}
   @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
 
@@ -743,24 +749,34 @@ defmodule Tuist.Billing do
 
   @doc """
   Holds usage-based pricing off for every account that already has a
-  subscription, other than Air ones, and answers with the accounts held.
+  subscription, other than Air ones, and answers with `%{held:, failed:}`.
 
   Turning the flag on for everyone then reaches Air accounts and every
   account created afterwards, while each existing subscription keeps the
   pricing it signed up on until its own switch. Per-account gates win over
   the boolean gate, and `switch_to_usage_based_pricing/1` releases an
   account by enabling its own.
+
+  A subscription counts as existing whether or not it is currently paying:
+  one that is `past_due` today can be `active` tomorrow, and it would
+  otherwise come back with the global gate on and the usage Price still on
+  it, which bills neither side.
   """
   def hold_usage_based_pricing_for_existing_subscriptions do
     from(s in Subscription,
-      where: s.status in ["active", "trialing"] and s.plan != :air,
+      where: s.status in ^@holdable_subscription_statuses and s.plan != :air,
       preload: :account
     )
     |> Repo.all()
     |> Enum.uniq_by(& &1.account_id)
-    |> Enum.map(fn %Subscription{account: account} ->
-      {:ok, false} = FunWithFlags.disable(:usage_based_pricing, for_actor: account)
-      account
+    |> Enum.reduce(%{held: [], failed: []}, fn %Subscription{account: account}, result ->
+      # A gate that could not be written is reported rather than raised on.
+      # Aborting halfway leaves an operator holding part of the list, and
+      # flipping the global gate then exposes the tail this exists to cover.
+      case FunWithFlags.disable(:usage_based_pricing, for_actor: account) do
+        {:ok, false} -> %{result | held: result.held ++ [account]}
+        {:error, reason} -> %{result | failed: result.failed ++ [{account.id, reason}]}
+      end
     end)
   end
 
@@ -803,9 +819,9 @@ defmodule Tuist.Billing do
 
       {price_ids, %Subscription{subscription_id: subscription_id}} ->
         with {:ok, stripe_subscription} <- Stripe.Subscription.retrieve(subscription_id),
-             {:ok, _} <- apply_usage_meter_items(subscription_id, stripe_subscription, price_ids),
+             {:ok, outcome} <- apply_usage_meter_items(subscription_id, stripe_subscription, price_ids),
              {:ok, true} <- FunWithFlags.enable(:usage_based_pricing, for_actor: account) do
-          {:ok, :switched}
+          {:ok, outcome}
         end
     end
   end
@@ -832,7 +848,9 @@ defmodule Tuist.Billing do
         # Neither side of the swap is settled against the period it lands
         # in: the usage Price leaves without a mid-cycle invoice, and the
         # meters begin at zero from here.
-        Stripe.Subscription.update(subscription_id, %{items: items, proration_behavior: "none"})
+        with {:ok, _} <- Stripe.Subscription.update(subscription_id, %{items: items, proration_behavior: "none"}) do
+          {:ok, :switched}
+        end
     end
   end
 

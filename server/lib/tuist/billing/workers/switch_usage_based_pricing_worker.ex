@@ -37,10 +37,17 @@ defmodule Tuist.Billing.Workers.SwitchUsageBasedPricingWorker do
     end
   end
 
+  # Only a subscription that actually moved is logged. Running daily over
+  # every account the flag covers means most passes change nothing, and
+  # logging those too would bury the line that says when an account was
+  # switched.
   defp switch(account) do
     case Billing.switch_to_usage_based_pricing(account) do
-      {:ok, outcome} ->
-        Logger.info("Switched account #{account.id} to usage-based pricing: #{outcome}")
+      {:ok, :switched} ->
+        Logger.info("Switched account #{account.id} to usage-based pricing")
+        :ok
+
+      {:ok, :unchanged} ->
         :ok
 
       {:error, reason} ->
