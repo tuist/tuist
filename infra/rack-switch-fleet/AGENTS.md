@@ -11,6 +11,50 @@ address, SSH, fleet key) before the switch has any usable network presence.
 Everything after that first touch lives here, because it applies to switches as
 a group and belongs in a reviewed change rather than in a per-device bring-up.
 
+## The next time the rack is reachable
+
+Both switches were left with their SSH daemons wedged, so **reboot both first**;
+that also resets the connection budget, which is about seven per boot and is the
+thing that decides how much fits in a session. `locate` and `ports` cost none,
+`preflight` costs one, `recover` two, `replace` two plus a reboot.
+
+**Required, on ber1-tor-b (three connections of seven).** Its running config is
+correct and its startup config still says DHCP, so it comes back on the wrong
+address until this is done.
+
+1. `mise run rack:fleet locate ber1-tor-b`. Free, and tells you whether it is at
+   192.168.0.12 or somewhere the router gave it.
+2. `mise run rack:fleet recover ber1-tor-b --from <where locate found it>`. Two
+   connections. It refuses to save unless the switch identifies itself and the
+   address actually took, so a success here means it is genuinely fixed.
+3. `mise run rack:fleet preflight ber1-tor-b`. One connection, and confirms the
+   diff is clean and takes a fresh backup.
+
+**Required, on ber1-tor-a (one connection).** `mise run rack:fleet preflight
+ber1-tor-a` and nothing else. It was left correct and saved; this only confirms
+it.
+
+**Then one of these two, not both, because each wants a boot's worth of budget.**
+
+*The rollback capability, which is the higher value.* Whether `reboot-schedule`
+gives this hardware a confirmed commit: arm a reboot, apply to the running
+config only, verify, then cancel and save, so a change that cuts off the path
+used to make it undoes itself. Read the syntax first without probing a complete
+command with `?`, which has twice executed something. This is the one capability
+that would make changing `ber1-tor-a` safe without a person watching.
+
+*Or the connection-limit question.* Eight connections spaced ten minutes apart
+on a freshly booted switch, which separates a per-connection leak from a rate
+limiter and also clears the 360 second session timeout in between. Cheap to run
+and it decides whether any automated observation is possible at all.
+
+**Needs setup beyond a session, so plan it separately.** The Omada prototype in
+[omada-assessment.md](omada-assessment.md) wants a controller deployed and
+`ber1-mgmt` out of storage. Reading the Open API endpoint document comes first
+and costs nothing. DHCP Auto Install wants an isolated segment with our own DHCP
+and TFTP, because the only DHCP server on the current LAN is the household
+router.
+
 ## Usage
 
 ```
@@ -376,7 +420,7 @@ If it is picked up: keep this driver, keep changes manual, and only then
 consider a controller that sequences them, with a `Lease` for the coordination
 the per-rack lock does today.
 
-## Apply ordering, which is enforced rather than written down## Apply ordering, which is enforced rather than written down
+## Apply ordering, which is enforced rather than written down
 
 Switches are applied one at a time, in the order `apply_order` gives:
 
