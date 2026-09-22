@@ -35,10 +35,10 @@ url="$(jq -r '.management.controller.url // empty' "$site_file")"
 site_name="$(jq -r '.management.controller.site // "Default"' "$site_file")"
 api_item="$(jq -r '.management.controller.credential_item // empty' "$site_file")"
 vault="$(jq -r '.credentials.vault' "$site_file")"
-[ -n "$url" ] && [ -n "$api_item" ] || {
+if [ -z "$url" ] || [ -z "$api_item" ]; then
   echo "error: $SITE has no management.controller with url and credential_item" >&2
   exit 2
-}
+fi
 
 # The controller's certificate is its own self-signed one, reached only over
 # the tailnet, whose WireGuard session is what authenticates the far end.
@@ -56,10 +56,10 @@ access_token() {
   }
   client_id="$(jq -r '.fields[]? | select(.label == "client_id") | .value // empty' <<<"$item")"
   client_secret="$(jq -r '.fields[]? | select(.label == "client_secret") | .value // empty' <<<"$item")"
-  [ -n "$client_id" ] && [ -n "$client_secret" ] || {
+  if [ -z "$client_id" ] || [ -z "$client_secret" ]; then
     echo "error: '$api_item' needs client_id and client_secret fields" >&2
     return 1
-  }
+  fi
   jq -n --arg o "$omadac" --arg i "$client_id" --arg s "$client_secret" \
       '{omadacId: $o, client_id: $i, client_secret: $s}' |
     curl_controller -X POST -H 'Content-Type: application/json' --data @- \

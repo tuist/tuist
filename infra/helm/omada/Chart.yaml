@@ -9,9 +9,8 @@ description: >
   everything the fleet renders; what adoption does to a configured switch is
   still open.
 
-  See infra/rack-switch-fleet/omada-assessment.md. Not wired into any
-  deployment workflow: standing it up is a deliberate act while the evaluation
-  is open.
+  See infra/rack-switch-fleet/omada-assessment.md. Deployed to the staging
+  cluster by .github/workflows/omada-deployment.yml, while the rack is at home.
 type: application
 version: 0.1.0
 appVersion: "6.3.0.45"

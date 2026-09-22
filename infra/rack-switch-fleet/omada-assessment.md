@@ -86,19 +86,21 @@ management plane inside the cluster whose network those switches carry, which is
 the same failure-domain question as a switch operator, and it wants a database
 and persistent state.
 
-## The prototype, ready to run when the rack is reachable
+## The prototype, against the staging controller
 
-Smallest path that answers the real questions. `ber1-mgmt` is the target: it is
-an SG3452 sitting in storage, it is not carrying traffic, and nothing depends on
-it. Not the ToRs.
+Smallest path that answers the real questions. `ber1-mgmt` is the target: an
+SG3452 on `ber1-edge`'s port, carrying no traffic, that nothing depends on. Not
+the ToRs.
 
-1. **Stand the controller up**, reachable from the management network, either
-   from the Helm chart in staging or with
-   `docker run mbentley/omada-controller:6.3.0.45` on a laptop that is on the
-   rack LAN. No switches adopted yet.
-2. **Back up `ber1-mgmt` first** with `mise run rack:fleet backup ber1-mgmt`, so
-   there is a known-good standalone configuration to return to.
-3. **Adopt it** and record what changed: does the management address survive,
+1. **The controller** is deployed to staging by `omada-deployment.yml` and
+   exposed on the tailnet as `omada`; `ber1-mgmt` reaches it through
+   `ber1-edge` (`rack:edge-path`, and the route in its render). Its wizard and
+   Open API client are the one-time manual step; record its tailnet IP as
+   `management.controller.address`.
+2. **The standalone configuration to return to** is committed:
+   `backups/ber1/ber1-mgmt.cfg`, taken after zero touch provisioned and sealed it.
+3. **Adopt it** with `mise run rack:omada inform ber1-mgmt` then
+   `mise run rack:omada adopt ber1-mgmt`, and record what changed: does the management address survive,
    is the prior configuration preserved or replaced, what does
    `show running-config` look like afterwards, and does SSH go read-only as
    documented.

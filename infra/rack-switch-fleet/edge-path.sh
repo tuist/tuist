@@ -45,10 +45,10 @@ fi
 
 edge="$(jq -r '.management.edge.ssh // empty' "$site_file")"
 edge_address="$(jq -r '.management.edge.address // empty' "$site_file")"
-[ -n "$edge" ] && [ -n "$edge_address" ] || {
+if [ -z "$edge" ] || [ -z "$edge_address" ]; then
   echo "error: $SITE has no management.edge with ssh and address" >&2
   exit 2
-}
+fi
 mapfile -t switches < <(jq -r '.devices[] | select(.behind_edge) | .mgmt_address' "$site_file")
 (( ${#switches[@]} )) || { echo "error: no device in $SITE is behind_edge" >&2; exit 2; }
 tag="tag:tuist-rack-edge"

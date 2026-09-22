@@ -3,11 +3,10 @@
 Wraps [mbentley's chart](https://github.com/mbentley/docker-omada-controller/tree/master/helm/omada-controller-helm)
 so the controller's lifecycle is handled the way everything else here is.
 
-**This is an evaluation, not a decision.** It exists to answer whether the
-controller can take over switch management from
-[`infra/rack-switch-fleet`](../../rack-switch-fleet/AGENTS.md)'s SSH driver. It
-is deliberately not wired into any deployment workflow: standing it up is a
-deliberate act.
+**The controller for the rack fleet, still under evaluation.** It exists to
+answer whether the controller can take over switch management from
+[`infra/rack-switch-fleet`](../../rack-switch-fleet/AGENTS.md)'s SSH driver, and it
+is deployed to the staging cluster, where the rack belongs while it is at home.
 
 ## Why it might replace the SSH driver
 
@@ -30,43 +29,46 @@ The endpoint documentation is served by the controller itself, at
 The measurement and the per-setting table are in
 [omada-assessment.md](../../rack-switch-fleet/omada-assessment.md).
 
-## Adoption across subnets
+## Where it runs, and how switches reach it
 
-A switch finds its controller by L2 broadcast on UDP 29810, which does not cross
-from the management VLAN into the cluster. Two ways across:
+One controller for the rack fleet, because a switch can be adopted by only one
+at a time: the staging cluster while the rack is at home, production once it is
+in the data center. There is no staging or canary copy per environment; the
+switch-side equivalent of a canary is the apply order the site definition
+enforces.
 
-- **DHCP option 138**, the documented path, and one the rack can already serve:
-  `mise run rack:ztp` runs a dnsmasq on an isolated segment and option 138 is
-  one more line in the config it generates.
-- **Adopting by hand** in the controller UI, giving the switch's address.
-
-Either way the controller needs a stable address reachable from the management
-VLAN, which is what the tailnet is for here rather than an ingress, since the
-rack's other management paths already go that way. The chart's default
-`LoadBalancer` service is therefore overridden to `ClusterIP`.
+Nothing about it is public. The Tailscale operator gives its Service a tailnet
+device, `omada`, and the switches reach that through the rack's edge node, which
+translates their traffic onto its own tailnet address
+(`mise run rack:edge-path`, see
+[`rack-switch-fleet/AGENTS.md`](../../rack-switch-fleet/AGENTS.md)). L2
+discovery does not cross into the cluster, so a switch is told where the
+controller is with `controller inform-url` and the controller's tailnet IP
+(`mise run rack:omada inform <device>`); switches have no resolver for MagicDNS
+names. DHCP option 138 is the equivalent for a factory switch, and `rack:ztp`
+serves the segment that would carry it.
 
 ## What it costs to run
 
 A StatefulSet with two volumes. The data volume holds adoption state for every
-device, so losing it means re-adopting the rack by hand; it is 5Gi and a real
-PVC rather than an emptyDir even while this is an evaluation.
+device, so losing it means re-adopting the rack by hand; it is a real PVC rather
+than an emptyDir even while this is an evaluation.
 
-And it puts the switches' management plane inside the cluster whose network
-those switches carry. That is the same failure-domain question as a switch
-operator, and it is why the console path and the local CLI stay whichever way
-this goes.
+Switches keep forwarding when the controller is unreachable; only changes wait.
+That is what makes running it in a cluster the switches carry acceptable, and it
+is why the console path and the fleet CLI stay whichever way this goes.
 
 ## Standing it up
 
-```
-helm dependency update infra/helm/omada
-helm upgrade --install omada infra/helm/omada \
-  -n omada --create-namespace \
-  -f infra/helm/omada/values.yaml \
-  -f infra/helm/omada/values-staging.yaml
-```
+`.github/workflows/omada-deployment.yml` deploys it to staging on a merge that
+touches this chart, or on dispatch. It is a workflow rather than a command
+because creating the namespace needs rights an engineer does not have in
+staging.
 
-The admin account and any Open API client credentials are created in the
-controller's own UI on first boot, so they cannot be bootstrapped from
-1Password by an ExternalSecret the way the rest of the chart's secrets are.
-Create them, then put them in the `Infastructure` vault.
+The admin account and the Open API client are created in the controller's own
+first-boot wizard, at `https://omada.<tailnet>.ts.net:8043`, so no
+ExternalSecret can seed them. Store the admin login in 1Password, and the API
+client as the item `management.controller.credential_item` in the site
+definition names ("omada staging open api"), with `client_id` and
+`client_secret` fields; `rack:omada` reads it from there. The API client needs
+the Administrator role over the site the switches are adopted into.

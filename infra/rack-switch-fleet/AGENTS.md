@@ -54,8 +54,9 @@ staging, since the spec needs no cluster:
 a write endpoint; on 5.15 spanning-tree mode and LAGs were stacks-only, so the
 chart now pins 6.3.0.45. Spanning-tree state is write-only, so verification
 stays on SSH. It is a documented vendor API. The table is in
-[omada-assessment.md](omada-assessment.md); what remains is its prototype, which
-needs `ber1-mgmt`.
+[omada-assessment.md](omada-assessment.md). What remains is its adoption prototype on
+`ber1-mgmt`, now against the staging controller; see "The rack in the staging
+cluster" below for the steps and who does each.
 
 ### Group B: zero touch, on the bench, with a switch nobody depends on
 
@@ -189,7 +190,7 @@ Read any unfamiliar command's syntax without probing a complete command with
 mise run rack:fleet render                  # write the desired configs
 mise run rack:fleet render --check          # fail if they are out of date
 mise run rack:fleet preflight <device>      # users, drift and a backup, in ONE connection
-mise run rack:fleet publish <device>        # put what preflight saw into the RackSwitch status
+mise run rack:fleet publish <device> [--context <ctx>]  # what preflight saw, into the RackSwitch status
 mise run rack:fleet diff [device]           # live switch against the render
 mise run rack:fleet apply <device> --dry-run
 mise run rack:fleet apply <device>          # rolls itself back unless it verifies
@@ -202,7 +203,9 @@ mise run rack:fleet recover <device> --from <address>   # put it back and save
 mise run rack:fleet ports [device]          # what is plugged into each port
 mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
-mise run rack:ztp <device> --interface <iface>  # serve DHCP+TFTP so a switch provisions itself
+mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credentials]  # zero touch
+mise run rack:edge-path --interface <iface> # route the switches behind the edge node into the tailnet
+mise run rack:omada devices|inform|adopt [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
 ```
 
@@ -415,8 +418,9 @@ machine.
 A switch is a `RackSwitch` in the `tuist.dev` group, so its state is visible next
 to the `RackHost`s behind it rather than only in somebody's terminal. The CRD is
 `infra/helm/tuist/crds/tuist.dev_rackswitches.yaml`, hand-written and in `crds/`
-for the same reasons as `RunnerPool`: helm applies that directory first and does
-not touch it on upgrade, so a schema change goes out of band.
+for the same reasons as `RunnerPool`. Helm only installs that directory on first
+install, so `server-deployment.yml` applies it on every deploy, and the Rack
+Switches workflow applies it too before its objects.
 
 **Spec is rendered, not maintained.** `rack:fleet render` writes `k8s/<site>/`
 beside `configs/<site>/` from the same site definition, so the cluster's view of
@@ -424,7 +428,14 @@ a switch cannot drift from the configuration rendered for it, and CI fails if
 the committed objects are stale. The object names the 1Password item holding the
 login and never carries the login.
 
-**Status is pushed by an operator**, with `rack:fleet publish`, which runs a
+**They live in the rack's cluster.** Each site names its namespace
+(`kubernetes.namespace`); BER1 is `tuist-staging`, beside its `RackHost`, while
+the rack is at home, and moves to production with the rack. On a merge to
+`main`, the Rack Switches workflow applies the CRD and each site's rendered
+objects there, so the cluster's desired state follows git.
+
+**Status is pushed by an operator**, with `rack:fleet publish`, into the site's namespace in
+the cluster `--context` names (never whatever context happens to be current), which runs a
 preflight and records drift, reachability, when it was verified and how many of
 the boot's connections have been spent. It is reported against the
 `configRevision` it was measured with, so a status can never be read as applying
@@ -575,9 +586,43 @@ configuration and saves, with **no reboot** unless the change fails; only
 that a change made during an incident is one somebody meant, which is why
 changes stay tied to an approved revision rather than being reconciled.
 
-If it is picked up: keep this driver, keep changes manual, and only then
-consider a controller that sequences them, with a `Lease` for the coordination
-the per-rack lock does today.
+Both objections are about SSH, not about controllers. The Omada controller keeps
+its own management channel to each switch, and on 6.3 its Open API writes
+everything rendered here (see [omada-assessment.md](omada-assessment.md)), so a
+controller that reconciles `RackSwitch` objects through it pays no connection
+budget. SSH then stays for what the API cannot read back, spanning-tree state,
+and for the console path. That is the direction; the next section is how far it
+has got.
+
+## The rack in the staging cluster
+
+The goal: the switches, and in time the edge node, managed from the cluster the
+rack belongs to, which is staging while BER1 is at home and production once it
+is in the data center. Where that stands on 2026-09-22:
+
+- **Built and exercised.** `RackSwitch` objects rendered from the site
+  definition; `rack:ztp --via` serving zero-touch provisioning from `ber1-edge`,
+  run end to end on `ber1-mgmt`; `rack:edge-path` giving the switches behind the
+  edge node a path into the tailnet, installed on `ber1-edge` (ber1-mgmt carries
+  the route and is reached through the edge node by every fleet command).
+- **Built, waiting on a merge.** `omada-deployment.yml` puts the controller in
+  staging, exposed on the tailnet as `omada`; the Rack Switches workflow puts the
+  CRD and the objects in `tuist-staging`. Neither can run by hand: an engineer
+  cannot create a namespace or a CRD in staging.
+- **Waiting on a person, once each.** Pasting `infra/tailscale/acls.json` into
+  the admin console (it adds `tag:tuist-rack-edge`); opening the login URL
+  `rack:edge-path` prints, to join `ber1-edge` to the tailnet; the controller's
+  first-boot wizard and its Open API client, stored in 1Password as "omada
+  staging open api" with `client_id` and `client_secret` fields.
+- **Then, with no one.** Record the controller's tailnet IP as
+  `management.controller.address`, `rack:omada inform ber1-mgmt`,
+  `rack:omada adopt ber1-mgmt`, and the adoption questions in the assessment
+  get answered: what adoption does to a configured switch, and whether it honours
+  a write the API accepts.
+- **Not started.** The reconciler that watches `RackSwitch` objects and drives
+  the controller; joining `ber1-edge` to staging as a node, which would let
+  `rack:ztp` and the edge path run as workloads; and a factory-reset run of
+  zero touch, for the two questions it left open.
 
 ## Apply is a confirmed commit
 
@@ -862,6 +907,12 @@ arbitrary line into its negation is the same class of guess.
   shows up as drift. Use the relative `in` form only: the clock comes back as
   2006-01-01 after a reboot while NTP is not syncing, so `at <time>` fires at the
   wrong moment.
+- **A switch behind the edge node is reached through it.** `ber1-mgmt`'s only
+  uplink is `ber1-edge`'s port, so `management.edge` in the site definition
+  names the edge node and every fleet command dials the switch with a
+  `ProxyCommand` through it; the switch key never leaves the operator's
+  machine. The switch prints static routes after `lldp`, which is where the
+  render puts the route to the tailnet, because the diff is order-sensitive.
 - **The SG3452 ignores broadcast DHCP replies.** Its DHCP client (firmware 1.30)
   sets the broadcast flag, and dnsmasq, following RFC 2131, broadcasts back;
   the switch never answers those, whatever they carry, while it takes a home
