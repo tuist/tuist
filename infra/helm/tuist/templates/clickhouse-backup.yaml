@@ -18,8 +18,9 @@ restore depend on every backup since the last full: one corrupt or expired
 link and everything after it is unrecoverable.
 
 So each incremental is based on its own week's full, never on yesterday's
-incremental. Restoring is always exactly two steps, whichever day you pick,
-and losing one day's backup costs that day rather than the rest of the week.
+incremental. A restore then depends on exactly two objects, whichever day you
+pick, and losing one day's backup costs that day rather than the rest of the
+week.
 
 The pairing is by ISO week, computed identically by both jobs, which is why
 the full runs on Monday: ISO weeks start on Monday, so every incremental from
@@ -54,10 +55,17 @@ rather than leaving a full to be inferred from the object store.
 
 ## Restoring
 
-Both steps run from a client against the server, `--host` being the service:
+One statement, naming the day to restore to, run from a client against the
+server with `--host` being the service:
 
-    RESTORE DATABASE `<db>` FROM Disk('backups', 'full/<YYYY-Www>')
     RESTORE DATABASE `<db>` FROM Disk('backups', 'incremental/<YYYY-Www>/<YYYY-MM-DD>')
+
+An incremental carries a reference to the full it was based on, and the
+restore follows it, so this reads both objects and produces the whole
+database. Restoring the full first and the incremental on top of it loads the
+data twice: a drill that did so on canary came back with every table at
+exactly double its row count. Restore the full alone only to land on the
+Monday, or when the day you want has no incremental.
 
 Into a server that already holds the database, add
 `SETTINGS allow_non_empty_tables=true` or drop it first. Restoring somewhere
@@ -68,7 +76,7 @@ Restoring beside the live database, to check a backup or to recover one table,
 goes into a database you create yourself:
 
     CREATE DATABASE restore_check ENGINE = Atomic;
-    RESTORE DATABASE `<db>` AS restore_check FROM Disk('backups', 'full/<YYYY-Www>')
+    RESTORE DATABASE `<db>` AS restore_check FROM Disk('backups', 'incremental/<YYYY-Www>/<YYYY-MM-DD>')
       SETTINGS create_database = 'must exist', allow_different_database_def = 1;
 
 `RESTORE DATABASE <db> AS restore_check` on its own does not do this. The
