@@ -91,7 +91,11 @@ jobs:
       - name: No credential hash is committed
         run: |
           set -euo pipefail
-          if git grep -nE '\$1\$' -- infra/rack-switch-fleet/ | grep -v EXAMPLEHASHNOTREAL | grep -v '\$1\$x'; then
+          # Hash-shaped, not the bare prefix: a test that asserts an object
+          # contains no `$1$` writes that literal itself, and flagging it taught
+          # nothing. A real crypt hash is the prefix plus a long run of
+          # non-quote, non-space characters.
+          if git grep -nE '\$1\$[^ "'"'"']{8,}' -- infra/rack-switch-fleet/ | grep -v EXAMPLEHASHNOTREAL; then
             echo "a credential hash reached infra/rack-switch-fleet; see AGENTS.md" >&2
             exit 1
           fi
