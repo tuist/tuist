@@ -113,11 +113,27 @@ extension GitController {
             return (nil, ["\(head.prefix(12)) and \(baseBranch) share no history in the checkout"])
         }
 
+        // Never deeper than the history window, and never past a fetch that
+        // failed: a deepen that fails immediately, offline or against a remote
+        // that refuses it, returns before the budget is spent and would
+        // otherwise leave this doubling `depth` until it overflows.
+        //
+        // No object filter here. `--filter=tree:0` is what deepening would want,
+        // since only commits are needed to place the merge base, but Git 2.50
+        // aborts on it (`BUG: should_include_obj should only be called on
+        // existing objects`) because deepening reads the trees it just excluded.
+        // `--filter=blob:none` survives, and measured against this repository it
+        // transfers 20-35x more than an unfiltered deepen: the remote cannot
+        // reuse its packs for a filtered request, so it sends a freshly built
+        // one, and omitting blobs does not come close to paying for that.
+        let maxDepth = max(limits.windowCommits, 50)
         var depth = 50
         while Date() < deadline {
-            _ = try? await capture(arguments: git + ["fetch", "--no-tags", "--deepen=\(depth)", "origin"])
+            guard (try? await capture(arguments: git + ["fetch", "--no-tags", "--deepen=\(depth)", "origin"])) != nil
+            else { break }
             if let sha = await resolve(ref) { return (sha, []) }
-            depth *= 2
+            if depth >= maxDepth { break }
+            depth = min(depth * 2, maxDepth)
         }
         return (nil, ["shallow clone: the merge base with \(baseBranch) was not found within \(limits.deepenBudgetSeconds)s"])
     }

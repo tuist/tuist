@@ -496,6 +496,55 @@ struct GitControllerTests {
         #expect(history.fallbackReason == nil)
     }
 
+    @Test(.inTemporaryDirectory) func gitHistory_stops_deepening_at_the_history_window() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        // Never resolves, so deepening runs until a bound stops it.
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        commandRunner.succeedCommand(git + ["fetch", "--no-tags", "--deepen=50", "origin"])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head"],
+            output: "head 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, deepenBudgetSeconds: 5)
+        )
+
+        #expect(history.mergeBaseSHA == nil)
+        #expect(commandRunner.called(git + ["fetch", "--no-tags", "--deepen=50", "origin"]))
+        #expect(!commandRunner.called(git + ["fetch", "--no-tags", "--deepen=100", "origin"]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_stops_deepening_when_a_fetch_fails() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        // The deepen fetch fails, as it does offline. Retrying it until the
+        // budget expires would overflow the depth long before that.
+        commandRunner.errorCommand(git + ["fetch", "--no-tags", "--deepen=50", "origin"])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: "main", limits: GitHistoryLimits()
+        )
+
+        #expect(history.mergeBaseSHA == nil)
+        #expect(!commandRunner.called(git + ["fetch", "--no-tags", "--deepen=100", "origin"]))
+    }
+
     @Test(.inTemporaryDirectory) func gitHistory_explains_a_missing_base_branch() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
