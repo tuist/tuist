@@ -134,7 +134,10 @@ switch_drain() {
     fi
     tail="${SWITCH_BUFFER##*$'\n'}"
     tail="${tail//$'\r'/}"
-    [[ "$tail" =~ [A-Za-z0-9._-]+[#\>][[:space:]]*$ ]] && return 0
+    # `ber1-tor-b#`, and also `ber1-tor-b(config)#` and `ber1-tor-b(config-if)#`.
+    # Leaving the parenthesised modes out meant every command `apply` sends ran
+    # the full timeout waiting for a prompt that was already on screen.
+    [[ "$tail" =~ [A-Za-z0-9._-]+(\([A-Za-z0-9-]+\))?[#\>][[:space:]]*$ ]] && return 0
   done
   return 2
 }

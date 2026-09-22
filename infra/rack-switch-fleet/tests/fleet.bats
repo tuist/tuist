@@ -1011,3 +1011,24 @@ mini_referencing() {
     run yq -r '.spec.versions[0].name' "$crd"
     [ "$output" = "v1alpha1" ]
 }
+
+@test "config-mode prompts are recognised, not waited out" {
+    # `ber1-tor-b(config)#` and `(config-if)#` are what every command `apply`
+    # sends comes back to. Leaving the parenthesised forms out of the prompt
+    # pattern meant each one ran its full timeout waiting for a prompt that was
+    # already on screen, which made apply either glacial or a reported failure.
+    source "$FLEET_ROOT/lib/session.sh"
+    for prompt in 'sw#' 'sw>' 'sw(config)#' 'sw(config-if)#' 'sw(config-vlan)#'; do
+        [[ "$prompt" =~ [A-Za-z0-9._-]+(\([A-Za-z0-9-]+\))?[#\>][[:space:]]*$ ]] || \
+            { echo "did not match: $prompt"; false; }
+    done
+    [[ "banner text" =~ [A-Za-z0-9._-]+(\([A-Za-z0-9-]+\))?[#\>][[:space:]]*$ ]] && \
+        { echo "matched something that is not a prompt"; false; }
+    true
+}
+
+@test "the transcript extractor stops at a config-mode prompt too" {
+    printf 'sw#show running-config\nhostname "x"\nend\nsw(config)#\n' > "$BATS_TEST_TMPDIR/t.txt"
+    run bash -c "fleet_strip_transcript 'show running-config' < '$BATS_TEST_TMPDIR/t.txt'"
+    [[ "$output" != *"(config)#"* ]]
+}

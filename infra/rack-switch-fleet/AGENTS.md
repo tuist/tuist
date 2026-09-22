@@ -249,6 +249,36 @@ the boot's connections have been spent. It is reported against the
 `configRevision` it was measured with, so a status can never be read as applying
 to a revision it did not see.
 
+### Why this cannot be managed the way a datacentre switch would be
+
+The reasonable objection to all of this is that plenty of people manage switches
+programmatically, so a switch that dies after eight logins would be notorious.
+Both halves of that are true, and the resolution is that the switches people
+manage programmatically at scale are not this kind of switch. They expose
+NETCONF, gNMI or RESTCONF, and the tooling talks to an API with a session model
+designed for it.
+
+This one offers three surfaces and no API. The SSH CLI, which is what this tool
+drives and which degrades with use. A web interface that is a forms UI rather
+than an interface, `Server: Web Switch`, answering 501 to a HEAD and serving
+XHTML to a GET, so scraping it would be worse than the CLI and not obviously
+more robust. And the Omada cloud controller, which is a real management plane
+and was rejected deliberately, because controller mode limits the feature set
+and wants to own the configuration, which is the opposite of rendering it from
+git.
+
+So the constraint is not that nobody automates switches. It is that this class
+of switch is not built to be automated, and the one path the vendor leaves open
+when you decline its controller is the least robust one it has. Worth weighing
+when the next rack's switches are chosen: a unit with NETCONF or gNMI would make
+most of this file unnecessary.
+
+Nothing specific to the SX3832 turned up in a search, though TP-Link has a
+documented history of JetStream firmware leaving switches unmanageable until
+rebooted, and this unit runs a build from February 2026. The reproduction here
+is clean enough to send them: plain `ssh`, a freshly booted switch, eight
+connections, the ninth refused.
+
 ### Why there is no controller
 
 Not squeamishness: two measured properties of this hardware.
@@ -421,14 +451,12 @@ arbitrary line into its negation is the same class of guess.
   login rate limiter is counting. The connections in both runs were seconds
   apart, so a limiter has not been ruled out, though an hour never cleared it.
 
-  `show ip ssh` on `ber1-tor-a` reports `MAX Clients: 5` and
-  `Session Timeout: 360`, both firmware defaults since neither appears in the
-  running config, and both settable with `ip ssh max-client` and
-  `ip ssh timeout`. **That is a knob, and it is probably not this knob.** Five
-  concurrent clients does not explain seven sequential connections succeeding
-  when only one was ever open and `show users` showed a single row throughout;
-  if closed sessions were still being counted against the five, the sixth would
-  have failed, not the eighth.
+  **The knob that exists does not reach this.** `show ip ssh` reports
+  `MAX Clients: 5` and `Session Timeout: 360`, and `ip ssh max-client ?` on the
+  SX3832 answers `<1-5>`: five is the ceiling, not just the default, so it
+  cannot be raised. It is also a limit on *concurrent* clients, and only one was
+  ever open. Nothing in the vendor's CLI documents a per-boot total, which is
+  what a designed limit would have, and is consistent with this being a defect.
 
   Three experiments separate the explanations, all needing a freshly booted
   switch and none of them expensive:
@@ -437,10 +465,6 @@ arbitrary line into its negation is the same class of guess.
     connections or measures a rate: a leak will not care about the spacing, a
     limiter will. Ten minutes also clears the 360 second session timeout, so it
     tests reclamation at the same time.
-  - raising `ip ssh max-client` to its maximum and repeating the count says
-    whether the budget is tied to that setting at all. If seven becomes a larger
-    number, this is session accounting and the knob is a mitigation. If it stays
-    seven, the setting is unrelated and something else is being exhausted.
 
   Until one of those is run, plan around seven and do not assume the knob helps.
 

@@ -11,7 +11,7 @@ function strip_cr(s) { gsub(/\r/, "", s); return s }
 
 {
     line = strip_cr($0)
-    if (body > 0 && line ~ /^[A-Za-z0-9._-]+[#>][ \t]*$/) exit
+    if (body > 0 && line ~ /^[A-Za-z0-9._-]+(\([A-Za-z0-9-]+\))?[#>][ \t]*$/) exit
     print $0
     body++
 }
