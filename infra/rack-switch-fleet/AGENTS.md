@@ -593,11 +593,30 @@ arbitrary line into its negation is the same class of guess.
     have tripped. Argues against itself a little, since an hour did not clear
     it, but not all limiters are short.
 
-  Two experiments separate them, both needing a freshly booted switch.
-  `FLEET_DEBUG_SESSIONS=1` through a run says whether the client is ever the one
-  killing the connection. And spacing eight connections over ten minutes says
-  whether the limit counts connections or measures a rate: a leak will not care
-  about the spacing, a limiter will.
+  `show ip ssh` on `ber1-tor-a` reports `MAX Clients: 5` and
+  `Session Timeout: 360`, both firmware defaults since neither appears in the
+  running config, and both settable with `ip ssh max-client` and
+  `ip ssh timeout`. **That is a knob, and it is probably not this knob.** Five
+  concurrent clients does not explain seven sequential connections succeeding
+  when only one was ever open and `show users` showed a single row throughout;
+  if closed sessions were still being counted against the five, the sixth would
+  have failed, not the eighth.
+
+  Three experiments separate the explanations, all needing a freshly booted
+  switch and none of them expensive:
+
+  - `FLEET_DEBUG_SESSIONS=1` through a run says whether the client is ever the
+    one killing the connection, which would make it our bug.
+  - spacing eight connections over ten minutes says whether the limit counts
+    connections or measures a rate: a leak will not care about the spacing, a
+    limiter will. Ten minutes also clears the 360 second session timeout, so it
+    tests reclamation at the same time.
+  - raising `ip ssh max-client` to its maximum and repeating the count says
+    whether the budget is tied to that setting at all. If seven becomes a larger
+    number, this is session accounting and the knob is a mitigation. If it stays
+    seven, the setting is unrelated and something else is being exhausted.
+
+  Until one of those is run, plan around seven and do not assume the knob helps.
 
   This was worth measuring rather than assuming. The earlier wedge happened
   fifteen seconds after `ber1-tor-a` rebooted and flapped the ISL, which looked
