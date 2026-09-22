@@ -10,8 +10,10 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   @tests [
     %{module: "AppTests", suite: "MathTests", name: "testAdd()"},
@@ -191,6 +193,84 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, gap_files_count: 0, carried_from: ["base"]} =
              Reported.compute(project, "head")
+  end
+
+  # Two test targets at the base; at the head selective testing skipped
+  # TextKitTests, and the generated workspace no longer had it, so the head
+  # neither ran nor listed `testTrim()`.
+  defp pruned_target_runs(project, account) do
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [
+        file("Sources/Math.swift", [1, 1, 0]),
+        file("Sources/Text.swift", [1, 1, 1, 0]),
+        file("Tests/AppTests.swift", [1, 1], is_test: true)
+      ],
+      %{
+        git_commit_sha: "base",
+        test_modules: [
+          %{name: "AppTests", status: "success", duration: 1, test_cases: [test_case("testAdd()", "MathTests")]},
+          %{name: "TextKitTests", status: "success", duration: 1, test_cases: [test_case("testTrim()", "TextTests")]}
+        ],
+        enumerated_tests: [
+          %{module: "AppTests", suite: "MathTests", name: "testAdd()"},
+          %{module: "TextKitTests", suite: "TextTests", name: "testTrim()"}
+        ],
+        coverage_evidence: %{
+          paths: ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"],
+          scopes: [
+            %{
+              kind: "test",
+              module: "AppTests",
+              suite: "MathTests",
+              name: "testAdd()",
+              files: [0, 2],
+              lines: [[1, 2], [1, 1]]
+            },
+            %{kind: "test", module: "TextKitTests", suite: "TextTests", name: "testTrim()", files: [1], lines: [[1, 3]]}
+          ]
+        }
+      }
+    )
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      partial: true,
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      enumerated_tests: [%{module: "AppTests", suite: "MathTests", name: "testAdd()"}]
+    })
+  end
+
+  defp selective_testing(project, run, hits) do
+    event = CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "test", test_run_id: run.id)
+
+    for {target, hit} <- hits do
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: target,
+        selective_testing_hash: "#{target}-hash",
+        selective_testing_hit: hit
+      )
+    end
+  end
+
+  test "carries the tests of a target selective testing skipped and the workspace left out", %{
+    project: project,
+    account: account
+  } do
+    head = pruned_target_runs(project, account)
+    selective_testing(project, head, [{"AppTests", :miss}, {"TextKitTests", :local}])
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, gap_files_count: 0, carried_from: ["base"]} =
+             Reported.compute(project, "head")
+  end
+
+  test "inherits nothing for a target that is merely missing from the run", %{project: project, account: account} do
+    head = pruned_target_runs(project, account)
+    selective_testing(project, head, [{"AppTests", :miss}])
+
+    assert %{skipped_tests_count: 0, carried_tests_count: 0} = Reported.compute(project, "head")
   end
 
   test "a run that measured nothing refolds its commit, and only a measured one", %{
