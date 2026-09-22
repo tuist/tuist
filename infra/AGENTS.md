@@ -28,9 +28,11 @@ Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO
 README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 
 Kura zero-Ready availability alert artifacts and their scoped notification
-subtree live in `helm/k8s-monitoring/kura-availability-*.json`. They are
-provisioned separately from Helm. Merge the policy subtree into the current
-Grafana tree; never PUT it as a whole-tree replacement. The regression script
+routes live in `helm/k8s-monitoring/kura-availability-*.json`. They are
+provisioned separately from Helm and reflect the enabled live rule. Its separate
+`Cache availability` evaluation group must use a 60-second interval. Merge the
+three policy routes into the current Grafana tree, preserving existing staging
+exceptions first; never PUT the route array as a whole-tree replacement. The regression script
 uses promtool and amtool to check query behavior and production-only IRM routing.
 
 ### `helm/platform/` — platform bootstrap chart

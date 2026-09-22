@@ -3636,33 +3636,43 @@ Details` sync row), which have no rule yet.
 
 ### Kura instance has no ready replicas
 
-**Validated, awaiting Grafana write access (2026-09-22):** the paused Grafana provisioning payload is
-[`kura-availability-alert-rules.json`](kura-availability-alert-rules.json).
-Merging this file does not install or enable it. The live stack's folder
-(`df5dn1g4rckxsf`) and Prometheus datasource (`grafanacloud-prom`) are resolved.
-IRM's label definitions confirm the exact `affected_service=Cache` option;
-component values are case-sensitive, so lowercase `cache` will not match it.
-The first notification-policy write returned HTTP 403 despite the caller's
-reported write permissions. Neither the rule nor the routing was installed.
+**Live since 2026-09-22 19:20 UTC:** [rule `ffz1ualjy8fswd`](https://tuist.grafana.net/alerting/grafana/ffz1ualjy8fswd/view)
+is enabled in the separate **Cache availability** evaluation group, running
+**every 60 seconds** with a two-minute pending period. The existing `Cache`
+group evaluates every five minutes and is unchanged. At 19:22:30 UTC, live
+evaluation reported health `ok`, state `normal`, and all 185 instances Normal.
+
+[`kura-availability-alert-rules.json`](kura-availability-alert-rules.json)
+records the live rule, including its UID, folder and datasource. Merging this
+file does not provision Grafana. The authenticated browser successfully saved
+the configuration after the Atlas MCP policy PUT continued to return HTTP 403;
+the MCP authorization issue remains separate. Readback through the API verified
+the saved rule, 60-second group interval, and policy tree.
 
 The companion
 [`kura-availability-notification-policy.json`](kura-availability-notification-policy.json)
-is **one subtree, not a replacement for the whole notification policy**. Insert
-it before the current root's children, preserving the root and other routes:
+contains **three sibling routes**, appended after the existing staging-cluster
+and staging-env exceptions. Merge these into a fresh policy tree; preserve the
+root and other routes, and never PUT this array as a whole-tree replacement:
 
-- Match only this alert title in the `Alerts` folder.
-- `cluster=tuist-production` goes to both `Slack #notifications 2` and
-  `Incidents`; the first child uses `continue: true` to reach the second.
-- Staging, canary, unknown clusters and missing cluster labels go only to
-  `Slack #notifications-non-prod`. An `env=production` label alone cannot page.
-- Other alerts retain their current routes. This does not globally change
-  canary routing or the five rules already pinned to `Incidents`.
+- All three match only this alert title in the `Alerts` folder.
+- The first matches `cluster!=tuist-production` and selects only
+  `Slack #notifications-non-prod`, including missing and unknown cluster labels.
+- The second matches `cluster=tuist-production`, selects `Slack #notifications 2`,
+  and uses `continue: true` to also reach the third route's `Incidents` receiver.
+- An `env=production` label alone cannot page. The existing `env=staging`
+  exception remains authoritative even with a conflicting production cluster.
+- Other alerts retain their current routes, including rules pinned to `Incidents`.
 
 Do not add `notification_settings` to the rule. Its expression retains the
 cluster label used by this policy; `env` is intentionally not required.
-Non-production alerts never select the production receiver, its Atlas webhook,
-or IRM through this subtree. `affected_service` labels select a component;
-they do not by themselves configure IRM escalation or declare an incident.
+Non-production instances of this rule never select the production receiver,
+its Atlas webhook, or IRM. IRM label definitions confirmed the case-sensitive
+`affected_service=Cache` option. That label selects a component; it does not by
+itself configure IRM escalation or declare an incident. The browser routing
+preview showed 165 production instances selecting Slack plus Incidents and 20
+non-production instances selecting only non-production Slack. No synthetic
+notifications or end-to-end public status-page incident drill were performed.
 
 Historical preview against the live datasource covered 13:00–18:00 UTC on
 2026-09-22 at one-minute resolution. The query detected up to 23 unavailable
@@ -3672,23 +3682,24 @@ Grafana's evaluation state. All three environments were zero at the final
 instant check. This is a zero-Ready-replica signal, not a complete public
 cache health check: an auth-backend failure can occur while pods stay Ready.
 
-After restoring Grafana write authorization:
+For future reprovisioning or rollback:
 
-1. Read and save the current notification policy; merge the subtree into that
-   fresh policy without overwriting concurrent or unrelated changes.
-2. Provision the rule paused, using this payload. Read both resources back and
-   verify the matchers, receiver names and absence of `notification_settings`.
-3. Validate routing using Alertmanager's engine (without delivering synthetic
-   notifications), then unpause only this rule. Confirm live evaluation health
-   and inspect the existing IRM integration's escalation behavior before
-   claiming an end-to-end public incident drill succeeded.
-4. To roll back, pause the rule first, then remove only this matching subtree
-   from the current policy. Do not restore a stale whole-tree backup over
-   changes made by other operators.
+1. Read and save the current notification policy; merge the three scoped routes
+   without overwriting concurrent changes or duplicating existing routes. Keep
+   staging exceptions first and the production Slack route before Incidents.
+2. Upsert the existing rule UID from the payload. For a fresh stack, provision
+   it paused until routing is verified. Set the **Cache availability** group
+   interval to **60 seconds** separately; the per-rule API payload does not
+   carry the group interval. Do not change the existing `Cache` group interval.
+3. Read rule, group, and policies back. Verify matchers, receivers, absence of
+   rule-level notification overrides, interval, and live evaluation health.
+   Validate routing with Alertmanager's engine before enabling a fresh rule.
+4. To roll back, pause this rule first, then remove only these three scoped
+   routes from the current policy. Do not restore a stale whole-tree backup.
 
 Run `python3 infra/helm/k8s-monitoring/test-kura-availability-alert.py` with
 `promtool` and `amtool` on PATH (or set `AMTOOL` to the latter's path). The
-script tests the exact query and pending period plus nine routing cases using
+script tests the exact query and pending period plus ten routing cases using
 Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 
 ```promql

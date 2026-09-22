@@ -1,38 +1,63 @@
-{
-  "receiver": "Slack #notifications-non-prod",
-  "object_matchers": [
-    [
-      "alertname",
-      "=",
-      "Kura instance has no ready replicas"
-    ],
-    [
-      "grafana_folder",
-      "=",
-      "Alerts"
-    ]
-  ],
-  "routes": [
-    {
-      "receiver": "Slack #notifications 2",
-      "object_matchers": [
-        [
-          "cluster",
-          "=",
-          "tuist-production"
-        ]
+[
+  {
+    "object_matchers": [
+      [
+        "alertname",
+        "=",
+        "Kura instance has no ready replicas"
       ],
-      "continue": true
-    },
-    {
-      "receiver": "Incidents",
-      "object_matchers": [
-        [
-          "cluster",
-          "=",
-          "tuist-production"
-        ]
+      [
+        "cluster",
+        "!=",
+        "tuist-production"
+      ],
+      [
+        "grafana_folder",
+        "=",
+        "Alerts"
       ]
-    }
-  ]
-}
+    ],
+    "receiver": "Slack #notifications-non-prod"
+  },
+  {
+    "continue": true,
+    "object_matchers": [
+      [
+        "alertname",
+        "=",
+        "Kura instance has no ready replicas"
+      ],
+      [
+        "cluster",
+        "=",
+        "tuist-production"
+      ],
+      [
+        "grafana_folder",
+        "=",
+        "Alerts"
+      ]
+    ],
+    "receiver": "Slack #notifications 2"
+  },
+  {
+    "object_matchers": [
+      [
+        "alertname",
+        "=",
+        "Kura instance has no ready replicas"
+      ],
+      [
+        "cluster",
+        "=",
+        "tuist-production"
+      ],
+      [
+        "grafana_folder",
+        "=",
+        "Alerts"
+      ]
+    ],
+    "receiver": "Incidents"
+  }
+]

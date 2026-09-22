@@ -1,65 +1,88 @@
 [
   {
-    "uid": "kura-instance-no-ready-replicas",
-    "orgID": 1,
-    "folderUID": "df5dn1g4rckxsf",
-    "ruleGroup": "Cache",
-    "title": "Kura instance has no ready replicas",
-    "condition": "B",
+    "annotations": {
+      "description": "An instance with desired replicas has no Ready backend for at least two minutes. Treat this as unavailable cache service, not reduced redundancy. Check the public /ready endpoint, pod and node conditions, Cilium and DNS. Correlate other instances on the same node. Do not delete local data volumes to treat a node network partition; preserve data and diagnose connectivity first.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-instance-has-no-ready-replicas",
+      "summary": "Kura instance {{ $labels.statefulset }} has no ready replicas in {{ $labels.cluster }}"
+    },
+    "condition": "C",
     "data": [
       {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "(max by (cluster, namespace, statefulset) (kube_statefulset_replicas{namespace=\"kura\"}) > bool 0) * on (cluster, namespace, statefulset) (max by (cluster, namespace, statefulset) (kube_statefulset_status_replicas_ready{namespace=\"kura\"}) == bool 0)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
         "refId": "A",
-        "queryType": "instant",
         "relativeTimeRange": {
           "from": 600,
           "to": 0
-        },
-        "datasourceUid": "grafanacloud-prom",
-        "model": {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "expr": "(max by (cluster, namespace, statefulset) (kube_statefulset_replicas{namespace=\"kura\"}) > bool 0) * on (cluster, namespace, statefulset) (max by (cluster, namespace, statefulset) (kube_statefulset_status_replicas_ready{namespace=\"kura\"}) == bool 0)",
-          "instant": true,
-          "range": false,
-          "intervalMs": 1000,
-          "maxDataPoints": 43200
         }
       },
       {
-        "refId": "B",
-        "relativeTimeRange": {
-          "from": 0,
-          "to": 0
-        },
         "datasourceUid": "__expr__",
         "model": {
-          "refId": "B",
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
           "datasource": {
             "type": "__expr__",
             "uid": "__expr__"
           },
-          "type": "math",
-          "expression": "$A > 0",
+          "expression": "A",
           "intervalMs": 1000,
-          "maxDataPoints": 43200
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
         }
       }
     ],
-    "noDataState": "NoData",
     "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
     "for": "2m",
-    "isPaused": true,
+    "isPaused": false,
+    "keep_firing_for": "0s",
     "labels": {
-      "severity": "critical",
-      "affected_service": "Cache"
+      "affected_service": "Cache",
+      "severity": "critical"
     },
-    "annotations": {
-      "summary": "Kura instance {{ $labels.statefulset }} has no ready replicas in {{ $labels.cluster }}",
-      "description": "An instance with desired replicas has no Ready backend for at least two minutes. Treat this as unavailable cache service, not reduced redundancy. Check the public /ready endpoint, pod and node conditions, Cilium and DNS. Correlate other instances on the same node. Do not delete local data volumes to treat a node network partition; preserve data and diagnose connectivity first.",
-      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-instance-has-no-ready-replicas"
-    }
+    "noDataState": "NoData",
+    "orgID": 1,
+    "ruleGroup": "Cache availability",
+    "title": "Kura instance has no ready replicas",
+    "uid": "ffz1ualjy8fswd"
   }
 ]

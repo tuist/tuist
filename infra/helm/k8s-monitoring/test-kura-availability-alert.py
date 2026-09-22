@@ -11,9 +11,12 @@ import tempfile
 directory = Path(__file__).resolve().parent
 rule = json.loads((directory / "kura-availability-alert-rules.json").read_text())[0]
 query = next(item["model"]["expr"] for item in rule["data"] if item["refId"] == "A")
-assert rule["condition"] == "B"
-assert next(item["model"]["expression"] for item in rule["data"] if item["refId"] == "B") == "$A > 0"
-assert rule["isPaused"] is True
+condition = next(item["model"] for item in rule["data"] if item["refId"] == rule["condition"])
+assert condition["type"] == "threshold" and condition["expression"] == "A"
+assert len(condition["conditions"]) == 1
+assert condition["conditions"][0]["evaluator"] == {"params": [0], "type": "gt"}
+assert rule["isPaused"] is False
+assert rule["ruleGroup"] == "Cache availability"
 assert rule["noDataState"] == "NoData" and rule["execErrState"] == "Error"
 assert "notification_settings" not in rule
 assert rule["labels"]["affected_service"] == "Cache", "Match the case-sensitive IRM component ID"
@@ -69,7 +72,7 @@ tests.append({
 with tempfile.TemporaryDirectory(prefix="kura-alert-") as temporary:
     root = Path(temporary)
     rules = root / "rules.json"
-    rules.write_text(json.dumps({"groups": [{"name": "Cache", "rules": [{
+    rules.write_text(json.dumps({"groups": [{"name": rule["ruleGroup"], "interval": "1m", "rules": [{
         "alert": "KuraInstanceHasNoReadyReplicas", "expr": f"({query}) > 0",
         "for": rule["for"], "labels": rule["labels"],
     }]}]}))
@@ -80,7 +83,7 @@ with tempfile.TemporaryDirectory(prefix="kura-alert-") as temporary:
 
     # Use Alertmanager's routing engine rather than a reimplementation of its
     # sibling/continue semantics. No notifications are sent by this command.
-    policy = json.loads((directory / "kura-availability-notification-policy.json").read_text())
+    policies = json.loads((directory / "kura-availability-notification-policy.json").read_text())
 
     def alertmanager_route(route):
         converted = {key: value for key, value in route.items() if key not in ("object_matchers", "routes")}
@@ -92,7 +95,11 @@ with tempfile.TemporaryDirectory(prefix="kura-alert-") as temporary:
 
     routing = root / "routing.json"
     routing.write_text(json.dumps({
-        "route": {"receiver": "Slack #notifications 2", "routes": [alertmanager_route(policy)]},
+        "route": {"receiver": "Slack #notifications 2", "routes": [
+            {"receiver": "Slack #notifications-non-prod", "matchers": ['cluster="tuist-staging"']},
+            {"receiver": "Slack #notifications-non-prod", "matchers": ['env="staging"']},
+            *[alertmanager_route(policy) for policy in policies],
+        ]},
         "receivers": [{"name": name} for name in ("Slack #notifications 2", "Slack #notifications-non-prod", "Incidents")],
     }))
     base_labels = {"alertname": rule["title"], "grafana_folder": "Alerts"}
@@ -104,6 +111,7 @@ with tempfile.TemporaryDirectory(prefix="kura-alert-") as temporary:
         ("unknown_cluster", {"cluster": "other"}, "Slack #notifications-non-prod"),
         ("env_only", {"env": "production"}, "Slack #notifications-non-prod"),
         ("staging_with_production_env", {"cluster": "tuist-staging", "env": "production"}, "Slack #notifications-non-prod"),
+        ("production_with_staging_env", {"cluster": "tuist-production", "env": "staging"}, "Slack #notifications-non-prod"),
         ("unrelated_rule", {"alertname": "Unrelated", "cluster": "tuist-production"}, "Slack #notifications 2"),
         ("unrelated_folder", {"grafana_folder": "Other", "cluster": "tuist-production"}, "Slack #notifications 2"),
     ]:
