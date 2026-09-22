@@ -41,9 +41,21 @@ public enum ProcessEvent: Sendable {
 
 public typealias CommandEvent = ProcessEvent
 
-public enum CommandError: Error, Equatable, Sendable {
+public enum CommandError: Error, Equatable, Sendable, CustomStringConvertible {
     case executableNotFound(String)
     case terminated(Int32, stderr: String, command: [String])
+
+    public var description: String {
+        switch self {
+        case let .executableNotFound(executable):
+            "Executable not found: \(executable)"
+        case let .terminated(exitCode, stderr, command):
+            let commandDescription = command.joined(separator: " ")
+            return stderr.isEmpty
+                ? "Command terminated with exit code \(exitCode): \(commandDescription)"
+                : "Command terminated with exit code \(exitCode): \(commandDescription)\n\(stderr)"
+        }
+    }
 }
 
 private actor StandardErrorCollector {
