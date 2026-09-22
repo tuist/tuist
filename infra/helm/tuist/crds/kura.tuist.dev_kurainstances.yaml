@@ -79,14 +79,20 @@ spec:
                 privateHost:
                   type: string
                   maxLength: 253
+                # Every serving managed region renders this account hostname;
+                # advertising is a separate, readiness-gated DNS decision.
+                stableHost:
+                  type: string
+                  pattern: '^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.cache\.tuist\.dev$'
+                  maxLength: 79
+                stableAdvertise:
+                  type: boolean
+                stableAWSRegion:
+                  type: string
                 publicHost:
                   type: string
                   maxLength: 253
-                # A second customer-facing host, without a region in its name,
-                # served by the same Ingress and certificate. Set on whichever
-                # of the account's instances currently answers on it, so a
-                # client that wrote the endpoint down keeps working when the
-                # account's cache moves region.
+                # Deprecated compatibility field: gRPC shares publicHost.
                 grpcPublicHost:
                   type: string
                   maxLength: 253
@@ -221,6 +227,31 @@ spec:
             status:
               type: object
               properties:
+                stableEndpoint:
+                  type: object
+                  required: [host, setIdentifier, awsRegion, ready, observedGeneration]
+                  properties:
+                    host:
+                      type: string
+                    setIdentifier:
+                      type: string
+                    awsRegion:
+                      type: string
+                    target:
+                      type: string
+                    healthCheckID:
+                      type: string
+                    ready:
+                      type: boolean
+                    observedGeneration:
+                      type: integer
+                      format: int64
+                    lastCheckedAt:
+                      type: string
+                      format: date-time
+                    withdrawnAt:
+                      type: string
+                      format: date-time
                 phase:
                   type: string
                 endpointLastCheckedAt:

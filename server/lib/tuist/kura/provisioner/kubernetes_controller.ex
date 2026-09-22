@@ -19,6 +19,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
 
   @namespace "kura"
   # Ceiling on the peer-roles read, retries included. See `peer_roles/2`.
@@ -84,6 +85,36 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       :ok -> :ok
       {:error, :not_found} -> :ok
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc "Synchronize only stable DNS intent, independently of image rollouts and archival."
+  def sync_stable_endpoint(%Server{} = server, region, claimed \\ nil) do
+    name = server.provisioner_node_ref
+
+    with {:ok, instance} <- client_get_kura_instance(@namespace, name, region) do
+      StableEndpoint.observe(region.id, name, instance)
+      desired = StableEndpoint.intent(server, region, claimed)
+
+      changes =
+        Enum.reject(desired, fn {key, value} ->
+          current = get_in(instance, ["spec", key])
+          current == value or (is_nil(current) and value in ["", false])
+        end)
+
+      if changes == [] do
+        :ok
+      else
+        operations =
+          [%{"op" => "test", "path" => "/metadata/resourceVersion", "value" => instance["metadata"]["resourceVersion"]}] ++
+            Enum.map(changes, fn {key, value} -> %{"op" => "add", "path" => "/spec/#{key}", "value" => value} end)
+
+        Client.patch(
+          "/apis/kura.tuist.dev/v1alpha1/namespaces/#{@namespace}/kurainstances/#{name}",
+          operations,
+          kubernetes_client_opts(region)
+        )
+      end
     end
   end
 
@@ -414,6 +445,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "tolerations" => tolerations(region),
           "extraEnv" => auth_env(region, claim, entitlements)
         }
+        |> Map.merge(StableEndpoint.intent(%{server | account: account}, region))
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
     }

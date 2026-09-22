@@ -32,3 +32,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results.
 
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.
+
+- Stable cache hostname regressions cover environment collisions, distinct AWS metro tags, private exclusion, all-region readiness, stale generations/timestamps, independent rollout flags, account allowlists, demotion, and drain intent. Controller tests separately exercise gateway/provider publication gates and withdrawal through failures and restart.

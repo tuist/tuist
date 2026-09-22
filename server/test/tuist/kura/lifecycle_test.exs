@@ -18,6 +18,7 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.StorageRollup
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
@@ -1516,6 +1517,40 @@ defmodule Tuist.Kura.LifecycleTest do
 
       Lifecycle.reconcile_placement_retirements()
 
+      assert reload(source).status == :drain_pending
+      assert reload(destination).status == :active
+    end
+
+    test "stable rollout waits for the survivor to advertise before retiring" do
+      stub(Environment, :kura_stable_hostname_enabled?, fn -> true end)
+      stub(Environment, :kura_stable_hostname_accounts, fn -> [] end)
+      account = account(plan: :enterprise)
+      source = active_instance(account)
+      destination = active_instance_in(account, "eu-west")
+      with_demand(account, 0)
+      {:ok, _} = PlacerRegions.put_primary(account, @region)
+      {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+      {:ok, _} = PlacerRegions.mark_retiring(account, @region)
+
+      Lifecycle.reconcile_placement_retirements()
+      assert reload(source).status == :active
+
+      host = StableEndpoint.host(account)
+
+      StableEndpoint.observe(destination.region, destination.provisioner_node_ref, %{
+        "metadata" => %{"generation" => 1},
+        "spec" => %{"stableHost" => host, "stableAdvertise" => true},
+        "status" => %{
+          "stableEndpoint" => %{
+            "host" => host,
+            "ready" => true,
+            "observedGeneration" => 1,
+            "lastCheckedAt" => DateTime.to_iso8601(DateTime.utc_now())
+          }
+        }
+      })
+
+      Lifecycle.reconcile_placement_retirements()
       assert reload(source).status == :drain_pending
       assert reload(destination).status == :active
     end

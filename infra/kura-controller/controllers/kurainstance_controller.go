@@ -136,8 +136,12 @@ type KuraInstanceReconciler struct {
 	// cache. The egress classid allocation scan must see every claim already
 	// written — a cached List can lag a just-completed Update and hand two
 	// accounts the same minor.
-	APIReader client.Reader
-	Scheme    *runtime.Scheme
+	APIReader   client.Reader
+	StableDNS   StableDNSProvider
+	StableProbe StableHostProber
+	StableDrain time.Duration
+	stableDNSMu sync.Mutex
+	Scheme      *runtime.Scheme
 
 	// egressClassMu serializes egress classid allocation across concurrent
 	// reconciles; see reconcileEgressClassID.
@@ -319,10 +323,10 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 // does not span still gets one, which is the only way to serve a hostname
 // outside the zone.
 func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
-	host := instance.Spec.PublicHost
-	if instance.Spec.Private {
-		host = instance.Spec.PrivateHost
-	}
+	return r.sharedTLSCoversHost(ctx, instance, clientHost(instance))
+}
+
+func (r *KuraInstanceReconciler) sharedTLSCoversHost(ctx context.Context, instance *kurav1alpha1.KuraInstance, host string) bool {
 	if r.PublicTLSSecretName == "" || host == "" {
 		return false
 	}
@@ -338,7 +342,16 @@ func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, inst
 	if err != nil {
 		return false
 	}
-	return leaf.VerifyHostname(host) == nil
+	return leaf.VerifyHostname(host) == nil && time.Now().Before(leaf.NotAfter) && time.Now().After(leaf.NotBefore)
+}
+
+func (r *KuraInstanceReconciler) sharedTLSCoversAllHosts(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
+	for _, host := range stableClientHosts(instance) {
+		if !r.sharedTLSCoversHost(ctx, instance, host) {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *KuraInstanceReconciler) publicIngressTLSSecretName(ctx context.Context, instance *kurav1alpha1.KuraInstance) string {
@@ -424,6 +437,13 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
+		done, err := r.withdrawStableEndpoint(ctx, instance)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if !done {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
 		// The pre-instance public peer Service has no owner reference. Remove it
 		// with the last matching account/region instance so its load balancer and
 		// public record cannot outlive the cache. A surviving move sibling keeps
@@ -449,6 +469,16 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		controllerutil.AddFinalizer(instance, KuraInstanceFinalizer)
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
+		}
+	}
+
+	if instance.Status.StableEndpoint != nil && !stableAdvertising(instance) {
+		done, err := r.withdrawStableEndpoint(ctx, instance)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if !done && (instance.Spec.Private || instance.Spec.PublicHost == "") {
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 		}
 	}
 
@@ -516,6 +546,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	if err := r.retireLegacyGRPCCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
+	}
+	if err := r.reconcileStableEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
+		// A DNS control-plane outage must not block repairs to the cache workload.
+		// Readiness was cleared before publication; the periodic pass retries it.
+		logger.Error(err, "reconcile stable DNS advertisement")
 	}
 	if err := r.observePrivateEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
 		return ctrl.Result{}, err
@@ -1808,6 +1843,14 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 			Hosts:      []string{clientHost(instance)},
 			SecretName: r.publicIngressTLSSecretName(ctx, instance),
 		}}
+
+		for _, host := range stableClientHosts(instance)[1:] {
+			secret := publicTLSSecretName(instance)
+			if r.sharedTLSCoversHost(ctx, instance, host) {
+				secret = r.PublicTLSSecretName
+			}
+			ingress.Spec.TLS = append(ingress.Spec.TLS, networkingv1.IngressTLS{Hosts: []string{host}, SecretName: secret})
+		}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
 			Host: clientHost(instance),
 			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
@@ -1818,6 +1861,11 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 				}},
 			}},
 		}}
+		for _, host := range stableClientHosts(instance)[1:] {
+			rule := *ingress.Spec.Rules[0].DeepCopy()
+			rule.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
+		}
 		return nil
 	})
 	return err
@@ -1916,6 +1964,11 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 				Paths: paths,
 			}},
 		}}
+		for _, host := range stableClientHosts(instance)[1:] {
+			rule := *ingress.Spec.Rules[0].DeepCopy()
+			rule.Host = host
+			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
+		}
 		return nil
 	})
 	return err
@@ -2758,7 +2811,7 @@ func podOrdinal(podName, instanceName string) (int, bool) {
 // earlier in the same pass, so the Secret ingress-nginx is serving is never
 // the one deleted.
 func (r *KuraInstanceReconciler) publicIngressServesSharedTLS(ctx context.Context, instance *kurav1alpha1.KuraInstance) bool {
-	if r.PublicTLSSecretName == "" {
+	if !r.sharedTLSCoversAllHosts(ctx, instance) {
 		return false
 	}
 	ingress := &networkingv1.Ingress{}
@@ -2810,7 +2863,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 	// retire above reads, so issuance is gated on the wildcard itself. Reusing
 	// the read-back there would order a certificate for a host the wildcard
 	// already covers.
-	if r.sharedPublicTLSCovers(ctx, instance) {
+	if r.sharedTLSCoversAllHosts(ctx, instance) {
 		return nil
 	}
 
@@ -2821,7 +2874,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   dnsNames(clientHost(instance)),
+			"dnsNames":   dnsNames(stableClientHosts(instance)...),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",

@@ -27,6 +27,83 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     :ok
   end
 
+  describe "sync_stable_endpoint/3" do
+    test "disabled rollout leaves instances without stable fields untouched" do
+      stub(Tuist.Environment, :kura_stable_hostname_enabled?, fn -> false end)
+      server = %Server{account: %Account{name: "acme"}, region: "eu-west", provisioner_node_ref: "instance"}
+      expect(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, %{"spec" => %{}}} end)
+      reject(&Client.patch/3)
+      assert :ok = KubernetesController.sync_stable_endpoint(server, Regions.get("eu-west"), [])
+    end
+
+    test "patches only stable intent with an optimistic concurrency guard" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :kura_stable_hostname_enabled?, fn -> true end)
+      stub(Tuist.Environment, :kura_stable_hostname_accounts, fn -> [] end)
+      region = Regions.get("eu-west")
+
+      server = %Server{
+        account: %Account{name: "acme"},
+        region: region.id,
+        status: :active,
+        move_phase: :none,
+        provisioner_node_ref: "instance"
+      }
+
+      instance = %{"metadata" => %{"resourceVersion" => "42", "generation" => 1}, "spec" => %{"image" => "unchanged"}}
+      expect(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, instance} end)
+
+      expect(Client, :patch, fn "/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/instance",
+                                [guard | changes],
+                                [] ->
+        assert guard == %{"op" => "test", "path" => "/metadata/resourceVersion", "value" => "42"}
+
+        assert Map.new(changes, &{&1["path"], &1["value"]}) == %{
+                 "/spec/stableHost" => "acme.cache.tuist.dev",
+                 "/spec/stableAdvertise" => true,
+                 "/spec/stableAWSRegion" => "eu-west-3"
+               }
+
+        {:ok, instance}
+      end)
+
+      assert {:ok, _} = KubernetesController.sync_stable_endpoint(server, region, [region.id])
+    end
+
+    test "explicitly withdraws advertisement when draining without removing rendering" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :kura_stable_hostname_enabled?, fn -> true end)
+      stub(Tuist.Environment, :kura_stable_hostname_accounts, fn -> [] end)
+      region = Regions.get("eu-west")
+
+      server = %Server{
+        account: %Account{name: "acme"},
+        region: region.id,
+        status: :drain_pending,
+        move_phase: :none,
+        provisioner_node_ref: "instance"
+      }
+
+      instance = %{
+        "metadata" => %{"resourceVersion" => "42", "generation" => 1},
+        "spec" => %{
+          "stableHost" => "acme.cache.tuist.dev",
+          "stableAdvertise" => true,
+          "stableAWSRegion" => "eu-west-3"
+        }
+      }
+
+      expect(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, instance} end)
+
+      expect(Client, :patch, fn _, [_guard, operation], [] ->
+        assert operation == %{"op" => "add", "path" => "/spec/stableAdvertise", "value" => false}
+        {:ok, instance}
+      end)
+
+      assert {:ok, _} = KubernetesController.sync_stable_endpoint(server, region, [region.id])
+    end
+  end
+
   describe "manifest/6" do
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
