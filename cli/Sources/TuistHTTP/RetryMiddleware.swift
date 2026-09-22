@@ -10,10 +10,9 @@ public struct RetryMiddleware: ClientMiddleware {
 
     /// - Parameters:
     ///   - retriesTransportErrors: When `true` (the default) a thrown transport error,
-    ///     including a timeout, is retried. Callers on a fail-fast path, such as the CAS
-    ///     downloads that rely on the short `.tuistCAS` timeout to reach the circuit breaker
-    ///     quickly, pass `false` so a hung backend surfaces immediately. Retryable HTTP
-    ///     responses such as 503 are retried regardless of this flag.
+    ///     including a timeout, is retried. A caller on a fail-fast path passes `false` so a
+    ///     hung backend surfaces through its session timeout immediately rather than being
+    ///     replayed. Retryable HTTP responses such as 503 are retried regardless of this flag.
     public init(
         maxRetries: Int? = nil,
         baseDelayMilliseconds: UInt64? = nil,
