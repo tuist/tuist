@@ -150,10 +150,18 @@ struct TuistCacheEECanaryAcceptanceTests {
             ["--path", fixtureDirectory.pathString]
         )
 
+        let fileSystem = FileSystem()
+        let binaries = try CacheDirectoriesProvider().cacheDirectory(for: .binaries)
+        #expect(try await !fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
+        try await TuistTest.run(CleanCommand.self, ["binaries", "--path", fixtureDirectory.pathString])
+        #expect(try await fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
+
         // When: Generate with focus on App
         try await TuistTest.run(
             GenerateCommand.self, ["App", "--path", fixtureDirectory.pathString, "--no-open"]
         )
+
+        #expect(try await !fileSystem.glob(directory: binaries, include: ["action-*/result.pb"]).collect().isEmpty)
 
         // Then: Cached frameworks should be linked as xcframeworks
         try TuistAcceptanceTest.expectXCFrameworkLinked(

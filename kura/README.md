@@ -546,6 +546,38 @@ The usage pipeline follows Kura's resource discipline: bucket count, durable out
 
 ## ☸️ Deployment Options
 
+### Irreversible upgrade steps
+
+Kura's on-disk metadata store opens with an explicit RocksDB column-family
+descriptor list, and RocksDB refuses to open a database that contains a
+column family the process does not declare. A release that first
+introduces a new column family therefore closes the rollback door for
+that database volume: once a pod on that release completes `Store::open`,
+the manifest gains the new descriptor, and rolling that pod's image back
+to a predecessor fails on the next start with `Column families not
+opened`.
+
+The rollback constraint applies to a specific data volume, not to the
+release channel as a whole. Options if a rollback becomes necessary:
+
+1. Restore the pod's PersistentVolume from a pre-upgrade snapshot before
+   rolling the image back. This is the surgical recovery.
+2. Delete the pod's PersistentVolume (or empty its data directory) and
+   let it rebuild from peers. This is the safe recovery on a mesh
+   configured for peer replication.
+3. Never roll back that pod's binary past the release that declared the
+   column family. This is the normal expectation once a fleet has been
+   through the deploy.
+
+Deploys that add a new column family are called out here so an operator
+knows which releases lock in that boundary:
+
+- **Release TBD, PR #13467 — `analytics_outbox`.** Adds the RocksDB
+  column family for the future durable analytics outbox. No producer
+  writes to it in that release; the column family stays empty until a
+  follow-up release lights it up. The rollback boundary is set the
+  moment the pod first opens its data volume on this release.
+
 ### Helm And Kubernetes
 
 The repository includes a Helm chart at `ops/helm/kura` that deploys Kura as a `StatefulSet` with:
@@ -789,3 +821,5 @@ configuration that makes it do otherwise.
 ### Bazel build timelines
 
 With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON trace profile and action diagnostics to the Tuist server. Profiles supply all recorded intervals and native resource counters; the existing bounded invocation summary remains available for older builds. Delivery reads only authenticated project CAS artifacts under a background memory reservation. Profile files above 32 MiB compressed are rejected; individual diagnostic streams retain their first and last 16 KiB. The server stores normalized timelines and sanitized logs for 90 days.
+
+REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain module usage attribution. Other clients remain attributed to `reapi`; the hint does not change authentication or CAS storage. CAS batch requests count once per batch, and already-present blob uploads do not add usage.

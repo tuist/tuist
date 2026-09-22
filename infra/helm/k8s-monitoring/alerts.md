@@ -4110,6 +4110,18 @@ archival released reservations.
 
 ### Kura admission refusing instances
 
+When investigating reservations, use retention evidence rather than current
+volume occupancy alone. Claim sizing can correct moderate excess retention
+after 14 complete post-resize days with snapshots, at least seven meaningful
+eviction days, and two ring budgets of turnover. It discounts known idle whole
+days, requires adjusted retention of at least 4.5 days, and projects toward
+3.75 days. Each correction frees 10–25% of the account claim, requires every
+known pinned region to support shrinking, and restarts the observation window.
+Today's contradictory evictions veto it. Existing 30-day occupancy and
+clearly excessive-retention shrink paths still apply. The evidence is saved in
+`kura_claim_proposals`; low occupancy or one long-lived eviction is not enough
+to justify manually shrinking an instance.
+
 ```promql
 label_replace(
   sum by (cluster, region, reason) (
@@ -5650,6 +5662,13 @@ sum by (cluster) (
 - Summary: `Stable outbound controller reconciliation is failing in {{ $labels.cluster }}`
 
 ### Browser LCP percentiles
+
+**Staged replacement:** [Browser RUM quality and surface-specific LCP](browser-rum.md)
+adds collector-verified authentication, trusted collector Ray IDs and paused
+per-surface alert definitions. The legacy rules below stay active until the
+two-phase gateway rollout and baseline validation are complete. Their pooled
+September 5 baseline is historical; a six-hour Faro window must not be described
+as an official Core Web Vitals assessment.
 
 Real user monitoring for tuist.dev. These are the only rules in this document
 that read Loki rather than Prometheus, because browser telemetry arrives as log

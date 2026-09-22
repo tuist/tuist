@@ -54,8 +54,11 @@
 
         @Test(.inTemporaryDirectory) func run_handsTheHashesItComputedToTheWarmProjectGenerator() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let fingerprints = ["ios-device": "device-hash", "ios-simulator": "simulator-hash"]
+            var targetHash = TargetContentHash.test(hash: "fixtures-hash")
+            targetHash.binaryCacheFingerprints = fingerprints
 
-            try await run(noUpload: false)
+            try await run(noUpload: false, fingerprints: fingerprints)
 
             verify(generatorFactory)
                 .binaryCacheWarming(
@@ -64,9 +67,16 @@
                     configuration: .any,
                     cacheStorage: .any,
                     targetHashes: .value([
-                        TargetReference(projectPath: temporaryDirectory, name: "Fixtures"):
-                            .test(hash: "fixtures-hash"),
+                        TargetReference(projectPath: temporaryDirectory, name: "Fixtures"): targetHash,
                     ])
+                )
+                .called(1)
+            verify(cacheStorage)
+                .fetch(
+                    .matching { items in
+                        items.count == 1 && items.first?.metadata.binaryCacheFingerprints == fingerprints
+                    },
+                    cacheCategory: .value(.binaries)
                 )
                 .called(1)
         }
@@ -397,7 +407,8 @@
             scratchDirectory: AbsolutePath? = nil,
             schemes: [Scheme] = [],
             foreignBuild: ForeignBuild? = nil,
-            storeError: Error? = nil
+            storeError: Error? = nil,
+            fingerprints: [String: String] = [:]
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
@@ -435,6 +446,8 @@
                     graph: .value(graph)
                 )
                 .willReturn(resolvedConfiguration)
+            var targetHash = TargetContentHash.test(hash: "fixtures-hash")
+            targetHash.binaryCacheFingerprints = fingerprints
             given(cacheGraphContentHasher)
                 .contentHashes(
                     for: .value(graph),
@@ -443,7 +456,7 @@
                     excludedTargets: .value([]),
                     destination: .value(nil)
                 )
-                .willReturn([graphTarget: .test(hash: "fixtures-hash")])
+                .willReturn([graphTarget: targetHash])
             given(cacheStorage)
                 .fetch(.any, cacheCategory: .value(.binaries))
                 .willReturn([:])

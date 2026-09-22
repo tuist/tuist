@@ -258,6 +258,7 @@ import XcodeGraph
                 projectPath: projectPath,
                 configuration: configuration,
                 hashesByTargetToBeCached: cacheableTargets,
+                fingerprints: hashedGraph.fingerprints,
                 cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
                 noUpload: noUpload,
                 isReleaseConfiguration: isReleaseConfiguration,
@@ -294,6 +295,7 @@ import XcodeGraph
             projectPath: AbsolutePath,
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
@@ -309,6 +311,7 @@ import XcodeGraph
                             projectPath: projectPath,
                             configuration: configuration,
                             hashesByTargetToBeCached: hashesByTargetToBeCached,
+                            fingerprints: fingerprints,
                             cacheStorage: cacheStorage,
                             isReleaseConfiguration: isReleaseConfiguration,
                             in: temporaryDirectory,
@@ -325,6 +328,7 @@ import XcodeGraph
                         projectPath: projectPath,
                         configuration: configuration,
                         hashesByTargetToBeCached: hashesByTargetToBeCached,
+                        fingerprints: fingerprints,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
                         in: path,
@@ -361,6 +365,7 @@ import XcodeGraph
             projectPath: AbsolutePath,
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             isReleaseConfiguration: Bool,
             in scratchDirectory: AbsolutePath,
@@ -477,6 +482,7 @@ import XcodeGraph
             do {
                 successfullyStoredTargets = try await store(
                     artifactsToStore,
+                    fingerprints: fingerprints,
                     cacheStorage: cacheStorage,
                     scratchDirectory: scratchDirectory
                 )
@@ -1086,6 +1092,7 @@ import XcodeGraph
 
         private func store(
             _ artifacts: [CacheGraphTargetBuiltArtifact],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             scratchDirectory: AbsolutePath
         ) async throws -> [CacheStorableTarget] {
@@ -1093,14 +1100,18 @@ import XcodeGraph
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
                     .reduce(into: [CacheStorableTarget: [AbsolutePath]]()) { acc, next in
-                        acc[CacheStorableTarget(target: next.graphTarget, hash: next.hash)] = [next.path]
+                        acc[CacheStorableTarget(
+                            target: next.graphTarget,
+                            hash: next.hash,
+                            metadata: .init(binaryCacheFingerprints: fingerprints[next.hash] ?? [:])
+                        )] = [next.path]
                     }.concurrentMap { storableTarget, paths in
                         let metadataFilePath = scratchDirectory.appending(
                             components: "Metadatas",
                             "\(storableTarget.name)-\(storableTarget.hash)",
                             "Metadata.plist"
                         )
-                        let metadata = CacheStorableItemMetadata()
+                        let metadata = storableTarget.metadata
                         try await fileSystem.makeDirectory(at: metadataFilePath.parentDirectory)
                         try await fileSystem.writeAsPlist(metadata, at: metadataFilePath)
                         var paths = paths
@@ -1174,7 +1185,11 @@ import XcodeGraph
             }
 
             let cacheItems = try await cacheStorage.fetch(
-                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value.hash) }),
+                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(
+                    name: $0.key.target.name,
+                    hash: $0.value.hash,
+                    metadata: .init(binaryCacheFingerprints: $0.value.binaryCacheFingerprints)
+                ) }),
                 cacheCategory: .binaries
             )
 
@@ -1204,7 +1219,11 @@ import XcodeGraph
                 targetsToBuild: cacheableTargets.compactMap {
                     existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
                 },
-                hashes: reusableHashes
+                hashes: reusableHashes,
+                fingerprints: Dictionary(
+                    selectedHashesByCacheableTarget.values.map { ($0.hash, $0.binaryCacheFingerprints) },
+                    uniquingKeysWith: { first, _ in first }
+                )
             )
         }
     }
@@ -1221,7 +1240,14 @@ import XcodeGraph
         /// reference rather than by graph target, because the warm project is a different graph.
         let targetHashes: [TargetReference: TargetContentHash]
 
-        init(targetsToBuild: [(GraphTarget, String)], hashes: [GraphTarget: TargetContentHash]) {
+        let fingerprints: [String: [String: String]]
+
+        init(
+            targetsToBuild: [(GraphTarget, String)],
+            hashes: [GraphTarget: TargetContentHash],
+            fingerprints: [String: [String: String]] = [:]
+        ) {
+            self.fingerprints = fingerprints
             self.targetsToBuild = targetsToBuild
             targetHashes = Dictionary(
                 uniqueKeysWithValues: hashes.map {

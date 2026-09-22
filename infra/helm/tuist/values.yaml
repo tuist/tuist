@@ -512,6 +512,11 @@ server:
     # server Ingress in the same upgrade that renders it here.
     receiverHost: ""
     receiverPort: 12347
+    # Route through Phoenix to add session-authentication and trusted Ray ID
+    # context before forwarding to Alloy. Requires collectorUrl /-/faro/collect.
+    # Enable only after all server pods contain the gateway (two-phase rollout).
+    gateway:
+      enabled: false
   # Refuse a new Kura instance before it can use the region's reserved storage
   # headroom. This must remain enabled on hosted deployments.
   kuraCapacityAdmission:

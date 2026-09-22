@@ -6,6 +6,7 @@ import Path
 import Testing
 import TuistAppleArchiver
 import TuistAutomation
+import TuistCore
 import TuistGit
 import TuistServer
 @testable import TuistKit
@@ -810,6 +811,143 @@ struct ShardPlanServiceTests {
         // The module universe is untouched. A skipped module's products still have to be downloaded
         // for the bundle to load, and whether its skips cover everything isn't knowable here.
         #expect(sentModules.value == ["AppUITests", "SmokeTests"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_restrictsAModuleToTheRequestedSuites() async throws {
+        // A suite-level `--test-targets` never reaches the products: xcodebuild does not record a
+        // command-line `-only-testing` into the `.xctestrun`. Sending nothing would leave the module
+        // looking unrestricted and its suites would be resolved from history, planning work the run
+        // never asked for.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            TestTargetFixture(blueprintName: "AppUITests"),
+                            TestTargetFixture(blueprintName: "AppTests"),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+
+        let sentModules = LockedValue<[String]?>(nil)
+        let sentTestSuites = LockedValue<[String]?>(nil)
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                parallelizableModules: .any,
+                testSuites: .any,
+                skippedTestSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any,
+                gitBranch: .any
+            )
+            .willProduce { _, _, _, modules, _, testSuites, _, _, _, _, _, _, _, _ in
+                sentModules.mutate { $0 = modules }
+                sentTestSuites.mutate { $0 = testSuites }
+                return Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            }
+
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            projectPath: temporaryDirectory,
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            requestedTestIdentifiers: [
+                try TestIdentifier(target: "AppUITests", class: "CartA11yTests"),
+                try TestIdentifier(target: "AppUITests", class: "CheckoutA11yTests"),
+            ],
+            skipUpload: true,
+            archivePath: temporaryDirectory.appending(components: "artifacts", "bundle.aar")
+        )
+
+        #expect(sentModules.value == ["AppUITests"])
+        #expect(sentTestSuites.value == ["AppUITests/CartA11yTests", "AppUITests/CheckoutA11yTests"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_failsWhenTheRequestMatchesNothingTheBundleCanRun() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(testTargets: [TestTargetFixture(blueprintName: "AppTests")]),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: MockCreateShardPlanServicing(),
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        await #expect(throws: ShardPlanServiceError.noRequestedTestModulesFound(["AppTests"])) {
+            _ = try await subject.plan(
+                xctestproductsPath: testProductsPath,
+                projectPath: temporaryDirectory,
+                reference: "ref",
+                shardGranularity: .suite,
+                shardMin: nil,
+                shardMax: nil,
+                shardTotal: 1,
+                shardMaxDuration: nil,
+                fullHandle: "tuist/tuist",
+                serverURL: try #require(URL(string: "https://tuist.dev")),
+                buildRunId: nil,
+                requestedTestIdentifiers: [try TestIdentifier(target: "AppUITests")],
+                skipUpload: true,
+                archivePath: temporaryDirectory.appending(components: "artifacts", "bundle.aar")
+            )
+        }
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

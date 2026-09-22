@@ -129,17 +129,17 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
     end
 
     # A newer Kura node sends event_id alongside the fields the current
-    # controller pattern-matches on. An older server must accept the payload
-    # and drop the unknown fields silently, so an on-premise customer whose
-    # Kura upgrades ahead of their server is never blocked. If a future
-    # change to this controller starts rejecting unknown keys, this test
-    # fails and forces a review.
-    test "accepts new-shape events with event_id and drops the unknown field silently",
+    # controller pattern-matches on. The server preserves it as the row's
+    # id so a retried batch dedupes via Tuist.Ingestion.DedupToken on the
+    # INSERT block. event_id remains optional for pre-event_id Kura nodes.
+    test "preserves event_id from the producer when present",
          %{conn: conn, project: project} do
+      event_id = "01930c0e-6e2a-7a91-9a1c-1f4e5c2d3a4b"
+
       events_params = %{
         "events" => [
           %{
-            "event_id" => "01930c0e-6e2a-7a91-9a1c-1f4e5c2d3a4b",
+            "event_id" => event_id,
             "account_handle" => project.account.name,
             "project_handle" => project.name,
             "client_kind" => "bazel",
@@ -168,6 +168,7 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       events = ClickHouseRepo.all(from(e in CacheEvent, where: e.project_id == ^project.id))
       assert length(events) == 1
       [event] = events
+      assert event.id == event_id
       assert event.action_digest == "content-digest-newer-kura"
     end
 

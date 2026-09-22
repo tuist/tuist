@@ -1,5 +1,6 @@
 defmodule Tuist.Oban.RuntimeConfigTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Tuist.Accounts.Workers.DormantOperatorAccountsWorker
   alias Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker
@@ -8,6 +9,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Billing.Workers.SyncStripeMetersWorker
   alias Tuist.Environment
   alias Tuist.Kura.Reconciler, as: KuraReconciler
+  alias Tuist.Kura.Workers.ArchiveInactiveInstancesWorker
   alias Tuist.Kura.Workers.ClaimSizingWorker
   alias Tuist.Oban.RuntimeConfig
   alias Tuist.Ops.DailySlackReportWorker
@@ -28,6 +30,8 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
   alias Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker
+
+  setup :verify_on_exit!
 
   @cache_retention_workers [
     DeleteExpiredCasCacheArtifactsWorker,
@@ -66,6 +70,14 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   end
 
   describe "crontab/4" do
+    test "hosted archival sweeps hourly, with a configurable cadence" do
+      assert {"@hourly", ArchiveInactiveInstancesWorker} in RuntimeConfig.crontab(:web, :prod, true)
+
+      stub(Environment, :kura_archival_sweep_cron, fn -> "*/30 * * * *" end)
+
+      assert {"*/30 * * * *", ArchiveInactiveInstancesWorker} in RuntimeConfig.crontab(:web, :prod, true)
+    end
+
     test "empty for every non-web mode in every prod-like env, regardless of hosted state" do
       for mode <- Environment.modes(),
           mode != :web,

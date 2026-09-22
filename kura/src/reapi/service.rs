@@ -351,7 +351,7 @@ impl ReapiService {
         usage.record_public_grpc_download(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
-            REAPI_USAGE_ARTIFACT_KIND,
+            reapi_usage_artifact_kind(metadata),
             bytes,
         );
     }
@@ -370,7 +370,7 @@ impl ReapiService {
         usage.record_public_grpc_upload(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
-            REAPI_USAGE_ARTIFACT_KIND,
+            reapi_usage_artifact_kind(metadata),
             bytes,
         );
     }
@@ -3972,6 +3972,16 @@ fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
 const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handle"];
 
 const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
+
+fn reapi_usage_artifact_kind(metadata: &tonic::metadata::MetadataMap) -> &'static str {
+    match metadata
+        .get("x-tuist-artifact-kind")
+        .and_then(|value| value.to_str().ok())
+    {
+        Some("module") => "module",
+        _ => REAPI_USAGE_ARTIFACT_KIND,
+    }
+}
 
 #[derive(Default)]
 struct ReapiRequestMetadata {
@@ -9751,6 +9761,16 @@ mod tests {
     // blob is not billed a second time — matching the HTTP upload path.
     #[tokio::test]
     async fn cas_batch_transfers_record_grpc_usage_events() {
+        for (hint, expected) in [
+            (None, "reapi"),
+            (Some("module"), "module"),
+            (Some("unbounded-kind"), "reapi"),
+        ] {
+            check_cas_batch_usage(hint, expected).await;
+        }
+    }
+
+    async fn check_cas_batch_usage(hint: Option<&str>, expected: &str) {
         let context = test_context(|config| {
             config.usage = Some(test_usage_config());
         })
@@ -9789,6 +9809,11 @@ mod tests {
             update
                 .metadata_mut()
                 .insert("x-tuist-account-handle", "acme".parse().unwrap());
+            if let Some(hint) = hint {
+                update
+                    .metadata_mut()
+                    .insert("x-tuist-artifact-kind", hint.parse().unwrap());
+            }
             add_direct_write_admission(&context.state, &mut update, CAS_BATCH_UPDATE_DECODE_COPIES);
             update
         };
@@ -9821,6 +9846,10 @@ mod tests {
         });
         read.metadata_mut()
             .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        if let Some(hint) = hint {
+            read.metadata_mut()
+                .insert("x-tuist-artifact-kind", hint.parse().unwrap());
+        }
         service
             .batch_read_blobs(read)
             .await
@@ -9842,7 +9871,7 @@ mod tests {
         assert_eq!(upload.traffic_plane, "public");
         assert_eq!(upload.direction, "ingress");
         assert_eq!(upload.protocol, "grpc");
-        assert_eq!(upload.artifact_kind, "reapi");
+        assert_eq!(upload.artifact_kind, expected);
         // Two blobs stored across two RPCs, but only the first RPC stored new
         // bytes and each batch RPC books one request: request_count == 1, and the
         // stale re-upload added nothing.
@@ -9858,7 +9887,7 @@ mod tests {
         assert_eq!(download.traffic_plane, "public");
         assert_eq!(download.direction, "egress");
         assert_eq!(download.protocol, "grpc");
-        assert_eq!(download.artifact_kind, "reapi");
+        assert_eq!(download.artifact_kind, expected);
         // One batch read of two blobs is one request carrying both blobs' bytes.
         assert_eq!(download.bytes, total_bytes);
         assert_eq!(download.request_count, 1);

@@ -145,16 +145,28 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
 
     private func process(generatedFilesCleanup descriptor: GeneratedFilesCleanupDescriptor) async throws {
         for directory in descriptor.directories.sorted(by: { $0.pathString < $1.pathString }) {
-            guard try await fileSystem.exists(directory, isDirectory: true) else { continue }
+            guard try await fileSystem.exists(directory, isDirectory: true),
+                  try await !isSymbolicLink(directory)
+            else { continue }
 
-            let activeFiles = descriptor.activeFilesByDirectory[directory] ?? []
+            let pathKey = try filePathKey(in: directory)
+            let activeFileKeys = Set((descriptor.activeFilesByDirectory[directory] ?? []).map(pathKey))
             let generatedFiles = try await generatedFiles(matching: descriptor, in: directory)
             for generatedFile in generatedFiles.sorted(by: { $0.pathString < $1.pathString })
-                where !activeFiles.contains(generatedFile)
+                where !activeFileKeys.contains(pathKey(generatedFile))
             {
                 guard try await !hasSymbolicLinkAncestor(generatedFile, under: directory) else { continue }
                 try await removeExistingEntry(generatedFile)
             }
+        }
+    }
+
+    private func filePathKey(in directory: AbsolutePath) throws -> (AbsolutePath) -> String {
+        // Case-only writes retain the original directory-entry spelling on case-insensitive volumes.
+        let values = try directory.url.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey])
+        let isCaseSensitive = values.volumeSupportsCaseSensitiveNames ?? true
+        return { path in
+            isCaseSensitive ? path.pathString : path.pathString.lowercased()
         }
     }
 

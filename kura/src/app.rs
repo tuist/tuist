@@ -241,6 +241,17 @@ async fn initialize_and_serve(
     .map_err(|error| format!("store open task failed: {error}"))??;
     bootstrap.recovery.check_running()?;
     store.set_startup_recovery(bootstrap.recovery.clone());
+    // Publish the analytics outbox depth once at startup. The column
+    // family exists from this release forward but has no producer yet, so
+    // the initial count is 0. Setting it here makes the gauge appear in
+    // Prometheus scrape output from day one, so operators watching the
+    // rollout of the follow-up producer PR see the metric go from 0 to a
+    // non-zero value instead of the gauge appearing for the first time
+    // under load.
+    match store.analytics_outbox_entry_count() {
+        Ok(count) => metrics.update_analytics_outbox_depth(count),
+        Err(error) => tracing::warn!(%error, "failed to read analytics outbox depth at startup"),
+    }
     let store = Arc::new(store);
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
