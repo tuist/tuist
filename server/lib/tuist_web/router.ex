@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Plugs.PublicPageHeaderPlug
   import TuistWeb.RateLimit
 
+  alias TuistWeb.GoogleOneTap
   alias TuistWeb.LiveHooks.PublicPageChallenge
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
@@ -18,6 +19,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
+  alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
@@ -94,6 +96,26 @@ defmodule TuistWeb.Router do
     put_content_security_policy(conn, Keyword.put(csp_opts(conn), :frame_ancestors, "*"))
   end
 
+  def google_one_tap_content_security_policy(conn, _opts) do
+    if GoogleOneTap.enabled?(conn.assigns[:current_user]) do
+      sources = [
+        script_src_elem: "https://accounts.google.com/gsi/client",
+        style_src_elem: "https://accounts.google.com/gsi/style",
+        frame_src: "https://accounts.google.com/gsi/",
+        connect_src: "https://accounts.google.com/gsi/"
+      ]
+
+      policy =
+        Enum.reduce(sources, csp_opts(conn), fn {directive, source}, opts ->
+          Keyword.update!(opts, directive, &(&1 <> " " <> source))
+        end)
+
+      put_content_security_policy(conn, policy)
+    else
+      conn
+    end
+  end
+
   pipeline :browser_app do
     plug :put_request_kind, "page_load"
     plug :accepts, ["html"]
@@ -115,6 +137,20 @@ defmodule TuistWeb.Router do
     plug SentryContextPlug
     plug ObservabilityContextPlug
     plug :content_security_policy
+  end
+
+  pipeline :google_one_tap do
+    plug :google_one_tap_content_security_policy
+  end
+
+  # Marketing pages are stored by shared caches without Set-Cookie, so the
+  # CSRF token embedded in the HTML belongs to whichever session produced the
+  # cached copy and never validates for the visitors it is served to. Requests
+  # posted from those pages prove same-origin through browser-set headers
+  # instead. Pipe it ahead of a pipeline that plugs :protect_from_forgery, and
+  # only through scopes that hold nothing but the routes meant to be exempt.
+  pipeline :same_origin_csrf_exemption do
+    plug SameOriginCSRFExemptionPlug
   end
 
   pipeline :browser_app_image do
@@ -181,7 +217,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing do
     plug :put_request_kind, "marketing"
     plug MarkdownNegotiationPlug
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "json"]
     plug :enable_robot_indexing
     plug :mark_public_marketing_page
     plug LegacyRedirectsPlug
@@ -197,6 +233,7 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
     plug :assign_current_path
     plug :content_security_policy
+    plug :google_one_tap_content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :redirect_to_localized_route
     plug Localization, :put_locale
@@ -319,6 +356,9 @@ defmodule TuistWeb.Router do
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
     redirect("/case-studies", "/customers", :permanent, preserve_query_string: true)
     redirect("/case-studies/:slug", "/customers/:slug", :permanent, preserve_query_string: true)
+    # The flaky-tests and test-insights pages folded into the tests page.
+    redirect("/flaky-tests", "/tests", :permanent, preserve_query_string: true)
+    redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
 
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: @marketing_route_metadata
 
@@ -447,29 +487,46 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
-      post Path.join(locale_path_prefix, "/newsletter"),
-           MarketingController,
-           :newsletter_signup,
-           metadata: %{type: :marketing},
-           private: private
-
       get Path.join(locale_path_prefix, "/newsletter/verify"),
           MarketingController,
           :newsletter_verify,
           metadata: @marketing_route_metadata,
           private: private
 
-      post Path.join(locale_path_prefix, "/newsletter/verify"),
-           MarketingController,
-           :newsletter_confirm,
-           metadata: @marketing_route_metadata,
-           private: private
-
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
           MarketingController,
           :newsletter_issue,
           metadata: @marketing_route_metadata,
           private: private
+    end
+  end
+
+  # The newsletter forms are submitted from cached marketing pages whose
+  # embedded CSRF token belongs to another session.
+  scope "/" do
+    pipe_through [
+      :open_api,
+      :same_origin_csrf_exemption,
+      :browser_marketing,
+      :assign_current_path
+    ]
+
+    for locale <- ["en"] ++ Localization.additional_locales() do
+      locale_path_prefix = Localization.locale_path_prefix(locale)
+
+      private = %{locale: locale}
+
+      post Path.join(locale_path_prefix, "/newsletter"),
+           MarketingController,
+           :newsletter_signup,
+           metadata: %{type: :marketing},
+           private: private
+
+      post Path.join(locale_path_prefix, "/newsletter/verify"),
+           MarketingController,
+           :newsletter_confirm,
+           metadata: @marketing_route_metadata,
+           private: private
     end
   end
 
@@ -892,12 +949,18 @@ defmodule TuistWeb.Router do
     post "/runners/volume-head", RunnersController, :report_volume_head
     post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
     get "/runners/desired_replicas", RunnersController, :desired_replicas
+    get "/runners/shadow_snapshot", RunnerShadowController, :snapshot
     get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
     get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
     post "/runners/jobs/logs", RunnerJobReportsController, :logs
     post "/runners/jobs/finish", RunnerJobReportsController, :finish
+    post "/runners/jobs/cache/download", RunnerJobCacheController, :download
+    post "/runners/jobs/cache/uploads", RunnerJobCacheController, :start_upload
+    post "/runners/jobs/cache/uploads/part", RunnerJobCacheController, :upload_part
+    post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
+    post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
   end
 
   scope "/api/internal", TuistWeb.Internal do
@@ -1021,7 +1084,7 @@ defmodule TuistWeb.Router do
   ## Authentication routes
 
   scope "/", TuistWeb do
-    pipe_through [:browser_app, :redirect_if_user_is_authenticated]
+    pipe_through [:browser_app, :redirect_if_user_is_authenticated, :google_one_tap]
 
     live_session :redirect_if_user_is_authenticated,
       on_mount: [{TuistWeb.Authentication, :redirect_if_user_is_authenticated}] do
@@ -1041,6 +1104,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_app, :require_authenticated_user, :analytics]
 
     live_session :require_authenticated_user,
+      session: {TuistWeb.RemoteIp, :live_session, []},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
         {TuistWeb.Locale, :assign_locale}
@@ -1062,8 +1126,16 @@ defmodule TuistWeb.Router do
     end
   end
 
+  # The One Tap start request is fetched from cached marketing pages and
+  # returns a fresh token for the credential form, which stays CSRF-protected.
+  scope "/auth", TuistWeb do
+    pipe_through [:same_origin_csrf_exemption, :browser_app]
+    post "/google/one-tap/start", AuthController, :google_one_tap_start
+  end
+
   scope "/auth", TuistWeb do
     pipe_through [:browser_app]
+    post "/google/one-tap", AuthController, :google_one_tap
     get "/complete-signup", AuthController, :complete_signup
     get "/cancel-pending-signup", AuthController, :cancel_pending_signup
   end
@@ -1229,6 +1301,7 @@ defmodule TuistWeb.Router do
 
     live_session :public_account,
       layout: {TuistWeb.Layouts, :account},
+      session: {TuistWeb.RemoteIp, :live_session, []},
       on_mount: [
         PublicPageChallenge,
         {TuistWeb.Authentication, :mount_current_user},

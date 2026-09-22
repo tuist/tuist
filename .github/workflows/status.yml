@@ -33,7 +33,7 @@ jobs:
     name: Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
@@ -53,7 +53,7 @@ jobs:
     name: Style
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
@@ -73,7 +73,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache
@@ -93,7 +93,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Restore Aube Cache

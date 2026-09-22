@@ -38,6 +38,7 @@ public enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertib
         case createGeneratedProject
     #endif
     case connectGradleProject
+    case connectBazelWorkspace
 
     public var description: String {
         switch self {
@@ -51,6 +52,7 @@ public enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertib
             case .createGeneratedProject: "Create a generated project"
         #endif
         case .connectGradleProject: "Integrate a Gradle project"
+        case .connectBazelWorkspace: "Integrate a Bazel workspace"
         }
     }
 }
@@ -72,9 +74,9 @@ public enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertibl
 @Mockable
 protocol InitPrompting {
     func promptWorkflowType(
-        xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?
+        xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?,
+        bazelWorkspaceDetected: Bool
     ) -> InitPromptingWorkflowType
-    func promptIntegrateWithServer() -> Bool
     func promptAccountType(authenticatedUserHandle: String, organizations: [String])
         -> InitPromptingAccountType
     func promptNewOrganizationAccountHandle() -> String
@@ -110,14 +112,17 @@ struct InitPrompter: InitPrompting {
 
     #if os(macOS)
         func promptWorkflowType(
-            xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?
+            xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?,
+            bazelWorkspaceDetected: Bool
         ) -> InitPromptingWorkflowType {
-            let promptOptions = [
-                InitPromptingWorkflowType.createGeneratedProject,
-                InitPromptingWorkflowType.connectProjectOrSwiftPackage(
-                    xcodeProjectOrWorkspace?.name),
-                InitPromptingWorkflowType.connectGradleProject,
+            var promptOptions: [InitPromptingWorkflowType] = [
+                .createGeneratedProject,
+                .connectProjectOrSwiftPackage(xcodeProjectOrWorkspace?.name),
+                .connectGradleProject,
             ]
+            if bazelWorkspaceDetected {
+                promptOptions.append(.connectBazelWorkspace)
+            }
             return Noora.current.singleChoicePrompt(
                 title: "Start",
                 question: "How would you like to start with Tuist?",
@@ -126,11 +131,15 @@ struct InitPrompter: InitPrompting {
         }
     #else
         func promptWorkflowType(
-            xcodeProjectOrWorkspace _: InitCommandService.XcodeProjectOrWorkspace?
+            xcodeProjectOrWorkspace _: InitCommandService.XcodeProjectOrWorkspace?,
+            bazelWorkspaceDetected: Bool
         ) -> InitPromptingWorkflowType {
-            let promptOptions = [
-                InitPromptingWorkflowType.connectGradleProject,
+            var promptOptions: [InitPromptingWorkflowType] = [
+                .connectGradleProject,
             ]
+            if bazelWorkspaceDetected {
+                promptOptions.append(.connectBazelWorkspace)
+            }
             return Noora.current.singleChoicePrompt(
                 title: "Start",
                 question: "How would you like to start with Tuist?",
@@ -138,16 +147,6 @@ struct InitPrompter: InitPrompting {
             )
         }
     #endif
-
-    func promptIntegrateWithServer() -> Bool {
-        Noora.current.yesOrNoChoicePrompt(
-            title: "Server",
-            question: "Would you like use server features (e.g. selective testing, previews)?",
-            defaultAnswer: true,
-            description: "You'll need to authenticate and create a project",
-            collapseOnSelection: true
-        )
-    }
 
     func promptGeneratedProjectPlatform() -> String {
         Noora.current.singleChoicePrompt(

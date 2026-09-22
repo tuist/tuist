@@ -89,16 +89,22 @@ Unlike the server and app, the CLI is not promoted to a stable release on every 
 | Channel | Version | Cut by |
 |---------|---------|--------|
 | Canary | `X.Y.0-canary.N` | Automatically, on every CLI-touching push to `main` (`cli-release.yml`) |
-| Release candidate | `X.Y.0-rc.N` | Manually, on a `releases/<major>.<minor>.x` branch (`cli-rc.yml`) |
-| Stable | `X.Y.Z` | Manually, by promoting a soaked RC (`cli-promote.yml`); patches via `cli-backport.yml` |
+| Release candidate | `X.Y.0-rc.N` | Every Monday, or manually, on a `releases/<major>.<minor>.x` branch (`cli-rc.yml`) |
+| Stable | `X.Y.Z` | Every Monday, or manually, by promoting a soaked RC (`cli-promote.yml`); patches via `cli-backport.yml` |
 
 Canary and RC builds are published as GitHub prereleases (never marked "Latest", never pushed to Homebrew), so package managers only resolve them on explicit opt-in. Canary always targets the next unreleased minor: once an RC line is cut, `main`'s canary advances to the following minor.
 
 You never hand-pick version numbers. Every channel's next version is derived from the existing git tags by `mise/tasks/cli/release/channel-version.sh`, which the workflows below invoke.
 
+### Weekly schedule
+
+Every Monday at 06:00 UTC, **CLI Promote to Stable** promotes the newest RC line that is not yet stable, which is normally the line cut the previous Monday. If there is no such line, it publishes nothing. When it completes, whatever the outcome, **CLI Release Candidate** cuts the next line from `main`.
+
+If either scheduled run fails or is cancelled, a message is posted to Slack. A promotion fails when the release branch has commits after its latest RC. To ship that line, cut a new RC on it and promote it manually. Otherwise, the next Monday promotes the newer line instead.
+
 ### Cutting a release candidate
 
-When the next minor is ready to soak, cut a new line:
+To cut a new line outside the weekly schedule:
 
 1. Run the **CLI Release Candidate** workflow (`cli-rc.yml`) with an empty `branch` input.
 2. It publishes `X.Y.0-rc.1` and, after that succeeds, creates the protected `releases/X.Y.x` branch at the built commit.
@@ -112,7 +118,7 @@ A soaking line is feature-frozen: only critical fixes and regressions go onto it
 
 ### Promoting to stable
 
-After the RC has soaked cleanly (about a week):
+To promote a line outside the weekly schedule, after its RC has soaked cleanly:
 
 1. Run the **CLI Promote to Stable** workflow (`cli-promote.yml`) with `branch=releases/X.Y.x`.
 2. It publishes the bare `X.Y.0` tag with `make_latest=true` and updates the Homebrew formula.
@@ -156,8 +162,8 @@ The server, Kura, the Helm chart, and the infrastructure images release through 
 The CLI has its own set of workflows:
 
 - `cli-release.yml` - publishes a canary on every CLI-touching push to main
-- `cli-rc.yml` - manually cuts or iterates a release candidate
-- `cli-promote.yml` - manually promotes a soaked RC to stable
+- `cli-rc.yml` - cuts a release candidate every Monday, or manually cuts or iterates one
+- `cli-promote.yml` - promotes the pending RC to stable every Monday, or manually promotes a soaked RC
 - `cli-backport.yml` - manually cuts a patch on a stable line
 - `cli-build-publish.yml` - the shared build and publish pipeline the four above call
 

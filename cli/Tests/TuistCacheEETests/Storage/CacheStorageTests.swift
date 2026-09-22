@@ -183,6 +183,24 @@ struct CacheStorageTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func store_writes_the_local_cache_when_remote_uploads_fail() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testPath = temporaryDirectory.appending(component: "test.framework")
+        try await FileSystem().makeDirectory(at: testPath)
+        let item = CacheStorableItem(name: "target", hash: "hash")
+        let uploadError = CacheUploadError(failures: [CacheUploadFailure(item: item, reason: "request timed out")])
+        given(localStorage).store(.any, cacheCategory: .any).willReturn([item])
+        given(remoteStorage).store(.any, cacheCategory: .any).willThrow(uploadError)
+
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store([item: [testPath]], cacheCategory: .binaries)
+        }
+
+        #expect(error == uploadError)
+        verify(localStorage).store(.value([item: [testPath]]), cacheCategory: .value(.binaries)).called(1)
+    }
+
+    @Test(.inTemporaryDirectory)
     func fetch_when_item_present_in_the_local_cache() async throws {
         // Given
         let cacheStorableItem = CacheStorableItem(name: "targetName", hash: "1234")

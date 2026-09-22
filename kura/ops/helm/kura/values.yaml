@@ -39,6 +39,10 @@ service:
   # listener (KURA_PORT = httpPort). This chart requires a Kura image with
   # the co-hosted listener (releases after kura@0.10.15).
   httpPort: 4000
+  # Optional gRPC-only h2c port (KURA_GATEWAY_GRPC_PORT). Set it when the gRPC
+  # Ingress is served by ingress-nginx with upstream keepalive, so gRPC and HTTP
+  # connections to a pod never share one pool; grpcIngress then routes here.
+  gatewayGrpcPort: 0
 
 peerTls:
   enabled: false

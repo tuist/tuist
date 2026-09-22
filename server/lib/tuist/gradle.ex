@@ -16,6 +16,7 @@ defmodule Tuist.Gradle do
   alias Tuist.Gradle.CacheEvent
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Gradle.Task
+  alias Tuist.Ingestion.DedupToken
   alias Tuist.IngestRepo
 
   @doc """
@@ -495,7 +496,11 @@ defmodule Tuist.Gradle do
     entries =
       Enum.map(events, fn event ->
         %{
-          id: UUIDv7.generate(),
+          # A producer-supplied `event_id` becomes the row's identity. Falls
+          # back to a server-minted UUIDv7 for an older Kura node that has
+          # not started emitting event_id yet, so wire-old clients keep
+          # working while new ones become dedup-safe.
+          id: Map.get(event, :event_id) || UUIDv7.generate(),
           action: event.action,
           cache_key: event.cache_key,
           size: event.size,
@@ -507,11 +512,31 @@ defmodule Tuist.Gradle do
           account_handle: event.account_handle,
           project_handle: event.project_handle,
           cache_endpoint: event.cache_endpoint,
-          inserted_at: now
+          # A producer-supplied `observed_at_ms` becomes the row's
+          # `inserted_at`, so a retry that lands later still records the
+          # original observation time. Falls back to `now()` for old Kura.
+          inserted_at: observed_at(event, now)
         }
       end)
 
-    IngestRepo.insert_all(CacheEvent, entries)
+    IngestRepo.insert_all(
+      CacheEvent,
+      entries,
+      DedupToken.insert_all_opts(events, "gradle-cache-events")
+    )
+  end
+
+  defp observed_at(event, fallback) do
+    case Map.get(event, :observed_at_ms) do
+      value when is_integer(value) and value >= 0 ->
+        case DateTime.from_unix(value, :millisecond) do
+          {:ok, dt} -> dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+          _ -> fallback
+        end
+
+      _ ->
+        fallback
+    end
   end
 
   @doc """

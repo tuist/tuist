@@ -101,16 +101,16 @@ impl Drop for SpliceVerificationSlot {
 }
 #[derive(Clone)]
 pub struct ReapiService {
-    state: SharedState,
+    pub(super) state: SharedState,
     // Per-namespace action-cache snapshot indexes and their in-flight
     // builds, shared across the service clones tonic hands each server.
     snapshot_cache: std::sync::Arc<SnapshotCache>,
 }
 
 #[derive(Clone, Copy)]
-struct GrpcRequestSpec<'a> {
-    operation: &'a str,
-    namespace_id: Option<&'a str>,
+pub(super) struct GrpcRequestSpec<'a> {
+    pub(super) operation: &'a str,
+    pub(super) namespace_id: Option<&'a str>,
 }
 
 struct ReapiCacheObservation<'a> {
@@ -157,17 +157,16 @@ fn reapi_servers(service: ReapiService) -> ReapiServers {
 // fallback (gRPC status 12) becomes the co-hosted router's fallback for
 // otherwise-unmatched paths.
 pub fn routes(state: SharedState) -> axum::Router {
-    let service = ReapiService {
-        snapshot_cache: state.snapshot_cache.clone(),
-        state: state.clone(),
-    };
+    let service = ReapiService::new(state.clone());
     spawn_snapshot_refresh_task(service.clone());
+    let assets = super::asset::server(service.clone());
     let (capabilities, action_cache, cas, byte_stream, build_events) = reapi_servers(service);
     tonic::service::Routes::new(capabilities)
         .add_service(action_cache)
         .add_service(cas)
         .add_service(byte_stream)
         .add_service(build_events)
+        .add_service(assets)
         .into_axum_router()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -262,7 +261,14 @@ impl std::io::Write for BoundedZstdDecoderSink {
 }
 
 impl ReapiService {
-    async fn authorize_request<T>(
+    pub(super) fn new(state: SharedState) -> Self {
+        Self {
+            snapshot_cache: state.snapshot_cache.clone(),
+            state,
+        }
+    }
+
+    pub(super) async fn authorize_request<T>(
         &self,
         request: &Request<T>,
         spec: GrpcRequestSpec<'_>,
@@ -274,7 +280,7 @@ impl ReapiService {
     // request into a stream before it learns its namespace (from the first
     // chunk's resource_name), so it captures the metadata up front and authorizes
     // here once the namespace is known.
-    async fn authorize_metadata(
+    pub(super) async fn authorize_metadata(
         &self,
         metadata: &tonic::metadata::MetadataMap,
         spec: GrpcRequestSpec<'_>,
@@ -345,14 +351,14 @@ impl ReapiService {
         usage.record_public_grpc_download(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
-            REAPI_USAGE_ARTIFACT_KIND,
+            reapi_usage_artifact_kind(metadata),
             bytes,
         );
     }
 
     // Record a received gRPC upload (ingress) against the usage rollups. See
     // [`record_reapi_download`] for the parity and call-site conventions.
-    fn record_reapi_upload(
+    pub(super) fn record_reapi_upload(
         &self,
         metadata: &tonic::metadata::MetadataMap,
         namespace_id: &str,
@@ -364,7 +370,7 @@ impl ReapiService {
         usage.record_public_grpc_upload(
             &usage_tenant_id(metadata, &self.state.config.tenant_id),
             namespace_id,
-            REAPI_USAGE_ARTIFACT_KIND,
+            reapi_usage_artifact_kind(metadata),
             bytes,
         );
     }
@@ -412,6 +418,7 @@ impl ReapiService {
         };
 
         analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context: Arc::clone(context),
             operation: observation.operation,
             outcome: observation.outcome,
@@ -640,7 +647,7 @@ impl ReapiService {
                             stored_written = stored_written.saturating_add(data.len() as u64);
                             if file_cache_policy.should_drop(
                                 self.state.memory.should_reclaim_file_cache(),
-                                self.state.memory.transient_reserved_bytes(),
+                                self.state.memory.foreground_transient_reserved_bytes(),
                             ) && stored_written.saturating_sub(advised_through)
                                 >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                             {
@@ -776,6 +783,7 @@ impl ReapiService {
                     &resource.key,
                     "application/octet-stream",
                     StagedArtifactPath::new(temp_path, file_cache_policy),
+                    None,
                 )
                 .await
         }
@@ -3923,7 +3931,7 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     Ok(format!("{}/{}", digest.hash, digest.size_bytes))
 }
 
-fn require_sha256(digest_function: i32) -> Result<(), Status> {
+pub(super) fn require_sha256(digest_function: i32) -> Result<(), Status> {
     if digest_function == 0 || digest_function == reapi::digest_function::Value::Sha256 as i32 {
         return Ok(());
     }
@@ -3932,7 +3940,7 @@ fn require_sha256(digest_function: i32) -> Result<(), Status> {
     ))
 }
 
-fn namespace_from_instance(instance_name: &str) -> &str {
+pub(super) fn namespace_from_instance(instance_name: &str) -> &str {
     if instance_name.is_empty() {
         DEFAULT_INSTANCE_NAME
     } else {
@@ -3964,6 +3972,16 @@ fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
 const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handle"];
 
 const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
+
+fn reapi_usage_artifact_kind(metadata: &tonic::metadata::MetadataMap) -> &'static str {
+    match metadata
+        .get("x-tuist-artifact-kind")
+        .and_then(|value| value.to_str().ok())
+    {
+        Some("module") => "module",
+        _ => REAPI_USAGE_ARTIFACT_KIND,
+    }
+}
 
 #[derive(Default)]
 struct ReapiRequestMetadata {
@@ -5537,6 +5555,7 @@ mod tests {
         let context = reapi_cache_event_context(request.metadata(), "ios", "fallback")
             .expect("Bazel metadata should produce analytics context");
         let first = ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context: Arc::clone(&context),
             operation: "cas",
             outcome: "hit",
@@ -5546,6 +5565,7 @@ mod tests {
             observed_at_ms: 3,
         };
         let second = ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context,
             operation: "cas",
             outcome: "miss",
@@ -5606,6 +5626,7 @@ mod tests {
                     .expect("Bazel metadata should produce analytics context");
                 for _ in 0..EVENTS_PER_BATCH {
                     std::hint::black_box(ReapiCacheAnalyticsEvent {
+                        event_id: uuid::Uuid::now_v7(),
                         context: Arc::clone(&context),
                         operation: "cas",
                         outcome: "hit",
@@ -7841,6 +7862,105 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bytestream_read_burst_waits_without_shedding() {
+        for compressed in [false, true] {
+            let context = test_context(|config| {
+                config.memory_limit_bytes = 128 * 1024 * 1024;
+                config.memory_soft_limit_bytes = 64 * 1024 * 1024;
+                config.memory_hard_limit_bytes = 96 * 1024 * 1024;
+            })
+            .await;
+            let blob = vec![0xA5; 1024 * 1024];
+            let hash = hex::encode(Sha256::digest(&blob));
+            context
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    DEFAULT_INSTANCE_NAME,
+                    &blob_key(&format!("{hash}/{}", blob.len())),
+                    "application/octet-stream",
+                    &blob,
+                )
+                .await
+                .expect("seed blob");
+            let resource = format!(
+                "{}/{hash}/{}",
+                if compressed {
+                    "compressed-blobs/zstd"
+                } else {
+                    "blobs"
+                },
+                blob.len()
+            );
+            let completed_admission = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let (release, released) = tokio::sync::watch::channel(false);
+            let mut tasks = tokio::task::JoinSet::new();
+            let reads = if compressed { 24 } else { 32 };
+            for _ in 0..reads {
+                let service = ReapiService {
+                    state: context.state.clone(),
+                    snapshot_cache: Default::default(),
+                };
+                let resource_name = resource.clone();
+                let completed = completed_admission.clone();
+                let mut released = released.clone();
+                tasks.spawn(async move {
+                    let response = service
+                        .read(Request::new(bytestream::ReadRequest {
+                            resource_name,
+                            read_offset: 0,
+                            read_limit: 0,
+                        }))
+                        .await;
+                    completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let response = response?;
+                    released
+                        .wait_for(|released| *released)
+                        .await
+                        .expect("release readers");
+                    let (_, mut stream, guard) = response.into_parts();
+                    let mut bytes = Vec::new();
+                    while let Some(chunk) = stream.next().await {
+                        bytes.extend(chunk?.data);
+                    }
+                    drop(guard);
+                    if compressed {
+                        bytes = zstd::stream::decode_all(bytes.as_slice()).expect("decode read");
+                    }
+                    assert_eq!(bytes, vec![0xA5; 1024 * 1024]);
+                    Ok::<_, Status>(())
+                });
+            }
+            // Hold admitted bodies until every read is either queued or admitted.
+            // This reproduces a burst without depending on scheduler timing.
+            tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    let waiting = context.state.memory.response_stream_waiter_count();
+                    if waiting + completed_admission.load(std::sync::atomic::Ordering::SeqCst)
+                        == reads
+                    {
+                        assert!(waiting > 0, "the burst must exercise queued admission");
+                        break;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("all reads should reach admission");
+            release.send(true).expect("release burst");
+            let mut rejected = Vec::new();
+            while let Some(result) = tasks.join_next().await {
+                if let Err(error) = result.expect("read task") {
+                    rejected.push(error);
+                }
+            }
+            assert!(rejected.is_empty(), "compressed={compressed}: {rejected:?}");
+            assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+        }
+    }
+
+    #[tokio::test]
     async fn bytestream_route_keeps_stream_memory_until_encoded_bytes_drop() {
         let context = test_context(|_| {}).await;
         let blob = vec![0xA5; 64 * 1024];
@@ -9641,6 +9761,16 @@ mod tests {
     // blob is not billed a second time — matching the HTTP upload path.
     #[tokio::test]
     async fn cas_batch_transfers_record_grpc_usage_events() {
+        for (hint, expected) in [
+            (None, "reapi"),
+            (Some("module"), "module"),
+            (Some("unbounded-kind"), "reapi"),
+        ] {
+            check_cas_batch_usage(hint, expected).await;
+        }
+    }
+
+    async fn check_cas_batch_usage(hint: Option<&str>, expected: &str) {
         let context = test_context(|config| {
             config.usage = Some(test_usage_config());
         })
@@ -9679,6 +9809,11 @@ mod tests {
             update
                 .metadata_mut()
                 .insert("x-tuist-account-handle", "acme".parse().unwrap());
+            if let Some(hint) = hint {
+                update
+                    .metadata_mut()
+                    .insert("x-tuist-artifact-kind", hint.parse().unwrap());
+            }
             add_direct_write_admission(&context.state, &mut update, CAS_BATCH_UPDATE_DECODE_COPIES);
             update
         };
@@ -9711,6 +9846,10 @@ mod tests {
         });
         read.metadata_mut()
             .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        if let Some(hint) = hint {
+            read.metadata_mut()
+                .insert("x-tuist-artifact-kind", hint.parse().unwrap());
+        }
         service
             .batch_read_blobs(read)
             .await
@@ -9732,7 +9871,7 @@ mod tests {
         assert_eq!(upload.traffic_plane, "public");
         assert_eq!(upload.direction, "ingress");
         assert_eq!(upload.protocol, "grpc");
-        assert_eq!(upload.artifact_kind, "reapi");
+        assert_eq!(upload.artifact_kind, expected);
         // Two blobs stored across two RPCs, but only the first RPC stored new
         // bytes and each batch RPC books one request: request_count == 1, and the
         // stale re-upload added nothing.
@@ -9748,7 +9887,7 @@ mod tests {
         assert_eq!(download.traffic_plane, "public");
         assert_eq!(download.direction, "egress");
         assert_eq!(download.protocol, "grpc");
-        assert_eq!(download.artifact_kind, "reapi");
+        assert_eq!(download.artifact_kind, expected);
         // One batch read of two blobs is one request carrying both blobs' bytes.
         assert_eq!(download.bytes, total_bytes);
         assert_eq!(download.request_count, 1);

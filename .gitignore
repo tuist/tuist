@@ -85,6 +85,9 @@ playground.xcworkspace
 !**/*.xcworkspace/xcshareddata/swiftpm/configuration
 .byebug_history
 *.xcarchive
+!cli/Tests/Fixtures/Rosalind/**/*.ipa
+!cli/Tests/Fixtures/Rosalind/**/*.xcarchive/
+!cli/Tests/Fixtures/Rosalind/**/*.xcarchive/**
 tmp/
 /build/
 

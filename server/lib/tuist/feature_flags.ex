@@ -25,6 +25,65 @@ defmodule Tuist.FeatureFlags do
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
+  Whether Xcode code coverage is ingested, processed and shown for the given
+  account. Canary and production require an explicit `:xcode_coverage`
+  FunWithFlags toggle for the account while the feature is in early access, so
+  its data model and API can still change. Development, test, and staging
+  default to enabled.
+  """
+  def xcode_coverage_enabled?(nil), do: false
+
+  def xcode_coverage_enabled?(account) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:xcode_coverage, for: account)
+  end
+
+  @doc """
+  Whether the account is on usage-based pricing: the usage page shows its
+  cache and test insights charges, and the nightly Stripe sync reports the
+  cache egress, cache request, and passing test case meters for it
+  instead of the remote cache hit meter. Off unless the
+  `:usage_based_pricing` FunWithFlags toggle is enabled for the account.
+  """
+  def usage_based_pricing_enabled?(account) do
+    FunWithFlags.enabled?(:usage_based_pricing, for: account)
+  end
+
+  @doc """
+  Whether the switch worker may move this account's subscription onto the
+  usage-based meters at its next renewal. Off unless
+  `:usage_based_pricing_switch` is enabled for the account or for everyone,
+  which is what paces the migration: an account is only switched once its
+  notice period has passed.
+  """
+  def usage_based_pricing_switch_enabled?(account) do
+    FunWithFlags.enabled?(:usage_based_pricing_switch, for: account)
+  end
+
+  @doc """
+  Whether the pricing page shows usage-based pricing. Anonymous visitors see
+  it once the `:usage_based_pricing_page` flag is enabled for everyone; a
+  signed-in user sees it once the flag is enabled for them, so the page can be
+  previewed before it goes public.
+  """
+  def usage_based_pricing_page_enabled?(nil), do: FunWithFlags.enabled?(:usage_based_pricing_page)
+  def usage_based_pricing_page_enabled?(user), do: FunWithFlags.enabled?(:usage_based_pricing_page, for: user)
+
+  @doc """
+  Whether dispatch stamps a job's repository cache volume on its Pod. Canary and
+  production require an explicit `:runner_cache_volumes_per_repository` toggle,
+  so a deploy never starts stamping while replicas of the previous version are
+  still serving. Those replicas resolve every promote and upload URL under the
+  account's `tuist-cache` volume, so a repository-labelled Pod whose upload one
+  of them mints and whose promote a new replica accepts would publish a HEAD
+  pointing at an object under the other volume's prefix, which no host can then
+  download. Turn it on once the rollout is complete; the host side has its own
+  gate (`tuist.dev/cache-volumes-per-repository`).
+  """
+  def runner_cache_volumes_per_repository_enabled? do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_cache_volumes_per_repository)
+  end
+
+  @doc """
   Whether Kura runtime-image rollouts run through the rollout
   orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
   account-grouped waves with the health gate in production, expedited
@@ -66,25 +125,6 @@ defmodule Tuist.FeatureFlags do
   def public_page_challenge_enabled? do
     Environment.public_page_challenge_required?() and
       not FunWithFlags.enabled?(:public_page_challenge_kill_switch)
-  end
-
-  @doc """
-  Whether the marketing site should render the redesigned version instead of
-  the legacy one. The whole redesign launches behind a single boolean flag
-  (`:new_marketing`) that is flipped for everyone at once — marketing traffic
-  is mostly anonymous. The redesign can be previewed before the flip by
-  enabling the flag for a specific user (actor gate), which is what the
-  optional `user` serves. Callers should go through
-  `TuistWeb.Marketing.Design` rather than checking this flag directly.
-  """
-  def new_marketing_enabled?(user \\ nil)
-
-  def new_marketing_enabled?(nil) do
-    FunWithFlags.enabled?(:new_marketing)
-  end
-
-  def new_marketing_enabled?(user) do
-    FunWithFlags.enabled?(:new_marketing, for: user)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

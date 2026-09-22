@@ -252,6 +252,22 @@ defmodule Tuist.ProjectsTest do
       assert_enqueued(worker: SeedProjectCacheDemandWorker, args: %{"account_id" => account.id})
     end
 
+    test "passes where the project was created from to the cache-demand seed" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      {:ok, _project} =
+        Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}}, origin: "FR")
+
+      # Then
+      assert_enqueued(
+        worker: SeedProjectCacheDemandWorker,
+        args: %{"account_id" => account.id, "origin" => "FR"}
+      )
+    end
+
     test "does not enqueue a cache-demand seed when the project is not created" do
       # Given
       organization = AccountsFixtures.organization_fixture()

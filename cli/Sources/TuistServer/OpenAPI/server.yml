@@ -506,6 +506,8 @@ components:
           type: array
           x-struct:
           x-validate:
+        xcode_coverage:
+          $ref: '#/components/schemas/XcodeCoverage'
         xcode_version:
           description: The version of Xcode used during the run.
           type: string
@@ -1246,6 +1248,11 @@ components:
             x-struct:
             x-validate:
           type: array
+          x-struct:
+          x-validate:
+        provisioning:
+          description: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+          type: boolean
           x-struct:
           x-validate:
       required:
@@ -3851,6 +3858,126 @@ components:
       title: GenerationsIndexBefore
       type: string
       x-struct:
+      x-validate:
+    XcodeCoverage:
+      description: "Line coverage from a test run that ran with code coverage enabled: every source file the run's instrumented binaries compiled, with its per-line execution counts and functions."
+      properties:
+        files:
+          items:
+            properties:
+              covered_lines:
+                description: Executable lines the tests ran at least once.
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                description: Lines the compiler instrumented.
+                type: integer
+                x-struct:
+                x-validate:
+              execution_counts:
+                description: How many times each of `line_numbers` ran, index by index.
+                items:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              functions:
+                items:
+                  properties:
+                    covered_lines:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    executable_lines:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    execution_count:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    line_number:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    name:
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - name
+                    - line_number
+                    - execution_count
+                    - covered_lines
+                    - executable_lines
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              git_blob_id:
+                description: The Git blob object id of the file's contents, absent for files Git does not track.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              is_test:
+                description: Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                type: boolean
+                x-struct:
+                x-validate:
+              line_numbers:
+                description: The executable lines, ascending.
+                items:
+                  type: integer
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              path:
+                description: "The file's path, relative to the repository's root when it lives under it and absolute otherwise."
+                type: string
+                x-struct:
+                x-validate:
+              targets:
+                description: The targets whose binaries compiled the file.
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - targets
+              - covered_lines
+              - executable_lines
+              - line_numbers
+              - execution_counts
+              - functions
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        partial:
+          description: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran.
+          type: boolean
+          x-struct:
+          x-validate:
+      required:
+        - partial
+        - files
+      title: XcodeCoverage
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.XcodeCoverage
       x-validate:
     RunnerShellSession:
       properties:
@@ -8563,6 +8690,11 @@ paths:
                     type: array
                     x-struct:
                     x-validate:
+                  provisioning:
+                    description: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                    type: boolean
+                    x-struct:
+                    x-validate:
                 required:
                   - endpoints
                 title: CacheEndpoints
@@ -8572,7 +8704,7 @@ paths:
           description: List of cache endpoints
           headers:
             cache-control:
-              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+              description: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.
               schema:
                 type: string
                 x-struct:
@@ -10540,6 +10672,8 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
+                xcode_coverage:
+                  $ref: '#/components/schemas/XcodeCoverage'
                 xcode_version:
                   description: The version of Xcode used during the run.
                   type: string

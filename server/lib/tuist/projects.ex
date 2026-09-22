@@ -119,6 +119,31 @@ defmodule Tuist.Projects do
   end
 
   @doc """
+  The ids of the projects named by `{account_id, project_handle}` pairs, in a
+  single query, keyed by the pairs as given. Handles match regardless of casing.
+  """
+  def project_ids_by_account_and_handle([]), do: %{}
+
+  def project_ids_by_account_and_handle(pairs) when is_list(pairs) do
+    pairs = Enum.uniq(pairs)
+    account_ids = pairs |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+    handles = pairs |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
+
+    ids =
+      from(p in Project,
+        where: p.account_id in ^account_ids and p.name in ^handles,
+        select: {p.account_id, p.name, p.id}
+      )
+      |> Repo.all()
+      |> Map.new(fn {account_id, name, id} -> {{account_id, String.downcase(name)}, id} end)
+
+    for {account_id, handle} = pair <- pairs,
+        {:ok, id} <- [Map.fetch(ids, {account_id, String.downcase(handle)})],
+        into: %{},
+        do: {pair, id}
+  end
+
+  @doc """
   Gets projects by their full handles (account_handle/project_handle) in a single query.
   Returns a map of full_handle => project.
   """
@@ -310,7 +335,7 @@ defmodule Tuist.Projects do
     |> Repo.transaction()
     |> case do
       {:ok, %{project: project}} ->
-        seed_kura_cache_demand(project)
+        seed_kura_cache_demand(project, Keyword.get(opts, :origin))
         {:ok, project}
 
       {:error, _step, changeset, _changes} ->
@@ -348,16 +373,17 @@ defmodule Tuist.Projects do
 
   # Creating a project is the earliest signal that builds are coming, so it is
   # where an account with no Kura instance gets one
-  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`). Out of band, because
-  # the cache decision reads the cluster and resolves a region, and that wait
-  # does not belong to a person naming a project.
+  # (`Tuist.Kura.Workers.SeedProjectCacheDemandWorker`), placed nearest
+  # `origin`, where the request creating the project came from. Out of band,
+  # because the cache decision reads the cluster and resolves a region, and that
+  # wait does not belong to a person naming a project.
   #
   # A rejected enqueue is logged rather than raised: the project is already
   # committed, and an account this misses is provisioned the ordinary way on
   # its first cache request. Anything that raises here is schema drift or a
   # dead connection rather than a cache decision, so it is left to surface.
-  defp seed_kura_cache_demand(%Project{account_id: account_id}) do
-    case %{account_id: account_id} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
+  defp seed_kura_cache_demand(%Project{account_id: account_id}, origin) do
+    case %{account_id: account_id, origin: origin} |> SeedProjectCacheDemandWorker.new() |> Oban.insert() do
       {:ok, _job} ->
         :ok
 

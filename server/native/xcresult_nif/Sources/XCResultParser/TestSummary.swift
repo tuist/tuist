@@ -7,10 +7,15 @@ public struct TestSummary: Encodable, Sendable {
     public var testModules: [TestModule]
     public let runDestinations: [RunDestination]
     public let errors: [TestRunError]
+    public var coverage: XcodeCoverageReport?
+    /// Why the coverage could not be read, for a bundle that had some. The run's tests are
+    /// reported either way.
+    public var coverageError: String?
 
     enum CodingKeys: String, CodingKey {
         case testPlanName = "test_plan_name"
-        case status, duration, errors
+        case status, duration, errors, coverage
+        case coverageError = "coverage_error"
         case testModules = "test_modules"
         case runDestinations = "run_destinations"
     }
@@ -25,7 +30,8 @@ public struct TestSummary: Encodable, Sendable {
         duration: Int?,
         testModules: [TestModule],
         runDestinations: [RunDestination] = [],
-        errors: [TestRunError] = []
+        errors: [TestRunError] = [],
+        coverage: XcodeCoverageReport? = nil
     ) {
         self.testPlanName = testPlanName
         self.status = status
@@ -33,6 +39,7 @@ public struct TestSummary: Encodable, Sendable {
         self.testModules = testModules
         self.runDestinations = runDestinations
         self.errors = errors
+        self.coverage = coverage
     }
 }
 

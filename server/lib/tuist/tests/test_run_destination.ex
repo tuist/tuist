@@ -5,6 +5,7 @@ defmodule Tuist.Tests.TestRunDestination do
   and associated to a `Tuist.Tests.Test` via `test_run_id`.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 

@@ -3,6 +3,7 @@ package macos
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -77,6 +78,8 @@ type RackAppleSiliconMachineReconciler struct {
 	// host config, which is the point. A second fleet config would be a second
 	// set of bugs, and the drift loop's whole contract is that what the
 	// operator hashes and what it pushes cannot be two different things.
+	// The settings a rack host needs on top are overlaid by rackFleetConfig,
+	// which both the push and the hash go through.
 	FleetConfig bootstrap.Config
 
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine that does
@@ -295,7 +298,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		fingerprint, runErr := bootstrap.Run(ctx, r.hostConfig(machine, perHost))
+		fingerprint, runErr := bootstrap.Run(ctx, r.hostConfig(machine, host, perHost))
 		// Persist whatever fingerprint Run captured even on the error path, so
 		// a transient failure doesn't lose the TOFU pin we already verified.
 		r.persistFingerprint(ctx, machine, fingerprint, knownFingerprint)
@@ -358,7 +361,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	desiredHash := r.desiredHostConfigHash(machine)
+	desiredHash := r.desiredHostConfigHash(machine, host)
 	drift := hostConfigDrift(desiredHash, machine.Status.HostConfigHash)
 	terminal := machine.Status.FailureReason != nil
 
@@ -390,7 +393,7 @@ func (r *RackAppleSiliconMachineReconciler) reconcileHostConfigDrift(
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	updateCfg := r.hostConfig(machine, perHost)
+	updateCfg := r.hostConfig(machine, host, perHost)
 	fingerprint, err := bootstrap.UpdateTartKubelet(ctx, updateCfg)
 
 	// Tailnet fallback, for the same reason the Scaleway kind has one: once a
@@ -1086,15 +1089,38 @@ func (r *RackAppleSiliconMachineReconciler) hostSizing(machine *infrav1.RackAppl
 	return sizing
 }
 
-func (r *RackAppleSiliconMachineReconciler) hostConfig(
-	machine *infrav1.RackAppleSiliconMachine,
-	perHost bootstrap.PerHost,
-) bootstrap.Config {
-	return applyHostSizing(r.FleetConfig, r.hostSizing(machine), perHost)
+// rackFleetConfig is the shared fleet config with the two settings that keep
+// a rack host reachable after it loses its tailnet identity. A rented mini
+// can lose its device and still be dialled on its allow-listed public address;
+// a rack mini's only other path is its subnet router, so:
+//
+//   - it joins as a standard device, so being powered off does not delete it
+//     (see bootstrap's renderTailscaleScript), and
+//   - its SSH ingress guard admits the host's subnet routers, the source its
+//     LAN dial arrives from.
+//
+// Both push paths and the stamped hash go through here, so a change to either
+// drifts the host rather than being recorded as converged without reaching it.
+func (r *RackAppleSiliconMachineReconciler) rackFleetConfig(host *infrav1.RackHost) bootstrap.Config {
+	cfg := r.FleetConfig
+	cfg.TailscalePersistentDevice = true
+	cfg.SSHIngressAllowCIDRs = append(slices.Clone(r.FleetConfig.SSHIngressAllowCIDRs), host.Spec.SSHIngressAllowCIDRs...)
+	return cfg
 }
 
-func (r *RackAppleSiliconMachineReconciler) desiredHostConfigHash(machine *infrav1.RackAppleSiliconMachine) string {
-	return hostConfigHashFor(r.FleetConfig, r.hostSizing(machine))
+func (r *RackAppleSiliconMachineReconciler) hostConfig(
+	machine *infrav1.RackAppleSiliconMachine,
+	host *infrav1.RackHost,
+	perHost bootstrap.PerHost,
+) bootstrap.Config {
+	return applyHostSizing(r.rackFleetConfig(host), r.hostSizing(machine), perHost)
+}
+
+func (r *RackAppleSiliconMachineReconciler) desiredHostConfigHash(
+	machine *infrav1.RackAppleSiliconMachine,
+	host *infrav1.RackHost,
+) string {
+	return hostConfigHashFor(r.rackFleetConfig(host), r.hostSizing(machine))
 }
 
 // rackProviderID composes the providerID from the host's two durable physical

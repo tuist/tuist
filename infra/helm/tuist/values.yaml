@@ -72,13 +72,14 @@ tailscaleDeviceReaper:
   # boot, so a dead registration can never be reused and is pure garbage. The
   # xcresult-processor Tart VMs boot from an image with no persisted tailscaled
   # state: each boot means a new node key, and a new node key always means a new
-  # device -- the hostname has nothing to do with it. Two devices sharing a
-  # hostname AND a tag are visible on the tailnet today, which is what that
-  # looks like in practice.
+  # device -- the hostname has nothing to do with it.
   #
-  # This tier is what keeps the tailnet under the plan's included allowance.
-  # Releases add roughly 10-15 devices a week, so parking them behind the 7-day
-  # default would leave a week of debris standing at all times.
+  # A backstop: these VMs join ephemeral through the OAuth client, and Tailscale
+  # deletes an ephemeral device within an hour of it going away, long before
+  # this window. It catches a join that is not ephemeral, such as a pre-auth key
+  # created without it (tailscale-up.sh passes one through unchanged). Every
+  # image release then leaves its VMs behind, and the 7-day default would keep
+  # a week of them standing.
   #
   # An empty hostnamePattern disables the short window (everything falls back to
   # graceHours) rather than matching every device.
@@ -484,6 +485,17 @@ server:
   turnstile:
     enabled: false
     secretsFrom: eso
+  # Second Turnstile-backed gate: interstitial challenge in front of public
+  # project dashboards (see #13205). Uses the same Turnstile keys as
+  # `server.turnstile`; this switch just decides whether the plug/live-hook
+  # pair enforces the check. Layered defence in depth on top of
+  # Cloudflare Super Bot Fight Mode at the edge — SBFM's
+  # `managed_challenge` still lets a chunk of definitely-automated traffic
+  # through, so browser sessions get gated at the app layer too.
+  # `Environment.public_page_challenge_required?/0` additionally requires
+  # `hosted: true`; leave that in sync per env.
+  publicPageChallenge:
+    enabled: false
   # Browser real user monitoring. Set collectorUrl to the endpoint the browser
   # posts Grafana Faro payloads to; a same-origin path keeps the request free of
   # CORS and leaves the Content Security Policy untouched. Empty disables it and
@@ -500,6 +512,11 @@ server:
     # server Ingress in the same upgrade that renders it here.
     receiverHost: ""
     receiverPort: 12347
+    # Route through Phoenix to add session-authentication and trusted Ray ID
+    # context before forwarding to Alloy. Requires collectorUrl /-/faro/collect.
+    # Enable only after all server pods contain the gateway (two-phase rollout).
+    gateway:
+      enabled: false
   # Refuse a new Kura instance before it can use the region's reserved storage
   # headroom. This must remain enabled on hosted deployments.
   kuraCapacityAdmission:
@@ -684,6 +701,13 @@ server:
       storeRef:
         kind: ClusterSecretStore
         name: onepassword
+      # Overridable field names inside the per-env 1Password items. The
+      # chart's default field layout is described in
+      # templates/server-config-external-secrets.yaml; override here to
+      # point ESO at a sibling field on the same 1P item (e.g. to send
+      # errors to a different ingest without touching every other secret).
+      fields:
+        sentryDsn: dsn
   # Stripe price IDs, keyed plan -> category -> [price ids], plus a top-level
   # `runners` map from meter event name -> price id. Not secrets (just
   # identifiers), so they live here rather than 1Password; the chart JSON-encodes
@@ -1316,6 +1340,14 @@ xcresultProcessor:
       # bump `replicaCount` and enable the PDB.
       maxSurge: 0
       maxUnavailable: 1
+  # Grace period sized for an in-flight xcresult parse plus the final
+  # ingestion buffer drain. `Tuist.Tests.Workers.ProcessXcresultWorker`
+  # jobs typically run 30s–3min but can stretch on outsized archives;
+  # ingestion buffers use `shutdown: :infinity` and rely on this value
+  # as their outer wall, retrying their final flush until it lands or
+  # kubelet SIGKILLs the pod. 300s covers the parse tail and gives the
+  # buffer room to survive a slow ClickHouse.
+  terminationGracePeriodSeconds: 300
 
 # macOS Mac mini fleet, provisioned declaratively via Cluster API.
 #
@@ -1596,6 +1628,16 @@ rackFleet:
   # account, not a provider-issued one.
   sshUser: tuist
 
+  # The LAN address of every subnet router that advertises the hosts'
+  # addresses, as /32s. Required when enabled. A router forwards the operator's
+  # dial with SNAT, so this is the source each host sees, and the host's SSH
+  # ingress guard admits it on top of macosFleet.sshIngressAllowCIDRs. Without
+  # it the guard drops the router, and a host that loses its own tailnet device
+  # is reachable only from its console. Give each router a DHCP reservation,
+  # and list both routers of an HA pair. A host can override it with its own
+  # `sshIngressAllowCIDRs`.
+  sshIngressAllowCIDRs: []
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Nothing here is workload config: see `machine` below for that.
@@ -1610,6 +1652,8 @@ rackFleet:
   #                             # stops and replaces tailscaled, which over a
   #                             # host-transported session drops the tunnel it
   #                             # is riding.
+  #     sshIngressAllowCIDRs:   # optional; replaces the rackFleet default for a
+  #       - 192.168.0.2/32      # host behind a different router
   #     site: ber1
   #     rack: r1
   #     shelf: s3
@@ -1785,14 +1829,13 @@ macosFleet:
     # Per-account master image cap (GiB). The image is sparse so this is a
     # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
     masterCapGib: 0
-    # Xcode compilation cache (CAS) FOOTPRINT allowance (GiB) folded into each
-    # per-account cache image: the CAS gets this share of masterCapGib, the
-    # binary cache the rest minus a reserve. Size it for what the store should
-    # OCCUPY — the compiler is given half of it as COMPILATION_CACHE_LIMIT_SIZE,
-    # which bounds one generation of a store that keeps two (the primary plus
-    # the demoted upstream that is still the warm cache). 0 (default) leaves the
-    # compilation cache VM-local (dies with the VM); the binary cache is
-    # unaffected.
+    # Turns on the Xcode compilation cache (CAS) folded into each per-account
+    # cache image (> 0). The CAS and the binary cache share masterCapGib less a
+    # reserve of max(2 GiB, 20% of the cap), which the guest divides by what
+    # each holds. This value is the CAS's share of the fixed split that runner
+    # images older than that division apply, the binary cache getting the rest.
+    # 0 (default) leaves the compilation cache VM-local (dies with the VM); the
+    # binary cache is unaffected.
     casGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
@@ -2289,15 +2332,16 @@ runnersFleet:
   # Customers route via account-scoped Runner Profiles; the server
   # resolves (account, requested-label) → profile → pool. Keep this
   # list in sync with `infra/runner-image/profiles.json` — the list
-  # `server-production-deployment.yml`'s `runner-image-build` matrix
-  # expands. A catalog entry with no runner image published for it
+  # `runner-image-release.yml` publishes images for. A catalog entry with no runner image published for it
   # renders a pool that can never pull.
   xcodeVersions:
+    - xcodeVersion: "27.0"
     - xcodeVersion: "26.6"
       default: true
     - xcodeVersion: "26.5"
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
+    - xcodeVersion: "26.1.1"
     - xcodeVersion: "26.0.1"
   # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
   # catalog stays in `xcodeVersions` above so it's shared via the
@@ -2331,14 +2375,14 @@ runnersFleet:
   # Per-pool runner image template. `runner-pool.yaml` constructs each
   # macOS pool's `spec.image` as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
-  # so the release-runner-image flow only bumps `runnerImageSemver`
+  # so a runner image release only bumps `runnerImageSemver`
   # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
   # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
   # an out-of-rotation Xcode refreshed via `runner-image.yml`).
   runnerImageRepository: "ghcr.io/tuist/tuist-runner"
   # Required when `xcodeVersions` is non-empty (the template fails the
-  # render otherwise). Bumped by `release-runner-image` on every
-  # release; managed envs override this with the live version.
+  # render otherwise). Resolved from the latest `runner-image@` tag at
+  # deploy time; managed envs override this with the live version.
   runnerImageSemver: ""
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
@@ -2646,6 +2690,11 @@ kataContainers:
 
 runnersController:
   replicaCount: 1
+  # Requires a controller image with the shadow flags and a server with
+  # /runners/shadow_snapshot. Records proposals only; never assigns jobs.
+  shadowScheduler:
+    enabled: false
+    intervalSeconds: 30
   image:
     repository: ghcr.io/tuist/tuist-runners-controller
     tag: ""
@@ -3126,11 +3175,13 @@ clickhouse:
   #
   # `embedded` is one unreplicated pod for self-hosters and previews.
   # `external` points at a URL somebody else operates (ClickHouse Cloud today).
-  # `managed` is the in-cluster shape Tuist operates itself: replicated tables
-  # on the tainted `stateful-worker` bare-metal pool with a Keeper quorum. See
-  # `templates/clickhouse-managed.yaml`.
+  # `managed` makes the in-cluster server below the system of record: every
+  # workload gets TUIST_CLICKHOUSE_URL from its credentials Secret, and nothing
+  # is mirrored. It requires `managed.enabled`, and it replaces ClickHouse Cloud
+  # without copying anything, so run the migration steps before switching.
   mode: embedded
-  # In-cluster ClickHouse operated by Tuist.
+  # In-cluster ClickHouse operated by Tuist: replicated tables on bare metal
+  # with a Keeper quorum. See `templates/clickhouse-managed.yaml`.
   #
   # Deliberately gated on its own `enabled` rather than on `mode`, because the
   # migration needs both at once: during the dual-run the application still
@@ -3139,6 +3190,12 @@ clickhouse:
   # `mode` is the last step, not the first.
   managed:
     enabled: false
+    # ClickHouse replicas, each on its own node from
+    # `persistence.localVolume.nodeNames`. Every replica takes writes and
+    # serves reads through the same Service, and each fetches the parts the
+    # others write. A replica joins the Service once it is within five minutes
+    # of its peers (`/replicas_status`), so one that is still copying history
+    # takes no traffic.
     replicas: 1
     # Not `default`: the schema is cloned into a database created with
     # `ENGINE = Replicated`, and `default` already exists as an ordinary
@@ -3149,7 +3206,8 @@ clickhouse:
     # schema clone: a destination with no tables rejects every mirrored write,
     # so a single switch would fill the logs on the deploy that first brings
     # the server up. Cloud stays the system of record either way; a failed
-    # mirror is counted and ignored, never surfaced to a request.
+    # mirror is counted and ignored, never surfaced to a request. Ignored in
+    # `managed` mode, where there is nothing left to mirror to.
     shadowWrites:
       enabled: false
     # Backups of the in-cluster server to object storage, as a weekly full and
@@ -3300,15 +3358,15 @@ clickhouse:
         # A directory on the stateful node's XFS `/data`, which is the
         # filesystem the `stateful-worker` class carves for exactly this.
         path: /data/clickhouse
-        # The node holding that directory, as `kubernetes.io/hostname`.
-        # Required whenever the managed workload is enabled, and the chart
-        # refuses to render without it.
+        # The node holding each replica's directory, as
+        # `kubernetes.io/hostname`, in ordinal order: replica `i` runs on
+        # `nodeNames[i]`. One entry per replica, each a different node, and the
+        # chart refuses to render otherwise.
         #
-        # This used to bind on the pool label instead, which is safe only
-        # while the pool has exactly one node. With two, one volume and a
-        # pool-wide affinity let the scheduler place the pod on the node that
-        # does not hold the data: ClickHouse then starts on an empty
-        # directory under a replica identity Keeper already knows.
+        # A hostname rather than the pool label, because a pool-wide affinity
+        # on a pool with more than one node lets the scheduler place a pod on
+        # a node that does not hold its data: ClickHouse then starts on an
+        # empty directory under a replica identity Keeper already knows.
         #
         # There is no stable per-host label to use instead. These nodes carry
         # only `kubernetes.io/hostname`, which CAPI generates, so replacing a
@@ -3316,7 +3374,7 @@ clickhouse:
         # host wipes `/data`, so a replacement is already a manual
         # re-bootstrap of that replica, and a stale name here leaves the claim
         # Pending rather than quietly binding somewhere empty.
-        nodeName: ""
+        nodeNames: []
     keeper:
       # One member is not a quorum and cannot tolerate a loss. It is the right
       # shape for staging, whose job is to exercise the replicated engines and

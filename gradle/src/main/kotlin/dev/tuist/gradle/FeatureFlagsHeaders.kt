@@ -6,13 +6,10 @@ object FeatureFlagsHeaders {
     const val HEADER_NAME = "x-tuist-feature-flags"
     private const val ENVIRONMENT_PREFIX = "TUIST_FEATURE_FLAG_"
 
-    /** Feature flags that are on unless a `TUIST_FEATURE_FLAG_<NAME>` variable turns them off. */
-    private val DEFAULT_ENABLED = setOf("KURA")
-
     private val DISABLING_VALUES = setOf("", "0", "false", "no", "off")
 
     fun headerValue(environmentVariables: Map<String, String>): String? {
-        val featureFlags = TreeSet(DEFAULT_ENABLED)
+        val featureFlags = TreeSet<String>()
 
         environmentVariables.forEach { (name, value) ->
             val featureName = featureName(name) ?: return@forEach

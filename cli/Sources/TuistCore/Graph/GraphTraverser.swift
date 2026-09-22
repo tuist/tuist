@@ -1323,9 +1323,12 @@ public class GraphTraverser: GraphTraversing {
         .lazy
         .compactMap { (dependency: GraphDependency) -> Path.AbsolutePath? in
             switch dependency {
-            case let .xcframework(xcframework): return xcframework.path
+            // The directory containing an .xcframework can't resolve `@rpath/<Name>.framework/<Name>`; the test
+            // runner loads the processed slice from BUILT_PRODUCTS_DIR instead. Each binary-cached xcframework lives
+            // in its own directory, so one run path per xcframework exceeds dyld's 256 LC_RPATH limit on large graphs.
+            case .xcframework: return nil
             case let .framework(path, _, _, _, _, _, _): return path
-            case let .foreignBuildOutput(output): return output.path
+            case let .foreignBuildOutput(output): return output.path.extension == "xcframework" ? nil : output.path
             case .macro: return nil
             case .library: return nil
             case .bundle: return nil
@@ -1783,7 +1786,13 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>] {
-        let targetsWithExternalDependencies = targetsWithExternalDependencies()
+        externalTargetSupportedDestinations(including: [])
+    }
+
+    public func externalTargetSupportedDestinations(including additionalRoots: Set<GraphTarget>)
+        -> [GraphTarget: Set<Destination>]
+    {
+        let targetsWithExternalDependencies = targetsWithExternalDependencies().union(additionalRoots)
         var destinations: [GraphTarget: Set<Destination>] = [:]
 
         func traverse(target: GraphTarget, parentDestinations: Set<Destination>) {

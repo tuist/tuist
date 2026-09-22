@@ -7,6 +7,7 @@ This module provides testing helpers used by CLI modules and tests.
 - Supply data builders for HTTP responses and fixtures.
 
 ## Boundaries
+- Resolve fixtures through `TuistTestSupport`; see `cli/Sources/TuistTestSupport/AGENTS.md`.
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
 - Keep shared low-level utilities in `cli/Sources/TuistSupport`.
 

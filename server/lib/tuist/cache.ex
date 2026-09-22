@@ -226,17 +226,42 @@ defmodule Tuist.Cache do
     entries =
       Enum.map(events, fn event ->
         %{
-          id: UUIDv7.generate(),
+          # A producer-supplied event_id becomes the row's identity; falls
+          # back to server-minted for an older Kura that has not started
+          # emitting event_id yet. See Tuist.Gradle for the shared rationale.
+          id: Map.get(event, :event_id) || UUIDv7.generate(),
           action: event.action,
           size: event.size,
           cas_id: event.cas_id,
           project_id: event.project_id,
           cache_endpoint: event.cache_endpoint,
-          inserted_at: now
+          # A producer-supplied observed_at_ms becomes `inserted_at` so a
+          # retried batch keeps the original observation time.
+          inserted_at: observed_at(event, now)
         }
       end)
 
+    # Xcode CAS analytics land in a shared buffered ingest path
+    # (CASEvent.Buffer). insert_deduplication_token requires a stable INSERT
+    # block per producer batch, and the buffer mixes rows from concurrent
+    # callers, so INSERT-level dedup is not applied on this path yet. That
+    # is a follow-up PR: either bypass the buffer for webhook batches or
+    # thread a batch token through the flush. Producer identity (event_id +
+    # observed_at_ms) landing here is still the prerequisite for that work.
     CASEvent.Buffer.insert_all(entries)
+  end
+
+  defp observed_at(event, fallback) do
+    case Map.get(event, :observed_at_ms) do
+      value when is_integer(value) and value >= 0 ->
+        case DateTime.from_unix(value, :millisecond) do
+          {:ok, dt} -> dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+          _ -> fallback
+        end
+
+      _ ->
+        fallback
+    end
   end
 
   def last_24h_artifacts_count do

@@ -239,7 +239,8 @@ defmodule Tuist.Kura.StorageTelemetry do
 
   Occupancy compares live segment bytes to the ring budget the node resolved
   from its claim. The day's maximum is what sizing reads: shrink wants to know
-  the ring never filled, grow wants to know it did.
+  the ring never filled, grow wants to know it did. The smallest non-zero
+  budget tells whether any instance still ran a smaller ring that day.
   """
   def snapshot_day_aggregates([]), do: []
 
@@ -274,7 +275,8 @@ defmodule Tuist.Kura.StorageTelemetry do
               s.ring_budget_bytes
             ),
           max_live_segment_bytes: fragment("max(?)", s.live_segment_bytes),
-          last_ring_budget_bytes: fragment("argMax(?, ?)", s.ring_budget_bytes, s.captured_at)
+          last_ring_budget_bytes: fragment("argMax(?, ?)", s.ring_budget_bytes, s.captured_at),
+          min_ring_budget_bytes: fragment("minIf(?, ? > 0)", s.ring_budget_bytes, s.ring_budget_bytes)
         }
       )
     )

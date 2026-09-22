@@ -23,7 +23,8 @@ defmodule TuistWeb.Endpoint do
     store: :cookie,
     key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
@@ -143,6 +144,8 @@ defmodule TuistWeb.Endpoint do
     signature_header: "x-cache-signature",
     body_length: 512_000
 
+  plug TuistWeb.Plugs.BrowserTelemetryPlug, session_options: @session_options
+
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.
   # TODO: Consider streaming large arrays instead of loading everything into memory.
@@ -150,6 +153,7 @@ defmodule TuistWeb.Endpoint do
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library(),
+    body_reader: {TuistWeb.Plugs.DeflateBodyReader, :read_body, []},
     length: 50_000_000
 
   plug Plug.MethodOverride

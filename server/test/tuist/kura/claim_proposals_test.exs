@@ -1,6 +1,7 @@
 defmodule Tuist.Kura.ClaimProposalsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
   import Mimic
 
   alias Tuist.Accounts
@@ -8,6 +9,7 @@ defmodule Tuist.Kura.ClaimProposalsTest do
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
   alias Tuist.Kura.ClaimProposals
+  alias Tuist.Kura.PlacerClaim
   alias Tuist.Kura.PlacerClaims
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -118,6 +120,76 @@ defmodule Tuist.Kura.ClaimProposalsTest do
     Repo.insert_all(StorageRollup, rows)
   end
 
+  defp insert_applied_growth!(account, from, to, median_ring_span_seconds, resolved_at) do
+    Repo.insert!(%ClaimProposal{
+      account_id: account.id,
+      region: "us-east",
+      direction: :grow,
+      current_claim_size: from,
+      recommended_claim_size: to,
+      evidence: %{"retention_floor_seconds" => 3 * 86_400, "median_ring_span_seconds" => median_ring_span_seconds},
+      status: :applied,
+      resolved_at: resolved_at,
+      resolved_by: "automatic"
+    })
+  end
+
+  defp pin!(server, claim_size) do
+    server |> Ecto.Changeset.change(storage_claim_size: claim_size) |> Repo.update!()
+  end
+
+  # A full ring that rotates and sheds content ten days after it was written,
+  # every day of the retention shrink window.
+  defp seed_long_retention_rollups(account, region) do
+    seed_churn_rollups(account, 30, @today, region)
+
+    StorageRollup
+    |> where([rollup], rollup.account_id == ^account.id and rollup.region == ^region)
+    |> Repo.update_all(
+      set: [
+        eviction_count: 6,
+        evicted_bytes: 4 * @gibibyte,
+        median_shed_age_seconds: 10 * 86_400,
+        median_ring_span_seconds: round(10.5 * 86_400)
+      ]
+    )
+  end
+
+  # us-east kept the 50Gi the pin migration grandfathered; eu-west was built
+  # later at 16Gi. Both keep ten days, so eu-west shows the account needs far
+  # less than 50Gi, while us-east's own ring still asks for 18Gi.
+  defp mixed_retention_account(account, server) do
+    us_east = pin!(server, "50Gi")
+    eu_west = account |> insert_server!("eu-west") |> pin!("16Gi")
+    seed_long_retention_rollups(account, "us-east")
+    seed_long_retention_rollups(account, "eu-west")
+
+    %{us_east: us_east, eu_west: eu_west}
+  end
+
+  defp refuse_growth_in(region_id) do
+    stub(Tuist.Environment, :kura_capacity_admission_required?, fn -> true end)
+    stub(Capacity, :reserved_gib, fn _region_id -> 0 end)
+
+    stub(Capacity, :pressure_line_gib, fn
+      ^region_id -> 0
+      _region_id -> 10_000
+    end)
+
+    stub(Capacity, :resident_gib, fn _region, %Server{} -> 16 end)
+  end
+
+  defp pin_resized_claim!(account, server, claim_size, resized_at) do
+    server |> Ecto.Changeset.change(storage_claim_size: claim_size) |> Repo.update!()
+
+    Repo.insert!(%PlacerClaim{
+      account_id: account.id,
+      claim_size: claim_size,
+      inserted_at: resized_at,
+      updated_at: resized_at
+    })
+  end
+
   describe "sweep/2" do
     test "opens a proposal for a churning account", %{account: account} do
       seed_churn_rollups(account, 14, @today)
@@ -199,6 +271,55 @@ defmodule Tuist.Kura.ClaimProposalsTest do
              "a grow proposal must not recommend less than the instance already holds"
     end
 
+    test "raises an instance pinned below the account's claim to it, from its own ring", %{
+      account: account,
+      server: server
+    } do
+      # eu-west's 16Gi ring keeps 1.5 days: 40Gi from its own ring, under the
+      # 50Gi us-east holds. Scaled from 50Gi it asked for the plan ceiling.
+      us_east = pin!(server, "50Gi")
+      eu_west = account |> insert_server!("eu-west") |> pin!("16Gi")
+      seed_churn_rollups(account, 14, @today, "eu-west")
+
+      assert {:ok, %{open: 1}} = ClaimProposals.sweep(@today)
+
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.direction == :grow
+      assert proposal.region == "eu-west"
+      assert proposal.current_claim_size == "50Gi"
+      assert proposal.recommended_claim_size == "50Gi"
+      assert proposal.evidence["region_claim_size"] == "16Gi"
+
+      assert {:ok, result} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert Enum.map(result.raised, & &1.id) == [eu_west.id]
+      assert result.lowered == []
+      assert Repo.get!(Server, us_east.id).storage_claim_size == "50Gi"
+      assert Repo.get!(Server, eu_west.id).storage_claim_size == "50Gi"
+
+      # Written even though the account's claim did not move, so the evidence
+      # window restarts on the ring eu-west now runs.
+      assert PlacerClaims.claim_for(account) == "50Gi"
+      assert {:ok, %{open: 0}} = ClaimProposals.sweep(@today)
+    end
+
+    test "shrinks a grandfathered claim that keeps weeks of content", %{account: account, server: server} do
+      pin!(server, "50Gi")
+      seed_long_retention_rollups(account, "us-east")
+
+      assert {:ok, %{open: 1}} = ClaimProposals.sweep(@today)
+
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.direction == :shrink
+      assert proposal.current_claim_size == "50Gi"
+      assert proposal.recommended_claim_size == "25Gi"
+      assert proposal.evidence["signal"] == "retention_above_floor"
+
+      assert {:ok, result} = Kura.apply_claim_proposal(proposal, "automatic")
+      assert result.raised == []
+      assert Enum.map(result.lowered, & &1.id) == [server.id]
+      assert Repo.get!(Server, server.id).storage_claim_size == "25Gi"
+    end
+
     test "a second sweep refreshes the open proposal instead of stacking another", %{account: account} do
       seed_churn_rollups(account, 14, @today)
 
@@ -255,6 +376,47 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       {:ok, _summary} = ClaimProposals.sweep(@today)
 
       assert ClaimProposals.open_proposal_for(account) == nil
+    end
+
+    test "a growth capped below its projection lets the next step confirm on one day", %{
+      account: account,
+      server: server
+    } do
+      resized_at = DateTime.new!(Date.add(@today, -1), ~T[14:00:00], "Etc/UTC")
+      insert_applied_growth!(account, "8Gi", "16Gi", 20_528, resized_at)
+      pin_resized_claim!(account, server, "16Gi", resized_at)
+      seed_churn_rollups(account, 1, @today)
+
+      Repo.update_all(StorageRollup,
+        set: [
+          evicted_bytes: 14 * @gibibyte,
+          last_ring_budget_bytes: 13 * @gibibyte,
+          min_ring_budget_bytes: 13 * @gibibyte
+        ]
+      )
+
+      assert {:ok, %{evaluated: 1, open: 1}} = ClaimProposals.sweep(@today)
+
+      proposal = ClaimProposals.open_proposal_for(account)
+      assert proposal.current_claim_size == "16Gi"
+      assert proposal.recommended_claim_size == "32Gi"
+      assert proposal.evidence["window_days"] == 1
+      assert proposal.evidence["after_capped_resize"] == true
+    end
+
+    test "a growth that reached its projection leaves the next step to the normal window", %{
+      account: account,
+      server: server
+    } do
+      insert_applied_growth!(account, "8Gi", "16Gi", 20_528, DateTime.new!(Date.add(@today, -3), ~T[14:00:00], "Etc/UTC"))
+
+      resized_at = DateTime.new!(Date.add(@today, -1), ~T[14:00:00], "Etc/UTC")
+      insert_applied_growth!(account, "16Gi", "20Gi", 3 * 86_400, resized_at)
+      pin_resized_claim!(account, server, "20Gi", resized_at)
+      seed_churn_rollups(account, 1, @today)
+      Repo.update_all(StorageRollup, set: [last_ring_budget_bytes: 17 * @gibibyte, min_ring_budget_bytes: 17 * @gibibyte])
+
+      assert {:ok, %{evaluated: 1, open: 0}} = ClaimProposals.sweep(@today)
     end
   end
 
@@ -351,6 +513,46 @@ defmodule Tuist.Kura.ClaimProposalsTest do
       # still present: days at or before the resize measured the old ring
       # and cannot qualify a window.
       assert {:ok, %{open: 0}} = ClaimProposals.sweep(@today)
+    end
+
+    test "moves every instance to the one claim, raising some and lowering others", %{
+      account: account,
+      server: server
+    } do
+      %{us_east: us_east, eu_west: eu_west} = mixed_retention_account(account, server)
+      {:ok, %{open: 1}} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+
+      assert proposal.direction == :shrink
+      assert proposal.current_claim_size == "50Gi"
+      assert proposal.recommended_claim_size == "18Gi"
+
+      assert {:ok, result} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      assert result.claim_size == "18Gi"
+      assert Enum.map(result.raised, & &1.id) == [eu_west.id]
+      assert Enum.map(result.lowered, & &1.id) == [us_east.id]
+      assert Repo.get!(Server, us_east.id).storage_claim_size == "18Gi"
+      assert Repo.get!(Server, eu_west.id).storage_claim_size == "18Gi"
+      assert PlacerClaims.claim_for(account) == "18Gi"
+      assert PlacerClaims.effective_claim_size(account) == "18Gi"
+    end
+
+    test "a region refusing the raise leaves every instance and the claim as they were", %{
+      account: account,
+      server: server
+    } do
+      %{us_east: us_east, eu_west: eu_west} = mixed_retention_account(account, server)
+      {:ok, %{open: 1}} = ClaimProposals.sweep(@today)
+      proposal = ClaimProposals.open_proposal_for(account)
+      refuse_growth_in("eu-west")
+
+      assert {:error, {"eu-west", :capacity_exhausted}} = Kura.apply_claim_proposal(proposal, "automatic")
+
+      assert Repo.get!(Server, us_east.id).storage_claim_size == "50Gi"
+      assert Repo.get!(Server, eu_west.id).storage_claim_size == "16Gi"
+      assert PlacerClaims.claim_for(account) == nil
+      assert Repo.get!(ClaimProposal, proposal.id).status == :open
     end
 
     test "a claim that moved since the proposal supersedes instead of applying", %{account: account} do

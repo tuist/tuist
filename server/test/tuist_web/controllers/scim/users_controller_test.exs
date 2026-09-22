@@ -167,6 +167,20 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       assert {:error, :not_found} = SCIM.get_user(org, user.id)
       assert Accounts.get_user_by_id(user.id).active == true
     end
+
+    test "deactivates when Entra ID sends active as a string", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra@example.com"})
+
+      body =
+        JSON.encode!(%{
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          Operations: [%{op: "Replace", path: "active", value: "False"}]
+        })
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
+      assert json_response(conn, 200)["active"] == false
+      assert {:error, :not_found} = SCIM.get_user(org, user.id)
+    end
   end
 
   describe "DELETE /Users/:id" do

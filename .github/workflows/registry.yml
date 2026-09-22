@@ -38,6 +38,7 @@ jobs:
     name: Format
     runs-on: tuist-linux
     timeout-minutes: 15
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -60,7 +61,7 @@ jobs:
     name: Credo
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -83,7 +84,7 @@ jobs:
     name: Test
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache
@@ -106,7 +107,7 @@ jobs:
     name: Compile (prod)
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Restore Mix Cache

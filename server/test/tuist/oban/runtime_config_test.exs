@@ -1,5 +1,6 @@
 defmodule Tuist.Oban.RuntimeConfigTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Tuist.Accounts.Workers.DormantOperatorAccountsWorker
   alias Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker
@@ -8,6 +9,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Billing.Workers.SyncStripeMetersWorker
   alias Tuist.Environment
   alias Tuist.Kura.Reconciler, as: KuraReconciler
+  alias Tuist.Kura.Workers.ArchiveInactiveInstancesWorker
   alias Tuist.Kura.Workers.ClaimSizingWorker
   alias Tuist.Oban.RuntimeConfig
   alias Tuist.Ops.DailySlackReportWorker
@@ -19,6 +21,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Runners.Workers.StaleQueuedJobsWorker
   alias Tuist.Slack.Workers.ReportWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
@@ -26,6 +29,8 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
   alias Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker
+
+  setup :verify_on_exit!
 
   @cache_retention_workers [
     DeleteExpiredCasCacheArtifactsWorker,
@@ -64,6 +69,14 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   end
 
   describe "crontab/4" do
+    test "hosted archival sweeps hourly, with a configurable cadence" do
+      assert {"@hourly", ArchiveInactiveInstancesWorker} in RuntimeConfig.crontab(:web, :prod, true)
+
+      stub(Environment, :kura_archival_sweep_cron, fn -> "*/30 * * * *" end)
+
+      assert {"*/30 * * * *", ArchiveInactiveInstancesWorker} in RuntimeConfig.crontab(:web, :prod, true)
+    end
+
     test "empty for every non-web mode in every prod-like env, regardless of hosted state" do
       for mode <- Environment.modes(),
           mode != :web,
@@ -128,6 +141,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute DeleteExpiredXcodeCacheArtifactsWorker in workers
         refute DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         refute DeleteExpiredGradleCacheArtifactsWorker in workers
+        refute DeleteExpiredGitLabCacheArtifactsWorker in workers
         refute SyncStripeMetersWorker in workers
         refute KuraReconciler in workers
         refute ClaimSizingWorker in workers
@@ -259,11 +273,30 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert DeleteExpiredXcodeCacheArtifactsWorker in workers
         assert DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         assert DeleteExpiredGradleCacheArtifactsWorker in workers
+        assert DeleteExpiredGitLabCacheArtifactsWorker in workers
         assert SyncStripeMetersWorker in workers
         assert KuraReconciler in workers
         assert ClaimSizingWorker in workers
         assert StaleQueuedJobsWorker in workers
         assert FlushJobTransitionEventsWorker in workers
+      end
+    end
+
+    test "GitLab cache retention runs only where runners do" do
+      every_family = %{
+        cache_artifacts: 14,
+        app_previews: 30,
+        build_archives: 30,
+        run_artifacts: 30,
+        test_attachments: 30,
+        shard_bundles: 30
+      }
+
+      for env <- [:prod, :stag, :can] do
+        assert {"15 4 * * *", DeleteExpiredGitLabCacheArtifactsWorker} in RuntimeConfig.crontab(:web, env, true)
+
+        self_hosted = RuntimeConfig.crontab(:web, env, false, artifact_retention_days: every_family)
+        refute Enum.any?(self_hosted, &(cron_worker(&1) == DeleteExpiredGitLabCacheArtifactsWorker))
       end
     end
 

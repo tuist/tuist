@@ -10,10 +10,10 @@ setup_xcode_chunking() {
   xcode_chunking_enabled || return 0
   XCODE_TEST_URL="${TUIST_CHUNKING_TEST_URL:-http://127.0.0.1:18765}"
   [[ "$XCODE_TEST_URL" =~ ^http://127\.0\.0\.1:[0-9]+$ ]] || return 1
-  curl --fail --silent --max-time 5 "$XCODE_TEST_URL/up" >/dev/null || return 1
+  curl --fail --silent --max-time 5 "$XCODE_TEST_URL/ready" >/dev/null || return 1
   XCODE_TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/kura-xcode.XXXXXX")"
   XCODE_TEST_ROOT="$(cd "$XCODE_TEST_ROOT" && pwd -P)"
-  local release_bin="${KURA_PROJECT_ROOT}/../cas-plugin/target/release"
+  local release_bin="${KURA_E2E_CAS_BIN:-${KURA_PROJECT_ROOT}/../cas-plugin/target/release}"
   [ -f "$release_bin/libtuist_cas_plugin.dylib" ] && [ -x "$release_bin/tuist-cas-proxy" ] || return 1
   # Keep every phase on the same binaries even if another build runs locally.
   XCODE_TEST_BIN="$XCODE_TEST_ROOT/bin"
@@ -59,12 +59,17 @@ teardown_xcode_chunking() {
 run_xcode_phase() {
   local phase="$1" revision="$2" reader="$3" upload="$4" _attempt
   local build_status=0
+  local result_bundle_args=()
+  if [ -n "${XCODE_ANALYTICS_PARSER:-}" ]; then
+    result_bundle_args=(-resultBundlePath "$XCODE_TEST_ROOT/$phase.xcresult")
+  fi
   cp "$XCODE_TEST_ROOT/$revision.swift" "$XCODE_TEST_ROOT/Fixture.swift" || return 1
   mkdir -p "$XCODE_TEST_ROOT/$reader" || return 1
   env TUIST_CAS_PROXY_SOCKET="$XCODE_TEST_SOCKET" \
     TUIST_CAS_PROXY_REGISTRY="$XCODE_TEST_ROOT/$reader/registry" \
     TUIST_CAS_REMOTE_GRPC_URL="$XCODE_TEST_URL" TUIST_CAS_TOKEN=local-fixture \
-    TUIST_CAS_PREFETCH=0 TUIST_CAS_TUIST_BIN=/usr/bin/false TUIST_CAS_ANALYTICS_DB= \
+    TUIST_CAS_PREFETCH=0 TUIST_CAS_TUIST_BIN=/usr/bin/false \
+    TUIST_CAS_ANALYTICS_DB="$XCODE_TEST_ROOT/$phase.analytics.db" \
     TUIST_CAS_UPLOAD="$upload" TUIST_CAS_LOG="$XCODE_TEST_ROOT/$phase.proxy.log" \
     "$XCODE_TEST_BIN/tuist-cas-proxy" >"$XCODE_TEST_ROOT/$phase.proxy-stdout.log" 2>&1 &
   XCODE_TEST_PROXY_PID=$!
@@ -77,6 +82,7 @@ run_xcode_phase() {
   env TUIST_CAS_PROXY_SOCKET="$XCODE_TEST_SOCKET" TUIST_CAS_UPLOAD="$upload" \
     TUIST_CAS_LOG="$XCODE_TEST_ROOT/$phase.plugin.log" \
     xcodebuild build -workspace "$XCODE_TEST_ROOT/SwiftChunkFixture.xcworkspace" -scheme SwiftChunkFixture \
+    "${result_bundle_args[@]}" \
     -destination 'platform=macOS,arch=arm64' -derivedDataPath "$XCODE_TEST_DERIVED" \
     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
     "TUIST_XCODE_TEST_PLUGIN=$XCODE_TEST_BIN/libtuist_cas_plugin.dylib" \
@@ -85,6 +91,20 @@ run_xcode_phase() {
   if [ "$build_status" != 0 ]; then
     stop_xcode_proxy
     return "$build_status"
+  fi
+  if [ -n "${XCODE_ANALYTICS_PARSER:-}" ]; then
+    # The build service can finish its activity log after xcodebuild exits.
+    # Moving DerivedData before that loses the log the parser must consume.
+    local activitylog log_ready=0
+    for _attempt in $(seq 1 300); do
+      activitylog="$(find "$XCODE_TEST_DERIVED/Logs/Build" -name '*.xcactivitylog' -size +0c -print -quit)"
+      if [ -n "$activitylog" ] && gzip -t "$activitylog" 2>/dev/null; then
+        log_ready=1
+        break
+      fi
+      sleep 0.1
+    done
+    [ "$log_ready" = 1 ] || { echo "Xcode did not finalize $phase activity log" >&2; return 1; }
   fi
   if [ "$upload" = true ]; then
     # Xcode can spell /private/var as /var. Drain the path it actually registered.

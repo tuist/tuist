@@ -41,26 +41,7 @@ func TestExecute(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			dir := t.TempDir()
-			repo := filepath.Join(dir, "repository")
-			if err := os.Mkdir(repo, 0700); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(repo, "source.txt"), []byte("checkout worked\n"), 0600); err != nil {
-				t.Fatal(err)
-			}
-			git := func(args ...string) string {
-				cmd := exec.Command("git", args...)
-				cmd.Dir = repo
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					t.Fatalf("git: %v: %s", err, out)
-				}
-				return strings.TrimSpace(string(out))
-			}
-			git("init", "-b", "main")
-			git("add", "source.txt")
-			git("-c", "user.name=Local Test", "-c", "user.email=test@example.invalid", "commit", "-m", "fixture")
-			sha := git("rev-parse", "HEAD")
+			repo, sha := fixtureRepository(t, dir)
 			var mu sync.Mutex
 			var upstreamLog, tuistLog strings.Builder
 			var outcome map[string]any
@@ -162,7 +143,8 @@ func TestExecute(t *testing.T) {
 				t.Fatal(err)
 			}
 			buildsDir := filepath.Join(dir, "builds")
-			cmd := exec.Command(os.Args[0], "--job-file", jobFile, "--builds-dir", buildsDir)
+			resultFile := filepath.Join(dir, "job-result")
+			cmd := exec.Command(os.Args[0], "--job-file", jobFile, "--builds-dir", buildsDir, "--result-file", resultFile)
 			if scenario.infraFailure {
 				cmd.Env = append(os.Environ(), "PATH="+dir)
 			}
@@ -177,6 +159,18 @@ func TestExecute(t *testing.T) {
 			}
 			if outcome == nil {
 				t.Fatal("no completion report")
+			}
+			result, _ := os.ReadFile(resultFile)
+			wantResult := "failed"
+			switch {
+			case scenario.infraFailure:
+			case scenario.cancel || scenario.activeCancel:
+				wantResult = "canceled"
+			case scenario.exit == "0":
+				wantResult = "succeeded"
+			}
+			if string(result) != wantResult {
+				t.Errorf("result file = %q, want %q", result, wantResult)
 			}
 			if scenario.infraFailure {
 				if outcome["exit_status"] == float64(0) || states[len(states)-1] != "failed" {
@@ -218,4 +212,28 @@ func TestExecute(t *testing.T) {
 			}
 		})
 	}
+}
+
+func fixtureRepository(t *testing.T, dir string) (string, string) {
+	t.Helper()
+	repo := filepath.Join(dir, "repository")
+	if err := os.Mkdir(repo, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "source.txt"), []byte("checkout worked\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git := func(args ...string) string {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git: %v: %s", err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-b", "main")
+	git("add", "source.txt")
+	git("-c", "user.name=Local Test", "-c", "user.email=test@example.invalid", "commit", "-m", "fixture")
+	return repo, git("rev-parse", "HEAD")
 }
