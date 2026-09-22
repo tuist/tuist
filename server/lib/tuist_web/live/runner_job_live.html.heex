@@ -419,6 +419,7 @@
         <div :if={@steps == []} data-part="steps-empty">
           {dgettext("dashboard_runners", "Steps will appear here once the job finishes.")}
         </div>
+        <% job_step_window = TuistWeb.RunnerJobLive.step_window(@steps) %>
         <div
           :for={step <- @steps}
           id={"runner-step-#{step.number}"}
@@ -522,9 +523,12 @@
                 </div>
               </div>
             </div>
-            <div data-part="step-meta">
+            <% step_bar_offset =
+              TuistWeb.RunnerJobLive.step_bar_offset_percent(step, job_step_window) %>
+            <% step_bar_width =
+              TuistWeb.RunnerJobLive.step_bar_width_percent(step, job_step_window) %>
+            <div :if={step_duration} data-part="step-duration">
               <.badge
-                :if={step_duration}
                 label={
                   Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
                     fractional_seconds: false
@@ -534,6 +538,8 @@
                 style="light-fill"
                 size="large"
               />
+            </div>
+            <div data-part="step-meta">
               <span data-part="step-chevron">
                 <.chevron_up :if={expanded} />
                 <.chevron_down :if={!expanded} />
@@ -551,6 +557,15 @@
                 tree={Tuist.Runners.LogFormatter.group_lines(step_lines)}
               />
             </div>
+          </div>
+          <div data-part="step-timeline" aria-hidden="true">
+            <span
+              :if={step_bar_offset && step_bar_width}
+              data-part="step-timeline-bar"
+              data-kind={to_string(step_kind)}
+              style={"left: #{step_bar_offset}; width: #{step_bar_width};"}
+            >
+            </span>
           </div>
         </div>
       </.card_section>

@@ -509,10 +509,23 @@
           }
         }
 
+        & > [data-part="step-duration"] {
+          display: flex;
+          flex-shrink: 0;
+          justify-content: flex-end;
+          align-items: center;
+          min-width: 64px;
+
+          & > .noora-badge {
+            font-variant-numeric: tabular-nums;
+          }
+        }
+
         & > [data-part="step-meta"] {
           display: flex;
           flex-shrink: 0;
           flex-direction: row;
+          justify-content: flex-end;
           align-items: center;
           gap: var(--noora-spacing-4);
 
@@ -534,6 +547,33 @@
         gap: var(--noora-spacing-4);
         margin: var(--noora-spacing-4);
         margin-top: 0;
+      }
+
+      & > [data-part="step-timeline"] {
+        position: relative;
+        height: 3px;
+        width: 100%;
+        background: var(--noora-surface-background-secondary);
+
+        & > [data-part="step-timeline-bar"] {
+          position: absolute;
+          top: 0;
+          height: 100%;
+          min-width: 3px;
+          background: var(--noora-chart-primary);
+        }
+
+        & > [data-part="step-timeline-bar"][data-kind="failure"] {
+          background: var(--noora-icon-destructive-label);
+        }
+
+        & > [data-part="step-timeline-bar"][data-kind="warning"] {
+          background: var(--noora-icon-warning-label);
+        }
+
+        & > [data-part="step-timeline-bar"][data-kind="processing"] {
+          background: var(--noora-surface-label-secondary);
+        }
       }
     }
   }
