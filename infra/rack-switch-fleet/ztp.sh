@@ -222,6 +222,9 @@ subnet="${server_ip%.*}"
   echo "enable-tftp"
   echo "tftp-root=$serve_root"
   echo "dhcp-option=66,\"$server_ip\""
+  # TP-Link's Auto Install names option 150 for the TFTP server; the switch asks
+  # for both.
+  echo "dhcp-option=150,$server_ip"
   echo "log-dhcp"
   if [ -n "$mac" ]; then
     # Only this switch gets an answer, so even a segment that turns out not to
@@ -235,12 +238,35 @@ subnet="${server_ip%.*}"
   fi
 } > "$conf"
 
+# The SG3452's DHCP client (firmware 1.30) sets the broadcast flag and then
+# ignores broadcast replies: it took a router's unicast offer within 4 ms and
+# never answered dnsmasq's broadcast ones, whatever they carried. dnsmasq has
+# no way to disregard the flag, so on a Linux server an egress rule on this one
+# port addresses the replies to the switch's MAC, and goes when serving stops.
+unicast_rules=""
+if [ -n "$via" ] && [ -n "$mac" ]; then
+  unicast_rules="$tftp_root/unicast.nft"
+  {
+    echo "table netdev rack_ztp {"
+    echo "  chain replies {"
+    echo "    type filter hook egress device \"$interface\" priority 0;"
+    echo "    udp sport 67 udp dport 68 ether daddr set $mac"
+    echo "  }"
+    echo "}"
+  } > "$unicast_rules"
+fi
+
 echo "interface     $interface on $server at $server_ip (default route on $(tr '\n' ' ' <<<"${default_interfaces:-none}"))"
 echo "serving       $boot_file from $serve_root"
 echo "to            ${mac:-any client on this segment}"
 echo ""
 echo "dnsmasq configuration:"
 sed 's/^/  /' "$conf"
+if [ -n "$unicast_rules" ]; then
+  echo ""
+  echo "replies addressed to $mac rather than broadcast, while serving:"
+  sed 's/^/  /' "$unicast_rules"
+fi
 echo ""
 echo "the switch would fetch (login line redacted):"
 tr -d '\000' < "$served" | tr -d '\r' | sed "s/secret 0 .*/secret 0 <redacted>/" | head -20 | sed 's/^/  /'
@@ -290,10 +316,18 @@ if [ -n "$via" ]; then
   # however this end died. Relying on a hangup was not enough: killed outright,
   # this end ran no trap, sudo's own terminal swallowed the hangup, and dnsmasq
   # kept serving on the rack with the password still on disk.
-  ssh -o BatchMode=yes "$via" "sudo -n dnsmasq --conf-file='$serve_root/dnsmasq.conf' --no-daemon --log-facility=- & served=\$!
+  unicast_on=":"
+  unicast_off=":"
+  if [ -n "$unicast_rules" ]; then
+    unicast_on="sudo -n nft -f '$serve_root/unicast.nft'"
+    unicast_off="sudo -n nft delete table netdev rack_ztp 2>/dev/null"
+  fi
+  ssh -o BatchMode=yes "$via" "$unicast_off; $unicast_on || { rm -rf '$serve_root'; exit 1; }
+    sudo -n dnsmasq --conf-file='$serve_root/dnsmasq.conf' --no-daemon --log-facility=- & served=\$!
     session=\$PPID
     while ps -p \$session >/dev/null 2>&1 && ps -p \$served >/dev/null 2>&1; do sleep 2; done
     sudo -n kill \$served 2>/dev/null
+    $unicast_off
     rm -rf '$serve_root'"
 else
   sudo dnsmasq --conf-file="$conf" --no-daemon --log-facility=-

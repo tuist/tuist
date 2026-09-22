@@ -1511,6 +1511,8 @@ STUB
     [[ "$output" == *"dhcp-host=d4:d6:df:03:d8:b2,set:ber1-tor-b"* ]]
     # and nothing else on the segment is answered at all
     [[ "$output" == *"dhcp-ignore=tag:!known"* ]]
+    # and the TFTP server is named both ways Auto Install looks for it
+    [[ "$output" == *"dhcp-option=150,192.168.50.1"* ]]
     [[ "$output" == *"67,\"ber1-tor-b.cfg\""* ]]
     # and the served file is the rendered config, with the login put back
     [[ "$output" == *'hostname "ber1-tor-b"'* ]]
@@ -1667,7 +1669,11 @@ case "$*" in
     "-4 -o addr show dev enp89s0") echo "5: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0";;
 esac
 STUB
-    chmod +x "$dir/ssh" "$dir/ip"
+    cat > "$dir/nft" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "-f" ]; then echo "NFT load $(tr -s ' \n' ' ' < "$2")" >> "$FAKE_LOG"; else echo "NFT $*" >> "$FAKE_LOG"; fi
+STUB
+    chmod +x "$dir/ssh" "$dir/ip" "$dir/nft"
     : > "$dir/log"
 }
 
@@ -1723,6 +1729,11 @@ STUB
     run grep -c "^user=$(id -un)$" "$copy.conf"
     [ "$output" = "1" ]
     [ ! -e "$(cat "$copy.root")" ]
+    # replies go to the switch's MAC while serving, and the rule goes with it
+    run grep -c "NFT load .*egress device \"enp89s0\".*ether daddr set a8:29:48:fe:b4:be" "$bin/log"
+    [ "$output" = "1" ]
+    run bash -c "grep -n '^NFT' '$bin/log' | tail -1"
+    [[ "$output" == *"delete table netdev rack_ztp"* ]]
 }
 
 @test "--via stops dnsmasq and removes the files on the server when this end is killed outright" {
@@ -1755,6 +1766,8 @@ STUB
     run ps -p "$served"
     [ "$status" -ne 0 ]
     [ ! -e "$(cat "$state.root")" ]
+    run bash -c "grep -n '^NFT' '$bin/log' | tail -1"
+    [[ "$output" == *"delete table netdev rack_ztp"* ]]
 }
 
 @test "ztp offers no boot file by MAC when the site definition has none" {
