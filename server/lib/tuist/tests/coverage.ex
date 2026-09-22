@@ -63,6 +63,17 @@ defmodule Tuist.Tests.Coverage do
 
   @insert_chunk_size 2_000
 
+  # ClickHouse sends every query parameter as an HTTP form field and refuses a
+  # request carrying more than `http_max_fields`, which defaults to 1000. A
+  # query that binds a list therefore has to be split, and each chunk has to
+  # leave room for whatever else the query binds — above all a second list,
+  # like the run ids a per-test lookup is scoped to. The budget is kept under
+  # the default so an install that never touched the setting still works.
+  @max_query_parameters 900
+
+  @doc false
+  def id_chunks(ids, reserved \\ 0), do: Enum.chunk_every(ids, max(@max_query_parameters - reserved, 1))
+
   # A published version ranks the shards a computation included above the
   # newest report it saw, in microseconds, which stay below 2^51 until 2041.
   @shard_count_weight 2 ** 51

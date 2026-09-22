@@ -42,7 +42,10 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
 
-  @chunk_size 2_000
+  # A lookup scoped to runs binds every run id as a query parameter too, so the
+  # run ids are chunked first and each chunk is kept small enough that the ids
+  # it is crossed with still have room. See `Coverage.id_chunks/2`.
+  @run_id_chunk 200
 
   @doc """
   The commit's reported coverage, or nil when no run measured it.
@@ -387,23 +390,28 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp evidence_rows(_project_id, _scope_ids, [], _kind), do: []
 
   defp evidence_rows(project_id, scope_ids, run_ids, kind) do
-    scope_ids
-    |> Enum.chunk_every(@chunk_size)
-    |> Enum.flat_map(fn chunk ->
-      ClickHouseRepo.all(
-        from(f in CoverageFile,
-          where:
-            f.project_id == ^project_id and f.scope_kind == ^kind and f.scope_id in ^chunk and f.test_run_id in ^run_ids,
-          select: %{
-            test_run_id: f.test_run_id,
-            shard_index: f.shard_index,
-            scope_id: f.scope_id,
-            path: f.path,
-            line_numbers: f.line_numbers,
-            inserted_at: f.inserted_at
-          }
+    run_ids
+    |> Enum.chunk_every(@run_id_chunk)
+    |> Enum.flat_map(fn runs ->
+      scope_ids
+      |> Coverage.id_chunks(length(runs))
+      |> Enum.flat_map(fn chunk ->
+        ClickHouseRepo.all(
+          from(f in CoverageFile,
+            where:
+              f.project_id == ^project_id and f.scope_kind == ^kind and f.scope_id in ^chunk and
+                f.test_run_id in ^runs,
+            select: %{
+              test_run_id: f.test_run_id,
+              shard_index: f.shard_index,
+              scope_id: f.scope_id,
+              path: f.path,
+              line_numbers: f.line_numbers,
+              inserted_at: f.inserted_at
+            }
+          )
         )
-      )
+      end)
     end)
     |> Enum.group_by(&{&1.test_run_id, &1.shard_index, &1.scope_id})
     |> Enum.flat_map(fn {_key, shard_rows} ->
@@ -433,19 +441,23 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     run_ids = pairs |> Enum.map(&elem(&1, 1)) |> Enum.uniq()
 
-    pairs
-    |> Enum.map(&elem(&1, 0))
-    |> Enum.uniq()
-    |> Enum.chunk_every(@chunk_size)
-    |> Enum.flat_map(fn chunk ->
-      ClickHouseRepo.all(
-        from(r in TestCaseRun,
-          where:
-            r.project_id == ^project_id and r.test_case_id in ^chunk and r.test_run_id in ^run_ids and
-              r.status == "success",
-          select: {r.test_case_id, r.test_run_id}
+    case_ids = pairs |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+
+    run_ids
+    |> Enum.chunk_every(@run_id_chunk)
+    |> Enum.flat_map(fn runs ->
+      case_ids
+      |> Coverage.id_chunks(length(runs))
+      |> Enum.flat_map(fn chunk ->
+        ClickHouseRepo.all(
+          from(r in TestCaseRun,
+            where:
+              r.project_id == ^project_id and r.test_case_id in ^chunk and r.test_run_id in ^runs and
+                r.status == "success",
+            select: {r.test_case_id, r.test_run_id}
+          )
         )
-      )
+      end)
     end)
     |> MapSet.new()
   end
@@ -455,16 +467,21 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp source_files(_project_id, []), do: %{}
 
   defp source_files(project_id, run_ids) do
-    from(f in Coverage.report_files_for_runs(project_id, run_ids),
-      select: %{
-        test_run_id: f.test_run_id,
-        path: f.path,
-        git_blob_id: f.git_blob_id,
-        is_test: f.is_test,
-        line_numbers: f.line_numbers
-      }
-    )
-    |> ClickHouseRepo.all()
+    run_ids
+    |> Coverage.id_chunks()
+    |> Enum.flat_map(fn runs ->
+      ClickHouseRepo.all(
+        from(f in Coverage.report_files_for_runs(project_id, runs),
+          select: %{
+            test_run_id: f.test_run_id,
+            path: f.path,
+            git_blob_id: f.git_blob_id,
+            is_test: f.is_test,
+            line_numbers: f.line_numbers
+          }
+        )
+      )
+    end)
     |> Enum.group_by(& &1.test_run_id)
     |> Map.new(fn {run_id, rows} ->
       {run_id,

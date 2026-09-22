@@ -507,4 +507,24 @@ defmodule Tuist.Tests.CoverageTest do
       assert Coverage.percentage(0, 0) == 0.0
     end
   end
+
+  describe "id_chunks/2" do
+    test "keeps a chunk within what ClickHouse accepts as query parameters" do
+      chunks = Coverage.id_chunks(Enum.to_list(1..5_000))
+
+      assert Enum.concat(chunks) == Enum.to_list(1..5_000)
+      assert Enum.all?(chunks, &(length(&1) <= 900))
+    end
+
+    test "leaves room for the parameters the query binds alongside the chunk" do
+      chunks = Coverage.id_chunks(Enum.to_list(1..5_000), 200)
+
+      assert Enum.concat(chunks) == Enum.to_list(1..5_000)
+      assert Enum.all?(chunks, &(length(&1) + 200 <= 900))
+    end
+
+    test "never yields an empty chunk, whatever the query reserves" do
+      assert Coverage.id_chunks([1, 2], 10_000) == [[1], [2]]
+    end
+  end
 end

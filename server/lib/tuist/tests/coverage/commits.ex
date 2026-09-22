@@ -305,6 +305,16 @@ defmodule Tuist.Tests.Coverage.Commits do
   def runs(_project_id, []), do: []
 
   def runs(project_id, shas) when is_list(shas) do
+    # The ancestor window is thousands of commits wide, and ClickHouse binds one
+    # HTTP form field per parameter, so the shas are read in chunks and the
+    # ordering is restored here rather than by the query.
+    shas
+    |> Coverage.id_chunks()
+    |> Enum.flat_map(&runs_chunk(project_id, &1))
+    |> Enum.sort_by(& &1.ran_at, NaiveDateTime)
+  end
+
+  defp runs_chunk(project_id, shas) do
     runs =
       from(t in Test,
         where: t.project_id == ^project_id and t.git_commit_sha in ^shas,

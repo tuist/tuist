@@ -182,4 +182,21 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert %{coverage: 50.0} = Commits.summary(project.id, "abc123")
     assert :ok = perform_job(CommitWorker, %{"project_id" => -1, "git_commit_sha" => "abc123"})
   end
+
+  test "reads a commit's runs when the ancestor window holds more shas than ClickHouse takes parameters",
+       %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+    # ClickHouse binds one HTTP form field per query parameter and rejects a
+    # request over `http_max_fields` (1000 by default; a self-hosted 26.1.12
+    # refused 1000 list elements where 300 went through). The ancestor window
+    # is `git_history_window_commits` wide — thousands — so the shas cannot be
+    # one `IN` list. Whether a given server enforces the cap is its own
+    # configuration, so this pins the behaviour the chunking has to preserve:
+    # the same rows, whatever the list length.
+    shas = Enum.map(1..1_500, &String.pad_leading("#{&1}", 40, "0")) ++ ["abc123"]
+
+    assert [run] = Commits.runs(project.id, shas)
+    assert run.git_commit_sha == "abc123"
+  end
 end
