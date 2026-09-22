@@ -6823,7 +6823,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "max by (pod, pipeline) (kura_analytics_circuit_state{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "expr": "max by (pod, pipeline) (kura_analytics_circuit_state{cluster=~\"tuist-$env\", pod=~\"$pod\", pipeline=\"bazel_invocations\"})",
                         "instant": false,
                         "legendFormat": "{{pod}} · {{pipeline}}",
                         "range": true
@@ -6838,7 +6838,7 @@
               "transformations": []
             }
           },
-          "description": "Analytics circuit breaker state where 0=closed, 1=open, 2=half_open\n\nPrometheus name: `kura_analytics_circuit_state` · labels: pipeline",
+          "description": "Bazel invocation analytics circuit breaker state where 0=closed, 1=open, 2=half_open. Xcode, Gradle, and REAPI cache pipelines route through the durable outbox and the forwarder owns retry/backoff, so no gauge is emitted for them.\n\nPrometheus name: `kura_analytics_circuit_state` · labels: pipeline",
           "id": 165,
           "links": [],
           "title": "analytics_circuit_state",
@@ -6944,7 +6944,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (pod, pipeline, from, to) (rate(kura_analytics_circuit_transitions_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (pod, pipeline, from, to) (rate(kura_analytics_circuit_transitions_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\", pipeline=\"bazel_invocations\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "{{pod}} · {{pipeline}} / {{from}} / {{to}}",
                         "range": true
@@ -6959,7 +6959,7 @@
               "transformations": []
             }
           },
-          "description": "Analytics circuit breaker transitions by pipeline\n\nPrometheus name: `kura_analytics_circuit_transitions_total_total` · labels: pipeline, from, to",
+          "description": "Bazel invocation analytics circuit breaker transitions. Xcode, Gradle, and REAPI cache pipelines route through the durable outbox, so no transitions are emitted for them.\n\nPrometheus name: `kura_analytics_circuit_transitions_total_total` · labels: pipeline, from, to",
           "id": 166,
           "links": [],
           "title": "analytics_circuit_transitions_total (rate)",
