@@ -105,11 +105,19 @@ func (f *fakeRunner) run(ctx context.Context, name string, args ...string) ([]by
 			return []byte("iptables: Bad rule (does a matching rule exist in that chain?)."), errors.New("exit status 1")
 		}
 	}
-	if strings.Contains(line, " -A ") {
+	if strings.Contains(line, " -A ") || strings.Contains(line, " -I ") {
+		key := line
+		if i := strings.Index(line, " -I "); i >= 0 {
+			// "-I CHAIN 1 rule" is remembered as "-A CHAIN rule" so -C finds it.
+			rest := line[i+len(" -I "):]
+			chain, rule, _ := strings.Cut(rest, " ")
+			rule = strings.TrimPrefix(rule, "1 ")
+			key = line[:i] + " -A " + chain + " " + rule
+		}
 		if f.exists == nil {
 			f.exists = map[string]bool{}
 		}
-		f.exists[line] = true
+		f.exists[key] = true
 	}
 	if line == "ip -o route show default" {
 		return []byte("default via 10.0.1.1 dev eth0 \n"), nil
@@ -184,6 +192,31 @@ func TestEnsurePodNATRunsOnce(t *testing.T) {
 	}
 	if !strings.Contains(joined, "sysctl -w net.ipv4.ip_forward=1") {
 		t.Fatalf("missing ip_forward:\n%s", joined)
+	}
+}
+
+func TestEnsurePodNATFencesGuestsOffTheDaemon(t *testing.T) {
+	f := &fakeRunner{}
+	m := &Manager{Run: f.run, Log: slog.Default()}
+	if err := m.EnsurePodNAT(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.EnsurePodNAT(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(f.calls, "\n")
+	for _, want := range []string{
+		"iptables -w 5 -t filter -I INPUT 1 -s 172.31.0.0/16 -j DROP",
+		"iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -d 172.31.0.0/16 -j DROP",
+	} {
+		if strings.Count(joined, want) != 1 {
+			t.Fatalf("expected exactly one %q:\n%s", want, joined)
+		}
+	}
+	drop := strings.Index(joined, "-I FORWARD 1 -s 172.31.0.0/16 -d 172.31.0.0/16 -j DROP")
+	accept := strings.Index(joined, "-A FORWARD -s 172.31.0.0/16 -j ACCEPT")
+	if drop < 0 || accept < 0 || drop > accept {
+		t.Fatalf("the slot-to-slot drop must be installed before the forwarding accept:\n%s", joined)
 	}
 }
 

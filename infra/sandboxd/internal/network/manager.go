@@ -87,8 +87,20 @@ func (m *Manager) ensureRule(ctx context.Context, prefix []string, table, chain 
 	return m.run(ctx, add[0], add[1:]...)
 }
 
+// ensureRuleFirst inserts an iptables rule at the head of a chain unless it
+// is already present, for rules that must win over the chain's accepts.
+func (m *Manager) ensureRuleFirst(ctx context.Context, table, chain string, rule ...string) error {
+	check := append([]string{"-w", "5", "-t", table, "-C", chain}, rule...)
+	if _, err := m.Run(ctx, "iptables", check...); err == nil {
+		return nil
+	}
+	insert := append([]string{"-w", "5", "-t", table, "-I", chain, "1"}, rule...)
+	return m.run(ctx, "iptables", insert...)
+}
+
 // EnsurePodNAT installs the pod-level forwarding and MASQUERADE for the
-// slot range once per process.
+// slot range once per process, and fences the guests off the daemon: the
+// only thing a guest may reach through the pod is the world beyond it.
 func (m *Manager) EnsurePodNAT(ctx context.Context) error {
 	m.natOnce.Do(func() { m.natErr = m.ensurePodNAT(ctx) })
 	return m.natErr
@@ -100,6 +112,17 @@ func (m *Manager) ensurePodNAT(ctx context.Context) error {
 		dev = m.defaultInterface(ctx)
 	}
 	if err := m.run(ctx, "sysctl", "-w", "net.ipv4.ip_forward=1"); err != nil {
+		return err
+	}
+	// Guest traffic arrives here masqueraded from the slot network. Nothing
+	// legitimate flows from it to the pod's own listeners (the control
+	// channel is vsock), so anything addressed to the daemon, including the
+	// admin API and metrics on the pod IP or a veth address, is dropped
+	// before the forwarding accepts below, as is sandbox-to-sandbox traffic.
+	if err := m.ensureRuleFirst(ctx, "filter", "INPUT", "-s", SlotNetwork, "-j", "DROP"); err != nil {
+		return err
+	}
+	if err := m.ensureRuleFirst(ctx, "filter", "FORWARD", "-s", SlotNetwork, "-d", SlotNetwork, "-j", "DROP"); err != nil {
 		return err
 	}
 	if err := m.ensureRule(ctx, nil, "nat", "POSTROUTING", "-s", SlotNetwork, "-o", dev, "-j", "MASQUERADE"); err != nil {

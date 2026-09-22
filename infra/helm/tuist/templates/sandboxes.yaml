@@ -128,6 +128,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # The listeners bind to the pod IP rather than every interface so
+            # the per-sandbox veth addresses never carry them; the daemon also
+            # drops guest traffic to itself, this is the second layer.
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: SERVER_URL
               value: {{ $serverURL | quote }}
             - name: TOKEN_PATH
@@ -141,10 +148,10 @@ spec:
             - name: PREBUILD_SHAPES
               value: {{ .Values.sandboxes.prebuildShapes | quote }}
             - name: METRICS_ADDR
-              value: ":{{ .Values.sandboxes.metricsPort }}"
+              value: "$(POD_IP):{{ .Values.sandboxes.metricsPort }}"
             {{- if .Values.sandboxes.admin.enabled }}
             - name: ADMIN_ADDR
-              value: ":{{ .Values.sandboxes.admin.port }}"
+              value: "$(POD_IP):{{ .Values.sandboxes.admin.port }}"
             {{- end }}
             - name: JAILER_ENABLED
               value: {{ .Values.sandboxes.jailer | quote }}
