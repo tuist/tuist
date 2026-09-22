@@ -1,6 +1,7 @@
 # Spec 95 staging validation — 2026-09-22
 
-Status: regional baseline passed; stable DNS validation is blocked on AWS access.
+Status: inert staging rollout and regional regression checks passed; stable DNS
+validation is blocked on AWS access.
 This is not evidence that Route53 steering or the stable hostname works yet.
 
 ## Revisions and rollout boundaries
@@ -13,8 +14,10 @@ This is not evidence that Route53 steering or the stable hostname works yet.
   `codex/cache-dns-staging-e2e`.
 - [Staging deployment run 35765192379](https://github.com/tuist/tuist/actions/runs/35765192379)
   was dispatched with that full commit SHA and the existing Kura runtime pinned
-  to `sha-db5e8ea4c0ee`. At the time of the baseline checks, image builds were
-  still running. Stable DNS, advertising, and hand-out remain disabled.
+  to `sha-db5e8ea4c0ee`. The workflow completed successfully. The migration hook
+  reported both databases already up to date. Server and controller each reached
+  2/2 ready, updated replicas on image tag `sha-56966885e6aa`.
+  Stable DNS, advertising, and hand-out remain disabled.
 - The earlier run 35764868105 failed at checkout because its commit input was
   abbreviated. It performed no deployment.
 - No canary or production deployment was dispatched.
@@ -66,6 +69,30 @@ Expected replication misses are retained in the evidence: HTTP 404 and REAPI
 NOT_FOUND (5), followed by success within the bounded retry window. These are
 regional baseline checks; no request in this table used `cache.tuist.dev`.
 
+## Completed rollout regression checks
+
+- Repeated probes through normal regional DNS completed **60 round trips per
+  region**, 120 total, spanning the rollout. All 240 HTTP requests and 240 gRPC
+  requests passed with matching artifact bytes. Evidence:
+  `eu-west-during-rollout.jsonl` and `ca-east-during-rollout.jsonl`.
+- At 18:31 UTC, release RPC assertions verified the new implementation was
+  loaded, derived `kura-spec95-e2e-staging.cache.tuist.dev`, and had both hostname
+  enablement and hand-out disabled. The RPC emitted only a fixed confirmation.
+- The authenticated endpoints API still returned exactly the two regional URLs,
+  with `provisioning: false` (`endpoints-after.json`).
+- All three fixture instances remained `Ready` without stable intent or status.
+  Their HTTP/gRPC ingresses retained only regional hosts and now declare
+  `external-dns.alpha.kubernetes.io/ingress-hostname-source: annotation-only`.
+- At 18:32 UTC, both new deployments had 2/2 ready, updated replicas. The existing
+  Cloudflare writer had `--exclude-domains=cache.tuist.dev` (`rollout-after.json`).
+
+The staging Kubernetes identity can read Kura instances and ingresses but cannot
+`get` or `list` `dnsendpoints.externaldns.k8s.io` in namespace `kura`. Direct
+inspection of DNSEndpoint source records was therefore not completed. The
+remaining DNS source assertions need that read permission through the normal
+cluster access path; no workload identity or admin kubeconfig was used to bypass
+the denial.
+
 ## Blocker and remaining work
 
 `cache.tuist.dev` has no delegated nameservers. The local AWS CLI has no configured
@@ -76,8 +103,9 @@ Secret values must stay in the CLI credential store or 1Password.
 
 After access is available:
 
-1. Complete the inert rollout, provision/delegate the zone, synchronize separate
-   writer/solver/controller credentials, and issue the wildcard certificate.
+1. Provision/delegate the zone, synchronize separate writer/solver/controller
+   credentials, and issue the wildcard certificate. Arrange read access to the
+   test fixture's DNSEndpoint sources for inspection.
 2. Enable advertising only for `kura-spec95-e2e`; keep hand-out disabled. Verify
    direct stable SNI, both regional latency records, ownership, health checks,
    readiness observations, and authenticated HTTP/gRPC traffic on both boxes.
