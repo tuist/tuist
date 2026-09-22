@@ -67,8 +67,11 @@ data center. This never touches the ToRs.
 ```
 ssh tuist@<ber1-edge> 'sudo ip addr add 192.168.50.1/24 dev enp89s0 && sudo ip link set enp89s0 up'
 mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --dry-run
-mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0
+mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --create-credentials
 ```
+
+`ber1-mgmt` had no 1Password item, since it was never prepped;
+`--create-credentials` makes one with a generated password, as prep-switch does.
 
 The address is not persisted, so a reboot of the edge node clears it. ber1-edge
 needs `dnsmasq-base` (installed 2026-09-22), and only the password read here

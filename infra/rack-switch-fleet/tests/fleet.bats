@@ -1521,6 +1521,59 @@ STUB
     [[ "$output" != *":1"* ]]
 }
 
+# An op that knows no item until one is created, like a vault before a switch
+# has ever been prepped.
+ztp_empty_vault_stub() {
+    local dir="$1"
+    cat > "$dir/op" <<'STUB'
+#!/usr/bin/env bash
+case "$1 $2" in
+    "item get")
+        [ -f "$FAKE_VAULT" ] || { echo "isn't an item" >&2; exit 1; }
+        echo '{"fields":[{"id":"password","value":"GeneratedNotReal24chars0"}]}';;
+    "item create") echo "CREATE $*" >> "$FAKE_VAULT.log"; touch "$FAKE_VAULT";;
+esac
+STUB
+    chmod +x "$dir/op"
+}
+
+@test "ztp creates the 1Password item only when asked, and never in a dry run" {
+    bin="$BATS_TEST_TMPDIR/ztp10"
+    ztp_stub "$bin"
+    ztp_empty_vault_stub "$bin"
+    vault="$BATS_TEST_TMPDIR/vault"
+
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_VAULT="$vault" \
+        "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"--create-credentials"* ]]
+
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_VAULT="$vault" \
+        "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --dry-run --create-credentials
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"a real run creates it"* ]]
+    [ ! -e "$vault.log" ]
+
+    cat > "$bin/sudo" <<'STUB'
+#!/usr/bin/env bash
+exec "$@"
+STUB
+    cat > "$bin/dnsmasq" <<'STUB'
+#!/usr/bin/env bash
+root="$(sed -n 's/^tftp-root=//p' "${1#--conf-file=}")"
+cp "$root/ber1-tor-b.cfg" "$FAKE_COPY"
+STUB
+    chmod +x "$bin/sudo" "$bin/dnsmasq"
+    copy="$BATS_TEST_TMPDIR/created.cfg"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_VAULT="$vault" FAKE_COPY="$copy" \
+        "$FLEET_ROOT/ztp.sh" ber1-tor-b --interface zzz0 --create-credentials < /dev/null
+    [ "$status" -eq 0 ]
+    run grep -c -- '--generate-password=letters,digits,24' "$vault.log"
+    [ "$output" = "1" ]
+    run bash -c "tr -d '\r\000' < '$copy' | grep -c 'secret 0 GeneratedNotReal24chars0$'"
+    [ "$output" = "1" ]
+}
+
 @test "ztp refuses a password the switch would not accept" {
     bin="$BATS_TEST_TMPDIR/ztp8"
     ztp_stub "$bin"

@@ -20,6 +20,9 @@
 #   mise run rack:ztp <device> --interface en7 [--dry-run]
 #   mise run rack:ztp <device> --via tuist@ber1-edge --interface enp89s0 [--dry-run]
 #
+# --create-credentials makes the switch's 1Password item if it has none yet, as
+# rack:prep-switch does.
+#
 # See infra/rack-switch-fleet/AGENTS.md.
 
 set -euo pipefail
@@ -33,6 +36,7 @@ device=""
 interface=""
 via=""
 dry_run=0
+create_credentials=0
 
 while (( $# )); do
   case "$1" in
@@ -40,6 +44,7 @@ while (( $# )); do
     --site) SITE="${2:-}"; shift 2;;
     --via) via="${2:-}"; shift 2;;
     --dry-run) dry_run=1; shift;;
+    --create-credentials) create_credentials=1; shift;;
     -*) echo "unknown flag: $1" >&2; exit 2;;
     *) device="$1"; shift;;
   esac
@@ -128,14 +133,30 @@ if grep -q 'ssh-ed25519' "$public_key"; then
   exit 1
 fi
 
+username="$(jq -r '.credentials.username' "$site_file")"
+
+# A switch that has never been prepped has no item yet. --create-credentials
+# makes one the way rack:prep-switch does; a dry run never creates anything.
 password=""
-if credentials="$(op item get "$credential_item" --vault "$vault" --format=json 2>/dev/null)"; then
+if ! credentials="$(op item get "$credential_item" --vault "$vault" --format=json 2>/dev/null)"; then
+  credentials=""
+  if (( create_credentials && ! dry_run )); then
+    # shellcheck disable=SC2054  # commas belong to op's own flag values
+    op item create --category=login "--title=$credential_item" --vault "$vault" \
+      --generate-password=letters,digits,24 "--tags=$SITE,rack,network" "username=$username" >/dev/null
+    credentials="$(op item get "$credential_item" --vault "$vault" --format=json)"
+  elif (( create_credentials )); then
+    echo "note: no 1Password item '$credential_item'; a real run creates it"
+    credentials='{"fields":[{"id":"password","value":"<redacted>"}]}'
+  fi
+fi
+if [ -n "$credentials" ]; then
   password="$(jq -r '.fields[]? | select(.id == "password") | .value // empty' <<<"$credentials")"
 fi
 if [ -z "$password" ]; then
   echo "error: no password on the 1Password item '$credential_item'." >&2
   echo "       A switch provisioned from scratch has none of our credentials, so the config" >&2
-  echo "       it fetches has to carry the login." >&2
+  echo "       it fetches has to carry the login. --create-credentials makes the item." >&2
   exit 1
 fi
 # The switch's own limits for `secret 0`. Anything else would be rejected and
@@ -157,7 +178,6 @@ else
   ssh-keygen -e -f "$public_key" > "$tftp_root/fleet.pub"
 fi
 
-username="$(jq -r '.credentials.username' "$site_file")"
 served="$tftp_root/$boot_file"
 # Both go ahead of `telnet disable`, which is where a prepped switch keeps the
 # login. For the key that position also matters: the download has to run while
