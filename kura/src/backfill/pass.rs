@@ -536,6 +536,13 @@ async fn list_entry(
             context.update_stats(|stats| stats.tuples_capacity_skipped += 1);
             Ok(())
         }
+        ListDecision::AlreadyListed => {
+            context
+                .state
+                .metrics
+                .record_backfill_listed_tuple("already_listed");
+            Ok(())
+        }
     }
 }
 
@@ -2403,6 +2410,41 @@ mod tests {
                 .is_some(),
             "the newer entry after a declined older entry still applies"
         );
+    }
+
+    #[tokio::test]
+    async fn a_tuple_listed_twice_is_fetched_and_resolved_once() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "seg-a", b"segment-body", 1_000).await;
+        seed_inline(&peer, "inl-b", b"inline-body", 900).await;
+        build_index(&peer);
+        let page = peer
+            .state
+            .store
+            .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+            .expect("index page");
+        let entries: Vec<BackfillEntry> = page
+            .entries
+            .into_iter()
+            .map(|row| BackfillEntry {
+                record_kind: row.kind.as_str().to_owned(),
+                record_id: row.record_id,
+                version_ms: row.version_ms,
+                size: row.size,
+            })
+            .collect();
+        let duplicated = entries.iter().chain(entries.iter()).cloned().collect();
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        let local = test_context(|_| {}).await;
+        let mut forward = tuning();
+        forward.source = PassSource::Entries(duplicated);
+        let (outcome, claim_set) = run_pass(&local, &peer_url, forward).await;
+        let BackfillPassOutcome::Completed { stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(stats.bodies_applied, 2);
+        assert!(claim_set.is_empty());
     }
 
     #[tokio::test]
