@@ -289,11 +289,11 @@ defmodule TuistWeb.BillingLive do
   Says what the runner bar's ceiling is made of, so a limit larger than
   the plan's allowance is not left unexplained.
   """
-  def runner_minutes_composition(%{prepaid_minutes: 0}), do: dgettext("dashboard_account", "of your runner usage")
+  def runner_minutes_composition(%{prepaid_minutes: 0}), do: dgettext("dashboard_account", "of your usage")
 
   def runner_minutes_composition(%{free_minutes: free, prepaid_minutes: prepaid}),
     do:
-      dgettext("dashboard_account", "of your runner usage (%{free} free plus %{prepaid} prepaid)",
+      dgettext("dashboard_account", "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)",
         free: format_number(free),
         prepaid: format_number(prepaid)
       )

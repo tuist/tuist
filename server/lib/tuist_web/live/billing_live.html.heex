@@ -57,22 +57,7 @@
             max={@usage_pricing.tests.included}
             max_label={format_number(@usage_pricing.tests.included)}
             title={dgettext("dashboard_account", "Passing test cases:")}
-          >
-            <:description>
-              <div data-part="description">
-                <.link_button
-                  navigate={~p"/#{@selected_account.name}/usage"}
-                  label={dgettext("dashboard_account", "See the breakdown")}
-                  variant="primary"
-                  size="medium"
-                  underline
-                />
-                <span data-part="label">
-                  {dgettext("dashboard_account", "of your cache and test insights usage")}
-                </span>
-              </div>
-            </:description>
-          </.progress_bar>
+          />
         <% end %>
         <.progress_bar
           :if={is_nil(@usage_pricing)}
@@ -123,6 +108,24 @@
             </div>
           </:description>
         </.progress_bar>
+        <div
+          :if={
+            not is_nil(@usage_pricing) and
+              not (@runner_usage.enabled or @runner_usage.total_ms > 0)
+          }
+          data-part="description"
+        >
+          <.link_button
+            navigate={~p"/#{@selected_account.name}/usage"}
+            label={dgettext("dashboard_account", "See the breakdown")}
+            variant="primary"
+            size="medium"
+            underline
+          />
+          <span data-part="label">
+            {dgettext("dashboard_account", "of your usage")}
+          </span>
+        </div>
       </.card_section>
       <.card_section data-part="current-plan-card-section">
         <div data-part="header">

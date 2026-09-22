@@ -241,6 +241,10 @@ defmodule TuistWeb.BillingLiveTest do
 
       assert lv |> element("#remote-cache-hits-progress [data-part='value']") |> render() =~ "241"
       assert render(lv) =~ "Free tier exceeded"
+
+      # The runner bar already links to the usage page at the bottom of the
+      # card, so the allowance bars above it do not repeat the link.
+      assert lv |> render() |> String.split("See the breakdown") |> length() == 2
     end
 
     test "counts the subscription's period rather than the calendar month", %{conn: conn, account: account} do
@@ -351,6 +355,17 @@ defmodule TuistWeb.BillingLiveTest do
       assert render(lv) =~ "Free tier exceeded"
     end
 
+    test "links to the breakdown once for an account with no runner usage", %{conn: conn, account: account} do
+      stub(FeatureFlags, :runners_enabled?, fn _account -> false end)
+      stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(false) end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      refute has_element?(lv, "#runner-minutes-progress")
+      assert lv |> render() |> String.split("See the breakdown") |> length() == 2
+      assert render(lv) =~ "of your usage"
+    end
+
     test "does not estimate a payment for an account with no subscription", %{conn: conn, account: account} do
       stub(UsagePricing, :period_breakdown, fn _account, _period -> usage_pricing(false) end)
 
@@ -407,7 +422,7 @@ defmodule TuistWeb.BillingLiveTest do
       # Prepaid minutes are already paid for, so they raise the ceiling
       # rather than appearing as a balance of their own.
       assert html =~ "10100"
-      assert html =~ "100 free plus 10K prepaid"
+      assert html =~ "100 free runner minutes plus 10K prepaid"
       # Nothing here may move as credit is spent.
       refute html =~ "3000.00"
       refute html =~ "left."
