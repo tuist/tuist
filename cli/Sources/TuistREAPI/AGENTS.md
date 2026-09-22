@@ -17,6 +17,7 @@ This module hosts the CLI's client for the Bazel Remote Execution API (REAPI, `b
 
 ## Filesystem access
 - Inject `FileSysteming` into directory snapshot/materialization and transport construction; propagate its async APIs through callers.
+- Convert `AbsolutePath` to Foundation URLs with `URL(fileURLWithPath: path.pathString)`; do not rely on transitive `TuistSupport` extensions that are unavailable in the Linux build.
 - Use `FileSysteming` for listing, directory creation, file copies, batch-blob and CA certificate reads, and cleanup. Parse PEM/DER from the same loaded bytes.
 - The current FileSystem API lacks raw symlink targets, permission bits, configurable write durability, atomic binary writes, and streaming reads. Do not force full disk syncs when initializing a temporary streamed download; use the low-level streaming/data path until FileSystem exposes that control. Keep the narrow Foundation operations needed for those features. Do not normalize raw symlink targets through `RelativePath`: doing so can change chained-link semantics and tree digests.
 

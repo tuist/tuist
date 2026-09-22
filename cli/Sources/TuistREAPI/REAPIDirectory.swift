@@ -28,7 +28,7 @@ public enum REAPIDirectory {
             guard depth < 128 else { throw REAPICacheError.invalidTree }
             var directory = REAPI.Directory()
             for file in try await fileSystem.contentsOfDirectory(AbsolutePath(validating: path.path))
-                .map(\.url)
+                .map({ URL(fileURLWithPath: $0.pathString) })
                 .sorted(by: { $0.lastPathComponent.utf8.lexicographicallyPrecedes($1.lastPathComponent.utf8) })
             {
                 let attributes = try manager.attributesOfItem(atPath: file.path)
