@@ -149,17 +149,18 @@ var cacheVolumeOutcomeTotal = prometheus.NewCounterVec(
 	[]string{"outcome"},
 )
 
-// cacheVolumeMaterializeTotal counts post-dispatch materializations by whether
-// a master existed for the dispatched account on this host: "warm" (the
-// account's master was clonefiled into the VM's branch) or "cold" (no master
-// yet — a first job for that account here, whose writes seed the master).
-// warm/(warm+cold) is the hit rate of the local warm set against dispatched
-// demand — the signal for whether affinity is routing jobs to hosts that hold
-// their account's master.
+// cacheVolumeMaterializeTotal counts post-dispatch materializations by where
+// the branch's image came from (MaterializeSource): "warm" (the job's volume
+// master was clonefiled into the VM's branch), "seeded" (the repository volume
+// had no master here, so the account's ReservedTuistCacheVolume master was
+// cloned instead) or "cold" (no master to clone — a first job for that volume
+// here, whose writes seed its master). warm/total is the hit rate of the local
+// warm set against dispatched demand — the signal for whether affinity is
+// routing jobs to hosts that hold their volume's master.
 var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "tart_kubelet_cache_volume_materialize_total",
-		Help: "Post-dispatch cache materializations, by warm/cold.",
+		Help: "Post-dispatch cache materializations, by warm/seeded/cold.",
 	},
 	[]string{"result"},
 )
@@ -422,14 +423,10 @@ func RecordVolumePromote(result string) {
 	cacheVolumePromoteTotal.WithLabelValues(result).Inc()
 }
 
-// RecordVolumeMaterialized increments the warm/cold count of post-dispatch
-// cache materializations.
-func RecordVolumeMaterialized(warm bool) {
-	result := "cold"
-	if warm {
-		result = "warm"
-	}
-	cacheVolumeMaterializeTotal.WithLabelValues(result).Inc()
+// RecordVolumeMaterialized increments the count of post-dispatch cache
+// materializations by where the branch's image came from.
+func RecordVolumeMaterialized(source MaterializeSource) {
+	cacheVolumeMaterializeTotal.WithLabelValues(string(source)).Inc()
 }
 
 // RecordVolumeConverged increments the count of materialize-time master
