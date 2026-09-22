@@ -109,6 +109,13 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
       assert {:ok, _} = UsageMeterProvisioning.provision(live: true)
     end
 
+    test "refuses an environment whose Stripe key is empty rather than reading it as live mode" do
+      stub(Environment, :stripe_api_key, fn -> "" end)
+
+      assert UsageMeterProvisioning.test_mode?() == nil
+      assert UsageMeterProvisioning.provision(live: true) == {:error, :stripe_api_key_not_configured}
+    end
+
     test "refuses an environment with no Stripe key" do
       stub(Environment, :stripe_api_key, fn -> nil end)
 

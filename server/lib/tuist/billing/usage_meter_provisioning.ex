@@ -41,7 +41,7 @@ defmodule Tuist.Billing.UsageMeterProvisioning do
   """
   def test_mode? do
     case Environment.stripe_api_key() do
-      key when is_binary(key) -> String.contains?(key, "_test_")
+      key when is_binary(key) and key != "" -> String.contains?(key, "_test_")
       _ -> nil
     end
   end
