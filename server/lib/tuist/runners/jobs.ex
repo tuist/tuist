@@ -1370,7 +1370,8 @@ defmodule Tuist.Runners.Jobs do
 
   # ----- internal -----
 
-  defp queued_lookback_floor do
+  @doc false
+  def queued_lookback_floor do
     DateTime.add(DateTime.utc_now(), -@queued_lookback_seconds, :second)
   end
 

@@ -184,6 +184,21 @@ The following data is stored in ClickHouse for analytics purposes:
 
 ### Operational Telemetry (logs)
 
+- **Shadow runner scheduling observations** (opt-in runners-controller Pod logs
+  in Grafana Cloud Loki): proposed assignments record numeric account and job
+  identifiers, Pod name/UID, Node name, pool/platform, queue age, potential cache
+  residency, policy version and observation timestamps. Comparison events also
+  record the subsequently observed account identifier and whether it matched,
+  differed, or could not be observed. No credentials, repository/workflow names,
+  source, build output or cache contents are included. There is no new database
+  or object-store record; logs use the observability stack's configured retention
+  rather than a feature-specific window. For an account export request, search
+  the controller stream for `shadow scheduler plan` and
+  `shadow scheduler observation`, match the account in proposed assignments or
+  `actual_account_id`, and extract only that account's entries (plan events can
+  contain several accounts). These operational records are available on request
+  while retained and are not in the standard export archive.
+
 Application logs are shipped off the originating host to a third-party
 telemetry platform and are retained there for thirty days, after which they are
 deleted by the platform's retention policy. They are operational records rather
