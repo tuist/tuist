@@ -9,8 +9,6 @@ defmodule Atlas.Nudges.Signals.InvitedTeammatesSso do
   Atlas's own database.
   """
 
-  @behaviour Atlas.Nudges.Signal
-
   import Ecto.Query
 
   alias Atlas.Accounts.Account
@@ -24,10 +22,8 @@ defmodule Atlas.Nudges.Signals.InvitedTeammatesSso do
   @threshold 5
   @handle_pattern ~r/\A[a-zA-Z0-9._-]+\z/
 
-  @impl true
   def name, do: @signal_name
 
-  @impl true
   def candidate_account_ids do
     Account
     |> where([a], not is_nil(a.plan_tier) and a.plan_tier != "free")
@@ -36,7 +32,6 @@ defmodule Atlas.Nudges.Signals.InvitedTeammatesSso do
     |> Repo.all()
   end
 
-  @impl true
   def evaluate(%Account{} = account) do
     with {:ok, handle} <- primary_handle(account),
          {:ok, %{organization_id: org_id, member_count: member_count, sso_configured: sso_configured}} <-

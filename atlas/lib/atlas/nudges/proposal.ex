@@ -17,16 +17,4 @@ defmodule Atlas.Nudges.Proposal do
     severity: "normal",
     expires_in_days: 7
   ]
-
-  @type t :: %__MODULE__{
-          dedup_key: String.t(),
-          title: String.t(),
-          rationale: String.t(),
-          draft_subject: String.t(),
-          draft_body: String.t(),
-          contact_id: binary() | nil,
-          evidence: map(),
-          severity: String.t(),
-          expires_in_days: pos_integer()
-        }
 end
