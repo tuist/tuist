@@ -1,4 +1,7 @@
 {{- if .Values.clickhouse.enabled }}
+{{- if gt (int (.Values.clickhouse.replicaCount | default 1)) 1 }}
+{{- fail "clickhouse.replicaCount must be 1: the ClickHouse pods do not replicate, so extra pods split the data" }}
+{{- end }}
 {{- $appSecret := include "atlas.appSecretName" . -}}
 apiVersion: v1
 kind: Service
