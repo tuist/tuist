@@ -148,6 +148,7 @@ pub struct MetricsInner {
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
     analytics_queue_depth: Gauge,
     analytics_queue_capacity: Gauge,
+    analytics_outbox_depth_entries: Gauge,
     analytics_circuit_state: Family<AnalyticsRouteLabels, Gauge>,
     analytics_circuit_transitions: Family<AnalyticsCircuitTransitionLabels, Counter>,
     segment_generation_counts: Family<SegmentGenerationLabels, Gauge>,
@@ -724,6 +725,7 @@ impl Metrics {
             });
         let analytics_queue_depth = Gauge::default();
         let analytics_queue_capacity = Gauge::default();
+        let analytics_outbox_depth_entries = Gauge::default();
         let analytics_circuit_state = Family::<AnalyticsRouteLabels, Gauge>::default();
         let analytics_circuit_transitions =
             Family::<AnalyticsCircuitTransitionLabels, Counter>::default();
@@ -1428,6 +1430,11 @@ impl Metrics {
             analytics_queue_capacity.clone(),
         );
         registry.register(
+            "kura_analytics_outbox_depth_entries",
+            "Analytics-outbox RocksDB column family entry count. Empty for the life of the release that declares the column family; goes non-zero when the follow-up producer PR routes cache analytics through it.",
+            analytics_outbox_depth_entries.clone(),
+        );
+        registry.register(
             "kura_analytics_circuit_state",
             "Analytics circuit breaker state where 0=closed, 1=open, 2=half_open",
             analytics_circuit_state.clone(),
@@ -1961,6 +1968,7 @@ impl Metrics {
                 analytics_batch_duration,
                 analytics_queue_depth,
                 analytics_queue_capacity,
+                analytics_outbox_depth_entries,
                 analytics_circuit_state,
                 analytics_circuit_transitions,
                 segment_generation_counts,
@@ -2918,6 +2926,14 @@ impl Metrics {
     pub fn update_analytics_queue(&self, capacity: usize, depth: usize) {
         self.analytics_queue_capacity.set(capacity as i64);
         self.analytics_queue_depth.set(depth as i64);
+    }
+
+    /// Publish the current number of entries sitting in the analytics
+    /// outbox column family. Called once at startup for now; the follow-up
+    /// outbox forwarder task refreshes it on every drain tick.
+    pub fn update_analytics_outbox_depth(&self, entries: usize) {
+        self.analytics_outbox_depth_entries
+            .set(i64::try_from(entries).unwrap_or(i64::MAX));
     }
 
     pub fn update_analytics_circuit_state(&self, pipeline: &str, state: i64) {
@@ -4567,6 +4583,7 @@ mod tests {
         metrics.record_analytics_batch("xcode", "ok", Duration::from_millis(7));
         metrics.update_analytics_circuit_state("xcode", 1);
         metrics.record_analytics_circuit_transition("xcode", "closed", "open");
+        metrics.update_analytics_outbox_depth(0);
         metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_process_resident_breakdown(768, 256);
@@ -4698,6 +4715,7 @@ mod tests {
         assert!(rendered.contains("kura_analytics_queue_capacity"));
         assert!(rendered.contains("kura_analytics_circuit_state"));
         assert!(rendered.contains("kura_analytics_circuit_transitions_total"));
+        assert!(rendered.contains("kura_analytics_outbox_depth_entries 0"));
         assert!(rendered.contains("kura_segment_generation_count"));
         assert!(rendered.contains("kura_process_resident_memory_bytes"));
         assert!(rendered.contains("kura_process_resident_anon_bytes"));
