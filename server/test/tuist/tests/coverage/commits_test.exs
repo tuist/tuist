@@ -5,8 +5,10 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
   alias Tuist.GitHistory
   alias Tuist.Projects
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Workers.CommitWorker
+  alias Tuist.Tests.Coverage.Workers.CoverageGateWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -102,7 +104,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert %{complete: true, completeness: "signal"} = Commits.signal_complete(project, "abc123")
 
     assert_enqueued(
-      worker: Tuist.Tests.Coverage.Workers.CoverageGateWorker,
+      worker: CoverageGateWorker,
       args: %{git_commit_sha: "abc123", trigger: "signal"}
     )
 
@@ -198,5 +200,57 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
     assert [run] = Commits.runs(project.id, shas)
     assert run.git_commit_sha == "abc123"
+  end
+
+  describe "a run's selective-testing results arriving after its commit was folded" do
+    defp graph(hit),
+      do: %{
+        name: "App",
+        projects: [%{"targets" => [%{"name" => "AppTests", "selective_testing_metadata" => %{"hit" => hit}}]}]
+      }
+
+    test "refold the commit once they are stored, and judge a complete one again", %{project: project, account: account} do
+      {:ok, project} = Projects.update_project(project, %{coverage_gates_enabled: true})
+      run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+      Commits.signal_complete(project, "abc123")
+      # The verdict the signal asked for has been posted by the time the
+      # results land.
+      Oban.drain_queue(queue: :default, with_scheduled: true)
+      refute_enqueued(worker: CoverageGateWorker)
+
+      assert {:ok, %Oban.Job{} = job} =
+               Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, graph("local"))
+
+      assert %{rejudge: true, git_commit_sha: "abc123"} = job.args
+      assert DateTime.after?(job.scheduled_at, DateTime.utc_now())
+
+      assert :ok = perform_job(CommitWorker, job.args)
+
+      assert_enqueued(
+        worker: CoverageGateWorker,
+        args: %{git_commit_sha: "abc123", trigger: "signal"}
+      )
+    end
+
+    test "refold an incomplete commit without judging it", %{project: project, account: account} do
+      {:ok, project} = Projects.update_project(project, %{coverage_gates_enabled: true})
+      run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+      assert {:ok, job} =
+               Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, graph("remote"))
+
+      assert :ok = perform_job(CommitWorker, job.args)
+      refute_enqueued(worker: CoverageGateWorker)
+    end
+
+    test "schedule nothing when no target was skipped, or the event has no run", %{project: project, account: account} do
+      run = CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+
+      assert Coverage.refold_after_selective_testing(%{test_run_id: run.id, project_id: project.id}, graph("miss")) ==
+               :skipped
+
+      assert Coverage.refold_after_selective_testing(%{test_run_id: nil, project_id: project.id}, graph("local")) ==
+               :skipped
+    end
   end
 end

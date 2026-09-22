@@ -19,6 +19,7 @@ defmodule Tuist.Tests.Coverage.Workers.CommitWorker do
 
   alias Tuist.Projects
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Gates
 
   @delay_seconds 5
 
@@ -34,14 +35,42 @@ defmodule Tuist.Tests.Coverage.Workers.CommitWorker do
     end
   end
 
+  @doc """
+  Refolds the commit after the given delay and, when its pipeline had already
+  signalled completion, judges its gates again. For data that belongs to runs
+  the verdict already covered but reached the server after it: a run's
+  selective-testing results arrive with its command event, stored through a
+  buffer, which a `tuist coverage complete` right after the tests outruns.
+  """
+  def enqueue_rejudging(project_id, sha, delay_seconds) do
+    %{project_id: project_id, git_commit_sha: sha, rejudge: true}
+    |> new(
+      schedule_in: delay_seconds,
+      unique: [keys: [:project_id, :git_commit_sha, :rejudge], states: [:available, :scheduled], period: :infinity],
+      replace: [scheduled: [:scheduled_at]]
+    )
+    |> Oban.insert()
+  end
+
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"project_id" => project_id, "git_commit_sha" => sha}}) do
+  def perform(%Oban.Job{args: %{"project_id" => project_id, "git_commit_sha" => sha} = args}) do
     case Projects.get_project_by_id(project_id) do
-      nil -> :ok
-      project -> fold(project, sha)
+      nil ->
+        :ok
+
+      project ->
+        fold(project, sha)
+        if args["rejudge"], do: rejudge(project, sha)
     end
 
     :ok
+  end
+
+  defp rejudge(project, sha) do
+    case Commits.summary(project.id, sha) do
+      %{complete: true} -> Gates.enqueue_signal(project, sha)
+      _ -> :ok
+    end
   end
 
   # A report published while the fold was reading is in neither what it folded

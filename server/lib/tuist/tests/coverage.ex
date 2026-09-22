@@ -52,9 +52,11 @@ defmodule Tuist.Tests.Coverage do
   alias Tuist.FeatureFlags
   alias Tuist.IngestRepo
   alias Tuist.Projects
+  alias Tuist.Tests
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.ExcludedPaths
   alias Tuist.Tests.Coverage.Gates
+  alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
@@ -70,6 +72,45 @@ defmodule Tuist.Tests.Coverage do
   # like the run ids a per-test lookup is scoped to. The budget is kept under
   # the default so an install that never touched the setting still works.
   @max_query_parameters 900
+
+  @doc """
+  Refolds the commit of the run a command event belongs to once the
+  selective-testing results the event reported are stored, when any target
+  was skipped. Reported coverage reads them to know which targets a run left
+  out, and they are written through a buffer after the run itself, so a fold
+  triggered by the run or by the completion signal can run without them. The
+  refold waits out the buffer and re-judges the gates if the pipeline has
+  already signalled completion.
+  """
+  def refold_after_selective_testing(%{test_run_id: test_run_id, project_id: project_id}, xcode_graph)
+      when is_binary(test_run_id) and test_run_id != "" do
+    with true <- selective_testing_hit?(xcode_graph),
+         true <- enabled_for_project?(project_id),
+         {:ok, %Test{git_commit_sha: sha, git_dirty: dirty}} when is_binary(sha) and sha != "" and dirty != true <-
+           Tests.get_test(test_run_id) do
+      CommitWorker.enqueue_rejudging(project_id, sha, div(Environment.clickhouse_flush_interval_ms(), 1000) + 5)
+    else
+      _ -> :skipped
+    end
+  end
+
+  def refold_after_selective_testing(_command_event, _xcode_graph), do: :skipped
+
+  defp selective_testing_hit?(xcode_graph) do
+    xcode_graph
+    |> field(:projects, [])
+    |> Enum.flat_map(&field(&1, :targets, []))
+    |> Enum.any?(fn target ->
+      target
+      |> field(:selective_testing_metadata, %{})
+      |> field(:hit, "miss")
+      |> to_string()
+      |> Kernel.in(["local", "remote"])
+    end)
+  end
+
+  defp field(nil, _key, default), do: default
+  defp field(map, key, default), do: Map.get(map, key) || Map.get(map, Atom.to_string(key)) || default
 
   @doc false
   def id_chunks(ids, reserved \\ 0), do: Enum.chunk_every(ids, max(@max_query_parameters - reserved, 1))
