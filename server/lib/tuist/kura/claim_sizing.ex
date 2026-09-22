@@ -19,6 +19,12 @@ defmodule Tuist.Kura.ClaimSizing do
   slower to confirm than any growth, because a shrink that overshoots costs a
   rebuild to undo and one that waits costs only disk.
 
+  Moderate excess retention can correct sooner: fourteen complete days,
+  seven active eviction days and two ring budgets of turnover permit at most
+  a quarter off the claim. Known idle time is discounted from retention, and
+  every resize restarts the evidence window. Corrections smaller than a tenth
+  of the account claim are withheld to avoid rebuilding for rounding noise.
+
   Each region is measured against the claim its own instances hold, since that
   is the ring its telemetry describes. The account keeps one claim, the largest
   any region needs, so a region pinned under it that runs short is raised to it
@@ -67,6 +73,12 @@ defmodule Tuist.Kura.ClaimSizing do
     # floor the longest growth rung reads.
     retention_shrink_window_days: 30,
     retention_shrink_floor_multiple: 3,
+    retention_correction_window_days: 14,
+    retention_correction_min_active_days: 7,
+    retention_correction_min_ring_turnover: 2.0,
+    retention_correction_floor_multiple: 1.5,
+    retention_correction_max_reduction_percent: 25,
+    retention_correction_min_reduction_percent: 10,
     max_step_factor: 2.0,
     max_confirmed_step_factor: 4.0
   }
@@ -78,7 +90,12 @@ defmodule Tuist.Kura.ClaimSizing do
   days and may pass over as many again, and each shrink window reads its own.
   """
   def lookback_days(policy \\ @default_policy) do
-    Enum.max([2 * passable_days(policy), policy.shrink_window_days, policy.retention_shrink_window_days])
+    Enum.max([
+      2 * passable_days(policy),
+      policy.shrink_window_days,
+      policy.retention_shrink_window_days,
+      policy.retention_correction_window_days
+    ])
   end
 
   @doc """
@@ -181,6 +198,12 @@ defmodule Tuist.Kura.ClaimSizing do
       retention = retention_verdict(by_date, floor_seconds, claim_bytes, context, policy) ->
         {target_bytes, evidence} = retention
         {:shrink, :retention, region, target_bytes, claim_bytes, Map.put(evidence, "region_claim_size", claim)}
+
+      correction = retention_correction_verdict(by_date, floor_seconds, claim_bytes, context, policy) ->
+        {target_bytes, evidence} = correction
+
+        {:shrink, :retention_correction, region, target_bytes, claim_bytes,
+         Map.put(evidence, "region_claim_size", claim)}
 
       true ->
         {:none, region}
@@ -357,6 +380,85 @@ defmodule Tuist.Kura.ClaimSizing do
   # it were.
   defp retention_day?(rollup) do
     rollup.snapshot_count > 0 and (rollup.eviction_count == 0 or rollup.median_shed_age_seconds != nil)
+  end
+
+  defp retention_correction_verdict(by_date, floor_seconds, claim_bytes, context, policy) do
+    threshold_seconds = round(floor_seconds * policy.retention_correction_floor_multiple)
+    idle_dates = idle_dates(by_date, policy)
+    adjusted = Map.new(by_date, fn {date, row} -> {date, discount_idle_time(row, idle_dates)} end)
+
+    standing = fn row ->
+      if correction_contradicted?(row, threshold_seconds),
+        do: :contradicts,
+        else: retention_standing(row, threshold_seconds)
+    end
+
+    with false <- correction_contradicted?(Map.get(adjusted, context.today), threshold_seconds),
+         window when is_list(window) <-
+           collect_window(
+             adjusted,
+             Date.add(context.today, -1),
+             policy.retention_correction_window_days,
+             0,
+             standing,
+             []
+           ),
+         active = Enum.filter(window, &(&1.eviction_count > 0 and not MapSet.member?(idle_dates, &1.date))),
+         true <- length(active) >= policy.retention_correction_min_active_days,
+         turnover when is_number(turnover) <- correction_turnover(active),
+         true <- turnover >= policy.retention_correction_min_ring_turnover,
+         true <- Enum.all?(active, &is_integer(&1.median_ring_span_seconds)),
+         span_seconds when is_integer(span_seconds) <- shortest(active, :median_ring_span_seconds) do
+      evidence =
+        active
+        |> retention_evidence(floor_seconds, threshold_seconds)
+        |> Map.merge(%{
+          "window_days" => length(window),
+          "active_days" => length(active),
+          "ring_turnover" => round_turnover(turnover),
+          "ring_budget_bytes" => active |> Enum.map(& &1.last_ring_budget_bytes) |> Enum.max(),
+          "idle_time_discounted" => true,
+          "max_reduction_percent" => policy.retention_correction_max_reduction_percent
+        })
+
+      {round(projected_bytes(claim_bytes, floor_seconds, span_seconds, policy)), evidence}
+    else
+      _ -> nil
+    end
+  end
+
+  defp correction_contradicted?(nil, _threshold_seconds), do: false
+
+  defp correction_contradicted?(row, threshold_seconds) do
+    row.eviction_count > 0 and
+      (not is_integer(row.median_shed_age_seconds) or not is_integer(row.median_ring_span_seconds) or
+         row.median_shed_age_seconds < threshold_seconds or row.median_ring_span_seconds < threshold_seconds)
+  end
+
+  # The first and last date of an eviction's age are partial. Only whole
+  # intervening days known to be idle can be subtracted from the measurement.
+  defp discount_idle_time(row, idle_dates) do
+    Enum.reduce([:median_shed_age_seconds, :median_ring_span_seconds], row, fn key, adjusted ->
+      case Map.fetch!(row, key) do
+        seconds when is_integer(seconds) ->
+          whole_days = max(div(seconds, @seconds_per_day) - 1, 0)
+          idle_days = Enum.count(idle_dates, &(Date.diff(row.date, &1) in 1..whole_days//1))
+          Map.put(adjusted, key, seconds - idle_days * @seconds_per_day)
+
+        _ ->
+          adjusted
+      end
+    end)
+  end
+
+  # A changing or missing budget must not make a quiet interval look like
+  # representative turnover. Use the largest measured budget, unlike growth.
+  defp correction_turnover(active) do
+    budgets = Enum.map(active, & &1.last_ring_budget_bytes)
+
+    if Enum.all?(budgets, &(is_integer(&1) and &1 > 0)) do
+      Enum.sum(Enum.map(active, & &1.evicted_bytes)) / Enum.max(budgets)
+    end
   end
 
   # Idle time can only lengthen a shed age, so a day under the threshold
@@ -545,8 +647,20 @@ defmodule Tuist.Kura.ClaimSizing do
   # is built with.
   defp finalize_shrink(shrinks, current_bytes, context, policy) do
     {_signal, region, target_bytes, _claim_bytes, evidence} = Enum.max_by(shrinks, &elem(&1, 2))
-    measured = for {:retention, _region, _target_bytes, claim_bytes, _evidence} <- shrinks, do: claim_bytes
-    step_bytes = Enum.min([round(current_bytes / policy.max_step_factor) | measured])
+
+    measured =
+      for {signal, _region, _target_bytes, claim_bytes, _evidence} <- shrinks,
+          signal in [:retention, :retention_correction],
+          do: claim_bytes
+
+    correction? = Enum.any?(shrinks, &(elem(&1, 0) == :retention_correction))
+
+    step_bytes =
+      if correction? do
+        ceil(current_bytes * (100 - policy.retention_correction_max_reduction_percent) / 100)
+      else
+        Enum.min([round(current_bytes / policy.max_step_factor) | measured])
+      end
 
     bytes =
       target_bytes
@@ -556,8 +670,20 @@ defmodule Tuist.Kura.ClaimSizing do
 
     recommended = to_gibibyte_quantity(bytes)
 
-    if quantity_bytes(recommended) < current_bytes do
-      {:shrink, recommended, Map.put(evidence, "region", region)}
+    saving = current_bytes - quantity_bytes(recommended)
+    significant? = not correction? or saving * 100 >= current_bytes * policy.retention_correction_min_reduction_percent
+    measured_regions = Enum.map(shrinks, &elem(&1, 1))
+    missing_regions = Map.keys(Map.get(context, :region_claim_sizes, %{})) -- measured_regions
+
+    if saving > 0 and significant? and (not correction? or missing_regions == []) do
+      evidence = Map.put(evidence, "region", region)
+
+      evidence =
+        if correction?,
+          do: Map.put(evidence, "max_reduction_percent", policy.retention_correction_max_reduction_percent),
+          else: evidence
+
+      {:shrink, recommended, evidence}
     else
       :none
     end

@@ -94,6 +94,8 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Related Context
 
+- Kura's moderate retention correction supplements the existing 30-day shrink: 14 complete post-resize days with snapshots, at least seven meaningful eviction days and two ring budgets of turnover can reduce the account claim by 10–25%. Discount known idle whole days from shed age and ring span; require at least 4.5 days of adjusted retention and project toward the 3-day floor plus 25% headroom. Today's short or unmeasured evictions veto the correction, and every known pinned region must supply a shrink verdict. Neither a smaller region's pin nor a deeper shrink elsewhere bypasses the 25% correction cap. Every apply restarts the evidence window, including when it only converges regional pins. Retain the slower occupancy and clearly excessive-retention paths.
+
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Data export requirements: `server/data-export.md`
