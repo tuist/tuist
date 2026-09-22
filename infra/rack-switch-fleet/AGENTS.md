@@ -408,19 +408,18 @@ arbitrary line into its negation is the same class of guess.
   seven, never reused, while the session table held exactly one row throughout.
   So the logout does end the session and something is still not given back.
 
-  **Why is not established, and it is a strange thing for a switch to do, so do
-  not treat the count as understood.** Three explanations fit what has been
-  measured, and one of them is this tool's fault rather than the firmware's:
+  **It is not this tool.** The obvious suspicion, that the coprocess driver
+  leaves connections half-open and the switch holds each task until a TCP
+  timeout, was tested with plain `ssh` in a loop: no coprocess, no driver, let
+  ssh exit on its own. It reached a prompt eight times on a fresh boot and the
+  ninth timed out with port 22 closed, which is the same behaviour the driver
+  gets. So the count belongs to the switch.
 
-  - the daemon leaks a task or a descriptor per accepted connection
-  - the client leaves connections half-open, so the switch holds each task until
-    a TCP timeout that is longer than the experiment. `switch_close` records
-    whether ssh exited after `logout` or had to be signalled, in
-    `SWITCH_CLOSED_BY`, and `FLEET_DEBUG_SESSIONS=1` prints it. Against a
-    well-behaved fake it is always `logout`; nobody has looked on real hardware.
-  - a login rate limiter, which the eight connections in ninety seconds would
-    have tripped. Argues against itself a little, since an hour did not clear
-    it, but not all limiters are short.
+  **Why it happens is still not established**, and it remains a strange thing
+  for a switch to do, so do not treat the number as understood. Two explanations
+  survive: the daemon leaks a task or a descriptor per accepted connection, or a
+  login rate limiter is counting. The connections in both runs were seconds
+  apart, so a limiter has not been ruled out, though an hour never cleared it.
 
   `show ip ssh` on `ber1-tor-a` reports `MAX Clients: 5` and
   `Session Timeout: 360`, both firmware defaults since neither appears in the
@@ -434,8 +433,6 @@ arbitrary line into its negation is the same class of guess.
   Three experiments separate the explanations, all needing a freshly booted
   switch and none of them expensive:
 
-  - `FLEET_DEBUG_SESSIONS=1` through a run says whether the client is ever the
-    one killing the connection, which would make it our bug.
   - spacing eight connections over ten minutes says whether the limit counts
     connections or measures a rate: a leak will not care about the spacing, a
     limiter will. Ten minutes also clears the 360 second session timeout, so it
@@ -446,6 +443,13 @@ arbitrary line into its negation is the same class of guess.
     seven, the setting is unrelated and something else is being exhausted.
 
   Until one of those is run, plan around seven and do not assume the knob helps.
+
+  One trap when measuring this. `logout` makes the switch close the connection,
+  so ssh exits 255 and prints "Connection closed by remote host" on a completely
+  successful session. Treating the exit code as the result reports every healthy
+  connection as a failure, which is how the first attempt at the control above
+  "proved" the switch was broken when it was answering perfectly. The signal is
+  whether a prompt came back.
 
   This was worth measuring rather than assuming. The earlier wedge happened
   fifteen seconds after `ber1-tor-a` rebooted and flapped the ISL, which looked
