@@ -108,8 +108,55 @@ jobs:
           # contains no `$1$` writes that literal itself, and flagging it taught
           # nothing. A real crypt hash is the prefix plus a long run of
           # non-quote, non-space characters.
+          # shellcheck disable=SC2016  # the pattern is literal, not to be expanded
           if git grep -nE '\$1\$[^ "'"'"']{8,}' -- infra/rack-switch-fleet/ | grep -v EXAMPLEHASHNOTREAL; then
             echo "a credential hash reached infra/rack-switch-fleet; see AGENTS.md" >&2
             exit 1
           fi
           echo "clean"
+
+  # The switches' desired state follows git into the cluster its rack belongs
+  # to: kubernetes.namespace in each site definition, which is staging while
+  # BER1 is at home. Status is not written here: rack:fleet publish records
+  # what it observed, from a machine that can reach the switches, which CI
+  # cannot.
+  objects:
+    name: RackSwitch objects into the rack's cluster
+    needs: checks
+    if: github.repository == 'tuist/tuist' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: server-k8s-staging
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked jq kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" \
+            --vault "tuist-k8s-staging" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Apply the CRD and each site's objects
+        run: |
+          set -euo pipefail
+          # server-deployment.yml applies the same file. Applying it here too
+          # means the objects never race the first server deploy after it lands.
+          kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev
+          for site in infra/rack-switch-fleet/sites/*.json; do
+            name="$(basename "$site" .json)"
+            namespace="$(jq -r '.kubernetes.namespace // empty' "$site")"
+            [ -n "$namespace" ] || continue
+            kubectl apply -n "$namespace" -f "infra/rack-switch-fleet/k8s/$name/"
+          done

@@ -744,16 +744,21 @@ cmd_recover() {
 # Status only. Nothing here changes a switch, and nothing in the cluster changes
 # one either; `apply` and `replace` stay deliberate.
 cmd_publish() {
-  local name="${1:-}" namespace="${NAMESPACE:-tuist}" dry_run=0
+  # The rack's objects live in the namespace its site definition names, in the
+  # cluster --context names; publishing into whatever context happens to be
+  # current could put a staging rack's status into production.
+  local name="${1:-}" namespace context="" dry_run=0
+  namespace="$(jq -r '.kubernetes.namespace // "tuist"' "$(site_file)")"
   while (( $# )); do
     case "$1" in
       --dry-run) dry_run=1; shift;;
       --namespace) namespace="${2:-}"; shift 2;;
+      --context) context="${2:-}"; shift 2;;
       -*) echo "unknown flag: $1" >&2; return 2;;
       *) name="$1"; shift;;
     esac
   done
-  [ -n "$name" ] || { echo "usage: rack:fleet publish <device> [--dry-run]" >&2; return 2; }
+  [ -n "$name" ] || { echo "usage: rack:fleet publish <device> [--context <kube context>] [--dry-run]" >&2; return 2; }
   fleet_device "$(site_file)" "$name" >/dev/null || return 1
 
   local address revision drift reachable connections verified status=0
@@ -794,8 +799,8 @@ cmd_publish() {
     echo "error: kubectl is needed to publish; --dry-run prints the patch instead" >&2
     return 1
   fi
-  kubectl -n "$namespace" patch rackswitch "$name" --type merge --subresource status \
-    -p "$patch" || status=$?
+  kubectl ${context:+--context "$context"} -n "$namespace" patch rackswitch "$name" \
+    --type merge --subresource status -p "$patch" || status=$?
   if (( status )); then
     echo "error: could not patch rackswitch/$name. The observation above still stands;" >&2
     echo "       only recording it in the cluster failed." >&2

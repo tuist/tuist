@@ -1478,6 +1478,18 @@ cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
     [ "$output" = "0" ]
 }
 
+@test "publish writes to the namespace the site belongs to, not whatever is current" {
+    apply_fixtures
+    bin="$BATS_TEST_TMPDIR/publish1"
+    apply_stub "$bin"
+    copy="$BATS_TEST_TMPDIR/fleet-copy"
+    cp -R "$FLEET_ROOT" "$copy"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_BEFORE="$rendered" FAKE_AFTER="$rendered" \
+        FAKE_STARTUP="$rendered" FAKE_REJECT="" "$copy/fleet.sh" publish ber1-tor-b --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"status in namespace tuist-staging"* ]]
+}
+
 # --- the path from switches behind the edge node to the tailnet --------------
 
 @test "a prefix length becomes the mask the switch CLI takes" {

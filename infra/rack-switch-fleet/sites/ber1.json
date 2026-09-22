@@ -373,5 +373,8 @@
     "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band.",
     "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs, one Mindfactory order not yet placed, so every power appliance is planned. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
     "sensors": "Environmental probes are not on the network. They chain off a PDU's USB port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links."
+  },
+  "kubernetes": {
+    "namespace": "tuist-staging"
   }
 }
