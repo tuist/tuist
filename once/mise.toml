@@ -1,0 +1,16 @@
+[tools]
+rust = "1.88"
+shellspec = "latest"
+git-cliff = "2.12.0"
+"github:tuist/blick" = "0.8.0"
+"github:superradcompany/microsandbox" = "0.5.1"
+node = "22.11.0"
+"npm:opencode-ai" = "1.15.0"
+aube = "1.10.4"
+
+[env]
+CARGO_TERM_COLOR = "always"
+CARGO_INCREMENTAL = "0"
+CARGO_PROFILE_DEV_DEBUG = "line-tables-only"
+CARGO_PROFILE_TEST_DEBUG = "line-tables-only"
+RUST_BACKTRACE = "1"

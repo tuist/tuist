@@ -1,0 +1,34 @@
+[agent]
+kind = "opencode"
+model = "fireworks-ai/accounts/fireworks/models/kimi-k2p5"
+
+[defaults]
+base = "origin/main"
+max_concurrency = 2
+fail_on = "high"
+
+[[skills]]
+name = "rust-best-practices"
+source = "apollographql/skills"
+subpath = "skills/rust-best-practices"
+
+[[skills]]
+name = "once-rust-review"
+source = "./.blick/skills/once-rust-review"
+
+[[reviews]]
+name = "default"
+skills = ["rust-best-practices", "once-rust-review"]
+prompt = """
+Focus on correctness, invalidation, build-graph behavior, artifact paths,
+CLI contract regressions, and test coverage.
+
+Skip style nits since rustfmt, clippy, and shellspec already cover the basics.
+"""
+
+[learn]
+lookback_days = 7
+min_signal = 3
+base = "main"
+draft = true
+branch = "blick/learn"
