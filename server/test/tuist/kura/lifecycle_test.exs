@@ -110,7 +110,8 @@ defmodule Tuist.Kura.LifecycleTest do
   # pressure arithmetic reads each instance's own claim, so an instance inserted
   # without one would not reserve what its plan reserves in production.
   defp active_instance(account, opts \\ []) do
-    inserted_at = ago_usec(Keyword.get(opts, :age_days, 120))
+    inserted_at =
+      DateTime.add(DateTime.utc_now(), -Keyword.get(opts, :age_hours, Keyword.get(opts, :age_days, 120) * 24), :hour)
 
     claim_size =
       Keyword.get_lazy(opts, :claim_size, fn ->
@@ -1132,13 +1133,82 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "leaves a never-used instance alone inside the unused window" do
       account = account()
-      server = active_instance(account, age_days: 5)
-      with_demand(account, 1)
-      storage_rollups(account, 0..5)
+      server = active_instance(account, age_hours: 23)
+      with_demand(account, 0)
+      storage_rollups(account, 0..1)
 
       assert :ok = Lifecycle.sweep()
 
       assert reload(server).status == :active
+    end
+
+    test "drains unused Air after 24 hours without waiting for seven days of demand tracking" do
+      account = account()
+      server = active_instance(account, age_hours: 25)
+      with_demand(account, 0, tracked_for_days: 2)
+      storage_rollups(account, 0..2)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :unused
+    end
+
+    test "keeps the unused window configurable for Air" do
+      stub(Environment, :kura_air_unused_hours, fn -> 48 end)
+      account = account()
+      server = active_instance(account, age_hours: 25)
+      with_demand(account, 0)
+      storage_rollups(account, 0..2)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "still gives newly tracked Air instances their shorter tracking grace" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 0, tracked_for_days: 0)
+      storage_rollups(account, 0..8)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "keeps Pro's seven-day unused window and full tracking grace" do
+      recent = account(plan: :pro)
+      recent_server = active_instance(recent, age_days: 2)
+      with_demand(recent, 0)
+      storage_rollups(recent, 0..2)
+
+      newly_tracked = account(plan: :pro)
+      newly_tracked_server = active_instance(newly_tracked, age_days: 8)
+      with_demand(newly_tracked, 0, tracked_for_days: 2)
+      storage_rollups(newly_tracked, 0..8)
+
+      eligible = account(plan: :pro)
+      eligible_server = unused_instance(eligible)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(recent_server).status == :active
+      assert reload(newly_tracked_server).status == :active
+      assert reload(eligible_server).status == :drain_pending
+    end
+
+    test "requires Air storage evidence on both the first day and today" do
+      missing_first = account()
+      missing_first_server = active_instance(missing_first, age_days: 2)
+      with_demand(missing_first, 0)
+      storage_rollups(missing_first, 0..1)
+
+      missing_today = account()
+      missing_today_server = active_instance(missing_today, age_days: 2)
+      with_demand(missing_today, 0)
+      storage_rollups(missing_today, 1..2)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(missing_first_server).status == :active
+      assert reload(missing_today_server).status == :active
     end
 
     test "leaves an instance alone once it has stored bytes" do
@@ -1214,7 +1284,9 @@ defmodule Tuist.Kura.LifecycleTest do
 
       account
       |> with_demand(1)
-      |> Ecto.Changeset.change(%{last_returned_at: ago(3)})
+      |> Ecto.Changeset.change(%{
+        last_returned_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -23, :hour), :second)
+      })
       |> Repo.update!()
 
       storage_rollups(account, 0..30)
@@ -1222,6 +1294,25 @@ defmodule Tuist.Kura.LifecycleTest do
       assert :ok = Lifecycle.sweep()
 
       assert reload(server).status == :active
+    end
+
+    test "reclaims an unused Air return after its new 24-hour window" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+
+      account
+      |> with_demand(0)
+      |> Ecto.Changeset.change(%{
+        last_returned_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -25, :hour), :second)
+      })
+      |> Repo.update!()
+
+      storage_rollups(account, 0..2)
+      storage_rollups(account, [20], max_live_segment_bytes: @gib)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :unused
     end
 
     test "never drains a keep-warm or Enterprise instance for going unused" do

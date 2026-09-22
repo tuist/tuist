@@ -9,6 +9,7 @@ This node covers Helm assets under `infra/helm/`.
 - Standalone app charts with their own release boundary, such as Noora Storybook and Slack
 
 ## Conventions
+- Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Staging keeps its five-minute sweep override for lifecycle drills.
 - `runnersController.shadowScheduler` is disabled by default. Enable only after
   both the controller flags and server snapshot endpoint are deployed; disabling
   stops observations without changing runner execution. See

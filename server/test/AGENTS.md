@@ -30,3 +30,5 @@ This directory contains ExUnit tests for the Tuist Server.
 - Runner sizing coverage must include runner-only accounts in claim proposals, account-sized claims on creation, immediate enrollment budgets with plan resolution, sized-claim precedence, a 50Gi growth cap and preservation of existing pins, capacity accounting without an account preload, creation/cold-return manifest pinning, and manifests that apply memory profiles without requesting an unadvertised memory-ceiling resource.
 
 - Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results.
+
+- Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, complete storage telemetry including Air's first day and today, and the reset after returning from archive.
