@@ -2499,6 +2499,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try? await fileSystem.remove(directory)
     }
 
+    private static func merging(_ identifiers: [String], _ passthrough: [String]) -> [String] {
+        var seen = Set<String>()
+        return (identifiers + passthrough).filter { seen.insert($0).inserted }
+    }
+
     private func uploadResultBundleIfNeeded(
         testSummary: TestSummary?,
         resultBundlePath: AbsolutePath?,
@@ -2520,6 +2525,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
+
+        // What the caller narrowed the run to: Tuist's `--test-targets` and `--skip-test-targets`,
+        // and the `-only-testing`/`-skip-testing` passed straight to xcodebuild, which a run's
+        // coverage has to be marked partial for just the same. `tuist xcodebuild test` records the
+        // passthrough ones already.
+        let onlyTestIdentifiers = Self.merging(
+            onlyTestIdentifiers,
+            XcodeBuildTestCommandService.testIdentifiers(for: "-only-testing", in: xcodebuildArguments)
+        )
+        let skipTestIdentifiers = Self.merging(
+            skipTestIdentifiers,
+            XcodeBuildTestCommandService.testIdentifiers(for: "-skip-testing", in: xcodebuildArguments)
+        )
 
         await captureTestRunReport(
             scheme: scheme,

@@ -4218,6 +4218,71 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_recordsThePassthroughTestFiltersAsTheCallersSelection() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([Scheme.test(name: "ProjectScheme")])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(), MapperEnvironment())
+                }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist",
+                        url: URL(string: "https://example.com")!
+                    )
+                )
+
+            xcResultService.reset()
+            given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+            given(xcResultService)
+                .parseTestStatuses(path: .any)
+                .willReturn(TestResultStatuses(testCases: []))
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath,
+                skipTestTargets: [try TestIdentifier(string: "AppTests/SlowTests")],
+                passthroughXcodeBuildArguments: [
+                    "-only-testing:AppTests", "-skip-testing", "AppTests/FlakyTests", "-skip-testing:AppTests/SlowTests",
+                ]
+            )
+
+            // Then
+            verify(uploadResultBundleService)
+                .uploadTestSummary(
+                    testSummary: .any,
+                    resultBundlePath: .any,
+                    projectDerivedDataDirectory: .any,
+                    config: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any,
+                    onlyTestIdentifiers: .value(["AppTests"]),
+                    skipTestIdentifiers: .value(["AppTests/SlowTests", "AppTests/FlakyTests"]),
+                    stressNewTests: .any
+                )
+                .called(1)
+        }
+    }
+
     func test_run_fetches_quarantined_tests_and_runs_them() async throws {
         // Given
         givenGenerator()
