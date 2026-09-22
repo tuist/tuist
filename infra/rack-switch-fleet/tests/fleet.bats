@@ -1616,6 +1616,106 @@ STUB
     [[ "$output" == *"cannot reach tuist@ber1-edge"* ]]
 }
 
+# --- the Omada controller's Open API -----------------------------------------
+
+# A controller behind curl: one site, Default, and whatever FAKE_PENDING and
+# FAKE_ADOPTED list. The adoption request body is kept to check what was sent.
+omada_stub() {
+    local dir="$1"
+    mkdir -p "$dir"
+    cat > "$dir/curl" <<'STUB'
+#!/usr/bin/env bash
+method=GET; url=""; body=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -X) method="$2"; shift 2;;
+        --data) [ "$2" = "@-" ] && body="$(cat)"; shift 2;;
+        -H|--max-time) shift 2;;
+        -*) shift;;
+        *) url="$1"; shift;;
+    esac
+done
+empty='{"errorCode":0,"result":{"data":[]}}'
+pending="${FAKE_PENDING:-$empty}"
+adopted="${FAKE_ADOPTED:-$empty}"
+echo "$method $url" >> "$FAKE_LOG"
+case "$url" in
+    */api/info) echo '{"result":{"omadacId":"OMC"}}';;
+    */openapi/authorize/token*)
+        if [ -n "${FAKE_REFUSE:-}" ]; then echo '{"errorCode":-44106,"msg":"Invalid client"}'
+        else echo '{"errorCode":0,"result":{"accessToken":"AT-1"}}'; fi;;
+    */sites\?page*) echo '{"errorCode":0,"result":{"data":[{"name":"Default","siteId":"S1"}]}}';;
+    */grid/devices/pending*) echo "$pending";;
+    */devices\?page*) echo "$adopted";;
+    */start-adopt) printf '%s' "$body" > "$FAKE_LOG.adopt"; echo '{"errorCode":0}';;
+    *) echo '{"errorCode":-1,"msg":"unexpected"}';;
+esac
+STUB
+    cat > "$dir/op" <<'STUB'
+#!/usr/bin/env bash
+case "$3" in
+    "omada staging open api")
+        echo '{"fields":[{"label":"client_id","value":"cid"},{"label":"client_secret","value":"csecret"}]}';;
+    *)
+        echo '{"fields":[{"id":"username","value":"tuist"},{"id":"password","value":"SwitchNotReal24chars0000"}]}';;
+esac
+STUB
+    chmod +x "$dir/curl" "$dir/op"
+    : > "$dir/log"
+}
+
+@test "adoption refuses a switch the controller does not list as pending" {
+    bin="$BATS_TEST_TMPDIR/omada1"
+    omada_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"not pending"* ]]
+    [ ! -e "$bin/log.adopt" ]
+}
+
+@test "adoption sends the switch's own login for its MAC, and prints neither secret" {
+    bin="$BATS_TEST_TMPDIR/omada2"
+    omada_stub "$bin"
+    pending='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","status":0}]}}'
+    adopted='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":1}]}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_ADOPTED="$adopted" \
+        "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"adopted and connected"* ]]
+    run grep -c 'POST https://omada.taild6d7bb.ts.net:8043/openapi/v1/OMC/sites/S1/devices/A8-29-48-FE-B4-BE/start-adopt' "$bin/log"
+    [ "$output" = "1" ]
+    run jq -r '"\(.username) \(.password)"' "$bin/log.adopt"
+    [ "$output" = "tuist SwitchNotReal24chars0000" ]
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_ADOPTED="$adopted" \
+        "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
+    [[ "$output" != *"SwitchNotReal24chars0000"* ]]
+    [[ "$output" != *"csecret"* ]]
+    [[ "$output" != *"AT-1"* ]]
+}
+
+@test "the controller's devices are named from the site definition" {
+    bin="$BATS_TEST_TMPDIR/omada3"
+    omada_stub "$bin"
+    pending='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","model":"SG3452 v1.30","status":0}]}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" "$FLEET_ROOT/omada.sh" devices
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pending"*"A8-29-48-FE-B4-BE"*"ber1-mgmt"* ]]
+}
+
+@test "a refused Open API client says which 1Password item it came from" {
+    bin="$BATS_TEST_TMPDIR/omada4"
+    omada_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_REFUSE=1 "$FLEET_ROOT/omada.sh" devices
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"refused the Open API client in 'omada staging open api'"* ]]
+}
+
+@test "inform needs the controller's tailnet address, since a switch cannot resolve its name" {
+    run "$FLEET_ROOT/omada.sh" inform ber1-mgmt
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"management.controller.address"* ]]
+}
+
 # --- zero touch: serving DHCP and TFTP on an isolated segment ----------------
 
 ztp_stub() {

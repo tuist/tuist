@@ -18,6 +18,11 @@
       "routes": [
         "100.64.0.0/10"
       ]
+    },
+    "controller": {
+      "url": "https://omada.taild6d7bb.ts.net:8043",
+      "site": "Default",
+      "credential_item": "omada staging open api"
     }
   },
   "services": {

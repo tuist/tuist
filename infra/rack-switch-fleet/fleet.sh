@@ -1138,11 +1138,7 @@ main() {
   [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
-  # A switch behind the edge node is reached through it; see management.edge.
-  local address jump
-  while read -r address jump; do
-    SWITCH_JUMPS[$address]="$jump"
-  done < <(jq -r '.management.edge.ssh as $j | .devices[] | select(.behind_edge and $j) | "\(.mgmt_address) \($j)"' "$(site_file)")
+  fleet_load_jumps "$(site_file)"
   case "$command" in
     render)     cmd_render "$@";;
     diff)       cmd_diff "$@";;

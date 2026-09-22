@@ -521,3 +521,13 @@ fleet_predecessor_line() {
     $3 ~ /^tSsh[0-9]+$/ { n = substr($3, 5) + 0; tid[n] = $1; if (n > newest) newest = n; seen = 1 }
     END { if (seen && ((newest - 1) in tid)) print tid[newest - 1] }'
 }
+
+# A switch behind the edge node is reached through it (management.edge). Fills
+# SWITCH_JUMPS, which lib/session.sh reads when it opens a session.
+fleet_load_jumps() {
+  local site_file="$1" address jump
+  while read -r address jump; do
+    # shellcheck disable=SC2034,SC2004  # lib/session.sh's associative array
+    SWITCH_JUMPS[$address]="$jump"
+  done < <(jq -r '.management.edge.ssh as $j | .devices[] | select(.behind_edge and $j) | "\(.mgmt_address) \($j)"' "$site_file")
+}
