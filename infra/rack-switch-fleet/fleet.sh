@@ -304,7 +304,14 @@ fleet_lock() {
     if [ "$owner" != unknown ] && ! kill -0 "${owner%% *}" 2>/dev/null; then
       echo "note: clearing a lock left behind by pid ${owner%% *}, which is gone" >&2
       rm -rf "$dir"
-      mkdir "$dir" 2>/dev/null || true
+      # Two runs can reach here together, both see the same dead pid and both
+      # clear it. Only the one whose mkdir wins may go on; ignoring this is how
+      # a stale lock turns into two concurrent changes, which is the exact thing
+      # the lock exists to stop.
+      if ! mkdir "$dir" 2>/dev/null; then
+        echo "error: another run claimed $SITE while this one was clearing a stale lock" >&2
+        return 1
+      fi
     else
       echo "error: another change is in flight on $SITE: $owner" >&2
       echo "       Only one switch in a rack is changed at a time. Wait for it, or if you" >&2
@@ -513,7 +520,10 @@ cmd_publish() {
   else
     drift=unknown; reachable=false
   fi
-  connections="$(grep -oE 'connection [0-9]+ since boot' "$report" | grep -oE '[0-9]+' | head -1)"
+  # Guarded because the switch being unreachable is exactly when this line is
+  # absent, and exactly when the status is worth publishing. An unguarded grep
+  # under `set -e` exits here instead, so reachable=false was never recorded.
+  connections="$(grep -oE 'connection [0-9]+ since boot' "$report" | head -1 | grep -oE '[0-9]+' || true)"
   sed 's/^/  /' "$report"
   rm -f "$report"
 

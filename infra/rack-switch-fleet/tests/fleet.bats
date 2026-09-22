@@ -679,6 +679,18 @@ case "$1" in
   *) exec "$@";;
 esac
 STUB
+    # `route` and `ipconfig` are how replace works out which local address to
+    # serve TFTP from. Unstubbed, these tests only pass on a machine that has a
+    # route to the rack, which is not a property a test may depend on.
+    cat > "$dir/route" <<'STUB'
+#!/usr/bin/env bash
+echo "   interface: lo0"
+STUB
+    cat > "$dir/ipconfig" <<'STUB'
+#!/usr/bin/env bash
+echo "127.0.0.1"
+STUB
+    chmod +x "$dir/route" "$dir/ipconfig"
     cat > "$dir/ssh" <<'STUB'
 #!/usr/bin/env bash
 sleep 0.4
@@ -741,10 +753,8 @@ STUB
 }
 
 @test "replace pushes a file that keeps the login and carries the change" {
-    # The TFTP plumbing is macOS-only: route -n get, ipconfig getifaddr and a
-    # launchd tftpd. The safety property it guards is covered everywhere by the
-    # fleet_has_login tests below.
-    [ "$(uname -s)" = "Darwin" ] || skip "replace's TFTP path is macOS-only"
+    # route, ipconfig and sudo are all stubbed, so this needs neither macOS nor
+    # a route to the rack.
     stub="$BATS_TEST_TMPDIR/bin"
     fake_switch_bin "$stub"
     root="$BATS_TEST_TMPDIR/tftp"; mkdir -p "$root"
@@ -778,7 +788,6 @@ STUB
 }
 
 @test "replace refuses to push a file with no login in it" {
-    [ "$(uname -s)" = "Darwin" ] || skip "replace's TFTP path is macOS-only"
     stub="$BATS_TEST_TMPDIR/bin"
     fake_switch_bin "$stub"
     root="$BATS_TEST_TMPDIR/tftp2"; mkdir -p "$root"
@@ -1028,7 +1037,72 @@ mini_referencing() {
 }
 
 @test "the transcript extractor stops at a config-mode prompt too" {
+    # Through fleet_sh, so the child actually has the function: a bare `bash -c`
+    # gave "command not found" and the negative assertion passed on the error
+    # message. Assert the success and the content, not just the absence.
     printf 'sw#show running-config\nhostname "x"\nend\nsw(config)#\n' > "$BATS_TEST_TMPDIR/t.txt"
-    run bash -c "fleet_strip_transcript 'show running-config' < '$BATS_TEST_TMPDIR/t.txt'"
+    run fleet_sh "fleet_strip_transcript 'show running-config' < '$BATS_TEST_TMPDIR/t.txt'"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'hostname "x"'* ]]
     [[ "$output" != *"(config)#"* ]]
+    [[ "$output" != *"command not found"* ]]
+}
+
+# --- the lock, and what it has to survive ------------------------------------
+
+@test "only one of two runs clearing the same stale lock may proceed" {
+    # Both see the same dead pid, both clear it, and only the one whose mkdir
+    # wins may go on. Ignoring the second mkdir turned a stale lock into two
+    # concurrent changes, which is the thing the lock exists to stop.
+    lock="$BATS_TEST_TMPDIR/race.lock"
+    mkdir "$lock"
+    printf '999999 dead\n' > "$lock/owner"
+    cat > "$BATS_TEST_TMPDIR/claim.sh" <<CLAIM
+#!/usr/bin/env bash
+dir="$lock"
+if ! mkdir "\$dir" 2>/dev/null; then
+  owner="\$(cat "\$dir/owner" 2>/dev/null || echo unknown)"
+  if [ "\$owner" != unknown ] && ! kill -0 "\${owner%% *}" 2>/dev/null; then
+    rm -rf "\$dir"
+    mkdir "\$dir" 2>/dev/null || exit 1
+  else
+    exit 1
+  fi
+fi
+echo proceeded
+CLAIM
+    chmod +x "$BATS_TEST_TMPDIR/claim.sh"
+    a="$("$BATS_TEST_TMPDIR/claim.sh" & "$BATS_TEST_TMPDIR/claim.sh" & wait)"
+    [ "$(printf '%s\n' "$a" | grep -c proceeded)" -eq 1 ]
+}
+
+@test "a live lock holder is never displaced" {
+    lock="${TMPDIR:-/tmp}/rack-fleet-livetest.lock"
+    rm -rf "$lock"; mkdir "$lock"
+    printf '%s a-real-run\n' "$$" > "$lock/owner"
+    run env SITE=livetest bash -c '
+        dir="${TMPDIR:-/tmp}/rack-fleet-livetest.lock"
+        if ! mkdir "$dir" 2>/dev/null; then
+            owner="$(cat "$dir/owner" 2>/dev/null || echo unknown)"
+            if [ "$owner" != unknown ] && ! kill -0 "${owner%% *}" 2>/dev/null; then
+                echo "WRONGLY CLEARED"
+            else
+                echo "refused"
+            fi
+        fi'
+    [ "$output" = "refused" ]
+    rm -rf "$lock"
+}
+
+@test "the fake-switch tests need no route to the rack" {
+    # route and ipconfig are stubbed, so these run on a laptop that has never
+    # seen the rack's LAN. A test that only passes on one network is not a test.
+    stub="$BATS_TEST_TMPDIR/routecheck"
+    fake_switch_bin "$stub"
+    [ -x "$stub/route" ]
+    [ -x "$stub/ipconfig" ]
+    run env PATH="$stub:$PATH" bash -c 'route -n get 203.0.113.99 | awk "/interface:/{print \$2}"'
+    [ "$output" = "lo0" ]
+    run env PATH="$stub:$PATH" bash -c 'ipconfig getifaddr lo0'
+    [ "$output" = "127.0.0.1" ]
 }
