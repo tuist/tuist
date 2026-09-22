@@ -239,11 +239,14 @@ defmodule Tuist.Billing.UsagePricing do
     end
   end
 
+  # A period that has closed has nothing left to project: `usage_end` has
+  # reached `period_end`, so the projection would be the quantity itself and
+  # the page would tell an account it is on track for what it already spent.
   defp project(quantity, period_start, period_end, usage_end) do
     elapsed = max(DateTime.diff(usage_end, period_start, :second), 1)
     total = max(DateTime.diff(period_end, period_start, :second), elapsed)
 
-    if elapsed * 100 >= total * @projection_minimum_elapsed_percent do
+    if DateTime.before?(usage_end, period_end) and elapsed * 100 >= total * @projection_minimum_elapsed_percent do
       div(quantity * total, elapsed)
     end
   end

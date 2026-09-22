@@ -160,6 +160,19 @@ defmodule Tuist.Billing.UsagePricingTest do
       assert tests_billed == Money.new(200, :USD)
     end
 
+    test "projects nothing once the period has closed", %{account: account} do
+      stub(UsageMeters, :cache_downloads, fn _, _, _ -> [cache_row(%{bytes: 5_000_000_000, requests: 500})] end)
+      stub(UsageMeters, :test_case_runs, fn _, _, _ -> [test_row(%{count: 400_000})] end)
+
+      breakdown = UsagePricing.period_breakdown(account, {@period_start, @period_end})
+
+      assert breakdown.cache.egress.projected == nil
+      assert breakdown.cache.requests.projected == nil
+      assert breakdown.tests.projected == nil
+      assert breakdown.cache.projected_days == []
+      assert breakdown.tests.projected_days == []
+    end
+
     test "projects an open period from the days that have passed", %{account: account} do
       stub(DateTime, :utc_now, fn -> ~U[2026-05-11 00:00:00.000000Z] end)
 

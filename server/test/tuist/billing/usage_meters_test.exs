@@ -252,10 +252,22 @@ defmodule Tuist.Billing.UsageMetersTest do
       workflow_run_id = System.unique_integer([:positive])
       insert_runner_job(account, workflow_run_id)
 
-      runner_run = test_run(project, ci_provider: "github", ci_run_id: Integer.to_string(workflow_run_id))
+      runner_run =
+        test_run(project,
+          ci_provider: "github",
+          ci_project_handle: "acme/app",
+          ci_run_id: Integer.to_string(workflow_run_id)
+        )
+
       test_case_runs(project, runner_run, ["success", "success", "failure"])
 
-      other_ci_run = test_run(project, ci_provider: "github", ci_run_id: Integer.to_string(workflow_run_id + 1))
+      other_ci_run =
+        test_run(project,
+          ci_provider: "github",
+          ci_project_handle: "acme/app",
+          ci_run_id: Integer.to_string(workflow_run_id + 1)
+        )
+
       test_case_runs(project, other_ci_run, ["success"])
 
       assert account.id
@@ -266,6 +278,27 @@ defmodule Tuist.Billing.UsageMetersTest do
                  %{date: ~D[2026-05-01], project_id: project.id, status: "failure", runners: true, count: 1},
                  %{date: ~D[2026-05-01], project_id: project.id, status: "success", runners: true, count: 2}
                ]
+    end
+
+    test "does not read another pipeline's run of the same number as a Tuist Runners job", %{
+      account: account,
+      project: project
+    } do
+      build_number = System.unique_integer([:positive])
+      insert_runner_job(account, build_number)
+
+      other_pipeline =
+        test_run(project,
+          ci_provider: "buildkite",
+          ci_project_handle: "acme/nightly",
+          ci_run_id: Integer.to_string(build_number)
+        )
+
+      test_case_runs(project, other_pipeline, ["success", "success", "success"])
+
+      assert UsageMeters.test_case_runs(account.id, @period_start, @period_end) == [
+               %{date: ~D[2026-05-01], project_id: project.id, status: "success", runners: false, count: 3}
+             ]
     end
 
     test "counts a test case run on a period boundary only in the period it opens", %{

@@ -184,19 +184,28 @@ defmodule Tuist.Billing.UsageMeters do
     )
   end
 
+  # A run id alone is not unique: a Buildkite build number only counts within
+  # its pipeline, so two pipelines in one account cross-link at the same
+  # number and each other's test cases stop being billed. The job's
+  # repository is the pipeline handle for Buildkite and the project handle
+  # elsewhere, which is what `Runners.Jobs.ci_scope/2` matches on, so the two
+  # are compared as one key rather than by run id alone.
   defp runner_test_case_runs(project_ids, account_id, period_start, period_end) do
-    workflow_run_ids =
+    runner_job_keys =
       from(j in Job,
         where: j.account_id == ^account_id and j.workflow_run_id > 0,
         where: j.enqueued_at >= ^DateTime.add(period_start, -@runner_job_lookback_days, :day),
         where: j.enqueued_at < ^period_end,
-        select: j.workflow_run_id
+        select: fragment("concat(toString(?), '\n', ?)", j.workflow_run_id, j.repository)
       )
 
     test_run_ids =
       from(t in Test,
         where: fragment("? IN (?)", t.project_id, type(^project_ids, {:array, :integer})),
-        where: fragment("toInt64OrZero(?)", t.ci_run_id) in subquery(workflow_run_ids),
+        where:
+          fragment("concat(toString(toInt64OrZero(?)), '\n', ?)", t.ci_run_id, t.ci_project_handle) in subquery(
+            runner_job_keys
+          ),
         select: t.id
       )
 
