@@ -202,8 +202,7 @@ defmodule Tuist.Kura.ClaimSizing do
       correction = retention_correction_verdict(by_date, floor_seconds, claim_bytes, context, policy) ->
         {target_bytes, evidence} = correction
 
-        {:shrink, :retention_correction, region, target_bytes, claim_bytes,
-         Map.put(evidence, "region_claim_size", claim)}
+        {:shrink, :retention_correction, region, target_bytes, claim_bytes, Map.put(evidence, "region_claim_size", claim)}
 
       true ->
         {:none, region}
