@@ -24,18 +24,9 @@
   & > [data-part="current-plan-card"] {
     & > [data-part="current-plan-card-sections"] {
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       align-items: stretch;
       gap: var(--noora-spacing-4);
-      @media (max-width: 768px) {
-        & {
-          flex-direction: column;
-        }
-      }
-
-      & > * {
-        flex: 1;
-      }
 
       & > [data-part="usage-card-section"] {
         display: flex;
@@ -83,49 +74,55 @@
           }
         }
       }
-
       & > [data-part="current-plan-card-section"] {
         display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-5);
 
-        & > [data-part="header"] {
+        & > [data-part="plan-summary"] {
           display: flex;
-          flex-direction: column;
-          gap: var(--noora-spacing-4);
-
-          & > [data-part="title"] {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            gap: var(--noora-spacing-4);
-
-            & > [data-part="label"] {
-              color: var(--noora-surface-label-primary);
-              font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+          gap: var(--noora-spacing-5);
+          @media (max-width: 768px) {
+            & {
+              flex-direction: column;
+              align-items: flex-start;
             }
           }
 
-          & > [data-part="subtitle"] {
-            color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          & > [data-part="header"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-4);
+
+            & > [data-part="title"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-4);
+
+              & > [data-part="label"] {
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+              }
+            }
+
+            & > [data-part="subtitle"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+            }
           }
-        }
 
-        & > #billing-upgrade-modal {
-          align-self: flex-end;
-          /* The usage column beside this one grows with however many
-             metered resources it lists, so the button is pushed to the
-             bottom rather than left floating wherever the feature list
-             happens to end. */
-          margin-top: auto;
+          & > #billing-upgrade-modal {
+            & [data-part="content"] {
+              padding: var(--noora-spacing-8);
+            }
 
-          & [data-part="content"] {
-            padding: var(--noora-spacing-8);
-          }
-
-          & [data-part="footer"] {
-            padding: var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-0);
+            & [data-part="footer"] {
+              padding: var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-0);
+            }
           }
         }
       }
@@ -208,13 +205,15 @@
         align-items: flex-start;
         box-shadow: var(--noora-border-medium);
         border-radius: var(--noora-radius-8);
-        background: linear-gradient(252deg, rgba(255, 255, 255, 0) 0%, rgba(235, 235, 235, 0.2) 100%),
+        background:
+          linear-gradient(252deg, rgba(255, 255, 255, 0) 0%, rgba(235, 235, 235, 0.2) 100%),
           var(--noora-surface-background-primary);
         padding: var(--noora-spacing-8);
         height: 294px;
         overflow: hidden;
         html[data-theme="dark"] & {
-          background: linear-gradient(252deg, rgba(0, 0, 0, 0) 0%, rgba(43, 43, 43, 0.2) 100%),
+          background:
+            linear-gradient(252deg, rgba(0, 0, 0, 0) 0%, rgba(43, 43, 43, 0.2) 100%),
             var(--noora-surface-background-primary);
         }
 
@@ -311,10 +310,12 @@
   overflow: hidden;
 
   &[data-most-popular] {
-    background: linear-gradient(217deg, rgba(255, 255, 255, 0) 1.35%, rgba(111, 44, 255, 0.04) 100%),
+    background:
+      linear-gradient(217deg, rgba(255, 255, 255, 0) 1.35%, rgba(111, 44, 255, 0.04) 100%),
       var(--noora-surface-background-primary);
     html[data-theme="dark"] & {
-      background: linear-gradient(217deg, rgba(0, 0, 0, 0) 1.35%, rgba(111, 44, 255, 0.08) 100%),
+      background:
+        linear-gradient(217deg, rgba(0, 0, 0, 0) 1.35%, rgba(111, 44, 255, 0.08) 100%),
         var(--noora-surface-background-primary);
     }
   }
@@ -377,7 +378,8 @@
       gap: var(--noora-spacing-4);
 
       & > [data-part="title"] {
-        background: linear-gradient(152.805deg, transparent, rgba(135, 135, 135, 1)), var(--noora-surface-label-primary);
+        background:
+          linear-gradient(152.805deg, transparent, rgba(135, 135, 135, 1)), var(--noora-surface-label-primary);
         background-clip: text;
         color: transparent;
         font: var(--noora-font-weight-semibold) var(--noora-font-heading-2xlarge);
