@@ -1,5 +1,8 @@
 name: Tuist cache volume
 description: Attach a private clone of a persistent cache volume on Tuist Linux runners.
+branding:
+  icon: hard-drive
+  color: purple
 inputs:
   key:
     description: Stable volume key, shared across jobs and branches in this repository.
@@ -19,13 +22,5 @@ runs:
       env:
         TUIST_VOLUME_KEY: ${{ inputs.key }}
         TUIST_VOLUME_PATH: ${{ inputs.path }}
-      run: |
-        if command -v tuist-cache-volume >/dev/null 2>&1; then
-          client=tuist-cache-volume
-        elif [ -x /__e/tuist-cache-volume ]; then
-          client=/__e/tuist-cache-volume
-        else
-          echo '::error::This action requires a Tuist Linux runner with cache volumes enabled.'
-          exit 1
-        fi
-        "$client" --key "$TUIST_VOLUME_KEY" --path "$TUIST_VOLUME_PATH"
+        TUIST_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_ACTION_PATH/attach.sh"

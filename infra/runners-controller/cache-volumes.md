@@ -11,6 +11,11 @@ change. Enable it only after the storage and Kata integration gates below pass.
 
 ## Workflow
 
+The release interface is the dedicated `tuist/cache-volume@v1` action. Its
+[distribution and CI-provider integration plan](cache-volume-integrations.md)
+covers the release workflow and the Buildkite/GitLab follow-ups. Until the first
+release passes the live storage gates, test with a reviewed monorepo commit:
+
 ```yaml
 permissions:
   contents: read
@@ -29,8 +34,8 @@ jobs:
       - run: ./gradlew test
 ```
 
-Pin the action to a reviewed commit for production workflows. The action is in
-this repository; `tuist/cache-volume@v1` is not a published distribution. Use one
+The standalone action release is part of the launch, with immutable version
+tags and an advancing `v1` tag. Pin its release commit for production. Use one
 key/path pair per action, before any tool populates that directory. Absolute,
 relative and `~/` paths work. Existing nonempty directories cause an error.
 `cache-hit` is `true` when attached from a published snapshot, otherwise `false`.

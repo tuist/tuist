@@ -1,0 +1,99 @@
+name: Cache Volume Action
+
+on:
+  pull_request:
+    paths:
+      - .github/actions/cache-volume/**
+      - .github/workflows/cache-volume-action.yml
+  push:
+    branches: [main]
+    paths:
+      - .github/actions/cache-volume/**
+      - .github/workflows/cache-volume-action.yml
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Immutable v1 release tag (for example v1.0.0); also advances v1
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-volume-action-${{ github.event_name == 'workflow_dispatch' && 'release' || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s .github/actions/cache-volume -p '*_test.py' -v
+      - name: Install test client
+        run: |
+          mkdir "$RUNNER_TEMP/action-test-bin"
+          cat > "$RUNNER_TEMP/action-test-bin/tuist-cache-volume" <<'CLIENT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          [[ "$1" == --key && "$2" == gradle-caches && "$3" == --path && "$4" == 'cache directory' ]]
+          printf 'cache-hit=true\n' >> "$GITHUB_OUTPUT"
+          CLIENT
+          chmod +x "$RUNNER_TEMP/action-test-bin/tuist-cache-volume"
+          echo "$RUNNER_TEMP/action-test-bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/cache-volume
+        id: action
+        with:
+          key: gradle-caches
+          path: cache directory
+      - name: Verify composite output
+        env:
+          CACHE_HIT: ${{ steps.action.outputs.cache-hit }}
+        run: test "$CACHE_HIT" = true
+      - name: Package standalone action
+        run: bash .github/actions/cache-volume/scripts/package.sh "$RUNNER_TEMP/cache-volume-action"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cache-volume-action
+          path: ${{ runner.temp }}/cache-volume-action/
+
+  release:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate release version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: '[[ "$VERSION" =~ ^v1\.[0-9]+\.[0-9]+$ ]]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: cache-volume-action
+          path: package
+      - uses: actions/checkout@v4
+        with:
+          repository: tuist/cache-volume
+          ref: main
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          path: distribution
+          fetch-depth: 0
+      - name: Publish standalone action
+        working-directory: distribution
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            echo "Release $VERSION already exists; choose a new version."
+            exit 1
+          fi
+          cp ../package/action.yml ../package/attach.sh ../package/README.md ../package/LICENSE.md ../package/SOURCE_COMMIT .
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add action.yml attach.sh README.md LICENSE.md SOURCE_COMMIT
+          git commit --allow-empty -m "Release $VERSION"
+          git tag "$VERSION"
+          git tag -f v1
+          git push --atomic origin HEAD:main "refs/tags/$VERSION" +refs/tags/v1
