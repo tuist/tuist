@@ -2011,11 +2011,63 @@ defmodule Tuist.BillingTest do
       assert %{plan: :enterprise} = Billing.get_current_active_subscription(account)
     end
 
-    test "falls back to the first enterprise price when the customer has no currency yet" do
+    test "falls back to the enterprise price matching runner/usage currency when the customer has no currency yet" do
       # Given — a brand-new Stripe customer whose currency isn't pinned yet
-      # (Stripe returns nil until the first invoice). Picking the first
-      # configured price keeps the existing behavior and lets Stripe pin the
-      # currency from that price.
+      # (Stripe returns nil until the first invoice) and a fixed-currency USD
+      # runner price already in the subscription. Stripe rejects the whole
+      # subscription unless every item shares a currency, so the enterprise
+      # flat price has to be the USD one even though the EUR variant is first
+      # in config order.
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "enterprise" => %{
+            "flat_monthly" => ["enterprise.flat.monthly.eur", "enterprise.flat.monthly.usd"]
+          },
+          "runners" => %{"runner_macos_compute_unit_milliseconds" => "runner.macos.usd"}
+        }
+      end)
+
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+
+      stub(Stripe.Customer, :retrieve, fn "customer_id" ->
+        {:ok, %Stripe.Customer{id: "customer_id", currency: nil}}
+      end)
+
+      stub(Stripe.Price, :retrieve, fn
+        "runner.macos.usd" -> {:ok, %{currency: "usd"}}
+        "enterprise.flat.monthly.eur" -> {:ok, %{currency: "eur"}}
+        "enterprise.flat.monthly.usd" -> {:ok, %{currency: "usd"}}
+      end)
+
+      expect(Stripe.Subscription, :create, fn %{
+                                                items: [
+                                                  %{price: "runner.macos.usd"},
+                                                  %{price: "enterprise.flat.monthly.usd", quantity: 0}
+                                                ]
+                                              } = _args ->
+        {:ok,
+         %{
+           id: "sub_new",
+           status: "active",
+           customer: "customer_id",
+           default_payment_method: nil,
+           items: %{data: [%{price: %{id: "enterprise.flat.monthly.usd"}}]}
+         }}
+      end)
+
+      # When
+      {:ok, _} = Billing.upgrade_to_enterprise(account, %{cadence: "monthly"})
+
+      # Then
+      assert %{plan: :enterprise} = Billing.get_current_active_subscription(account)
+    end
+
+    test "falls back to the first enterprise price when nothing pins the currency" do
+      # Given — no customer currency and no fixed-currency items in the
+      # subscription (no runner or usage prices configured). Nothing forces a
+      # currency, so the first candidate wins and Stripe pins the currency
+      # from that first invoice.
       stub(Environment, :stripe_prices, fn ->
         %{
           "enterprise" => %{
