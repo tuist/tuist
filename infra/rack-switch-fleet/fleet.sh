@@ -150,6 +150,7 @@ cmd_apply() {
     esac
   done
   [ -n "$name" ] || { echo "usage: rack:fleet apply <device>" >&2; return 2; }
+  fleet_lock "apply $name" || return 1
 
   local device model spec
   device="$(fleet_device "$(site_file)" "$name")"
@@ -267,6 +268,46 @@ cmd_backup() {
   done
 }
 
+# One change at a time per rack.
+#
+# The apply ordering refuses a switch whose predecessors are not at the render,
+# which is a check on state and not a lock. Two runs started together both see
+# clean predecessors and both proceed, so "never both ToRs at once" was true of
+# a careful operator and not of the tool. The lock is held across the change and
+# its verification, so the second run waits for the first to be proven rather
+# than merely finished.
+#
+# mkdir because macOS has no flock: it is atomic, and it leaves the holder's pid
+# behind so a lock left by a killed run can be recognised rather than guessed at.
+FLEET_LOCK=""
+
+fleet_lock() {
+  local reason="$1" dir owner
+  dir="${TMPDIR:-/tmp}/rack-fleet-$SITE.lock"
+  if ! mkdir "$dir" 2>/dev/null; then
+    owner="$(cat "$dir/owner" 2>/dev/null || echo unknown)"
+    if [ "$owner" != unknown ] && ! kill -0 "${owner%% *}" 2>/dev/null; then
+      echo "note: clearing a lock left behind by pid ${owner%% *}, which is gone" >&2
+      rm -rf "$dir"
+      mkdir "$dir" 2>/dev/null || true
+    else
+      echo "error: another change is in flight on $SITE: $owner" >&2
+      echo "       Only one switch in a rack is changed at a time. Wait for it, or if you" >&2
+      echo "       are certain it is dead, remove $dir" >&2
+      return 1
+    fi
+  fi
+  printf '%s %s\n' "$$" "$reason" > "$dir/owner"
+  FLEET_LOCK="$dir"
+  trap fleet_unlock EXIT
+}
+
+fleet_unlock() {
+  [ -n "$FLEET_LOCK" ] || return 0
+  rm -rf "$FLEET_LOCK"
+  FLEET_LOCK=""
+}
+
 # Serving TFTP needs root, because TFTP is always requested on port 69, and
 # tftpd only accepts an upload into a file that already exists and is writable.
 # Both halves of that are why this asks for sudo before it asks the switch for
@@ -356,6 +397,71 @@ cmd_ports() {
   fi
 }
 
+# Everything worth knowing before a change, in one connection.
+#
+# This firmware allows seven SSH connections per boot and does not recycle the
+# slots, so connections are a consumable. Run separately, `sessions`, `diff` and
+# `backup` cost three of the seven and `replace` costs two more, which is most
+# of the budget before anything has been changed. They ask the switch three
+# questions, so they are one connection, not three.
+cmd_preflight() {
+  local name="${1:-}"
+  [ -n "$name" ] || { echo "usage: rack:fleet preflight <device>" >&2; return 2; }
+  local address user key users running startup desired status=0
+  address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
+  [ -n "$address" ] || { echo "error: $name is not in $SITE" >&2; return 1; }
+  user="$(jq -r '.credentials.username' "$(site_file)")"
+  key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
+  users="$(mktemp)"; running="$(mktemp)"; startup="$(mktemp)"; desired="$(mktemp)"
+
+  (
+    trap switch_close EXIT
+    trap 'switch_close; exit 130' INT TERM
+    switch_open "$address" "$user" "$key" || exit 1
+    switch_run "show users" || exit 1
+    printf '%s\n' "$SWITCH_OUTPUT" > "$users"
+    switch_run "$RUNNING_CONFIG" || exit 1
+    printf '%s\n' "$SWITCH_OUTPUT" > "$running"
+    switch_run "$STARTUP_CONFIG" || exit 1
+    printf '%s\n' "$SWITCH_OUTPUT" > "$startup"
+  ) || status=$?
+  if (( status )); then
+    rm -f "$users" "$running" "$startup" "$desired"
+    return "$status"
+  fi
+
+  echo "terminal lines on $name (this connection is one of them):"
+  tr -d '\000\r' < "$users" | sed -n '/tid/,$p' | sed '/^[[:space:]]*$/d;$d' | sed 's/^/  /'
+  local used
+  used="$(tr -d '\000\r' < "$users" | grep -oE 'tSsh[0-9]+' | head -1 | tr -dc '0-9')"
+  if [ -n "$used" ]; then
+    echo "  this is connection $(( 10#$used + 1 )) since boot, of about seven before the daemon stops accepting"
+  fi
+
+  local body
+  body="$(mktemp)"
+  fleet_strip_transcript "$RUNNING_CONFIG" < "$running" > "$body"
+  fleet_render "$(site_file)" "$name" > "$desired"
+  echo ""
+  if fleet_diff "$desired" "$body" "rendered/$name" "live/$name"; then
+    echo "$name: matches the rendered configuration"
+  else
+    status=1
+    echo "$name: drifted, see above"
+  fi
+
+  local target
+  target="$(backup_path "$name")"
+  mkdir -p "$(dirname "$target")"
+  fleet_strip_transcript "$STARTUP_CONFIG" < "$startup" > "$body"
+  fleet_clean < "$body" | sed -e :a -e '/^\n*$/{$d;N;};/\n$/ba' > "$target"
+  echo ""
+  echo "backed up $name to ${target#"$FLEET_ROOT"/}"
+
+  rm -f "$users" "$running" "$startup" "$desired" "$body"
+  return "$status"
+}
+
 # The switch's terminal lines, and how to free one.
 #
 # This firmware does not reap a session a client abandoned, and it only frees
@@ -412,6 +518,7 @@ cmd_replace() {
     esac
   done
   [ -n "$name" ] || { echo "usage: rack:fleet replace <device> [--dry-run] [--reboot]" >&2; return 2; }
+  fleet_lock "replace $name" || return 1
 
   local device model spec address user key
   device="$(fleet_device "$(site_file)" "$name")"
@@ -480,8 +587,8 @@ cmd_replace() {
   # not cover, shows up here instead of disappearing on the next reboot.
   local removals declared undeclared
   removals="$(fleet_removed_lines "$current" "$merged")"
-  declared="$(printf '%s\n' "$removals" | awk -F'\t' '$1 == "declared" { print $2 }')"
-  undeclared="$(printf '%s\n' "$removals" | awk -F'\t' '$1 == "undeclared" { print $2 }')"
+  declared="$(printf '%s\n' "$removals" | awk -F'\t' '$1 == "declared" { printf "  - [%s] %s\n", ($2 == "" ? "global" : $2), $3 }')"
+  undeclared="$(printf '%s\n' "$removals" | awk -F'\t' '$1 == "undeclared" { printf "  - [%s] %s\n", ($2 == "" ? "global" : $2), $3 }')"
 
   if [ -n "$declared" ]; then
     echo ""
@@ -681,7 +788,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|diff|apply|replace|backup|drift|ports|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|diff|apply|replace|backup|drift|ports|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   case "$command" in
@@ -690,6 +797,7 @@ main() {
     apply)      cmd_apply "$@";;
     backup)     cmd_backup "$@";;
     sessions)   cmd_sessions "$@";;
+    preflight)  cmd_preflight "$@";;
     ports)      cmd_ports "$@";;
     replace)    cmd_replace "$@";;
     drift)      cmd_drift "$@";;

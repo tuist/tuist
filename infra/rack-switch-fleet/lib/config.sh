@@ -360,21 +360,27 @@ fleet_device_file() { awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }'; printf '\00
 # unmodelled line read as a routine four-item list, which is the shape that
 # trains people to skip the prompt.
 fleet_removed_lines() {
-  local current="$1" merged="$2" have want line opposite
+  local current="$1" merged="$2" have want line context command opposite
   have="$(mktemp)"; want="$(mktemp)"
-  fleet_normalize < "$current" | sed 's/^[ \t]*//' | sort -u > "$have"
-  fleet_normalize < "$merged"  | sed 's/^[ \t]*//' | sort -u > "$want"
+  # Compared as (context, command) pairs, not as bare commands. Flattening them
+  # made `spanning-tree` under one interface indistinguishable from the same
+  # line under another, so dropping it from a single port reported nothing.
+  fleet_context < "$current" | sort -u > "$have"
+  fleet_context < "$merged"  | sort -u > "$want"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
-    if [ "${line#no }" != "$line" ]; then opposite="${line#no }"; else opposite="no $line"; fi
-    if grep -Fxq -- "$opposite" "$want"; then
-      printf 'declared\t%s\n' "$line"
+    context="${line%%$'\t'*}"
+    command="${line#*$'\t'}"
+    if [ "${command#no }" != "$command" ]; then opposite="${command#no }"; else opposite="no $command"; fi
+    if grep -Fxq -- "$context$(printf '\t')$opposite" "$want"; then
+      printf 'declared\t%s\t%s\n' "$context" "$command"
     else
-      printf 'undeclared\t%s\n' "$line"
+      printf 'undeclared\t%s\t%s\n' "$context" "$command"
     fi
   done < <(comm -23 "$have" "$want")
   rm -f "$have" "$want"
 }
+
 
 
 # A configuration file with no login in it locks everyone out of the switch it

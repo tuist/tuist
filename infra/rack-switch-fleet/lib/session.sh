@@ -68,7 +68,9 @@ switch_open() {
       -o ConnectTimeout=10 \
       "$user@$address" 2>"$SWITCH_LOG"
   }
-  switch_drain 8
+  # The banner drain is allowed to time out; what matters is whether ssh is
+  # still there afterwards.
+  switch_drain 8 || true
   if ! switch_alive || ! kill -0 "${SWITCH_PID:-}" 2>/dev/null; then
     echo "error: $address accepted no session." >&2
     if [ -s "$SWITCH_LOG" ]; then
@@ -86,19 +88,26 @@ switch_open() {
 
 # Read until the prompt has been quiet for a moment, answering the pager.
 # What the switch printed is left in SWITCH_BUFFER.
+#
+# Returns 0 only when the switch came back to a prompt, which is the only
+# evidence that it finished the command. 1 means the session ended underneath
+# us and 2 means it never answered. Both used to return 0 with an empty buffer,
+# so a `copy tftp startup-config` that never happened read as a success and the
+# run went on to reboot the switch.
 switch_drain() {
   local timeout="${1:-120}" deadline character tail status scan=""
   SWITCH_BUFFER=""
-  switch_alive || return 0
+  switch_alive || return 1
   deadline=$(( SECONDS + timeout ))
   while (( SECONDS < deadline )); do
-    switch_alive || return 0
+    switch_alive || return 1
     # `status` is read explicitly rather than from $? after an `if`: an `if`
     # whose condition is false and which has no `else` exits 0, so the timeout
     # read as success and the drain returned an empty buffer the moment the
     # switch took longer than one interval to answer.
     status=0
     IFS= read -r -N1 -t 0.4 character <&"${SWITCH[0]}" || status=$?
+    if (( status > 0 && status <= 128 )); then return 1; fi
     if (( status == 0 )); then
       SWITCH_BUFFER+="$character"
       # The pager is detected on a separate window, never by editing the
@@ -117,12 +126,11 @@ switch_drain() {
       fi
       continue
     fi
-    (( status > 128 )) || return 0
     tail="${SWITCH_BUFFER##*$'\n'}"
     tail="${tail//$'\r'/}"
     [[ "$tail" =~ [A-Za-z0-9._-]+[#\>][[:space:]]*$ ]] && return 0
   done
-  return 0
+  return 2
 }
 
 switch_write() {
@@ -140,10 +148,22 @@ switch_report_ssh() {
 }
 
 switch_run() {
-  local command="$1" timeout="${2:-120}"
-  switch_write "$command"
-  switch_drain "$timeout"
+  local command="$1" timeout="${2:-120}" drained=0
+  # Checked rather than left to errexit: every caller in fleet.sh uses `||`,
+  # which disables errexit for everything this function does.
+  if ! switch_write "$command"; then
+    SWITCH_OUTPUT=""
+    return 1
+  fi
+  switch_drain "$timeout" || drained=$?
   SWITCH_OUTPUT="$SWITCH_BUFFER"
+  case "$drained" in
+    1) echo "error: $SWITCH_ADDRESS ended the session during '$command'" >&2
+       switch_report_ssh
+       return 1;;
+    2) echo "error: $SWITCH_ADDRESS never finished '$command' (no prompt within ${timeout}s)" >&2
+       return 1;;
+  esac
   if [[ "$SWITCH_OUTPUT" == *"Error:"* || "$SWITCH_OUTPUT" == *"Bad command"* \
      || "$SWITCH_OUTPUT" == *"Failed to"* ]]; then
     echo "error: $SWITCH_ADDRESS rejected '$command':" >&2

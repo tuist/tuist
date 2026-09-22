@@ -316,7 +316,11 @@ STUB
     "
     [ "$status" -ne 0 ]
     [ "$status" -ne 141 ]
-    [[ "$output" == *"closed the session"* ]]
+    # Caught at switch_open now, because `switch_run enable` propagates its
+    # failure rather than being swallowed. Either message is the session ending;
+    # what matters is that it is reported and is not a signal death.
+    [[ "$output" == *"closed the session"* || "$output" == *"accepted no session"* \
+       || "$output" == *"ended the session"* ]]
 }
 
 # --- the port map, the join between machines and switch ports ----------------
@@ -837,9 +841,9 @@ STUB
     fleet_render "$SITE_FILE" ber1-tor-b | sed 's/^lldp$/no lldp/' > "$desired"
     fleet_merge_unmanaged "$current" "$desired" > "$merged"
 
-    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_removed_lines '$current' '$merged' | grep '^declared' | cut -f2"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_removed_lines '$current' '$merged' | grep '^declared' | cut -f3"
     [ "$output" = "lldp" ]
-    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_removed_lines '$current' '$merged' | grep '^undeclared' | cut -f2"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_removed_lines '$current' '$merged' | grep '^undeclared' | cut -f3"
     [ "$output" = "radius-server host 10.0.0.5 key x" ]
 }
 
@@ -868,4 +872,30 @@ STUB
     fleet_merge_unmanaged "$current" "$desired" > "$merged"
     run fleet_has_login "$merged"
     [ "$status" -eq 0 ]
+}
+
+
+@test "a removal is reported against the interface it happens on" {
+    # Flattening (context, command) into bare commands made `spanning-tree`
+    # under one interface indistinguishable from the same line under another,
+    # so dropping it from a single port reported nothing at all.
+    current="$BATS_TEST_TMPDIR/ports-before.cfg"
+    merged="$BATS_TEST_TMPDIR/ports-after.cfg"
+    printf 'interface ten-gigabitEthernet 1/0/5\n  spanning-tree\n#\ninterface ten-gigabitEthernet 1/0/6\n  spanning-tree\n#\nend\n' > "$current"
+    printf 'interface ten-gigabitEthernet 1/0/5\n#\ninterface ten-gigabitEthernet 1/0/6\n  spanning-tree\n#\nend\n' > "$merged"
+
+    run fleet_removed_lines "$current" "$merged"
+    [ "${#output}" -gt 0 ]
+    [[ "$output" == *"undeclared"* ]]
+    [[ "$output" == *"1/0/5"* ]]
+    [[ "$output" != *"1/0/6"* ]]
+}
+
+@test "a command still present elsewhere is not reported as removed" {
+    current="$BATS_TEST_TMPDIR/same-before.cfg"
+    merged="$BATS_TEST_TMPDIR/same-after.cfg"
+    printf 'interface ten-gigabitEthernet 1/0/5\n  spanning-tree\n#\nend\n' > "$current"
+    cp "$current" "$merged"
+    run fleet_removed_lines "$current" "$merged"
+    [ "${#output}" -eq 0 ]
 }
