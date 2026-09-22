@@ -28,30 +28,42 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={overview_path}
         selected={overview_path == @current_path}
       />
+      <% once? = Project.once_project?(@selected_project) %>
+      <% builds_root =
+        if once?,
+          do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/builds",
+          else: ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" %>
+      <% build_runs_path =
+        if once?,
+          do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/build-runs",
+          else: ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs" %>
+      <% tests_root =
+        if once?,
+          do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/tests",
+          else: ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" %>
+      <% test_runs_path =
+        if once?,
+          do: ~p"/#{@selected_account.name}/#{@selected_project.name}/once/test-runs",
+          else: ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs" %>
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project)}
+        :if={
+          Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            once?
+        }
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        default_open={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-          )
-        }
+        navigate={builds_root}
+        selected={@current_path == builds_root}
+        default_open={String.starts_with?(@current_path, builds_root)}
         phx-update="ignore"
       >
         <.sidebar_item
           label={dgettext("dashboard", "Build Runs")}
           icon="chart_column"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+          navigate={build_runs_path}
           selected={
-            String.starts_with?(
-              @current_path,
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
-            ) or
+            String.starts_with?(@current_path, build_runs_path) or
               String.starts_with?(
                 @current_path,
                 "/#{@selected_account.name}/#{@selected_project.name}/builds/invocations"
@@ -60,29 +72,24 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project)}
+        :if={
+          Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            once?
+        }
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
-        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
-        default_open={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
-          )
-        }
+        navigate={tests_root}
+        selected={@current_path == tests_root}
+        default_open={String.starts_with?(@current_path, tests_root)}
         phx-update="ignore"
       >
         <.sidebar_item
           label={dgettext("dashboard", "Test Runs")}
           icon="dashboard"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+          navigate={test_runs_path}
           selected={
-            String.starts_with?(
-              @current_path,
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
-            ) or
+            String.starts_with?(@current_path, test_runs_path) or
               String.starts_with?(
                 @current_path,
                 "/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/runs"
@@ -90,6 +97,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={not once?}
           label={dgettext("dashboard", "Test Cases")}
           icon="exchange"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
@@ -105,6 +113,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={not once?}
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -116,6 +125,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={not once?}
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
@@ -148,6 +158,18 @@ defmodule TuistWeb.AppLayoutComponents do
           String.starts_with?(
             @current_path,
             ~p"/#{@selected_account.name}/#{@selected_project.name}/bazel-cache"
+          )
+        }
+      />
+      <.sidebar_item
+        :if={Project.once_project?(@selected_project)}
+        label={dgettext("dashboard", "Once Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"
           )
         }
       />
@@ -286,6 +308,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={not once?}
           label={dgettext("dashboard", "Test Cases")}
           icon="exchange"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
@@ -301,6 +324,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={not once?}
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -312,6 +336,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={not once?}
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}

@@ -1,0 +1,313 @@
+<div id="test-run-detail">
+  <.button
+    label={dgettext("dashboard_tests", "Test Runs")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={test_runs_list_path(assigns)}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={status(@run) == "success"} data-part="badge-success">
+          <div data-part="icon">
+            <.circle_check />
+          </div>
+        </div>
+        <div :if={status(@run) == "failure"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
+        </div>
+        <div :if={status(@run) == "in_progress"} data-part="badge-processing">
+          <div data-part="icon">
+            <.circle_dashed />
+          </div>
+        </div>
+        <h1 data-part="label">{display_label(@run)}</h1>
+      </div>
+    </div>
+  </div>
+
+  <div data-part="overview">
+    <.card
+      title={dgettext("dashboard_tests", "Test Details")}
+      icon="chart_arcs"
+      data-part="test-details"
+    >
+      <.card_section data-part="test-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Status")}</div>
+              <.badge
+                :if={status(@run) == "success"}
+                label={dgettext("dashboard_tests", "Passed")}
+                color="success"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={status(@run) == "failure"}
+                label={dgettext("dashboard_tests", "Failed")}
+                color="destructive"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={status(@run) == "in_progress"}
+                label={dgettext("dashboard_tests", "In progress")}
+                color="neutral"
+                style="fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Once version")}</div>
+              <span data-part="value">
+                {@run.once_version || dgettext("dashboard_tests", "Unknown")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Duration")}</div>
+              <span :if={status(@run) != "in_progress"} data-part="value">
+                <.history />
+                {format_duration(@run.wall_ms)}
+              </span>
+              <span :if={status(@run) == "in_progress"} data-part="value">
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "In Progress")}
+                  status="in_progress"
+                />
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Ran at")}</div>
+              <span data-part="value">
+                {format_datetime(@run.finalized_at || @run.started_at, assigns[:user_timezone])}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Host")}</div>
+              <span data-part="value">
+                <.device_laptop />
+                {@run.host_class || dgettext("dashboard_tests", "Unknown")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Commit")}</div>
+              <.commit_link
+                project={@selected_project}
+                commit_sha={@run.git_rev}
+                fallback={dgettext("dashboard_tests", "Unknown")}
+                data-part="value"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Test suites")}</div>
+              <span data-part="value">{@test_metrics.suite_count}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Run id")}</div>
+              <span data-part="value">{@run.run_id}</span>
+            </div>
+          </div>
+        </div>
+        <div data-part="widgets">
+          <.widget
+            title={dgettext("dashboard_tests", "Test cases")}
+            description={dgettext("dashboard_tests", "Total number of test cases executed.")}
+            value={@test_metrics.total_count}
+            id="widget-test-cases"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Failed test cases")}
+            description={dgettext("dashboard_tests", "Number of test cases that failed.")}
+            value={@test_metrics.failed_count}
+            id="widget-failed-test-cases"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Flaky test cases")}
+            description={
+              dgettext("dashboard_tests", "Number of test cases that both passed and failed.")
+            }
+            value={@test_metrics.flaky_count}
+            id="widget-flaky-test-cases"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Avg. test case duration")}
+            description={dgettext("dashboard_tests", "Average duration of all test cases.")}
+            value={format_duration(@test_metrics.avg_duration)}
+            id="widget-avg-test-case-duration"
+          />
+        </div>
+      </.card_section>
+    </.card>
+
+    <.tab_menu_horizontal>
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_tests", "Test Cases")}
+        selected={@selected_tab == "test-cases"}
+        patch={"?tab=test-cases"}
+        replace={true}
+      />
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard_tests", "Test Targets")}
+        selected={@selected_tab == "test-targets"}
+        patch={"?tab=test-targets"}
+        replace={true}
+      />
+    </.tab_menu_horizontal>
+
+    <.card
+      :if={@selected_tab == "test-cases"}
+      title={dgettext("dashboard_tests", "Test Cases")}
+      icon="exchange"
+      data-part="test-cases"
+    >
+      <.card_section :if={!@test_cases.ok?} data-part="test-cases-table-section">
+        <div data-part="loading">…</div>
+      </.card_section>
+      <.card_section
+        :if={@test_cases.ok? and not Enum.empty?(@test_cases.result)}
+        data-part="test-cases-table-section"
+      >
+        <.table
+          id="once-test-cases-table"
+          rows={@test_cases.result}
+          row_navigate={fn test_case -> test_case_run_path(assigns, @run, test_case) end}
+        >
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Test case")}>
+            <.text_and_description_cell
+              label={test_case.name}
+              description={test_case.suite_id || ""}
+            />
+          </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Duration")}>
+            <.text_cell
+              icon="history"
+              label={format_duration(test_case.duration_ms || 0)}
+            />
+          </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Status")}>
+            <.status_badge_cell
+              :if={test_case.result == "passed"}
+              label={dgettext("dashboard_tests", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={test_case.result == "failed"}
+              label={dgettext("dashboard_tests", "Failed")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={test_case.result == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              status="warning"
+            />
+            <.status_badge_cell
+              :if={test_case.result not in ["passed", "failed", "skipped"]}
+              label={String.capitalize(test_case.result || "unknown")}
+              status="warning"
+            />
+          </:col>
+        </.table>
+      </.card_section>
+      <.empty_card_section
+        :if={@test_cases.ok? and Enum.empty?(@test_cases.result)}
+        title={dgettext("dashboard_tests", "No test cases reported for this run")}
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_table_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_table_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+    </.card>
+
+    <.card
+      :if={@selected_tab == "test-targets"}
+      title={dgettext("dashboard_tests", "Test Targets")}
+      icon="exchange"
+      data-part="test-targets"
+    >
+      <.card_section :if={!@test_suites.ok?} data-part="test-targets-table-section">
+        <div data-part="loading">…</div>
+      </.card_section>
+      <.card_section
+        :if={@test_suites.ok? and not Enum.empty?(@test_suites.result)}
+        data-part="test-targets-table-section"
+      >
+        <.table id="once-test-targets-table" rows={@test_suites.result}>
+          <:col :let={suite} label={dgettext("dashboard_tests", "Target")}>
+            <.text_and_description_cell
+              label={suite.suite_id || suite.target_execution_id || "—"}
+              description={suite.target_execution_id || ""}
+            />
+          </:col>
+          <:col :let={suite} label={dgettext("dashboard_tests", "Test cases")}>
+            <.text_cell label={to_string(suite.total_cases || 0)} />
+          </:col>
+          <:col :let={suite} label={dgettext("dashboard_tests", "Passed")}>
+            <.status_badge_cell
+              label={to_string(suite.passed_cases || 0)}
+              status="success"
+            />
+          </:col>
+          <:col :let={suite} label={dgettext("dashboard_tests", "Failed")}>
+            <.status_badge_cell
+              :if={(suite.failed_cases || 0) > 0}
+              label={to_string(suite.failed_cases)}
+              status="error"
+            />
+            <.text_cell
+              :if={(suite.failed_cases || 0) == 0}
+              label="0"
+            />
+          </:col>
+          <:col :let={suite} label={dgettext("dashboard_tests", "Duration")}>
+            <.text_cell
+              icon="history"
+              label={format_duration(suite.duration_ms || 0)}
+            />
+          </:col>
+        </.table>
+      </.card_section>
+      <.empty_card_section
+        :if={@test_suites.ok? and Enum.empty?(@test_suites.result)}
+        title={dgettext("dashboard_tests", "No test targets reported for this run")}
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_table_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_table_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+    </.card>
+  </div>
+</div>

@@ -696,12 +696,6 @@ defmodule TuistWeb.Router do
 
     post "/analytics", AnalyticsController, :create
 
-    scope "/events" do
-      post "/invocations", OnceInvocationsController, :create
-      get "/invocations", OnceInvocationsController, :index
-      get "/invocations/:invocation_id", OnceInvocationsController, :show
-    end
-
     post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
     get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
@@ -1416,8 +1410,17 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
       live "/bazel-cache", BazelCacheLive
-      live "/once", OnceInvocationsLive
-      live "/once/invocations", OnceInvocationsLive
+      live "/once", OnceRunsLive
+      live "/once/runs", OnceRunsLive
+      live "/once/runs/:once_run_id", OnceRunLive, :overview
+      live "/once/runs/:once_run_id/cache", OnceRunLive, :cache
+      live "/once/builds", OnceRunsLive, :builds
+      live "/once/build-runs", OnceRunsLive, :build_runs
+      live "/once/tests", OnceTestsLive
+      live "/once/test-runs", OnceRunsLive, :tests
+      live "/once/test-runs/:once_run_id", OnceTestRunLive
+      live "/once/test-runs/:once_run_id/test-cases/:case_id", OnceTestCaseRunLive
+      live "/once-cache", OnceCacheLive
       live "/connect", ConnectLive
       get "/invocations", RedirectPlug, to: "/builds"
       live "/invocations/:invocation_id", BazelBuildInvocationLive

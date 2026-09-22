@@ -50,3 +50,6 @@ This area owns LiveView pages and components for the web UI.
 - Automation match previews use one stable async key and a 500ms condition-change debounce. Keep condition validation consistent across the summary, preview, and save path, including required event selections for event-driven monitors; an unchecked explicit save cancels pending existing-match actions.
 
 - Only expose Timeline when the selected build has recorded steps or aligned machine samples. Shared `BuildTimelineLoader.select_tab/3` falls back to Overview for unavailable direct links; Xcode processing refreshes recheck availability. Bazel requires a published profile; retained summary spans alone do not qualify. Availability checks use scoped existence/scalar queries, never full step downloads.
+
+- Once run details share Xcode build header and metadata styles. Keep status labels, count formatting, and timezone-aware timestamps consistent across Once detail and list pages.
+- Once action tables use shared sortable columns, search, status/cache filters, and centered pagination below the rows. Preserve table settings across page links and live ingestion. Render a kind-based heading for commands containing redacted arguments, and explain the redaction in command details without revealing hashed values.

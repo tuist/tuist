@@ -342,6 +342,7 @@ defmodule Tuist.Application do
         {Cachex, [:tuist, []]},
         Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
+        Tuist.OnceEvents.AckStore,
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         Tuist.Kura.Demand,
@@ -354,7 +355,8 @@ defmodule Tuist.Application do
         open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++
-        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}]
+        [TuistWeb.Endpoint, {Oban, Application.fetch_env!(:tuist, Oban)}] ++
+        once_events_grpc_children()
 
     children
     |> Kernel.++(
@@ -628,6 +630,25 @@ defmodule Tuist.Application do
   def config_change(changed, _new, removed) do
     TuistWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  # gRPC listener for `once.events.v1`. Off by default (mode = env), on
+  # when `TUIST_ONCE_EVENTS_GRPC=on`. The port defaults to 4001 so it does
+  # not collide with the Phoenix endpoint on 4000.
+  defp once_events_grpc_children do
+    if String.downcase(System.get_env("TUIST_ONCE_EVENTS_GRPC") || "off") == "on" do
+      port =
+        System.get_env("TUIST_ONCE_EVENTS_GRPC_PORT")
+        |> case do
+          nil -> 4001
+          "" -> 4001
+          value -> String.to_integer(value)
+        end
+
+      [{GRPC.Server.Supervisor, endpoint: Tuist.OnceEvents.GRPCEndpoint, port: port, start_server: true}]
+    else
+      []
+    end
   end
 
   def redis_opts do
