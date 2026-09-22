@@ -30,7 +30,9 @@
 //!   --test generation_drop -- --ignored --nocapture --test-threads=1
 //! ```
 //!
-//! and point `the_overlap_of_a_real_store` at a store with
+//! It reads the Xcode 27 plugin's layout (`index.v1`); against a store another
+//! Xcode wrote, the measurement says so and skips. Point
+//! `the_overlap_of_a_real_store` at a store with
 //! `TUIST_CAS_OVERLAP_STORE=<store dir>` (the lane directory holding `v1.N`). It
 //! copies each generation to `TUIST_CAS_OVERLAP_SCRATCH` (default: the temp dir)
 //! and never opens the store it measures.
@@ -272,7 +274,7 @@ fn the_overlap_count_matches_what_the_reads_carried_forward() {
     store.close();
 
     let scratch = TempDir::new("overlap-exact-scratch");
-    let overlap = Overlap::measure(upstream, dir.path(), scratch.path());
+    let Some(overlap) = Overlap::measure(upstream, dir.path(), scratch.path()) else { return };
     let upstream_inventory = overlap.upstream.as_ref().expect("the store has an upstream");
     let per_graph = 1 + FANOUT + FANOUT * CHUNKS_PER_OUTPUT;
     // Each graph is its nodes plus the object its key is the digest of.
@@ -290,6 +292,57 @@ fn the_overlap_count_matches_what_the_reads_carried_forward() {
     assert_eq!(overlap.primary.stranded_below_root, 0);
 }
 
+/// Most of a store's bytes are in objects too large for the data pool, which the
+/// plugin keeps in a leaf file of their own, and the session table is read off
+/// those files' mtimes. So the naming has to be right: 4 MiB lands in
+/// `leaf+0.<offset>.v1`, not the `leaf.<offset>.v1` a smaller one gets, and a
+/// scan that knows only the second form reports no sessions at all.
+#[test]
+fn a_standalone_object_is_counted_in_the_session_that_copied_it() {
+    const STANDALONE_BYTES: usize = 4 * 1024 * 1024;
+    let Some(upstream) = upstream() else { return };
+    let dir = TempDir::new("overlap-standalone");
+    let store = Store::open(upstream, dir.path());
+    let big = store.store_object(&vec![7u8; STANDALONE_BYTES], &[]);
+    let key = store.digest_of(store.store_object(b"cache-key-material-standalone", &[]));
+    store.ac_put(&key, big);
+    store.close();
+    rotate(upstream, dir.path());
+
+    // The next job's lookup, which copies the object into the new primary.
+    let store = Store::open(upstream, dir.path());
+    let (result, value) = store.ac_get(&key);
+    assert_eq!(result, LLCAS_LOOKUP_RESULT_SUCCESS);
+    assert!(store.load_closure(value));
+    store.close();
+
+    let scratch = TempDir::new("overlap-standalone-scratch");
+    let Some(overlap) = Overlap::measure(upstream, dir.path(), scratch.path()) else { return };
+    let sessions = overlap.sessions();
+    assert_eq!(sessions.len(), 1, "one run of writes copied the object forward");
+    assert!(
+        sessions[0].copied >= STANDALONE_BYTES as u64,
+        "the copy must be accounted to the session that made it, not dropped: copied {}",
+        sessions[0].copied
+    );
+    assert_eq!(sessions[0].new, 0, "nothing was written that the upstream did not have");
+}
+
+/// A store another Xcode wrote is skipped, not failed. The record shape this
+/// scan reads was only checked against the Xcode 27 plugin's `index.v1`, while a
+/// supported Xcode 26 install writes `v8.*` and the compilers' lanes `v9.*`, and
+/// the plugin that validates candidates is whichever Xcode is active.
+#[test]
+fn a_store_in_another_xcodes_layout_is_skipped() {
+    let Some(upstream) = upstream() else { return };
+    let dir = TempDir::new("overlap-foreign-layout");
+    std::fs::create_dir_all(dir.path().join("v1.1")).expect("create the generation");
+    std::fs::write(dir.path().join("v1.1").join("v8.index"), b"another layout").expect("write the index");
+    let scratch = TempDir::new("overlap-foreign-scratch");
+
+    assert!(Overlap::measure(upstream, dir.path(), scratch.path()).is_none());
+}
+
 /// The measurement to run against a real store (see the module docs).
 #[test]
 #[ignore = "a measurement of a store named by TUIST_CAS_OVERLAP_STORE"]
@@ -305,6 +358,7 @@ fn the_overlap_of_a_real_store() {
         .join(format!("tuist-cas-overlap-{}", std::process::id()));
     let overlap = Overlap::measure(upstream, Path::new(&store), &scratch);
     let _ = std::fs::remove_dir_all(&scratch);
+    let Some(overlap) = overlap else { return };
     println!();
     println!("{}", overlap.report());
 }
@@ -317,16 +371,64 @@ struct Overlap {
 }
 
 impl Overlap {
-    fn measure(up: &'static Upstream, store: &Path, scratch: &Path) -> Self {
+    /// `None` for a store this scan cannot read: only the Xcode 27 plugin's
+    /// layout has had its record shape checked, and the plugin that would have to
+    /// validate the candidates is whichever Xcode is active anyway.
+    fn measure(up: &'static Upstream, store: &Path, scratch: &Path) -> Option<Self> {
         let mut generations = generation_dirs(store);
         let (_, primary_path) = generations.pop().expect("a store with a generation");
+        if index_file(&primary_path).is_none() {
+            eprintln!(
+                "skipping: {} is not in the Xcode 27 plugin layout (no {INDEX_FILE})",
+                primary_path.display()
+            );
+            return None;
+        }
         let upstream = generations.pop();
-        Self {
+        Some(Self {
             primary_name: file_name(&primary_path),
             primary: Inventory::measure(up, &primary_path, &scratch.join("primary")),
             upstream_name: upstream.as_ref().map(|(_, path)| file_name(path)),
             upstream: upstream.map(|(_, path)| Inventory::measure(up, &path, &scratch.join("upstream"))),
+        })
+    }
+
+    /// The primary's standalone objects grouped into the runs that wrote them,
+    /// oldest first. Published jobs write in disjoint windows, so a gap this wide
+    /// separates one job's writes from the next's.
+    fn sessions(&self) -> Vec<Session> {
+        const GAP_SECONDS: u64 = 120;
+        let mut written = self.primary.written.clone();
+        written.sort();
+        let mut sessions: Vec<Session> = Vec::new();
+        for (at, digest) in written {
+            let size = self.primary.objects.get(&digest).copied().unwrap_or(0);
+            let from_upstream =
+                self.upstream.as_ref().is_some_and(|upstream| upstream.objects.contains_key(&digest));
+            match sessions.last_mut() {
+                Some(session) if at <= session.last + GAP_SECONDS => {
+                    session.last = at;
+                    if from_upstream {
+                        session.copied += size;
+                    } else {
+                        session.new += size;
+                    }
+                    session.covered.insert(digest);
+                }
+                _ => {
+                    let mut covered = HashSet::new();
+                    covered.insert(digest);
+                    sessions.push(Session {
+                        started: at,
+                        last: at,
+                        copied: if from_upstream { size } else { 0 },
+                        new: if from_upstream { 0 } else { size },
+                        covered,
+                    });
+                }
+            }
         }
+        sessions
     }
 
     fn shared_objects(&self) -> usize {
@@ -380,41 +482,17 @@ impl Overlap {
         lines.push(String::new());
         lines.push("the primary's standalone objects by write session (a gap of 2+ minutes starts one):".into());
         lines.push(format!("  {:<20} {:>12} {:>12} {:>16}", "started (UTC)", "copied", "new", "upstream covered"));
-        let mut written = self.primary.written.clone();
-        written.sort();
-        let mut covered = HashSet::new();
-        let mut session: Option<(u64, u64, u64, u64)> = None;
-        let mut flush = |session: (u64, u64, u64, u64), covered: &HashSet<Digest>, lines: &mut Vec<String>| {
-            let (started, _, copied, new) = session;
+        let mut covered: HashSet<Digest> = HashSet::new();
+        for session in self.sessions() {
+            covered.extend(session.covered.iter().copied());
             let covered_bytes: u64 = covered.iter().filter_map(|digest| upstream.objects.get(digest)).sum();
             lines.push(format!(
                 "  {:<20} {:>12} {:>12} {:>15.1}%",
-                utc(started),
-                mib(copied),
-                mib(new),
+                utc(session.started),
+                mib(session.copied),
+                mib(session.new),
                 percent(covered_bytes, upstream.bytes())
             ));
-        };
-        for (at, digest) in written {
-            let size = self.primary.objects.get(&digest).copied().unwrap_or(0);
-            let copied = upstream.objects.contains_key(&digest);
-            session = Some(match session {
-                Some((started, last, copied_bytes, new_bytes)) if at <= last + 120 => {
-                    (started, at, copied_bytes + if copied { size } else { 0 }, new_bytes + if copied { 0 } else { size })
-                }
-                previous => {
-                    if let Some(previous) = previous {
-                        flush(previous, &covered, &mut lines);
-                    }
-                    (at, at, if copied { size } else { 0 }, if copied { 0 } else { size })
-                }
-            });
-            if copied {
-                covered.insert(digest);
-            }
-        }
-        if let Some(session) = session {
-            flush(session, &covered, &mut lines);
         }
         lines.push("  (upstream covered = share of the upstream's bytes the primary held by the end of that session,".into());
         lines.push("   counting standalone objects only)".into());
@@ -428,6 +506,16 @@ fn utc(seconds: u64) -> String {
         .output()
         .ok();
     output.map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string()).unwrap_or_default()
+}
+
+/// One run of writes into the primary: what it copied forward from the upstream,
+/// and what it wrote that the upstream never had.
+struct Session {
+    started: u64,
+    last: u64,
+    copied: u64,
+    new: u64,
+    covered: HashSet<Digest>,
 }
 
 /// One generation's objects and associations, read from its files and validated
@@ -450,23 +538,28 @@ struct Inventory {
     stranded_at_root: usize,
     stranded_below_root: usize,
     allocated: u64,
-    /// When each standalone object was written: the mtime of its `leaf.<n>.v1`
-    /// file, whose `<n>` is the offset of the object's record in `index.v1`.
+    /// When each standalone object was written: the mtime of its leaf file, whose
+    /// trailing number is the offset of the object's record in `index.v1`.
     /// Standalone objects are the large ones, so this covers most of the bytes.
     written: Vec<(u64, Digest)>,
 }
 
 const DIGEST_BYTES: usize = 65;
+const INDEX_FILE: &str = "index.v1";
 type Digest = [u8; DIGEST_BYTES];
+
+/// The generation's object index, if it is in the one layout this scan reads.
+/// Xcode 26.5's plugin writes `v8.index` and the compilers' lanes `v9.index`,
+/// whose record shape has not been checked.
+fn index_file(generation: &Path) -> Option<PathBuf> {
+    let index = generation.join(INDEX_FILE);
+    index.exists().then_some(index)
+}
 
 impl Inventory {
     fn measure(up: &'static Upstream, generation: &Path, scratch: &Path) -> Self {
-        let index = generation.join("index.v1");
-        assert!(
-            index.exists(),
-            "{} has no index.v1: only the Xcode 27 plugin layout is supported",
-            generation.display()
-        );
+        let index = index_file(generation)
+            .unwrap_or_else(|| panic!("{} is not in the Xcode 27 plugin layout", generation.display()));
         let index_records = scan_records(&index);
         let by_offset: HashMap<u64, Digest> =
             index_records.iter().map(|record| (record.offset, record.digest)).collect();
@@ -514,7 +607,9 @@ impl Inventory {
                     .flatten()
                     .filter_map(|entry| {
                         let name = entry.file_name().to_string_lossy().into_owned();
-                        let offset: u64 = name.strip_prefix("leaf.")?.strip_suffix(".v1")?.parse().ok()?;
+                        // `leaf.<offset>.v1` and `leaf+<n>.<offset>.v1` both occur.
+                        let offset: u64 =
+                            name.strip_prefix("leaf")?.strip_suffix(".v1")?.rsplit('.').next()?.parse().ok()?;
                         let digest = *by_offset.get(&offset)?;
                         let modified = entry.metadata().ok()?.modified().ok()?;
                         let seconds = modified.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
@@ -948,3 +1043,4 @@ impl Drop for TempDir {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
+
