@@ -116,9 +116,13 @@ if (( dry_run )); then
 fi
 
 if [ -z "$device" ]; then
-  mapfile -t candidates < <(ls /dev/cu.usbmodem* 2>/dev/null || true)
+  # The SX3832's USB-C console is a modem-class device (usbmodem). The SG3452 has
+  # a micro-USB console behind a USB-serial bridge, which macOS names usbserial,
+  # or wchusbserial for a CH34x.
+  mapfile -t candidates < <(ls /dev/cu.usbmodem* /dev/cu.usbserial* /dev/cu.wchusbserial* 2>/dev/null || true)
   if (( ${#candidates[@]} == 0 )); then
-    echo "error: no USB console found. Connect a USB-C cable to the switch's console port." >&2
+    echo "error: no USB console found. The SX3832's console is USB-C; the SG3452's is" >&2
+    echo "       micro-USB, and a charge-only micro-USB cable shows up as nothing at all." >&2
     exit 1
   fi
   if (( ${#candidates[@]} > 1 )); then
