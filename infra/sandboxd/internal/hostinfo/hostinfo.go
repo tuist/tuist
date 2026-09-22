@@ -9,6 +9,7 @@ package hostinfo
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -17,12 +18,12 @@ import (
 )
 
 const (
-	cgroupMemoryMax     = "/sys/fs/cgroup/memory.max"
-	cgroupMemoryCurrent = "/sys/fs/cgroup/memory.current"
+	cgroupRoot     = "/sys/fs/cgroup"
+	procSelfCgroup = "/proc/self/cgroup"
 )
 
 func Capacity() protocol.Capacity {
-	total, ok := cgroupValue(cgroupMemoryMax)
+	total, ok := cgroupValue("memory.max", true)
 	if !ok {
 		total, _ = meminfo()
 	}
@@ -30,7 +31,7 @@ func Capacity() protocol.Capacity {
 }
 
 func MemoryUsed() uint64 {
-	if used, ok := cgroupValue(cgroupMemoryCurrent); ok {
+	if used, ok := cgroupValue("memory.current", false); ok {
 		return used
 	}
 	total, available := meminfo()
@@ -40,12 +41,43 @@ func MemoryUsed() uint64 {
 	return total - available
 }
 
-func cgroupValue(path string) (uint64, bool) {
-	data, err := os.ReadFile(path)
+// cgroupValue reads a memory file of the process's own cgroup v2 directory.
+// Without a cgroup namespace the container sees the host hierarchy and
+// /proc/self/cgroup names its directory under the root; with a private
+// namespace the path is "/" and the file sits at the root. A limit of
+// "max" at the leaf falls through to the ancestors when walkUp is set,
+// since the pod slice carries the limit the container itself may lack.
+func cgroupValue(file string, walkUp bool) (uint64, bool) {
+	data, err := os.ReadFile(procSelfCgroup)
 	if err != nil {
 		return 0, false
 	}
-	return ParseCgroupValue(string(data))
+	return ReadCgroupValue(cgroupRoot, ParseCgroupPath(string(data)), file, walkUp)
+}
+
+func ReadCgroupValue(root, path, file string, walkUp bool) (uint64, bool) {
+	for {
+		if data, err := os.ReadFile(filepath.Join(root, path, file)); err == nil {
+			if value, ok := ParseCgroupValue(string(data)); ok {
+				return value, true
+			}
+		}
+		if !walkUp || path == "/" || path == "." || path == "" {
+			return 0, false
+		}
+		path = filepath.Dir(path)
+	}
+}
+
+// ParseCgroupPath returns the cgroup v2 path of /proc/self/cgroup (the
+// "0::" line), or "/" when there is none.
+func ParseCgroupPath(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if path, ok := strings.CutPrefix(line, "0::"); ok && path != "" {
+			return strings.TrimSpace(path)
+		}
+	}
+	return "/"
 }
 
 // ParseCgroupValue reads a cgroup v2 memory file. "max" means no limit and
