@@ -1725,6 +1725,38 @@ STUB
     [ ! -e "$(cat "$copy.root")" ]
 }
 
+@test "--via stops dnsmasq and removes the files on the server when this end is killed outright" {
+    # What happened on ber1-edge: this end was killed, no trap ran, and dnsmasq
+    # kept serving with the password still on disk.
+    bin="$BATS_TEST_TMPDIR/via4"
+    ztp_via_stub "$bin"
+    cat > "$bin/sudo" <<'STUB'
+#!/usr/bin/env bash
+[ "$1" = "-n" ] && shift
+exec "$@"
+STUB
+    cat > "$bin/dnsmasq" <<'STUB'
+#!/usr/bin/env bash
+sed -n 's/^tftp-root=//p' "${1#--conf-file=}" > "$FAKE_STATE.root"
+echo $$ > "$FAKE_STATE.pid"
+exec sleep 300
+STUB
+    chmod +x "$bin/sudo" "$bin/dnsmasq"
+    state="$BATS_TEST_TMPDIR/via4-state"
+    env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" FAKE_STATE="$state" \
+        "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 < /dev/null > /dev/null 2>&1 3>&- &
+    ztp=$!
+    for _ in $(seq 1 50); do [ -s "$state.pid" ] && break; sleep 0.2; done
+    [ -s "$state.pid" ]
+    served="$(cat "$state.pid")"
+    kill -9 "$ztp"
+    for _ in $(seq 1 50); do ps -p "$served" >/dev/null 2>&1 || break; sleep 0.2; done
+    kill "$served" 2>/dev/null || true
+    run ps -p "$served"
+    [ "$status" -ne 0 ]
+    [ ! -e "$(cat "$state.root")" ]
+}
+
 @test "ztp offers no boot file by MAC when the site definition has none" {
     bin="$BATS_TEST_TMPDIR/ztp4"
     ztp_stub "$bin"

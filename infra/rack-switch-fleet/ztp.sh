@@ -286,9 +286,15 @@ if [ -n "$via" ]; then
 fi
 echo "serving; power the switch on with Auto Install armed. Ctrl-C to stop."
 if [ -n "$via" ]; then
-  # A forced terminal, so that ending this end sends the remote dnsmasq a hangup
-  # rather than leaving a DHCP server running on the rack.
-  ssh -tt -o BatchMode=yes "$via" "sudo -n dnsmasq --conf-file='$serve_root/dnsmasq.conf' --no-daemon --log-facility=-"
+  # The server cleans up after itself the moment this SSH session is gone,
+  # however this end died. Relying on a hangup was not enough: killed outright,
+  # this end ran no trap, sudo's own terminal swallowed the hangup, and dnsmasq
+  # kept serving on the rack with the password still on disk.
+  ssh -o BatchMode=yes "$via" "sudo -n dnsmasq --conf-file='$serve_root/dnsmasq.conf' --no-daemon --log-facility=- & served=\$!
+    session=\$PPID
+    while ps -p \$session >/dev/null 2>&1 && ps -p \$served >/dev/null 2>&1; do sleep 2; done
+    sudo -n kill \$served 2>/dev/null
+    rm -rf '$serve_root'"
 else
   sudo dnsmasq --conf-file="$conf" --no-daemon --log-facility=-
 fi
