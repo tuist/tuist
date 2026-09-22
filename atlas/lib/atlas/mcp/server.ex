@@ -232,6 +232,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SearchDocuments
   alias Atlas.MCP.Tools.SearchNotes
   alias Atlas.MCP.Tools.SearchWeb
+  alias Atlas.MCP.Tools.SendAccountEmail
   alias Atlas.MCP.Tools.SendEmailBroadcast
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
   alias Atlas.MCP.Tools.SetFinancingLines
@@ -296,6 +297,8 @@ defmodule Atlas.MCP.Server do
   For outbound prospecting, Apollo is only a search provider and Atlas is the source of truth. Use `search_apollo_outreach` to discover people, `list_outreach_candidates` to review the Atlas-owned queue, and `enroll_outreach_candidate` or `reject_outreach_candidate` to make an explicit decision. Do not treat Apollo saved contacts as outreach state. Use `get_outreach_next_step` to read Atlas's guided suggestion. Use `generate_outreach_next_step` when the user asks for a fresh analysis. Only call `complete_outreach_next_step` after the user confirms the action happened, and use `dismiss_outreach_next_step` with specific feedback when the suggestion is not useful. Atlas never sends LinkedIn invitations or messages automatically.
 
   For group email, Atlas owns subscribers, audiences, and delivery history. Use the email subscriber and audience tools to inspect or prepare recipients. Only call `send_email_broadcast` when the user explicitly asks to send or queue the broadcast, because it immediately snapshots current subscribed recipients and queues delivery.
+
+  For email to one person, use `send_account_email` rather than building an audience of one. It addresses a single recipient, either by `email` or through the account whose billing contact should receive it, and it is the only correct path for transactional mail such as a billing, pricing, or contract notice: it adds no unsubscribe footer and does not skip a recipient who left a marketing audience. It also queues delivery immediately, so only call it when the user explicitly asks to send.
 
   Use `list_briefs` and `get_brief` to understand leadership attention across domains. Treat brief items as suggested coordination moves, not authoritative facts; inspect their evidence classes. Use `act_on_brief_item` only when the user explicitly asks to own, acknowledge, resolve, rate, or suppress an item. Cross-domain claims require exact or explicitly verified links and at least two supporting domain records.
   """
@@ -507,6 +510,7 @@ defmodule Atlas.MCP.Server do
     AddEmailAudienceSubscriber,
     UnsubscribeEmailAudienceSubscriber,
     SendEmailBroadcast,
+    SendAccountEmail,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment,
     FinanceGetTransaction,

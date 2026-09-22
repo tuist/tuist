@@ -15,6 +15,7 @@ defmodule Atlas.GTM do
   alias Atlas.GTM.BlogPostIdeaComment
   alias Atlas.GTM.Broadcasts
   alias Atlas.GTM.ContactIngest
+  alias Atlas.GTM.DirectEmails
   alias Atlas.GTM.Opportunity
   alias Atlas.GTM.OpportunityContact
   alias Atlas.GTM.Outreach.Apollo
@@ -56,6 +57,8 @@ defmodule Atlas.GTM do
   defdelegate send_email_transactional(transactional_id, email, data_variables \\ %{}),
     to: Transactional,
     as: :send
+
+  defdelegate queue_direct_email(attrs, sender \\ nil), to: DirectEmails, as: :queue
 
   defdelegate change_email_audience(audience, attrs \\ %{}), to: Audiences, as: :change_audience
   defdelegate create_email_audience(attrs, actor \\ nil), to: Audiences, as: :create_audience
