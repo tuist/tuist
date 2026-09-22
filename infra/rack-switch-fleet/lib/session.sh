@@ -44,6 +44,12 @@ SWITCH_LOG=""
 # switch_run_confirm just waits out its timeout, which is the safe direction.
 SWITCH_ANSWER=""
 SWITCH_CONFIRM=$'(Y/N)'
+# How the last session ended: "logout" if ssh exited on its own after being told
+# to, "killed" if it had to be signalled. A killed client can leave the switch
+# holding a half-open connection, which is one candidate explanation for the
+# connection budget and would be this tool's fault rather than the firmware's.
+# FLEET_DEBUG_SESSIONS=1 prints it.
+SWITCH_CLOSED_BY=""
 
 
 # False once the coprocess is gone, which bash signals by deleting the array.
@@ -201,7 +207,13 @@ switch_close() {
   while [ -n "${SWITCH_PID:-}" ] && kill -0 "${SWITCH_PID:-}" 2>/dev/null && (( waited < 5 )); do
     sleep 1; waited=$(( waited + 1 ))
   done
-  kill -9 "${SWITCH_PID:-}" 2>/dev/null || true
+  if [ -n "${SWITCH_PID:-}" ] && kill -0 "${SWITCH_PID:-}" 2>/dev/null; then
+    SWITCH_CLOSED_BY="killed after ${waited}s"
+    kill -9 "${SWITCH_PID:-}" 2>/dev/null || true
+  else
+    SWITCH_CLOSED_BY="logout"
+  fi
+  [ -n "${FLEET_DEBUG_SESSIONS:-}" ] && echo "session ended: $SWITCH_CLOSED_BY" >&2
   wait "${SWITCH_PID:-}" 2>/dev/null || true
   SWITCH_PID=""
   trap - PIPE

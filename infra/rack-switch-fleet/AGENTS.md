@@ -235,13 +235,13 @@ reference-not-copy shape a `RackSwitch` and a `RackSite` would give, without the
 machinery. The rest is a real design direction and not a refactor to reach for
 yet, for two reasons this rack has demonstrated rather than predicted.
 
-**A reconcile loop cannot afford this hardware.** The switch allows seven SSH
-connections per boot and does not recycle the slots. A controller that observes
-on a timer exhausts a switch in under a day and then cannot reach it to fix
-anything, and the failure looks like a healthy switch, because it keeps
-forwarding. Anything automated here has to be parsimonious in a way the usual
-reconcile pattern is not, which is a constraint on the controller's design
-rather than an argument against having one.
+**A reconcile loop cannot afford this hardware.** The switch stops accepting SSH
+after seven connections in a boot. A controller that observes on a timer
+exhausts it in under a day and then cannot reach it to fix anything, and the
+failure looks like a healthy switch, because it keeps forwarding. Anything
+automated here has to be parsimonious in a way the usual reconcile pattern is
+not, which is a constraint on the controller's design rather than an argument
+against having one.
 
 **The controller would sit inside the failure domain it manages.** The cluster's
 own nodes are in this rack, behind these switches, on a management path that
@@ -252,9 +252,27 @@ path and the operator CLI stay whichever way the rest goes.
 What would genuinely be better as objects is observation and status: desired
 against applied revision, drift, reachability, last verification. Those are
 reads, they suit a status subresource, and they are what someone actually wants
-on a dashboard. Changes should stay explicitly approved and tied to a revision
-either way: automatic drift correction would undo an incident workaround, and
-each correction here costs a reboot.
+on a dashboard.
+
+Correcting drift automatically is cheaper than it first looks, and an earlier
+version of this file got that wrong. `apply` sends the missing commands to the
+running configuration and saves, with **no reboot at all**; only `replace` costs
+one, because a startup configuration does nothing until the switch restarts. So
+"every correction costs a reboot" was false, and the real objections are the
+other two.
+
+The first is the budget again, and it bites the observer harder than the
+corrector. Checking drift costs a connection each time. Hourly checks are
+twenty-four a day against a switch that tolerates seven per boot, so a naive
+observation loop takes the switch out daily without changing anything. Anything
+automated has to either batch its reads the way `preflight` does or run rarely
+enough to be worth the slot, and that is a real design constraint rather than a
+detail.
+
+The second is that correction is not always right. A change made during an
+incident is a change someone meant, and reverting it automatically at 3am is
+worse than drifting. Tying changes to an approved revision keeps that decision
+with a person without giving up the detection.
 
 The sensible order, if it is picked up: keep this driver, model observation
 first, leave changes manual, and only then consider a controller that sequences
@@ -556,11 +574,30 @@ arbitrary line into its negation is the same class of guess.
   ping and kept serving its web UI throughout. It does not recover on its own;
   an hour was not enough on two occasions. Recovery is a reboot.
 
-  The mechanism is visible in `show users`. Each connection gets a task named
-  `tSshNN` and the number only ever goes up: `tSsh00` through `tSsh06` across
-  those seven, never reused, while the session table held exactly one row the
-  whole time. So the logout does end the session, and the firmware still does
-  not get the slot back. Logging out is necessary and it is not sufficient.
+  What is visible in `show users` is that each connection gets a task named
+  `tSshNN`, the number only ever goes up, `tSsh00` through `tSsh06` across those
+  seven, never reused, while the session table held exactly one row throughout.
+  So the logout does end the session and something is still not given back.
+
+  **Why is not established, and it is a strange thing for a switch to do, so do
+  not treat the count as understood.** Three explanations fit what has been
+  measured, and one of them is this tool's fault rather than the firmware's:
+
+  - the daemon leaks a task or a descriptor per accepted connection
+  - the client leaves connections half-open, so the switch holds each task until
+    a TCP timeout that is longer than the experiment. `switch_close` records
+    whether ssh exited after `logout` or had to be signalled, in
+    `SWITCH_CLOSED_BY`, and `FLEET_DEBUG_SESSIONS=1` prints it. Against a
+    well-behaved fake it is always `logout`; nobody has looked on real hardware.
+  - a login rate limiter, which the eight connections in ninety seconds would
+    have tripped. Argues against itself a little, since an hour did not clear
+    it, but not all limiters are short.
+
+  Two experiments separate them, both needing a freshly booted switch.
+  `FLEET_DEBUG_SESSIONS=1` through a run says whether the client is ever the one
+  killing the connection. And spacing eight connections over ten minutes says
+  whether the limit counts connections or measures a rate: a leak will not care
+  about the spacing, a limiter will.
 
   This was worth measuring rather than assuming. The earlier wedge happened
   fifteen seconds after `ber1-tor-a` rebooted and flapped the ISL, which looked
