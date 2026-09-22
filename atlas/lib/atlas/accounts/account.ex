@@ -28,6 +28,7 @@ defmodule Atlas.Accounts.Account do
   @statuses ~w(active churned paused trial)
   @license_deal_stages ~w(poc)
   @hosting_values ~w(unknown cloud self_hosted)
+  @plan_tiers ~w(enterprise pro free)
   @editable_fields [
     :name,
     :description,
@@ -47,13 +48,18 @@ defmodule Atlas.Accounts.Account do
     :next_renewal_date,
     :poc_end_date,
     :stripe_customer_id,
-    :hosting
+    :hosting,
+    :plan_tier
   ]
   def segments, do: @segments
   def statuses, do: @statuses
   def hosting_values, do: @hosting_values
+  def plan_tiers, do: @plan_tiers
   def deal_stages, do: DealStage.keys()
   def license_deal_stages, do: @license_deal_stages
+
+  def enterprise?(%__MODULE__{plan_tier: "enterprise"}), do: true
+  def enterprise?(_), do: false
 
   def not_account?(%__MODULE__{not_an_account_at: %DateTime{}}), do: true
   def not_account?(_account), do: false
@@ -83,6 +89,7 @@ defmodule Atlas.Accounts.Account do
     field :poc_end_date, :date
     field :stripe_customer_id, :string
     field :hosting, :string, default: "unknown"
+    field :plan_tier, :string
     field :overview_summary, :string
     field :overview_summary_generated_at, :utc_datetime
     field :outcome_review_company_slack_posted_at, :utc_datetime
@@ -146,6 +153,7 @@ defmodule Atlas.Accounts.Account do
       :poc_end_date,
       :stripe_customer_id,
       :hosting,
+      :plan_tier,
       :latest_activity_at,
       :contacts_count,
       :metadata
@@ -153,6 +161,7 @@ defmodule Atlas.Accounts.Account do
     |> validate_required([:account_key, :name, :segment])
     |> validate_inclusion(:status, @statuses)
     |> validate_inclusion(:hosting, @hosting_values)
+    |> validate_inclusion(:plan_tier, @plan_tiers)
     |> validate_inclusion(:deal_stage, DealStage.keys())
     |> validate_parent_account_not_self()
     |> update_change(:currency, &Amounts.normalize_currency/1)
@@ -186,6 +195,7 @@ defmodule Atlas.Accounts.Account do
     |> validate_required([:name, :segment])
     |> validate_inclusion(:status, @statuses)
     |> validate_inclusion(:hosting, @hosting_values)
+    |> validate_inclusion(:plan_tier, @plan_tiers)
     |> validate_inclusion(:deal_stage, DealStage.keys())
     |> validate_parent_account_not_self()
     |> validate_number(:current_value, greater_than_or_equal_to: 0)

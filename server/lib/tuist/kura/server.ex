@@ -65,8 +65,8 @@ defmodule Tuist.Kura.Server do
   whose claim silently tracked its account would have that attempted under it
   every time the account moved. So the value is set where the volumes are built
   — provisioning, the cold return out of `:archived`, a warm handoff onto a
-  second instance — and a plan change in between is not applied until one of
-  those happens.
+  second instance — at the account's claim (`Tuist.Kura.PlacerClaims`), which
+  follows what the account's other instances are pinned at before its plan.
 
   That makes it desired state with a narrow set of writers rather than an
   observation: at rest it is what the volumes hold, and between a write and the

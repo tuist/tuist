@@ -19,7 +19,7 @@ defmodule Atlas.MCP.Tools.GetAsset do
   end
 
   def execute(conn, %{"asset_id" => asset_id}) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools") do
+    with :ok <- Tool.authorize_scope(conn, "assets:read", "Hardware tools") do
       case Assets.get_asset(asset_id) do
         nil -> {:error, "Asset not found."}
         asset -> {:ok, AssetsSerializer.asset(asset)}

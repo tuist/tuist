@@ -552,7 +552,7 @@ if Tuist.Environment.error_tracking_enabled?() do
   config :sentry,
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
-    environment_name: env,
+    environment_name: Tuist.Environment.deploy_env_name(),
     release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
@@ -700,7 +700,19 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Alert evaluations are isolated at one worker per server Pod because their
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
 # GitLab coordinator requests may long-poll; isolate them from general background work.
-base_queues = [runner_gitlab: 10, default: 10, alert_evaluations: 1, vcs_comments: 20, webhooks: 20, storage_retention: 1]
+# Kura instances coming up for a client that asked for its cache: bringing one
+# up and polling its endpoint twice a second, kept off :default so a busy queue
+# cannot delay either.
+base_queues = [
+  runner_gitlab: 10,
+  default: 10,
+  alert_evaluations: 1,
+  vcs_comments: 20,
+  webhooks: 20,
+  storage_retention: 1,
+  kura_provisioning: 10
+]
+
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}

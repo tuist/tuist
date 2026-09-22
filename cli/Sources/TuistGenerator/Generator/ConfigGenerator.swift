@@ -202,6 +202,17 @@ struct ConfigGenerator: ConfigGenerating {
             settingsHelper.extend(buildSettings: &settings, with: target.settings?.baseDebug ?? [:])
         }
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
+        if !target.buildableFolders.isEmpty {
+            // Xcode enumerates synchronized folders itself, including files that FileSystem.glob ignores.
+            // Build settings also cover placeholders added after generation without another directory scan.
+            let exclusionKeys = ["EXCLUDED_SOURCE_FILE_NAMES"] + settings.keys.filter {
+                $0.hasPrefix("EXCLUDED_SOURCE_FILE_NAMES[")
+            }
+            let exclusions: SettingsDictionary = Dictionary(uniqueKeysWithValues: exclusionKeys.map {
+                ($0, .array(["$(inherited)", ".gitkeep", ".DS_Store"]))
+            })
+            settingsHelper.extend(buildSettings: &settings, with: exclusions)
+        }
         settingsHelper
             .extend(
                 buildSettings: &settings,

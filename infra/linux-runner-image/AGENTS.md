@@ -185,7 +185,7 @@ release-pipeline digest rewrite, same shape as the macOS image.
 
 ## CI
 
-The release pipeline mirrors `release-runner-image` for macOS but
+The release pipeline mirrors the macOS runner image release but
 runs on a standard cloud Linux runner (no Tart / GUI session
 needed). Steady-state: `feat(linux-runner-image)` /
 `fix(linux-runner-image)` conventional commits on `main` trigger

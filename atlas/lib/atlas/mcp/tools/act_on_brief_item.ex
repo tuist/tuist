@@ -26,7 +26,7 @@ defmodule Atlas.MCP.Tools.ActOnBriefItem do
   end
 
   def execute(conn, %{"brief_item_id" => id, "action" => action} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Leadership brief tools"),
+    with :ok <- Tool.authorize_scope(conn, "briefs:write", "Leadership brief tools"),
          {:ok, item} <- perform(action, id, args, Tool.current_user(conn)) do
       {:ok, BriefSerializer.brief_item(item, include_evidence: true)}
     end

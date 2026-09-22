@@ -152,6 +152,8 @@ defmodule Tuist do
       Billing.Entitlements,
       Billing.Workers.CreateRunnerPrepaidGrantWorker,
       Billing.Subscription,
+      Billing.UsagePricing,
+      Billing.UsageMeterProvisioning,
       AppBuilds,
       AppBuilds.Preview,
       AppBuilds.AppBuild,
@@ -277,6 +279,7 @@ defmodule Tuist do
       Runners.Profiles,
       Runners.RunnerSession,
       Runners.RunnerSessions,
+      Runners.Shadow.Snapshot,
       Runners.PromExPlugin,
       Runners.Telemetry,
       Kubernetes.Client

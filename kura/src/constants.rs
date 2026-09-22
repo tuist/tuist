@@ -304,6 +304,14 @@ pub const ROCKSDB_CF_NAMESPACE_TOMBSTONES: &str = "namespace_tombstones";
 pub const ROCKSDB_CF_MULTIPART_UPLOADS: &str = "multipart_uploads";
 pub const ROCKSDB_CF_OUTBOX: &str = "outbox";
 pub const ROCKSDB_CF_USAGE_OUTBOX: &str = "usage_outbox";
+// Shared durable outbox for cache analytics (gradle-cache, xcode-cache,
+// reapi-cache). This declaration lands one release before any producer
+// routes through it: the store opens with an explicit descriptor list, so
+// a rollback to a binary that has never heard of this CF cannot open the
+// database. Shipping the declaration alone lets the release become the
+// oldest supported version before PR #2 adds the outbox module and PR #3
+// wires the first producer. Empty for the life of this release.
+pub const ROCKSDB_CF_ANALYTICS_OUTBOX: &str = "analytics_outbox";
 pub const ROCKSDB_CF_SEGMENT_ARTIFACTS: &str = "segment_artifacts";
 pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
 /// Per-namespace index of REAPI action-cache entries ordered newest-first

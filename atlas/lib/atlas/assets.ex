@@ -486,6 +486,16 @@ defmodule Atlas.Assets do
     asset
     |> Asset.lifecycle_changeset(changes)
     |> Repo.update()
+    |> tap(fn
+      {:ok, updated} ->
+        audit_asset("asset.owned_via_exercise", updated, %{
+          "ownership_acquired_on" => Date.to_iso8601(on),
+          "previous_ownership" => asset.ownership
+        })
+
+      _ ->
+        :ok
+    end)
   end
 
   defp maybe_backfill_purchased_on(changes, %Asset{purchased_on: nil}, on), do: Map.put(changes, :purchased_on, on)

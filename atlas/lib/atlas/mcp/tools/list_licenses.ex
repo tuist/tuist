@@ -45,7 +45,7 @@ defmodule Atlas.MCP.Tools.ListLicenses do
   end
 
   def execute(conn, args) when is_map(args) do
-    with :ok <- Tool.authorize_executive(conn, "License tools") do
+    with :ok <- Tool.authorize_scope(conn, "licenses:read", "License tools") do
       {licenses, meta} =
         Licenses.list_licenses_page(
           page: page(args),

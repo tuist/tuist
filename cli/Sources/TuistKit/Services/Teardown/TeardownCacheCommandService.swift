@@ -33,8 +33,8 @@ struct TeardownCacheCommandService {
             plistFileName: "\(proxyLabel).plist"
         )
 
-        // Best-effort teardown of the per-project cache daemon (the non-kura path,
-        // and any leftover from before the machine-wide proxy).
+        // Best-effort teardown of a per-project cache daemon left over from before
+        // the machine-wide proxy.
         let resolvedPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
         if let config = try? await configLoader.loadConfig(path: resolvedPath),
            let fullHandle = config.fullHandle

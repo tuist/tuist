@@ -180,7 +180,8 @@ struct ResolveTests {
             #expect(
                 try await !PackageResolver.shouldUseNativeColdPath(
                     packageDir: package,
-                    cacheRoot: cache.root
+                    cacheRoot: cache.root,
+                    registryConfig: RegistryConfig()
                 )
             )
 
@@ -640,10 +641,152 @@ struct ResolveTests {
             #expect(
                 try await PackageResolver.shouldUseNativeColdPath(
                     packageDir: package,
-                    cacheRoot: cache.root
+                    cacheRoot: cache.root,
+                    registryConfig: RegistryConfig()
                 )
             )
         }
+    }
+
+    @Test
+    func registryPinsKeepTheRestorationPathWhenTheCacheHoldsTheRelease() async throws {
+        try await withTemporaryDirectory { root in
+            let graph = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: true, cachesRegistryPin: true
+            )
+
+            #expect(
+                try await !PackageResolver.shouldUseNativeColdPath(
+                    packageDir: graph.package,
+                    cacheRoot: graph.cache.root,
+                    registryConfig: graph.registryConfig
+                )
+            )
+        }
+    }
+
+    @Test
+    func registryPinsUseTheNativeColdPathWhenTheCacheMissesTheRelease() async throws {
+        try await withTemporaryDirectory { root in
+            let graph = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: true, cachesRegistryPin: false
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: graph.package,
+                    cacheRoot: graph.cache.root,
+                    registryConfig: graph.registryConfig
+                )
+            )
+        }
+    }
+
+    @Test
+    func registryPinsUseTheNativeColdPathWhenTheCachedReleaseHasNoChecksumMarker() async throws {
+        try await withTemporaryDirectory { root in
+            let graph = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: true, cachesRegistryPin: true
+            )
+            try await fileSystem.remove(
+                graph.cachedRegistrySource
+                    .appendingPathComponent(WorkspaceRestorer.registryChecksumMarkerFilename)
+                    .absolutePath
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: graph.package,
+                    cacheRoot: graph.cache.root,
+                    registryConfig: graph.registryConfig
+                )
+            )
+        }
+    }
+
+    @Test
+    func aMissingSourcePinUsesTheNativeColdPathEvenWithACachedRegistryRelease() async throws {
+        try await withTemporaryDirectory { root in
+            let graph = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: false, cachesRegistryPin: true
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: graph.package,
+                    cacheRoot: graph.cache.root,
+                    registryConfig: graph.registryConfig
+                )
+            )
+        }
+    }
+
+    private struct MixedGraph {
+        let package: URL
+        let cache: Cache
+        let registryConfig: RegistryConfig
+        let cachedRegistrySource: URL
+    }
+
+    private func writeMixedRegistryAndSourceControlGraph(
+        root: URL,
+        cachesSourcePin: Bool,
+        cachesRegistryPin: Bool
+    ) async throws -> MixedGraph {
+        let registryURL = "https://registry.example.com"
+        let package = root.appendingPathComponent("App")
+        try await writeMinimalPackageManifest(at: package, name: "App")
+        let cache = try await Cache(root: root.appendingPathComponent("cache"))
+        let sourcePin = ResolvedPin(
+            identity: "dependency",
+            kind: "remoteSourceControl",
+            location: "https://example.com/dependency.git",
+            state: .init(branch: nil, revision: "aaaaaaaa", version: "1.0.0")
+        )
+        let registryPin = ResolvedPin(
+            identity: "example.package",
+            kind: "registry",
+            location: "",
+            state: .init(branch: nil, revision: nil, version: "1.1.4")
+        )
+        if cachesSourcePin {
+            let cachedSource = try cache.sourcePath(pin: sourcePin)
+            try await fileSystem.makeDirectory(
+                at: cachedSource.absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            try await writeMinimalPackageManifest(at: cachedSource, name: "Dependency")
+        }
+        let cachedRegistrySource = cache.registrySourcePath(
+            identity: registryPin.identity,
+            version: try registryPin.versionString(),
+            registryURL: registryURL
+        )
+        if cachesRegistryPin {
+            try await fileSystem.makeDirectory(
+                at: cachedRegistrySource.absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            try await writeMinimalPackageManifest(at: cachedRegistrySource, name: "Package")
+            try await fileSystem.atomicWrite(
+                "abcdef1234567890\n",
+                to: cachedRegistrySource.appendingPathComponent(
+                    WorkspaceRestorer.registryChecksumMarkerFilename
+                )
+            )
+        }
+        try await ResolvedFile.write(
+            packageDir: package,
+            resolved: .init(originHash: "origin", pins: [registryPin, sourcePin], version: 3)
+        )
+        return MixedGraph(
+            package: package,
+            cache: cache,
+            registryConfig: try await RegistryConfig.load(
+                packageDir: package, configPath: nil, defaultRegistryURL: registryURL
+            ),
+            cachedRegistrySource: cachedRegistrySource
+        )
     }
 
     private func addCommitAndTag(at dependency: URL, tag: String) async throws {

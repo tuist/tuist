@@ -1389,7 +1389,12 @@ allocatable ephemeral-storage, which is the disk minus kubelet's eviction
 reserve. The claim is per instance (`Server.storage_claim_size`, proposed by
 `Tuist.Kura.ClaimSizing`), and the disk row counts in units of two replicas at
 50 GiB against allocatable, per node: where the scheduler refuses. Shrinking
-claims is a lever here as well as a node.
+claims is a lever here as well as a node, and sizing pulls it on its own for
+rings that keep weeks of content. A lowered pin releases its reservation
+without rebuilding anything: admission reads the pin, and the pods' requests
+and ring budget (`KURA_CAS_CAPACITY_BYTES`, derived from the claim) follow it
+on their next roll, while the volume keeps the size it was built at and the
+ring evicts down inside it.
 
 **This row is not the admission check, and the region fills up before it
 fires.** `Tuist.Kura.Admission` refuses a new instance, a cold return or a
@@ -1754,6 +1759,25 @@ this rule paged on exactly that while it was critical. It stays as the early
 signal; the page is **Kura instance retention horizon under a day for three
 days**. A rule at two days was deployed with this one on 2026-09-02 and
 removed on 2026-09-04, having fired only on the artifact described below.
+
+Each region is measured against the claim its own instances are pinned at,
+and an account keeps one claim: an instance pinned below the rest of its
+account (an expansion built at the plan's starting claim beside instances the
+pin migration grandfathered at 50Gi, say) that sheds under the floor is raised
+to the account's claim as soon as a rung confirms, rather than grown from the
+larger pin or left short.
+
+**Sizing also shrinks, and lands well clear of both tiers.** Besides a ring
+that never fills, a claim shrinks when every region kept what it shed for
+three retention floors (nine days) on every day of a month. It lands where
+the shortest day would keep the floor plus the growth headroom, 3.75 days, one
+step at most halves it (leaving at least 4.5 days), and it never goes under
+the plan's starting claim, so a shrunk ring sits several times above this
+rule's one day and above the longest growth rung's three. Once a lowered
+claim's pods roll, the ring's first rotation evicts its oldest segments down to
+the new budget: that sheds content older than anything it keeps afterwards,
+and fullness (segments held against the smaller desired total) reads over 100
+until it does, so the gate stays open without the rule firing.
 
 What is genuinely actionable and still has no rule of its own is *sizing
 blocked*: the claim clamped at the plan ceiling, or open proposals the worker
@@ -3466,26 +3490,20 @@ in the fleet came close.
 
 ```promql
 max by (cluster, region, pod, kind) (
-  (
-    increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
-    or
-    label_replace(increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m]), "kind", "outbox", "", "")
-  )
+  increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
   * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 )
 ```
 
 - Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
   value is the number of writes refused in the last 15 minutes
-- Pending period: the same as the live outbox rule it replaces (group
-  `Cache` evaluates every 5 minutes)
+- Pending period: none (group `Cache` evaluates every 5 minutes)
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Replaces
-  **Kura shedding cache writes from the replication outbox** (see **Retired
-  rules**); preview it against the last 7 days for `kind="outbox"` and confirm
-  it fires on the same samples before deleting that rule.
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+  Successor to **Kura shedding cache writes from the replication outbox** (see
+  **Retired rules**), and it keeps that rule's identifier.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused at
   least {{ $values.A.Value | printf "%.0f" }} cache writes at the
   {{ $labels.kind }} limit in the last 15 minutes ({{ $labels.cluster }})`
@@ -3505,8 +3523,9 @@ max by (cluster, region, pod, kind) (
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
-instead of one rule per limit. The `outbox` kind is the retired rule, query,
-threshold and `or` term unchanged; the other kinds ride along at the same bar.
+instead of one rule per limit. It began as the retired outbox rule generalised
+to every write-shed kind at the same bar; the `outbox` kind itself went away
+with push replication (see **Why the query no longer has an `or`**).
 
 #### Why a write shed is worse than a read shed
 
@@ -3530,22 +3549,17 @@ method label, and the routes serving both reads and writes cannot be split by
 route, so "writes attempted" is not expressible. A discrete loss makes the raw
 count meaningful on its own.
 
-#### Why the query has an `or`
+#### Why the query no longer has an `or`
 
-Until the 2026-08-31 fix the gRPC outbox gate recorded only
-`kura_memory_actions_total{action="grpc_write_rejected_outbox"}` and never
-touched the shed counter, as did the three REAPI persistence sites. That gap
-hid a very large number of remote-execution rejections on one pod (seven
-figures in 7 days) against a few dozen HTTP-path rejections in a day. The
-second term keeps the rule honest on pods still running an image from before
-that fix; it is safe to drop once the fix is fleet-wide. `max`, not `sum`, so
-the two terms do not double count once both are recorded, and `label_replace`
-files the fallback under the `outbox` kind so it lands on the same row.
-
-The shed counter legitimately exceeds the gate's own rejection count: a write
-admitted at the gate still loses when the remaining room is smaller than the
-target count or another write wins the race, and each persistence path
-records that shed itself.
+Through push replication the query also carried
+`or label_replace(increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m]), "kind", "outbox", "", "")`.
+Until the 2026-08-31 fix, a remote-execution write refused because the
+replication outbox was full was recorded only as that memory action and never
+reached the shed counter, so the second term filed those refusals under an
+`outbox` kind for pods still on older images. Removing push replication in
+kura@0.46 (#13185) deleted the outbox, its gate and the memory action, so the
+term matched nothing and was dropped. No write is refused for replication room
+any more.
 
 #### One rule keyed on kind
 
@@ -3606,7 +3620,6 @@ limit in the summary, which is what the on-call needs to pick the lever:
 
 ```promql
 sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
-max by (pod) (kura_outbox_messages)
 ```
 
 ### Kura replication outbox approaching its cap (retired)
@@ -3978,6 +3991,72 @@ probe failed TLS verification every tick, and the endpoint-not-ready branch
 logged at info and returned `:ok` without writing anything. The instance was
 indistinguishable from one thirty seconds old.
 
+### Kura new instances slow to serve
+
+```promql
+max(tuist_kura_lifecycle_new_instance_time_to_ready_p90_seconds{cluster="tuist-production"})
+  and on()
+(max(tuist_kura_lifecycle_new_instances_count{cluster="tuist-production"}) >= 10)
+```
+
+- Threshold: `> 120` seconds, so the alert value is the p90 itself
+- Pending period: 30 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: OK**, **Error: Alerting**.
+- Live: rule `kura-new-instance-slow`, created 2026-09-17.
+- Summary: `Kura new instances took {{ $values.A.Value | printf "%.0f" }}s at
+  the 90th percentile over the last day`
+
+**What it measures.** `tuist_kura_lifecycle_new_instance_time_to_ready_p90_seconds`
+is a PromEx polling gauge, computed every five minutes from `kura_deployments`
+over the last 24 hours: for each account-region instance that started serving,
+the wall-clock from the deployment that brought it up to its endpoint
+answering. Only first provisions and cold returns count, which is the first
+deployment a server has had since its account-region last returned from
+archive. A fleet rollout mints ten times as many deployments as new instances
+and they pass through the same activation path, so counting those would measure
+the rollout gate instead.
+
+**Read it with `max`, not `sum`.** Like the gauges above, every
+`tuist-tuist-server` replica reports the same fleet-wide value and Adaptive
+Metrics has aggregated `instance` and `pod` away.
+
+**Why the sample gate.** Production provisions on the order of 30 new instances
+a day, so a 24-hour p90 is taken over a few dozen samples and a quiet day would
+otherwise let one slow instance decide the alert. When the window holds nothing
+the count is reported as zero and the percentile is left alone, so the gate
+closes and the rule goes to No Data — which is why No Data is OK rather than
+Alerting: a fleet that provisioned nothing has no speed to report.
+
+Note that the percentile going stale rather than absent is what makes the count
+carry the gate. PromEx's `last_value` is an ETS row the exporter reads back with
+no TTL and no delete path, so a series that simply stops being emitted keeps
+reporting its last computed value for the life of the pod. Were the count to go
+stale too, a day with provisioning wedged would keep evaluating the previous
+day's percentile against the previous day's sample count and stay green.
+
+**Why 120 seconds, and where it should go.** Before the on-demand provisioning
+work, production's p90 for a first provision was 181s over a week (p50 127s),
+and a staging drill of the same path afterwards returned an archived instance
+in 13.7s. 120s is therefore well clear of the expected range while still
+catching a regression to the old behaviour. Tighten it toward 60s once a couple
+of weeks of production data with the new path exist, and read the current
+distribution before changing it:
+
+```sql
+SELECT count(*), percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (finished_at - inserted_at)))
+FROM kura_deployments WHERE status = 2 AND inserted_at > now() - interval '7 days';
+```
+
+**What it catches that the two rules above do not.** Those fire when an instance
+never serves, on a 15-minute stall threshold. This one fires when instances do
+serve but have got slower: DNS publication, volume provisioning, the regional
+gateway's sync rate, image pulls on a fresh box. The usual first read is the
+timeline of one recent instance, which `AwaitActivationWorker`'s log lines give
+(`waiting on DNS for server`, `waiting on public endpoint for server`) together
+with the pod and volume events in the `kura` namespace.
+
 ### Kura region admission headroom running out
 
 ```promql
@@ -4030,6 +4109,18 @@ ap-southeast from 2026-09-16 12:33 (121 GiB left, projected -329 on
 archival released reservations.
 
 ### Kura admission refusing instances
+
+When investigating reservations, use retention evidence rather than current
+volume occupancy alone. Claim sizing can correct moderate excess retention
+after 14 complete post-resize days with snapshots, at least seven meaningful
+eviction days, and two ring budgets of turnover. It discounts known idle whole
+days, requires adjusted retention of at least 4.5 days, and projects toward
+3.75 days. Each correction frees 10–25% of the account claim, requires every
+known pinned region to support shrinking, and restarts the observation window.
+Today's contradictory evictions veto it. Existing 30-day occupancy and
+clearly excessive-retention shrink paths still apply. The evidence is saved in
+`kura_claim_proposals`; low occupancy or one long-lived eviction is not enough
+to justify manually shrinking an instance.
 
 ```promql
 label_replace(
@@ -5572,6 +5663,13 @@ sum by (cluster) (
 
 ### Browser LCP percentiles
 
+**Staged replacement:** [Browser RUM quality and surface-specific LCP](browser-rum.md)
+adds collector-verified authentication, trusted collector Ray IDs and paused
+per-surface alert definitions. The legacy rules below stay active until the
+two-phase gateway rollout and baseline validation are complete. Their pooled
+September 5 baseline is historical; a six-hour Faro window must not be described
+as an official Core Web Vitals assessment.
+
 Real user monitoring for tuist.dev. These are the only rules in this document
 that read Loki rather than Prometheus, because browser telemetry arrives as log
 entries and never becomes a metric.
@@ -5761,20 +5859,53 @@ not identify each client's loaded bundle or WebDriver flag.
 
 The Cloudflare rule in
 `infra/flux/cloudflare-config/browser-telemetry-bot-filter.yaml` filters
-verified bots at ingestion. Flux applies the `CloudflareCustomRule` and the
-management-cluster operator reconciles it into the zone's WAF ruleset. It
-blocks only `POST https://tuist.dev/-/faro/collect` when `cf.client.bot` is
-true, so crawlers can still read public pages. This uses the same verified-bot
+verified and self-declared bots at ingestion. Flux applies the
+`CloudflareCustomRule` and the management-cluster operator reconciles it into
+the zone's WAF ruleset. It blocks only `POST https://tuist.dev/-/faro/collect`
+when `cf.client.bot` is
+true or the request user agent explicitly identifies HeadlessChrome,
+YisouSpider, Sogou web spider, or meta-externalagent. Comparisons are
+case-insensitive; YisouSpider matches the whole value, Sogou and Meta match
+their product prefix, and HeadlessChrome matches its versioned product token.
+Crawlers can still read public pages. This uses the same verified-bot
 signal as the existing crawler rate-limit rules and does not require granular
 Enterprise Bot Management scores. There is no browser-version or viewport
 denylist and no challenge on the collector's background requests.
 
-**Coverage is deliberately limited to Cloudflare-verified bots.** A false
+**Self-declared automation does not need to be a verified bot.** In the 24h
+window ending September 18, 2026 at 08:15 UTC, Faro contained 9 YisouSpider,
+8 Sogou web spider, and 3 HeadlessChrome LCP samples. Meta was observed in the
+September 8 investigation above. The explicit user-agent clauses cover those
+declarations independently of Cloudflare's verified-bot list. They use request
+headers at the edge. An ingress log at 07:17:50 UTC confirms a Faro POST with
+the actual `YisouSpider` request header received HTTP 202, alongside its LCP
+sample. The other counts use Faro's browser-reported `browser_userAgent` and
+are candidates for filtering, not proof that the same header reached
+Cloudflare. Confirm the request headers in Security Events after rollout.
+
+**This does not classify clients impersonating ordinary browsers.** A false
 `cf.client.bot` does not mean human. We have not correlated the Linux cohort
 with Cloudflare's classification, so disappearance of that cohort is a
 post-deployment check, not an established result. If it persists, inspect
 Cloudflare's request classification and available Bot Management entitlement
 before extending the rule; do not exclude ordinary Linux browsers wholesale.
+
+The same September 18 window had 2,200 LCP samples and p95 11.80s. The Linux
+1919x992 cohort contributed 288 samples from 288 sessions, including 169 of
+the 236 samples above 5s; 255 of its samples were on login URLs. Excluding
+that fingerprint for diagnosis brought p95 to 4.26s. This is not evidence
+that every matching visit is automated and the fingerprint is not a deployed
+filter. A separate Mac/Chrome 1366x1366 cohort dominated the September 16
+spike: 30,546 of 33,095 total samples were on `/turnstile-challenge`. Keep
+these cohorts visible while verifying their edge classification.
+
+The repository's bot-management configuration records the zone as Business
+with Super Bot Fight Mode. Granular
+[`cf.bot_management.score` custom rules require Enterprise Bot Management](https://developers.cloudflare.com/bots/concepts/bot-score/);
+verify live entitlement before proposing one. Keep the collector's SBFM skip:
+a managed challenge on a background telemetry POST silently loses samples.
+The explicit user-agent extension does not change that skip, the p95 5s
+threshold, or the alert sample floor.
 
 After merge, use the management-cluster context to inspect
 `kubectl get cloudflarecustomrule browser-telemetry-verified-bots -o yaml`.
@@ -5810,9 +5941,13 @@ count(sum by (session_id) (
 
 For the explicitly identified Meta cohort, use the same measurement selector
 with `| browser_userAgent=~"(?i)meta-externalagent/.*"` instead of the Linux
-OS and viewport filters. To roll back the edge filter, set `enabled: false`
-in its Kubernetes manifest and let Flux and the operator reconcile; editing
-the rule in the Cloudflare dashboard would be reverted by the operator.
+OS and viewport filters. Also check the new declarations with
+`| browser_userAgent=~"(?i)(.*headlesschrome/.*|yisouspider|sogou web spider/.*)"`.
+To roll back just the self-declared automation extension, restore the
+expression's final condition to `cf.client.bot`. To roll back the entire edge
+filter, set `enabled: false` in its Kubernetes manifest and let Flux and the
+operator reconcile; editing the rule in the Cloudflare dashboard would be
+reverted by the operator.
 
 **D scales with traffic**, which is worth remembering before reading a rise as a
 regression. It is an absolute count over 24h and it tracked the weekly cycle
@@ -6102,7 +6237,8 @@ on exactly the same samples at the same grain while the other write-shed
 kinds the old rule left uncovered ride along. Its reasoning (count not rate,
 the `or` term, the triage queries) moved into that section. Delete the old
 rule only after the new one has been previewed for `kind="outbox"` against
-the last 7 days and matches.
+the last 7 days and matches. The `outbox` kind and its `or` term were later
+dropped from that rule with push replication (kura@0.46).
 
 **Kura cache pod failing scrapes** (`cfvvcmpw0wqv4f`, warning, deleted
 2026-08-26) counted absolute failed scrapes:

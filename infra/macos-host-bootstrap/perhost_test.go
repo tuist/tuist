@@ -38,6 +38,10 @@ var fleetWideConfigFields = map[string]bool{
 	"VNCRelayPort":            true,
 	"VNCRelayPortCount":       true,
 	"MinGoldensKept":          true,
+
+	// Per kind rather than per env: the rack kind sets it on its copy of the
+	// fleet config, so it is hashed like every other field here.
+	"TailscalePersistentDevice": true,
 }
 
 // Every Config field is either fleet-wide or per-host, and PerHost is the

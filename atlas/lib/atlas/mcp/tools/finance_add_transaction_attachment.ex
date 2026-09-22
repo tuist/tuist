@@ -43,6 +43,7 @@ defmodule Atlas.MCP.Tools.FinanceAddTransactionAttachment do
       "additionalProperties" => false
     }
 
+  alias Atlas.Audit
   alias Atlas.Documents
   alias Atlas.Documents.Document
   alias Atlas.Documents.Storage
@@ -59,7 +60,7 @@ defmodule Atlas.MCP.Tools.FinanceAddTransactionAttachment do
         "transaction_external_id" => transaction_external_id,
         "document_id" => document_id
       }) do
-    with :ok <- Tool.authorize_executive(conn),
+    with :ok <- Tool.authorize_scope(conn, "finance:write", "Finance tools"),
          {:ok, source} <- Config.fetch_source(source_key),
          %Document{} = document <- Documents.get_document(document_id),
          {:ok, document_content} <- download_document_content(document) do
@@ -68,6 +69,17 @@ defmodule Atlas.MCP.Tools.FinanceAddTransactionAttachment do
 
       case Qonto.add_attachment(source, transaction_external_id, document_content, filename, content_type) do
         {:ok, created_attachment} ->
+          Audit.record("finance_transaction_attachment.added", %{
+            target_type: "finance_transaction",
+            target_id: transaction_external_id,
+            target_label: filename,
+            metadata: %{
+              "source_key" => source_key,
+              "document_id" => document_id,
+              "attachment_id" => created_attachment["id"]
+            }
+          })
+
           {:ok,
            %{
              success: true,

@@ -53,8 +53,9 @@ concurrency:
 jobs:
   cli-unit-tests:
     name: CLI Unit Tests
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 120
+    if: github.repository == 'tuist/tuist'
     permissions:
       contents: read
       id-token: write
@@ -93,8 +94,9 @@ jobs:
 
   app-tests:
     name: App Tests
-    runs-on: tuist-macos
+    runs-on: tuist-macos-27-0
     timeout-minutes: 60
+    if: github.repository == 'tuist/tuist'
     permissions:
       contents: read
       id-token: write

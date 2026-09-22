@@ -82,6 +82,7 @@ spec:
                 secretKeyRef:
                   name: {{ $pgSecret }}
                   key: dbname
+            {{- include "atlas.clickhouseEnv" . | nindent 12 }}
           envFrom:
             - secretRef:
                 name: {{ $appSecret }}
@@ -142,6 +143,7 @@ spec:
                 secretKeyRef:
                   name: {{ $pgSecret }}
                   key: dbname
+            {{- include "atlas.clickhouseEnv" . | nindent 12 }}
           envFrom:
             - secretRef:
                 name: {{ $appSecret }}

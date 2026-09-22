@@ -33,7 +33,7 @@ defmodule Atlas.MCP.Tools.CheckOutAirGappedLicense do
   end
 
   def execute(conn, %{"license_id" => license_id}) do
-    with :ok <- Tool.authorize_executive(conn, "License tools"),
+    with :ok <- Tool.authorize_scope(conn, "licenses:write", "License tools"),
          {:ok, license} <- fetch_license(license_id),
          {:ok, checkout} <- Licenses.check_out_air_gapped(license) do
       {:ok,

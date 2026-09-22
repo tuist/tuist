@@ -47,7 +47,7 @@ defmodule Atlas.MCP.Tools.CreateLetterDocumentUpload do
       "Reserve a pending outgoing document for a letter that is waiting for one and return a short-lived presigned PUT URL. Upload the PDF bytes to that URL with the `Content-Type` header from `required_headers`, then call `finalize_letter_document_upload` with the returned `document_id`. Does not send the letter."
 
   def execute(conn, %{"letter_id" => letter_id, "filename" => filename} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Letter tools") do
+    with :ok <- Tool.authorize_scope(conn, "letters:write", "Letter tools") do
       case Letters.create_letter_document_upload(
              letter_id,
              %{filename: filename},

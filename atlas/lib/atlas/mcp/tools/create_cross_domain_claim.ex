@@ -67,7 +67,7 @@ defmodule Atlas.MCP.Tools.CreateCrossDomainClaim do
   end
 
   def execute(conn, %{"account_id" => account_id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Cross-domain claim tools"),
+    with :ok <- Tool.authorize_scope(conn, "engineering:write", "Cross-domain claim tools"),
          account when not is_nil(account) <- Accounts.get_account(account_id),
          {:ok, claim} <-
            Claims.create(

@@ -15,9 +15,11 @@ defmodule Tuist.Kura.LifecycleTest do
   alias Tuist.Kura.Lifecycle
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Kura.StorageRollup
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -108,7 +110,8 @@ defmodule Tuist.Kura.LifecycleTest do
   # pressure arithmetic reads each instance's own claim, so an instance inserted
   # without one would not reserve what its plan reserves in production.
   defp active_instance(account, opts \\ []) do
-    inserted_at = ago_usec(Keyword.get(opts, :age_days, 120))
+    inserted_at =
+      DateTime.add(DateTime.utc_now(), -Keyword.get(opts, :age_hours, Keyword.get(opts, :age_days, 120) * 24), :hour)
 
     claim_size =
       Keyword.get_lazy(opts, :claim_size, fn ->
@@ -1130,12 +1133,141 @@ defmodule Tuist.Kura.LifecycleTest do
 
     test "leaves a never-used instance alone inside the unused window" do
       account = account()
-      server = active_instance(account, age_days: 5)
-      with_demand(account, 1)
-      storage_rollups(account, 0..5)
+      server = active_instance(account, age_hours: 23)
+      with_demand(account, 0)
+      storage_rollups(account, 0..1)
 
       assert :ok = Lifecycle.sweep()
 
+      assert reload(server).status == :active
+    end
+
+    test "drains unused Air after 24 hours without waiting for seven days of demand tracking" do
+      account = account()
+      server = active_instance(account, age_hours: 25)
+      with_demand(account, 0, tracked_for_days: 2)
+      storage_rollups(account, 0..2)
+
+      assert :ok = Lifecycle.sweep()
+
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :unused
+    end
+
+    test "keeps the unused window configurable for Air" do
+      stub(Environment, :kura_air_unused_hours, fn -> 48 end)
+      account = account()
+      server = active_instance(account, age_hours: 25)
+      with_demand(account, 0)
+      storage_rollups(account, 0..2)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "still gives newly tracked Air instances their shorter tracking grace" do
+      account = account()
+      server = active_instance(account, age_days: 8)
+      with_demand(account, 0, tracked_for_days: 0)
+      storage_rollups(account, 0..8)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "keeps Pro's seven-day unused window and full tracking grace" do
+      recent = account(plan: :pro)
+      recent_server = active_instance(recent, age_days: 2)
+      with_demand(recent, 0)
+      storage_rollups(recent, 0..2)
+
+      newly_tracked = account(plan: :pro)
+      newly_tracked_server = active_instance(newly_tracked, age_days: 8)
+      with_demand(newly_tracked, 0, tracked_for_days: 2)
+      storage_rollups(newly_tracked, 0..8)
+
+      eligible = account(plan: :pro)
+      eligible_server = unused_instance(eligible)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(recent_server).status == :active
+      assert reload(newly_tracked_server).status == :active
+      assert reload(eligible_server).status == :drain_pending
+    end
+
+    test "both plans reclaim old instances whose first partial day had no snapshots" do
+      for plan <- [:air, :pro] do
+        account = account(plan: plan)
+        server = active_instance(account, age_days: 30)
+        with_demand(account, 0)
+        storage_rollups(account, 0..29)
+
+        assert :ok = Lifecycle.sweep()
+        assert reload(server).status == :drain_pending
+      end
+    end
+
+    test "reclaims Air when provisioning crosses midnight without snapshots on either boundary day" do
+      freeze_clock(~U[2026-09-22 00:30:00.000000Z])
+      account = account()
+      server = active_instance(account, age_hours: 25)
+      with_demand(account, 0, tracked_for_days: 2)
+      storage_rollups(account, [1])
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+    end
+
+    test "the midnight sweep can reclaim before today's rollup arrives" do
+      freeze_clock(~U[2026-09-22 00:00:00.000000Z])
+      account = account()
+      server = active_instance(account, age_days: 2)
+      with_demand(account, 0)
+      storage_rollups(account, 1..2)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+    end
+
+    test "a single snapshot cannot establish that a 25-hour Air instance stayed unused" do
+      account = account()
+      server = active_instance(account, age_hours: 25)
+      with_demand(account, 0)
+      storage_rollups(account, [0], snapshot_count: 1)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "coverage counts the expected snapshots from every replica" do
+      account = account()
+      server = active_instance(account, age_days: 2)
+      with_demand(account, 0)
+      storage_rollups(account, 0..2, snapshot_count: 96)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "excess samples on one day cannot compensate for thin coverage on another" do
+      account = account()
+      server = active_instance(account, age_days: 2)
+      with_demand(account, 0)
+      storage_rollups(account, [2], snapshot_count: 1000)
+      storage_rollups(account, [1], snapshot_count: 1)
+      storage_rollups(account, [0])
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :active
+    end
+
+    test "a missing full day vetoes otherwise sufficient snapshot counts" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+      with_demand(account, 0)
+      storage_rollups(account, Enum.reject(0..30, &(&1 == 12)))
+
+      assert :ok = Lifecycle.sweep()
       assert reload(server).status == :active
     end
 
@@ -1212,7 +1344,9 @@ defmodule Tuist.Kura.LifecycleTest do
 
       account
       |> with_demand(1)
-      |> Ecto.Changeset.change(%{last_returned_at: ago(3)})
+      |> Ecto.Changeset.change(%{
+        last_returned_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -23, :hour), :second)
+      })
       |> Repo.update!()
 
       storage_rollups(account, 0..30)
@@ -1220,6 +1354,25 @@ defmodule Tuist.Kura.LifecycleTest do
       assert :ok = Lifecycle.sweep()
 
       assert reload(server).status == :active
+    end
+
+    test "reclaims an unused Air return after its new 24-hour window" do
+      account = account()
+      server = active_instance(account, age_days: 30)
+
+      account
+      |> with_demand(0)
+      |> Ecto.Changeset.change(%{
+        last_returned_at: DateTime.truncate(DateTime.add(DateTime.utc_now(), -25, :hour), :second)
+      })
+      |> Repo.update!()
+
+      storage_rollups(account, 0..2)
+      storage_rollups(account, [20], max_live_segment_bytes: @gib)
+
+      assert :ok = Lifecycle.sweep()
+      assert reload(server).status == :drain_pending
+      assert reload_lifecycle(account).drain_reason == :unused
     end
 
     test "never drains a keep-warm or Enterprise instance for going unused" do
@@ -1282,6 +1435,11 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(server).status == :provisioning
     end
 
+    defp freeze_clock(now) do
+      stub(DateTime, :utc_now, fn -> now end)
+      stub(Date, :utc_today, fn -> DateTime.to_date(now) end)
+    end
+
     defp unused_instance(account) do
       server = active_instance(account, age_days: 8)
       with_demand(account, 1)
@@ -1313,7 +1471,7 @@ defmodule Tuist.Kura.LifecycleTest do
               account_id: account.id,
               region: @region,
               date: Date.add(Date.utc_today(), -days),
-              snapshot_count: 96,
+              snapshot_count: 96 * @replicas,
               max_occupancy_percent: 0,
               max_live_segment_bytes: 0
             ],
@@ -1523,6 +1681,91 @@ defmodule Tuist.Kura.LifecycleTest do
       Lifecycle.reconcile_placement_retirements()
 
       assert PlacerRegions.claimed_regions(account) == ["eu-west"]
+    end
+  end
+
+  describe "provisioning on request" do
+    setup do
+      stub(Provisioner, :destroy, fn _server -> :ok end)
+      stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+      :ok
+    end
+
+    defp archived(account) do
+      server = active_instance(account)
+      start_drain(account, server)
+      elapse_drain(account)
+      Lifecycle.reconcile()
+      assert reload(server).status == :archived
+      server
+    end
+
+    test "returns the asking account's archived instance without waiting for the demand buffer or the reconciler tick" do
+      account = account()
+      server = archived(account)
+      requested_at = DateTime.utc_now()
+
+      assert {:ok, [%Server{id: id, status: :provisioning}]} = Lifecycle.provision_account(account.id, requested_at)
+
+      assert id == server.id
+      lifecycle = reload_lifecycle(account)
+      assert lifecycle.last_returned_at
+      assert lifecycle.last_cache_demand_at == DateTime.truncate(requested_at, :second)
+      assert Repo.exists?(from(d in Deployment, where: d.kura_server_id == ^server.id and d.status == :pending))
+    end
+
+    test "provisions an account that has never had an instance" do
+      account = account()
+
+      assert {:ok, [%Server{status: :provisioning}]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+    end
+
+    test "hands back an instance that is already coming up, so its activation can be awaited" do
+      account = account()
+      {:ok, [server]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+
+      assert {:ok, [%Server{id: id}]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+      assert id == server.id
+      assert [_server] = servers_for(account)
+    end
+
+    test "leaves every other account to the reconciler tick" do
+      other = account()
+      other_server = archived(other)
+      account = account()
+      archived(account)
+      Demand.record(other.id)
+
+      assert {:ok, [_server]} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+
+      assert reload(other_server).status == :archived
+    end
+
+    test "places a first instance near the request that asked for it, whichever node provisions it" do
+      # The request is recorded on the node that served it, and the job that
+      # provisions the instance can run on any node, where nothing that node
+      # buffered is visible.
+      stub(Environment, :kura_available_region_ids, fn -> [@region, "eu-west"] end)
+      stub(Environment, :kura_control_plane?, fn -> true end)
+      stub(Reconciler, :reconcile_server, fn _server -> :ok end)
+      account = account()
+
+      Accounts.get_cache_resolution_for_handle(account.name, :kura, {:ok, "DE"})
+      assert [%Oban.Job{args: args}] = all_enqueued(worker: ProvisionOnDemandWorker)
+      :ets.delete_all_objects(Tuist.Kura.Origins)
+      :ets.delete_all_objects(Demand)
+
+      assert :ok = perform_job(ProvisionOnDemandWorker, args)
+
+      assert [%Server{region: "eu-west", status: :provisioning}] = servers_for(account)
+    end
+
+    test "provisions nothing with no runtime image tag configured" do
+      stub(Environment, :kura_runtime_image_tag, fn -> nil end)
+      account = account()
+
+      assert {:ok, []} = Lifecycle.provision_account(account.id, DateTime.utc_now())
+      assert servers_for(account) == []
     end
   end
 

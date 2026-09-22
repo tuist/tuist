@@ -22,7 +22,7 @@ defmodule Atlas.MCP.Tools.RemoveAssetFromInsurance do
   end
 
   def execute(conn, %{"member_id" => id} = args) do
-    with :ok <- Tool.authorize_executive(conn, "Hardware tools"),
+    with :ok <- Tool.authorize_scope(conn, "assets:write", "Hardware tools"),
          %_{} = member <- Policies.get_member(id) do
       opts =
         case Map.get(args, "covered_to") do

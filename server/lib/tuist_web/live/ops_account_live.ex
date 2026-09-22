@@ -387,12 +387,17 @@ defmodule TuistWeb.OpsAccountLive do
        )}
     else
       # Missing billing details: open the modal pre-filled with whatever
-      # the Stripe customer already has.
+      # the Stripe customer already has. The modal is `:if`-gated on
+      # `upgrade_target_account`, so it isn't in the DOM yet and its
+      # Noora Modal hook hasn't attached the `phx:open-modal` window
+      # listener. Defer the event to the next tick so the DOM patch
+      # mounts the modal (and its listener) before we dispatch.
+      send(self(), :open_enterprise_modal)
+
       {:noreply,
        socket
        |> assign(:upgrade_target_account, account)
-       |> assign(:upgrade_target_customer, customer)
-       |> push_event("open-modal", %{id: "enterprise-modal"})}
+       |> assign(:upgrade_target_customer, customer)}
     end
   end
 
@@ -451,6 +456,11 @@ defmodule TuistWeb.OpsAccountLive do
      |> assign(:upgrade_target_account, nil)
      |> assign(:upgrade_target_customer, nil)
      |> push_event("close-modal", %{id: "enterprise-modal"})}
+  end
+
+  @impl true
+  def handle_info(:open_enterprise_modal, socket) do
+    {:noreply, push_event(socket, "open-modal", %{id: "enterprise-modal"})}
   end
 
   ## Stripe-customer prefill helpers (moved from OpsAccountsLive)
@@ -932,6 +942,16 @@ defmodule TuistWeb.OpsAccountLive do
     )
   end
 
+  defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: %{"signal" => "retention_above_floor"} = evidence}) do
+    dgettext(
+      "dashboard",
+      "The cache in %{region} has kept work for at least %{retention} before discarding it, when it needs to keep everything for %{floor}.",
+      region: evidence["region"],
+      retention: humanize_seconds(evidence["shortest_shed_age_seconds"]),
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
   defp kura_claim_proposal_evidence(%{direction: :shrink, evidence: evidence}) do
     dgettext(
       "dashboard",
@@ -987,7 +1007,18 @@ defmodule TuistWeb.OpsAccountLive do
     end
   end
 
-  defp kura_claim_history_change(%{current_claim_size: from, recommended_claim_size: to}), do: "#{from} → #{to}"
+  # A growth that recommends the claim the account already has raises the
+  # instances pinned under it, so the move worth showing is theirs.
+  def claim_history_change(%{
+        direction: :grow,
+        current_claim_size: claim,
+        recommended_claim_size: claim,
+        evidence: %{"region_claim_size" => from}
+      }) do
+    "#{from} → #{claim}"
+  end
+
+  def claim_history_change(%{current_claim_size: from, recommended_claim_size: to}), do: "#{from} → #{to}"
 
   def claim_history_outcome(%{status: :applied}), do: {dgettext("dashboard", "applied"), "success"}
   def claim_history_outcome(%{status: :dismissed}), do: {dgettext("dashboard", "dismissed"), "neutral"}
@@ -1007,6 +1038,13 @@ defmodule TuistWeb.OpsAccountLive do
   def claim_history_reason(%{direction: :grow, evidence: evidence}) do
     dgettext("dashboard", "discarding work after %{shed_age}, target %{floor}",
       shed_age: humanize_seconds(evidence["median_shed_age_seconds"]),
+      floor: humanize_seconds(evidence["retention_floor_seconds"])
+    )
+  end
+
+  def claim_history_reason(%{direction: :shrink, evidence: %{"signal" => "retention_above_floor"} = evidence}) do
+    dgettext("dashboard", "keeps work %{retention}, needs %{floor}",
+      retention: humanize_seconds(evidence["shortest_shed_age_seconds"]),
       floor: humanize_seconds(evidence["retention_floor_seconds"])
     )
   end
@@ -1112,6 +1150,27 @@ defmodule TuistWeb.OpsAccountLive do
       "dashboard",
       "Kura disk claim set to %{claim}. No running instance changed; it applies the next time volumes are built.",
       claim: claim_size
+    )
+  end
+
+  defp kura_storage_claim_message(%{claim_size: claim_size, raised: [_ | _] = raised, lowered: [_ | _] = lowered}) do
+    Enum.join(
+      [
+        dgettext("dashboard", "Kura disk claim moved to %{claim}.", claim: claim_size),
+        dngettext(
+          "dashboard",
+          "%{count} instance was raised and rebuilds its volumes, one replica at a time behind the standby that keeps serving.",
+          "%{count} instances were raised and rebuild their volumes, one replica at a time behind the standby that keeps serving.",
+          length(raised)
+        ),
+        dngettext(
+          "dashboard",
+          "%{count} instance was lowered and keeps its cache, evicting down to the new budget.",
+          "%{count} instances were lowered and keep their caches, evicting down to the new budget.",
+          length(lowered)
+        )
+      ],
+      " "
     )
   end
 

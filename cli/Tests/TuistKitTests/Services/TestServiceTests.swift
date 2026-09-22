@@ -5679,6 +5679,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 buildRunId: .any,
+                requestedTestIdentifiers: .any,
                 skipUpload: .any,
                 archivePath: .any
             )
@@ -5716,6 +5717,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 buildRunId: .any,
+                requestedTestIdentifiers: .any,
                 skipUpload: .value(false),
                 archivePath: .value(shardArchivePath)
             )
@@ -6593,6 +6595,208 @@ struct TestServiceShardingTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_from_a_bundle_restores_the_builds_requested_identifiers() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(
+                testTargetHashes: [:],
+                requestedTestIdentifiers: ["AppUITests/CartA11yTests"]
+            ),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(path: temporaryDirectory, testProductsPath: testProductsPath)
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .matching { arguments in
+                arguments.containsConsecutive("-only-testing", "AppUITests/CartA11yTests")
+            })
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_from_a_bundle_fails_when_the_request_cannot_run() async throws {
+        // Asking for a suite the products were not built for is a misconfigured pipeline. Running
+        // unrestricted would run everything, and finishing quietly would report a pass for tests
+        // that never ran.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsJSON(
+            SelectiveTestingGraph(
+                testTargetHashes: [:],
+                requestedTestIdentifiers: ["AppUITests/CartA11yTests"]
+            ),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+
+        await #expect(throws: TestServiceError.self) {
+            try await AlertController.$current.withValue(AlertController()) {
+                try await fixture.run(
+                    path: temporaryDirectory,
+                    testProductsPath: testProductsPath,
+                    testTargets: [try TestIdentifier(target: "AppUITests", class: "OnboardingFlowTests")]
+                )
+            }
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_narrows_a_module_shard_to_the_requested_suites() async throws {
+        // A module-granularity shard selects the whole test target. Its identifier and the run's
+        // `--test-targets` would both go out as `-only-testing`, which xcodebuild runs the union of,
+        // so the shard ran the whole module however narrow the request was.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let extractedTestProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        try await FileSystem().makeDirectory(at: extractedTestProductsPath)
+
+        given(fixture.shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppUITests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppUITests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(
+                path: temporaryDirectory,
+                shardIndex: 0,
+                testTargets: [try TestIdentifier(target: "AppUITests", class: "CartA11yTests")]
+            )
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .matching { arguments in
+                arguments.containsConsecutive("-only-testing", "AppUITests/CartA11yTests")
+                    && !arguments.containsConsecutive("-only-testing", "AppUITests")
+            })
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_restores_the_builds_requested_identifiers_from_the_products() async throws {
+        // The runner is a separate job that repeats nothing from the build command, and xcodebuild
+        // records a command-line `-only-testing` nowhere in the products, so the build's restriction
+        // has to travel with them.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let extractedTestProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        given(fixture.shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppUITests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppUITests"],
+                    selectiveTestingGraph: SelectiveTestingGraph(
+                        testTargetHashes: [:],
+                        requestedTestIdentifiers: ["AppUITests/CartA11yTests"]
+                    )
+                )
+            )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(path: temporaryDirectory, shardIndex: 0)
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .matching { arguments in
+                arguments.containsConsecutive("-only-testing", "AppUITests/CartA11yTests")
+                    && !arguments.containsConsecutive("-only-testing", "AppUITests")
+            })
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_finishes_early_and_cleans_up_when_a_shard_holds_nothing_requested() async throws {
+        // Running a shard with no `-only-testing` at all would run everything, so a shard left
+        // holding nothing has to run nothing. Its downloaded products go with it, otherwise repeated
+        // filtered runs pile them up on a persistent runner.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let fileSystem = FileSystem()
+        let extractedTestProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        given(fixture.shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppUITests/OnboardingFlowTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppUITests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(
+                path: temporaryDirectory,
+                shardIndex: 0,
+                testTargets: [try TestIdentifier(target: "AppUITests", class: "CartA11yTests")]
+            )
+        }
+
+        verify(fixture.xcodebuildController)
+            .run(arguments: .any)
+            .called(0)
+        #expect(try await fileSystem.exists(extractedTestProductsPath) == false)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func without_building_passes_shard_plan_and_archive_path_to_shard_service() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
@@ -6647,6 +6851,7 @@ struct TestServiceShardingTests {
 
 private struct TestServiceShardingFixture {
     let shardService = MockShardServicing()
+    let xcodebuildController = MockXcodeBuildControlling()
 
     let runMetadataStorage = RunMetadataStorage()
     private let subject: TestService
@@ -6654,7 +6859,6 @@ private struct TestServiceShardingFixture {
     init(rootDirectory: AbsolutePath) {
         let cacheStorage = MockCacheStoring()
         let cacheStorageFactory = MockCacheStorageFactorying()
-        let xcodebuildController = MockXcodeBuildControlling()
         let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
         let configLoader = MockConfigLoading()
         let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
@@ -6696,7 +6900,8 @@ private struct TestServiceShardingFixture {
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
         shardArchivePath: AbsolutePath? = nil,
-        testProductsPath: AbsolutePath? = nil
+        testProductsPath: AbsolutePath? = nil,
+        testTargets: [TestIdentifier] = []
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -6716,7 +6921,7 @@ private struct TestServiceShardingFixture {
                 resultBundlePath: nil,
                 derivedDataPath: nil,
                 retryCount: 0,
-                testTargets: [],
+                testTargets: testTargets,
                 skipTestTargets: [],
                 testPlanConfiguration: nil,
                 ignoreBinaryCache: false,

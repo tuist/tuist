@@ -63,3 +63,32 @@ app.kubernetes.io/name: {{ include "atlas.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: vector
 {{- end -}}
+
+{{- define "atlas.clickhouseName" -}}
+{{ include "atlas.fullname" . }}-clickhouse
+{{- end -}}
+
+{{- define "atlas.clickhouseLabels" -}}
+{{ include "atlas.labels" . }}
+app.kubernetes.io/component: clickhouse
+{{- end -}}
+
+{{- define "atlas.clickhouseSelectorLabels" -}}
+{{ include "atlas.selectorLabels" . }}
+app.kubernetes.io/component: clickhouse
+{{- end -}}
+
+{{- define "atlas.clickhouseEnv" -}}
+{{- if .Values.clickhouse.enabled }}
+- name: ATLAS_CLICKHOUSE_ENABLED
+  value: "true"
+- name: ATLAS_CLICKHOUSE_HOST
+  value: {{ include "atlas.clickhouseName" . | quote }}
+- name: ATLAS_CLICKHOUSE_PORT
+  value: {{ .Values.clickhouse.service.httpPort | quote }}
+- name: ATLAS_CLICKHOUSE_DATABASE
+  value: {{ .Values.clickhouse.database | quote }}
+- name: ATLAS_CLICKHOUSE_USERNAME
+  value: {{ .Values.clickhouse.username | quote }}
+{{- end }}
+{{- end -}}

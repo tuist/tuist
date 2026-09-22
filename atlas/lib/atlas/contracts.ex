@@ -1,7 +1,10 @@
 defmodule Atlas.Contracts do
   @moduledoc """
-  Reads enterprise-contract `.docx` templates from `priv/contracts/templates/`
-  and mints short-lived signed download URLs for them.
+  Reads enterprise-contract `.docx` templates and mints short-lived signed
+  download URLs for them. Templates come from `Atlas.Contracts.Storage`, which
+  serves either the on-disk `priv/contracts/templates/` tree in dev and test or
+  the `contracts/templates/` prefix in the shared Atlas object storage bucket in
+  prod.
 
   The MCP surface (`list_contract_templates`, `get_contract_template`, and the
   `generate_enterprise_contract` prompt) exposes templates and customer data so
@@ -9,6 +12,7 @@ defmodule Atlas.Contracts do
   Atlas does not generate or store the produced files.
   """
 
+  alias Atlas.Contracts.Storage
   alias Atlas.Contracts.Template
   alias AtlasWeb.Endpoint
 
@@ -43,7 +47,7 @@ defmodule Atlas.Contracts do
         entries
         |> Enum.filter(&String.ends_with?(&1, ".docx"))
         |> Enum.sort()
-        |> Enum.map(&build_template(template_set, &1, set_dir))
+        |> Enum.map(&build_template(template_set, &1))
 
       {:error, _reason} ->
         []
@@ -61,6 +65,19 @@ defmodule Atlas.Contracts do
     end
   end
 
+  @doc """
+  Reads the bytes for a template from the configured source (disk in dev/test,
+  object storage in prod).
+  """
+  def read_template(%Template{template_set: set, filename: filename}) do
+    Storage.read(set, filename)
+  end
+
+  @doc """
+  On-disk path for a template. Only meaningful when `Atlas.Contracts.Storage`
+  is serving templates from disk; production callers should use `read_template/1`
+  and stream the bytes back instead.
+  """
   def template_path(%Template{template_set: set, filename: filename}) do
     Path.join(set_dir(set), filename)
   end
@@ -83,14 +100,21 @@ defmodule Atlas.Contracts do
     |> URI.to_string()
   end
 
-  defp build_template(template_set, filename, set_dir) do
+  defp build_template(template_set, filename) do
     %Template{
       template_set: template_set,
       filename: filename,
       kind: kind_for(filename),
       title: title_for(filename),
-      byte_size: File.stat!(Path.join(set_dir, filename)).size
+      byte_size: byte_size_for(template_set, filename)
     }
+  end
+
+  defp byte_size_for(template_set, filename) do
+    case Storage.stat(template_set, filename) do
+      {:ok, size} when is_integer(size) and size >= 0 -> size
+      _other -> 0
+    end
   end
 
   defp kind_for("msa.docx"), do: :msa

@@ -51,7 +51,7 @@ defmodule Atlas.MCP.Tools.ListContractTemplates do
       "List the official Word templates Atlas ships for order forms, Master Services Agreements, and enterprise contracts. Use after generate_enterprise_contract to confirm the files required by its workflow; never draft a substitute from scratch."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Contract templates") do
+    with :ok <- Tool.authorize_scope(conn, "contracts:read", "Contract templates") do
       template_set = args["template_set"] || Contracts.default_template_set()
 
       {:ok,

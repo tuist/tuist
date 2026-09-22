@@ -37,9 +37,8 @@ packer {
 # ~30 min.
 #
 # Active Xcode versions baked per release are listed in
-# `infra/runner-image/profiles.json`. `check-releases` reads that list
-# into `server-production-deployment.yml`'s `runner-image-build`
-# matrix, which fans out one build per profile, publishing one
+# `infra/runner-image/profiles.json`. `runner-image-release.yml`
+# publishes one
 # `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag each
 # that the managed envs' charts reference via
 # `runnersFleet.runnerImageSemver`. Keep the list aligned with
@@ -114,7 +113,7 @@ variable "runner_version" {
   # against GitHub's broker-deprecation message on cold boot.
   # Renovate watches actions/runner releases (see renovate.json's
   # custom regex manager keyed off the marker comment below) and
-  # opens `fix(runner-image): …` PRs which release-runner-image
+  # opens `fix(runner-image): …` PRs which runner-image-release.yml
   # picks up to rebuild + bump the chart's image pin. Renovate PRs
   # auto-merge on green CI, same flow we use for other external
   # deps; falling more than ~1 release behind would re-introduce

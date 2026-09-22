@@ -18,6 +18,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.Workers.SyncCustomerStripeMeterWorker
+  alias Tuist.FeatureFlags
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -54,7 +55,11 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
 
     {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
 
-    include_qa = FunWithFlags.enabled?(:qa_billing_enabled, for: account)
+    meter_opts = [
+      include_qa: FunWithFlags.enabled?(:qa_billing_enabled, for: account),
+      usage_based_pricing: FeatureFlags.usage_based_pricing_enabled?(account)
+    ]
+
     day = {period_start, period_end}
 
     # Measure the whole day before looking up any boundary. Meter values are
@@ -63,7 +68,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
     # attribute to either side of a boundary. Most billable customers are
     # idle on any given day, and boundary discovery costs a Stripe request
     # each, so this is what keeps the nightly run off Stripe's rate limit.
-    case Billing.customer_meter_values(account, period_start, period_end, include_qa: include_qa) do
+    case Billing.customer_meter_values(account, period_start, period_end, meter_opts) do
       [] ->
         :ok
 
@@ -85,7 +90,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
             # already measured above and re-aggregating it would just repeat
             # the same ClickHouse work.
             ^day -> meter_jobs(customer_id, day, day_values)
-            window -> meter_jobs(customer_id, window, window_values(account, window, include_qa))
+            window -> meter_jobs(customer_id, window, window_values(account, window, meter_opts))
           end)
           |> Oban.insert_all()
 
@@ -94,8 +99,8 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
     end
   end
 
-  defp window_values(account, {window_start, window_end}, include_qa) do
-    Billing.customer_meter_values(account, window_start, window_end, include_qa: include_qa)
+  defp window_values(account, {window_start, window_end}, meter_opts) do
+    Billing.customer_meter_values(account, window_start, window_end, meter_opts)
   end
 
   defp meter_jobs(customer_id, {window_start, window_end}, values) do

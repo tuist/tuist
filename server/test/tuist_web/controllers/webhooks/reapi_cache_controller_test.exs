@@ -128,6 +128,50 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
       assert hit.cache_endpoint == "cache.tuist.dev"
     end
 
+    # A newer Kura node sends event_id alongside the fields the current
+    # controller pattern-matches on. The server preserves it as the row's
+    # id so a retried batch dedupes via Tuist.Ingestion.DedupToken on the
+    # INSERT block. event_id remains optional for pre-event_id Kura nodes.
+    test "preserves event_id from the producer when present",
+         %{conn: conn, project: project} do
+      event_id = "01930c0e-6e2a-7a91-9a1c-1f4e5c2d3a4b"
+
+      events_params = %{
+        "events" => [
+          %{
+            "event_id" => event_id,
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "client_kind" => "bazel",
+            "operation" => "cas",
+            "outcome" => "hit",
+            "action_digest" => "content-digest-newer-kura",
+            "size" => 512,
+            "duration_ms" => 7,
+            "observed_at_ms" => 1_760_000_000_123,
+            "invocation_id" => "invocation-newer-kura"
+          }
+        ]
+      }
+
+      {body, signature} = sign_request(events_params)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "cache.tuist.dev")
+        |> post(~p"/webhooks/reapi-cache", body)
+
+      assert json_response(conn, 202) == %{"accepted" => 1, "rejected" => 0}
+
+      events = ClickHouseRepo.all(from(e in CacheEvent, where: e.project_id == ^project.id))
+      assert length(events) == 1
+      [event] = events
+      assert event.id == event_id
+      assert event.action_digest == "content-digest-newer-kura"
+    end
+
     test "ignores non-Bazel cache events", %{conn: conn, project: project} do
       events_params = %{
         "events" => [

@@ -6,8 +6,8 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker do
   The guest uploads the content-addressed `<master id>.image` before the
   fast-forward compare-and-swap, so a rejected promote leaves an object with no
   HEAD pointing at it (see `Tuist.Runners.VolumeMasterOrphans`).
-  `Runners.report_volume_head/4` records the orphan and enqueues this with a
-  delay equal to the presigned-URL TTL. `Runners.prune_orphan_volume_master/2`
+  `Runners.report_volume_head/7` records the orphan and enqueues this with a
+  delay equal to the presigned-URL TTL. `Runners.prune_orphan_volume_master/3`
   deletes the object only if the digest is still an orphan (never accepted as
   HEAD) and not the current HEAD, so a digest a later job committed is never
   reclaimed.
@@ -18,6 +18,7 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker do
   use Oban.Worker, queue: :default, max_attempts: 5
 
   alias Tuist.Runners
+  alias Tuist.Runners.VolumeHeads
 
   require Logger
 
@@ -25,7 +26,7 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker do
   def perform(%Oban.Job{args: %{"account_id" => account_id} = args}) do
     master_id = master_id(args)
 
-    case Runners.prune_orphan_volume_master(account_id, master_id) do
+    case Runners.prune_orphan_volume_master(account_id, volume_name(args), master_id) do
       :ok ->
         :ok
 
@@ -35,6 +36,10 @@ defmodule Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker do
         error
     end
   end
+
+  # Jobs enqueued before volumes were per repository name no volume.
+  defp volume_name(%{"volume_name" => volume_name}), do: volume_name
+  defp volume_name(_args), do: VolumeHeads.reserved_tuist_cache()
 
   # Jobs enqueued before master ids could carry a content digest name the object
   # by its inventory digest, which is still that object's id.

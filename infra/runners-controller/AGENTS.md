@@ -1,5 +1,11 @@
 # runners-controller
 
+The optional read-only shadow scheduler compares central warm-runner assignment
+proposals with later observed claims. It has no actuator and is disabled by
+default. See [rollout and interpretation](shadow-scheduler.md) and
+[policy boundary](internal/shadow/AGENTS.md). Keep it separate from both
+production reconcilers; it receives only a Kubernetes `client.Reader`.
+
 Kubernetes controller for `RunnerPool` CRDs. Runs in the workload
 cluster, reconciles Pods + per-Pod `ServiceAccount`s that the Tuist
 server's dispatch endpoint authenticates via the TokenReview API.

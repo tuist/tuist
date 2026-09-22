@@ -56,6 +56,12 @@ defmodule Tuist.Kura.PromExPlugin do
   @metric_prefix [:tuist, :kura, :lifecycle]
   @poll_rate to_timeout(minute: 1)
 
+  # The percentile is taken over a day of deployments, and a day's percentile
+  # does not move within a minute. Polled slower so every server pod is not
+  # running that scan on the minute.
+  @readiness_poll_rate to_timeout(minute: 5)
+  @readiness_window_seconds 24 * 60 * 60
+
   # A cold return's time-to-ready spans a provision plus a rollout, so the
   # buckets run from a fast reschedule to well past a slow image pull.
   @ready_buckets [
@@ -258,6 +264,31 @@ defmodule Tuist.Kura.PromExPlugin do
         ]
       ),
       Polling.build(
+        :tuist_kura_new_instance_readiness_polling_metrics,
+        @readiness_poll_rate,
+        {__MODULE__, :execute_new_instance_readiness_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:new_instance_time_to_ready, :p90_seconds],
+            event_name: [:tuist, :kura, :lifecycle, :new_instance_readiness],
+            measurement: :p90_seconds,
+            description:
+              "90th percentile of how long the new instances that started serving in the last day " <>
+                "took, from the deployment that brought one up to its endpoint answering. First " <>
+                "provisions and cold returns only, so a fleet rollout does not move it.",
+            unit: :second
+          ),
+          last_value(
+            @metric_prefix ++ [:new_instances, :count],
+            event_name: [:tuist, :kura, :lifecycle, :new_instance_readiness],
+            measurement: :count,
+            description:
+              "New instances that started serving in the last day, which is how many samples the " <>
+                "percentile above is taken over."
+          )
+        ]
+      ),
+      Polling.build(
         :tuist_kura_instance_routability_polling_metrics,
         @poll_rate,
         {__MODULE__, :execute_unroutable_instances_telemetry_event, []},
@@ -325,6 +356,32 @@ defmodule Tuist.Kura.PromExPlugin do
           )
       end
     end)
+  end
+
+  @doc false
+  def execute_new_instance_readiness_telemetry_event do
+    case Kura.new_instance_readiness(@readiness_window_seconds) do
+      # No new instance in the window reports the count as zero and leaves the
+      # percentile alone: a fleet that provisioned nothing has no speed to
+      # report, and a zero there would read as instant.
+      #
+      # The count has to be emitted rather than skipped. A `last_value` is an
+      # ETS row the exporter reads with no TTL and no delete path, so a series
+      # that stops being emitted goes stale rather than absent; leaving both
+      # stale would let the alert keep evaluating the previous day's percentile
+      # against the previous day's sample gate, staying green through exactly
+      # the wedged-provisioning day it should notice. A zero count closes the
+      # gate instead, which is the No Data the rule is configured for.
+      %{count: 0} ->
+        :telemetry.execute([:tuist, :kura, :lifecycle, :new_instance_readiness], %{count: 0}, %{})
+
+      %{count: count, p90_seconds: p90_seconds} ->
+        :telemetry.execute(
+          [:tuist, :kura, :lifecycle, :new_instance_readiness],
+          %{count: count, p90_seconds: p90_seconds},
+          %{}
+        )
+    end
   end
 
   @doc false

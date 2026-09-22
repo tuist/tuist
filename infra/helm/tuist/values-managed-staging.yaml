@@ -52,7 +52,7 @@ registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
   deployEnv: staging
-  sentryEnv: stag
+  sentryEnv: staging
   ingress:
     host: registry-staging.tuist.dev
     tlsSecretName: registry-staging-tls
@@ -69,6 +69,18 @@ registry:
 server:
   kuraCapacityAdmission:
     enabled: true
+
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-staging` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
+  config:
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
 
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
@@ -155,9 +167,8 @@ server:
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
     - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
-      # Matches the one-day window above. The production default is @daily,
-      # which suits a 90-day window but would leave a staging instance
-      # eligible for up to another day before the sweep looked at it.
+      # Faster than the hourly production default so staging lifecycle drills
+      # move into drain promptly after the one-day eligibility window.
       value: "*/5 * * * *"
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
@@ -242,6 +253,15 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6UUkLlKoN51ecznSpfuCBI"
+      # Usage-based pricing meters, reported only for accounts with the
+      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Provisioned in this environment's own Stripe account (test mode) by
+      # `Tuist.Billing.UsageMeterProvisioning`. A subscription only carries
+      # them once its account is switched, which the flag still gates.
+      usage_meters:
+        cache_egress_megabytes: "price_1UIT1jLlKoN51eczc3MgZRX0"
+        cache_requests: "price_1UIT1lLlKoN51eczkmyTm9on"
+        passing_test_cases: "price_1UIT1nLlKoN51eczZGPDCDJ1"
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
       # macOS baseline machine-minute, carried as a subscription item whose
       # quantity is the minutes. Never blank it once an account carries the
@@ -330,25 +350,23 @@ clickhouse:
   # Keep the shared application-user memory guard active outside production so
   # query and ingestion retry behavior is covered during rollout.
   maxMemoryUsageForUserBytes: "4294967296"
-  # `mode` stays `external`: ClickHouse Cloud is still the system of record
-  # here, and the workload below runs alongside it. Staging is where the
-  # migration off Cloud (spec #73) is validated end to end, so both exist at
-  # once for the duration.
+  # The in-cluster ClickHouse is staging's system of record (spec #73).
+  # Every workload reads and writes it through TUIST_CLICKHOUSE_URL, and
+  # ClickHouse Cloud receives nothing.
   #
   # One ClickHouse replica on the AX42-1 in the `clickhouse` pool, with its
   # data on that node's XFS `/data`, and one Keeper on the general pool.
   # Deliberately not a highly-available shape: what staging proves is the
-  # replicated engines, the Keeper dependency, the schema clone and the
+  # replicated engines, the Keeper dependency, the schema path and the
   # storage layout. Two replicas and a three-member quorum belong to canary.
   #
   # The volume is sized well under the 441 GB `/data` offers, because the
   # staging dataset is a few GiB and the headroom is more useful as page
   # cache than as a reservation nothing fills.
   #
-  # First deploy ordering: the schema clone runs from the migration release
-  # task, which is a pre-upgrade hook, so on the deploy that introduces this
-  # workload there is nothing listening yet and the clone logs a warning and
-  # skips. The following deploy clones. That is expected, not a failure.
+  # Going back to `external` does not copy anything back: rows written since
+  # the switch exist only on the in-cluster server.
+  mode: managed
   managed:
     enabled: true
     persistence:
@@ -358,50 +376,26 @@ clickhouse:
         # required rather than optional because the pool-label binding it
         # replaces is safe only at one node, and an environment that grew a
         # second one would otherwise regress silently.
-        nodeName: bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8
-    # Dual writes come before the backfill, not after it. From the moment this
-    # is on, every new row reaches both servers; the backfill then copies what
-    # was written before a stated cutoff. Doing it the other way round leaves
-    # the rows written between the copy finishing and the mirror starting on
-    # Cloud alone, with nothing later looking for them.
-    shadowWrites:
+        nodeNames:
+          - bm-tuist-staging-md-clickhouse-7mhfx-zzxjb-5nhg8
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM on
+    # the macOS fleet, so the Service name every other writer resolves does
+    # not resolve for it. Without this it cannot write at all once this
+    # server is the system of record.
+    #
+    # `tag:tuist-k8s-staging` rather than the fleet's own tag: the proxy node
+    # is created by this cluster's operator, and the wrong tag makes the
+    # operator refuse with `requested tags are invalid or not permitted`,
+    # leaving no proxy and a hostname that never resolves.
+    tailscale:
       enabled: true
+      hostname: tuist-clickhouse-staging
+      tags: tag:tuist-k8s-staging
     # On here so the backup path itself is exercised before production depends
     # on it. Staging's dataset is a few GiB, so a full costs almost nothing.
     backup:
       enabled: true
-    # One step of the migration, run as a Job by the chart. The sequence is
-    # advanced by changing `task` and deploying, so each step is a reviewed
-    # change in the release history rather than a command typed at a database.
-    #
-    # Off, because the sequence has run here: the schema clone, dual writes,
-    # the backfill, parity over the ingest path and then over the read path,
-    # and finally the read flag. Each step is a post-upgrade hook, so leaving
-    # one enabled re-runs it on every deploy, and the last of them sets a flag
-    # — turning reads back off from the ops page would be silently undone by
-    # the next deploy.
-    #
-    # `name` and `task` name the step this would run if it were enabled, which
-    # is why they are the *next* step rather than the last one that ran. On
-    # 2026-09-04 a deploy from an unrelated branch removed this workload,
-    # because that branch's chart renders none of these resources. The data
-    # survived — the volume is Retain plus helm.sh/resource-policy: keep — but
-    # every row written since is missing from the in-cluster server, so what
-    # this environment needs next is a backfill.
-    #
-    # Leaving them pointed at the read cutover would have been worse than
-    # useless: `FunWithFlags.enable/1` is idempotent, so enabling this would
-    # have quietly re-pointed staging's reads at a server missing days of rows,
-    # and succeeded while doing it.
-    #
-    # `cutoff` is deliberately absent. The backfill refuses to run without one,
-    # so enabling this without choosing a boundary fails loudly and says so,
-    # rather than copying up to a stale timestamp. Set it to a moment after the
-    # deploy that turns dual writes back on has finished rolling out.
-    migration:
-      enabled: false
-      name: backfill
-      task: Tuist.Release.backfill_clickhouse
 
 cache:
   extraEnv:
@@ -783,6 +777,13 @@ rackFleet:
   # prototype declared while it is offline; remove it, and clear the host's
   # status.quarantined, once the box answers SSH again.
   replicas: 0
+  # FORCED (no service node): the subnet router is an operator laptop on the
+  # same home LAN, and this is its address there. The rack's service nodes
+  # replace it, one entry each. It needs a DHCP reservation for the same reason
+  # the host's address does: if it changes, the host's SSH guard drops the
+  # router again until this is updated.
+  sshIngressAllowCIDRs:
+    - 192.168.0.223/32
   hosts:
     - name: ber1-proto-01
       serial: C07FC05JQ6NY
@@ -872,11 +873,13 @@ macosFleet:
   runnerCacheVolume:
     gib: 40
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
-    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free (the
-    # split cacheImageSplit(28, 16) pins). The guest is fail-safe (an
-    # unusable store falls back to a VM-local cold compilation cache, never
-    # fails the job), so a bad budget costs warmth, not the build.
+    # masterCapGib 28 is the sparse per-master ceiling. The two caches share
+    # 22.4 GiB of it (the cap less a 20% reserve), divided by use in the
+    # guest. casGib turns the CAS on and sets the fixed split older runner
+    # images apply: 16 GiB for the CAS, 6.4 GiB for the binary cache. The
+    # guest is fail-safe (an unusable store falls back to a VM-local cold
+    # compilation cache, never fails the job), so a bad budget costs warmth,
+    # not the build.
     masterCapGib: 28
     casGib: 16
   # Share the pre-ordered pool with runnersFleet (same prefix
@@ -1006,6 +1009,11 @@ runnersFleet:
   # allocator caps the joint sum so two pools both asking for 9
   # don't double-book the cluster.
   xcodeOverrides:
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
     "27.0":
       autoscaling:
         enabled: true

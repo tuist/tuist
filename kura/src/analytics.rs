@@ -4,7 +4,7 @@ use std::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use hmac::{Hmac, Mac};
@@ -16,6 +16,7 @@ use tokio::{
     time::{Instant, MissedTickBehavior, interval},
 };
 use tracing::error;
+use uuid::Uuid;
 
 use crate::{
     config::AnalyticsConfig,
@@ -57,22 +58,34 @@ struct AnalyticsRuntime {
     pending: Arc<AtomicUsize>,
 }
 
+// event_id + observed_at_ms are minted by the producer and carried through
+// the pipeline unchanged. The server preserves them on insert so a retried
+// batch collapses on the ClickHouse side instead of double-counting. These
+// two fields are prerequisites for the durable outbox we're building next
+// (see /engineering/specs/94 discussion): without them, a redelivered batch
+// after a WAN blip would insert duplicate rows and corrupt cache-usage
+// dashboards. Additive on the wire, so a server that has not rolled yet
+// keeps working.
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 struct XcodeAnalyticsEvent {
+    event_id: Uuid,
     account_handle: String,
     project_handle: String,
     action: String,
     size: u64,
     cas_id: String,
+    observed_at_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 struct GradleAnalyticsEvent {
+    event_id: Uuid,
     account_handle: String,
     project_handle: String,
     action: String,
     size: u64,
     cache_key: String,
+    observed_at_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,6 +101,10 @@ pub struct ReapiCacheAnalyticsContext {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReapiCacheAnalyticsEvent {
+    // See the same note on Xcode/Gradle: the producer mints event_id and the
+    // server preserves it on insert so a retried batch dedupes at the
+    // ClickHouse layer.
+    pub event_id: Uuid,
     pub context: Arc<ReapiCacheAnalyticsContext>,
     pub operation: &'static str,
     pub outcome: &'static str,
@@ -102,7 +119,8 @@ impl Serialize for ReapiCacheAnalyticsEvent {
     where
         S: Serializer,
     {
-        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 14)?;
+        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 15)?;
+        event.serialize_field("event_id", &self.event_id)?;
         event.serialize_field("account_handle", &self.context.account_handle)?;
         event.serialize_field("project_handle", &self.context.project_handle)?;
         event.serialize_field("client_kind", self.context.client_kind)?;
@@ -197,9 +215,7 @@ impl Analytics {
             return Ok(None);
         };
 
-        let client = Client::builder()
-            .connect_timeout(Duration::from_millis(500))
-            .timeout(Duration::from_millis(config.request_timeout_ms))
+        let client = crate::control_plane_http::analytics_client_builder(config.request_timeout_ms)
             .build()
             .map_err(|error| format!("failed to build analytics client: {error}"))?;
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
@@ -243,11 +259,13 @@ impl Analytics {
     ) {
         self.enqueue(|| {
             AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
+                event_id: Uuid::now_v7(),
                 account_handle: tenant_id.to_owned(),
                 project_handle: namespace_id.to_owned(),
                 action: "download".into(),
                 size,
                 cas_id: cas_id.to_owned(),
+                observed_at_ms: observed_at_ms_now(),
             })
         });
     }
@@ -261,11 +279,13 @@ impl Analytics {
     ) {
         self.enqueue(|| {
             AnalyticsEvent::Xcode(XcodeAnalyticsEvent {
+                event_id: Uuid::now_v7(),
                 account_handle: tenant_id.to_owned(),
                 project_handle: namespace_id.to_owned(),
                 action: "upload".into(),
                 size,
                 cas_id: cas_id.to_owned(),
+                observed_at_ms: observed_at_ms_now(),
             })
         });
     }
@@ -279,11 +299,13 @@ impl Analytics {
     ) {
         self.enqueue(|| {
             AnalyticsEvent::Gradle(GradleAnalyticsEvent {
+                event_id: Uuid::now_v7(),
                 account_handle: tenant_id.to_owned(),
                 project_handle: namespace_id.to_owned(),
                 action: "download".into(),
                 size,
                 cache_key: cache_key.to_owned(),
+                observed_at_ms: observed_at_ms_now(),
             })
         });
     }
@@ -297,11 +319,13 @@ impl Analytics {
     ) {
         self.enqueue(|| {
             AnalyticsEvent::Gradle(GradleAnalyticsEvent {
+                event_id: Uuid::now_v7(),
                 account_handle: tenant_id.to_owned(),
                 project_handle: namespace_id.to_owned(),
                 action: "upload".into(),
                 size,
                 cache_key: cache_key.to_owned(),
+                observed_at_ms: observed_at_ms_now(),
             })
         });
     }
@@ -595,10 +619,12 @@ impl AnalyticsRuntime {
                 );
             }
             Err(error) => {
-                error!("failed to send {pipeline} analytics batch: {error}");
+                let kind = classify_reqwest_error(&error);
+                let chain = error_cause_chain(&error);
+                error!(pipeline, kind, "failed to send analytics batch: {chain}");
                 event_result(count, "delivery_error");
                 self.metrics
-                    .record_analytics_batch(pipeline, "error", duration);
+                    .record_analytics_batch(pipeline, error_result_label(kind), duration);
                 self.record_breaker_transition(
                     pipeline,
                     breaker.on_failure(
@@ -637,16 +663,108 @@ fn record_delivery_failure<F>(
 ) where
     F: FnOnce(u64, &str),
 {
-    error!("failed to send {pipeline} analytics batch with status {status}");
+    let label = status_result_label(status);
+    error!(
+        pipeline,
+        kind = label,
+        status = status.as_u16(),
+        "failed to send analytics batch"
+    );
     event_result(count, "delivery_error");
-    metrics.record_analytics_batch(pipeline, "error", duration);
+    metrics.record_analytics_batch(pipeline, label, duration);
 }
 
-fn sign(secret: &str, body: &[u8]) -> String {
+/// Classify a reqwest transport error so operators can tell a connect-time
+/// failure apart from a stalled-in-flight request without reading the log
+/// message. The set is intentionally small and bounded to keep Prometheus
+/// label cardinality on `kura_analytics_batches_total{result=...}` finite.
+///
+/// Precedence matters. In reqwest 0.13.x a TCP connect that exceeds the
+/// client's `connect_timeout` produces an error where both `is_connect()`
+/// and `is_timeout()` return true; a request that connects but exceeds
+/// the client's overall `timeout` returns `is_timeout()` alone. Checking
+/// `is_connect()` first therefore keeps `connect` and `timeout` as
+/// separate signals, which is the whole point of this metric split.
+///
+/// A note on the remaining buckets:
+/// - `body` fires for reqwest's body-side error kind (typically response
+///   body read failures). Outbound writes on the `Vec<u8>` body path
+///   here usually surface as `request` (or `timeout` if the overall
+///   budget expired), not `body`.
+/// - `decode` fires when a JSON/text decode of the response fails; this
+///   client only reads status, so it should stay empty.
+/// - `request` is the catch-all for everything that connected but
+///   otherwise misbehaved.
+pub(crate) fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
+    if error.is_connect() {
+        "connect"
+    } else if error.is_timeout() {
+        "timeout"
+    } else if error.is_body() {
+        "body"
+    } else if error.is_decode() {
+        "decode"
+    } else if error.is_request() {
+        "request"
+    } else {
+        "other"
+    }
+}
+
+pub(crate) fn error_result_label(kind: &str) -> &'static str {
+    // Return a `&'static str` so the metrics label is stable and never
+    // interpolated with user data.
+    match kind {
+        "timeout" => "error_timeout",
+        "connect" => "error_connect",
+        "body" => "error_body",
+        "decode" => "error_decode",
+        "request" => "error_request",
+        _ => "error_other",
+    }
+}
+
+pub(crate) fn status_result_label(status: StatusCode) -> &'static str {
+    if status.is_client_error() {
+        "error_status_4xx"
+    } else if status.is_server_error() {
+        "error_status_5xx"
+    } else {
+        "error_status_other"
+    }
+}
+
+/// Walk the error's `source` chain and join every layer's `Display` output
+/// with " -> ". reqwest's top-level message is `error sending request for
+/// url (...)`; the real cause (connection reset, DNS failure, TLS
+/// handshake, ...) lives further down and is what tells the operator what
+/// actually went wrong.
+pub(crate) fn error_cause_chain(error: &(dyn std::error::Error + 'static)) -> String {
+    use std::fmt::Write as _;
+    let mut out = error.to_string();
+    let mut cause = error.source();
+    while let Some(source) = cause {
+        let _ = write!(out, " -> {source}");
+        cause = source.source();
+    }
+    out
+}
+
+pub(crate) fn sign(secret: &str, body: &[u8]) -> String {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
         .expect("analytics signing key should be accepted by HMAC");
     mac.update(body);
     hex::encode(mac.finalize().into_bytes())
+}
+
+// Milliseconds since the Unix epoch. Saturates at u64::MAX on the impossibly
+// distant future; returns 0 on a system clock that predates the epoch, which
+// only happens on a misconfigured test machine.
+fn observed_at_ms_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
 }
 
 fn analytics_endpoint(node_url: &str) -> String {
@@ -773,7 +891,8 @@ mod tests {
 
     use super::{
         Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent, CircuitBreaker,
-        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, sign,
+        CircuitState, GRADLE_WEBHOOK_PATH, ReapiCacheAnalyticsEvent, analytics_endpoint,
+        classify_reqwest_error, error_cause_chain, error_result_label, sign, status_result_label,
     };
 
     #[derive(Clone, Debug)]
@@ -807,6 +926,7 @@ mod tests {
         analytics.enqueue_xcode_upload("acme", "ios", "cas-1", 42);
         analytics.enqueue_gradle_download("acme", "android", "gradle-key", 64);
         analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context: Arc::new(super::ReapiCacheAnalyticsContext {
                 account_handle: "acme".into(),
                 project_handle: "bazel".into(),
@@ -883,8 +1003,10 @@ mod tests {
             .find(|request| request.path == "/webhooks/cache")
             .expect("xcode analytics request should be present");
         assert_signed(xcode, "secret-key", "cache-us-east-3.example.com:7443");
-        let xcode_body: Value =
+        let mut xcode_body: Value =
             serde_json::from_slice(&xcode.body).expect("xcode payload should decode");
+        assert_event_id_is_uuidv7(&mut xcode_body["events"][0]);
+        assert_observed_at_is_recent(&mut xcode_body["events"][0]);
         assert_eq!(
             xcode_body,
             serde_json::json!({
@@ -903,8 +1025,10 @@ mod tests {
             .find(|request| request.path == "/webhooks/gradle-cache")
             .expect("gradle analytics request should be present");
         assert_signed(gradle, "secret-key", "cache-us-east-3.example.com:7443");
-        let gradle_body: Value =
+        let mut gradle_body: Value =
             serde_json::from_slice(&gradle.body).expect("gradle payload should decode");
+        assert_event_id_is_uuidv7(&mut gradle_body["events"][0]);
+        assert_observed_at_is_recent(&mut gradle_body["events"][0]);
         assert_eq!(
             gradle_body,
             serde_json::json!({
@@ -927,8 +1051,9 @@ mod tests {
             "secret-key",
             "cache-us-east-3.example.com:7443",
         );
-        let reapi_cache_body: Value =
+        let mut reapi_cache_body: Value =
             serde_json::from_slice(&reapi_cache.body).expect("REAPI cache payload should decode");
+        assert_event_id_is_uuidv7(&mut reapi_cache_body["events"][0]);
         assert_eq!(
             reapi_cache_body,
             serde_json::json!({
@@ -1083,6 +1208,7 @@ mod tests {
         .expect("analytics should be enabled");
 
         analytics.enqueue_reapi_cache_event(|| ReapiCacheAnalyticsEvent {
+            event_id: uuid::Uuid::now_v7(),
             context: Arc::new(super::ReapiCacheAnalyticsContext {
                 account_handle: "acme".into(),
                 project_handle: "bazel".into(),
@@ -1123,8 +1249,9 @@ mod tests {
             "cache-us-east-3.example.com:7443",
         );
 
-        let body: Value =
+        let mut body: Value =
             serde_json::from_slice(&reapi_cache.body).expect("cache payload should decode");
+        assert_event_id_is_uuidv7(&mut body["events"][0]);
         assert_eq!(
             body,
             serde_json::json!({
@@ -1208,6 +1335,152 @@ mod tests {
     }
 
     #[test]
+    fn keeps_an_absolute_host_absolute() {
+        // The chart renders the analytics URL in absolute form so a node does
+        // not expand a cluster-local name against every search domain first.
+        // That only helps if the trailing dot survives to the resolver.
+        let url = reqwest::Url::parse(&format!(
+            "{}{}",
+            "http://tuist-tuist-server.tuist.svc.cluster.local.:80", GRADLE_WEBHOOK_PATH
+        ))
+        .expect("an absolute host must parse");
+
+        assert_eq!(
+            url.host_str(),
+            Some("tuist-tuist-server.tuist.svc.cluster.local.")
+        );
+    }
+
+    #[tokio::test]
+    async fn classifies_connect_timeout_separately_from_full_request_timeout() {
+        // 240.0.0.1/4 is IANA-reserved and unroutable, so a TCP connect to
+        // it never completes. A tiny connect_timeout forces the client to
+        // return the connect-timeout branch of `reqwest::Error`, which in
+        // reqwest 0.13.x is `is_connect() == true && is_timeout() == true`.
+        // The classifier's precedence must return `connect` here.
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_millis(20))
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("client should build");
+        let error = client
+            .post("http://240.0.0.1:9/webhooks/gradle-cache")
+            .body(Vec::<u8>::new())
+            .send()
+            .await
+            .expect_err("connect to unroutable address should fail");
+        assert_eq!(
+            classify_reqwest_error(&error),
+            "connect",
+            "a connect-timeout must classify as connect, not timeout; \
+             precedence order in classify_reqwest_error is load-bearing"
+        );
+
+        // A listener that accepts but never reads triggers reqwest's overall
+        // request timeout (not the connect timeout). `is_connect()` is
+        // false here, so the classifier falls through to `timeout`.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("listener should bind");
+        let addr = listener.local_addr().expect("listener has an address");
+        let accept_task = tokio::spawn(async move {
+            // Accept once and hold the socket so the client hangs on the
+            // full-request timeout rather than on connect.
+            let (socket, _) = listener.accept().await.expect("accept");
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            drop(socket);
+        });
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_millis(200))
+            .build()
+            .expect("client should build");
+        let error = client
+            .post(format!("http://{addr}/webhooks/gradle-cache"))
+            .body(Vec::<u8>::new())
+            .send()
+            .await
+            .expect_err("request beyond overall timeout should fail");
+        assert_eq!(
+            classify_reqwest_error(&error),
+            "timeout",
+            "a full-request timeout must classify as timeout, not connect"
+        );
+        accept_task.abort();
+    }
+
+    #[test]
+    fn error_result_labels_are_stable_and_bounded() {
+        for kind in [
+            "timeout", "connect", "body", "decode", "request", "other", "made-up",
+        ] {
+            let label = error_result_label(kind);
+            assert!(
+                label.starts_with("error_"),
+                "label {label} should carry the `error_` prefix so Prometheus can regex it"
+            );
+        }
+        assert_eq!(error_result_label("timeout"), "error_timeout");
+        assert_eq!(error_result_label("connect"), "error_connect");
+        assert_eq!(error_result_label("something-new"), "error_other");
+    }
+
+    #[test]
+    fn status_result_labels_split_by_class() {
+        assert_eq!(
+            status_result_label(StatusCode::BAD_REQUEST),
+            "error_status_4xx"
+        );
+        assert_eq!(
+            status_result_label(StatusCode::INTERNAL_SERVER_ERROR),
+            "error_status_5xx"
+        );
+        assert_eq!(
+            status_result_label(StatusCode::PERMANENT_REDIRECT),
+            "error_status_other"
+        );
+    }
+
+    #[test]
+    fn cause_chain_joins_every_source() {
+        use std::fmt;
+
+        #[derive(Debug)]
+        struct Layer {
+            message: &'static str,
+            source: Option<Box<dyn std::error::Error + 'static>>,
+        }
+        impl fmt::Display for Layer {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(self.message)
+            }
+        }
+        impl std::error::Error for Layer {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                self.source.as_deref()
+            }
+        }
+
+        let leaf = Layer {
+            message: "connection reset by peer",
+            source: None,
+        };
+        let middle = Layer {
+            message: "tcp connect failed",
+            source: Some(Box::new(leaf)),
+        };
+        let top = Layer {
+            message: "error sending request",
+            source: Some(Box::new(middle)),
+        };
+
+        assert_eq!(
+            error_cause_chain(&top),
+            "error sending request -> tcp connect failed -> connection reset by peer"
+        );
+    }
+
+    #[test]
     fn circuit_breaker_opens_and_recovers() {
         let mut breaker = CircuitBreaker::new();
         let open_duration = Duration::from_secs(30);
@@ -1250,6 +1523,47 @@ mod tests {
             .map(|(_, value)| value.as_str())
             .expect("cache endpoint header should be present");
         assert_eq!(cache_endpoint, endpoint);
+    }
+
+    // Assert the event's `event_id` field is a well-formed UUIDv7, then remove
+    // it from the value so the caller can compare the rest of the payload
+    // against a fixed fixture. UUIDv7 embeds a millisecond timestamp in the
+    // top 48 bits; checking the version keeps the test honest that we're not
+    // shipping v4 or a nil UUID.
+    fn assert_event_id_is_uuidv7(event: &mut Value) {
+        let object = event
+            .as_object_mut()
+            .expect("event should decode to a JSON object");
+        let raw = object
+            .remove("event_id")
+            .expect("event should carry an `event_id` field");
+        let text = raw.as_str().expect("`event_id` should be a JSON string");
+        let parsed = uuid::Uuid::parse_str(text).expect("`event_id` should parse as a UUID");
+        assert_eq!(
+            parsed.get_version_num(),
+            7,
+            "`event_id` should be a UUIDv7, got {parsed}",
+        );
+    }
+
+    // Same shape as `assert_event_id_is_uuidv7`: pull `observed_at_ms` off the
+    // event, sanity-check it's inside a plausible modern-epoch window, and
+    // remove it so a fixture comparison can proceed. The check window is
+    // deliberately wide (10^12 to 10^14) so time-skewed CI does not flake.
+    fn assert_observed_at_is_recent(event: &mut Value) {
+        let object = event
+            .as_object_mut()
+            .expect("event should decode to a JSON object");
+        let raw = object
+            .remove("observed_at_ms")
+            .expect("event should carry an `observed_at_ms` field");
+        let value = raw
+            .as_u64()
+            .expect("`observed_at_ms` should be a non-negative integer");
+        assert!(
+            (1_000_000_000_000..100_000_000_000_000).contains(&value),
+            "`observed_at_ms` outside a plausible modern-epoch range: {value}",
+        );
     }
 
     fn empty_bazel_invocation_event(index: usize) -> BazelInvocationAnalyticsEvent {
