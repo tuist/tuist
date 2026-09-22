@@ -4,8 +4,10 @@ defmodule TuistWeb.ProjectSettingsLive do
   use Noora
 
   alias Tuist.Authorization
+  alias Tuist.OIDC.ScopeRules
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Components.OIDCScopeRules
   alias TuistWeb.Helpers.OpenGraph
 
   @logo_max_size 2 * 1024 * 1024
@@ -20,9 +22,13 @@ defmodule TuistWeb.ProjectSettingsLive do
     rename_project_form = to_form(Project.update_changeset(selected_project, %{}))
     default_branch_form = to_form(Project.update_changeset(selected_project, %{}))
     delete_project_form = to_form(%{"name" => ""})
+    repository_connected? = not is_nil(Tuist.Repo.preload(selected_project, :vcs_connection).vcs_connection)
 
     socket =
       socket
+      |> assign(repository_connected?: repository_connected?)
+      |> assign(oidc_rules: OIDCScopeRules.rules_by_scope(ScopeRules.list_project_rules(selected_project)))
+      |> assign(oidc_rule_errors: %{})
       |> assign(rename_project_form: rename_project_form)
       |> assign(default_branch_form: default_branch_form)
       |> assign(delete_project_form: delete_project_form)
@@ -154,6 +160,18 @@ defmodule TuistWeb.ProjectSettingsLive do
 
     socket = assign(socket, selected_project: updated_project)
     {:noreply, socket}
+  end
+
+  def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)
+      when event in ["save_oidc_rule", "delete_oidc_rule", "close_oidc_rule_modal"] do
+    callbacks = %{
+      id: "project-oidc-scope-rules",
+      put_rule: &ScopeRules.put_project_rule(project, &1, &2),
+      delete_rule: &ScopeRules.delete_project_rule(project, &1),
+      list_rules: fn -> ScopeRules.list_project_rules(project) end
+    }
+
+    {:noreply, OIDCScopeRules.handle_rule_event(event, params, socket, callbacks)}
   end
 
   def handle_event("validate_logo", _params, socket) do

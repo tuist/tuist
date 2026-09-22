@@ -160,6 +160,27 @@
       </.form>
     </div>
   </.card_section>
+  <.card_section :if={@repository_connected?} data-part="oidc-scope-rules-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {dgettext("dashboard_projects", "OIDC rules")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_projects",
+          "Limit which GitHub Actions runs can write to this project with OIDC tokens. Without a rule, any workflow in the linked repository can."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <TuistWeb.Components.OIDCScopeRules.oidc_scope_rules
+        id="project-oidc-scope-rules"
+        scopes={TuistWeb.Components.OIDCScopeRules.project_scopes()}
+        rules={@oidc_rules}
+        errors={@oidc_rule_errors}
+      />
+    </div>
+  </.card_section>
   <.card_section data-part="logo-card-section">
     <div data-part="header">
       <span data-part="title">

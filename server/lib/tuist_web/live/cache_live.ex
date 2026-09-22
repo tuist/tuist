@@ -11,6 +11,8 @@ defmodule TuistWeb.CacheLive do
   alias Tuist.Billing.Entitlements
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
+  alias Tuist.OIDC.ScopeRules
+  alias TuistWeb.Components.OIDCScopeRules
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -29,6 +31,8 @@ defmodule TuistWeb.CacheLive do
       |> assign(:head_title, "#{dgettext("dashboard_account", "Cache")} · #{selected_account.name} · Tuist")
       |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
       |> assign(:new_self_hosted_client_secret, nil)
+      |> assign(:oidc_rules, OIDCScopeRules.rules_by_scope(ScopeRules.list_account_rules(selected_account)))
+      |> assign(:oidc_rule_errors, %{})
       |> load_self_hosted_state()
 
     {:ok, socket}
@@ -53,6 +57,18 @@ defmodule TuistWeb.CacheLive do
     {:ok, updated_account} = Accounts.update_account(selected_account, %{cache_write_policy: policy})
 
     {:noreply, assign(socket, :selected_account, updated_account)}
+  end
+
+  def handle_event(event, params, %{assigns: %{selected_account: account}} = socket)
+      when event in ["save_oidc_rule", "delete_oidc_rule", "close_oidc_rule_modal"] do
+    callbacks = %{
+      id: "account-oidc-scope-rules",
+      put_rule: &ScopeRules.put_account_rule(account, &1, &2),
+      delete_rule: &ScopeRules.delete_account_rule(account, &1),
+      list_rules: fn -> ScopeRules.list_account_rules(account) end
+    }
+
+    {:noreply, OIDCScopeRules.handle_rule_event(event, params, socket, callbacks)}
   end
 
   def handle_event(
@@ -226,6 +242,33 @@ defmodule TuistWeb.CacheLive do
           </span>
         </button>
       </div>
+    </div>
+    """
+  end
+
+  attr(:oidc_rules, :map, required: true)
+  attr(:oidc_rule_errors, :map, required: true)
+
+  def oidc_scope_rules_section(assigns) do
+    ~H"""
+    <div class="cache-section" data-part="oidc-scope-rules-card">
+      <div data-part="header">
+        <div data-part="title-group">
+          <span data-part="title">{dgettext("dashboard_account", "OIDC rules")}</span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Limit which GitHub Actions runs can upload to the account-wide cache with OIDC tokens. Project caches have their own rules in each project's settings."
+            )}
+          </span>
+        </div>
+      </div>
+      <OIDCScopeRules.oidc_scope_rules
+        id="account-oidc-scope-rules"
+        scopes={OIDCScopeRules.account_scopes()}
+        rules={@oidc_rules}
+        errors={@oidc_rule_errors}
+      />
     </div>
     """
   end

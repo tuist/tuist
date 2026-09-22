@@ -148,6 +148,8 @@ defmodule Tuist do
       Authorization,
       Guardian,
       OIDC,
+      OIDC.ScopeRule,
+      OIDC.ScopeRules,
       Authorization.Checks,
       Billing,
       Billing.Entitlements,
