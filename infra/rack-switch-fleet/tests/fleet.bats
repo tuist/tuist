@@ -1106,3 +1106,79 @@ CLAIM
     run env PATH="$stub:$PATH" bash -c 'ipconfig getifaddr lo0'
     [ "$output" = "127.0.0.1" ]
 }
+
+# --- finding and recovering a switch that moved ------------------------------
+
+@test "the MAC normalises to the form macOS arp prints" {
+    mac="d4:d6:df:03:d8:b2"
+    short="${mac//:0/:}"; short="${short#0}"
+    [ "$short" = "d4:d6:df:3:d8:b2" ]
+}
+
+@test "the ToRs carry a MAC, because the address is the thing that moves" {
+    # Auto Install puts VLAN 1 on DHCP while it hunts for a provisioning server,
+    # and a factory reset does the same. The MAC is then the only identifier
+    # left, which is why it is recorded.
+    for device in ber1-tor-a ber1-tor-b; do
+        run jq -r --arg n "$device" '.devices[] | select(.name == $n) | .mac // "none"' "$SITE_FILE"
+        [[ "$output" =~ ^[0-9a-f:]+$ ]]
+    done
+}
+
+@test "locate refuses a device whose MAC is unknown rather than guessing" {
+    run "$FLEET_ROOT/fleet.sh" locate ber1-mgmt
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no mac in the site definition"* ]]
+}
+
+@test "recover insists on being told where the switch currently is" {
+    run "$FLEET_ROOT/fleet.sh" recover ber1-tor-b
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--from"* ]]
+}
+
+@test "recover sets the site address in one session and saves in the next" {
+    # Two sessions is the point: changing the address drops the session that
+    # changed it, and a save that never ran is how a switch comes back on DHCP
+    # after the next reboot.
+    stub="$BATS_TEST_TMPDIR/recbin"
+    mkdir -p "$stub"
+    log="$BATS_TEST_TMPDIR/recover.log"
+    : > "$log"
+    cat > "$stub/ssh" <<STUB
+#!/usr/bin/env bash
+echo "SESSION \$*" >> "$log"
+sleep 0.3
+printf 'sw>'
+while IFS= read -r line; do
+    line="\${line%\$'\r'}"
+    echo "CMD \$line" >> "$log"
+    sleep 0.1
+    printf '%s\r\n' "\$line"
+    case "\$line" in logout) exit 0;; esac
+    printf '\r\nsw#'
+done
+STUB
+    cat > "$stub/nc" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+    chmod +x "$stub/ssh" "$stub/nc"
+
+    run env PATH="$stub:$PATH" TMPDIR="$BATS_TEST_TMPDIR" \
+        "$FLEET_ROOT/fleet.sh" recover ber1-tor-b --from 192.0.2.50 --yes
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"back at 192.168.0.12 and saved"* ]]
+
+    # session one talks to where it is, session two to where it belongs
+    run grep -c '^SESSION' "$log"
+    [ "$output" = "2" ]
+    run bash -c "grep '^SESSION' '$log' | head -1 | grep -c 192.0.2.50"
+    [ "$output" = "1" ]
+    run bash -c "grep '^SESSION' '$log' | tail -1 | grep -c 192.168.0.12"
+    [ "$output" = "1" ]
+    run bash -c "grep -c 'CMD ip address 192.168.0.12 255.255.255.0' '$log'"
+    [ "$output" = "1" ]
+    run bash -c "grep -c 'CMD copy running-config startup-config' '$log'"
+    [ "$output" = "1" ]
+}

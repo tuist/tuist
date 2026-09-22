@@ -39,7 +39,8 @@
           "description": "isl ber1-tor-a"
         }
       },
-      "note": "Carries a spare LR optic, pre-provisioned so WAN failover is a matter of moving the LC jumper rather than sourcing hardware. Its port is not recorded yet."
+      "note": "Carries a spare LR optic, pre-provisioned so WAN failover is a matter of moving the LC jumper rather than sourcing hardware. Its port is not recorded yet.",
+      "mac": "d4:d6:df:03:d8:b2"
     },
     {
       "name": "ber1-tor-a",
@@ -64,7 +65,8 @@
           "media": "dac",
           "description": "isl ber1-tor-b"
         }
-      }
+      },
+      "mac": "d4:d6:df:06:fd:3b"
     },
     {
       "name": "ber1-mgmt",

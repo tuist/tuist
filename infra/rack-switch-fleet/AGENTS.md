@@ -24,6 +24,8 @@ mise run rack:fleet apply <device>
 mise run rack:fleet backup [device]         # startup config into the repo
 mise run rack:fleet drift                   # every switch; non-zero on drift
 mise run rack:fleet replace <device>        # push the whole config, needs a reboot
+mise run rack:fleet locate <device>         # find a switch that moved, by MAC
+mise run rack:fleet recover <device> --from <address>   # put it back and save
 mise run rack:fleet ports [device]          # what is plugged into each port
 mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?

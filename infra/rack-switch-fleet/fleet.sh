@@ -484,6 +484,124 @@ cmd_preflight() {
   return "$status"
 }
 
+# Find a switch that is not where the site definition says it is.
+#
+# The address moves: a factory reset, or Auto Install putting VLAN 1 on DHCP
+# while it looks for a provisioning server. The MAC does not, so that is what
+# identifies the switch when the address has stopped doing so.
+cmd_locate() {
+  local name="${1:-}"
+  [ -n "$name" ] || { echo "usage: rack:fleet locate <device>" >&2; return 2; }
+  local mac expected found
+  mac="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mac // empty' "$(site_file)")"
+  expected="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
+  if [ -z "$mac" ]; then
+    echo "error: $name has no mac in the site definition, so it can only be found by address" >&2
+    return 1
+  fi
+
+  if ping -c 1 -W 2000 "$expected" >/dev/null 2>&1; then
+    echo "$name answers at $expected, where it should be"
+  fi
+  echo "sweeping the management prefix so the ARP table is populated"
+  local prefix base i
+  prefix="$(jq -r '.management.prefix' "$(site_file)")"
+  base="${prefix%.*}"
+  for i in $(seq 1 254); do ( ping -c 1 -W 300 "$base.$i" >/dev/null 2>&1 & ) ; done
+  sleep 10
+
+  # macOS arp prints a MAC without leading zeroes, so compare on that form
+  local short="${mac//:0/:}"
+  short="${short#0}"
+  found="$(arp -an | awk -v mac="$short" '
+      tolower($4) == mac { gsub(/[()]/, "", $2); print $2 }' | sort -u)"
+  if [ -z "$found" ]; then
+    echo "error: nothing on $prefix answers for $mac. It may be off, on another VLAN," >&2
+    echo "       or reachable only over the console." >&2
+    return 1
+  fi
+  echo ""
+  echo "$name ($mac) is at:"
+  printf '%s\n' "$found" | sed 's/^/  /' 
+  local address
+  while IFS= read -r address; do
+    [ "$address" = "$expected" ] && continue
+    echo ""
+    echo "That is not $expected. Put it back with:"
+    echo "  mise run rack:fleet recover $name --from $address"
+    break
+  done <<<"$found"
+}
+
+# Put a switch that moved back on its site address, and save it.
+#
+# Two sessions on purpose. Changing the address drops the session that changed
+# it, so the save cannot happen in the same one, and a save that never ran is
+# how a switch comes back on DHCP after the next reboot.
+cmd_recover() {
+  local name="" from="" assume_yes=0
+  while (( $# )); do
+    case "$1" in
+      --from) from="${2:-}"; shift 2;;
+      --yes) assume_yes=1; shift;;
+      -*) echo "unknown flag: $1" >&2; return 2;;
+      *) name="$1"; shift;;
+    esac
+  done
+  [ -n "$name" ] && [ -n "$from" ] || { echo "usage: rack:fleet recover <device> --from <current-address>" >&2; return 2; }
+  fleet_lock "recover $name" || return 1
+
+  local device address netmask vlan user key
+  device="$(fleet_device "$(site_file)" "$name")" || return 1
+  address="$(jq -r '.mgmt_address' <<<"$device")"
+  netmask="$(jq -r '.management.netmask' "$(site_file)")"
+  vlan="$(jq -r '.management.vlan' "$(site_file)")"
+  user="$(jq -r '.credentials.username' "$(site_file)")"
+  key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
+
+  echo "$name is at $from and belongs at $address"
+  if (( ! assume_yes )); then
+    [ -t 0 ] || { echo "error: nothing to confirm from; re-run with --yes" >&2; return 2; }
+    local answer; read -r -p "move it back? [y/N] " answer
+    [ "$answer" = "y" ] || [ "$answer" = "Y" ] || return 130
+  fi
+
+  echo "session 1: setting the address, which will drop this session"
+  (
+    trap switch_close EXIT
+    switch_open "$from" "$user" "$key" || exit 1
+    switch_run "configure" 30 || exit 1
+    switch_run "interface vlan $vlan" 30 || exit 1
+    switch_run "ip address $address $netmask" 20 || true
+  ) || true
+
+  echo "waiting for $name at $address"
+  local waited=0
+  while (( waited < 60 )); do
+    nc -z -w 3 "$address" 22 >/dev/null 2>&1 && break
+    sleep 3; waited=$(( waited + 3 ))
+  done
+  if (( waited >= 60 )); then
+    echo "error: $name never answered at $address. Its running config may have the new" >&2
+    echo "       address without the save, so a reboot returns it to where it was." >&2
+    return 1
+  fi
+
+  echo "session 2: saving, so a reboot keeps it"
+  local status=0
+  (
+    trap switch_close EXIT
+    switch_open "$address" "$user" "$key" || exit 1
+    switch_run "copy running-config startup-config" 60 || exit 1
+  ) || status=$?
+  if (( status )); then
+    echo "error: $name is at $address but the save failed; a reboot will undo it" >&2
+    return "$status"
+  fi
+  echo "$name is back at $address and saved. Confirm with:"
+  echo "  mise run rack:fleet preflight $name"
+}
+
 # Put what a preflight saw into the switch's RackSwitch status.
 #
 # Reported against the configRevision it was measured with, so a status can
@@ -880,7 +998,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|replace|backup|drift|ports|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   case "$command" in
@@ -892,6 +1010,8 @@ main() {
     preflight)  cmd_preflight "$@";;
     publish)    cmd_publish "$@";;
     ports)      cmd_ports "$@";;
+    locate)     cmd_locate "$@";;
+    recover)    cmd_recover "$@";;
     replace)    cmd_replace "$@";;
     drift)      cmd_drift "$@";;
     probe-tftp) cmd_probe_tftp "$@";;
