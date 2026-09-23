@@ -82,6 +82,29 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
              )
     end
 
+    test "picks the coverage chart's period and opens the Code Coverage page on it", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      path = ~p"/#{organization.account.name}/#{project.name}"
+      {:ok, live_view, _html} = live(conn, path)
+
+      render_hook(live_view, "coverage_period_changed", %{
+        "preset" => "last-12-months",
+        "value" => %{"start" => "2026-01-01T00:00:00.000Z", "end" => "2026-01-08T00:00:00.000Z"}
+      })
+
+      assert_patch(live_view, path <> "?coverage-date-range=last-12-months")
+      render_async(live_view, @render_async_timeout)
+
+      assert has_element?(
+               live_view,
+               "[data-part='coverage'] a[href='#{path}/tests/coverage?coverage-date-range=last-12-months']",
+               "View more"
+             )
+    end
+
     test "hides the coverage widget without the coverage flag", %{
       conn: conn,
       organization: organization,

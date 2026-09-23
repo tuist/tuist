@@ -1006,7 +1006,9 @@ defmodule TuistWeb.Coverage.Components do
       type="line"
       extra_options={
         %{
-          grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+          # The last date's label centres on the last point, so the plot
+          # leaves room on its right for it.
+          grid: %{width: "93%", left: "0.4%", height: "88%", top: "5%"},
           xAxis: %{
             boundaryGap: false,
             type: "category",

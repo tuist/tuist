@@ -70,7 +70,7 @@ defmodule TuistWeb.XcodeOverviewLive do
       {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)}}
     end)
     |> assign_build_duration_analytics(project.id, analytics_opts, builds_opts)
-    |> assign_coverage_analytics(project, analytics_period)
+    |> assign_coverage_analytics(project, analytics_period, params)
     |> assign_async(:test_analytics, fn ->
       {:ok, %{test_analytics: Tests.Analytics.test_run_average_duration_analytics(project.id, analytics_opts)}}
     end)
@@ -187,9 +187,20 @@ defmodule TuistWeb.XcodeOverviewLive do
   # The default branch's coverage at its latest measured commit of the
   # period, and how far it moved over it; and the Code Coverage page's own
   # chart, over its default period. Behind the account's coverage flag.
-  defp assign_coverage_analytics(socket, project, period) do
+  defp assign_coverage_analytics(socket, project, period, params) do
     if FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account) do
+      # The same parameters as the Code Coverage page's, so View more opens it
+      # on the period shown here.
+      %{preset: coverage_preset, period: trend_period} =
+        DatePicker.date_picker_params(params, "coverage", default_preset: "last-30-days")
+
       socket
+      |> assign(:coverage_preset, coverage_preset)
+      |> assign(:coverage_period, trend_period)
+      |> assign(
+        :coverage_query,
+        params |> Map.filter(fn {key, _} -> String.starts_with?(key, "coverage-") end) |> URI.encode_query()
+      )
       |> assign_async(:coverage_analytics, fn ->
         points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
 
@@ -202,8 +213,6 @@ defmodule TuistWeb.XcodeOverviewLive do
          }}
       end)
       |> assign_async(:coverage_trend, fn ->
-        %{period: trend_period} = DatePicker.date_picker_params(%{}, "coverage", default_preset: "last-30-days")
-
         points =
           project
           |> History.branch_points(project.default_branch, DatePicker.period_opts(trend_period))

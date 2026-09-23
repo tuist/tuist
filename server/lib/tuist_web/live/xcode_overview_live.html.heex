@@ -595,8 +595,53 @@
         variant="secondary"
         label={dgettext("dashboard_projects", "View more")}
         size="medium"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+        navigate={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage" <>
+            if(@coverage_query == "", do: "", else: "?" <> @coverage_query)
+        }
       />
+      <.date_picker
+        id="coverage-date-range-picker"
+        name="coverage-date-range"
+        presets={[
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_projects", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_projects", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_projects", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
+        ]}
+        selected_preset={@coverage_preset}
+        period={@coverage_period}
+        on_period_change="coverage_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_projects", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "coverage-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_projects", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "coverage-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
     </:actions>
     <.card_section :if={!@coverage_trend.ok?}>
       <div data-part="coverage-chart">
@@ -609,17 +654,13 @@
           id="overview-coverage-chart"
           points={@coverage_trend.result}
         />
-        <span data-part="label">
-          {dgettext("dashboard_tests", "%{branch}, last 30 days",
-            branch: @selected_project.default_branch
-          )}
-        </span>
+        <span data-part="label">{@selected_project.default_branch}</span>
       </div>
     </.card_section>
     <TuistWeb.Coverage.Components.coverage_empty
       :if={@coverage_trend.ok? && @coverage_trend.result == []}
       title={
-        dgettext("dashboard_tests", "No measured commit on %{branch} in the last 30 days",
+        dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
           branch: @selected_project.default_branch
         )
       }
