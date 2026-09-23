@@ -66,7 +66,7 @@ func envtestClient(t *testing.T) client.Client {
 	return c
 }
 
-func TestEnvtestTheCommittedObjectsAreAdmittedAsStandalone(t *testing.T) {
+func TestEnvtestTheCommittedObjectsAreAdmittedAsWritten(t *testing.T) {
 	c := envtestClient(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -92,8 +92,23 @@ func TestEnvtestTheCommittedObjectsAreAdmittedAsStandalone(t *testing.T) {
 		if err := c.Get(ctx, client.ObjectKeyFromObject(&rs), &stored); err != nil {
 			t.Fatal(err)
 		}
+		if stored.Spec.ManagedBy != rs.Spec.ManagedBy {
+			t.Fatalf("%s: managedBy stored as %q, written as %q", path, stored.Spec.ManagedBy, rs.Spec.ManagedBy)
+		}
+
+		// Without managedBy, an object is standalone.
+		bare := rs.DeepCopy()
+		bare.ResourceVersion = ""
+		bare.Name = rs.Name + "-bare"
+		bare.Spec.ManagedBy = ""
+		if err := c.Create(ctx, bare); err != nil {
+			t.Fatalf("%s without managedBy: %v", path, err)
+		}
+		if err := c.Get(ctx, client.ObjectKeyFromObject(bare), &stored); err != nil {
+			t.Fatal(err)
+		}
 		if stored.Spec.ManagedBy != v1alpha1.ManagedByStandalone {
-			t.Fatalf("%s: managedBy defaulted to %q", path, stored.Spec.ManagedBy)
+			t.Fatalf("%s without managedBy: defaulted to %q", path, stored.Spec.ManagedBy)
 		}
 	}
 }
