@@ -626,17 +626,27 @@ softwareupdate --history | grep -i -E 'xprotect|gatekeeper'
 
 One host at a time: take it out of service, install, let it come back, put it
 back. **Never delete the Machine to update a host.** That revokes its kubelet
-identity and drops its Node, so a 30 minute update becomes a full re-bootstrap.
+identity and drops its Node, so an update becomes a full re-bootstrap.
 `spec.unclaimable` is not the tool either: it stops the next claim without
 evicting the current one.
+
+**Measured on the prototype** (26.6 to 26.7, 2026-09-23, M1 on a home LAN): the
+2.9 GB download took about 8 minutes with the host up and serving, and the
+install and reboot took the host offline for 2 minutes 33 seconds. An in-family
+patch is therefore a much smaller event than it looks: the offline window is
+minutes, not the half hour the decision assumed. Size the next one from the
+download, which is what varies. macOS 27 is 11.2 GB on the same host, roughly
+four times the bytes, and a wedged install has no bound at all.
 
 **First, confirm the host has two ways in.** The guard ships
 `<ssh_allowed>` with the tailnet range and the operator's egress and nothing
 else, so the tailnet is a single path in. A rack host's tailnet device is
 ephemeral until `rackFleet.sshIngressAllowCIDRs` and the persistent-device flag
 have reached it, and an ephemeral device is deleted 30 to 60 minutes after it
-goes offline. An update's offline window sits inside that, and losing the device
-with no second path is a console visit.
+goes offline. A clean in-family patch stays well inside that, so the device
+survives it: the measured window above is minutes. The second path is for the
+cases with no such bound, an install that wedges or a box that does not come
+back, where losing the device turns a retry into a console visit.
 
 ```bash
 pfctl -a com.apple/tuist.sshguard -t ssh_allowed -T show
@@ -663,9 +673,12 @@ kubectl annotate rasm <machine> cluster.x-k8s.io/paused=true
 ```
 
 Both annotations are load-bearing and stop different things, on different
-objects. `skip-remediation` is read by the MachineHealthCheck, whose 1800s
-`Ready` timeout is shorter than an update: without it, remediation deletes the
-Machine part-way through the install. `paused` is read by this controller and
+objects. `skip-remediation` is read by the MachineHealthCheck. Its 1800s `Ready`
+timeout comfortably clears a measured in-family patch, so this is insurance
+rather than a certainty: what it covers is the install that stalls or the box
+that does not come back, where remediation would delete the Machine part-way
+through and cost a full re-bootstrap on top of a bad update. `paused` is read by
+this controller and
 stops the drift loop dialling a rebooting box, which would otherwise burn the
 update-retry budget and drive the CR terminal-Failed for reasons that have
 nothing to do with its config.
