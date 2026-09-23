@@ -12,21 +12,36 @@ defmodule Tuist.Repo.Migrations.PreserveKuraAccountIdentity do
       add :inserted_at, :timestamptz, null: false, default: fragment("now()")
     end
 
+    # This table is new and empty within this transaction.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:account_handle_reservations, [:account_id])
 
+    # Backfill, uniqueness and triggers must become visible atomically so old
+    # server processes cannot insert an unbound identity between these steps.
+    # Audit references and measure the locked transaction before rollout (see
+    # kura/docs/account-renames.md). Unknown/conflicting identities abort it.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     Enum.each(backfill_statements(), &execute/1)
 
+    # Keep uniqueness in the same locked transaction as the identity backfill.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create unique_index(:accounts, [:kura_tenant_id])
 
+    # Populate the new reservation table before enabling writes through its trigger.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     INSERT INTO account_handle_reservations (name, account_id)
     SELECT name, id FROM accounts UNION SELECT kura_tenant_id, id FROM accounts;
     """
 
     alter table(:accounts) do
+      # Every row was backfilled above; the citext type is unchanged.
+      # excellent_migrations:safety-assured-for-next-line not_null_added column_type_changed
       modify :kura_tenant_id, :citext, null: false
     end
 
+    # Database functions enforce identity even for older server processes.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE FUNCTION preserve_kura_account_identity() RETURNS trigger AS $$
     BEGIN
@@ -40,11 +55,15 @@ defmodule Tuist.Repo.Migrations.PreserveKuraAccountIdentity do
     $$ LANGUAGE plpgsql;
     """
 
+    # Install the identity guard before releasing the transaction's table lock.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE TRIGGER preserve_kura_account_identity BEFORE INSERT OR UPDATE ON accounts
       FOR EACH ROW EXECUTE FUNCTION preserve_kura_account_identity();
     """
 
+    # The conflict branch permits only the reservation's existing owner.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE FUNCTION reserve_account_handle() RETURNS trigger AS $$
     DECLARE owner_id bigint;
@@ -62,6 +81,8 @@ defmodule Tuist.Repo.Migrations.PreserveKuraAccountIdentity do
     $$ LANGUAGE plpgsql;
     """
 
+    # Install reservation enforcement atomically with the backfilled bindings.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE TRIGGER reserve_account_handle AFTER INSERT OR UPDATE OF name ON accounts
       FOR EACH ROW EXECUTE FUNCTION reserve_account_handle();

@@ -6,8 +6,13 @@ defmodule Tuist.Repo.Migrations.ExpireKuraClientAliases do
       add :client_url_expires_at, :timestamptz
     end
 
+    # Only the newly added deadline is populated; ownership is unchanged. Keep
+    # this atomic with trigger replacement so a concurrent rename gets a deadline.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute backfill_statement()
 
+    # Preserve the existing owner check while adding per-name URL deadlines.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     CREATE OR REPLACE FUNCTION reserve_account_handle() RETURNS trigger AS $$
     DECLARE owner_id bigint;
