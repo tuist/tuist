@@ -66,6 +66,9 @@ func TestParallelJobsCloneWarmParentAndCannotMutateEachOther(t *testing.T) {
 	for i, id := range []string{second, third} {
 		x := identity(id)
 		x.ParentID = first
+		x.BaseGeneration = 1
+		x.ImageDigest = strings.Repeat("a", 40)
+		x.ContentDigest = strings.Repeat("b", 64)
 		uid := []string{"u2", "u3"}[i]
 		if warm, err := s.Acquire(x, "p"+uid, uid); err != nil || !warm {
 			t.Fatal(warm, err)
@@ -202,7 +205,7 @@ func TestSlowSealDoesNotBlockAnotherLease(t *testing.T) {
 			t.Error(err)
 		}
 	case <-time.After(2 * time.Second):
-		t.Error("flatten blocked unrelated attachment")
+		t.Error("publication blocked unrelated attachment")
 	}
 	close(b.resume)
 	if err := <-complete; err != nil {
@@ -252,6 +255,9 @@ func TestRejectedAdmissionSurvivesRestartAndReportFailure(t *testing.T) {
 			}
 			rejected := identity("00000000-0000-0000-0000-000000000099")
 			rejected.ParentID = third
+			rejected.BaseGeneration = 1
+			rejected.ImageDigest = strings.Repeat("a", 40)
+			rejected.ContentDigest = strings.Repeat("b", 64)
 			if _, err := s.Acquire(rejected, "p", "u"); err == nil {
 				t.Fatal("accepted over capacity")
 			}

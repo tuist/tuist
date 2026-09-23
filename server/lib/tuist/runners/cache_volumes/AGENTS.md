@@ -14,7 +14,7 @@ these schemas persist volume identities and per-job uses.
   and local fencing. Preserve legacy GitHub volume UUIDs when changing identity.
   See `infra/runners-controller/cache-volume-integrations.md` for provider policies.
 - Logical invalidation and acknowledged physical deletion are distinct states.
-- Preserve unknown metrics. Reported logical usage is not unique Ceph allocation.
+- Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity
   bytes, and acknowledged deletion, inside the same transaction as the use.
   Identical reports must not duplicate measurements. Preserve historical values
@@ -45,9 +45,19 @@ these schemas persist volume identities and per-job uses.
 
 - `Query` is the public HTTP/MCP/CLI read and clear boundary. Reuse lifecycle and
   analytics queries, account-scope every lookup, and serialize an explicit allowlist
-  without node, pod, Ceph or credential details. HTTP/MCP use runners-read for data
+  without node, pod, host-image or credential details. HTTP/MCP use runners-read for data
   and account-update for clearing. Limit pages to 100 rows and ranges to 90 days;
   never coerce unknown byte counts or hit outcomes to zero.
 
 - Public inventory filters use exact name (key) and repository equality, combined
   with AND before counting and paginating. The dashboard retains its free-text search.
+
+- Linux image publication reuses `VolumeHeads` and `Runners`' immutable master
+  URLs, checksum signing, compare-and-swap and delayed object reclamation.
+  `base_generation` is the shared HEAD version; `generation` is the independent
+  custom-volume clear/expiry epoch. Lock the custom volume through publication
+  and clearing so a cleared lineage cannot be resurrected. Publication is
+  idempotent by usage ID and both digests. A sealed report alone never publishes.
+- `linux-<scope>` names are valid for storage only. Keep macOS dispatch validation
+  restricted to built-in repository/account caches; this does not enable custom
+  volumes on macOS. Export includes the new image digests/generation fields.

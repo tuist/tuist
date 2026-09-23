@@ -54,3 +54,8 @@ This node covers Helm assets under `infra/helm/`.
 - Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
 
 - Private gateway-backed Kura pods carry `tuist.dev/host-network-gateway=true`. `tuist/templates/kura-gateway-network-policy.yaml` allows TCP 4000 from Cilium host/remote-node identities, including cross-host proxying; Kubernetes namespace/ipBlock selectors do not cover this hop. Keep it gated by `kuraController.privateGateway.enabled` with the gateway read permission so self-hosted installs do not require Cilium.
+
+- Linux cache volumes require a pre-provisioned bounded reflink filesystem. The
+  node agent uses local loop-mounted images and the existing macOS object-storage
+  infrastructure; no Ceph Secret or pool values remain. Keep disabled until the
+  deployed Kata smoke gate passes. See `../runners-controller/cache-volumes.md`.

@@ -43,3 +43,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
   `Runners.CacheVolumes.Query`. Reads require runners-read; clearing requires
   account-update. Keep the runners feature flag and no-store responses. This
   public controller must not expose privileged agent allocation/report methods.
+
+- The internal cache-volume image endpoint shares agent authentication and
+  node-bound allocation lookup. It serves download/upload/retain/publication
+  decisions using the macOS master protocol; never expose signed URLs publicly.

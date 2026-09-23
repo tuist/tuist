@@ -22,6 +22,15 @@ defmodule TuistWeb.RunnerCacheVolumesControllerTest do
     assert result.status == 403
   end
 
+  test "workflow credentials cannot obtain image transfer URLs" do
+    expect(K8sClient, :create_controller_token_review, fn "agent-token" ->
+      {:ok, %{namespace: Environment.runners_namespace(), name: "runner-job"}}
+    end)
+
+    result = Controller.image(conn(), %{"node_name" => "node", "id" => Ecto.UUID.generate(), "operation" => "download"})
+    assert result.status == 403
+  end
+
   test "missing token cannot instruct orphan deletion" do
     result = Controller.report(Plug.Test.conn(:post, "/report"), %{"node_name" => "node", "id" => Ecto.UUID.generate()})
     assert result.status == 403

@@ -18,12 +18,15 @@ var scopePattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var idPattern = regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
 
 type Identity struct {
-	ID         string `json:"id"`
-	Account    int64  `json:"account_id"`
-	Scope      string `json:"scope"`
-	ParentID   string `json:"parent_id"`
-	CanPublish bool   `json:"can_publish"`
-	UID        int    `json:"uid"`
+	ID             string `json:"id"`
+	Account        int64  `json:"account_id"`
+	Scope          string `json:"scope"`
+	ParentID       string `json:"parent_id"`
+	BaseGeneration int64  `json:"base_generation"`
+	ImageDigest    string `json:"image_digest"`
+	ContentDigest  string `json:"content_digest"`
+	CanPublish     bool   `json:"can_publish"`
+	UID            int    `json:"uid"`
 }
 type Slot struct {
 	Identity
@@ -112,7 +115,13 @@ func (s *Store) slots() ([]Slot, error) {
 	return slots, nil
 }
 func valid(identity Identity, pod, uid string) bool {
-	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0
+	return idPattern.MatchString(identity.ID) && identity.Account > 0 && scopePattern.MatchString(identity.Scope) && component.MatchString(pod) && component.MatchString(uid) && (identity.ParentID == "" || idPattern.MatchString(identity.ParentID)) && identity.UID >= 0 && validHead(identity)
+}
+func validHead(identity Identity) bool {
+	if identity.BaseGeneration == 0 {
+		return identity.ParentID == "" && identity.ImageDigest == "" && identity.ContentDigest == ""
+	}
+	return identity.BaseGeneration > 0 && regexp.MustCompile(`^[a-f0-9]{40}$`).MatchString(identity.ImageDigest) && scopePattern.MatchString(identity.ContentDigest)
 }
 func (s *Store) save(slot Slot) error {
 	b, err := json.Marshal(slot)
@@ -146,7 +155,7 @@ func (s *Store) save(slot Slot) error {
 	return dir.Sync()
 }
 
-// Serialize one lease without blocking unrelated attachment behind a flatten.
+// Serialize one lease without blocking unrelated attachment behind an upload.
 func (s *Store) lock(id string) func() {
 	s.mu.Lock()
 	lock := s.locks[id]
@@ -204,7 +213,7 @@ func (s *Store) allocate(identity Identity, pod, uid string) (Slot, error) {
 			}
 		}
 	}
-	slot := Slot{Identity: identity, PodName: pod, PodUID: uid, State: "allocated", Warm: identity.ParentID != "", UsedAt: time.Now().UTC()}
+	slot := Slot{Identity: identity, PodName: pod, PodUID: uid, State: "allocated", Warm: identity.BaseGeneration > 0, UsedAt: time.Now().UTC()}
 	if active >= s.MaxSlots || perPod >= 8 {
 		// The server already allocated this use and pinned its parent. No local
 		// storage exists yet, but its deletion acknowledgement must survive a
@@ -252,6 +261,9 @@ func (s *Store) Reconcile(gone func(string, string) (bool, error), report Report
 		if err := s.reconcileCurrent(slot.ID, gone, report); err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", slot.ID, err))
 		}
+	}
+	if maintenance, ok := s.backend.(interface{ Maintain() error }); ok {
+		failures = append(failures, maintenance.Maintain())
 	}
 	return errors.Join(failures...)
 }
@@ -320,7 +332,15 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 			return errors.New("cannot forget live storage")
 		}
 		return s.root.Remove("state/" + slot.ID + ".json")
-	case "hold", "wait", "keep":
+	case "keep":
+		if slot.State == "sealed" {
+			if keeper, ok := s.backend.(interface{ Keep(Slot, string) error }); ok {
+				if err = keeper.Keep(slot, s.activePath(slot)); err != nil {
+					return err
+				}
+			}
+		}
+	case "hold", "wait":
 	default:
 		return errors.New("invalid cache decision")
 	}

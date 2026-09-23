@@ -356,7 +356,8 @@ The archive contains everything needed to understand the account's complete data
   SHA-256 repository-URL digest; GitLab uses a canonical instance-URL digest and
   project ID. Digests encode identity, not anonymization. Kept until account deletion.
 - **Usage history** (`runner_cache_volume_uses`, PostgreSQL): use UUID and volume
-  foreign key, generation, parent use UUID, workflow run/job IDs, pod name/UID,
+  foreign key, invalidation generation, parent use UUID, shared HEAD base/published
+  generations, image SHA-1 and content SHA-256 digests, workflow run/job IDs, pod name/UID,
   node name, publication permission, lifecycle status, warm/cold result, logical
   filesystem used/capacity bytes, attachment milliseconds, last report, attachment/finish/
   physical-deletion and creation/update timestamps. Export via the volume's
@@ -374,38 +375,43 @@ The archive contains everything needed to understand the account's complete data
   visibility; they are not a billing ledger or measurements of unique physical
   allocation. Observation time is report receipt time, not the exact time data
   was written, and changes before reporting cannot be reconstructed.
-- **Cache contents** (Ceph RBD): one image per use, named
-  `<pool>/<namespace>/tuist-<use UUID>`, with protected `@cache` snapshots for
-  published images. Includes anything workflows write: dependencies, private
-  package metadata, and potentially personal data or inadvertently cached
-  credentials. Logical filesystem usage can count shared blocks more than once.
+- **Cache contents** (host-local images and object storage): private sparse ext4
+  images in `images/<use UUID>.img`, immutable reflink masters under
+  `masters/<scope>/<HEAD generation>-<content SHA-256>.img`, and gzip-compressed
+  images under `runner-volume-masters/<account ID>/linux-<scope>/<image SHA-1>-<content SHA-256>.image`
+  in the existing account object storage. The scope hashes volume UUID and clear
+  generation. Contents include anything workflows write, such as dependencies,
+  package metadata and inadvertently cached credentials. Logical filesystem usage
+  is not unique physical usage because reflinks share blocks and host replicas are
+  evictable; dashboard measurements are not an inventory of every host replica.
 - **Host journal and scratch** (`cacheVolumes.hostPath`, default
   `/var/lib/tuist-runner-cache`): `state/<use UUID>.json` records account ID, opaque
-  scope, parent/use UUIDs, pod identity, state, permission, execution UID and
-  measurements. `pods/<pod UID>/<scope>` mounts the private image; arbitrary
-  scratch files can also exist beneath the pod subtree. No tokens are persisted.
+  scope, parent/use UUIDs, base generation, digests, pod identity, state, permission,
+  execution UID and measurements. Master `.json` sidecars retain their source
+  identity for validating eviction against the server. `pods/<pod UID>/<scope>`
+  exposes the private mounted image. Arbitrary scratch files may exist beneath
+  the pod subtree. Tokens and presigned URLs are not persisted in these records.
 
-For export, query volumes by account ID and join usage rows, then collect Ceph
-images/snapshots and any active host scratch data. Fence writers or snapshot
-consistent data before exporting; do not attach an actively written filesystem
-on another host. Cache contents are disposable and already reclaimed data cannot
-be recovered. Volume deletion increments the generation immediately and prevents
-old writers publishing; agents acknowledge physical reclamation separately.
+Export joins volumes, uses and measurements by account ID and includes the
+account's `runner-volume-masters` prefix and local image/master/journal/scratch
+files. Use a fenced, detached image for a consistent export. Accepted remote
+images are compressed; decompress into a sparse file before inspection. Already
+evicted disposable cache content cannot be recovered.
 
-Volume cache data expires after seven consecutive days without a successful job
-mount. `last_used_at` records the first confirmed attachment for each use;
-allocation attempts, periodic reports and publication do not refresh it. A
-five-minute sweep invalidates expired generations and queues storage cleanup;
-allocation and report paths also enforce the deadline. Reusing an evicted
-identity starts a fresh generation with no last-use timestamp until mounted.
-Identity and usage history follow the metadata retention described above.
-Active clones survive until
-both their Kubernetes pod and kubelet directory are absent. Account deletion
-cascades central volume/use rows; agents then delete their orphaned images after
-these fences. Offline agents or permanently lost host journals require operator
-reconciliation with Ceph and must not be treated as completed erasure. For an
-immediate erasure request, capture resource identities before account deletion,
-fence writers, reclaim images/snapshots and scratch/journals on every affected
-host, and verify physical removal. The
-[runbook](../infra/runners-controller/cache-volumes.md) describes recovery and
-storage boundaries. This feature creates no S3 objects.
+After seven days without a confirmed job mount, central invalidation advances the
+clear generation, removes the HEAD and schedules its remote object for the shared
+presigned-URL TTL cleanup grace. Failed uploads are registered for the same orphan
+reclamation used by macOS. Local replicas are evicted on HEAD invalidation,
+supersession, seven days of local inactivity, or disk pressure. An offline host
+may retain a replica until it returns; that is not evidence of completed erasure.
+Active job images survive until both the pod and kubelet directory are absent.
+Private-branch deletion acknowledgements retain usage history for 90 days; local
+master replicas and remote objects have separate reclamation lifecycles.
+
+Account deletion cascades metadata and reuses the existing account-wide
+`runner-volume-masters/<account ID>/` object-prefix cleanup. Online agents delete
+orphaned branches after fencing and discard masters whose source identity no
+longer resolves. For immediate erasure, capture source identities before deleting
+the account, fence jobs, remove all affected local masters/images/scratch/journals,
+reclaim the object prefix and verify all hosts, including offline hosts. See the
+[runbook](../infra/runners-controller/cache-volumes.md) for storage and recovery.

@@ -530,7 +530,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// filesystem.
 
 	if cacheVolumes {
-		nodeSelector["tuist.dev/linux-cache-volumes"] = "ready"
+		nodeSelector["tuist.dev/linux-cache-volumes"] = "local-images-v1"
 		// SubPathExpr is resolved by kubelet, not a guest-supplied path. Only this
 		// pod's directory crosses virtiofs; slots and other tenants never do.
 		volumes = append(volumes, corev1.Volume{Name: "cache-volumes", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: filepath.Join(pool.Spec.CacheVolumeRoot, "pods"), Type: ptr(corev1.HostPathDirectoryOrCreate)}}})
@@ -815,6 +815,6 @@ var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`
 
 // CacheVolumeRevision lets the existing bounded idle rollout converge mounts.
 func CacheVolumeRevision(pool *tuistv1.RunnerPool) string {
-	h := sha256.Sum256([]byte("rbd-v2\n" + pool.Spec.CacheVolumeRoot + "\n" + pool.Spec.CacheVolumeURL))
+	h := sha256.Sum256([]byte("local-images-v1\n" + pool.Spec.CacheVolumeRoot + "\n" + pool.Spec.CacheVolumeURL))
 	return hex.EncodeToString(h[:])
 }

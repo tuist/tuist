@@ -1940,7 +1940,7 @@ func TestReconcile_CacheMountRollPreservesClaimedPods(t *testing.T) {
 	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
 	pool.Spec.CacheVolumeURL = "http://agent:8090"
 	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
-	node.Labels["tuist.dev/linux-cache-volumes"] = "ready"
+	node.Labels["tuist.dev/linux-cache-volumes"] = "local-images-v1"
 	idle := warmLinuxRunnerPod("p-runner-idle", pool.Spec.Image, pool.Name, "")
 	busy := warmLinuxRunnerPod("p-runner-busy", pool.Spec.Image, pool.Name, "")
 	busy.Labels["tuist.dev/runner-pool-owner"] = "account"

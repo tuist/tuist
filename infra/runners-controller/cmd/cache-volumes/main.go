@@ -148,7 +148,7 @@ func (a *agent) reconcile() error {
 	}); err != nil {
 		return err
 	}
-	labels := map[string]any{"tuist.dev/linux-cache-volumes": "ready"}
+	labels := map[string]any{"tuist.dev/linux-cache-volumes": "local-images-v1"}
 	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": labels}})
 	_, err = a.kube.CoreV1().Nodes().Patch(ctx, a.node, types.MergePatchType, patch, metav1.PatchOptions{})
 	return err
@@ -161,13 +161,11 @@ func main() {
 	namespace := flag.String("namespace", "tuist-runners", "Runner namespace")
 	node := flag.String("node", os.Getenv("NODE_NAME"), "Local node")
 	maxSlots := flag.Int("max-slots", 100, "Maximum active clones on this host")
-	pool := flag.String("rbd-pool", "", "Dedicated Ceph RBD pool")
-	rbdNamespace := flag.String("rbd-namespace", "tuist-cache-volumes", "Dedicated RBD namespace")
-	client := flag.String("rbd-client", "tuist-cache-volumes", "Ceph client with access only to this namespace")
+	minFreeGB := flag.Int("min-free-gb", 40, "Free filesystem reserve before creating a branch")
 	sizeGB := flag.Int("volume-gb", 20, "Capacity of each new volume in decimal GB")
 	tokenPath := flag.String("token-path", "/var/run/secrets/kubernetes.io/serviceaccount/token", "Storage agent token")
 	flag.Parse()
-	if *url == "" || *node == "" || *maxSlots < 1 || *pool == "" || *sizeGB < 1 {
+	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB {
 		log.Fatal("invalid configuration")
 	}
 	// A full cache must never fill the kubelet/root filesystem. This check is
@@ -183,10 +181,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	backend := &cachevolumes.RBD{Pool: *pool, Namespace: *rbdNamespace, Client: *client, SizeGB: *sizeGB, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS}
-	if err := backend.Probe(); err != nil {
-		log.Fatal(err)
-	}
+	client := &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: int64(*sizeGB) * 1_000_000_000}
+	backend := &cachevolumes.LocalImages{Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
 	store, err := cachevolumes.Open(*root, backend)
 	if err != nil {
 		log.Fatal(err)
@@ -202,8 +199,11 @@ func main() {
 	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		log.Fatal(err)
 	}
+	if err := backend.Probe(); err != nil {
+		log.Fatal(err)
+	}
 	store.MaxSlots = *maxSlots
-	a := &agent{tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: &http.Client{Timeout: 6 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	a := &agent{tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
 	go func() {
 		for {
 			if err := a.reconcile(); err != nil {

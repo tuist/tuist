@@ -61,6 +61,8 @@ jobs:
       - name: Test
         working-directory: infra/runners-controller
         run: go test ./...
+      - name: Exercise local cache images on Linux
+        run: infra/runners-controller/scripts/test-cache-filesystem.sh
       - name: Vet
         working-directory: infra/runners-controller
         run: go vet ./...

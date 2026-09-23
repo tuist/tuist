@@ -7,6 +7,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -40,6 +41,18 @@ defmodule Tuist.Runners.CacheVolumesTest do
       "attach_ms" => 10
     }
 
+  defp publish_report(node, id) do
+    usage = Repo.get!(Usage, id)
+    digest = :sha |> :crypto.hash(id) |> Base.encode16(case: :lower)
+    content = :sha256 |> :crypto.hash(id) |> Base.encode16(case: :lower)
+
+    if usage.status != "published" do
+      CacheVolumes.image(node, id, %{"operation" => "publish", "image_digest" => digest, "content_digest" => content})
+    end
+
+    CacheVolumes.report(node, id, report("sealed"))
+  end
+
   defp complete(job, conclusion \\ "success") do
     Repo.insert!(%JobCompletion{
       workflow_job_id: job.workflow_job_id,
@@ -50,6 +63,64 @@ defmodule Tuist.Runners.CacheVolumesTest do
   end
 
   defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
+
+  test "custom Linux names never become valid macOS dispatch names", %{job: job, account: account} do
+    {:ok, _} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    name = CacheVolumes.storage_name(volume(account))
+    assert VolumeHeads.valid_storage_volume_name?(name)
+    refute VolumeHeads.valid_volume_name?(name)
+  end
+
+  test "only one concurrent base can publish through the shared macOS HEAD", %{job: job, account: account} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    {:ok, stale} = CacheVolumes.allocate_for_job(job, identity(), attrs("stale"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    assert {:ok, %{action: "delete"}} = publish_report("node", stale.id)
+    assert volume(account).head_id == first.id
+    name = CacheVolumes.storage_name(volume(account))
+    assert %{generation: 1} = VolumeHeads.get_head(account.id, name)
+    {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), attrs("warm"))
+    assert warm.base_generation == 1
+    assert warm.content_digest == Repo.get!(Usage, first.id).content_digest
+  end
+
+  test "sealed reports alone cannot publish and cleared images cannot be retried", %{job: job, account: account} do
+    {:ok, use} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", use.id, report("sealed"))
+    assert is_nil(volume(account).head_id)
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", next.id)
+    saved = Repo.get!(Usage, next.id)
+    params = %{"operation" => "publish", "image_digest" => saved.image_digest, "content_digest" => saved.content_digest}
+    assert {:ok, %{generation: 1}} = CacheVolumes.image("node", next.id, params)
+    assert {:error, :not_found} = CacheVolumes.image("other-node", next.id, params)
+    old_name = CacheVolumes.storage_name(volume(account))
+    CacheVolumes.delete(account.id, volume(account).id)
+    assert {:error, :conflict} = CacheVolumes.image("node", next.id, params)
+    assert is_nil(VolumeHeads.get_head(account.id, old_name))
+    {:ok, cold} = CacheVolumes.allocate_for_job(job, identity(), attrs("cold"))
+    assert cold.base_generation == 0
+    assert is_nil(cold.content_digest)
+  end
+
+  test "local replicas validate against the current head after private branches are reclaimed", %{
+    job: job,
+    account: account
+  } do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    assert {:ok, %{generation: 1}} = CacheVolumes.image("node", first.id, %{"operation" => "retain"})
+    {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", next.id)
+    assert {:ok, _} = CacheVolumes.report("node", first.id, %{"state" => "deleted"})
+    assert {:ok, %{generation: 2}} = CacheVolumes.image("node", first.id, %{"operation" => "retain"})
+    assert {:error, :not_found} = CacheVolumes.image("other-node", next.id, %{"operation" => "retain"})
+    CacheVolumes.delete(account.id, volume(account).id)
+    assert {:error, :conflict} = CacheVolumes.image("node", next.id, %{"operation" => "retain"})
+  end
 
   test "provider and instance namespaces cannot collide, and each preserves warm reuse", %{job: job} do
     scopes = [
@@ -71,7 +142,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
         {:ok, first} = CacheVolumes.allocate_for_job(scoped_job, scope, attrs("provider-#{index}"))
         complete(scoped_job)
         assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", first.id, report())
-        assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", first.id, report("sealed"))
+        assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
         {:ok, second} = CacheVolumes.allocate_for_job(scoped_job, scope, attrs("provider-#{index}-warm"))
         assert second.parent_id == first.id
         first.scope
@@ -234,26 +305,26 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert {:ok, %{action: "wait"}} = CacheVolumes.report("node", first.id, report())
     complete(job)
     assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", first.id, report())
-    assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", first.id, report("sealed"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
     assert volume(account).head_id == first.id
     {:ok, second} = CacheVolumes.allocate_for_job(job, identity(), attrs("pod2", "other-node"))
     assert second.parent_id == first.id
-    assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", first.id, report("sealed"))
-    assert {:ok, %{action: "keep"}} = CacheVolumes.report("other-node", second.id, report("sealed"))
-    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", first.id, report("sealed"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    assert {:ok, %{action: "keep"}} = publish_report("other-node", second.id)
+    assert {:ok, %{action: "delete"}} = publish_report("node", first.id)
     assert volume(account).head_id == second.id
   end
 
   test "acknowledging an unmounted allocation releases its retired parent", %{job: job, account: account} do
     {:ok, parent} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job)
-    assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", parent.id, report("sealed"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", parent.id)
     {:ok, rejected} = CacheVolumes.allocate_for_job(job, identity(), attrs("rejected"))
     {:ok, replacement} = CacheVolumes.allocate_for_job(job, identity(), attrs("replacement"))
     assert rejected.parent_id == parent.id
-    assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", replacement.id, report("sealed"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", replacement.id)
     assert volume(account).head_id == replacement.id
-    assert {:ok, %{action: "keep"}} = CacheVolumes.report("node", parent.id, report("sealed"))
+    assert {:ok, %{action: "keep"}} = publish_report("node", parent.id)
 
     assert {:ok, %{action: "forget"}} = CacheVolumes.report("node", rejected.id, %{"state" => "deleted"})
     assert {:ok, %{action: "forget"}} = CacheVolumes.report("node", rejected.id, %{"state" => "deleted"})
@@ -262,13 +333,13 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert rejected_use.finished_at
     assert rejected_use.deleted_at
     assert is_nil(rejected_use.attached_at)
-    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", parent.id, report("sealed"))
+    assert {:ok, %{action: "delete"}} = publish_report("node", parent.id)
   end
 
   test "PR clones consume the shared parent but are discarded", %{job: job, account: account} do
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job)
-    CacheVolumes.report("node", first.id, report("sealed"))
+    publish_report("node", first.id)
     {:ok, pr} = CacheVolumes.allocate_for_job(job, %{identity() | trusted: false}, attrs("pr"))
     assert pr.parent_id == first.id
     refute pr.can_publish
@@ -279,7 +350,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   test "failed jobs never replace the parent", %{job: job, account: account} do
     {:ok, clone} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job, "failure")
-    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", clone.id, report("sealed"))
+    assert {:ok, %{action: "delete"}} = publish_report("node", clone.id)
     assert is_nil(volume(account).head_id)
   end
 
@@ -288,7 +359,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     complete(job)
     assert {:ok, _} = CacheVolumes.delete(account.id, volume(account).id)
     assert {:ok, %{action: "hold"}} = CacheVolumes.report("node", clone.id, report("active", false))
-    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", clone.id, report("sealed"))
+    assert {:ok, %{action: "delete"}} = publish_report("node", clone.id)
     {:ok, fresh} = CacheVolumes.allocate_for_job(job, identity(), attrs("new"))
     assert is_nil(fresh.parent_id)
     refute fresh.scope == clone.scope
@@ -349,7 +420,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert DateTime.after?(volume(account).last_used_at, previous_mount)
     mounted = volume(account).last_used_at
     complete(job)
-    CacheVolumes.report("node", next.id, report("sealed"))
+    publish_report("node", next.id)
     assert volume(account).last_used_at == mounted
   end
 
@@ -358,7 +429,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     threshold = DateTime.add(now, -7 * 86_400)
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job)
-    CacheVolumes.report("node", first.id, report("sealed"))
+    publish_report("node", first.id)
     idle = volume(account)
     Repo.update!(Ecto.Changeset.change(idle, last_used_at: threshold))
     {:ok, recent} = CacheVolumes.allocate_for_job(job, identity(), %{attrs("recent") | key: "recent"})
@@ -374,7 +445,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert is_nil(Repo.get!(Usage, first.id).deleted_at)
     assert is_nil(Repo.get!(Volume, recent_volume.id).deleted_at)
     assert {:ok, 0} = CacheVolumes.expire_inactive(now)
-    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", first.id, report("sealed"))
+    assert {:ok, %{action: "delete"}} = publish_report("node", first.id)
     assert Repo.get!(Volume, idle.id).last_used_at == threshold
   end
 
@@ -386,7 +457,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert :ok = Tuist.Runners.Workers.CacheVolumeCleanupWorker.perform(%Oban.Job{args: %{"action" => "evict"}})
     assert {:ok, %{action: "hold"}} = CacheVolumes.report("node", first.id, report("active", false))
     complete(job)
-    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", first.id, report("sealed"))
+    assert {:ok, %{action: "delete"}} = publish_report("node", first.id)
     assert is_nil(Repo.get!(Volume, idle.id).head_id)
 
     {:ok, fresh} = CacheVolumes.allocate_for_job(job, identity(), attrs("fresh"))
@@ -401,10 +472,10 @@ defmodule Tuist.Runners.CacheVolumesTest do
   test "agent reports enforce idle eviction even before the sweep runs", %{job: job, account: account} do
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job)
-    CacheVolumes.report("node", first.id, report("sealed"))
+    publish_report("node", first.id)
     idle = volume(account)
     Repo.update!(Ecto.Changeset.change(idle, last_used_at: DateTime.add(DateTime.utc_now(), -8 * 86_400)))
-    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", first.id, report("sealed"))
+    assert {:ok, %{action: "delete"}} = publish_report("node", first.id)
     assert volume(account).deleted_at
     assert volume(account).generation == idle.generation + 1
   end
@@ -412,7 +483,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   test "idle expiration changes generation before reuse", %{job: job, account: account} do
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
     complete(job)
-    CacheVolumes.report("node", first.id, report("sealed"))
+    publish_report("node", first.id)
     Repo.update!(Ecto.Changeset.change(volume(account), last_used_at: DateTime.add(DateTime.utc_now(), -8 * 86_400)))
     {:ok, fresh} = CacheVolumes.allocate_for_job(job, identity(), attrs("later"))
     assert is_nil(fresh.parent_id)

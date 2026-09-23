@@ -1,19 +1,18 @@
 # Linux cache volumes
 
-Opt-in persistent dependency caches with private Ceph RBD snapshot clones. Every
-job gets a writable filesystem, including parallel jobs and pull requests. A
-successful trusted job publishes a snapshot for subsequent jobs. Attachment does
-not download or extract an archive. Reads and writes depend on Ceph and the fleet
-network; this is not a promise of local-NVMe latency.
+Linux custom volumes use the same storage model as the automatic macOS cache:
+persistent local masters, private copy-on-write branches, immutable object-storage
+images, and generation-checked publication. No Ceph cluster, credentials, RBD
+images or network block devices are required. Custom key/path volumes remain
+Linux-only; the existing automatic macOS repository cache is unchanged.
 
-The implementation is disabled by default. No Ceph cluster is provisioned by this
-change. Enable it only after the storage and Kata integration gates below pass.
+The feature is disabled by default pending the deployed Kata/provider smoke gates.
 
 ## Workflow
 
 The release interface is the dedicated `tuist/cache-volume@v1` action. Its
 [distribution and CI-provider integrations](cache-volume-integrations.md)
-covers the release workflow and the Buildkite/GitLab follow-ups. Until the first
+covers the release workflow and the implemented Buildkite/GitLab wrappers. Until the first
 release passes the live storage gates, test with a reviewed monorepo commit:
 
 ```yaml
@@ -51,81 +50,93 @@ execution UID. Native jobs and root containers therefore have separate caches.
 Mount path is not part of the identity. At most eight allocations per pod and
 100 active local clones per host are admitted by default.
 
-## Trust and publication
+## Shared machinery and Linux substrate
 
-The agent binds the TCP source IP to the named running pod's UID and local node.
-It authenticates to Tuist using its own Kubernetes service account. The server
-joins the live runner session to the actual assigned job
-(`executed_workflow_job_id`), then verifies provider metadata through the
-[GitHub, Buildkite or GitLab adapter](cache-volume-integrations.md). Dispatch predictions and workflow-provided repository/branch names
-never determine scope or publication rights.
+Both platforms use `Tuist.Runners.VolumeHeads` for fast-forward compare-and-swap,
+`Tuist.Runners.volume_master_upload_url` for checksum-signed immutable uploads,
+`report_volume_head` for publication and supersession, and the existing master
+and orphan cleanup workers. Objects use the same account-owned
+`runner-volume-masters/<account>/<volume>/<digest>-<sha256>.image` infrastructure.
+Linux storage names are `linux-<hash of volume UUID and clear generation>`;
+macOS dispatch names still accept only `tuist-cache` and repository names. A Linux
+custom volume cannot be selected as a macOS cache by widening storage validation.
 
-For GitHub, successful default-branch `push`, `schedule` and
-`workflow_dispatch` jobs can publish. PRs can read the same published snapshot
-in private clones, but their changes are discarded. Publication rules are fixed;
-other branches, forks, `pull_request_target` and other events cannot publish. Treat cached
-contents as readable by workflows admitted to that repository, including forks.
+The filesystem-specific implementation lives in `internal/cachevolumes/local.go`:
 
-Publication requires a successful completion record plus two local fences: the
-pod is absent (or replaced with a different UID), AND its kubelet directory is
-absent. A terminal phase, webhook or timeout alone is insufficient. API errors
-retain clones. The agent unmounts and unmaps, flattens clone ancestry, creates and
-protects a snapshot, then reports it. Publication is last-published-writer-wins;
-changes from concurrent jobs are not merged. Flattening is off the attach path
-and does not hold the lock for another lease's attachment.
+- A dedicated XFS filesystem with reflinks (or another validated reflink-capable
+  filesystem) holds immutable masters and sparse, 20 decimal GB ext4 images.
+  Host-local branches use `cp --reflink=always`, the Linux equivalent of APFS
+  `clonefile`. Unsupported or cross-filesystem clones fail; no full-copy fallback.
+- A warm master is cloned locally. A host without the assigned version downloads
+  it through a presigned URL, checks its SHA-256, restores it sparsely, and clones
+  it. A failed restoration falls back to ordinary job-local directories through
+  the existing client. It never advertises a hit from corrupt data.
+- Raw ext4 images are gzip-compressed for object storage so unwritten space does
+  not require transferring 20 GB. The SHA-1 artifact identifier and SHA-256 checksum
+  describe the compressed object; unlike macOS's inventory digest, the Linux
+  identifier is not a cache-file inventory. Downloads are bounded in compressed
+  and expanded size and verified before installation.
+- The host agent owns loop devices and mounts. Only `pods/<pod UID>` is exposed
+  to that job's runner and DinD containers. Masters, images, journals, tokens and
+  signed URLs stay outside workflow mounts. Mount operations reject symlinks.
 
-The server locks the volume row for publication and deletion.
-Deletion increments the generation and clears the head immediately; running
-jobs retain private copies but cannot republish the old generation. A new job
-can start a fresh empty generation while old storage is being reclaimed.
+Current runner root filesystems are ext4, which cannot provide these reflinks.
+`scripts/provision-cache-filesystem.sh` prepares a bounded, **fully preallocated**
+XFS backing file and a persistent systemd mount on an existing host. It reserves
+all backing bytes before use and leaves 40 GB free for the host, so filling the
+inner cache filesystem cannot grow its outer file into kubelet's free space.
+The default backing file is 200 GB; an operator can choose a different size.
+Formatting disables discard and the persistent mount opts out of periodic
+[fstrim](https://www.man7.org/linux/man-pages/man8/fstrim.8.html), preserving the
+outer file reservation. Do not manually trim or hole-punch that backing file.
+It never reformats or resizes an existing image. A dedicated block device with
+XFS is also supported. This is an explicit host setup step, not a formatter in
+the DaemonSet or a destructive change to the fleet's existing root partitions.
 
-## Storage and recovery
+## Trust, publication and recovery
 
-The privileged agent owns Ceph credentials and host block devices. Images are
-`<pool>/<namespace>/tuist-<use UUID>`; the only publication snapshot is `@cache`.
-Images have a fixed 20 GB (decimal) logical capacity by default, rounded up to the next
-MiB for RBD. This is fleet-controlled; workflow-level sizing is not yet exposed.
-Existing images and their clones keep their original size. Filesystem capacity
-reports exclude filesystem overhead. Clones read unchanged
-blocks from their parent, and Ceph manages changed blocks. Snapshot protection
-prevents removal while dependent clones exist. The server also retains parents
-referenced by unfinished allocations. Sparse allocation and shared blocks mean
-logical filesystem usage is not physical Ceph consumption.
+The agent binds source IP, pod UID and node before allocation. The server resolves
+the actual executed job through its runner session and verified GitHub,
+Buildkite or GitLab metadata. Workflow-supplied branch names never grant writes.
+GitHub default-branch push/schedule/workflow_dispatch jobs may publish after
+success; PRs and forks read private branches but cannot update the master.
+See [provider policies](cache-volume-integrations.md).
 
-A durable host journal, `state/<use UUID>.json`, is fsynced before remote resource
-creation. `allocated → active → sealed → deleted` operations are restart-safe.
-The format marker is written before exposing a cold filesystem, preventing a
-retry from formatting data a job has used. A deletion remains journaled until
-the server acknowledges it. The client verifies a per-use marker inside the
-mounted filesystem before linking a path, so failed mount propagation falls
-back cold instead of writing into an ordinary host directory. Mount operations reject symlinks, and cleanup uses
-`os.Root`. Guests only see `pods/<their UID>` via SubPathExpr, with incoming mount
-propagation; they never see another job's clone, credentials or the journal.
+Publication remains synchronous in the existing node-agent reconciliation path;
+there is no background-upload service or detached publication queue. Linux must
+first prove the pod and its kubelet directory are absent, then unmount and detach
+its private image. It compresses the settled image, preflights the base generation,
+uploads it and asks the shared macOS HEAD code to fast-forward. Only an accepted
+image becomes a local master. A slow job cannot overwrite a newer generation;
+concurrent changes are not merged. A lost publication response is idempotent.
 
-The journal/scratch root must itself be a separate bounded filesystem from host
-root and kubelet. Jobs can write scratch files into their private subtree even
-without acquiring a volume. Those files are removed only after the teardown
-fences and after all block mounts have been detached. Make the filesystem mount
-a kubelet service prerequisite, with shared mount propagation. Preload the host
-`rbd` kernel module. The DaemonSet uses the dedicated `cache-volumes` Docker
-build target with `ceph-common` and `e2fsprogs`, not the distroless controller.
+The OS lifecycle boundary differs: the macOS guest uploads before halting its VM;
+Linux's host agent publishes after teardown to prove that all writers are gone.
+Consequently this implementation does **not** promise that the runner slot stays
+reserved during upload. The upload-before-publication protocol and shared storage
+machinery are the same; moving the Linux writer fence or slot-release boundary
+requires validation against Kata, rather than trusting a job's completion signal.
 
-Agent restarts retain kernel mounts and resume the local journal. Host reboot
-loses running jobs; the journal allows later cleanup after kubelet teardown.
-Permanent node/journal loss requires operator reconciliation: enumerate central
-usage records and Ceph image names, prove the old host and its VMs can no longer
-write, then reclaim or recover the affected images. Do not infer writer death
-from Node NotReady or a timeout. The dashboard keeps unacknowledged deletion
-pending; it does not claim that unreachable storage has been erased. This first
-version does not automatically recover journals from permanently lost hosts.
+The journal is persisted and fsynced before creating a branch. Cold images are
+formatted in a private temporary file and atomically renamed before exposure;
+a restart never reformats an image a job could have written. Attachment checks
+a per-use marker. Teardown errors retain the image for retry. Private branches
+are released after durable sealing and publication acknowledgement. Local master
+replicas are validated against the central HEAD and evicted when superseded,
+cleared, or idle for seven days. Physical free-space watermarks drive admission
+and LRU eviction because reflinks share blocks; summed logical sizes cannot
+measure host disk consumption. Defaults are eight allocations per pod, 100 active
+branches per host, 20 GB logical volume capacity, and a 40 GB free-space reserve.
 
-There is no per-account physical-byte quota. Capacity planning must cover clone
-counts, replication, retained parents and flattening. Provision Ceph pool quotas
-and monitor free space, failed operations and pending deletion age. A full pool
-or network outage can affect already attached jobs. Idle heads expire after
-seven days without use; active clones remain fenced. Deleted use history is
-pruned 90 days after acknowledged deletion; volume identities persist until
-account deletion.
+A cold machine can restore accepted images from the existing object storage.
+Losing a host loses unpublished changes, not the last accepted remote master.
+This version restores on demand; it does not yet prewarm arbitrary custom keys
+or change dispatch affinity, because those keys are first declared inside jobs.
+Host/journal loss still requires operator reconciliation of usage records. Never
+infer successful erasure from Node NotReady or a timeout. Clearing increments a
+separate invalidation generation, removes the shared HEAD and schedules remote
+object cleanup through the existing URL-TTL grace. Running branches cannot
+resurrect it. Account deletion uses the existing master-prefix cleanup.
 
 ## User-visible management
 
@@ -141,72 +152,41 @@ Readers need `runners_read`; clearing requires `account_update`
 and a confirmation. Every browser query and mutation is account-scoped.
 
 Clearing invalidates immediately. Physical removal waits for running jobs,
-dependent clones and responding storage agents. History remains available.
+responding storage agents and eviction of local master replicas. History remains available.
 Account deletion cascades metadata; agents receive a delete decision for their
 orphaned images and still enforce teardown fences. See
 [export and erasure](../../server/data-export.md#linux-runner-cache-volumes-opt-in).
 
-## Rollout gates
+## Rollout and validation
 
-1. Provision and validate Ceph separately: dedicated pool/namespace, appropriate
-   replication and network bandwidth/latency. Create a least-privilege Ceph
-   client restricted to that pool/namespace. The Kubernetes secret must contain
-   `ceph.conf` and `ceph.client.<client>.keyring`, mounted read-only at `/etc/ceph`.
-   Do not pass these credentials to workflows.
-2. Build the dedicated agent image and updated Linux runner/controller images.
-   Apply the database migration and release the server. Upgrade the RunnerPool
-   CRD explicitly (Helm does not upgrade CRDs automatically).
-3. Prepare bounded shared-propagation host journal filesystems and the RBD kernel
-   module. Verify the agent can create/map/mount/unmount/clone/flatten/protect/
-   delete images with its restricted credential.
-4. In staging, set `runnersFleetLinux.cacheVolumes.enabled`, `hostPath`, `maxSlots`,
-   `volumeGB`, `image.tag`, and `ceph.{pool,namespace,client,existingSecret}`. An
-   explicit agent tag is required. Keep production disabled. Runner mount
-   revisions use the bounded idle rollout; busy runners finish first.
-5. Run `.github/workflows/linux-cache-volumes-smoke.yml` on the default branch,
-   cold and then warm after publication. Test native and ordinary Docker jobs,
-   on different hosts sharing Ceph. Check that mounted content actually reaches
-   Kata/virtiofs and DinD; Kubernetes YAML rendering cannot establish this.
-6. Overlap same-key jobs; verify private writes. Exercise a same-repo PR and a
-   fork: both read warm, neither changes the protected head. Verify failure and
-   cancellation discard, agent restart, delete during a running job, a new cold
-   generation, and eventual physical deletion. Check dashboard attribution,
-   counters, timestamps and reader/admin permissions.
-7. Benchmark representative Gradle cold, warm and concurrent jobs. Measure attach,
-   dependency resolution, end-to-end duration and Ceph/network load. The earlier
-   1.34 GB / 39-second download / 5-second extraction is motivation, not a result
-   of this implementation. Roll out only after the real integration gates pass.
+1. Apply the additive publication-metadata migration and deploy the server.
+   Build the controller, node-agent and Linux runner images. Upgrade the RunnerPool
+   CRD explicitly when needed; Helm does not update CRDs automatically.
+2. On an explicitly selected staging host, install XFS/e2fsprogs/util-linux and
+   run `sudo scripts/provision-cache-filesystem.sh`. Validate its persistent mount
+   before enabling the fleet. The agent probes reflinks and refuses the host root
+   or kubelet filesystem.
+3. Enable `runnersFleetLinux.cacheVolumes` with an explicit agent image tag,
+   `hostPath`, `maxSlots`, `volumeGB`, and `minFreeGB`. There is no storage secret.
+   Existing object-storage configuration is reused through server-issued URLs.
+4. Run `.github/workflows/linux-cache-volumes-smoke.yml` cold and warm on native
+   and ordinary Docker jobs, including jobs on different nodes. Verify that host
+   mounts propagate through Kata/virtiofs/DinD. Exercise all three CI providers,
+   concurrent writes, untrusted and failed jobs, clearing during a job, agent
+   restart, host loss, upload outage and filesystem exhaustion.
+5. Measure representative cold/warm workload duration and attach/upload cost
+   before enabling production. Local filesystem tests establish semantics, not
+   deployed fleet performance.
 
-Rollback: stop new volume-using jobs and let existing jobs complete. Keep agents
-and their server report endpoint available until all clones have been fenced and
-cleaned. Disabling the chart flag also removes the DaemonSet, so do not do that
-while retaining mounts that require maintenance. Never unmount backing storage
-under active jobs. Remove stale `tuist.dev/linux-cache-volumes` readiness labels
-when retiring the feature. Schema rollback is destructive to history and should
-follow storage cleanup, not precede it.
+`scripts/test-cache-filesystem.sh` runs the real Linux storage test in an isolated
+privileged Docker container with its own disposable XFS image. It covers creating
+and mounting ext4, local reflinks, private-write isolation, synchronous publication,
+and verified restore on a second host directory. The controller image workflow
+runs it alongside the Go suites. It does not substitute for the deployed Kata,
+provider authorization and actual object-store gates above.
 
-## Local validation (2026-09-17)
-
-- 199 top-level Go tests passed with the race detector across cache storage (11),
-  node agent (3), pod templates (33), CRD types (7), controller (139), and workflow
-  client (6). Regression cases include clone isolation, blocked unmounts,
-  interrupted snapshot protection, scratch symlinks, publication fencing,
-  concurrent attachment during slow sealing, IP/UID/node binding and missing
-  mount proofs. Ceph command tests use a scripted executor, not a live cluster.
-- 14 lifecycle tests passed against an isolated PostgreSQL 16 instance with the
-  actual new migration and production context. The account fixture and unrelated
-  ClickHouse setup were replaced in memory with a minimal account table. Tests
-  cover tenant boundaries, generation invalidation, PR/default-branch policy,
-  success gating, idempotency, quotas, timestamps, analytics and history cleanup.
-- Eight controller/LiveView tests passed, including actual HEEx rendering and
-  mutation authorization. The changed server modules/router were compiled using
-  local dependency BEAMs. This was an isolated harness, not a full `mix test` run;
-  unrelated modules absent from those borrowed BEAMs produced compiler warnings.
-- Linux/amd64 static builds of the storage agent and workflow client passed.
-  Enabled/disabled Helm rendering, selected agent ingress, workflow/action YAML,
-  four job-start-hook checks and `git diff --check` passed. The actual rendered
-  dashboard was visually inspected with sample data and Noora styles.
-- No Ceph resources or fleet changes were made, no image was published, and no
-  performance claim was validated. Real Ceph/kernel/Kata/DinD integration,
-  cross-host reuse, host-loss recovery and workload benchmarks remain rollout
-  gates. The checked-in smoke workflow was not dispatched.
+Rollback: disable new volume-using jobs, allow teardown/publication to settle,
+then remove the agents and readiness labels. Never unmount the backing filesystem
+under live jobs. Do not roll back to the RBD agent against local-image journals.
+The new schema columns are additive; rollback after cleanup can drop them, but
+would lose publication metadata. No live fleet was changed by local validation.

@@ -11,12 +11,14 @@ defmodule Tuist.Runners.CacheVolumes do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners
   alias Tuist.Runners.CacheVolumes.Identity
   alias Tuist.Runners.CacheVolumes.Measurement
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
 
   @retention_seconds 7 * 24 * 60 * 60
@@ -107,12 +109,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
       volume = expire_locked(volume, now)
 
+      head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
+
       use_attrs =
         Map.merge(Map.take(attrs, [:pod_name, :pod_uid, :node_name]), %{
           id: Ecto.UUID.generate(),
           volume_id: volume.id,
           generation: volume.generation,
           parent_id: volume.head_id,
+          base_generation: (head && head.generation) || 0,
+          image_digest: head && head.tree_digest,
+          content_digest: head && head.content_digest,
           workflow_job_id: job.workflow_job_id,
           workflow_run_id: job.workflow_run_id,
           can_publish: identity.trusted,
@@ -144,6 +151,9 @@ defmodule Tuist.Runners.CacheVolumes do
         account_id: volume.account_id,
         scope: scope(volume),
         parent_id: usage.parent_id,
+        base_generation: usage.base_generation,
+        image_digest: usage.image_digest,
+        content_digest: usage.content_digest,
         can_publish: usage.can_publish,
         uid: volume.uid
       }
@@ -207,6 +217,8 @@ defmodule Tuist.Runners.CacheVolumes do
   defp expire_locked(volume, now) do
     if is_nil(volume.deleted_at) and not is_nil(volume.last_used_at) and
          DateTime.compare(volume.last_used_at, DateTime.add(now, -@retention_seconds)) != :gt do
+      Runners.clear_volume_master(volume.account_id, storage_name(volume))
+
       Repo.update!(
         Ecto.Changeset.change(volume,
           generation: volume.generation + 1,
@@ -351,9 +363,137 @@ defmodule Tuist.Runners.CacheVolumes do
         %{action: "seal"}
 
       state == "sealed" ->
-        Repo.update!(Ecto.Changeset.change(usage, status: "published", finished_at: now))
+        # Publication is committed only after the immutable image was uploaded.
+        discard(usage, now)
+    end
+  end
+
+  def storage_name(volume), do: "linux-" <> scope(volume)
+
+  # Reuse macOS HEAD arbitration, immutable objects, checksums and delayed
+  # reclamation. The custom-volume lock also serializes clearing with publication.
+  def image(node, id, params) do
+    with {:ok, id} <- Ecto.UUID.cast(id),
+         %Usage{} = usage <- Repo.get_by(Usage, id: id, node_name: node) do
+      Repo.transaction(fn ->
+        volume = Repo.one!(from(v in Volume, where: v.id == ^usage.volume_id, lock: "FOR UPDATE"))
+        usage = Repo.get!(Usage, id)
+        volume = expire_locked(volume, DateTime.utc_now())
+        image_action(volume, usage, params)
+      end)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp image_action(volume, usage, %{"operation" => "retain"}) do
+    if usage.generation != volume.generation or not is_nil(volume.deleted_at), do: Repo.rollback(:conflict)
+    head = VolumeHeads.get_head(volume.account_id, storage_name(volume))
+    %{generation: (head && head.generation) || 0}
+  end
+
+  defp image_action(volume, usage, %{"operation" => "download"}) do
+    if not is_nil(usage.deleted_at) or usage.generation != volume.generation or not is_nil(volume.deleted_at),
+      do: Repo.rollback(:conflict)
+
+    if usage.base_generation == 0 do
+      %{generation: 0}
+    else
+      case Runners.volume_master_download_url(
+             volume.account_id,
+             storage_name(volume),
+             usage.image_digest,
+             usage.content_digest
+           ) do
+        {:ok, url} -> %{download_url: url, generation: usage.base_generation, content_digest: usage.content_digest}
+        _ -> Repo.rollback(:unavailable)
+      end
+    end
+  end
+
+  defp image_action(volume, usage, %{"operation" => operation, "image_digest" => digest, "content_digest" => content})
+       when operation in ["upload", "publish"] do
+    if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
+
+    cond do
+      retired_image?(volume, usage) ->
+        Repo.rollback(:conflict)
+
+      published_image?(usage, digest, content) ->
+        %{generation: usage.published_generation}
+
+      not usage.can_publish or usage.status in ["published", "discarded"] ->
+        Repo.rollback(:conflict)
+
+      true ->
+        completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
+        if is_nil(completion) or completion.conclusion != "success", do: Repo.rollback(:conflict)
+        image_publish(volume, usage, operation, digest, content)
+    end
+  end
+
+  defp image_action(_, _, _), do: Repo.rollback(:invalid_request)
+
+  defp valid_image_digests?(digest, content) do
+    is_binary(digest) and Regex.match?(~r/\A[a-f0-9]{40}\z/, digest) and
+      is_binary(content) and Regex.match?(~r/\A[a-f0-9]{64}\z/, content)
+  end
+
+  defp retired_image?(volume, usage) do
+    usage.generation != volume.generation or not is_nil(volume.deleted_at) or not is_nil(usage.deleted_at)
+  end
+
+  defp published_image?(usage, digest, content) do
+    usage.status == "published" and usage.image_digest == digest and usage.content_digest == content
+  end
+
+  defp image_publish(volume, usage, "upload", digest, content) do
+    name = storage_name(volume)
+
+    if not Runners.fast_forward_viable?(volume.account_id, name, usage.base_generation),
+      do: Repo.rollback(:conflict)
+
+    case Runners.volume_master_upload_url(volume.account_id, name, digest, content) do
+      {:ok, url, checksum} ->
+        Runners.track_volume_master_upload(volume.account_id, name, digest, content)
+        %{upload_url: url, checksum_sha256: checksum}
+
+      _ ->
+        Repo.rollback(:unavailable)
+    end
+  end
+
+  defp image_publish(volume, usage, "publish", digest, content) do
+    case Runners.report_volume_head(
+           volume.account_id,
+           storage_name(volume),
+           usage.node_name,
+           digest,
+           usage.base_generation,
+           nil,
+           content
+         ) do
+      {:ok, generation} ->
+        Repo.update!(
+          Ecto.Changeset.change(usage,
+            status: "published",
+            finished_at: DateTime.utc_now(),
+            published_generation: generation,
+            image_digest: digest,
+            content_digest: content
+          )
+        )
+
         Repo.update!(Ecto.Changeset.change(volume, head_id: usage.id))
-        %{action: "keep"}
+        %{generation: generation}
+
+      :conflict ->
+        # Commit the orphan tracking from report_volume_head, even on rejection.
+        discard(usage, DateTime.utc_now())
+        %{conflict: true}
+
+      _ ->
+        Repo.rollback(:unavailable)
     end
   end
 
@@ -381,6 +521,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def delete(account_id, id) do
     mutate(account_id, id, fn volume ->
+      Runners.clear_volume_master(volume.account_id, storage_name(volume))
       [generation: volume.generation + 1, head_id: nil, deleted_at: DateTime.utc_now()]
     end)
   end

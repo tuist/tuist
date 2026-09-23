@@ -123,3 +123,11 @@ func MeasureFS(path string) (int64, int64, error) {
 	}
 	return int64(st.Blocks-st.Bfree) * int64(st.Bsize), int64(st.Blocks) * int64(st.Bsize), nil
 }
+
+func FreeBytes(path string) (uint64, error) {
+	var st unix.Statfs_t
+	if err := unix.Statfs(path, &st); err != nil {
+		return 0, err
+	}
+	return st.Bavail * uint64(st.Bsize), nil
+}

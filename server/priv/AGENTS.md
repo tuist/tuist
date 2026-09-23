@@ -56,3 +56,7 @@ This directory contains database migrations and other private assets.
 - Runner Kura enrollment uses `20260911090100` after its incoming main-branch migration collided with Bazel’s `20260910160000`. Re-execution is safe: enrollment selects only live rows without an existing storage pin.
 
 - Automation `event_generation` is nullable and falls back to `baseline_generation` for historical rows. It preserves recovery history across one-time action requests and cancellation; condition changes advance both generations. Keep attempt revision checks separate from event queries.
+
+- Cache-volume image publication adds nullable digests and published generation,
+  plus a base HEAD generation defaulting to zero. This is separate from the
+  invalidation epoch; schema rollback follows local-image fleet cleanup.

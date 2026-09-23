@@ -1,27 +1,26 @@
-# Linux snapshot cache volumes
+# Linux local cache images
 
-Ceph RBD private clones used by `cmd/cache-volumes`. See
-[design and runbook](../../cache-volumes.md).
+Local reflink branches of sparse ext4 images, with the same object storage and
+HEAD publication protocol as the macOS cache. See [runbook](../../cache-volumes.md).
 
-- Never expose Ceph credentials, host devices, another clone or the journal to
-  workflows. Guests see only `pods/<pod UID>` through kubelet SubPathExpr.
-- Server identity comes from the proven executed job and GitHub App metadata;
-  bind agent requests to source pod IP, node and UID. Never trust forwarded IPs.
-- Persist the resource identity before creation. Each job has its own image.
-  Retry operations without formatting exposed filesystems or publishing twice.
-- Host/per-pod admission rejection must journal the server-issued allocation as
-  deleted before returning. Reconcile its acknowledgement across report failures
-  and restarts so the server can release parent references; never attach retries
-  of that rejected lease. Device discovery is host-local and must omit RBD pool
-  and namespace arguments, then filter mappings by pool, namespace and image.
-- Seal/delete require API pod absence AND kubelet-directory absence. Completion,
-  terminal phases, timeouts, and API failures are not writer fences.
-- Snapshot protection and server references preserve parents of active clones.
-- Serialize per lease. Slow flattening must not block unrelated attachment.
+- Never expose host images, masters, journals or signed URLs to workflows.
+  Guests see only `pods/<pod UID>` through kubelet SubPathExpr.
+- Bind requests to source IP, node and UID; resolve scope/trust on the server.
+- Journal before creation; format only an unexposed temporary image and atomically
+  rename it before mount. Retries never format an existing branch.
+- Seal/delete require API pod absence AND kubelet-directory absence. A webhook,
+  terminal phase, timeout or failed API request is not a writer fence.
+- Publish synchronously: detach, compress, preflight, upload, fast-forward, then
+  install the accepted master. Failed/rejected uploads never become masters.
+- Local masters use generation/digest filenames; checksummed downloads are
+  restored sparsely, with bounds on compressed and expanded input.
+- Require reflinks with no byte-copy fallback. Use actual filesystem free space
+  for admission/LRU; shared extents make summed file sizes misleading.
+- Reconcile local master metadata against the shared HEAD, and evict stale or
+  idle masters. An acknowledged sealed journal allows private image reclamation.
 - Use no-follow mount operations and os.Root for job-controlled tree cleanup.
-- Keep disabled until real Ceph/Kata/virtiofs/container smoke validation.
-- Run `go test -race ./internal/cachevolumes ./cmd/cache-volumes`.
-
-- New cold images default to 20 decimal GB, rounded up to MiB for RBD. Clones
-  inherit their parent size; changing the fleet default must not resize existing
-  images. Customer-configurable capacity is a follow-up.
+- Keep the fleet disabled until deployed Kata and provider smoke validation.
+- Run `go test -race ./internal/cachevolumes ./cmd/cache-volumes` and
+  `scripts/test-cache-filesystem.sh` (real Linux loop mounts/reflinks in Docker).
+- New images default to 20 decimal GB. Configurable per-volume capacity and
+  macOS custom volumes remain follow-ups.

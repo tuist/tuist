@@ -1,7 +1,7 @@
 # Cache volume integrations
 
 GitHub Actions, Buildkite and GitLab CI have implemented Linux entry points and
-server identity adapters. They share private per-job RBD clones, 20 GB capacity,
+server identity adapters. They share private per-job local image clones, 20 GB capacity,
 seven-day idle expiry, generation fencing, teardown checks and the dashboard.
 macOS is a separate follow-up. Provider namespaces never share data implicitly.
 
@@ -12,7 +12,7 @@ macOS is a separate follow-up. Provider namespaces never share data implicitly.
 | GitLab CI | Installed `tuist-cache-volume` command or reusable before_script include | Default-branch push, schedule or web pipeline, no tag |
 
 All three entry points are packaged and automatically released from `main`.
-The initial distribution-repository setup and Ceph/Kata fleet smoke gates remain
+The initial distribution-repository setup and local-image/Kata fleet smoke gates remain
 rollout work. Publishing a wrapper does not enable storage on the fleet.
 Neither packaging nor fake-coordinator tests establish live storage compatibility.
 
@@ -141,6 +141,6 @@ including its downgrade guard.
 
 Before enabling a fleet, run each actual packaged entry point through cold/warm
 reuse across hosts, simultaneous clones, failure/cancellation, PR/MR and other
-branches, clear during a job, and delayed cleanup. Validate Ceph credentials,
-RBD/Kata mount propagation and capacity failure behavior. Keep the feature
-disabled until those checks pass; production Ceph is not provisioned by this PR.
+branches, clear during a job, and delayed cleanup. Validate local filesystem provisioning,
+local-image/Kata mount propagation and capacity failure behavior. Keep the feature
+disabled until those checks pass; the live fleet must pass the local-image rollout gates.

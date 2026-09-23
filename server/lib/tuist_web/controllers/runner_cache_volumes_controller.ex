@@ -38,6 +38,18 @@ defmodule TuistWeb.RunnerCacheVolumesController do
 
   def report(conn, _), do: send_resp(conn, :bad_request, "")
 
+  def image(conn, %{"node_name" => node, "id" => id} = params) do
+    with :ok <- authenticate(conn),
+         {:ok, result} <- CacheVolumes.image(node, id, params) do
+      conn |> put_resp_header("cache-control", "no-store") |> json(result)
+    else
+      {:error, reason} when reason in [:conflict, :not_found] -> send_resp(conn, :conflict, "")
+      _ -> send_resp(conn, :forbidden, "")
+    end
+  end
+
+  def image(conn, _), do: send_resp(conn, :bad_request, "")
+
   defp authenticate(conn) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {:ok, %{namespace: namespace, name: name}} <- K8sClient.create_controller_token_review(token),

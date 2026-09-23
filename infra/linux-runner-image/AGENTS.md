@@ -264,4 +264,4 @@ Buildkite uses the plugin in [ci/cache-volume](../../ci/cache-volume/AGENTS.md).
 Persist pod-local volume routing to the staged environment before starting the
 agent, then re-export it in the global environment hook after sanitization.
 GitLab forwards the same three routing variables through RunnerSettings.
-Neither path receives node-agent/Ceph credentials or decides publication.
+Neither path receives node-agent or object-storage credentials or decides publication.

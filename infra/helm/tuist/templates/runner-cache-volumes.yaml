@@ -102,9 +102,7 @@ spec:
             - --namespace={{ $namespace }}
             - --authorize-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/cache-volumes/authorize
             - --max-slots={{ .Values.runnersFleetLinux.cacheVolumes.maxSlots }}
-            - --rbd-pool={{ required "cacheVolumes.ceph.pool is required" .Values.runnersFleetLinux.cacheVolumes.ceph.pool }}
-            - --rbd-namespace={{ .Values.runnersFleetLinux.cacheVolumes.ceph.namespace }}
-            - --rbd-client={{ .Values.runnersFleetLinux.cacheVolumes.ceph.client }}
+            - --min-free-gb={{ .Values.runnersFleetLinux.cacheVolumes.minFreeGB }}
             - --volume-gb={{ .Values.runnersFleetLinux.cacheVolumes.volumeGB }}
           env:
             - name: NODE_NAME
@@ -126,9 +124,6 @@ spec:
             - name: cache
               mountPath: /cache
               mountPropagation: Bidirectional
-            - name: ceph
-              mountPath: /etc/ceph
-              readOnly: true
             - name: devices
               mountPath: /dev
             - name: temporary
@@ -142,9 +137,6 @@ spec:
               mountPath: /kubelet-pods
               readOnly: true
       volumes:
-        - name: ceph
-          secret:
-            secretName: {{ required "cacheVolumes.ceph.existingSecret is required" .Values.runnersFleetLinux.cacheVolumes.ceph.existingSecret }}
         - name: devices
           hostPath: {path: /dev, type: Directory}
         - name: temporary
