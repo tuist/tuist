@@ -174,6 +174,55 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
              ]
     end
 
+    test "page a branch's commits from a cursor, both ways", %{project: project, account: account} do
+      commits =
+        for index <- 0..6 do
+          CoverageFixtures.commit("c#{index}", if(index == 0, do: [], else: ["c#{index - 1}"]), index)
+        end
+
+      CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c6"}])
+      for index <- [1, 3, 4, 6], do: run(project, account, %{git_commit_sha: "c#{index}"}, [1, 0])
+
+      first = History.commit_cursor_page(project, "main", page_size: 3)
+      assert Enum.map(first.commits, & &1.git_commit_sha) == ["c6", "c5", "c4"]
+      assert {first.has_previous_page?, first.has_next_page?} == {false, true}
+      # c4 compares with c3, below the page.
+      assert Enum.map(first.commits, & &1.change) == [+0.0, nil, +0.0]
+
+      second = History.commit_cursor_page(project, "main", page_size: 3, after: first.end_cursor)
+      assert Enum.map(second.commits, & &1.git_commit_sha) == ["c3", "c2", "c1"]
+      assert {second.has_previous_page?, second.has_next_page?} == {true, true}
+
+      last = History.commit_cursor_page(project, "main", page_size: 3, after: second.end_cursor)
+      assert Enum.map(last.commits, & &1.git_commit_sha) == ["c0"]
+      assert {last.has_previous_page?, last.has_next_page?} == {true, false}
+
+      back = History.commit_cursor_page(project, "main", page_size: 3, before: second.start_cursor)
+      assert Enum.map(back.commits, & &1.git_commit_sha) == ["c6", "c5", "c4"]
+      assert {back.has_previous_page?, back.has_next_page?} == {false, true}
+    end
+
+    test "page a branch's labelled commits from a cursor when its ref owns none", %{
+      project: project,
+      account: account
+    } do
+      for {sha, hour} <- [{"a", 1}, {"b", 2}, {"c", 3}] do
+        run(project, account, %{git_commit_sha: sha, ran_at: NaiveDateTime.new!(~D[2026-09-01], Time.new!(hour, 0, 0))}, [
+          1,
+          0
+        ])
+      end
+
+      first = History.commit_cursor_page(project, "main", page_size: 2)
+      assert first.ordered_by == :time
+      assert Enum.map(first.commits, & &1.git_commit_sha) == ["c", "b"]
+      assert first.has_next_page?
+
+      second = History.commit_cursor_page(project, "main", page_size: 2, after: first.end_cursor)
+      assert Enum.map(second.commits, & &1.git_commit_sha) == ["a"]
+      assert {second.has_previous_page?, second.has_next_page?} == {true, false}
+    end
+
     test "chain a complete commit whatever it measured", %{project: project, account: account} do
       run(project, account, %{git_commit_sha: "a", ran_at: ~N[2026-09-01 10:00:00]}, [1, 0])
       run(project, account, %{git_commit_sha: "b", ran_at: ~N[2026-09-02 10:00:00], scheme: "Other"}, [1, 1])

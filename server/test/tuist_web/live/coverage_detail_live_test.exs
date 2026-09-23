@@ -151,6 +151,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert patch =~ "Sources/A.swift"
       assert patch =~ "Sources/New.swift"
       assert patch =~ "3–4"
+      refute patch =~ "…"
 
       skipped = lv |> element("#coverage-skipped-table") |> render()
       assert skipped =~ "README.md"

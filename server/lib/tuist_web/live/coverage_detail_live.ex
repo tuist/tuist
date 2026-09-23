@@ -113,7 +113,12 @@ defmodule TuistWeb.CoverageDetailLive do
         Query.put(socket.assigns.uri.query, "coverage-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> Query.drop(query, "page"))}
+    {:noreply,
+     push_patch(socket,
+       to:
+         socket.assigns.current_path <>
+           "?" <> (query |> Query.drop("page") |> Query.drop("after") |> Query.drop("before"))
+     )}
   end
 
   def handle_info({:test_created, _test_run}, socket) do
@@ -274,17 +279,22 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign(:commits_ordered_by, :time)
   end
 
+  # A branch's commits are read a page at a time from a cursor, however long
+  # its history.
   defp assign_commits(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
     page =
-      History.commit_page(
+      History.commit_cursor_page(
         project,
         subject.branch,
-        Keyword.merge(period_opts(socket), page: Query.bounded_page(query["page"]), page_size: @page_size)
+        Keyword.merge(period_opts(socket), after: query["after"], before: query["before"], page_size: @page_size)
       )
 
     socket
     |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
-    |> assign(:commits_meta, %{current_page: page.page, total_pages: page.total_pages})
+    |> assign(
+      :commits_meta,
+      Map.put(Map.take(page, [:has_next_page?, :has_previous_page?, :start_cursor, :end_cursor]), :cursor, true)
+    )
     |> assign(:commits_ordered_by, page.ordered_by)
   end
 
@@ -400,20 +410,6 @@ defmodule TuistWeb.CoverageDetailLive do
       )
 
   def patch_caption(_patch), do: nil
-
-  @doc """
-  A file's changed lines in the Files tab. A file whose diff changed no
-  code moved because of what the runs executed, not because of the diff.
-  """
-  def changed_lines_label(nil), do: dgettext("dashboard_tests", "No changed code")
-  def changed_lines_label(%{reason: reason}), do: skipped_reason_label(reason)
-
-  def changed_lines_label(file),
-    do:
-      dgettext("dashboard_tests", "%{covered} of %{executable} ran",
-        covered: format_number(file.covered_lines),
-        executable: format_number(file.executable_lines)
-      )
 
   @doc """
   Whether the head has a diff to be judged on. Changed files come from the

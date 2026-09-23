@@ -5900,6 +5900,49 @@ coverage_ratio = fn path, drift ->
   base |> Kernel.+(drift) |> max(0.05) |> min(1.0)
 end
 
+# A file's functions: named after what the file is, splitting its lines
+# between them, each covering the lines of its own span that ran.
+coverage_function_names = %{
+  "View" => ["body", "header", "content(for:)", "emptyState", "toolbarItems"],
+  "ViewModel" => ["init(service:)", "load()", "refresh()", "select(_:)", "handle(_:)"],
+  "Store" => ["init(defaults:)", "value(for:)", "set(_:for:)", "reset()"],
+  "Client" => ["init(session:)", "send(_:)", "decode(_:from:)", "validate(_:)", "retry(_:after:)"],
+  "Policy" => ["init(maxAttempts:)", "delay(for:)", "shouldRetry(_:)"],
+  "Cache" => ["init(capacity:)", "value(for:)", "insert(_:for:)", "evict()"],
+  "Tests" => ["setUp()", "tearDown()"]
+}
+
+coverage_functions = fn path, counts ->
+  stem = Path.basename(path, ".swift")
+
+  names =
+    Enum.find_value(coverage_function_names, fn {suffix, names} ->
+      if String.ends_with?(stem, suffix), do: names
+    end) ||
+      ["init()", "#{String.downcase(String.first(stem))}#{String.slice(stem, 1..-1//1)}()", "update(_:)", "describe()"]
+
+  lines = length(counts)
+  names = Enum.take(names, max(2, min(length(names), div(lines, 24))))
+  span = div(lines, length(names))
+
+  names
+  |> Enum.with_index()
+  |> Enum.map(fn {name, index} ->
+    first = index * span
+    last = if index == length(names) - 1, do: lines, else: first + span
+    own = Enum.slice(counts, first, last - first)
+    covered = Enum.count(own, &(&1 > 0))
+
+    %{
+      name: name,
+      line_number: first + 1,
+      execution_count: if(covered > 0, do: 1 + rem(:erlang.phash2({path, name}), 24), else: 0),
+      covered_lines: covered,
+      executable_lines: length(own)
+    }
+  end)
+end
+
 coverage_file = fn {path, target, lines}, sha, drift ->
   target_lines = round(lines * coverage_ratio.(path, drift))
 
@@ -5908,8 +5951,6 @@ coverage_file = fn {path, target, lines}, sha, drift ->
 
   counts = Enum.map(1..lines, fn line -> if MapSet.member?(uncovered, line), do: 0, else: 3 end)
   covered = Enum.count(counts, &(&1 > 0))
-  half_lines = div(lines, 2)
-  half_covered = div(covered, 2)
 
   %{
     path: path,
@@ -5920,22 +5961,7 @@ coverage_file = fn {path, target, lines}, sha, drift ->
     executable_lines: lines,
     line_numbers: Enum.to_list(1..lines),
     execution_counts: counts,
-    functions: [
-      %{
-        name: "body",
-        line_number: 12,
-        execution_count: 4,
-        covered_lines: half_covered,
-        executable_lines: half_lines
-      },
-      %{
-        name: "configure()",
-        line_number: half_lines + 1,
-        execution_count: if(covered > half_covered, do: 2, else: 0),
-        covered_lines: covered - half_covered,
-        executable_lines: lines - half_lines
-      }
-    ]
+    functions: coverage_functions.(path, counts)
   }
 end
 
@@ -5945,6 +5971,83 @@ coverage_extra_scheme_targets = %{
   "DesignSystem" => ["DesignSystem"],
   "AppIntegration" => ["App", "Networking"]
 }
+
+# The tests behind a scheme's files: a suite per source file, named after it
+# in its target's test module, whose tests split the lines the file's
+# coverage says ran, so each file page lists the tests that executed it and
+# the lines each one ran. What the CLI sends as the run's evidence.
+coverage_test_names = ["test_default()", "test_update()", "test_failure()", "test_empty()"]
+
+coverage_tests_for_files = fn files ->
+  files
+  |> Enum.reject(& &1.is_test)
+  |> Enum.with_index()
+  |> Enum.flat_map(fn {file, index} ->
+    module = hd(file.targets) <> "Tests"
+    suite = Path.basename(file.path, ".swift") <> "Tests"
+    ran = for {line, count} <- Enum.zip(file.line_numbers, file.execution_counts), count > 0, do: line
+    tests = Enum.take(coverage_test_names, 2 + rem(:erlang.phash2(file.path), 3))
+    chunk = max(1, ceil(length(ran) / length(tests)))
+
+    tests
+    |> Enum.zip(Enum.chunk_every(ran, chunk))
+    |> Enum.map(fn {name, lines} ->
+      ranges =
+        lines
+        |> Enum.chunk_while(
+          nil,
+          fn
+            line, nil -> {:cont, {line, line}}
+            line, {first, last} when line == last + 1 -> {:cont, {first, line}}
+            line, range -> {:cont, range, {line, line}}
+          end,
+          fn
+            nil -> {:cont, nil}
+            range -> {:cont, range, nil}
+          end
+        )
+        |> Enum.flat_map(fn {first, last} -> [first, last] end)
+
+      %{module: module, suite: suite, name: name, file: index, lines: ranges}
+    end)
+  end)
+end
+
+coverage_evidence_for_files = fn files ->
+  sources = Enum.reject(files, & &1.is_test)
+  tests = coverage_tests_for_files.(sources)
+
+  %{
+    paths: Enum.map(sources, & &1.path),
+    scopes:
+      Enum.map(tests, fn test ->
+        %{kind: "test", module: test.module, suite: test.suite, name: test.name, files: [test.file], lines: [test.lines]}
+      end)
+  }
+end
+
+coverage_test_modules_for_files = fn files ->
+  files
+  |> Enum.reject(& &1.is_test)
+  |> coverage_tests_for_files.()
+  |> Enum.group_by(& &1.module)
+  |> Enum.map(fn {module, tests} ->
+    %{
+      name: module,
+      status: "success",
+      duration: 1000 * length(tests),
+      test_cases:
+        Enum.map(tests, fn test ->
+          %{
+            name: test.name,
+            test_suite_name: test.suite,
+            status: "success",
+            duration: 40 + rem(:erlang.phash2(test), 400)
+          }
+        end)
+    }
+  end)
+end
 
 coverage_files_for_scheme = fn scheme, sha, drift ->
   coverage_sources
@@ -6130,6 +6233,8 @@ end
 coverage_run_count =
   Enum.reduce(coverage_plan, 0, fn commit, count ->
     Enum.each(commit.schemes, fn {scheme, partial} ->
+      files = coverage_files_for_scheme.(scheme, commit.sha, commit.drift)
+
       ran_at =
         commit.committed_at
         |> DateTime.add(Enum.random(600..5400), :second)
@@ -6161,12 +6266,10 @@ coverage_run_count =
           pull_request_number: commit.pull_request && commit.pull_request.number,
           git_object_format: "sha1",
           history_source: "client",
-          test_modules: [],
+          test_modules: coverage_test_modules_for_files.(files),
+          coverage_evidence: coverage_evidence_for_files.(files),
           changed_files: commit.changed_files,
-          xcode_coverage: %{
-            partial: partial,
-            files: coverage_files_for_scheme.(scheme, commit.sha, commit.drift)
-          }
+          xcode_coverage: %{partial: partial, files: files}
         })
     end)
 

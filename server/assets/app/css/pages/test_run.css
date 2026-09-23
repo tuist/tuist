@@ -921,6 +921,28 @@
       gap: var(--noora-spacing-5);
     }
 
+    /* The files list is the one a subject's Files tab shows. */
+    & [data-part="files-table"] {
+      display: flex;
+      flex-direction: column;
+
+      & .noora-pagination-group {
+        margin-top: var(--noora-spacing-7);
+      }
+    }
+
+    & [data-part="cell"][data-type="badge"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-body-medium);
+      }
+    }
+
     & [data-part="coverage-file-link"] {
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-body-medium);

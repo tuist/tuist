@@ -617,17 +617,6 @@ defmodule TuistWeb.Coverage.Components do
   def skipped_reason_label(:not_instrumented), do: dgettext("dashboard_tests", "Not compiled into any tested target")
   def skipped_reason_label(:excluded), do: dgettext("dashboard_tests", "Excluded in the project's coverage settings")
 
-  @doc false
-  def line_ranges(nil), do: dgettext("dashboard_tests", "Unknown")
-  def line_ranges([]), do: dgettext("dashboard_tests", "None")
-
-  def line_ranges(ranges) do
-    Enum.map_join(ranges, ", ", fn
-      {line, line} -> Integer.to_string(line)
-      {first, last} -> "#{first}–#{last}"
-    end)
-  end
-
   @brief_ranges 2
 
   @doc """
@@ -855,4 +844,66 @@ defmodule TuistWeb.Coverage.Components do
     </.card>
     """
   end
+
+  attr :id, :string, default: "coverage-files-table"
+
+  attr :rows, :list,
+    required: true,
+    doc: "Files with `path` and `coverage`, and `delta`/`baseline_coverage` when compared."
+
+  attr :file_href, :any, required: true, doc: "A file's page, from its path."
+  attr :meta, :map, required: true, doc: "`current_page` and `total_pages`."
+  attr :page_patch, :any, required: true
+  attr :changed, :map, default: nil, doc: "The patch's files by path; without it the Changed lines column is left out."
+
+  @doc """
+  A list of files, each opening on its own page: its coverage, and the
+  change against a baseline when there is one. A subject's Files tab and a
+  run's Coverage tab list their files with it.
+  """
+  def coverage_files_table(assigns) do
+    ~H"""
+    <div data-part="files-table">
+      <.table id={@id} rows={@rows} row_navigate={fn file -> @file_href.(file.path) end}>
+        <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+          <.text_and_description_cell
+            label={Path.basename(file.path)}
+            description={parent_dir(file.path)}
+          />
+        </:col>
+        <:col :let={file} label={dgettext("dashboard_tests", "File coverage")}>
+          <.coverage_change_cell
+            coverage={file.coverage}
+            delta={Map.get(file, :delta)}
+            placeholder={dgettext("dashboard_tests", "Removed")}
+            new={Map.has_key?(file, :baseline_coverage) and is_nil(file.baseline_coverage)}
+          />
+        </:col>
+        <:col :let={file} :if={@changed} label={dgettext("dashboard_tests", "Changed lines")}>
+          <.text_cell label={changed_lines_label(Map.get(@changed, file.path))} />
+        </:col>
+      </.table>
+      <.pagination_group
+        :if={@meta.total_pages > 1}
+        current_page={@meta.current_page}
+        number_of_pages={@meta.total_pages}
+        page_patch={@page_patch}
+      />
+    </div>
+    """
+  end
+
+  @doc """
+  A file's changed lines in a files list. A file whose diff changed no code
+  moved because of what the runs executed, not because of the diff.
+  """
+  def changed_lines_label(nil), do: dgettext("dashboard_tests", "No changed code")
+  def changed_lines_label(%{reason: reason}), do: skipped_reason_label(reason)
+
+  def changed_lines_label(file),
+    do:
+      dgettext("dashboard_tests", "%{covered} of %{executable} ran",
+        covered: format_number(file.covered_lines),
+        executable: format_number(file.executable_lines)
+      )
 end

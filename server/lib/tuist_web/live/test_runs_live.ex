@@ -15,7 +15,6 @@ defmodule TuistWeb.TestRunsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
-  alias Tuist.Tests.Coverage
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -432,40 +431,12 @@ defmodule TuistWeb.TestRunsLive do
     {test_runs, test_runs_meta} =
       Tests.list_test_runs(options, project_id: project.id, coverage: coverage_option(coverage_filters))
 
-    coverage_by_run =
-      if socket.assigns.coverage_enabled,
-        do: Coverage.totals_for_runs(project.id, Enum.map(test_runs, & &1.id)),
-        else: %{}
-
     socket
     |> assign(:active_filters, filters)
     |> assign(:test_runs, test_runs)
     |> assign(:test_runs_meta, test_runs_meta)
     |> assign(:test_runs_filter, search)
-    |> assign(:coverage_by_run, coverage_by_run)
   end
-
-  @doc false
-  def coverage_label(nil), do: dgettext("dashboard_tests", "No coverage")
-
-  def coverage_label(%{covered_lines: covered, executable_lines: executable}),
-    do: "#{Coverage.percentage(covered, executable)}%"
-
-  @doc false
-  def coverage_badge_label(%{partial: true}), do: dgettext("dashboard_tests", "P")
-  def coverage_badge_label(_totals), do: dgettext("dashboard_tests", "F")
-
-  @doc false
-  def coverage_badge_color(%{partial: true}), do: "warning"
-  def coverage_badge_color(_totals), do: "success"
-
-  @doc false
-  def coverage_title(nil), do: nil
-
-  def coverage_title(%{partial: true}),
-    do: dgettext("dashboard_tests", "Partial: the run skipped tests, or a shard did not report its coverage.")
-
-  def coverage_title(_totals), do: dgettext("dashboard_tests", "Full: every test of the run reported its coverage.")
 
   # `is not` inverts the set the value names, so "is not Full" leaves the
   # partial runs and the ones that gathered no coverage.

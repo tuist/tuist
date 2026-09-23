@@ -255,6 +255,220 @@ defmodule Tuist.Tests.Coverage.History do
     |> Enum.reverse()
   end
 
+  @lookback 30
+
+  @doc """
+  One page of the branch's commits, newest first, read at a cursor rather
+  than by walking the branch: `after:` the page's `end_cursor` reads the
+  older commits, `before:` its `start_cursor` the newer ones. A branch whose
+  ref owns commits is paged by position, unmeasured commits included; one
+  that falls back to its labelled commits (`ordered_by: :time`) by when they
+  ran. Each commit's chaining and `change` are settled over the page and the
+  #{@lookback} measured commits below it. The period bounds the commits
+  (`since`/`until`); `page_size` is 20 by default.
+  """
+  def commit_cursor_page(%Project{} = project, branch, opts \\ []) do
+    size = Keyword.get(opts, :page_size, 20)
+    cursor = cursor(opts)
+
+    case branch_ref(project, branch) do
+      nil -> labelled_cursor_page(project, branch, opts, size, cursor)
+      ref -> graph_cursor_page(project, ref, opts, size, cursor)
+    end
+  end
+
+  defp cursor(opts) do
+    case {Keyword.get(opts, :after), Keyword.get(opts, :before)} do
+      {value, _} when value not in [nil, ""] -> {:older, value}
+      {_, value} when value not in [nil, ""] -> {:newer, value}
+      _ -> nil
+    end
+  end
+
+  defp graph_cursor_page(project, ref, opts, size, cursor) do
+    period = [since: second(Keyword.get(opts, :since)), until: second(Keyword.get(opts, :until))]
+    cursor = cursor_position(cursor)
+
+    {rows, more?} =
+      read_page(cursor, size, fn
+        {:older, position}, limit ->
+          GitHistory.ref_commits(ref.id, period ++ [below: position, limit: limit])
+
+        {:newer, position}, limit ->
+          GitHistory.ref_commits(ref.id, period ++ [above: position, limit: limit, order: :asc])
+
+        nil, limit ->
+          GitHistory.ref_commits(ref.id, period ++ [limit: limit])
+      end)
+
+    head_position = ref.id |> GitHistory.ref_commits(limit: 1) |> Enum.map(&elem(&1, 1)) |> List.first(0)
+
+    commits =
+      Enum.map(rows, fn {sha, position, committed_at} ->
+        %{git_commit_sha: sha, depth: head_position - position, committed_at: committed_at, position: position}
+      end)
+
+    {newest, oldest} = bounds(commits, & &1.position)
+    lookback = graph_lookback(project, ref, oldest)
+
+    %{
+      commits: settle(commits, Commits.by_shas(project.id, Enum.map(commits, & &1.git_commit_sha)), lookback),
+      ordered_by: :graph,
+      has_next_page?:
+        older_page?(cursor, more?, fn ->
+          not is_nil(oldest) and GitHistory.ref_commits?(ref.id, period ++ [below: oldest])
+        end),
+      has_previous_page?:
+        newer_page?(cursor, more?, fn ->
+          not is_nil(newest) and GitHistory.ref_commits?(ref.id, period ++ [above: newest])
+        end),
+      start_cursor: newest && "p#{newest}",
+      end_cursor: oldest && "p#{oldest}"
+    }
+  end
+
+  # Newest first whichever way the page was read; `read` gets the cursor and
+  # one row more than the page, to tell whether there is more.
+  defp read_page(cursor, size, read) do
+    {rows, more?} = cursor |> read.(size + 1) |> split(size)
+
+    case cursor do
+      {:newer, _value} -> {Enum.reverse(rows), more?}
+      _ -> {rows, more?}
+    end
+  end
+
+  defp graph_lookback(_project, _ref, nil), do: []
+
+  defp graph_lookback(project, ref, oldest) do
+    lookback =
+      Commits.all(project.id, fn query ->
+        query
+        |> where([c], c.ref_id == ^ref.id and c.position < ^oldest)
+        |> order_by([c], desc: c.position)
+        |> limit(@lookback)
+      end)
+
+    lookback ++ fork_lookback(project, ref, length(lookback))
+  end
+
+  # A branch forked from another: the lookback runs on into the commits it
+  # left, so its oldest commits compare with them.
+  defp fork_lookback(project, %{parent_ref_id: parent_ref_id, fork_position: fork}, found)
+       when not is_nil(parent_ref_id) and found < @lookback do
+    Commits.all(project.id, fn query ->
+      query
+      |> where([c], c.ref_id == ^parent_ref_id and c.position <= ^fork)
+      |> order_by([c], desc: c.position)
+      |> limit(^(@lookback - found))
+    end)
+  end
+
+  defp fork_lookback(_project, _ref, _found), do: []
+
+  defp labelled_cursor_page(project, branch, opts, size, cursor) do
+    labelled = fn query -> query |> where([c], c.git_branch == ^branch) |> ran_in(opts) end
+    cursor = cursor_time(cursor)
+    read = fn refine -> Commits.all(project.id, &(&1 |> labelled.() |> refine.())) end
+
+    {rows, more?} =
+      read_page(cursor, size, fn
+        {:older, key}, limit -> read.(&(&1 |> older_than(key) |> newest_first() |> limit(^limit)))
+        {:newer, key}, limit -> read.(&(&1 |> newer_than(key) |> oldest_first() |> limit(^limit)))
+        nil, limit -> read.(&(&1 |> newest_first() |> limit(^limit)))
+      end)
+
+    {newest, oldest} = bounds(rows, &{&1.ran_at, &1.git_commit_sha})
+    newer? = fn key -> not is_nil(key) and read.(&(&1 |> newer_than(key) |> limit(1))) != [] end
+    lookback = if oldest, do: read.(&(&1 |> older_than(oldest) |> newest_first() |> limit(@lookback))), else: []
+
+    commits =
+      rows
+      |> Enum.with_index()
+      |> Enum.map(fn {row, depth} -> %{git_commit_sha: row.git_commit_sha, depth: depth, committed_at: row.ran_at} end)
+
+    %{
+      commits: settle(commits, Map.new(rows, &{&1.git_commit_sha, &1}), lookback),
+      ordered_by: :time,
+      has_next_page?: older_page?(cursor, more?, fn -> lookback != [] end),
+      has_previous_page?: newer_page?(cursor, more?, fn -> newer?.(newest) end),
+      start_cursor: newest && time_cursor(newest),
+      end_cursor: oldest && time_cursor(oldest)
+    }
+  end
+
+  defp older_than(query, {at, sha}),
+    do: where(query, [c], c.ran_at < ^at or (c.ran_at == ^at and c.git_commit_sha < ^sha))
+
+  defp newer_than(query, {at, sha}),
+    do: where(query, [c], c.ran_at > ^at or (c.ran_at == ^at and c.git_commit_sha > ^sha))
+
+  defp oldest_first(query), do: order_by(query, [c], asc: c.ran_at, asc: c.git_commit_sha)
+
+  defp newest_first(query), do: order_by(query, [c], desc: c.ran_at, desc: c.git_commit_sha)
+
+  # The page's commits with their measurements, chained and changed over the
+  # page and the measured commits below it, which are dropped after.
+  defp settle(commits, measured, lookback) do
+    measured = Map.new(measured, fn {sha, row} -> {sha, with_coverage(row)} end)
+
+    page =
+      Enum.map(commits, fn commit ->
+        case Map.get(measured, commit.git_commit_sha) do
+          nil -> Map.merge(commit, %{measured: false, chained: false})
+          row -> commit |> Map.merge(Map.delete(row, :committed_at)) |> Map.put(:measured, true)
+        end
+      end)
+
+    below = Enum.map(lookback, &(&1 |> with_coverage() |> Map.put(:measured, true)))
+
+    (page ++ below)
+    |> chain()
+    |> with_changes()
+    |> Enum.take(length(page))
+  end
+
+  defp split(rows, size), do: {Enum.take(rows, size), length(rows) > size}
+
+  defp bounds([], _key), do: {nil, nil}
+  defp bounds(rows, key), do: {key.(List.first(rows)), key.(List.last(rows))}
+
+  # Reading older: more below when the page overflowed. Reading newer: more
+  # above when it overflowed, and below whatever the page came from. The
+  # other side is asked only when the direction does not answer it.
+  defp older_page?({:newer, _}, _more?, below?), do: below?.()
+  defp older_page?(_cursor, more?, _below?), do: more?
+
+  defp newer_page?({:newer, _}, more?, _above?), do: more?
+  defp newer_page?({:older, _}, _more?, above?), do: above?.()
+  defp newer_page?(nil, _more?, _above?), do: false
+
+  defp cursor_position({direction, "p" <> position}) do
+    case Integer.parse(position) do
+      {position, ""} -> {direction, position}
+      _ -> nil
+    end
+  end
+
+  defp cursor_position(_cursor), do: nil
+
+  defp cursor_time({direction, "t" <> value}) do
+    with [micros, sha] <- String.split(value, "-", parts: 2),
+         {micros, ""} <- Integer.parse(micros),
+         {:ok, at} <- DateTime.from_unix(micros, :microsecond) do
+      {direction, {at, sha}}
+    else
+      _ -> nil
+    end
+  end
+
+  defp cursor_time(_cursor), do: nil
+
+  defp time_cursor({at, sha}), do: "t#{DateTime.to_unix(at, :microsecond)}-#{sha}"
+
+  defp second(nil), do: nil
+  defp second(at), do: at |> utc() |> DateTime.truncate(:second)
+
   defp in_period?(%{committed_at: nil}, _opts), do: true
 
   defp in_period?(%{committed_at: committed_at}, opts) do

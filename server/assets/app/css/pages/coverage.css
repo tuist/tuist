@@ -89,6 +89,12 @@
     overflow-x: hidden;
   }
 
+  /* A widget's tooltip is positioned inside its section, so a section of
+     widgets must not clip it; widgets never overflow sideways. */
+  & .noora-card__section:has(> [data-part="widgets"]) {
+    overflow: visible;
+  }
+
   & .noora-chart {
     height: 200px;
   }
@@ -107,7 +113,8 @@
     }
   }
 
-  & .noora-pagination-group {
+  & .noora-pagination-group,
+  & .tuist-pagination {
     margin-top: var(--noora-spacing-7);
   }
 }

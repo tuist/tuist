@@ -227,13 +227,12 @@ defmodule TuistWeb.TestRunsLiveTest do
       test_run
     end
 
-    test "shows a run's coverage in the table", %{
+    test "leaves coverage out of the table", %{
       conn: conn,
       organization: organization,
       project: project
     } do
       coverage_run(project, organization, "SchemeFull", lines: [1, 1, 1, 0])
-      coverage_run(project, organization, "SchemePartial", lines: [1, 0, 0, 0], partial: true)
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
@@ -241,15 +240,9 @@ defmodule TuistWeb.TestRunsLiveTest do
       render_async(lv, @render_async_timeout)
 
       refute has_element?(lv, "#widget-coverage")
-
       table = lv |> element("#test-runs-table") |> render()
-      assert table =~ "75.0%"
-      assert table =~ "25.0%"
-      # The full run is marked F, the partial one P.
-      assert table =~ ~s(data-color="success")
-      assert table =~ ~s(data-color="warning")
-      assert table =~ "Full: every test of the run reported its coverage."
-      assert table =~ "Partial: the run skipped tests, or a shard did not report its coverage."
+      assert table =~ "SchemeFull"
+      refute table =~ "75.0%"
     end
 
     test "filters the runs by their coverage", %{

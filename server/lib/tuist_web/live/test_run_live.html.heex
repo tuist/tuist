@@ -2388,39 +2388,26 @@
       icon="file"
       data-part="coverage-files-card"
     >
-      <.card_section data-part="coverage-files-section">
-        <.table id="coverage-files-table" rows={@coverage_files}>
-          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <div data-part="cell" data-type="text">
-              <.link
-                data-part="coverage-file-link"
-                navigate={
-                  TuistWeb.Coverage.Components.coverage_file_href(
-                    @selected_account.name,
-                    @selected_project.name,
-                    file.path,
-                    %{test_run: @run.id}
-                  )
-                }
-              >
-                {file.path}
-              </.link>
-            </div>
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
-            <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
-          </:col>
-        </.table>
-        <.pagination_group
-          :if={@coverage_files_meta.total_pages > 1}
-          current_page={@coverage_files_meta.current_page}
-          number_of_pages={@coverage_files_meta.total_pages}
+      <.card_section :if={@coverage_files != []} data-part="coverage-files-section">
+        <TuistWeb.Coverage.Components.coverage_files_table
+          rows={@coverage_files}
+          file_href={
+            &TuistWeb.Coverage.Components.coverage_file_href(
+              @selected_account.name,
+              @selected_project.name,
+              &1,
+              %{test_run: @run.id}
+            )
+          }
+          meta={@coverage_files_meta}
           page_patch={fn page -> "?#{Query.put(@uri.query, "coverage-page", page)}" end}
         />
       </.card_section>
+      <TuistWeb.Coverage.Components.coverage_empty
+        :if={@coverage_files == []}
+        title={dgettext("dashboard_tests", "No file was measured in this run")}
+        image="table"
+      />
     </.card>
   </div>
 

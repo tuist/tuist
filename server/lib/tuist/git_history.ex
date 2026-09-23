@@ -321,22 +321,33 @@ defmodule Tuist.GitHistory do
   @doc """
   The commits a ref owns, newest first, as `{sha, position, committed_at}`:
   the default branch's first-parent history, or what another ref added above
-  its fork. `:limit` caps them (200 by default) and `:at_or_below` starts
-  at a position.
+  its fork. `:limit` caps them (200 by default); `:at_or_below`, `:below` and
+  `:above` bound the positions and `:since`/`:until` when the commits were
+  made (`DateTime`); `order: :asc` reads them oldest first.
   """
   def ref_commits(ref_id, opts \\ []) do
-    query =
-      from(c in Commit,
-        where: c.ref_id == ^ref_id,
-        order_by: [desc: c.position],
-        limit: ^Keyword.get(opts, :limit, 200),
-        select: {c.sha, c.position, c.committed_at}
-      )
+    ref_id
+    |> ref_commits_query(opts)
+    |> order_by([c], [{^Keyword.get(opts, :order, :desc), c.position}])
+    |> limit(^Keyword.get(opts, :limit, 200))
+    |> select([c], {c.sha, c.position, c.committed_at})
+    |> Repo.all()
+  end
 
-    case Keyword.get(opts, :at_or_below) do
-      nil -> Repo.all(query)
-      position -> Repo.all(where(query, [c], c.position <= ^position))
-    end
+  @doc "Whether the ref owns a commit within the bounds `ref_commits/2` takes."
+  def ref_commits?(ref_id, opts), do: ref_id |> ref_commits_query(opts) |> Repo.exists?()
+
+  defp ref_commits_query(ref_id, opts) do
+    Enum.reduce(opts, from(c in Commit, where: c.ref_id == ^ref_id), fn
+      {:at_or_below, position}, query -> where(query, [c], c.position <= ^position)
+      {:below, position}, query -> where(query, [c], c.position < ^position)
+      {:above, position}, query -> where(query, [c], c.position > ^position)
+      {:since, nil}, query -> query
+      {:since, since}, query -> where(query, [c], c.committed_at >= ^since)
+      {:until, nil}, query -> query
+      {:until, until}, query -> where(query, [c], c.committed_at <= ^until)
+      _option, query -> query
+    end)
   end
 
   @doc """

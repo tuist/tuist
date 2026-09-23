@@ -112,11 +112,7 @@ defmodule TuistWeb.CoverageLive do
 
   defp assign_commits(%{assigns: %{selected_project: project, branch: branch}} = socket) do
     page =
-      History.commit_page(
-        project,
-        branch,
-        Keyword.merge(period_opts(socket), page_size: @commits_preview_size, max_commits: @commits_preview_size)
-      )
+      History.commit_cursor_page(project, branch, Keyword.put(period_opts(socket), :page_size, @commits_preview_size))
 
     socket
     |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))

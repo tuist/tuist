@@ -379,26 +379,6 @@
               status="warning"
             />
           </:col>
-          <:col
-            :let={test_run}
-            :if={@coverage_enabled}
-            label={dgettext("dashboard_tests", "Coverage")}
-          >
-            <div
-              data-part="cell"
-              data-type="text"
-              title={coverage_title(@coverage_by_run[test_run.id])}
-            >
-              <span data-part="label">{coverage_label(@coverage_by_run[test_run.id])}</span>
-              <.badge
-                :if={@coverage_by_run[test_run.id]}
-                style="light-fill"
-                size="small"
-                color={coverage_badge_color(@coverage_by_run[test_run.id])}
-                label={coverage_badge_label(@coverage_by_run[test_run.id])}
-              />
-            </div>
-          </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Branch")}>
             <.text_cell
               icon="git_branch"

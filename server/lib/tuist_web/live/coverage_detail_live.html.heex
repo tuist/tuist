@@ -68,7 +68,9 @@
       :for={tab <- tabs(@subject)}
       selected={@tab == tab}
       label={tab_label(tab)}
-      patch={"?#{@uri.query |> Query.put("tab", tab) |> Query.drop("page")}"}
+      patch={
+        "?#{@uri.query |> Query.put("tab", tab) |> Query.drop("page") |> Query.drop("after") |> Query.drop("before")}"
+      }
     />
   </.tab_menu_horizontal>
 
@@ -475,7 +477,7 @@
             <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
           </:col>
           <:col :let={file} label={dgettext("dashboard_tests", "Uncovered lines")}>
-            <.text_cell label={line_ranges(file.uncovered_ranges)} />
+            <.line_ranges_cell ranges={file.uncovered_ranges} />
           </:col>
         </.table>
       </.card_section>
@@ -563,8 +565,19 @@
               } />
             </:col>
           </.table>
+          <.pagination
+            :if={
+              Map.get(@commits_meta, :cursor) &&
+                (@commits_meta.has_next_page? or @commits_meta.has_previous_page?)
+            }
+            uri={@uri}
+            has_previous_page={@commits_meta.has_previous_page?}
+            has_next_page={@commits_meta.has_next_page?}
+            start_cursor={@commits_meta.start_cursor}
+            end_cursor={@commits_meta.end_cursor}
+          />
           <.pagination_group
-            :if={@commits_meta.total_pages > 1}
+            :if={not Map.get(@commits_meta, :cursor, false) and @commits_meta.total_pages > 1}
             current_page={@commits_meta.current_page}
             number_of_pages={@commits_meta.total_pages}
             page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
@@ -659,41 +672,13 @@
         data-part="files-card"
       >
         <.card_section :if={@file_rows != []} data-part="files-section">
-          <div data-part="files-table">
-            <.table
-              id="coverage-files-table"
-              rows={@file_rows}
-              row_navigate={fn file -> file_href(assigns, file.path) end}
-            >
-              <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-                <.text_and_description_cell
-                  label={Path.basename(file.path)}
-                  description={parent_dir(file.path)}
-                />
-              </:col>
-              <:col :let={file} label={dgettext("dashboard_tests", "File coverage")}>
-                <.coverage_change_cell
-                  coverage={file.coverage}
-                  delta={file.delta}
-                  placeholder={dgettext("dashboard_tests", "Removed")}
-                  new={is_nil(file.baseline_coverage)}
-                />
-              </:col>
-              <:col
-                :let={file}
-                :if={@comparison.patch.status == :available}
-                label={dgettext("dashboard_tests", "Changed lines")}
-              >
-                <.text_cell label={changed_lines_label(Map.get(@patch_files, file.path))} />
-              </:col>
-            </.table>
-            <.pagination_group
-              :if={@files_meta.total_pages > 1}
-              current_page={@files_meta.current_page}
-              number_of_pages={@files_meta.total_pages}
-              page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
-            />
-          </div>
+          <.coverage_files_table
+            rows={@file_rows}
+            file_href={fn path -> file_href(assigns, path) end}
+            meta={@files_meta}
+            page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+            changed={if @comparison.patch.status == :available, do: @patch_files}
+          />
         </.card_section>
         <.coverage_empty
           :if={@file_rows == []}
