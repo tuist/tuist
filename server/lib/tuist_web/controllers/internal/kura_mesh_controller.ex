@@ -130,6 +130,9 @@ defmodule TuistWeb.Internal.KuraMeshController do
           refresh_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
         })
 
+      {:error, {:tenant_mismatch, expected_tenant_id}} ->
+        permanent_tenant_conflict(conn, expected_tenant_id)
+
       {:error, :unauthorized} ->
         conn
         |> put_status(:unauthorized)
@@ -153,6 +156,9 @@ defmodule TuistWeb.Internal.KuraMeshController do
           register_heartbeat(conn, account, node_id, advertised_http_url, params)
         end
 
+      {:error, {:tenant_mismatch, expected_tenant_id}} ->
+        permanent_tenant_conflict(conn, expected_tenant_id)
+
       {:error, :unauthorized} ->
         conn
         |> put_status(:unauthorized)
@@ -164,6 +170,16 @@ defmodule TuistWeb.Internal.KuraMeshController do
     conn
     |> put_status(:bad_request)
     |> json(%{error: "invalid_payload"})
+  end
+
+  defp permanent_tenant_conflict(conn, expected_tenant_id) do
+    conn
+    |> put_status(:conflict)
+    |> json(%{
+      error: "tenant_mismatch",
+      expected_tenant_id: expected_tenant_id,
+      message: "KURA_TENANT_ID is permanent and must keep its original value after an account rename."
+    })
   end
 
   defp register_heartbeat(conn, account, node_id, advertised_http_url, params) do
@@ -239,20 +255,33 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # instance in a mesh region blocks readiness on that view until it answers.
   defp authorize_control_plane_registration(client_id, client_secret, %{"tenant_id" => tenant_id})
        when is_binary(tenant_id) and tenant_id != "" do
-    with {:ok, _client} <-
-           Client.authorize(
-             id: client_id,
-             source: %{type: "basic", value: client_secret},
-             grant_type: "kura_registration"
-           ),
-         %{} = account <- Identity.account(tenant_id) do
-      {:ok, account}
-    else
+    case Client.authorize(
+           id: client_id,
+           source: %{type: "basic", value: client_secret},
+           grant_type: "kura_registration"
+         ) do
+      {:ok, _client} -> resolve_control_plane_tenant(tenant_id)
       _ -> {:error, :unauthorized}
     end
   end
 
   defp authorize_control_plane_registration(_client_id, _client_secret, _params), do: {:error, :unauthorized}
+
+  # Resolve retained handles only to explain a configuration error after the
+  # deployment credential is verified. Accepting one as the storage tenant
+  # would let a renamed node join with a different object-key namespace.
+  defp resolve_control_plane_tenant(tenant_id) do
+    case Identity.account(tenant_id) do
+      nil ->
+        case Identity.account_for_handle(tenant_id) do
+          nil -> {:error, :unauthorized}
+          account -> {:error, {:tenant_mismatch, Identity.tenant_id(account)}}
+        end
+
+      account ->
+        {:ok, account}
+    end
+  end
 
   defp authorize_self_hosted(client_id, client_secret) do
     case SelfHostedClients.verify(client_id, client_secret) do

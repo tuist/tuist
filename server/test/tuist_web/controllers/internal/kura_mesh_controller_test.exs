@@ -5,6 +5,8 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
   alias Tuist.Accounts
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.Identity
+  alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.KuraFixtures
@@ -88,6 +90,82 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       |> json_response(200)
 
     assert response["account_handle"] == renamed.name
+  end
+
+  test "on-prem registration and discovery reject renamed handles with the permanent tenant", %{conn: conn} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+    stub(Tuist.Environment, :env, fn -> :prod end)
+    # No managed server or tenant-scoped client: the rename gate does not cover
+    # a standalone installation using the deployment-level credential.
+    account = AccountsFixtures.organization_fixture().account
+    tenant = account.kura_tenant_id
+    {:ok, middle} = Accounts.update_account(account, %{name: "middle-#{account.id}"})
+    {:ok, renamed} = Accounts.update_account(middle, %{name: "renamed-#{account.id}"})
+
+    for handle <- [middle.name, renamed.name, String.upcase(renamed.name)] do
+      for response <- control_plane_tenant_requests(conn, handle, "static-kura-secret") do
+        assert %{
+                 "error" => "tenant_mismatch",
+                 "expected_tenant_id" => ^tenant,
+                 "message" => message
+               } = json_response(response, 409)
+
+        assert message =~ "KURA_TENANT_ID is permanent"
+      end
+    end
+
+    assert Registrations.list_endpoints(renamed) == []
+
+    [registration, peers] = control_plane_tenant_requests(conn, tenant, "static-kura-secret")
+    assert %{"accepted" => true} = json_response(registration, 200)
+    assert %{"account_handle" => handle} = json_response(peers, 200)
+    assert handle == renamed.name
+    assert [endpoint] = Registrations.list_endpoints(renamed)
+    assert endpoint.account_id == account.id
+  end
+
+  test "invalid control-plane credentials cannot discover a renamed account's permanent tenant", %{conn: conn} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+    account = AccountsFixtures.organization_fixture().account
+    {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+    reject(&Identity.account/1)
+    reject(&Identity.account_for_handle/1)
+
+    for response <- control_plane_tenant_requests(conn, renamed.name, "wrong") do
+      assert json_response(response, 401) == %{"error" => "unauthorized"}
+    end
+  end
+
+  test "unknown control-plane tenants remain unauthorized", %{conn: conn} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    for response <- control_plane_tenant_requests(conn, "missing-tenant", "static-kura-secret") do
+      assert json_response(response, 401) == %{"error" => "unauthorized"}
+    end
+  end
+
+  defp control_plane_tenant_requests(conn, tenant, secret) do
+    [
+      conn
+      |> recycle()
+      |> basic_auth("static-kura-client", secret)
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "standalone-node",
+        tenant_id: tenant,
+        advertised_http_url: "https://cache.example.internal",
+        ready: true
+      }),
+      conn
+      |> recycle()
+      |> basic_auth("static-kura-client", secret)
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{tenant}")
+    ]
   end
 
   defp basic_auth(conn, client_id, secret) do
