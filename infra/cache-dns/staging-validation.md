@@ -3,8 +3,10 @@
 Status: staging DNS, TLS, cache protocols, demotion, failure ordering, and real
 client checks have passed. Both full withdrawal drains completed. Testing
 found two hand-out races; both fixes are deployed, and the final local client
-soak passed. GitHub CI awaits permission to store
-the temporary fixture token as an Actions secret.
+soak passed. DNS source inspection now passes through the normal read-only
+identity, and the external GitHub CI soak passed all twelve remote hits. The
+self-hosted runner's public-endpoint attempt was denied by its network policy.
+The temporary GitHub Actions secret has been deleted.
 
 ## Revisions and rollout boundaries
 
@@ -28,7 +30,8 @@ the temporary fixture token as an Actions secret.
 
 The dedicated staging organization is `kura-spec95-e2e` (account 49), with project
 `probe` (46). A project-restricted account token with cache write scopes expires
-24 hours after creation. It is held only in a local file with mode `0600`; the
+24 hours after creation. It is held in a local file with mode `0600` and was
+temporarily supplied to GitHub Actions with the user's explicit approval. The
 current Go probe sends it in the HTTP Authorization header and to grpcurl through
 the subprocess environment, never through command arguments or evidence logs.
 
@@ -90,12 +93,11 @@ regional baseline checks; no request in this table used `cache.tuist.dev`.
 - At 18:32 UTC, both new deployments had 2/2 ready, updated replicas. The existing
   Cloudflare writer had `--exclude-domains=cache.tuist.dev` (`rollout-after.json`).
 
-The staging Kubernetes identity can read Kura instances and ingresses but cannot
-`get` or `list` `dnsendpoints.externaldns.k8s.io` in namespace `kura`. Direct
-inspection of DNSEndpoint source records was therefore not completed. The
-remaining DNS source assertions need that read permission through the normal
-cluster access path; no workload identity or admin kubeconfig was used to bypass
-the denial.
+During this baseline, the staging Kubernetes identity could read Kura instances
+and ingresses but could not `get` or `list` `dnsendpoints.externaldns.k8s.io` in
+namespace `kura`. Direct source inspection was deferred until the separate
+read-access PR deployed on September 23, as recorded below. No workload identity
+or admin kubeconfig was used to bypass the denial.
 
 ## AWS bootstrap and Go probe — September 23
 
@@ -336,22 +338,67 @@ The prepared CI mode is `linux-runners-staging-smoke.yml` with both
 and staging URL. It unsets the private runner endpoint, requires the exact public
 stable API answer, and checks a unique remote upload followed by twelve remote
 hits in fresh Gradle processes. ShellCheck and actionlint passed, with only the
-pre-existing custom runner label excluded from actionlint. Automatic approval
-blocked transferring the scoped token to an Actions secret; explicit permission
-is pending, and no secret has been uploaded.
+pre-existing custom runner label excluded from actionlint. The user explicitly
+approved transferring the scoped token to a temporary Actions secret on
+September 23.
+
+The first GitHub attempt,
+[run 35855223163](https://github.com/tuist/tuist/actions/runs/35855223163), used
+`tuist-staging-linux`. The API returned the exact stable hostname, but the first
+Gradle cache request timed out connecting to Montreal. Hubble on the runner's
+node recorded repeated `EGRESS DENIED` / `Policy denied DROPPED` SYN packets to
+`144.217.252.35:443` at 11:35:38–11:35:58 UTC. Cilium classifies that public IP
+as `remote-node`, so the runner's public-internet egress rule does not admit it.
+The harness deliberately removes the normal private runner endpoint override;
+this failure therefore does not establish a failure of the normal private
+runner-cache path. The temporary secret was deleted after this run.
+Evidence: `github-ci-first/`, `github-ci-first-failed.log`, and
+`github-ci-self-hosted-policy-denials.log`.
+
+The same public-endpoint soak was then dispatched on `ubuntu-latest` in
+[run 35855668647](https://github.com/tuist/tuist/actions/runs/35855668647), to
+validate the external CI client path without changing runner network policy.
+It **passed**: the initial unique remote upload and all twelve fresh-process
+remote hits succeeded, with local caching disabled and output bytes verified.
+All thirteen API observations, from 11:39:19 through 11:47:00 UTC, returned only
+the stable hostname with `provisioning: false`. Downloaded artifacts independently
+confirmed the upload, all twelve `FROM-CACHE` / loaded-entry results, absence of
+cache errors, and the thirteen exact API answers. The fixture token was absent
+from the artifacts. Cleanup deleted `SPEC95_STAGING_CACHE_TOKEN`; a subsequent
+repository-secret listing confirmed zero entries with that name.
+Evidence: `github-ci-external/` and `github-ci-external-watch.log`.
+
+## DNS source access and final provider comparison
+
+The independent read-only access change,
+[PR #13524](https://github.com/tuist/tuist/pull/13524), was merged at 11:37:22 UTC.
+Its existing automatic Pomerium workflow completed successfully in
+[run 35855609870](https://github.com/tuist/tuist/actions/runs/35855609870), applying
+the access chart to staging, canary, and production. This was an access-chart
+rollout; the spec95 application changes remain staging-only.
+
+Through the normal staging tailnet identity, get/list/watch on DNSEndpoints now
+return `yes`; create/update/patch/delete still return `no`. At 11:41 UTC, direct
+source inspection found exactly one surviving fixture stable DNSEndpoint,
+`kura-kura-spec95-e2e-ca-east-1-stable-dns`. Its A target, TTL 60, `ca-east` set
+identifier, `ca-central-1` AWS region and health-check ID all matched Route53.
+The provider's TXT ownership named `tuist-staging-cache` and that exact CRD
+source. No retired Paris or health-fixture DNSEndpoints remained. The private
+runner DNS source still targeted its private address separately.
+Evidence: `dns-source-after-access-pr.json` and
+`dns-provider-after-access-pr.json`.
 
 ## Remaining work
 
-1. Run the prepared GitHub CI soak if credential transfer is approved. The same
-   harness passed locally; this does not substitute for a GitHub runner origin.
-2. Direct DNSEndpoint source inspection still needs namespace-scoped get/list
-   access; the normal staging identity still reports `no` for that permission.
-3. Before broader rollout, validate longer-term steering telemetry and an actual
+1. The self-hosted runner's public endpoint override remains blocked by its
+   network policy, as recorded above. Use the external runner for this public
+   client validation; the ordinary runner-cache path keeps its private override.
+2. Before broader rollout, validate longer-term steering telemetry and an actual
    shared-gateway outage. These remain distinct from the regional spot comparisons
    and isolated health-check failure above.
 
-The main fixture remains available for the pending CI run, with Montreal and its
-private runner cache active. Account 50 and the main fixture's Paris resources
+The main fixture remains available for the remaining staging drills, with Montreal
+and its private runner cache active. Account 50 and the main fixture's Paris resources
 are gone. All temporary fault settings are restored: the AWS writer is 1/1,
 the controller's temporary inline IAM deny is absent, and the surviving health
 check uses port 443. The wildcard certificate remains Ready. The isolated CAS
