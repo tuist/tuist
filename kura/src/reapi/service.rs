@@ -1672,7 +1672,8 @@ impl ActionCache for ReapiService {
                         (
                             index,
                             explicit,
-                            batch_read_one(&self.state, namespace_id, &digest, budget).await,
+                            batch_read_one(&self.state, namespace_id, &digest, budget, explicit)
+                                .await,
                         )
                     }
                 }))
@@ -1691,6 +1692,7 @@ impl ActionCache for ReapiService {
                     // still fit) and the client falls back to BatchReadBlobs.
                     // A path the client listed explicitly keeps the hard error.
                     Err(status) if !explicit && status.code() == tonic::Code::ResourceExhausted => {
+                        self.state.metrics.record_reapi_inline_fallback();
                     }
                     Err(status) => return Err(status),
                 }
@@ -3116,6 +3118,7 @@ async fn batch_read_one(
     namespace_id: &str,
     digest: &reapi::Digest,
     budget: &std::sync::Mutex<MaterializationBudget<'_>>,
+    required: bool,
 ) -> Result<Option<Vec<u8>>, Status> {
     let key = blob_key(&digest_key(digest)?);
     let Some(manifest) = state
@@ -3134,10 +3137,14 @@ async fn batch_read_one(
             .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
         return Ok(None);
     };
-    budget
-        .lock()
-        .expect("budget lock")
-        .claim(manifest.size, "CAS response materialization")?;
+    {
+        let mut budget = budget.lock().expect("budget lock");
+        if required {
+            budget.claim(manifest.size, "CAS response materialization")?;
+        } else {
+            budget.try_claim(manifest.size, "CAS response materialization")?;
+        }
+    }
     let Some(bytes) = read_serving_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
@@ -3836,20 +3843,32 @@ impl<'a> MaterializationBudget<'a> {
     }
 
     fn claim(&mut self, size_bytes: u64, label: &str) -> Result<(), Status> {
+        self.try_claim(size_bytes, label).inspect_err(|_| {
+            self.state
+                .metrics
+                .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+            self.state
+                .metrics
+                .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+        })
+    }
+
+    // Optional inlining uses the same admission without recording a request failure.
+    fn try_claim(&mut self, size_bytes: u64, label: &str) -> Result<(), Status> {
         let requested_bytes = usize::try_from(size_bytes).map_err(|_| {
-            self.reject(format!(
+            Status::resource_exhausted(format!(
                 "{label} exceeds the maximum addressable REAPI materialization size"
             ))
         })?;
         if requested_bytes > self.remaining_bytes {
-            return Err(self.reject(format!(
+            return Err(Status::resource_exhausted(format!(
                 "{label} needs {requested_bytes} bytes but only {} bytes remain in the REAPI materialization budget",
                 self.remaining_bytes
             )));
         }
         let limit_bytes = self.state.memory.reapi_materialization_limit_bytes();
         if requested_bytes > limit_bytes {
-            return Err(self.reject(format!(
+            return Err(Status::resource_exhausted(format!(
                 "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
             )));
         }
@@ -3858,7 +3877,7 @@ impl<'a> MaterializationBudget<'a> {
             .memory
             .try_acquire_response_materialization(requested_bytes)
             .map_err(|_| {
-                self.reject(format!(
+                Status::resource_exhausted(format!(
                     "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
                 ))
             })?;
@@ -3867,16 +3886,6 @@ impl<'a> MaterializationBudget<'a> {
             self.held_permits.push(permit);
         }
         Ok(())
-    }
-
-    fn reject(&self, message: String) -> Status {
-        self.state
-            .metrics
-            .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
-        self.state
-            .metrics
-            .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
-        Status::resource_exhausted(message)
     }
 
     fn into_response_guard(self) -> Option<crate::memory::ResponseTransportGuard> {
@@ -9375,6 +9384,7 @@ mod tests {
                 .map(|status| status.code),
             Some(tonic::Code::ResourceExhausted as i32)
         );
+        assert_materialization_metrics(&context, 1, 0);
     }
 
     #[tokio::test]
@@ -9443,6 +9453,31 @@ mod tests {
             .expect_err("inline expansion should respect the materialization budget");
 
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        assert_materialization_metrics(&context, 1, 0);
+    }
+
+    fn assert_materialization_metrics(context: &TestContext, rejected: u64, fallbacks: u64) {
+        let rendered = context.state.metrics.render();
+        for (series, expected) in [
+            (
+                "kura_capacity_sheds_total_total{kind=\"reapi_materialization\"}",
+                rejected,
+            ),
+            (
+                "kura_memory_actions_total_total{action=\"reapi_materialization_rejected\"}",
+                rejected,
+            ),
+            ("kura_reapi_inline_fallbacks_total_total", fallbacks),
+        ] {
+            let value = rendered
+                .lines()
+                .find_map(|line| {
+                    line.strip_prefix(series)
+                        .and_then(|value| value.trim().parse::<u64>().ok())
+                })
+                .unwrap_or(0);
+            assert_eq!(value, expected, "unexpected {series}");
+        }
     }
 
     async fn persist_output_file_blob(context: &TestContext, bytes: &[u8]) -> reapi::Digest {
@@ -9538,6 +9573,7 @@ mod tests {
         let output_files = &response.get_ref().output_files;
         assert_eq!(output_files[0].contents, first_bytes);
         assert_eq!(output_files[1].contents, second_bytes);
+        assert_materialization_metrics(&context, 0, 0);
     }
 
     #[tokio::test]
@@ -9588,6 +9624,7 @@ mod tests {
                 if explicit { large.clone() } else { Vec::new() }
             );
         }
+        assert_materialization_metrics(&context, 0, 0);
     }
 
     #[tokio::test]
@@ -9613,6 +9650,11 @@ mod tests {
             vec![
                 reapi::OutputFile {
                     path: "large".into(),
+                    digest: Some(large_digest.clone()),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "another-large".into(),
                     digest: Some(large_digest),
                     ..Default::default()
                 },
@@ -9638,7 +9680,88 @@ mod tests {
 
         let output_files = &response.get_ref().output_files;
         assert!(output_files[0].contents.is_empty());
-        assert_eq!(output_files[1].contents, small_bytes);
+        assert!(output_files[1].contents.is_empty());
+        assert_eq!(output_files[2].contents, small_bytes);
+        assert_materialization_metrics(&context, 0, 2);
+    }
+
+    #[tokio::test]
+    async fn wildcard_inline_pool_contention_counts_fallbacks_separately_from_required_reads() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let bytes = vec![b'x'; 2 * 1024 * 1024];
+        let digest = persist_output_file_blob(&context, &bytes).await;
+        let action = persist_action_result_with_outputs(
+            &context,
+            vec![reapi::OutputFile {
+                path: "output".into(),
+                digest: Some(digest.clone()),
+                ..Default::default()
+            }],
+        )
+        .await;
+        // Leave room for the action result but not the optional output file.
+        let limit = context.state.memory.reapi_materialization_limit_bytes();
+        let first = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(limit)
+            .unwrap();
+        let second = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(limit - 1024 * 1024)
+            .unwrap();
+        let request = |paths| {
+            Request::new(reapi::GetActionResultRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                action_digest: Some(action.clone()),
+                inline_output_files: paths,
+                ..Default::default()
+            })
+        };
+
+        let response = service
+            .get_action_result(request(vec!["*".into()]))
+            .await
+            .unwrap();
+        assert!(response.get_ref().output_files[0].contents.is_empty());
+        assert_materialization_metrics(&context, 0, 1);
+        drop(response);
+
+        let error = service
+            .get_action_result(request(vec!["*".into(), "output".into()]))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        assert_materialization_metrics(&context, 1, 1);
+        drop((first, second));
+
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![digest],
+                ..Default::default()
+            }))
+            .await
+            .unwrap();
+        assert_eq!(response.get_ref().responses[0].data, bytes);
+        assert_eq!(
+            response.get_ref().responses[0]
+                .status
+                .as_ref()
+                .unwrap()
+                .code,
+            0
+        );
+        assert_materialization_metrics(&context, 1, 1);
     }
 
     #[tokio::test]
@@ -9679,6 +9802,7 @@ mod tests {
             .expect_err("an explicitly listed over-budget file must fail the lookup");
 
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        assert_materialization_metrics(&context, 1, 0);
     }
 
     #[tokio::test]
