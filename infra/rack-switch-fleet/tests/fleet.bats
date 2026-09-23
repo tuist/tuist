@@ -61,10 +61,10 @@ teardown() {
 fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
 
 # The transcripts and the export in fixtures/ were taken off ber1-tor-b before the
-# site routed the tailnet through its edge node, so they are compared with a
-# render of the site without one.
+# site gave its switches the edge node as gateway and before port descriptions
+# were rendered, so they are compared with a render of the site without either.
 render_as_captured() {
-    jq 'del(.management.edge)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
+    jq 'del(.management.edge) | (.devices[].ports[]?) |= del(.description)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
     fleet_render "$BATS_TEST_TMPDIR/captured-site.json" "$1"
 }
 
@@ -135,9 +135,13 @@ render_as_captured() {
     fleet_render "$SITE_FILE" ber1-tor-a > "$a"
     fleet_render "$SITE_FILE" ber1-tor-b > "$b"
     run bash -c "diff '$a' '$b' | grep '^<'"
-    [ "${#lines[@]}" -eq 2 ]
+    # the hostname, the address, and the two port descriptions the site gives
+    # tor-a (its WAN uplink and its end of the ISL)
+    [ "${#lines[@]}" -eq 4 ]
     [[ "$output" == *'hostname "ber1-tor-a"'* ]]
     [[ "$output" == *"ip address 192.168.0.11"* ]]
+    [[ "$output" == *'description "router uplink WAN"'* ]]
+    [[ "$output" == *'description "isl ber1-tor-b"'* ]]
 }
 
 @test "the committed configs are what the site definition renders" {
@@ -1051,7 +1055,8 @@ mini_referencing() {
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-mgmt"
     [ "$status" -eq 0 ]
     [[ "$output" == *"kind: RackSwitch"* ]]
-    [[ "$output" != *"ports:"* ]]
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-mgmt | yq '.spec | has(\"ports\")'"
+    [ "$output" = "false" ]
 }
 
 @test "the CRD the objects are written against exists and declares a status subresource" {
@@ -1770,6 +1775,69 @@ run_resolve() {
     [ "${lines[1]}" = "255.192.0.0" ]
     [ "${lines[2]}" = "255.255.255.0" ]
     [ "${lines[3]}" = "255.255.255.255" ]
+}
+
+# The site with a VLAN, a lag on tor-b and two ports with settings of their own,
+# for the render features the rack does not use yet. Their forms were read off
+# ber1-tor-b after the controller wrote each one.
+site_with_vlans_and_lag() {
+    jq '.vlans = [{id: 20, name: "storage"}]
+        | (.devices[] | select(.name == "ber1-tor-b")) |= (
+            .lags = [{id: 1, name: "uplink", ports: [29, 30]}]
+            | .ports["5"] = {purpose: "data", peer: "none", media: "dac", vlans: []}
+            | .ports["6"] = {purpose: "data", peer: "none", media: "dac", spanning_tree: false, description: "no stp here"})' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site-vlans.json"
+    echo "$BATS_TEST_TMPDIR/site-vlans.json"
+}
+
+@test "a site VLAN is carried tagged on every port that names none, as the controller does" {
+    site="$(site_with_vlans_and_lag)"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'vlan 20\n name "storage"'* ]]
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c \$'\\tswitchport general allowed vlan 20 tagged\$'"
+    # 32 ports less port 5, which names no VLANs, plus the lag's own interface
+    [ "$output" = "32" ]
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context | grep -c '^interface ten-gigabitEthernet 1/0/5	switchport'"
+    [ "$output" = "0" ]
+}
+
+@test "a lag renders as a port-channel and its members take its name" {
+    site="$(site_with_vlans_and_lag)"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context"
+    [[ "$output" == *$'interface port-channel 1\tdescription "uplink"'* ]]
+    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/29\tchannel-group 1 mode active'* ]]
+    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/30\tdescription "uplink"'* ]]
+}
+
+@test "a port with spanning tree off renders as no spanning-tree, with its own description" {
+    site="$(site_with_vlans_and_lag)"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context"
+    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/6\tno spanning-tree'* ]]
+    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/6\tdescription "no stp here"'* ]]
+    [[ "$output" != *$'interface ten-gigabitEthernet 1/0/6\tspanning-tree'* ]]
+}
+
+@test "a port name the controller would refuse stops the render" {
+    # "router uplink (WAN)" was refused by the controller on ber1-tor-a.
+    jq '(.devices[] | select(.name == "ber1-tor-a") | .ports["24"].description) = "router uplink (WAN)"' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
+    run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-a
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"names the controller would refuse: router uplink (WAN)"* ]]
+}
+
+@test "the object carries the configuration the reconciler writes, from the same data" {
+    site="$(site_with_vlans_and_lag)"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$site' ber1-tor-b | yq -o=json '.spec' | jq -c '{mac, managedBy, gateway: .config.gateway, vlans: .config.vlans, lags: .config.lags, ports: (.config.ports | length), p5: .config.ports[4].taggedVlans, p6: .config.ports[5], p29: .config.ports[28].description}'"
+    [ "$status" -eq 0 ]
+    [ "$output" = '{"mac":"d4:d6:df:03:d8:b2","managedBy":"controller","gateway":"192.168.0.10","vlans":[{"id":20,"name":"storage"}],"lags":[{"id":1,"name":"uplink","ports":[29,30]}],"ports":32,"p5":[],"p6":{"port":6,"description":"no stp here","spanningTree":false,"nativeVlan":1,"taggedVlans":[20]},"p29":"uplink"}' ]
+}
+
+@test "a VLAN's controller profile line is the controller's, with or without an address" {
+    baseline="$(fleet_controller_baseline sx3832)"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; printf '\tprofile network id 431253275 vid 20\n\tprofile network id 2004123914 vid 1 ip 192.168.0.1/24\ninterface port-channel 1\tspeed 10000\n\tlldp\n' | fleet_without_controller adds '$baseline'"
+    [ "$output" = $'\tlldp' ]
 }
 
 @test "every switch's management address has the edge node as its gateway, as the controller writes it" {

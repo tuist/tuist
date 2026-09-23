@@ -24,7 +24,7 @@ adds		no voice vlan oui [0-9A-F:]+
 adds		ipv6 routing
 adds		profile ip id [0-9]+ ip 0\.0\.0\.0/0
 adds		profile ipv6 id [0-9]+ ipv6 ::/0
-adds		profile network id [0-9]+ vid [0-9]+ ip [0-9./]+
+adds		profile network id [0-9]+ vid [0-9]+( ip [0-9./]+)?
 adds		access-list mode blacklist
 adds		port-channel load-balance src-dst-ip
 adds		loopback-detection
@@ -36,3 +36,4 @@ adds	interface vlan 1	ipv6 address auto-global
 adds	interface vlan 1	ipv6 dnsDynamic
 adds	interface gigabitEthernet 1/0/[0-9]+	lldp med-status
 adds	interface gigabitEthernet 1/0/[0-9]+	description "Port[0-9]+"
+adds	interface port-channel [0-9]+	speed [0-9]+

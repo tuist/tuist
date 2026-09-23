@@ -69,7 +69,7 @@
           "purpose": "wan",
           "peer": "router",
           "media": "copper",
-          "description": "router uplink (WAN)",
+          "description": "router uplink WAN",
           "protected": true
         },
         "32": {

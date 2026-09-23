@@ -263,6 +263,22 @@ configuration differed from the render only in hostname and DHCP. An earlier
 `ten-gigabitEthernet` guess for 49 to 52 would have put four interfaces it does
 not have into its zero-touch configuration.
 
+Network settings beyond the management VLAN are optional and nothing in BER1
+uses them yet; each form was read off `ber1-tor-b` after the controller wrote it:
+
+- `vlans`, at the site: `[{id, name}]`. A port carries every site VLAN tagged
+  unless it names its own, which is what the controller does with a port on its
+  `All` profile.
+- On a port in a device's `ports`: `description` (letters, digits, space,
+  `. _ -`, since the controller refuses parentheses), `spanning_tree: false`,
+  and `vlans`, the tagged VLAN ids it carries.
+- `lags`, on a device: `[{id, name, ports}]`, LACP, the only kind the controller
+  would make. The members take the lag's name and VLANs.
+
+The `RackSwitch` object carries the same settings as `spec.config`, for the
+reconciler that writes them through the controller, rendered from the same data
+as the configuration text so the two cannot disagree.
+
 ## Ports, and the machines on the other end
 
 A port's configuration should follow from the role of whatever is plugged into

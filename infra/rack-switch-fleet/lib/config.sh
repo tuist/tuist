@@ -230,9 +230,17 @@ fleet_check_ports() {
          return 1;;
     esac
   done
+  # The controller refuses a port name with parentheses in it, measured on an
+  # SX3832, and accepts spaces and hyphens; the render stays inside what is known
+  # to pass rather than fail halfway through a write.
+  local bad
+  bad="$(jq -r '[(.ports // {})[] | .description // empty, (.lags[]? | .name // empty)] | map(select(test("^[A-Za-z0-9 ._-]{1,32}$") | not)) | join(", ")' <<<"$device")"
+  if [ -n "$bad" ]; then
+    echo "error: $name has port or lag names the controller would refuse: $bad (letters, digits, space, . _ - only)" >&2
+    return 1
+  fi
 }
 
-# A device's whole desired configuration, as configuration-file text.
 # The network an interface address sits in: 192.168.50.1/24 is 192.168.50.0/24.
 fleet_network() {
   local cidr="$1" bits octets masks out="" i
@@ -253,6 +261,33 @@ fleet_prefix_mask() {
   echo "$mask"
 }
 
+# Every port a device's model has, with what the site asks of it, one per line:
+# prefix, unit, n, description, spanning tree (true|false), lag id or empty, and
+# tagged VLAN ids comma separated, split by the unit separator (\x1f): `read`
+# collapses runs of a whitespace separator such as a tab, so an empty field
+# would shift the rest. A port in a lag takes the
+# lag's name as its description, which is what the controller writes, and its
+# VLANs are the lag's. A port that names no VLANs carries every site VLAN
+# tagged, which is what the controller does with a port on its `All` profile.
+fleet_port_settings() {
+  local site_file="$1" device="$2" spec="$3"
+  jq -r --argjson d "$device" --argjson spec "$spec" '
+    ([.vlans[]?.id]) as $site_vlans |
+    ($d.lags // []) as $lags |
+    $spec.port_groups[] as $g |
+    range($g.first; $g.last + 1) as $n |
+    ($d.ports[($n | tostring)] // {}) as $p |
+    ([$lags[] | select(.ports | index($n))] | first) as $lag |
+    [ $g.prefix, $g.unit, ($n | tostring),
+      (if $lag then ($lag.name // "lag\($lag.id)") else ($p.description // "") end),
+      ((if $p | has("spanning_tree") then $p.spanning_tree else true end) | tostring),
+      (if $lag then ($lag.id | tostring) else "" end),
+      ((if $lag then ($lag.vlans // $site_vlans) else ($p.vlans // $site_vlans) end) | map(tostring) | join(","))
+    ] | join("\u001f")
+  ' "$site_file"
+}
+
+# A device's whole desired configuration, as configuration-file text.
 fleet_render() {
   local site_file="$1" name="$2" device spec model
   device="$(fleet_device "$site_file" "$name")" || return 1
@@ -283,6 +318,10 @@ fleet_render() {
 
   printf '%s\n#\n' "$(jq -r '.banner' <<<"$spec")"
   printf 'vlan %s\n name "%s"\n#\n' "$vlan" "$vlan_name"
+  local id vlan_label
+  while IFS=$'\t' read -r id vlan_label; do
+    printf 'vlan %s\n name "%s"\n#\n' "$id" "$vlan_label"
+  done < <(jq -r '.vlans[]? | "\(.id)\t\(.name)"' "$site_file")
   printf 'hostname "%s"\n' "$name"
   printf 'serial_port baud_rate %s\n#\n' "$baud"
   printf 'no system-time dst\n#\n'
@@ -302,12 +341,23 @@ fleet_render() {
   edge_address="$(jq -r '.management.edge.address // empty' "$site_file")"
   printf 'interface vlan %s\n  ip address %s %s%s\n  ipv6 enable\n#\n' "$vlan" "$address" "$netmask" "${edge_address:+ gateway $edge_address}"
 
-  local prefix unit first last n
-  while read -r prefix unit first last; do
-    for ((n = first; n <= last; n++)); do
-      printf 'interface %s %s/%s\n  spanning-tree\n#\n' "$prefix" "$unit" "$n"
-    done
-  done < <(jq -r '.port_groups[] | "\(.prefix) \(.unit) \(.first) \(.last)"' <<<"$spec")
+  local prefix unit n description port_stp lag tagged v
+  while IFS=$'\x1f' read -r prefix unit n description port_stp lag tagged; do
+    printf 'interface %s %s/%s\n' "$prefix" "$unit" "$n"
+    [ -n "$description" ] && printf '  description "%s"\n' "$description"
+    if [ "$port_stp" = true ]; then printf '  spanning-tree\n'; else printf '  no spanning-tree\n'; fi
+    [ -n "$lag" ] && printf '  channel-group %s mode active\n' "$lag"
+    for v in ${tagged//,/ }; do printf '  switchport general allowed vlan %s tagged\n' "$v"; done
+    printf '#\n'
+  done < <(fleet_port_settings "$site_file" "$device" "$spec")
+
+  # A lag is its own interface, carrying its name, spanning tree and VLANs.
+  local lag_name
+  while IFS=$'\t' read -r lag lag_name tagged; do
+    printf 'interface port-channel %s\n  description "%s"\n  spanning-tree\n' "$lag" "$lag_name"
+    for v in ${tagged//,/ }; do printf '  switchport general allowed vlan %s tagged\n' "$v"; done
+    printf '#\n'
+  done < <(jq -r --argjson d "$device" '[.vlans[]?.id] as $site_vlans | $d.lags[]? | "\(.id)\t\(.name // "lag\(.id)")\t\((.vlans // $site_vlans) | map(tostring) | join(","))"' "$site_file")
 
   printf 'end\n'
 }
@@ -525,9 +575,36 @@ fleet_render_k8s() {
   local site_file="$1" name="$2" device revision
   device="$(fleet_device "$site_file" "$name")" || return 1
   revision="$(fleet_config_revision "$site_file" "$name")"
+  # The desired configuration, for the reconciler that writes it through the
+  # controller: the same site data the configuration text is rendered from, so
+  # the two cannot say different things.
+  local spec config
+  spec="$(fleet_model "$(jq -r '.model' <<<"$device")")" || return 1
+  config="$(fleet_port_settings "$site_file" "$device" "$spec" | jq -R -s \
+      --slurpfile site "$site_file" --argjson d "$device" '
+    $site[0] as $s |
+    {
+      hostname: $d.name,
+      managementVlan: $s.management.vlan,
+      managementPrefixLength: ($s.management.prefix | split("/")[1] | tonumber),
+      gateway: ($s.management.edge.address // ""),
+      spanningTree: $s.services.spanning_tree,
+      lldp: $s.services.lldp,
+      snmp: $s.services.snmp,
+      vlans: [$s.vlans[]? | {id, name}],
+      lags: [$d.lags[]? | {id, name: (.name // "lag\(.id)"), ports}],
+      ports: (split("\n") | map(select(length > 0) | split("\u001f")) | map({
+        port: (.[2] | tonumber),
+        description: .[3],
+        spanningTree: (.[4] == "true"),
+        nativeVlan: $s.management.vlan,
+        taggedVlans: (.[6] | if . == "" then [] else split(",") | map(tonumber) end)
+      }))
+    }')"
   jq -n --argjson d "$device" \
         --arg site "$(jq -r '.site' "$site_file")" \
         --arg revision "$revision" \
+        --argjson config "$config" \
         --argjson ports "$(fleet_port_map "$site_file" "$name" | jq -R -s '
             split("\n") | map(select(length > 0) | split("\t")) |
             map({port: (.[0] | tonumber), purpose: .[1], peer: .[2], detail: .[3]})')" '
@@ -539,11 +616,14 @@ fleet_render_k8s() {
         site: $site,
         role: $d.role,
         model: $d.model,
+        mac: ($d.mac // ""),
+        managedBy: (if $d.adopted then "controller" else "standalone" end),
         managementAddress: $d.mgmt_address,
         applyOrder: $d.apply_order,
         applyNote: $d.apply_note,
         credentialItem: $d.credential_item,
-        configRevision: $revision
+        configRevision: $revision,
+        config: $config
       } + (if ($ports | length) > 0 then { ports: $ports } else {} end))
     }' | yq -P -
 }
