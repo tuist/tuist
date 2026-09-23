@@ -227,6 +227,16 @@ uses a separately provisioned 200 GB preallocated XFS filesystem on the staging
 OVH Linux host. Its systemd mount and provisioning idempotency were checked; a host
 reboot has not been tested. Production is unchanged.
 
+The automated provisioning path was subsequently exercised in the same host
+mount namespace used by the chart's init container, with a separate disposable
+64 GB backing file. Cold creation, XFS reflink copies, the persistent systemd
+mount, and an idempotent rerun preserving sentinel contents all passed. The
+temporary mount, backing file, unit, and helper resources were removed; the
+existing runner cache remained mounted. The
+[filesystem CI run](https://github.com/tuist/tuist/actions/runs/35895316941)
+also passed provisioning refusal/retry regressions and the real image lifecycle
+suite. This tests setup and repeat execution, not a physical reboot.
+
 Real GitHub native and ordinary Docker jobs passed
 [cold attachment](https://github.com/tuist/runners-benchmark/actions/runs/35882826464),
 [warm restoration](https://github.com/tuist/runners-benchmark/actions/runs/35883138500),
