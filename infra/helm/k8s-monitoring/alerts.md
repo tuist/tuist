@@ -3634,6 +3634,113 @@ falls behind shows as `kura_sync_forward_cursor_lag_entries` and
 `kura_region_watermark_age_seconds` on the pulling side (the `Tuist Kura /
 Details` sync row), which have no rule yet.
 
+### Kura instance has no ready replicas
+
+**Live since 2026-09-22 19:20 UTC:** [rule `ffz1ualjy8fswd`](https://tuist.grafana.net/alerting/grafana/ffz1ualjy8fswd/view)
+is enabled in the separate **Cache availability** evaluation group, running
+**every 60 seconds** with a two-minute pending period. The existing `Cache`
+group evaluates every five minutes and is unchanged. At 19:22:30 UTC, live
+evaluation reported health `ok`, state `normal`, and all 185 instances Normal.
+
+[`kura-availability-alert-rules.json`](kura-availability-alert-rules.json)
+records the live rule, including its UID, folder and datasource. Merging this
+file does not provision Grafana. The authenticated browser successfully saved
+the configuration after the Atlas MCP policy PUT continued to return HTTP 403;
+the MCP authorization issue remains separate. Readback through the API verified
+the saved rule, 60-second group interval, and policy tree.
+
+The companion
+[`kura-availability-notification-policy.json`](kura-availability-notification-policy.json)
+contains **three sibling routes**, appended after the existing staging-cluster
+and staging-env exceptions. Merge these into a fresh policy tree; preserve the
+root and other routes, and never PUT this array as a whole-tree replacement:
+
+- All three match only this alert title in the `Alerts` folder.
+- The first matches `cluster!=tuist-production` and selects only
+  `Slack #notifications-non-prod`, including missing and unknown cluster labels.
+- The second matches `cluster=tuist-production`, selects `Slack #notifications 2`,
+  and uses `continue: true` to also reach the third route's `Incidents` receiver.
+- An `env=production` label alone cannot page. The existing `env=staging`
+  exception remains authoritative even with a conflicting production cluster.
+- Other alerts retain their current routes, including rules pinned to `Incidents`.
+
+Do not add `notification_settings` to the rule. Its expression retains the
+cluster label used by this policy; `env` is intentionally not required.
+Non-production instances of this rule never select the production receiver,
+its Atlas webhook, or IRM. IRM label definitions confirmed the case-sensitive
+`affected_service=Cache` option. That label selects a component; it does not by
+itself configure IRM escalation or declare an incident. The browser routing
+preview showed 165 production instances selecting Slack plus Incidents and 20
+non-production instances selecting only non-production Slack. No synthetic
+notifications or end-to-end public status-page incident drill were performed.
+
+Historical preview against the live datasource covered 13:00–18:00 UTC on
+2026-09-22 at one-minute resolution. The query detected up to 23 unavailable
+production StatefulSets; staging and canary stayed at zero. A two-minute
+subquery minimum also detected the outage, but is not an exact replay of
+Grafana's evaluation state. All three environments were zero at the final
+instant check. This is a zero-Ready-replica signal, not a complete public
+cache health check: an auth-backend failure can occur while pods stay Ready.
+
+For future reprovisioning or rollback:
+
+1. Read and save the current notification policy; merge the three scoped routes
+   without overwriting concurrent changes or duplicating existing routes. Keep
+   staging exceptions first and the production Slack route before Incidents.
+2. Upsert the existing rule UID from the payload. For a fresh stack, provision
+   it paused until routing is verified. Set the **Cache availability** group
+   interval to **60 seconds** separately; the per-rule API payload does not
+   carry the group interval. Do not change the existing `Cache` group interval.
+3. Read rule, group, and policies back. Verify matchers, receivers, absence of
+   rule-level notification overrides, interval, and live evaluation health.
+   Validate routing with Alertmanager's engine before enabling a fresh rule.
+4. To roll back, pause this rule first, then remove only these three scoped
+   routes from the current policy. Do not restore a stale whole-tree backup.
+
+Run `bash infra/helm/k8s-monitoring/test-kura-availability-alert.sh` with
+`jq`, `promtool` and `amtool` on PATH (or set `AMTOOL` to the latter's path). The
+script tests the exact query and pending period plus ten routing cases using
+Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
+
+```promql
+(max by (cluster, namespace, statefulset) (
+  kube_statefulset_replicas{namespace="kura"}
+) > bool 0)
+* on (cluster, namespace, statefulset)
+(max by (cluster, namespace, statefulset) (
+  kube_statefulset_status_replicas_ready{namespace="kura"}
+) == bool 0)
+```
+
+- Threshold: `> 0`; pending period: **2 minutes**; severity: **critical**.
+- Desired zero is excluded. One Ready replica is degraded but does not fire.
+- Healthy samples remain an explicit zero. Missing readiness is unknown,
+  not zero replicas: no-data and execution errors remain visible as Grafana
+  `NoData` / `Error`, rather than silently reporting healthy service.
+- There is no `cluster=` filter, preserving detection if Adaptive Metrics
+  removes that label; aggregation removes scrape-target label differences.
+
+This catches the total loss that the existing 30-minute warning below also
+matches but cannot promptly distinguish. On 2026-09-22 EU East's only host
+repeatedly lost API connectivity, both colocated replicas were evicted, and
+DNS-dependent bootstrap delayed their recovery. A pod count is not a complete
+external availability check: correlate it with public `/ready`, authenticated
+read failures, node conditions, Cilium, and DNS. Check how many affected
+instances share a host before diagnosing each instance independently.
+
+Do not delete local data volumes to repair a network partition. Preserve the
+readiness gate and follow the [node-local recovery runbook](../../kura-controller/node-local-recovery.md).
+Test the exact provisioning expression and pending period with:
+
+```sh
+bash infra/helm/k8s-monitoring/test-kura-availability-alert.sh
+```
+
+The fixtures cover healthy and degraded replicas, complete outage, recovery,
+a brief rollout, deliberate scale-to-zero, missing telemetry, other namespaces,
+and absent cluster labels. External probe coverage and live historical-query
+validation are still deployment checks, not consequences of those unit tests.
+
 ### Kura instance below its replica count
 
 Catches a per-account Kura StatefulSet serving on fewer ready replicas than it
@@ -3644,7 +3751,9 @@ standby is also what a rebuilt replica refills its ring from over the peer mesh
 (`instancePodAffinity` in the kura-controller). An instance down to one replica
 still answers, which is why nothing that watches request rates or error rates
 sees anything: it is not an outage, it is the absence of the thing that keeps
-the next deploy from being one.
+the next deploy from being one. Zero Ready replicas **are an outage**; use the
+separate availability rule above and do not wait for this warning's 30-minute
+pending period before investigating loss of service.
 
 **Live**: rule `dfxj89n1poidca`, created 2026-09-07 in folder `Alerts`, group
 `Cache`, alongside the other Kura rules. It carries no `notification_settings`,
