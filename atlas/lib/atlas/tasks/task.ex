@@ -22,7 +22,7 @@ defmodule Atlas.Tasks.Task do
     belongs_to :created_by, User
     belongs_to :account, Account
 
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 
   def changeset(task, attrs) do
