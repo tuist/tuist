@@ -360,6 +360,24 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  How long a commit's coverage (`coverage_commits`, in PostgreSQL) is kept,
+  in days, by when the commit was made: `commits` for the default branch and
+  any branch (`TUIST_COVERAGE_COMMIT_RETENTION_DAYS`, three years by default,
+  so a project's trend reaches that far back) and `pull_requests` for the
+  commits pull requests added (`TUIST_COVERAGE_PULL_REQUEST_COMMIT_RETENTION_DAYS`,
+  90 by default).
+  """
+  def coverage_commit_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    for {kind, variable, default} <- [
+          {:commits, "TUIST_COVERAGE_COMMIT_RETENTION_DAYS", 1095},
+          {:pull_requests, "TUIST_COVERAGE_PULL_REQUEST_COMMIT_RETENTION_DAYS", 90}
+        ],
+        into: %{} do
+      {kind, parse_artifact_retention_days(Map.get(environment, variable), variable) || default}
+    end
+  end
+
+  @doc """
   The size, in bytes of the DEFLATE-compressed coverage, above which a client
   that processed the result bundle itself uploads the coverage to object
   storage instead of sending it inline with the run. Set with

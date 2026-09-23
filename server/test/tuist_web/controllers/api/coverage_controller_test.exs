@@ -133,7 +133,8 @@ defmodule TuistWeb.API.CoverageControllerTest do
 
     test "history, branches and a pull request", %{conn: conn, prefix: prefix} do
       history = conn |> get("#{prefix}/history?branch=main&days=3650") |> json_response(:ok)
-      assert history["ordered_by"] == "time"
+      # The run on `main` recorded the branch's head, so its history is the graph's.
+      assert history["ordered_by"] == "graph"
       assert [%{"git_commit_sha" => "b", "measured" => true, "chained" => true, "coverage" => 100.0}] = history["commits"]
 
       branches = conn |> get("#{prefix}/branches?days=3650") |> json_response(:ok)

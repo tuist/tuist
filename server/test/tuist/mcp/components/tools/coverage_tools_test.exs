@@ -226,17 +226,22 @@ defmodule Tuist.MCP.Components.Tools.CoverageToolsTest do
     account: account,
     project: project
   } do
-    Tuist.GitHistory.record_branch_head(CoverageFixtures.repository_id(account), "feature", "p")
+    Tuist.GitHistory.record_branch_head(CoverageFixtures.repository_id(account), "feature", "p", "main")
 
     result =
       call(ListCoverageHistory, conn, Map.merge(handles(account, project), %{"branch" => "feature", "days" => 3650}))
 
-    assert result["ordered_by"] == "graph"
+    # The pull request's run already placed `p` on its own ref, so the branch
+    # it was pushed from owns nothing and lists what ran on it.
+    assert result["ordered_by"] == "time"
 
     assert Enum.map(result["commits"], &{&1["git_commit_sha"], &1["measured"], &1["chained"], &1["coverage"]}) == [
-             {"p", true, true, 66.7},
-             {"b", true, true, 100.0}
+             {"p", true, true, 66.7}
            ]
+
+    result = call(ListCoverageHistory, conn, Map.merge(handles(account, project), %{"branch" => "main", "days" => 3650}))
+    assert result["ordered_by"] == "graph"
+    assert Enum.map(result["commits"], & &1["git_commit_sha"]) == ["b"]
   end
 
   test "list_coverage_branches compares every branch's head with the default one", %{

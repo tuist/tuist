@@ -173,7 +173,7 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert {:error, %{kind: :no_merge_base, detail: "shallow clone"}} = Comparison.baseline(project, orphan)
 
       # With the base branch head recorded, the merge base comes from the graph.
-      Tuist.GitHistory.record_branch_head(CoverageFixtures.repository_id(account), "main", "c")
+      Tuist.GitHistory.record_branch_head(CoverageFixtures.repository_id(account), "main", "c", "main")
       assert {:ok, %{commit: "a", depth: 1}} = Comparison.baseline(project, orphan)
     end
 

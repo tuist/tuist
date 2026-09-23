@@ -920,13 +920,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   defp basis(context) do
-    candidates =
-      context.project.id
-      |> Commits.commits_query()
-      |> subquery()
-      |> select([c], c.git_commit_sha)
-      |> where([c], c.git_commit_sha != ^context.sha)
-      |> ClickHouseRepo.all()
+    candidates = Commits.measured_shas(context.project.id, context.sha)
 
     case GitHistory.nearest_ancestor(context.repository_id, context.sha, candidates) do
       {sha, _distance} -> {:ok, sha}

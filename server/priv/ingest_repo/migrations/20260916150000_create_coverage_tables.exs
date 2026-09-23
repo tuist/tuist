@@ -29,13 +29,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
     (90 by default) and run totals after `TUIST_COVERAGE_RUN_RETENTION_DAYS`
     (365 by default).
 
-  Coverage is a property of a commit: `coverage_commits` holds the totals of
-  each measured commit over the union of its runs, with the measured set
-  (which schemes, each full or partial, and which runs) and whether the
-  measurement is complete, versioned like `coverage_runs` and retained like
-  it. `git_commit_files` is the commit's file listing (path and blob per file,
-  keyed by repository and commit), what coverage is measured against and where
-  tracked files and ancestor blobs are read; it expires with the file detail.
+  Coverage is a property of a commit: its totals over the union of its runs
+  live in PostgreSQL (`coverage_commits`, beside the commit graph), since
+  they outlive the detail kept here. `git_commit_files` is the commit's file
+  listing (path and blob per file, keyed by repository and commit), what
+  coverage is measured against and where tracked files and ancestor blobs are
+  read; it expires with the file detail.
   """
   use Ecto.Migration
 
@@ -111,30 +110,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
     """)
 
     execute("""
-    CREATE TABLE IF NOT EXISTS coverage_commits
-    (
-      `project_id` Int64,
-      `git_commit_sha` String,
-      `git_repository_id` Int64 DEFAULT 0,
-      `build_system` LowCardinality(String) DEFAULT 'xcode',
-      `covered_lines` UInt64,
-      `executable_lines` UInt64,
-      `measured_files_count` UInt32 DEFAULT 0,
-      `unmeasured_files_count` UInt32 DEFAULT 0,
-      `schemes` Array(String),
-      `partial_schemes` Array(String),
-      `test_run_ids` Array(UUID),
-      `complete` Bool DEFAULT false,
-      `completeness` LowCardinality(String) DEFAULT '',
-      `version` UInt64,
-      `inserted_at` DateTime64(6) DEFAULT now()
-    )
-    ENGINE = #{Migration.engine("ReplacingMergeTree(version)")}
-    ORDER BY (project_id, git_commit_sha)
-    TTL toDateTime(inserted_at) + INTERVAL #{retention.runs} DAY
-    """)
-
-    execute("""
     CREATE TABLE IF NOT EXISTS git_commit_files
     (
       `repository_id` Int64,
@@ -153,7 +128,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateCoverageTables do
 
   def down do
     execute("DROP TABLE IF EXISTS git_commit_files")
-    execute("DROP TABLE IF EXISTS coverage_commits")
     execute("DROP TABLE IF EXISTS coverage_runs")
     execute("DROP TABLE IF EXISTS coverage_files")
   end

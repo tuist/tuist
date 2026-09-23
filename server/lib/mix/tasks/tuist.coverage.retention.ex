@@ -1,5 +1,5 @@
 defmodule Mix.Tasks.Tuist.Coverage.Retention do
-  @shortdoc "Applies the configured coverage retention to the ClickHouse tables"
+  @shortdoc "Applies the configured coverage retention"
 
   @moduledoc """
   Applies the configured coverage retention to the ClickHouse tables.
@@ -8,7 +8,8 @@ defmodule Mix.Tasks.Tuist.Coverage.Retention do
   `TUIST_COVERAGE_FILE_RETENTION_DAYS` (per-file detail) and
   `TUIST_COVERAGE_RUN_RETENTION_DAYS` (run totals). Changing either variable
   afterwards changes nothing on its own; run this task to alter the tables to
-  the values now in effect.
+  the values now in effect. It also drops the commits' coverage past its own
+  retention (`Tuist.Tests.Coverage.Commits.prune/1`).
 
       mix tuist.coverage.retention
   """
@@ -23,5 +24,7 @@ defmodule Mix.Tasks.Tuist.Coverage.Retention do
     for {table, days} <- Coverage.apply_retention() do
       Mix.shell().info("#{table}: rows expire #{days} days after insertion")
     end
+
+    Mix.shell().info("coverage_commits: #{Coverage.Commits.prune()} rows past retention dropped")
   end
 end

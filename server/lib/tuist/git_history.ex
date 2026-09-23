@@ -33,12 +33,12 @@ defmodule Tuist.GitHistory do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
-  alias Tuist.GitHistory.BranchHead
   alias Tuist.GitHistory.Commit
   alias Tuist.GitHistory.CommitFile
   alias Tuist.GitHistory.CommitListing
   alias Tuist.GitHistory.CommitParent
   alias Tuist.GitHistory.Providers
+  alias Tuist.GitHistory.Ref
   alias Tuist.GitHistory.Repository
   alias Tuist.GitHistory.Workers.CompleteHistoryWorker
   alias Tuist.IngestRepo
@@ -277,26 +277,267 @@ defmodule Tuist.GitHistory do
     :ok
   end
 
-  @doc "Records the newest commit seen on a branch."
-  def record_branch_head(repository_id, branch, sha) when is_binary(branch) and branch != "" and is_binary(sha) do
-    Repo.insert_all(
-      BranchHead,
-      [
-        %{repository_id: repository_id, branch: branch, sha: sha, seen_at: DateTime.truncate(DateTime.utc_now(), :second)}
-      ],
-      on_conflict: {:replace, [:sha, :seen_at]},
-      conflict_target: [:repository_id, :branch]
+  @doc """
+  Records the newest commit seen on a branch, advancing the branch's ref to
+  it (`advance_ref/5`): the default branch as the root of the repository's
+  first-parent tree, any other branch as forking from it.
+  """
+  def record_branch_head(repository_id, branch, sha, default_branch)
+      when is_binary(branch) and branch != "" and is_binary(sha) and sha != "" do
+    parent = if branch == default_branch or default_branch in [nil, ""], do: nil, else: default_branch
+    advance_ref(repository_id, branch, parent, sha)
+  end
+
+  def record_branch_head(_repository_id, _branch, _sha, _default_branch), do: :ok
+
+  @doc "The newest commit recorded for a branch or pull request ref, or nil."
+  def branch_head(repository_id, name) do
+    Repo.one(from(r in Ref, where: r.repository_id == ^repository_id and r.name == ^name, select: r.head_sha))
+  end
+
+  @doc "The ref of a repository by name (a branch, or `pull/<number>`), or nil."
+  def ref(repository_id, name), do: Repo.one(from(r in Ref, where: r.repository_id == ^repository_id and r.name == ^name))
+
+  @doc "The ref with the id, or nil."
+  def get_ref(nil), do: nil
+  def get_ref(ref_id), do: Repo.get(Ref, ref_id)
+
+  @doc "The name of a pull request's ref."
+  def pull_request_ref(number), do: "pull/#{number}"
+
+  @doc """
+  Where a commit sits on the first-parent tree: `{ref_id, position}` on the
+  segment of the ref that owns it, or nil when no ref does.
+  """
+  def position(repository_id, sha) do
+    Repo.one(
+      from(c in Commit,
+        where: c.repository_id == ^repository_id and c.sha == ^sha and not is_nil(c.ref_id),
+        select: {c.ref_id, c.position}
+      )
     )
+  end
+
+  @doc """
+  The commits a ref owns, newest first, as `{sha, position, committed_at}`:
+  the default branch's first-parent history, or what another ref added above
+  its fork. `:limit` caps them (200 by default) and `:at_or_below` starts
+  at a position.
+  """
+  def ref_commits(ref_id, opts \\ []) do
+    query =
+      from(c in Commit,
+        where: c.ref_id == ^ref_id,
+        order_by: [desc: c.position],
+        limit: ^Keyword.get(opts, :limit, 200),
+        select: {c.sha, c.position, c.committed_at}
+      )
+
+    case Keyword.get(opts, :at_or_below) do
+      nil -> Repo.all(query)
+      position -> Repo.all(where(query, [c], c.position <= ^position))
+    end
+  end
+
+  @doc """
+  Advances a ref to a new head, keeping every commit's place on the
+  first-parent tree: the head's first-parent chain is walked back to the
+  first commit the ref, or the ref it forks from, already owns.
+
+  - The ref's own commit: an append. What the ref held above it was
+    rewritten (a force-push) and is released; the new commits follow it.
+  - Its parent's commit: a fork, or a rebase. The ref's commits are released
+    and it forks there.
+  - Nothing, for the default branch (no parent): its whole walked history is
+    numbered from the oldest commit.
+
+  Only the default branch takes over commits another ref owns (a
+  fast-forward merge): that ref is released and advanced again from its own
+  head, forking above them. Any other ref stops at the first commit some ref
+  owns, so two refs never trade commits back and forth; one that stops on a
+  sibling's commit forks where the sibling does and owns only what it added.
+
+  `parent` names the ref this one forks from (nil for the default branch).
+  With `only_forward: true` a head the ref already owns leaves it as it is:
+  a late report of an older commit does not move the ref back. The walk is
+  bounded by `:max_depth` (the default `window_commits`). A head the graph
+  does not know yet is recorded without positions.
+  """
+  def advance_ref(repository_id, name, parent, head_sha, opts \\ []) do
+    {:ok, :ok} =
+      Repo.transaction(
+        fn ->
+          Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["git_refs:#{repository_id}"])
+          parent_ref = parent && upsert_ref(repository_id, parent, nil)
+          ref = upsert_ref(repository_id, name, parent_ref && parent_ref.id)
+
+          cond do
+            not known?(repository_id, head_sha) ->
+              Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [head_sha: head_sha, updated_at: now()])
+
+            Keyword.get(opts, :only_forward, false) and position_ref(repository_id, head_sha) == ref.id ->
+              :ok
+
+            true ->
+              advance(repository_id, ref, head_sha, is_nil(ref.parent_ref_id), opts)
+              sync_coverage(repository_id)
+          end
+
+          :ok
+        end,
+        timeout: to_timeout(minute: 2)
+      )
 
     :ok
   end
 
-  def record_branch_head(_repository_id, _branch, _sha), do: :ok
-
-  @doc "The newest commit recorded for a branch, or nil."
-  def branch_head(repository_id, branch) do
-    Repo.one(from(h in BranchHead, where: h.repository_id == ^repository_id and h.branch == ^branch, select: h.sha))
+  defp position_ref(repository_id, sha) do
+    case position(repository_id, sha) do
+      {ref_id, _position} -> ref_id
+      nil -> nil
+    end
   end
+
+  # The parent keeps the parent it has: a ref named as someone's parent is
+  # created as a root until it is advanced with a parent of its own.
+  defp upsert_ref(repository_id, name, parent_ref_id) do
+    now = now()
+
+    Repo.insert_all(
+      Ref,
+      [
+        %{
+          repository_id: repository_id,
+          name: name,
+          parent_ref_id: parent_ref_id,
+          fork_position: 0,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      on_conflict: :nothing,
+      conflict_target: [:repository_id, :name]
+    )
+
+    ref = ref(repository_id, name)
+
+    if not is_nil(parent_ref_id) and ref.parent_ref_id != parent_ref_id and parent_ref_id != ref.id do
+      Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [parent_ref_id: parent_ref_id])
+      %{ref | parent_ref_id: parent_ref_id}
+    else
+      ref
+    end
+  end
+
+  defp advance(repository_id, %Ref{} = ref, head_sha, takeover?, opts) do
+    max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
+    walk = walk(repository_id, ref, head_sha, takeover?, max_depth)
+    anchor = Enum.find(walk, &anchored?(&1, ref, takeover?))
+    anchor_depth = if anchor, do: anchor.depth, else: length(walk)
+
+    {base, fork} = settle(ref, anchor)
+
+    new = Enum.filter(walk, &(&1.depth < anchor_depth))
+    losers = new |> Enum.map(& &1.ref_id) |> Enum.reject(&(is_nil(&1) or &1 == ref.id)) |> Enum.uniq()
+    Enum.each(losers, &release(from(c in Commit, where: c.ref_id == ^&1)))
+
+    Repo.query!(
+      """
+      UPDATE git_commits c SET ref_id = $2, position = v.position
+      FROM unnest($3::varchar[], $4::integer[]) AS v (sha, position)
+      WHERE c.repository_id = $1 AND c.sha = v.sha
+      """,
+      [
+        repository_id,
+        ref.id,
+        Enum.map(new, & &1.sha),
+        Enum.map(new, &(base + anchor_depth - &1.depth))
+      ]
+    )
+
+    Repo.update_all(from(r in Ref, where: r.id == ^ref.id),
+      set: [head_sha: head_sha, fork_position: fork, updated_at: now()]
+    )
+
+    # A ref that lost commits to a fast-forward forks again above them. It
+    # never takes commits back, so the re-forks end.
+    for %Ref{head_sha: loser_head} = loser <- Enum.map(losers, &get_ref/1), loser_head do
+      advance(repository_id, loser, loser_head, false, opts)
+    end
+  end
+
+  # Where the ref's new commits start, and where it forks, from the commit
+  # the walk stopped at, releasing what the ref no longer holds.
+  defp settle(ref, nil) do
+    release(from(c in Commit, where: c.ref_id == ^ref.id))
+    {0, 0}
+  end
+
+  defp settle(%{id: ref_id} = ref, %{ref_id: ref_id, position: position}) do
+    release(from(c in Commit, where: c.ref_id == ^ref_id and c.position > ^position))
+    {position, ref.fork_position}
+  end
+
+  defp settle(%{parent_ref_id: parent_id} = ref, %{ref_id: parent_id, position: position}) do
+    release(from(c in Commit, where: c.ref_id == ^ref.id))
+    {position, position}
+  end
+
+  # A sibling's commit: fork where the sibling forked.
+  defp settle(ref, anchor) do
+    release(from(c in Commit, where: c.ref_id == ^ref.id))
+    sibling = get_ref(anchor.ref_id)
+    fork = if sibling.parent_ref_id == ref.parent_ref_id, do: sibling.fork_position, else: 0
+    {fork, fork}
+  end
+
+  # The default branch walks through other refs' commits, taking them over,
+  # until it reaches its own; any other ref stops at the first owned commit.
+  defp anchored?(%{ref_id: nil}, _ref, _takeover?), do: false
+  defp anchored?(%{ref_id: ref_id}, ref, true), do: ref_id in [ref.id, ref.parent_ref_id]
+  defp anchored?(_row, _ref, false), do: true
+
+  defp walk(repository_id, ref, head_sha, takeover?, max_depth) do
+    %{rows: rows} =
+      Repo.query!(
+        """
+        WITH RECURSIVE chain (sha, depth, ref_id, position) AS (
+          SELECT c.sha, 0, c.ref_id, c.position
+          FROM git_commits c WHERE c.repository_id = $1 AND c.sha = $2
+          UNION ALL
+          SELECT p.parent_sha, ch.depth + 1, c.ref_id, c.position
+          FROM chain ch
+          JOIN git_commit_parents p ON p.repository_id = $1 AND p.child_sha = ch.sha AND p.position = 0
+          JOIN git_commits c ON c.repository_id = $1 AND c.sha = p.parent_sha
+          WHERE ch.depth < $3
+            AND (ch.ref_id IS NULL OR ($4 AND ch.ref_id <> ALL ($5::bigint[])))
+        )
+        SELECT sha, depth, ref_id, position FROM chain ORDER BY depth
+        """,
+        [repository_id, head_sha, max_depth, takeover?, Enum.reject([ref.id, ref.parent_ref_id], &is_nil/1)]
+      )
+
+    Enum.map(rows, fn [sha, depth, ref_id, position] -> %{sha: sha, depth: depth, ref_id: ref_id, position: position} end)
+  end
+
+  defp release(query), do: Repo.update_all(query, set: [ref_id: nil, position: nil])
+
+  # A commit's coverage keeps a copy of its place, so a branch's history
+  # outlives the graph's window; it follows every move while the commit is in
+  # the graph.
+  defp sync_coverage(repository_id) do
+    Repo.query!(
+      """
+      UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
+      FROM git_commits c
+      WHERE cc.repository_id = $1 AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
+        AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
+      """,
+      [repository_id]
+    )
+  end
+
+  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
 
   @doc "Whether the repository has a commit stored for the SHA."
   def known?(repository_id, sha) do
@@ -363,17 +604,6 @@ defmodule Tuist.GitHistory do
       )
 
     Enum.map(rows, fn [sha, depth, committed_at] -> {sha, depth, committed_at} end)
-  end
-
-  @doc """
-  The commits of a branch, newest first, as `first_parent_chain/3` from the
-  branch's recorded head; empty when no head is recorded.
-  """
-  def branch_commits(repository_id, branch, opts \\ []) do
-    case branch_head(repository_id, branch) do
-      nil -> []
-      head -> first_parent_chain(repository_id, head, opts)
-    end
   end
 
   @doc """

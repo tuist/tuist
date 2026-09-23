@@ -31,7 +31,7 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
     GitHistory.record_commits(repository_id, Keyword.get(opts, :object_format, "sha1"), commits)
 
     for {branch, sha} <- Keyword.get(opts, :branch_heads, []) do
-      GitHistory.record_branch_head(repository_id, branch, sha)
+      GitHistory.record_branch_head(repository_id, branch, sha, "main")
     end
 
     repository_id

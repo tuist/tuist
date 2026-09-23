@@ -187,7 +187,7 @@ defmodule TuistWeb.API.GitHistoryController do
         GitHistory.record_commits(repository_id, body.object_format, commits)
 
         for head <- Map.get(body, :branch_heads) || [] do
-          GitHistory.record_branch_head(repository_id, head.branch, head.sha)
+          GitHistory.record_branch_head(repository_id, head.branch, head.sha, project.default_branch)
         end
 
         send_resp(conn, :no_content, "")

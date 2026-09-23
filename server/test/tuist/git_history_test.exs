@@ -140,14 +140,100 @@ defmodule Tuist.GitHistoryTest do
   describe "branch heads" do
     test "keep the newest sha per branch and list the branch's commits from it", %{repository: repository} do
       seed(repository)
-      GitHistory.record_branch_head(repository, "main", "c")
-      GitHistory.record_branch_head(repository, "main", "m")
-      GitHistory.record_branch_head(repository, "", "d")
+      GitHistory.record_branch_head(repository, "main", "c", "main")
+      GitHistory.record_branch_head(repository, "main", "m", "main")
+      GitHistory.record_branch_head(repository, "", "d", "main")
 
       assert GitHistory.branch_head(repository, "main") == "m"
       assert GitHistory.branch_head(repository, "") == nil
-      assert Enum.map(GitHistory.branch_commits(repository, "main"), &elem(&1, 0)) == ["m", "d", "c", "b", "a"]
-      assert GitHistory.branch_commits(repository, "feature") == []
+      main = GitHistory.ref(repository, "main")
+      assert Enum.map(GitHistory.ref_commits(main.id), &elem(&1, 0)) == ["m", "d", "c", "b", "a"]
+      assert GitHistory.ref(repository, "feature") == nil
+    end
+  end
+
+  describe "refs" do
+    # Each ref's own commits, oldest first, with their positions.
+    defp owned(repository, name) do
+      case GitHistory.ref(repository, name) do
+        nil -> []
+        ref -> ref.id |> GitHistory.ref_commits() |> Enum.reverse() |> Enum.map(&{elem(&1, 0), elem(&1, 1)})
+      end
+    end
+
+    test "number the default branch's first-parent history and append to it", %{repository: repository} do
+      seed(repository)
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
+
+      # The merge commit joins; the merged commit stays off the default branch.
+      GitHistory.advance_ref(repository, "main", nil, "m")
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"m", 5}]
+      assert GitHistory.position(repository, "e") == nil
+    end
+
+    test "fork a pull request from the default branch, and rebase it", %{repository: repository} do
+      seed(repository)
+
+      GitHistory.record_commits(repository, "sha1", [
+        commit("p1", ["b"], 10),
+        commit("p2", ["p1"], 11),
+        commit("r1", ["d"], 12),
+        commit("r2", ["r1"], 13)
+      ])
+
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "pull/1", "main", "p2")
+
+      pull = GitHistory.ref(repository, "pull/1")
+      assert pull.fork_position == 2
+      assert owned(repository, "pull/1") == [{"p1", 3}, {"p2", 4}]
+
+      # Rebased onto d: the old commits are released and it forks higher up.
+      GitHistory.advance_ref(repository, "pull/1", "main", "r2")
+      assert GitHistory.ref(repository, "pull/1").fork_position == 4
+      assert owned(repository, "pull/1") == [{"r1", 5}, {"r2", 6}]
+      assert GitHistory.position(repository, "p1") == nil
+    end
+
+    test "release what a force-push rewrote, and never move back on a late report", %{repository: repository} do
+      seed(repository)
+      GitHistory.advance_ref(repository, "main", nil, "d")
+
+      GitHistory.advance_ref(repository, "main", nil, "c", only_forward: true)
+      assert GitHistory.branch_head(repository, "main") == "d"
+
+      GitHistory.advance_ref(repository, "main", nil, "c")
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}]
+      assert GitHistory.position(repository, "d") == nil
+    end
+
+    test "take a fast-forwarded pull request's commits onto the default branch", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("p1", ["d"], 10), commit("p2", ["p1"], 11)])
+
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "pull/1", "main", "p2")
+      assert owned(repository, "pull/1") == [{"p1", 5}, {"p2", 6}]
+
+      GitHistory.advance_ref(repository, "main", nil, "p2")
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"p1", 5}, {"p2", 6}]
+
+      # The pull request forks again, above what it lost, and owns nothing.
+      assert owned(repository, "pull/1") == []
+      assert GitHistory.ref(repository, "pull/1").fork_position == 6
+    end
+
+    test "let a pull request seen before its base branch hand its commits over later", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("p1", ["d"], 10)])
+
+      GitHistory.advance_ref(repository, "pull/1", "main", "p1")
+      assert owned(repository, "pull/1") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"p1", 5}]
+
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
+      assert owned(repository, "pull/1") == [{"p1", 5}]
     end
   end
 

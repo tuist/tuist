@@ -96,7 +96,8 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
         branch_heads: [{"main", "c"}, {"feature", "f2"}, {"merged", "b"}]
       )
 
-      for sha <- ~w(a b c f1 f2), do: run(project, account, %{git_commit_sha: sha}, [1, 1, 0, 0])
+      for sha <- ~w(a b c), do: run(project, account, %{git_commit_sha: sha}, [1, 1, 0, 0])
+      for sha <- ~w(f1 f2), do: run(project, account, %{git_commit_sha: sha, git_branch: "feature"}, [1, 1, 0, 0])
 
       assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f2", "f1"]
 
@@ -141,6 +142,36 @@ defmodule Tuist.Tests.Coverage.HistoryTest do
       # They were measured on the branch, so they stay with it too, without
       # dragging `main`'s history along.
       assert Enum.map(History.branch_history(project, "feature").commits, & &1.git_commit_sha) == ["f2", "f1"]
+    end
+
+    test "draw the trend from the ref's commits made in the period, however far back", %{
+      project: project,
+      account: account
+    } do
+      # One commit a day, 300 days: past the 200 commits a branch's list reads.
+      commits =
+        for day <- 0..299 do
+          sha = "c#{day}"
+          parents = if day == 0, do: [], else: ["c#{day - 1}"]
+          CoverageFixtures.commit(sha, parents, day * 24 * 60)
+        end
+
+      CoverageFixtures.seed_history(account, commits, branch_heads: [{"main", "c299"}])
+
+      for day <- [0, 10, 250, 299] do
+        run(project, account, %{git_commit_sha: "c#{day}"}, [1, 0])
+      end
+
+      points = History.branch_points(project, "main")
+      assert Enum.map(points, & &1.git_commit_sha) == ["c0", "c10", "c250", "c299"]
+
+      since = DateTime.add(~U[2026-09-01 00:00:00Z], 5, :day)
+
+      assert project |> History.branch_points("main", since: since) |> Enum.map(& &1.git_commit_sha) == [
+               "c10",
+               "c250",
+               "c299"
+             ]
     end
 
     test "chain a complete commit whatever it measured", %{project: project, account: account} do

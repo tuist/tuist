@@ -4,13 +4,16 @@ defmodule Tuist.Tests.Coverage.History do
   branch's head, and a pull request's commits.
 
   Branch membership comes from the repository's commit graph
-  (`Tuist.GitHistory`), not from the branch a run was labelled with: the
-  commits of a branch are the first-parent walk from its recorded head, so
-  a commit measured on a pull request is on `main` once the branch is
-  fast-forwarded, and a merged branch's commits stay with the pull request.
-  A branch whose head the graph does not know (a run that sent a commit but
-  no history) falls back to the measured commits labelled with it, in time
-  order, and says so (`ordered_by: :time`).
+  (`Tuist.GitHistory`), not from the branch a run was labelled with: a
+  branch's commits are the ones its ref owns on the first-parent tree
+  (`Tuist.GitHistory.Ref`), newest position first, so a commit measured on a
+  pull request is on `main` once the branch is fast-forwarded, and a merged
+  branch's commits stay with the pull request. Each commit's coverage
+  (`Tuist.Tests.CoverageCommit`) keeps a copy of its ref and position, so a
+  branch's trend is a range over them for as long as coverage is kept. A
+  branch whose ref owns nothing (a run that sent a commit but no history, or
+  a branch the default one already contains) falls back to the measured
+  commits labelled with it, in time order, and says so (`ordered_by: :time`).
 
   A commit **chains** into the trend when it is complete (the client
   signalled its pipeline finished) or, failing a signal, when it measured
@@ -22,125 +25,108 @@ defmodule Tuist.Tests.Coverage.History do
 
   import Ecto.Query
 
-  alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.Projects.Project
+  alias Tuist.Repo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
-  alias Tuist.Tests.Test
+  alias Tuist.Tests.CoverageCommit
 
   @doc """
   The repository the project's measured commits belong to (the newest
   published commit's), or nil when none named one.
   """
   def repository_id(project_id) do
-    ClickHouseRepo.one(
-      from(c in subquery(Commits.commits_query(project_id)),
-        where: c.git_repository_id > 0,
-        order_by: [desc: c.inserted_at],
+    Repo.one(
+      from(c in CoverageCommit,
+        where: c.project_id == ^project_id and not is_nil(c.repository_id),
+        order_by: [desc: c.updated_at],
         limit: 1,
-        select: c.git_repository_id
+        select: c.repository_id
       )
     )
+  end
+
+  # The branch's ref, when it owns commits.
+  defp branch_ref(project, branch) do
+    with repository_id when not is_nil(repository_id) <- repository_id(project.id),
+         %{} = ref <- GitHistory.ref(repository_id, branch),
+         [_ | _] <- GitHistory.ref_commits(ref.id, limit: 1) do
+      ref
+    else
+      _ -> nil
+    end
   end
 
   @doc """
   The commits of a branch, newest first, each with its measurement when
   there is one: `%{git_commit_sha, depth, committed_at, measured, chained,
-  coverage, ...}` (the `Tuist.Tests.Coverage.Commits.commits_query/1` fields
-  when measured). `ordered_by` in the result says whether the order is the
-  graph's (`:graph`) or, without a recorded head, the runs' time (`:time`).
-  A branch other than the project's default one holds only the commits it
-  added: the walk is cut at its merge base with the default branch, whose own
-  history is read by selecting it. A branch the default one already contains
-  (fast-forwarded, or merged and left in place) has no merge base of its own
-  to cut at, so it holds the commits its runs were labelled with.
+  coverage, ...}` (the `Tuist.Tests.Coverage.Commits.summary/2` fields when
+  measured). `ordered_by` in the result says whether the order is the
+  graph's (`:graph`: the commits the branch's ref owns, by position) or,
+  when the ref owns none, the runs' time (`:time`). A branch other than the
+  project's default one holds only the commits it added; the default
+  branch's own history is read by selecting it. A branch the default one
+  already contains (fast-forwarded, or merged and left in place) owns
+  nothing, so it holds the commits its runs were labelled with.
 
   `since` and `until` bound the measurements considered (`NaiveDateTime`);
-  `limit` caps the commits walked (the newest), 200 by default. Each commit
-  carries the `change` from the commit chained before it, which is settled
-  over the whole walk.
+  `limit` caps the commits read (the newest), 200 by default. Each commit
+  carries the `change` from the commit chained before it, settled over what
+  was read and, for a branch, the commits it forked from.
   """
   def branch_history(%Project{} = project, branch, opts \\ []) do
     limit = Keyword.get(opts, :limit, 200)
-    measured = measured_by_sha(project.id, opts)
-    repository_id = repository_id(project.id)
 
-    graph =
-      if repository_id,
-        do: GitHistory.branch_commits(repository_id, branch, max_depth: limit),
-        else: []
+    ref = branch_ref(project, branch)
+    graph = if ref, do: GitHistory.ref_commits(ref.id, limit: limit), else: []
 
     {commits, ordered_by} =
       case graph do
         [] ->
-          {project.id |> labelled_commits(branch, measured, opts) |> Enum.take(limit), :time}
+          {labelled_commits(project.id, branch, opts, limit), :time}
 
-        chain ->
-          {Enum.map(chain, fn {sha, depth, committed_at} ->
-             %{git_commit_sha: sha, depth: depth, committed_at: committed_at}
+        [{_sha, head_position, _at} | _] = rows ->
+          {Enum.map(rows ++ below_fork(ref, limit), fn {sha, position, committed_at} ->
+             %{git_commit_sha: sha, depth: head_position - position, committed_at: committed_at}
            end), :graph}
       end
+
+    measured =
+      project.id
+      |> Commits.by_shas(Enum.map(commits, & &1.git_commit_sha))
+      |> Map.filter(fn {_sha, row} -> ran_in_period?(row, opts) end)
+      |> Map.new(fn {sha, row} -> {sha, with_coverage(row)} end)
 
     commits =
       commits
       |> Enum.map(fn commit ->
         case Map.get(measured, commit.git_commit_sha) do
           nil -> Map.merge(commit, %{measured: false, chained: false})
-          row -> commit |> Map.merge(row) |> Map.put(:measured, true)
+          row -> commit |> Map.merge(Map.delete(row, :committed_at)) |> Map.put(:measured, true)
         end
       end)
       |> chain()
       |> with_changes()
-      |> own_commits(project, branch, ordered_by, repository_id, opts)
+      |> Enum.take(if(graph == [], do: limit, else: length(graph)))
 
     %{commits: commits, ordered_by: ordered_by}
   end
 
-  # A branch other than the default one is read as the commits it added: the
-  # first-parent walk carries on into the branch it was cut from, whose
-  # history belongs to that branch and is read by selecting it. Chaining and
-  # each commit's change are settled before the cut, so the oldest commit
-  # kept still compares with the commit the branch left.
-  defp own_commits(commits, _project, _branch, :time, _repository_id, _opts), do: commits
-  defp own_commits([], _project, _branch, _ordered_by, _repository_id, _opts), do: []
-  defp own_commits(commits, _project, _branch, _ordered_by, nil, _opts), do: commits
+  # A branch's oldest commits chain and change against the commits it forked
+  # from, which belong to the parent's history and are dropped after.
+  defp below_fork(%{parent_ref_id: parent_ref_id, fork_position: fork}, limit) when not is_nil(parent_ref_id),
+    do: GitHistory.ref_commits(parent_ref_id, at_or_below: fork, limit: limit)
 
-  defp own_commits(commits, %Project{default_branch: branch}, branch, _ordered_by, _repository_id, _opts), do: commits
+  defp below_fork(_ref, _limit), do: []
 
-  defp own_commits(commits, project, branch, _ordered_by, repository_id, opts) do
-    head = commits |> hd() |> Map.fetch!(:git_commit_sha)
-    default_head = GitHistory.branch_head(repository_id, project.default_branch)
-    base = default_head && GitHistory.merge_base(repository_id, head, default_head)
+  defp ran_in_period?(row, opts) do
+    ran_at = naive(row.ran_at)
+    since = opts |> Keyword.get(:since) |> naive()
+    until = opts |> Keyword.get(:until) |> naive()
 
-    cond do
-      # Nothing to cut against: no default branch head, or no common commit.
-      is_nil(base) ->
-        commits
-
-      # The branch diverges from the default one: its own commits are those
-      # above the commit they share.
-      base != head ->
-        Enum.take_while(commits, &(&1.git_commit_sha != base))
-
-      # The branch is contained in the default one — fast-forwarded, or merged
-      # and not deleted — so the graph no longer says which commits were its
-      # own. What ran on it does: the commits its runs were labelled with,
-      # kept in the graph's order.
-      true ->
-        labelled = labelled_shas(project.id, branch, opts)
-        Enum.filter(commits, &MapSet.member?(labelled, &1.git_commit_sha))
-    end
-  end
-
-  defp labelled_shas(project_id, branch, opts) do
-    from(t in subquery(runs_query(project_id, opts)),
-      where: t.git_branch == ^branch and t.git_commit_sha != "",
-      distinct: true,
-      select: t.git_commit_sha
-    )
-    |> ClickHouseRepo.all()
-    |> MapSet.new()
+    (is_nil(since) or NaiveDateTime.compare(ran_at, since) != :lt) and
+      (is_nil(until) or NaiveDateTime.compare(ran_at, until) != :gt)
   end
 
   # Oldest first for the chaining rule, then back to newest first.
@@ -170,18 +156,54 @@ defmodule Tuist.Tests.Coverage.History do
 
   @doc """
   One point per chained commit of the branch, oldest first, with the
-  commit's totals: what the trend chart draws. A commit's figure pools the
+  commit's totals: what the trend chart draws. The period bounds when the
+  commits were made and nothing else caps it, so a trend reaches as far
+  back as coverage is kept. A commit's figure pools the
   schemes that measured it; a scheme's own totals are read per commit
   (`Tuist.Tests.Coverage.Comparison.compare/3`), where a baseline makes
   them comparable.
   """
   def branch_points(%Project{} = project, branch, opts \\ []) do
-    project
-    |> branch_history(branch, opts)
-    |> Map.fetch!(:commits)
-    |> Enum.filter(& &1.chained)
-    |> Enum.reverse()
+    case branch_ref(project, branch) do
+      nil ->
+        project
+        |> branch_history(branch, opts)
+        |> Map.fetch!(:commits)
+        |> Enum.filter(& &1.chained)
+        |> Enum.reverse()
+
+      ref ->
+        project.id
+        |> Commits.all(fn query ->
+          query
+          |> where([c], c.ref_id == ^ref.id)
+          |> in_period(opts)
+          |> order_by([c], desc: c.position)
+        end)
+        |> Enum.map(&(&1 |> with_coverage() |> Map.put(:measured, true)))
+        |> chain()
+        |> Enum.filter(& &1.chained)
+        |> Enum.reverse()
+    end
   end
+
+  # Positions follow the graph, and the period follows when the commits were
+  # made: the range of a ref's coverage the trend draws, however long.
+  defp in_period(query, opts) do
+    query =
+      case Keyword.get(opts, :since) do
+        nil -> query
+        since -> where(query, [c], c.committed_at >= ^utc(since))
+      end
+
+    case Keyword.get(opts, :until) do
+      nil -> query
+      until -> where(query, [c], c.committed_at <= ^utc(until))
+    end
+  end
+
+  defp utc(%NaiveDateTime{} = at), do: DateTime.from_naive!(at, "Etc/UTC")
+  defp utc(%DateTime{} = at), do: at
 
   @doc """
   One page of the branch's commits, newest first: the commits of
@@ -269,17 +291,15 @@ defmodule Tuist.Tests.Coverage.History do
     page = max(page, 1)
 
     query = refs_query(project.id, search, opts)
-    total = ClickHouseRepo.one(from(r in subquery(query), select: count())) || 0
+    total = Repo.one(from(r in subquery(query), select: count())) || 0
     total_pages = max(1, ceil(total / page_size))
     page = min(page, total_pages)
 
     [rows, default] =
       Tuist.Tasks.parallel_tasks([
         fn ->
-          query
-          |> limit(^page_size)
-          |> offset(^((page - 1) * page_size))
-          |> ClickHouseRepo.all()
+          from(r in subquery(query), order_by: [desc: r.ran_at], limit: ^page_size, offset: ^((page - 1) * page_size))
+          |> Repo.all()
           |> Enum.map(&with_coverage/1)
         end,
         fn -> latest(project, project.default_branch, opts) end
@@ -303,65 +323,77 @@ defmodule Tuist.Tests.Coverage.History do
     Map.put(ref, :delta, if(comparable?(ref, default), do: Float.round(ref.coverage - default.coverage, 1)))
   end
 
+  # The newest measured commit of every branch and pull request the period
+  # ran: a commit is filed under the branch its newest run named, or, when
+  # none did, under its pull request's number.
   defp refs_query(project_id, search, opts) do
-    runs =
-      from(t in subquery(runs_query(project_id, opts)),
-        where: t.git_commit_sha != "" and (t.is_pull_request == true or t.git_branch != ""),
-        select: %{
-          # A run that named no branch is filed under its pull request, which
-          # is the only name it has.
-          name:
+    latest =
+      ran_in(
+        from(c in CoverageCommit,
+          where: c.project_id == ^project_id and c.executable_lines > 0,
+          where: c.git_branch != "" or c.pull_request_number > 0,
+          distinct:
             fragment(
-              "if(? != '', ?, concat('#', toString(?)))",
-              t.git_branch,
-              t.git_branch,
-              t.pull_request_number
+              "CASE WHEN ? <> '' THEN ? ELSE '#' || ?::text END",
+              c.git_branch,
+              c.git_branch,
+              c.pull_request_number
             ),
-          git_branch: t.git_branch,
-          is_pull_request: t.is_pull_request,
-          pull_request_number: t.pull_request_number,
-          base_branch: t.base_branch,
-          git_commit_sha: t.git_commit_sha,
-          ran_at: t.ran_at
-        }
-      )
-
-    query =
-      from(r in subquery(runs),
-        join: c in subquery(Commits.commits_query(project_id)),
-        on: c.git_commit_sha == r.git_commit_sha,
-        group_by: r.name,
-        select: %{
-          name: r.name,
-          git_branch: fragment("argMax(?, ?)", r.git_branch, r.ran_at),
-          pull_request_number: fragment("argMaxIf(?, ?, ?)", r.pull_request_number, r.ran_at, r.is_pull_request),
-          base_branch: fragment("argMaxIf(?, ?, ?)", r.base_branch, r.ran_at, r.is_pull_request),
-          git_commit_sha: fragment("argMax(?, ?)", r.git_commit_sha, r.ran_at),
-          ran_at: max(r.ran_at),
-          covered_lines: fragment("argMax(?, ?)", c.covered_lines, r.ran_at),
-          executable_lines: fragment("argMax(?, ?)", c.executable_lines, r.ran_at),
-          measured_files_count: fragment("argMax(?, ?)", c.measured_files_count, r.ran_at),
-          unmeasured_files_count: fragment("argMax(?, ?)", c.unmeasured_files_count, r.ran_at),
-          schemes: fragment("argMax(?, ?)", c.schemes, r.ran_at),
-          partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, r.ran_at),
-          complete: fragment("argMax(?, ?)", c.complete, r.ran_at),
-          completeness: fragment("argMax(?, ?)", c.completeness, r.ran_at)
-        },
-        order_by: [desc: max(r.ran_at)]
+          order_by: [desc: c.ran_at],
+          select: %{
+            name:
+              fragment(
+                "CASE WHEN ? <> '' THEN ? ELSE '#' || ?::text END",
+                c.git_branch,
+                c.git_branch,
+                c.pull_request_number
+              ),
+            git_branch: c.git_branch,
+            pull_request_number: c.pull_request_number,
+            base_branch: c.base_branch,
+            git_commit_sha: c.git_commit_sha,
+            ran_at: c.ran_at,
+            covered_lines: c.covered_lines,
+            executable_lines: c.executable_lines,
+            measured_files_count: c.measured_files_count,
+            unmeasured_files_count: c.unmeasured_files_count,
+            schemes: c.schemes,
+            partial_schemes: c.partial_schemes,
+            complete: c.complete,
+            completeness: c.completeness,
+            reported_kind: c.reported_kind,
+            reported_covered_lines: c.reported_covered_lines,
+            reported_executable_lines: c.reported_executable_lines
+          }
+        ),
+        opts
       )
 
     # A branch is searched by its name and by the number of the pull request
     # it was pushed for: the reader remembers one or the other.
     case search do
       blank when blank in [nil, ""] ->
-        query
+        latest
 
       search ->
-        from(r in query,
-          where:
-            fragment("positionCaseInsensitive(?, ?) > 0", r.name, ^search) or
-              fragment("positionCaseInsensitive(concat('#', toString(?)), ?) > 0", r.pull_request_number, ^search)
+        pattern = "%" <> String.replace(search, ~w(\\ % _), &("\\" <> &1)) <> "%"
+
+        from(r in subquery(latest),
+          where: ilike(r.name, ^pattern) or ilike(fragment("'#' || ?::text", r.pull_request_number), ^pattern)
         )
+    end
+  end
+
+  defp ran_in(query, opts) do
+    query =
+      case Keyword.get(opts, :since) do
+        nil -> query
+        since -> where(query, [c], c.ran_at >= ^utc(since))
+      end
+
+    case Keyword.get(opts, :until) do
+      nil -> query
+      until -> where(query, [c], c.ran_at <= ^utc(until))
     end
   end
 
@@ -407,16 +439,14 @@ defmodule Tuist.Tests.Coverage.History do
 
   @doc "The branches with a measured commit in the period, the most recently measured first."
   def branch_names(project_id, opts \\ []) do
-    ClickHouseRepo.all(
-      from(c in subquery(Commits.commits_query(project_id)),
-        join: t in subquery(runs_query(project_id, opts)),
-        on: t.git_commit_sha == c.git_commit_sha,
-        where: t.git_branch != "",
-        group_by: t.git_branch,
-        select: t.git_branch,
-        order_by: [desc: max(t.ran_at)]
-      )
+    from(c in CoverageCommit,
+      where: c.project_id == ^project_id and c.executable_lines > 0 and c.git_branch != "",
+      group_by: c.git_branch,
+      order_by: [desc: max(c.ran_at)],
+      select: c.git_branch
     )
+    |> ran_in(opts)
+    |> Repo.all()
   end
 
   @doc """
@@ -454,100 +484,34 @@ defmodule Tuist.Tests.Coverage.History do
 
   @doc """
   The commits of one pull request that gathered coverage, newest first,
-  each with its measurement (`Tuist.Tests.Coverage.Commits.commits_query/1`
-  fields), the branch and base branch its runs reported, and when it was
-  first measured: what the pull request page lists.
+  each with its measurement (`Tuist.Tests.Coverage.Commits.summary/2`
+  fields), the branch and base branch its runs reported, and when it last
+  ran: what the pull request page lists.
   """
   def pull_request_commits(project_id, pull_request_number, opts \\ []) do
-    runs =
-      from(t in runs_query(project_id, opts),
-        where: t.is_pull_request == true and t.pull_request_number == ^pull_request_number
-      )
-
-    from(c in subquery(Commits.commits_query(project_id)),
-      join: t in subquery(runs),
-      on: t.git_commit_sha == c.git_commit_sha,
-      group_by: c.git_commit_sha,
-      select: %{
-        git_commit_sha: c.git_commit_sha,
-        git_branch: fragment("argMax(?, ?)", t.git_branch, t.ran_at),
-        base_branch: fragment("argMax(?, ?)", t.base_branch, t.ran_at),
-        ran_at: max(t.ran_at),
-        covered_lines: fragment("any(?)", c.covered_lines),
-        executable_lines: fragment("any(?)", c.executable_lines),
-        schemes: fragment("any(?)", c.schemes),
-        partial_schemes: fragment("any(?)", c.partial_schemes),
-        complete: fragment("any(?)", c.complete),
-        completeness: fragment("any(?)", c.completeness),
-        test_run_ids: type(fragment("any(?)", c.test_run_ids), {:array, Ecto.UUID})
-      },
-      order_by: [desc: max(t.ran_at)]
-    )
-    |> ClickHouseRepo.all()
+    project_id
+    |> Commits.all(fn query ->
+      query
+      |> where([c], c.pull_request_number == ^pull_request_number)
+      |> ran_in(opts)
+      |> order_by([c], desc: c.ran_at)
+    end)
     |> Enum.map(&with_coverage/1)
   end
 
-  # The measured commits with a run in the period, keyed by SHA.
-  defp measured_by_sha(project_id, opts) do
-    query = Commits.commits_query(project_id)
-
-    query =
-      if Keyword.has_key?(opts, :since) or Keyword.has_key?(opts, :until) do
-        in_period = from(t in subquery(runs_query(project_id, opts)), select: t.git_commit_sha)
-        from(c in subquery(query), where: c.git_commit_sha in subquery(in_period))
-      else
-        query
-      end
-
-    query
-    |> ClickHouseRepo.all()
-    |> Map.new(&{&1.git_commit_sha, with_coverage(&1)})
-  end
-
-  # Without a graph, a branch is the measured commits its runs labelled with
+  # Without a ref, a branch is the measured commits its runs labelled with
   # it, newest run first.
-  defp labelled_commits(project_id, branch, measured, opts) do
-    from(t in subquery(runs_query(project_id, opts)),
-      where: t.git_branch == ^branch and t.git_commit_sha != "",
-      group_by: t.git_commit_sha,
-      select: {t.git_commit_sha, max(t.ran_at)},
-      order_by: [desc: max(t.ran_at)]
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.filter(fn {sha, _ran_at} -> Map.has_key?(measured, sha) end)
+  defp labelled_commits(project_id, branch, opts, limit) do
+    project_id
+    |> Commits.all(fn query ->
+      query
+      |> where([c], c.git_branch == ^branch)
+      |> ran_in(opts)
+      |> order_by([c], desc: c.ran_at)
+      |> limit(^limit)
+    end)
     |> Enum.with_index()
-    |> Enum.map(fn {{sha, ran_at}, depth} -> %{git_commit_sha: sha, depth: depth, committed_at: ran_at} end)
-  end
-
-  # One row per run, whatever the history rewrites added: `test_runs` keeps
-  # a row per update and the newest carries the run's current history.
-  defp runs_query(project_id, opts) do
-    query =
-      from(t in Test,
-        where: t.project_id == ^project_id,
-        group_by: t.id,
-        select: %{
-          id: t.id,
-          git_branch: fragment("any(?)", t.git_branch),
-          git_commit_sha: fragment("any(?)", t.git_commit_sha),
-          scheme: fragment("any(?)", t.scheme),
-          ran_at: min(t.ran_at),
-          is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
-          pull_request_number: fragment("argMax(?, ?)", t.pull_request_number, t.inserted_at),
-          base_branch: fragment("argMax(?, ?)", t.base_branch, t.inserted_at)
-        }
-      )
-
-    query =
-      case Keyword.get(opts, :since) do
-        nil -> query
-        since -> where(query, [t], t.ran_at >= ^since)
-      end
-
-    case Keyword.get(opts, :until) do
-      nil -> query
-      until -> where(query, [t], t.ran_at <= ^until)
-    end
+    |> Enum.map(fn {row, depth} -> %{git_commit_sha: row.git_commit_sha, depth: depth, committed_at: row.ran_at} end)
   end
 
   # A commit whose runs skipped tests, all of them carried forward

@@ -15,14 +15,18 @@ defmodule Tuist.Tests.Coverage.Commits do
   data (it depends on the pipeline and on what the changed files trigger), so
   the client says so with `signal_complete/2`, which pull request gates wait
   for. Totals are republished (`recompute/2`) a few seconds after each run
-  reports and on the signal, one version above the latest.
+  reports and on the signal, rewriting the commit's row one version up.
+
+  The row lives in PostgreSQL beside the commit graph. Folding a commit also
+  advances the refs its runs reported (`Tuist.GitHistory.advance_ref/5`):
+  the branch a push ran on, or the pull request, so the commit takes its
+  place on the first-parent tree and the row a copy of it.
   """
 
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
-  alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
@@ -72,12 +76,12 @@ defmodule Tuist.Tests.Coverage.Commits do
   """
   def recompute(%Project{} = project, sha, opts \\ []) do
     # A fold reads the published row, spends seconds computing reported
-    # coverage on a large suite, and writes a newer version. Two folds of the
-    # same commit at once (the completion signal and a run's scheduled fold,
-    # on any node) would each write what they read, and the later one wins:
-    # the signal's `complete` was lost exactly that way. They take turns, so
-    # each one reads what the previous one wrote.
-    {:ok, row} =
+    # coverage on a large suite, and writes it back. Two folds of the same
+    # commit at once (the completion signal and a run's scheduled fold, on
+    # any node) would each write what they read, and the later one wins: the
+    # signal's `complete` was lost exactly that way. They take turns, so each
+    # one reads what the previous one wrote.
+    {:ok, {row, runs}} =
       Repo.transaction(
         fn ->
           Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["coverage_commit:#{project.id}:#{sha}"])
@@ -86,50 +90,81 @@ defmodule Tuist.Tests.Coverage.Commits do
         timeout: to_timeout(minute: 5)
       )
 
-    row
+    # Outside the commit's lock: advancing a ref takes the repository's.
+    if row do
+      advance_refs(project, sha, runs)
+      summary(project.id, sha)
+    end
   end
+
+  # The refs the commit's runs reported move to it: a pull request's under
+  # `pull/<number>`, a push's under its branch, each forking from the default
+  # branch. A commit a ref already holds leaves it where it is, so a late
+  # fold of an older commit never moves a ref back, and a commit the graph
+  # does not know yet names no head.
+  defp advance_refs(project, sha, runs) do
+    runs
+    |> Enum.filter(&(&1.git_repository_id > 0))
+    |> Enum.map(&{&1.git_repository_id, ref_name(&1)})
+    |> Enum.reject(fn {repository_id, ref} -> is_nil(ref) or not GitHistory.known?(repository_id, sha) end)
+    |> Enum.uniq()
+    |> Enum.each(fn {repository_id, ref} ->
+      parent = if ref == project.default_branch, do: nil, else: project.default_branch
+      GitHistory.advance_ref(repository_id, ref, parent, sha, only_forward: true)
+    end)
+  end
+
+  defp ref_name(%{is_pull_request: true, pull_request_number: number}) when number > 0,
+    do: GitHistory.pull_request_ref(number)
+
+  defp ref_name(%{git_branch: branch}) when branch not in [nil, ""], do: branch
+  defp ref_name(_run), do: nil
 
   defp fold(project, sha, opts) do
     runs = runs(project.id, sha)
     previous = summary(project.id, sha)
     reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carried_lines])))
 
-    cond do
-      # Every scheme was skipped whole, so no run measured the commit, but its
-      # coverage is still known: all of it carried forward. The row is written
-      # with nothing measured and the reported figure filled in, so the commit
-      # is comparable and its pipeline can signal completion. A commit whose
-      # runs carried nothing either — no candidate was ever enumerated for
-      # those schemes — has no coverage to publish and keeps none.
-      runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
-        carried_row(project, sha, previous, reported, opts)
+    row =
+      cond do
+        # Every scheme was skipped whole, so no run measured the commit, but
+        # its coverage is still known: all of it carried forward. The row is
+        # written with nothing measured and the reported figure filled in, so
+        # the commit is comparable and its pipeline can signal completion. A
+        # commit whose runs carried nothing either — no candidate was ever
+        # enumerated for those schemes — has no coverage to publish and keeps
+        # none.
+        runs == [] and not is_nil(reported) and reported.executable_lines > 0 ->
+          carried_row(project, sha, previous, reported, opts)
 
-      runs == [] ->
-        nil
+        runs == [] ->
+          nil
 
-      true ->
-        measured_row(project, sha, runs, previous, reported, opts)
-    end
+        true ->
+          measured_row(project, sha, runs, previous, reported, opts)
+      end
+
+    {row, runs}
   end
 
   defp carried_row(project, sha, previous, reported, opts) do
-    row =
-      project
-      |> base_row(sha, previous, reported, opts)
-      |> Map.merge(%{
-        git_repository_id: Reported.repository_id(project.id, sha),
-        build_system: Reported.build_system(project.id, sha),
-        covered_lines: 0,
-        executable_lines: 0,
-        measured_files_count: 0,
-        unmeasured_files_count: 0,
-        schemes: [],
-        partial_schemes: [],
-        test_run_ids: []
-      })
+    repository_id = Reported.repository_id(project.id, sha)
 
-    IngestRepo.insert_all(CoverageCommit, [row])
-    with_percentages(row)
+    project
+    |> base_row(sha, previous, reported, opts)
+    |> Map.merge(%{
+      repository_id: positive(repository_id),
+      build_system: Reported.build_system(project.id, sha),
+      covered_lines: 0,
+      executable_lines: 0,
+      measured_files_count: 0,
+      unmeasured_files_count: 0,
+      schemes: [],
+      partial_schemes: [],
+      test_run_ids: []
+    })
+    |> Map.merge(place(repository_id, sha, previous && previous.ran_at))
+    |> publish()
   end
 
   defp measured_row(project, sha, runs, previous, reported, opts) do
@@ -146,25 +181,88 @@ defmodule Tuist.Tests.Coverage.Commits do
       |> Enum.sort()
 
     repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
+    newest = List.last(runs)
 
-    row =
-      project
-      |> base_row(sha, previous, reported, opts)
-      |> Map.merge(%{
-        git_repository_id: repository_id,
-        build_system: runs |> hd() |> Map.fetch!(:build_system),
-        covered_lines: totals.covered_lines,
-        executable_lines: totals.executable_lines,
-        measured_files_count: totals.measured_files_count,
-        unmeasured_files_count: unmeasured_files_count(project.id, repository_id, sha, run_ids, excluded),
-        schemes: schemes,
-        partial_schemes: partial_schemes,
-        test_run_ids: run_ids
-      })
-
-    IngestRepo.insert_all(CoverageCommit, [row])
-    with_percentages(row)
+    project
+    |> base_row(sha, previous, reported, opts)
+    |> Map.merge(labels(runs))
+    |> Map.merge(%{
+      repository_id: positive(repository_id),
+      build_system: runs |> hd() |> Map.fetch!(:build_system),
+      covered_lines: totals.covered_lines,
+      executable_lines: totals.executable_lines,
+      measured_files_count: totals.measured_files_count,
+      unmeasured_files_count: unmeasured_files_count(project.id, repository_id, sha, run_ids, excluded),
+      schemes: schemes,
+      partial_schemes: partial_schemes,
+      test_run_ids: run_ids
+    })
+    |> Map.merge(place(repository_id, sha, utc(newest.ran_at)))
+    |> publish()
   end
+
+  # What the runs reported: the newest one's branch, and the pull request of
+  # the newest pull request run.
+  defp labels(runs) do
+    newest = List.last(runs)
+    pull_request = runs |> Enum.filter(&(&1.is_pull_request and &1.pull_request_number > 0)) |> List.last()
+
+    %{
+      git_branch: newest.git_branch || "",
+      pull_request_number: if(pull_request, do: pull_request.pull_request_number, else: 0),
+      base_branch: if(pull_request, do: pull_request.base_branch, else: newest.base_branch) || ""
+    }
+  end
+
+  # Where the commit stands in the graph, copied onto its row: its ref and
+  # position when a ref owns it, and when it was committed (or, for a commit
+  # the graph does not know, first measured).
+  defp place(repository_id, sha, ran_at) do
+    ran_at = usec(ran_at || DateTime.utc_now())
+
+    case positive(repository_id) &&
+           Repo.one(
+             from(c in Tuist.GitHistory.Commit,
+               where: c.repository_id == ^repository_id and c.sha == ^sha,
+               select: %{ref_id: c.ref_id, position: c.position, committed_at: c.committed_at}
+             )
+           ) do
+      nil ->
+        %{ref_id: nil, position: nil, committed_at: ran_at, ran_at: ran_at}
+
+      commit ->
+        %{
+          ref_id: commit.ref_id,
+          position: commit.position,
+          committed_at: usec(commit.committed_at),
+          ran_at: ran_at
+        }
+    end
+  end
+
+  defp positive(id) when is_integer(id) and id > 0, do: id
+  defp positive(_id), do: nil
+
+  defp usec(%DateTime{microsecond: {value, _precision}} = at), do: %{at | microsecond: {value, 6}}
+
+  defp utc(nil), do: nil
+  defp utc(%NaiveDateTime{} = at), do: DateTime.from_naive!(at, "Etc/UTC")
+  defp utc(%DateTime{} = at), do: at
+
+  defp publish(row) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    row = Map.merge(row, %{inserted_at: now, updated_at: now})
+
+    Repo.insert_all(CoverageCommit, [row],
+      on_conflict: {:replace_all_except, [:project_id, :git_commit_sha, :inserted_at]},
+      conflict_target: [:project_id, :git_commit_sha]
+    )
+
+    summary(row.project_id, row.git_commit_sha)
+  end
+
+  defp base_row(project, sha, nil, reported, opts),
+    do: base_row(project, sha, %{git_branch: "", pull_request_number: 0, base_branch: "", version: 0}, reported, opts)
 
   defp base_row(project, sha, previous, reported, opts) do
     %{
@@ -177,10 +275,12 @@ defmodule Tuist.Tests.Coverage.Commits do
       carried_tests_count: reported.carried_tests_count,
       gap_files_count: reported.gap_files_count,
       carried_from: reported.carried_from,
-      complete: Keyword.get(opts, :complete, (previous && previous.complete) || false),
-      completeness: Keyword.get(opts, :completeness, (previous && previous.completeness) || ""),
-      version: next_version(previous),
-      inserted_at: (previous && previous.inserted_at) || NaiveDateTime.utc_now()
+      git_branch: previous.git_branch,
+      pull_request_number: previous.pull_request_number,
+      base_branch: previous.base_branch,
+      complete: Keyword.get(opts, :complete, Map.get(previous, :complete, false)),
+      completeness: Keyword.get(opts, :completeness, Map.get(previous, :completeness, "")),
+      version: previous.version + 1
     }
   end
 
@@ -195,48 +295,115 @@ defmodule Tuist.Tests.Coverage.Commits do
     row
   end
 
-  # A version above the latest published, so a republish always wins, and
-  # never below the clock, so two publishers racing on a fresh commit still
-  # order by time.
-  defp next_version(previous) do
-    now = NaiveDateTime.diff(NaiveDateTime.utc_now(), ~N[1970-01-01 00:00:00], :microsecond)
-    if previous, do: max(previous.version + 1, now), else: now
+  @doc "The published totals of a commit, with the measured set, or nil."
+  def summary(_project_id, sha) when sha in [nil, ""], do: nil
+
+  def summary(project_id, sha) do
+    CoverageCommit
+    |> where([c], c.project_id == ^project_id and c.git_commit_sha == ^sha)
+    |> Repo.one()
+    |> row()
   end
 
-  @doc "The published totals of a commit, with the measured set, or nil."
-  def summary(project_id, sha) do
-    from(c in CoverageCommit,
-      where: c.project_id == ^project_id and c.git_commit_sha == ^sha,
-      group_by: c.git_commit_sha,
-      select: %{
-        git_commit_sha: c.git_commit_sha,
-        git_repository_id: fragment("argMax(?, ?)", c.git_repository_id, c.version),
-        build_system: fragment("argMax(?, ?)", c.build_system, c.version),
-        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
-        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
-        measured_files_count: fragment("argMax(?, ?)", c.measured_files_count, c.version),
-        unmeasured_files_count: fragment("argMax(?, ?)", c.unmeasured_files_count, c.version),
-        schemes: fragment("argMax(?, ?)", c.schemes, c.version),
-        partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, c.version),
-        test_run_ids: type(fragment("argMax(?, ?)", c.test_run_ids, c.version), {:array, Ecto.UUID}),
-        reported_covered_lines: fragment("argMax(?, ?)", c.reported_covered_lines, c.version),
-        reported_executable_lines: fragment("argMax(?, ?)", c.reported_executable_lines, c.version),
-        reported_kind: fragment("argMax(?, ?)", c.reported_kind, c.version),
-        skipped_tests_count: fragment("argMax(?, ?)", c.skipped_tests_count, c.version),
-        carried_tests_count: fragment("argMax(?, ?)", c.carried_tests_count, c.version),
-        gap_files_count: fragment("argMax(?, ?)", c.gap_files_count, c.version),
-        carried_from: fragment("argMax(?, ?)", c.carried_from, c.version),
-        complete: fragment("argMax(?, ?)", c.complete, c.version),
-        completeness: fragment("argMax(?, ?)", c.completeness, c.version),
-        version: max(c.version),
-        inserted_at: fragment("argMax(?, ?)", c.inserted_at, c.version)
-      }
+  @doc """
+  The published commits of a project among `shas`, keyed by SHA: those with
+  measured lines, what the history and the baselines read.
+  """
+  def by_shas(_project_id, []), do: %{}
+
+  def by_shas(project_id, shas) do
+    CoverageCommit
+    |> where([c], c.project_id == ^project_id and c.git_commit_sha in ^shas and c.executable_lines > 0)
+    |> Repo.all()
+    |> Map.new(&{&1.git_commit_sha, row(&1)})
+  end
+
+  @doc """
+  The project's published commits with measured lines matching a query
+  refinement (`fun` receives the base query), each as `summary/2` returns
+  it.
+  """
+  def all(project_id, fun \\ & &1) do
+    CoverageCommit
+    |> where([c], c.project_id == ^project_id and c.executable_lines > 0)
+    |> fun.()
+    |> Repo.all()
+    |> Enum.map(&row/1)
+  end
+
+  @doc """
+  The newest published commit with measured lines at or below `position` on
+  a ref's segment, other than `except`, or nil: one index probe, the step a
+  baseline takes per segment of the first-parent tree.
+  """
+  def nearest_on_ref(project_id, ref_id, position, except, since) do
+    CoverageCommit
+    |> where(
+      [c],
+      c.project_id == ^project_id and c.ref_id == ^ref_id and c.position <= ^position and
+        c.git_commit_sha != ^except and c.executable_lines > 0 and c.inserted_at >= ^since
     )
-    |> ClickHouseRepo.one(settings: [select_sequential_consistency: 1])
-    |> case do
-      nil -> nil
-      row -> with_percentages(row)
-    end
+    |> order_by([c], desc: c.position)
+    |> limit(1)
+    |> Repo.one()
+    |> row()
+  end
+
+  @doc "Whether the project published any commit with measured lines since `since`, other than `except`."
+  def any_measured?(project_id, except, since) do
+    Repo.exists?(
+      from(c in CoverageCommit,
+        where:
+          c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^except and
+            c.inserted_at >= ^since
+      )
+    )
+  end
+
+  @doc "The SHAs of the project's published commits with measured lines, other than `except`."
+  def measured_shas(project_id, except) do
+    Repo.all(
+      from(c in CoverageCommit,
+        where: c.project_id == ^project_id and c.executable_lines > 0 and c.git_commit_sha != ^except,
+        select: c.git_commit_sha
+      )
+    )
+  end
+
+  @doc """
+  Drops the commits' coverage past its retention
+  (`Tuist.Environment.coverage_commit_retention_days/1`), by when the commit
+  was made: a pull request's own commits after `pull_requests` days, every
+  other commit after `commits` days. Returns how many rows went.
+  """
+  def prune(retention \\ Tuist.Environment.coverage_commit_retention_days()) do
+    now = DateTime.utc_now()
+    commits_cutoff = DateTime.add(now, -retention.commits, :day)
+    pull_requests_cutoff = DateTime.add(now, -retention.pull_requests, :day)
+
+    {count, _} =
+      Repo.delete_all(
+        from(c in CoverageCommit,
+          left_join: r in Tuist.GitHistory.Ref,
+          on: r.id == c.ref_id,
+          where:
+            c.committed_at < ^commits_cutoff or
+              (c.committed_at < ^pull_requests_cutoff and c.pull_request_number > 0 and
+                 (is_nil(r.id) or not is_nil(r.parent_ref_id)))
+        )
+      )
+
+    count
+  end
+
+  defp row(nil), do: nil
+
+  defp row(%CoverageCommit{} = commit) do
+    commit
+    |> Map.from_struct()
+    |> Map.delete(:__meta__)
+    |> Map.put(:git_repository_id, commit.repository_id || 0)
+    |> with_percentages()
   end
 
   @doc """
@@ -282,40 +449,6 @@ defmodule Tuist.Tests.Coverage.Commits do
   def summary_for(_head), do: nil
 
   @doc """
-  The project's published commits, one row per commit with the latest
-  version's fields: what the history and the baselines read.
-  """
-  def commits_query(project_id) do
-    from(c in CoverageCommit,
-      where: c.project_id == ^project_id,
-      group_by: c.git_commit_sha,
-      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
-      select: %{
-        git_commit_sha: c.git_commit_sha,
-        git_repository_id: fragment("argMax(?, ?)", c.git_repository_id, c.version),
-        build_system: fragment("argMax(?, ?)", c.build_system, c.version),
-        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
-        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
-        measured_files_count: fragment("argMax(?, ?)", c.measured_files_count, c.version),
-        unmeasured_files_count: fragment("argMax(?, ?)", c.unmeasured_files_count, c.version),
-        schemes: fragment("argMax(?, ?)", c.schemes, c.version),
-        partial_schemes: fragment("argMax(?, ?)", c.partial_schemes, c.version),
-        test_run_ids: type(fragment("argMax(?, ?)", c.test_run_ids, c.version), {:array, Ecto.UUID}),
-        reported_covered_lines: fragment("argMax(?, ?)", c.reported_covered_lines, c.version),
-        reported_executable_lines: fragment("argMax(?, ?)", c.reported_executable_lines, c.version),
-        reported_kind: fragment("argMax(?, ?)", c.reported_kind, c.version),
-        skipped_tests_count: fragment("argMax(?, ?)", c.skipped_tests_count, c.version),
-        carried_tests_count: fragment("argMax(?, ?)", c.carried_tests_count, c.version),
-        gap_files_count: fragment("argMax(?, ?)", c.gap_files_count, c.version),
-        carried_from: fragment("argMax(?, ?)", c.carried_from, c.version),
-        complete: fragment("argMax(?, ?)", c.complete, c.version),
-        completeness: fragment("argMax(?, ?)", c.completeness, c.version),
-        inserted_at: fragment("argMax(?, ?)", c.inserted_at, c.version)
-      }
-    )
-  end
-
-  @doc """
   The runs that measured the commit and count towards it: one row per run
   with its scheme, whether it was partial, and its repository. Runs from a
   dirty checkout are left out.
@@ -346,6 +479,10 @@ defmodule Tuist.Tests.Coverage.Commits do
           git_commit_sha: fragment("any(?)", t.git_commit_sha),
           git_repository_id: fragment("argMax(?, ?)", t.git_repository_id, t.inserted_at),
           git_dirty: fragment("argMax(?, ?)", t.git_dirty, t.inserted_at),
+          git_branch: fragment("any(?)", t.git_branch),
+          is_pull_request: fragment("argMax(?, ?)", t.is_pull_request, t.inserted_at),
+          pull_request_number: fragment("argMax(?, ?)", t.pull_request_number, t.inserted_at),
+          base_branch: fragment("argMax(?, ?)", t.base_branch, t.inserted_at),
           ran_at: min(t.ran_at)
         }
       )
@@ -362,6 +499,10 @@ defmodule Tuist.Tests.Coverage.Commits do
           partial: c.partial,
           git_commit_sha: t.git_commit_sha,
           git_repository_id: t.git_repository_id,
+          git_branch: t.git_branch,
+          is_pull_request: t.is_pull_request,
+          pull_request_number: t.pull_request_number,
+          base_branch: t.base_branch,
           ran_at: t.ran_at,
           covered_lines: c.covered_lines,
           executable_lines: c.executable_lines

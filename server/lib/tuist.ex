@@ -178,7 +178,7 @@ defmodule Tuist do
       Xcode.XcodeProject,
       Xcode.XcodeTarget,
       GitHistory,
-      GitHistory.BranchHead,
+      GitHistory.Ref,
       GitHistory.Commit,
       GitHistory.CommitFile,
       GitHistory.CommitListing,

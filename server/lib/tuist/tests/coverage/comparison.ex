@@ -117,13 +117,13 @@ defmodule Tuist.Tests.Coverage.Comparison do
 
   def baseline(%Project{} = project, %{sha: _} = head) do
     settings = GitHistory.settings(project)
-    candidates = candidate_commits(project.id, head.sha, settings.window_days)
+    since = DateTime.add(DateTime.utc_now(), -settings.window_days, :day)
 
     with {:ok, start_sha} <- start_sha(head),
-         :ok <- ensure_candidates(candidates, head, settings),
-         {:ok, {sha, depth}} <- nearest_candidate(head, start_sha, candidates, settings),
-         {:ok, baseline} <- comparable(Map.fetch!(candidates, sha), head) do
-      {:ok, Map.merge(baseline, %{commit: sha, depth: depth, branch: head.base_branch})}
+         :ok <- ensure_candidates(project.id, head, since, settings),
+         {:ok, {candidate, depth}} <- nearest_candidate(project.id, head, start_sha, since, settings),
+         {:ok, baseline} <- comparable(candidate, head) do
+      {:ok, Map.merge(baseline, %{commit: candidate.git_commit_sha, depth: depth, branch: head.base_branch})}
     end
   end
 
@@ -158,40 +158,89 @@ defmodule Tuist.Tests.Coverage.Comparison do
     end
   end
 
-  defp ensure_candidates(candidates, head, settings) do
-    if map_size(candidates) == 0 do
-      {:error, %{kind: :no_measured_commits, base_branch: head.base_branch, window_days: settings.window_days}}
-    else
+  defp ensure_candidates(project_id, head, since, settings) do
+    if Commits.any_measured?(project_id, head.sha, since) do
       :ok
+    else
+      {:error, %{kind: :no_measured_commits, base_branch: head.base_branch, window_days: settings.window_days}}
     end
   end
 
-  defp nearest_candidate(head, start_sha, candidates, settings) do
+  # The nearest measured commit at or below the start, first parent after
+  # first parent. Where a ref owns the start, that is a probe per segment of
+  # the first-parent tree: below the start's position on its ref, then below
+  # the fork on the ref it forked from. A start no ref owns is walked.
+  defp nearest_candidate(project_id, head, start_sha, since, settings) do
     cond do
-      Map.has_key?(candidates, start_sha) ->
-        {:ok, {start_sha, 0}}
-
       not GitHistory.known?(head.repository_id, start_sha) ->
-        {:error, %{kind: :no_history, commit: start_sha, detail: head.history_fallback_reason}}
+        case own_candidate(project_id, head, start_sha, since) do
+          nil -> {:error, %{kind: :no_history, commit: start_sha, detail: head.history_fallback_reason}}
+          candidate -> {:ok, {candidate, 0}}
+        end
+
+      position = GitHistory.position(head.repository_id, start_sha) ->
+        {ref_id, start_position} = position
+
+        nearest_on_segments(project_id, head, ref_id, start_position, since, 0) ||
+          {:error, no_ancestor(head, start_sha, settings)}
 
       true ->
-        head.repository_id
-        |> GitHistory.first_parent_chain(start_sha, max_depth: settings.window_commits)
-        |> Enum.find(fn {sha, _depth, _at} -> Map.has_key?(candidates, sha) end)
-        |> case do
-          nil ->
-            {:error,
-             %{
-               kind: :no_ancestor_commit,
-               commit: start_sha,
-               base_branch: head.base_branch,
-               window_commits: settings.window_commits
-             }}
-
-          {sha, depth, _at} ->
-            {:ok, {sha, depth}}
-        end
+        walk_candidate(project_id, head, start_sha, since, settings)
     end
+  end
+
+  defp own_candidate(project_id, head, sha, since) do
+    case Commits.summary(project_id, sha) do
+      %{executable_lines: lines, inserted_at: at} = summary when lines > 0 and sha != head.sha ->
+        if DateTime.compare(at, since) != :lt, do: summary
+
+      _ ->
+        nil
+    end
+  end
+
+  defp nearest_on_segments(_project_id, _head, nil, _position, _since, _depth), do: nil
+
+  defp nearest_on_segments(project_id, head, ref_id, position, since, depth) do
+    case Commits.nearest_on_ref(project_id, ref_id, position, head.sha, since) do
+      nil ->
+        case GitHistory.get_ref(ref_id) do
+          %{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
+            nearest_on_segments(project_id, head, parent_id, fork, since, depth + position - fork)
+
+          _ ->
+            nil
+        end
+
+      candidate ->
+        {:ok, {candidate, depth + position - candidate.position}}
+    end
+  end
+
+  defp walk_candidate(project_id, head, start_sha, since, settings) do
+    chain = GitHistory.first_parent_chain(head.repository_id, start_sha, max_depth: settings.window_commits)
+    measured = Commits.by_shas(project_id, Enum.map(chain, &elem(&1, 0)))
+
+    chain
+    |> Enum.find(fn {sha, _depth, _at} ->
+      case Map.get(measured, sha) do
+        %{inserted_at: at} -> sha != head.sha and DateTime.compare(at, since) != :lt
+        nil -> false
+      end
+    end)
+    |> case do
+      nil -> {:error, no_ancestor(head, start_sha, settings)}
+      {sha, depth, _at} -> {:ok, {Map.fetch!(measured, sha), depth}}
+    end
+  end
+
+  defp no_ancestor(head, start_sha, settings) do
+    %{
+      kind: :no_ancestor_commit,
+      commit: start_sha,
+      base_branch: head.base_branch,
+      window_commits: settings.window_commits
+    }
   end
 
   # The head's measured set is only known once its runs are published; a
@@ -219,18 +268,6 @@ defmodule Tuist.Tests.Coverage.Comparison do
       _ ->
         {:ok, candidate}
     end
-  end
-
-  # The measured commits within the window, keyed by SHA.
-  # A commit is never its own baseline.
-  defp candidate_commits(project_id, head_sha, window_days) do
-    since = NaiveDateTime.add(NaiveDateTime.utc_now(), -window_days, :day)
-
-    from(c in subquery(Commits.commits_query(project_id)),
-      where: c.inserted_at >= ^since and c.git_commit_sha != ^head_sha
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(&{&1.git_commit_sha, &1})
   end
 
   @doc """
