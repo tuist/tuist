@@ -358,6 +358,7 @@ msgstr ""
 msgid "The preview ipa doesn't exist or has expired."
 msgstr ""
 
+#: lib/tuist_web/controllers/api/analytics_controller.ex:594
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
 #: lib/tuist_web/plugs/loader_plug.ex:131
 #, elixir-autogen, elixir-format

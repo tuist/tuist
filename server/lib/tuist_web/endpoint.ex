@@ -144,6 +144,8 @@ defmodule TuistWeb.Endpoint do
     signature_header: "x-cache-signature",
     body_length: 512_000
 
+  plug TuistWeb.Plugs.BrowserTelemetryPlug, session_options: @session_options
+
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.
   # TODO: Consider streaming large arrays instead of loading everything into memory.

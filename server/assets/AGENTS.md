@@ -38,7 +38,10 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   origin and the Content Security Policy stays on `'self'`. Web vitals feed the
   LCP alerts documented in `infra/helm/k8s-monitoring/alerts.md`.
   Browsers reporting `navigator.webdriver` are not instrumented at all, so
-  crawlers and headless test runners neither emit web vitals nor page views.
+  those browsers emit neither web vitals nor page views. Other automation can
+  still report measurements; do not describe the remaining population as
+  verified human. The optional server gateway adds collection-time auth and
+  correlation context; see `infra/helm/k8s-monitoring/browser-rum.md`.
 
 ## Related Context
 

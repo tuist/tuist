@@ -53,6 +53,7 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Related Context (Downlinks)
 
+
 - Accounts: `server/lib/tuist/accounts/AGENTS.md`
 - Alerts: `server/lib/tuist/alerts/AGENTS.md`
 - Api: `server/lib/tuist/api/AGENTS.md`
@@ -94,6 +95,8 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Related Context
 
+- Kura's moderate retention correction supplements the existing 30-day shrink: 14 complete post-resize days with snapshots, at least seven meaningful eviction days and two ring budgets of turnover can reduce the account claim by 10–25%. Discount known idle whole days from shed age and ring span; require at least 4.5 days of adjusted retention and project toward the 3-day floor plus 25% headroom. Today's short or unmeasured evictions veto the correction, and every known pinned region must supply a shrink verdict. Neither a smaller region's pin nor a deeper shrink elsewhere bypasses the 25% correction cap. Every apply restarts the evidence window, including when it only converges regional pins. Retain the slower occupancy and clearly excessive-retention paths.
+
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Data export requirements: `server/data-export.md`
@@ -121,4 +124,4 @@ This directory contains the core business logic and domain modules for the serve
 - Runner Kura participates in account disk sizing and plan memory/CPU profiles. New and returning instances pin the account claim; the enrollment migration immediately pins unpinned live runner instances to their account-sized claim (or plan default), capped at the historical 50Gi to avoid bypassing growth admission. The runner pool does not advertise `tuist.dev/memory-ceiling-mib`, so keep `memory_ceiling_bin_packed` disabled there. The region retains a conservative 50Gi accounting fallback for legacy rows without a pin or loaded account; governed creation and cold return pin the sized account budget before rendering. Disk sizing remains account-scoped across public and runner regions, including their telemetry and resize history.
 
 - Cache-endpoint resolution with no Kura endpoint enqueues `Workers.ProvisionOnDemandWorker` (one per account at a time), which runs `Lifecycle.provision_account/2` with the tick's eligibility rules, applies each instance coming up via `Reconciler.reconcile_server/1`, and hands it to `Workers.AwaitActivationWorker`, which checks `Reconciler.activate_when_ready/1` about twice a second and never applies. Activation asks whether the public host's record is published through `Tuist.DNS.record_published/1`, which queries the zone's authoritative nameservers instead of the pod's caching resolver. The tick hands every `:provisioning` server whose deployment it applies to the same worker; rollouts of serving instances are not polled. The minute tick stays the authority for everything these paths miss.
-- `Kura.Lifecycle` reclaims an active public instance that has stored nothing since it entered service once `Environment.kura_unused_days/0` has passed. The evidence is `kura_storage_rollups` covering the whole service life: snapshots on every full day since the service start, and no day with live segment bytes or evictions. Missing telemetry is never read as empty. An `:unused` archival is provisioned again only by demand recorded after it, and the project-creation seed declines while `Demand.unused_hold?/1` holds.
+- `Kura.Lifecycle` reclaims an active public instance that has stored nothing since it entered service after `Environment.kura_air_unused_hours/0` (24 hours) on Air or `Environment.kura_unused_days/0` (seven days) on Pro, checked hourly by default. Air caps the unused-path tracking grace at its unused window; inactivity and Pro retain the full tracking grace. Enterprise and keep-warm instances remain exempt. Both plans require `kura_storage_rollups` with snapshots on every full service day, at least 90% of the expected 15-minute snapshots across the region's replicas, and no live segment bytes or evictions. Each date's contribution is capped at the elapsed service time on that date. Partial boundary days may be absent because provisioning and rollup delivery can cross midnight; sparse telemetry or a missing full day is never read as empty. An `:unused` archival is provisioned again only by demand recorded after it, and the project-creation seed declines while `Demand.unused_hold?/1` holds.

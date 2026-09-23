@@ -56,7 +56,17 @@
       "tag_regex": "^server@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "server/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["server/**/*"]
+      "include_paths": [
+        "server/**/*",
+        "tuist_common/**/*",
+        "noora/**/*",
+        "mise/tasks/server/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/server-release.yml",
+        ".github/workflows/server-rc.yml",
+        ".github/workflows/server-promote.yml",
+        ".github/workflows/server-build-publish.yml"
+      ]
     },
     {
       "name": "cache",
@@ -86,7 +96,15 @@
       "tag_regex": "^kura@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "kura/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["kura/**/*"]
+      "include_paths": [
+        "kura/**/*",
+        "mise/tasks/kura/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/kura-release.yml",
+        ".github/workflows/kura-rc.yml",
+        ".github/workflows/kura-promote.yml",
+        ".github/workflows/kura-build-publish.yml"
+      ]
     },
     {
       "name": "gradle",

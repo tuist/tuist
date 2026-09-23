@@ -18,8 +18,9 @@ restore depend on every backup since the last full: one corrupt or expired
 link and everything after it is unrecoverable.
 
 So each incremental is based on its own week's full, never on yesterday's
-incremental. Restoring is always exactly two steps, whichever day you pick,
-and losing one day's backup costs that day rather than the rest of the week.
+incremental. A restore then depends on exactly two objects, whichever day you
+pick, and losing one day's backup costs that day rather than the rest of the
+week.
 
 The pairing is by ISO week, computed identically by both jobs, which is why
 the full runs on Monday: ISO weeks start on Monday, so every incremental from
@@ -54,15 +55,36 @@ rather than leaving a full to be inferred from the object store.
 
 ## Restoring
 
-Both steps run from a client against the server, `--host` being the service:
+One statement, naming the day to restore to, run from a client against the
+server with `--host` being the service:
 
-    RESTORE DATABASE `<db>` FROM Disk('backups', 'full/<YYYY-Www>')
     RESTORE DATABASE `<db>` FROM Disk('backups', 'incremental/<YYYY-Www>/<YYYY-MM-DD>')
+
+An incremental carries a reference to the full it was based on, and the
+restore follows it, so this reads both objects and produces the whole
+database. Restoring the full first and the incremental on top of it loads the
+data twice: a drill that did so on canary came back with every table at
+exactly double its row count. Restore the full alone only to land on the
+Monday, or when the day you want has no incremental.
 
 Into a server that already holds the database, add
 `SETTINGS allow_non_empty_tables=true` or drop it first. Restoring somewhere
 else needs the same `backups` disk declared there, which means the same
 `clickhouse.managed.backup` values and object-storage credentials.
+
+Restoring beside the live database, to check a backup or to recover one table,
+goes into a database you create yourself:
+
+    CREATE DATABASE restore_check ENGINE = Atomic;
+    RESTORE DATABASE `<db>` AS restore_check FROM Disk('backups', 'incremental/<YYYY-Www>/<YYYY-MM-DD>')
+      SETTINGS create_database = 'must exist', allow_different_database_def = 1;
+
+`RESTORE DATABASE <db> AS restore_check` on its own does not do this. The
+restored `CREATE DATABASE` carries the engine it was backed up with, whose
+Keeper path is this database's, so the copy registers as another replica of
+the live database instead of standing beside it. Restored tables are safe
+either way: each is created with a fresh UUID, and the default replica path is
+derived from it.
 
 ## Retention is not here
 
@@ -76,9 +98,26 @@ the base out from under backups it leaves in place.
 ## Failure is visible in the cluster, not here
 
 Managed clusters have no Prometheus Operator, so there is no PrometheusRule.
-Alert on `kube_job_status_failed` for these jobs in Grafana Cloud. Failed jobs
-are kept so their logs can be read: a job pod that lives seconds is missed by
-the log collector entirely, so the object itself is the record.
+Alert in Grafana Cloud on the absence of a recent success rather than on
+`kube_job_status_failed`:
+
+    (
+      time() - max by (cluster, namespace) (
+        kube_job_status_completion_time{job_name=~".*-clickhouse-backup-.*"}
+      )
+    ) > 30 * 3600
+
+A failed job is kept here on purpose, so a rule that reads one fires until
+somebody deletes the object: a single failure in 2026-W37 alerted for two
+weeks while every backup after it succeeded, which is the shape of rule that
+teaches an operator to ignore the alert. It also stays silent for an
+environment whose jobs never ran at all, which is the case worth paging on.
+Absence of a success covers both, and clears itself the moment one lands.
+
+The threshold covers a missed daily plus the hour the schedules allow, so it
+fires on the second consecutive miss rather than on one late run. Failed jobs
+are still kept so their logs can be read: a job pod that lives seconds is
+missed by the log collector entirely, so the object itself is the record.
 */}}
 {{- $jobs := list
   (dict "suffix" "full" "schedule" $m.backup.fullSchedule "query" (printf "BACKUP DATABASE \\`%s\\` TO Disk('backups', 'full/$WEEK')" $m.database)

@@ -43,10 +43,13 @@ defmodule Tuist.Runners.GitLab.Client do
     request(url, :put, "/jobs/#{id}", %{token: token, state: state, failure_reason: reason})
   end
 
-  def reject_job(url, %{"id" => id, "token" => token} = payload, message) do
-    trace = "Tuist: #{message}\n"
+  # Writes the start of the job log; GitLab answers 416 once it has bytes.
+  def write_trace(url, %{"id" => id, "token" => token}, trace) do
+    request(url, :patch, "/jobs/#{id}/trace", %{token: token}, trace)
+  end
 
-    case request(url, :patch, "/jobs/#{id}/trace", %{token: token}, trace) do
+  def reject_job(url, payload, message) do
+    case write_trace(url, payload, "Tuist: #{message}\n") do
       {:ok, _} -> update_job(url, payload, "failed", "script_failure")
       {:error, {:http_status, 416}} -> update_job(url, payload, "failed", "script_failure")
       error -> error

@@ -3,6 +3,7 @@
 This file provides guidance to AI agents when working with code in this repository. It serves as the root intent node and points to deeper context in subdirectories.
 
 ## Repository Map
+- `.github/` - GitHub automation and community Slack notifications - see `.github/AGENTS.md`
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `codebase-search/` - Bounded Rust service for hosted source-code search - see `codebase-search/AGENTS.md`

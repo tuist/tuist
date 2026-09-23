@@ -18,8 +18,8 @@ defmodule AtlasWeb.Endpoint do
   ]
 
   socket "/live", Socket,
-    websocket: [connect_info: [:peer_data, :x_headers, session: @session_options]],
-    longpoll: [connect_info: [:peer_data, :x_headers, session: @session_options]]
+    websocket: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]]
 
   # Health check endpoint (runs before force_ssl)
   plug AtlasWeb.HealthCheck

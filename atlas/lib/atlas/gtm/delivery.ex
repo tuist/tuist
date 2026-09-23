@@ -7,7 +7,7 @@ defmodule Atlas.GTM.Delivery do
   alias Atlas.GTM.Broadcast
   alias Atlas.GTM.Subscriber
 
-  @kinds ~w(broadcast welcome confirmation transactional)
+  @kinds ~w(broadcast welcome confirmation transactional direct)
   @statuses ~w(pending delivered failed skipped)
 
   schema "gtm_deliveries" do

@@ -133,6 +133,15 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
+      # Usage-based pricing meters, reported only for accounts with the
+      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Provisioned in this environment's own Stripe account (test mode) by
+      # `Tuist.Billing.UsageMeterProvisioning`. A subscription only carries
+      # them once its account is switched, which the flag still gates.
+      usage_meters:
+        cache_egress_megabytes: "price_1UITAiQ9gGM5W1agQo117CYC"
+        cache_requests: "price_1UITAkQ9gGM5W1ag7kkpTbOX"
+        passing_test_cases: "price_1UITAlQ9gGM5W1ag0ql0psQC"
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
       # macOS baseline machine-minute, carried as a subscription item whose
       # quantity is the minutes. Never blank it once an account carries the
@@ -247,12 +256,6 @@ server:
       value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
-    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
-      # The production default is @daily, which would leave an instance
-      # eligible for up to another day against the one-day window above.
-      # Hourly closes that to an hour; staging's */5 buys nothing here, where
-      # nobody is watching a single instance through its cycle.
-      value: "0 * * * *"
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # This environment's rollouts run expedited, so the value only shapes
     # interim-paced ordering here; kept aligned with production.
@@ -295,29 +298,19 @@ clickhouse:
     # canary is for is the shape production will run, which staging does not
     # exercise: two replicas here, one on each AX42-1.
     #
-    # Still one replica, running the configuration a second one needs, so
-    # that configuration reaches it in a deploy of its own. A joining replica
-    # fetches every part from the address its peer registered in Keeper, and
-    # before this configuration that address is the pod's name under a
-    # Service that is not headless, which does not resolve. The StatefulSet
-    # creates a new replica before it restarts the old one, so adding the
-    # second replica in the same deploy would leave it unable to catch up and
-    # the rollout waiting on it until helm gives up.
-    #
     # Keeper stays at one member. Growing a live ensemble to three is a
     # membership change, not a replica count: new members started with a
     # three-server configuration can elect a leader between themselves with
     # none of the existing member's metadata.
-    replicas: 1
+    replicas: 2
     persistence:
       size: 200Gi
       localVolume:
-        # The box that has held the data since the migration began. The
-        # second one, bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv, is
-        # joined, tainted and idle until it becomes replica 1. See `nodeNames`
-        # in values.yaml.
+        # Replica 0 on the box that has held the data since the migration
+        # began, replica 1 on the second. See `nodeNames` in values.yaml.
         nodeNames:
           - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+          - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv
     # Reachable over the tailnet as well as in-cluster, because the
     # xcresult-processor is not on the pod network: it runs in a Tart VM with
     # a tailnet address, so the Service name every other writer resolves does

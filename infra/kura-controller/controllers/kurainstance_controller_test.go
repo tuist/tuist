@@ -110,11 +110,13 @@ func TestReplaceUnreadyPodsForImageChange(t *testing.T) {
 			Image: "ghcr.io/tuist/kura:0.5.3",
 		}}},
 	}
+	sts := probeTestStatefulSet(instance, 2)
+	sts.Spec.Template.Spec.Containers = []corev1.Container{{Name: "kura", Image: instance.Spec.Image}}
 
 	reconciler := &KuraInstanceReconciler{
 		Client: fake.NewClientBuilder().
 			WithScheme(scheme).
-			WithObjects(instance, oldUnready, oldReady, newUnready).
+			WithObjects(instance, sts, oldUnready, oldReady, newUnready).
 			Build(),
 		Scheme: scheme,
 	}
@@ -256,7 +258,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress, sharedSecret).WithStatusSubresource(instance).Build(),
 		Scheme:             scheme,
 		GRPCClusterIssuer:  "letsencrypt-prod",
-		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces",
+		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces",
 		Environment:        "canary",
 	}
 
@@ -381,7 +383,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		env["KURA_INTERNAL_TLS_KEY_PATH"] == "" {
 		t.Fatal("expected internal peer mTLS env paths to be configured")
 	}
-	if got := env[otlpTracesEndpointEnvVar]; got != "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces" {
+	if got := env[otlpTracesEndpointEnvVar]; got != "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces" {
 		t.Fatalf("expected default OTLP traces endpoint, got %q", got)
 	}
 	if got := env[environmentEnvVar]; got != "canary" {
@@ -1516,7 +1518,7 @@ func TestKuraInstanceReconcilePreservesExplicitOTLPTracesEndpoint(t *testing.T) 
 	reconciler := &KuraInstanceReconciler{
 		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
 		Scheme:             scheme,
-		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces",
+		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces",
 	}
 
 	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {

@@ -40,6 +40,10 @@ defmodule TuistWeb.Webhooks.CacheController do
           case Map.get(projects_map, full_handle) do
             %{id: project_id} ->
               %{
+                # Preserved unchanged from the producer for future
+                # INSERT-level dedup (buffered path still to be extended).
+                event_id: optional_string(event, "event_id"),
+                observed_at_ms: optional_integer(event, "observed_at_ms"),
                 action: action,
                 size: size,
                 cas_id: cas_id,
@@ -69,5 +73,19 @@ defmodule TuistWeb.Webhooks.CacheController do
     |> put_status(:bad_request)
     |> json(%{error: "Invalid payload"})
     |> halt()
+  end
+
+  defp optional_string(event, key) do
+    case Map.get(event, key) do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
+
+  defp optional_integer(event, key) do
+    case Map.get(event, key) do
+      value when is_integer(value) and value >= 0 -> value
+      _ -> nil
+    end
   end
 end

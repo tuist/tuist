@@ -45,7 +45,14 @@ kuraController:
     dnsNames:
       - "*.kura.tuist.dev"
   telemetry:
-    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+    # Trailing dot makes this an absolute domain name, so a resolver with
+    # ndots >= 5 (kubelet's default) does not first try the 4-dot host
+    # against every search domain and pay three NXDOMAIN round trips per
+    # connect. Cross-region Kura pods, where every DNS lookup is a WAN
+    # round trip to CoreDNS, were losing every OTLP span on that budget
+    # (Atlas issue 56d8db50). Same reasoning applied to the analytics
+    # endpoint in #13459.
+    otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local.:4318/v1/traces
   analytics:
     enabled: true
   sharedSecrets:

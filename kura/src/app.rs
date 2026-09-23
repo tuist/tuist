@@ -241,10 +241,25 @@ async fn initialize_and_serve(
     .map_err(|error| format!("store open task failed: {error}"))??;
     bootstrap.recovery.check_running()?;
     store.set_startup_recovery(bootstrap.recovery.clone());
+    // Publish the analytics outbox depth once at startup. The column
+    // family exists from this release forward but has no producer yet, so
+    // the initial count is 0. Setting it here makes the gauge appear in
+    // Prometheus scrape output from day one, so operators watching the
+    // rollout of the follow-up producer PR see the metric go from 0 to a
+    // non-zero value instead of the gauge appearing for the first time
+    // under load.
+    match store.analytics_outbox_entry_count() {
+        Ok(count) => metrics.update_analytics_outbox_depth(count),
+        Err(error) => tracing::warn!(%error, "failed to read analytics outbox depth at startup"),
+    }
     let store = Arc::new(store);
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let analytics = Analytics::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        metrics.clone(),
+        Some(Arc::clone(&store)),
+    )
+    .map_err(|error| format!("failed to initialize analytics: {error}"))?;
     let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
         config.analytics.as_ref(),
         &config.node_url,
@@ -326,6 +341,13 @@ async fn initialize_and_serve(
     bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
     Usage::spawn_tasks(state.clone());
+    // The analytics outbox forwarder drains the shared column family into
+    // the server's webhook endpoints. In this release the pipeline is
+    // empty because no producer routes through it yet, so the tasks idle
+    // on the depth gauge; landing them ahead of the producer switch keeps
+    // activation independent from the code change that starts filling
+    // the outbox.
+    crate::analytics_forwarder::spawn_tasks(&state);
 
     if let Some(registration) =
         crate::registration::RegistrationConfig::from_env(&state.config.node_url)

@@ -1,8 +1,11 @@
 defmodule Tuist.Runners.VolumeHeads do
   @moduledoc """
-  The per-account cache-volume HEAD: the API over `runner_volume_heads`.
+  The cache-volume HEAD: the API over `runner_volume_heads`, one row per
+  (account, volume). A job's volume is its repository's
+  (`volume_name_for_repository/1`), or `tuist-cache` for a job with no
+  repository.
 
-  The HEAD is the single cross-host reference version of an account's warm
+  The HEAD is the single cross-host reference version of a volume's warm
   set. A runner reports it on promote (`bump_head/5`, a fast-forward
   compare-and-swap), and dispatch hands it back to the next runner (`get_head/2`)
   so a host that is behind can converge its on-disk master toward it before
@@ -49,8 +52,25 @@ defmodule Tuist.Runners.VolumeHeads do
 
   @reserved_tuist_cache "tuist-cache"
 
-  @doc "The reserved volume name for the managed Tuist module cache."
+  @doc "The account-wide volume, used by jobs with no repository."
   def reserved_tuist_cache, do: @reserved_tuist_cache
+
+  @doc """
+  The cache volume of a job in `repository`: `repo-` and the first 16 hex
+  characters of the SHA-256 of the lowercased name, which is a safe path segment
+  and fits a Node label key. A job with no repository uses `tuist-cache`.
+  """
+  def volume_name_for_repository(repository) when is_binary(repository) and repository != "" do
+    hash = :sha256 |> :crypto.hash(String.downcase(repository)) |> Base.encode16(case: :lower)
+    "repo-" <> binary_part(hash, 0, 16)
+  end
+
+  def volume_name_for_repository(_repository), do: @reserved_tuist_cache
+
+  @doc "Whether `name` is a volume `volume_name_for_repository/1` can return."
+  def valid_volume_name?(@reserved_tuist_cache), do: true
+  def valid_volume_name?(name) when is_binary(name), do: Regex.match?(~r/\Arepo-[0-9a-f]{16}\z/, name)
+  def valid_volume_name?(_name), do: false
 
   @doc """
   Fast-forwards `account_id`'s HEAD to `tree_digest` published from `node_name`,

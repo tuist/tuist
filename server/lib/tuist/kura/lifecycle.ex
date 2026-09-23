@@ -14,10 +14,9 @@ defmodule Tuist.Kura.Lifecycle do
 
   Two entry points, split by cadence rather than by concern. `reconcile/0`
   runs on every reconciler tick and does everything an account can feel:
-  provisioning, cancelling a drain, finishing a teardown. `sweep/0` runs daily
-  and only decides that an instance has gone inactive, because that threshold
-  is measured in whole days and re-deciding it every minute would change
-  nothing except query volume.
+  provisioning, cancelling a drain, finishing a teardown. `sweep/0` runs hourly
+  and decides which instances have gone inactive or remained unused, without
+  scanning the fleet on every reconciler tick.
 
   Five states, one instance:
 
@@ -65,20 +64,26 @@ defmodule Tuist.Kura.Lifecycle do
     * an account-region with no lifecycle row is never archived. Absence of
       demand data is not evidence of absence of demand.
     * a lifecycle row younger than the tracking grace period is never
-      archived, so the backfill has a full window to land before any row it
-      wrote can be acted on.
+      archived for inactivity, so the backfill has a full window to land
+      before its demand history can be acted on.
     * `keep_warm` holds a named account-region out of archival entirely, for
       the cases where a directory must survive inactivity.
 
   ## Never-used instances
 
   An active instance whose storage telemetry shows nothing stored since it
-  entered service is drained once it has been in service for
-  `Tuist.Environment.kura_unused_days/0`, whatever its demand. Only snapshots
-  covering the whole service life count as evidence; an instance with missing
-  telemetry is left to the inactivity window. Demand does not cancel that
-  drain, and once archived the account-region is provisioned again only by
-  demand recorded after the archival.
+  entered service is drained after 24 hours on Air and seven days on Pro by
+  default, whatever its demand. The hourly sweep reads
+  `Tuist.Environment.kura_air_unused_hours/0` and `kura_unused_days/0`.
+  Air's unused-instance tracking grace is capped at its unused window; the
+  inactivity path retains the full tracking grace. Both plans require snapshots
+  on every full service day and at least 90% of
+  the expected per-replica snapshot count, with each date capped at the time
+  in service. Partial boundary days need not have a row: provisioning and
+  rollup delivery can cross midnight. Insufficient telemetry is left to the
+  inactivity window.
+  Demand does not cancel that drain, and once archived the account-region is
+  provisioned again only by demand recorded after the archival.
 
   ## Plans
 
@@ -126,6 +131,11 @@ defmodule Tuist.Kura.Lifecycle do
   # a rollout. Anything over the ceiling is picked up by the next pass.
   @max_provisions_per_pass 20
   @max_archival_transitions_per_pass 100
+
+  # Kura emits one snapshot per replica every 15 minutes. A region without
+  # an explicit replica count uses the controller's three-replica default.
+  @storage_snapshot_interval_seconds 900
+  @default_storage_replicas 3
 
   # Under capacity pressure, eligibility depends on each account's plan and so
   # is decided after the query. These bound the scan that looks past ineligible
@@ -189,12 +199,10 @@ defmodule Tuist.Kura.Lifecycle do
 
   @doc """
   Decides which instances have gone a complete inactive window without cache
-  demand and moves them into drain-pending.
+  demand or have remained unused, and moves them into drain-pending.
 
-  Separate from `reconcile/0` and on a daily cadence because the thresholds
-  are whole days: scanning every active instance every minute would multiply
-  the query volume by three orders of magnitude and change nothing about when
-  an instance is archived.
+  Runs hourly by default so never-used Air instances are considered promptly
+  after their 24-hour window, separately from the per-minute reconciler.
   """
   def sweep do
     each_region(&sweep_region/1)
@@ -624,20 +632,37 @@ defmodule Tuist.Kura.Lifecycle do
   end
 
   # Instances that have stored nothing since they entered service. Only
-  # snapshots on every full day of the service life count as evidence: a pod
-  # restart empties a ring without an eviction, so a day without snapshots
+  # snapshots covering the service life count as evidence: a pod restart
+  # empties a ring without an eviction, so a day without snapshots
   # could hide use. An eviction on any day is use.
   defp unused_candidates(region_id, now, tracking_cutoff) do
-    unused_cutoff = DateTime.add(now, -Environment.kura_unused_days() * 86_400, :second)
-    today = DateTime.to_date(now)
-    instances = active_instances_in_service_before(region_id, unused_cutoff, tracking_cutoff)
+    air_window_seconds = Environment.kura_air_unused_hours() * 3600
+    default_window_seconds = Environment.kura_unused_days() * 86_400
+    earliest_cutoff = DateTime.add(now, -min(air_window_seconds, default_window_seconds), :second)
+    air_cutoff = DateTime.add(now, -air_window_seconds, :second)
+    air_tracking_cutoff = Enum.max([tracking_cutoff, air_cutoff], DateTime)
+    region = Regions.get(region_id)
+    replicas = region.provisioner_config[:replicas] || @default_storage_replicas
+
+    instances =
+      region_id
+      |> active_instances_in_service_before(earliest_cutoff, air_tracking_cutoff)
+      |> Enum.filter(fn {server, lifecycle} ->
+        plan = Billing.effective_plan(server.account)
+        cutoff = if plan == :air, do: air_cutoff, else: DateTime.add(now, -default_window_seconds, :second)
+        tracked_before = if plan == :air, do: air_tracking_cutoff, else: tracking_cutoff
+
+        archivable_plan?(plan) and DateTime.before?(service_started_at(server, lifecycle), cutoff) and
+          DateTime.before?(lifecycle.inserted_at, tracked_before)
+      end)
+
     rollups = storage_rollups_by_account(instances, region_id)
 
     Enum.flat_map(instances, fn {server, lifecycle} ->
       plan = Billing.effective_plan(server.account)
       started_at = service_started_at(server, lifecycle)
 
-      if archivable_plan?(plan) and never_stored?(Map.get(rollups, server.account_id, []), started_at, today) do
+      if never_stored?(Map.get(rollups, server.account_id, []), started_at, now, replicas) do
         [{server, lifecycle, plan, :unused}]
       else
         []
@@ -687,12 +712,31 @@ defmodule Tuist.Kura.Lifecycle do
   defp service_started_at(%Server{inserted_at: inserted_at}, %AccountRegionLifecycle{last_returned_at: returned_at}),
     do: Enum.max([inserted_at, returned_at], DateTime)
 
-  defp never_stored?(rollups, started_at, today) do
+  defp never_stored?(rollups, started_at, now, replicas) do
     started_on = DateTime.to_date(started_at)
-    in_service = Enum.filter(rollups, &(Date.compare(&1.date, started_on) != :lt))
-    snapshot_dates = MapSet.new(for rollup <- in_service, rollup.snapshot_count > 0, do: rollup.date)
+    today = DateTime.to_date(now)
 
-    MapSet.size(snapshot_dates) > 0 and
+    in_service =
+      Enum.filter(rollups, &(Date.compare(&1.date, started_on) != :lt and Date.compare(&1.date, today) != :gt))
+
+    snapshot_dates = MapSet.new(for rollup <- in_service, rollup.snapshot_count > 0, do: rollup.date)
+    expected = div(DateTime.diff(now, started_at), @storage_snapshot_interval_seconds) * replicas
+
+    # Boundary days can lack a row when provisioning crosses midnight or the
+    # current day's rollup has not landed. Cap each day's credit at the time
+    # actually in service so old return-day samples or extra pods cannot fill
+    # another day's gap. Counts alone cannot establish full-day continuity.
+    observed =
+      Enum.reduce(in_service, 0, fn rollup, total ->
+        day_start = DateTime.new!(rollup.date, ~T[00:00:00], "Etc/UTC")
+        day_end = DateTime.add(day_start, 1, :day)
+        first = Enum.max([day_start, started_at], DateTime)
+        last = Enum.min([day_end, now], DateTime)
+        day_expected = div(DateTime.diff(last, first), @storage_snapshot_interval_seconds) * replicas
+        total + min(rollup.snapshot_count, day_expected)
+      end)
+
+    expected > 0 and observed * 10 >= expected * 9 and
       Enum.all?(full_days_in_service(started_on, today), &MapSet.member?(snapshot_dates, &1)) and
       not Enum.any?(in_service, &stored?/1)
   end

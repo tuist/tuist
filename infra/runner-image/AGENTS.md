@@ -116,8 +116,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
-  `dispatch-poll.sh` also drives the **per-account cache-volume** flow,
-  materialized after dispatch. tart-kubelet attaches
+  `dispatch-poll.sh` also drives the **cache-volume** flow, one volume per
+  repository (per account for a job with no repository), materialized after
+  dispatch. The guest never learns which volume it got: the server stamps it on
+  the Pod and resolves it from there on every promote. tart-kubelet attaches
   an *empty* per-VM branch directory as a writable virtio-fs share at
   `/Volumes/My Shared Files/cache`. The cache itself is a **sparse APFS disk
   image** (`cache.sparseimage`) inside that share, not files on it: virtio-fs
@@ -126,7 +128,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
   onto the share fails (ELOOP). Inside an image the filesystem is real APFS and
   only one regular file crosses virtio-fs.
   The share is empty until dispatch: once the server stamps the pod's account
-  label, the host clonefiles that account's master image into the branch and
+  and cache-volume labels, the host clonefiles that volume's master image (or,
+  for a repository with no master on the host yet, the account's `tuist-cache`
+  master at base generation 0) into the branch and
   writes a `cache-ready` marker. After receiving the JIT and before `./run.sh`,
   the guest calls `wait_for_cache_ready` — a bounded (~60s) wait on that marker
   — then `attach_cache_image` (`hdiutil attach … -owners off`, which maps the
@@ -143,7 +147,7 @@ added to catch that failed on `admin`'s unwritable cache instead.
   guest relays with its promote so the HEAD row records WHICH host published a
   generation — the Node name rather than `TUIST_RUNNER_POD_NAME`, because the Pod
   is gone minutes later while the Node name is what the
-  `tuist.dev/cache-master-<account_id>` advertisements and the volume affinities
+  `tuist.dev/cache-master-<account_id>[.<volume>]` advertisements and the volume affinities
   are keyed on. Attribution only: nothing in the fast-forward reads it, and an
   unstaged name reports empty rather than falling back to the Pod name, since a
   column holding two kinds of name identifies neither. Every value the guest takes
