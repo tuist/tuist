@@ -24,7 +24,8 @@
       "url": "https://omada.taild6d7bb.ts.net:8043",
       "address": "100.84.132.92",
       "site": "ber1",
-      "credential_item": "omada staging open api"
+      "credential_item": "omada staging open api",
+      "device_account_item": "ber1 switch device account"
     }
   },
   "services": {
@@ -93,7 +94,8 @@
       "apply_note": "There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.",
       "ports": {},
       "mac": "a8:29:48:fe:b4:be",
-      "behind_edge": true
+      "behind_edge": true,
+      "adopted": true
     }
   ],
   "node_roles": {

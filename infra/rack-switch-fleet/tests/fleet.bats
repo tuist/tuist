@@ -1578,6 +1578,62 @@ STUB
     [ "$output" = "0" ]
 }
 
+@test "an adopted switch logs in with the device account's password, which leaves no file behind" {
+    # Adoption replaced ber1-mgmt's login with the controller's device account,
+    # and the fleet key with it.
+    stub="$BATS_TEST_TMPDIR/password"
+    mkdir -p "$stub"
+    cat > "$stub/ssh" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$FAKE_ARGS"
+printf '%s\n' "$SSH_ASKPASS" > "$FAKE_ARGS.askpass"
+printf '%s\n' "${SSH_ASKPASS_REQUIRE:-}" > "$FAKE_ARGS.require"
+"$SSH_ASKPASS" > "$FAKE_ARGS.password"
+sleep 0.2
+printf 'sw>'
+while IFS= read -r line; do
+    line="${line%$'\r'}"
+    printf '%s\r\n' "$line"
+    [ "$line" = logout ] && exit 0
+    printf '\r\nsw#'
+done
+STUB
+    cat > "$stub/op" <<'STUB'
+#!/usr/bin/env bash
+[ "$3" = "ber1 switch device account" ] && [ "$5" = "V1" ] || exit 1
+echo '{"fields":[{"id":"username","value":"tuist"},{"id":"password","value":"Rk7#mQ2x!vL9pZ4w"}]}'
+STUB
+    chmod +x "$stub/ssh" "$stub/op"
+    args="$BATS_TEST_TMPDIR/password-args"
+    run bash -c "
+        set -uo pipefail
+        export PATH=\"$stub:\$PATH\" FAKE_ARGS='$args'
+        source '$FLEET_ROOT/lib/session.sh'
+        SWITCH_LOGIN_ITEMS[192.0.2.13]='ber1 switch device account'
+        SWITCH_VAULT=V1
+        trap switch_close EXIT
+        switch_open 192.0.2.13 someone-else ~/.ssh/fleet
+    "
+    [ "$status" -eq 0 ]
+    [ "$(cat "$args.password")" = 'Rk7#mQ2x!vL9pZ4w' ]
+    [ "$(cat "$args.require")" = force ]
+    run grep -cx 'tuist@192.0.2.13' "$args"
+    [ "$output" = "1" ]
+    run grep -cx 'PubkeyAuthentication=no' "$args"
+    [ "$output" = "1" ]
+    run grep -cx -- '-i' "$args"
+    [ "$output" = "0" ]
+    [ ! -e "$(dirname "$(cat "$args.askpass")")" ]
+}
+
+@test "the switches the controller has adopted are the ones that log in with its device account" {
+    declare -gA SWITCH_LOGIN_ITEMS=()
+    fleet_load_logins "$SITE_FILE"
+    [ "${#SWITCH_LOGIN_ITEMS[@]}" -eq 1 ]
+    [ "${SWITCH_LOGIN_ITEMS[192.168.0.13]}" = "ber1 switch device account" ]
+    [ "$SWITCH_VAULT" = "$(jq -r '.credentials.vault' "$SITE_FILE")" ]
+}
+
 @test "the jump comes from the site definition, for the devices behind the edge" {
     run jq -r '.management.edge.ssh as $j | .devices[] | select(.behind_edge and $j) | "\(.mgmt_address) \($j)"' "$SITE_FILE"
     [ "$output" = "192.168.0.13 tuist@ber1-edge" ]
@@ -1663,6 +1719,8 @@ unset_host='{"errorCode":0,"result":{"deviceManage":null}}'
 general="${FAKE_GENERAL:-$unset_host}"
 ssh_off='{"errorCode":0,"result":{"sshEnable":false,"sshServerPort":22,"layer3Access":false}}'
 ssh="${FAKE_SSH:-$ssh_off}"
+wizard_account='{"errorCode":0,"result":{"username":"admin","password":"WizardSet1!"}}'
+account="${FAKE_ACCOUNT:-$wizard_account}"
 echo "$method $url" >> "$FAKE_LOG"
 case "$url" in
     */api/info) echo '{"result":{"omadacId":"OMC"}}';;
@@ -1684,18 +1742,31 @@ case "$url" in
     */sites/S1/ssh)
         if [ "$method" = GET ]; then echo "$ssh"
         else printf '%s' "$body" > "$FAKE_LOG.ssh"; echo '{"errorCode":0}'; fi;;
+    */sites/S1/device-account)
+        if [ "$method" = GET ]; then echo "$account"
+        else printf '%s' "$body" > "$FAKE_LOG.account-put"; echo '{"errorCode":0}'; fi;;
     *) echo '{"errorCode":-1,"msg":"unexpected"}';;
 esac
 STUB
+    # The device account item holds whatever password is in log.account; create
+    # and edit take the next of FAKE_GENERATED's lines, the last repeating.
     cat > "$dir/op" <<'STUB'
 #!/usr/bin/env bash
-case "$3" in
-    "omada staging open api")
+case "$2 $3" in
+    "get omada staging open api")
         echo '{"fields":[{"label":"client-id","value":"cid"},{"label":"client-secret","value":"csecret"}]}';;
+    "get ber1 switch device account")
+        [ -f "$FAKE_LOG.account" ] || { echo '"ber1 switch device account" isn'"'"'t an item' >&2; exit 1; }
+        jq -n --rawfile p "$FAKE_LOG.account" '{fields: [{id: "username", value: "tuist"}, {id: "password", value: ($p | rtrimstr("\n"))}]}';;
+    create*|edit*)
+        echo "$*" >> "$FAKE_LOG.op"
+        n=$(( $(cat "$FAKE_LOG.generated" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$FAKE_LOG.generated"
+        printf '%s\n' "${FAKE_GENERATED:-Rk7#mQ2x!vL9pZ4w}" | sed -n "${n}p;\$p" | head -1 > "$FAKE_LOG.account";;
     *)
         echo '{"fields":[{"id":"username","value":"tuist"},{"id":"password","value":"SwitchNotReal24chars0000"}]}';;
 esac
 STUB
+    echo 'Rk7#mQ2x!vL9pZ4w' > "$dir/log.account"
     printf '#!/bin/sh\n:\n' > "$dir/sleep"
     chmod +x "$dir/curl" "$dir/op" "$dir/sleep"
     : > "$dir/log"
@@ -1801,12 +1872,61 @@ STUB
     address="$(jq -r '.management.controller.address' "$SITE_FILE")"
     general="{\"errorCode\":0,\"result\":{\"deviceManage\":{\"deviceHostEnable\":true,\"deviceHost\":\"$address\"}}}"
     ssh='{"errorCode":0,"result":{"sshEnable":true,"sshServerPort":22,"layer3Access":false}}'
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_GENERAL="$general" FAKE_SSH="$ssh" \
+    account='{"errorCode":0,"result":{"username":"tuist","password":"Rk7#mQ2x!vL9pZ4w"}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_GENERAL="$general" FAKE_SSH="$ssh" FAKE_ACCOUNT="$account" \
         "$FLEET_ROOT/omada.sh" controller
     [ "$status" -eq 0 ]
     [[ "$output" == *"matches the site definition for ber1"* ]]
     [ ! -e "$bin/log.general" ]
     [ ! -e "$bin/log.ssh" ]
+    [ ! -e "$bin/log.account-put" ]
+}
+
+@test "the controller's device account is the one in 1Password, and neither is printed" {
+    bin="$BATS_TEST_TMPDIR/omada11"
+    omada_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" "$FLEET_ROOT/omada.sh" controller
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"gives the switches in ber1 the login in 'ber1 switch device account'"* ]]
+    [[ "$output" != *'Rk7#mQ2x!vL9pZ4w'* ]]
+    [[ "$output" != *"WizardSet1!"* ]]
+    run jq -r '"\(.username) \(.password)"' "$bin/log.account-put"
+    [ "$output" = 'tuist Rk7#mQ2x!vL9pZ4w' ]
+}
+
+@test "a missing device account item is created only when asked" {
+    bin="$BATS_TEST_TMPDIR/omada12"
+    omada_stub "$bin"
+    rm "$bin/log.account"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" "$FLEET_ROOT/omada.sh" controller
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"no 1Password item 'ber1 switch device account'; --create-device-account makes one"* ]]
+    [ ! -e "$bin/log.op" ]
+    [ ! -e "$bin/log.account-put" ]
+}
+
+@test "a created device account is regenerated until both the controller and the switch accept it" {
+    # 1Password's generator can repeat a character, add a question mark or leave
+    # out a symbol; the controller rejects all three, the switch the second.
+    bin="$BATS_TEST_TMPDIR/omada13"
+    omada_stub "$bin"
+    rm "$bin/log.account"
+    generated='Rk7#mQ2xx!vL9pZ4w
+Rk7#mQ2x?vL9pZ4w
+Rk7mQ2xAvL9pZ4wB
+Tq3!nW8e#Yb5Lc2V'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_GENERATED="$generated" \
+        "$FLEET_ROOT/omada.sh" controller --create-device-account
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"created the 1Password item 'ber1 switch device account'"* ]]
+    run grep -c '^item create ' "$bin/log.op"
+    [ "$output" = "1" ]
+    run grep -c '^item edit ' "$bin/log.op"
+    [ "$output" = "3" ]
+    run grep -c 'username=tuist' "$bin/log.op"
+    [ "$output" = "1" ]
+    run jq -r '"\(.username) \(.password)"' "$bin/log.account-put"
+    [ "$output" = 'tuist Tq3!nW8e#Yb5Lc2V' ]
 }
 
 @test "a failure left over from an earlier attempt does not end a new adoption" {

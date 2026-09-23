@@ -56,30 +56,56 @@ SWITCH_CLOSED_BY=""
 # the caller from the site definition.
 declare -gA SWITCH_JUMPS=()
 
+# The 1Password login item for a switch that logs in with a password rather than
+# the fleet key, keyed by management address: an adopted switch carries the
+# controller's device account. Filled in by the caller from the site definition.
+declare -gA SWITCH_LOGIN_ITEMS=()
+SWITCH_VAULT=""
+SWITCH_SECRET_DIR=""
+
 
 # False once the coprocess is gone, which bash signals by deleting the array.
 switch_alive() { [ -n "${SWITCH[0]:-}" ]; }
 
 switch_open() {
-  local address="$1" user="$2" key="$3" jump relay=()
+  local address="$1" user="$2" key="$3" jump relay=() item login auth=() askpass=()
   SWITCH_ADDRESS="$address"
   jump="${SWITCH_JUMPS[$address]:-}"
   # The relay authenticates as the operator to the jump host, never with the
   # switch key, which stays on this machine.
   [ -n "$jump" ] && relay=(-o "ProxyCommand=ssh -o BatchMode=yes -o ConnectTimeout=10 -W %h:%p $jump")
 
+  item="${SWITCH_LOGIN_ITEMS[$address]:-}"
+  if [ -n "$item" ]; then
+    login="$(op item get "$item" --vault "$SWITCH_VAULT" --format=json)" || {
+      echo "error: 1Password did not return '$item', the login for $address" >&2
+      return 1
+    }
+    user="$(jq -r '.fields[]? | select(.id == "username") | .value // empty' <<<"$login")"
+    # ssh takes a password only from a terminal or an askpass program. The
+    # program reads it from a file only this user can open, removed on close.
+    SWITCH_SECRET_DIR="$(mktemp -d)"
+    chmod 700 "$SWITCH_SECRET_DIR"
+    (umask 077; jq -r '.fields[]? | select(.id == "password") | .value // empty' <<<"$login" > "$SWITCH_SECRET_DIR/password")
+    printf '#!/bin/sh\ncat "%s"\n' "$SWITCH_SECRET_DIR/password" > "$SWITCH_SECRET_DIR/askpass"
+    chmod 700 "$SWITCH_SECRET_DIR/askpass"
+    askpass=(SSH_ASKPASS="$SWITCH_SECRET_DIR/askpass" SSH_ASKPASS_REQUIRE=force DISPLAY="${DISPLAY:-:0}")
+    # shellcheck disable=SC2054  # the comma belongs to ssh's own option value
+    auth=(-o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive
+          -o NumberOfPasswordPrompts=1 -o BatchMode=no)
+  else
+    auth=(-i "${key/#\~/$HOME}" -o IdentitiesOnly=yes -o BatchMode=yes)
+  fi
+
   SWITCH_LOG="$(mktemp)"
   trap '' PIPE
   coproc SWITCH {
-    ssh -tt "${relay[@]}" \
-      -i "${key/#\~/$HOME}" \
-      -o IdentitiesOnly=yes \
+    env "${askpass[@]}" ssh -tt "${relay[@]}" "${auth[@]}" \
       -o IdentityAgent=none \
       -o KexAlgorithms=+diffie-hellman-group14-sha1 \
       -o HostKeyAlgorithms=+ssh-rsa \
       -o PubkeyAcceptedAlgorithms=+ssh-rsa \
       -o StrictHostKeyChecking=accept-new \
-      -o BatchMode=yes \
       -o ConnectTimeout=10 \
       "$user@$address" 2>"$SWITCH_LOG"
   }
@@ -205,6 +231,7 @@ switch_close() {
   if [ -z "${SWITCH_PID:-}" ] && ! switch_alive; then
     trap - PIPE
     if [ -n "$SWITCH_LOG" ]; then rm -f "$SWITCH_LOG"; SWITCH_LOG=""; fi
+    if [ -n "$SWITCH_SECRET_DIR" ]; then rm -rf "$SWITCH_SECRET_DIR"; SWITCH_SECRET_DIR=""; fi
     return 0
   fi
   # Always try, even when the session looks dead: leaving a session open is what
@@ -230,4 +257,5 @@ switch_close() {
   SWITCH_PID=""
   trap - PIPE
   if [ -n "$SWITCH_LOG" ]; then rm -f "$SWITCH_LOG"; SWITCH_LOG=""; fi
+  if [ -n "$SWITCH_SECRET_DIR" ]; then rm -rf "$SWITCH_SECRET_DIR"; SWITCH_SECRET_DIR=""; fi
 }

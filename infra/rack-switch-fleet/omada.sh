@@ -3,7 +3,8 @@
 # The rack fleet's side of the Omada controller: its Open API with client
 # credentials, and the one switch-side step adoption needs.
 #
-#   mise run rack:omada controller         # the controller settings the switches depend on
+#   mise run rack:omada controller [--create-device-account]
+#                                          # the controller settings the switches depend on
 #   mise run rack:omada devices            # what the controller sees, adopted or pending
 #   mise run rack:omada inform <device>    # point a switch at the controller
 #   mise run rack:omada adopt <device>     # adopt it with its own login from 1Password
@@ -21,6 +22,7 @@ source "$FLEET_ROOT/lib/config.sh"
 source "$FLEET_ROOT/lib/session.sh"
 
 SITE="${RACK_SITE:-ber1}"
+create_device_account=0
 while (( $# )); do
   case "$1" in
     --site) SITE="${2:-}"; shift 2;;
@@ -29,6 +31,12 @@ while (( $# )); do
 done
 command="${1:-}"
 shift || true
+while (( $# )); do
+  case "$1" in
+    --create-device-account) create_device_account=1; shift;;
+    *) break;;
+  esac
+done
 
 site_file="$(fleet_site_file "$SITE")"
 [ -f "$site_file" ] || { echo "error: no site definition at $site_file" >&2; exit 2; }
@@ -166,10 +174,72 @@ ensure_site_ssh() {
   echo "the controller now keeps SSH on for the switches in $site_name"
 }
 
+# A password both the controller's device account and the switch's `secret 0`
+# accept: 10 to 31 characters, upper and lower case, a digit and a symbol, no
+# space, double quote or question mark, and no character twice in a row.
+device_password_ok() {
+  local p="$1" i
+  [[ "$p" =~ ^[^[:space:]\"?]{10,31}$ && "$p" =~ [a-z] && "$p" =~ [A-Z] && "$p" =~ [0-9] && "$p" =~ [^A-Za-z0-9] ]] || return 1
+  for (( i = 1; i < ${#p}; i++ )); do
+    [ "${p:i:1}" != "${p:i-1:1}" ] || return 1
+  done
+}
+
+# The site's device account, as {username, password} on stdout for a pipe. With
+# --create-device-account and no item yet, 1Password generates one, and
+# regenerates until the password is one the controller and the switch accept.
+device_account_login() {
+  local item login password tries=0
+  item="$(jq -r '.management.controller.device_account_item // empty' "$site_file")"
+  [ -n "$item" ] || { echo "error: $SITE has no management.controller.device_account_item" >&2; return 1; }
+  if ! login="$(op item get "$item" --vault "$vault" --format=json 2>/dev/null)"; then
+    if (( ! create_device_account )); then
+      echo "error: no 1Password item '$item'; --create-device-account makes one" >&2
+      return 1
+    fi
+    # shellcheck disable=SC2054  # commas belong to op's own flag values
+    op item create --category=login "--title=$item" --vault "$vault" \
+      --generate-password=letters,digits,symbols,24 "--tags=$SITE,rack,network" \
+      "username=$(jq -r '.credentials.username' "$site_file")" >/dev/null || return 1
+    echo "created the 1Password item '$item'" >&2
+    login="$(op item get "$item" --vault "$vault" --format=json)" || return 1
+  fi
+  password="$(jq -r '.fields[]? | select(.id == "password") | .value // empty' <<<"$login")"
+  while ! device_password_ok "$password"; do
+    if (( ! create_device_account )) || (( ++tries > 20 )); then
+      echo "error: the password on '$item' is not one both the controller and the switch accept" >&2
+      return 1
+    fi
+    # shellcheck disable=SC2054
+    op item edit "$item" --vault "$vault" --generate-password=letters,digits,symbols,24 >/dev/null || return 1
+    login="$(op item get "$item" --vault "$vault" --format=json)" || return 1
+    password="$(jq -r '.fields[]? | select(.id == "password") | .value // empty' <<<"$login")"
+  done
+  jq -c '{username: (.fields[] | select(.id == "username") | .value),
+          password: (.fields[] | select(.id == "password") | .value)}' <<<"$login"
+}
+
+# Adoption replaces a switch's login with the site's device account, one account
+# for every switch in the site: ber1-mgmt refused the fleet's own login once
+# adopted. So the account is the one in 1Password, set before anything is
+# adopted, and fleet sessions to adopted switches log in with it.
+ensure_device_account() {
+  local wanted current
+  wanted="$(device_account_login)" || exit 1
+  current="$(api GET "/sites/$SITE_ID/device-account")" || exit 1
+  if [ "$(jq -r '.result.username // empty' <<<"$current")" = "$(jq -r '.username' <<<"$wanted")" ] &&
+     [ "$(jq -r '.result.password // empty' <<<"$current")" = "$(jq -r '.password' <<<"$wanted")" ]; then
+    return 0
+  fi
+  api PUT "/sites/$SITE_ID/device-account" <<<"$wanted" >/dev/null || exit 1
+  echo "the controller now gives the switches in $site_name the login in '$(jq -r '.management.controller.device_account_item' "$site_file")'"
+}
+
 # Controller settings the switches depend on, from the site definition.
 converge_controller() {
   ensure_device_host
   ensure_site_ssh
+  ensure_device_account
 }
 
 case "$command" in
@@ -200,6 +270,7 @@ case "$command" in
     switch_address="$(device_field mgmt_address "$name")"
     [ -n "$switch_address" ] || { echo "error: $name is not in $SITE" >&2; exit 1; }
     fleet_load_jumps "$site_file"
+    fleet_load_logins "$site_file"
     (
       trap switch_close EXIT
       switch_open "$switch_address" "$(jq -r '.credentials.username' "$site_file")" \

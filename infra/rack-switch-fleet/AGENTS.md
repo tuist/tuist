@@ -621,15 +621,21 @@ is in the data center. Where that stands on 2026-09-23:
   role covers no custom resources. `ber1-edge` on the tailnet as
   `tag:tuist-rack-edge`.
 - **Adopted.** `ber1-mgmt`, on 2026-09-23, once `ber1-edge` clamped the MSS of
-  what it forwards into the tailnet. Adoption replaced the switch's login with
-  the site's device account and switched SSH off until the site turned it back
-  on; the fleet cannot log in to it as `tuist` any more. The details are in
-  "Adoption, measured on ber1-mgmt" in the assessment.
-- **Open.** Which login the switches carry under the controller: the site's
-  device account is one account for every switch, set before adoption, and the
-  fleet key does not survive. Until that is decided, no ToR is adopted. Then
-  what adoption left of `ber1-mgmt`'s configuration, and whether it honours a
-  write the API accepts.
+  what it forwards into the tailnet. Adoption replaces a switch's login with the
+  site's device account, one account for every switch in the site, and applies
+  the site's SSH setting, which starts off. `rack:omada controller` sets both
+  from the site definition: SSH on, and the device account from the 1Password
+  item `management.controller.device_account_item` names ("ber1 switch device
+  account", user `tuist`). A device marked `adopted` in the site definition is
+  one the fleet reaches with that account's password, handed to ssh through an
+  askpass program reading a file only the operator can open, removed when the
+  session closes; every other switch still uses the fleet key. What adoption
+  kept and changed of the configuration is in "Adoption, measured on ber1-mgmt"
+  in the assessment; `rack:fleet diff ber1-mgmt` now shows the controller's
+  defaults as drift.
+- **Open.** Whether the switch honours a write the API accepts, and what the
+  render should say for an adopted switch, whose hostname, NTP and web server
+  the controller now owns. No ToR is adopted until then.
 - **Not started.** The reconciler that watches `RackSwitch` objects and drives
   the controller; joining `ber1-edge` to staging as a node, which would let
   `rack:ztp` and the edge path run as workloads; and a factory-reset run of

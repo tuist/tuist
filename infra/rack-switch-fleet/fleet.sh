@@ -1139,6 +1139,7 @@ main() {
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   fleet_load_jumps "$(site_file)"
+  fleet_load_logins "$(site_file)"
   case "$command" in
     render)     cmd_render "$@";;
     diff)       cmd_diff "$@";;

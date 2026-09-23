@@ -541,3 +541,17 @@ fleet_load_jumps() {
     SWITCH_JUMPS[$address]="$jump"
   done < <(jq -r '.management.edge.ssh as $j | .devices[] | select(.behind_edge and $j) | "\(.mgmt_address) \($j)"' "$site_file")
 }
+
+# Switches the site's controller has adopted log in with its device account,
+# since adoption replaced their own login; the rest with the fleet key.
+fleet_load_logins() {
+  local site_file="$1" address item
+  # shellcheck disable=SC2034  # read by lib/session.sh
+  SWITCH_VAULT="$(jq -r '.credentials.vault' "$site_file")"
+  item="$(jq -r '.management.controller.device_account_item // empty' "$site_file")"
+  [ -n "$item" ] || return 0
+  while read -r address; do
+    # shellcheck disable=SC2034,SC2004  # lib/session.sh's associative array
+    SWITCH_LOGIN_ITEMS[$address]="$item"
+  done < <(jq -r '.devices[] | select(.adopted) | .mgmt_address' "$site_file")
+}

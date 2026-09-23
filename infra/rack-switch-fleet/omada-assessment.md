@@ -36,7 +36,7 @@ switch's MAC address.
 | VLANs, when the rack has a plan | `lan-networks`, with membership on the profile or the port | yes | profile only |
 | LAG | `PATCH switches/{mac}/ports/{port}`, `operation: aggregating` with `lagSetting` | membership, as `lagPort` in `GET switches/{mac}` | stacks only |
 | Port isolation | `portIsolationEnable` on the profile or the port | through the profile | profile only |
-| `telnet disable`, `no ip http server` | none | | neither is offered in controller mode, which is the same outcome by a different route |
+| `telnet disable`, `no ip http server` | none | | not offered in controller mode; adoption left telnet disabled and turned the web server on |
 | `no controller cloud-based` | n/a | | meaningless once adopted |
 | `serial_port baud_rate`, `no system-time dst`, `no service reset-disable` | none | | device-local; what adoption does to them is part of the adoption question |
 
@@ -97,8 +97,9 @@ the ToRs.
    `ber1-edge` (`rack:edge-path`, and the route in its render). Its wizard and
    Open API client are the one-time manual step; record its tailnet IP as
    `management.controller.address`.
-2. **The standalone configuration to return to** is committed:
-   `backups/ber1/ber1-mgmt.cfg`, taken after zero touch provisioned and sealed it.
+2. **The standalone configuration to return to** is in git history:
+   `backups/ber1/ber1-mgmt.cfg` as it was before adoption, taken after zero touch
+   provisioned and sealed it.
 3. **Adopt it** with `mise run rack:omada inform ber1-mgmt` then
    `mise run rack:omada adopt ber1-mgmt`, and record what changed: does the management address survive,
    is the prior configuration preserved or replaced, what does
@@ -145,15 +146,29 @@ Steps 1 to 3 ran on 2026-09-23, against the staging controller (6.3.0.45) and
   the setup wizard), one account for every switch in the site. So under the
   controller there are no per-switch logins, and the fleet key does not survive
   adoption.
-- **Not yet known:** whether the management address, VLANs, spanning tree and
-  port configuration survived (reading them needs the new login), whether the
-  switch honours a write the API accepts, and what a scheduled reboot reloads.
+- **What adoption kept:** the management address on VLAN 1, the route to the
+  tailnet, RSTP and per-port spanning tree, LLDP, `telnet disable`,
+  `no snmp-server` and the console baud rate.
+- **What it changed:** the hostname became the switch's MAC; VLAN 1 was renamed
+  `Default`; the NTP servers were removed; the web server was turned back on
+  (`ip http server`); `no controller cloud-based privacy-policy` went.
+- **What it added,** all controller defaults: `ip ssh block-l3`, which allows
+  SSH only from the switch's own subnet; IPv6 routing and autoconfiguration on
+  the management interface; loopback detection; auto-VoIP;
+  `cloud-firmware upgrade auto-check`; `sdm prefer omada`; and on every port a
+  `PortN` description and `lldp med-status`. The diff is the commit that
+  replaced `backups/ber1/ber1-mgmt.cfg` with the adopted configuration; the
+  standalone one is the version before it.
+- **Not yet known:** whether the switch honours a write the API accepts, and
+  what a scheduled reboot reloads.
 
-The login is the finding that shapes the design. Every SSH path in this
+The login was the finding that shaped the design. Every SSH path in this
 directory, including the spanning-tree read-back the reconciler sketch keeps,
-authenticates as `tuist` with the fleet key, which adoption removes. Under the
-controller the switch login is whatever the site's device account says, so it
-has to be set deliberately, from 1Password, before a switch is adopted.
+authenticated as `tuist` with the fleet key, which adoption removes. So the
+site's device account is now set deliberately, from the 1Password item
+`management.controller.device_account_item` names, by `rack:omada controller`
+before anything is adopted; fleet sessions to a switch marked `adopted` log in
+with that account's password instead of the key.
 
 ## What the reconciler looks like, if adoption holds
 
