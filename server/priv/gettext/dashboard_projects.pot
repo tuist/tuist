@@ -115,7 +115,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_builds_live.ex:10
 #: lib/tuist_web/live/bazel_overview_live.ex:301
-#: lib/tuist_web/live/once_overview_live.ex:230
+#: lib/tuist_web/live/once_overview_live.ex:258
 #: lib/tuist_web/live/once_runs_live.ex:44
 #: lib/tuist_web/live/xcode_overview_live.html.heex:787
 #, elixir-autogen, elixir-format
@@ -247,7 +247,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocations_live.ex:669
 #: lib/tuist_web/live/bazel_invocations_live.ex:784
 #: lib/tuist_web/live/bazel_overview_live.ex:367
-#: lib/tuist_web/live/once_overview_live.ex:234
+#: lib/tuist_web/live/once_overview_live.ex:263
 #: lib/tuist_web/live/once_runs_live.ex:347
 #: lib/tuist_web/live/once_runs_live.ex:834
 #: lib/tuist_web/live/xcode_overview_live.html.heex:898
@@ -256,7 +256,7 @@ msgid "Failed builds"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:505
-#: lib/tuist_web/live/once_overview_live.ex:245
+#: lib/tuist_web/live/once_overview_live.ex:275
 #: lib/tuist_web/live/xcode_overview_live.html.heex:489
 #, elixir-autogen, elixir-format
 msgid "Failed runs"
@@ -284,7 +284,7 @@ msgid "Install size"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:383
-#: lib/tuist_web/live/once_overview_live.ex:305
+#: lib/tuist_web/live/once_overview_live.ex:336
 #: lib/tuist_web/live/xcode_overview_live.html.heex:951
 #, elixir-autogen, elixir-format
 msgid "Last 30 runs"
@@ -338,7 +338,7 @@ msgid "Name"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:668
-#: lib/tuist_web/live/once_overview_live.ex:235
+#: lib/tuist_web/live/once_overview_live.ex:264
 #: lib/tuist_web/live/xcode_overview_live.html.heex:1087
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
@@ -373,14 +373,14 @@ msgid "Overview"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:362
-#: lib/tuist_web/live/once_overview_live.ex:233
+#: lib/tuist_web/live/once_overview_live.ex:262
 #: lib/tuist_web/live/xcode_overview_live.html.heex:893
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:500
-#: lib/tuist_web/live/once_overview_live.ex:244
+#: lib/tuist_web/live/once_overview_live.ex:274
 #: lib/tuist_web/live/xcode_overview_live.html.heex:484
 #, elixir-autogen, elixir-format
 msgid "Passed runs"
@@ -483,7 +483,7 @@ msgid "Supported platforms"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:480
-#: lib/tuist_web/live/once_overview_live.ex:241
+#: lib/tuist_web/live/once_overview_live.ex:270
 #: lib/tuist_web/live/xcode_overview_live.html.heex:461
 #, elixir-autogen, elixir-format
 msgid "Tests"
@@ -508,7 +508,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:425
 #: lib/tuist_web/live/bazel_overview_live.ex:484
 #: lib/tuist_web/live/once_cache_live.ex:471
-#: lib/tuist_web/live/once_overview_live.ex:268
+#: lib/tuist_web/live/once_overview_live.ex:299
 #: lib/tuist_web/live/xcode_overview_live.html.heex:465
 #: lib/tuist_web/live/xcode_overview_live.html.heex:571
 #: lib/tuist_web/live/xcode_overview_live.html.heex:995
@@ -1888,8 +1888,8 @@ msgstr ""
 #: lib/tuist_web/live/once_cache_live.ex:484
 #: lib/tuist_web/live/once_cache_live.ex:517
 #: lib/tuist_web/live/once_cache_live.ex:675
-#: lib/tuist_web/live/once_overview_live.ex:176
-#: lib/tuist_web/live/once_overview_live.ex:203
+#: lib/tuist_web/live/once_overview_live.ex:184
+#: lib/tuist_web/live/once_overview_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Action cache hit rate"
 msgstr ""
@@ -3199,12 +3199,12 @@ msgstr ""
 msgid "[redacted]"
 msgstr ""
 
-#: lib/tuist_web/live/once_overview_live.ex:218
+#: lib/tuist_web/live/once_overview_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "No cache activity yet"
 msgstr ""
 
-#: lib/tuist_web/live/once_overview_live.ex:246
+#: lib/tuist_web/live/once_overview_live.ex:276
 #, elixir-autogen, elixir-format
 msgid "No test runs yet"
 msgstr ""

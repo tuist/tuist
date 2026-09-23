@@ -69,11 +69,11 @@ defmodule TuistWeb.OnceOverviewLive do
 
   def render(assigns) do
     ~H"""
-    <div id="once-overview" class="bazel-overview">
+    <div id="once-overview" class="overview">
       <.card
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
-        data-part="analytics-card"
+        data-part="analytics"
       >
         <:actions>
           <.date_picker
@@ -162,53 +162,81 @@ defmodule TuistWeb.OnceOverviewLive do
             />
           </div>
 
-          <.card_section :if={!@cache_hit_rate_analytics.ok?} data-part="analytics-chart-section">
-            <.skeleton_chart />
+          <.card_section
+            :if={!@cache_hit_rate_analytics.ok?}
+            data-part="cache-effectiveness-card-chart-section"
+          >
+            <div data-part="effectiveness-chart">
+              <div data-part="legends"><.skeleton_legend /></div>
+              <.skeleton_chart />
+            </div>
           </.card_section>
           <.card_section
             :if={
               @cache_hit_rate_analytics.ok? && @has_any_cache_observations.ok? &&
                 @has_any_cache_observations.result
             }
-            data-part="analytics-chart-section"
+            data-part="cache-effectiveness-card-chart-section"
           >
-            <.legend
-              title={dgettext("dashboard_projects", "Action cache hit rate")}
-              value={
-                if @cache_summary.ok? and @cache_summary.result.hit_rate,
-                  do: "#{@cache_summary.result.hit_rate}%"
-              }
-              style="primary"
-            />
-            <.chart
-              id="once-overview-cache-hit-rate-chart"
-              type="line"
-              extra_options={
-                %{
-                  grid: %{width: "97%", left: "0.4%", height: "80%", top: "5%"},
-                  xAxis: chart_x_axis(@cache_hit_rate_analytics.result.dates, @analytics_granularity),
-                  yAxis: percentage_y_axis(),
-                  tooltip: chart_tooltip("{value}%", @analytics_granularity)
+            <div data-part="effectiveness-chart">
+              <div data-part="legends">
+                <.legend
+                  title={dgettext("dashboard_projects", "Action cache hit rate")}
+                  value={
+                    if @cache_summary.ok? and @cache_summary.result.hit_rate,
+                      do: "#{@cache_summary.result.hit_rate}%"
+                  }
+                  style="primary"
+                />
+              </div>
+              <.chart
+                data-lazy="true"
+                id="once-overview-cache-hit-rate-chart"
+                type="line"
+                extra_options={
+                  %{
+                    grid: %{width: "93%", left: "0%", right: "7%", height: "88%", top: "5%"},
+                    xAxis: %{
+                      boundaryGap: false,
+                      type: "category",
+                      axisLabel: %{
+                        color: "var:noora-surface-label-secondary",
+                        formatter: "fn:toLocaleDate",
+                        customValues: [
+                          List.first(@cache_hit_rate_analytics.result.dates),
+                          List.last(@cache_hit_rate_analytics.result.dates)
+                        ],
+                        padding: [10, 0, 0, 0]
+                      }
+                    },
+                    yAxis: %{
+                      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                      axisLabel: %{
+                        color: "var:noora-surface-label-secondary",
+                        formatter: "{value}%"
+                      }
+                    },
+                    tooltip: chart_tooltip("{value}%", @analytics_granularity),
+                    legend: %{show: false}
+                  }
                 }
-              }
-              series={[
-                %{
-                  color: "var:noora-chart-primary",
-                  data:
-                    Enum.zip(
-                      @cache_hit_rate_analytics.result.dates,
-                      @cache_hit_rate_analytics.result.hit_rate_values
-                    )
-                    |> Enum.map(&Tuple.to_list/1),
-                  name: dgettext("dashboard_projects", "Action cache hit rate"),
-                  type: "line",
-                  smooth: 0.1,
-                  symbol: "none"
-                }
-              ]}
-              y_axis_min={0}
-              y_axis_max={100}
-            />
+                series={[
+                  %{
+                    color: "var:noora-chart-primary",
+                    data:
+                      @cache_hit_rate_analytics.result.dates
+                      |> Enum.zip(@cache_hit_rate_analytics.result.hit_rate_values)
+                      |> Enum.map(&Tuple.to_list/1),
+                    name: dgettext("dashboard_projects", "Action cache hit rate"),
+                    type: "line",
+                    smooth: 0.1,
+                    symbol: "none"
+                  }
+                ]}
+                y_axis_min={0}
+                y_axis_max={100}
+              />
+            </div>
           </.card_section>
           <.empty_card_section
             :if={
@@ -228,6 +256,7 @@ defmodule TuistWeb.OnceOverviewLive do
       <.runs_card
         id="once-overview-builds"
         title={dgettext("dashboard_projects", "Builds")}
+        chart_part="build-runs-chart"
         summary={@build_summary}
         runs={@recent_builds}
         passed_label={dgettext("dashboard_projects", "Passed builds")}
@@ -239,6 +268,7 @@ defmodule TuistWeb.OnceOverviewLive do
       <.runs_card
         id="once-overview-tests"
         title={dgettext("dashboard_projects", "Tests")}
+        chart_part="test-runs-chart"
         summary={@test_summary}
         runs={@recent_test_runs}
         passed_label={dgettext("dashboard_projects", "Passed runs")}
@@ -258,6 +288,7 @@ defmodule TuistWeb.OnceOverviewLive do
   attr :failed_label, :string, required: true
   attr :empty_title, :string, required: true
   attr :navigate, :string, required: true
+  attr :chart_part, :string, required: true
 
   defp runs_card(assigns) do
     ~H"""
@@ -272,13 +303,13 @@ defmodule TuistWeb.OnceOverviewLive do
         />
       </:actions>
       <.card_section :if={!@runs.ok?}>
-        <div data-part="build-runs-chart">
+        <div data-part={@chart_part}>
           <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
           <.skeleton_chart />
         </div>
       </.card_section>
       <.card_section :if={@runs.ok? && Enum.any?(@runs.result)}>
-        <div data-part="build-runs-chart">
+        <div data-part={@chart_part}>
           <div data-part="legends">
             <.legend
               title={@passed_label}
@@ -382,15 +413,4 @@ defmodule TuistWeb.OnceOverviewLive do
   end
 
   defp opts(period, commands), do: period |> period_opts() |> Keyword.put(:commands, commands)
-
-  # There is no `fn:formatPercentage` in the chart hook, so the label was
-  # rendering as that literal string. Percentages use an ECharts template,
-  # the way the Xcode overview does it.
-  defp percentage_y_axis do
-    %{
-      splitNumber: 4,
-      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-      axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
-    }
-  end
 end
