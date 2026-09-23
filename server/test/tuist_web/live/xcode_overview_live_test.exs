@@ -88,10 +88,10 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
       organization: organization,
       project: project
     } do
-      TuistTestSupport.Fixtures.CoverageFixtures.run_with_coverage(
+      CoverageFixtures.run_with_coverage(
         project,
         organization.account,
-        [TuistTestSupport.Fixtures.CoverageFixtures.file("Sources/A.swift", [1, 0], targets: ["App"])],
+        [CoverageFixtures.file("Sources/A.swift", [1, 0], targets: ["App"])],
         %{git_commit_sha: "a", ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second)}
       )
 

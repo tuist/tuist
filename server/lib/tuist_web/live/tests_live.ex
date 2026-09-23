@@ -13,8 +13,11 @@ defmodule TuistWeb.TestsLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
+  alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Coverage.History
+  alias TuistWeb.Coverage.Components, as: CoverageComponents
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -205,7 +208,8 @@ defmodule TuistWeb.TestsLive do
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_test_scheme = params["analytics-test-scheme"] || "any"
-    analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
+    coverage_enabled = FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account)
+    analytics_selected_widget = selected_analytics_widget(params["analytics-selected-widget"], coverage_enabled)
 
     selected_duration_type = params["duration-type"] || "avg"
     duration_chart_type = params["duration-chart-type"] || "line"
@@ -232,6 +236,7 @@ defmodule TuistWeb.TestsLive do
 
     socket
     |> assign_test_run_duration_chart(duration_chart_type, scatter_group_by_atom, opts)
+    |> assign_coverage_analytics(coverage_enabled, period)
     |> assign_async(
       [
         :test_runs_analytics,
@@ -391,6 +396,33 @@ defmodule TuistWeb.TestsLive do
       {:ok, %{most_flaky_test_cases: most_flaky_test_cases}}
     end)
   end
+
+  # The Code Coverage page's figure over the date picker's period alone: the
+  # default branch's latest chained commit, how far it moved, and the chart's
+  # points, grouped as that page groups them. The environment and scheme
+  # filters are about test runs, and coverage is a commit's.
+  defp assign_coverage_analytics(%{assigns: %{selected_project: project}} = socket, true, period) do
+    assign_async(socket, :coverage_analytics, fn ->
+      points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
+
+      {:ok,
+       %{
+         coverage_analytics: %{
+           latest: List.last(points),
+           trend: CoverageComponents.period_trend(points),
+           points: CoverageComponents.chart_points(points, period)
+         }
+       }}
+    end)
+  end
+
+  defp assign_coverage_analytics(socket, false, _period), do: assign(socket, :coverage_analytics, nil)
+
+  # The coverage widget is hidden from accounts without coverage, so a link
+  # that selects it falls back to the default widget.
+  defp selected_analytics_widget("coverage", false), do: "test_run_count"
+  defp selected_analytics_widget(nil, _coverage_enabled), do: "test_run_count"
+  defp selected_analytics_widget(widget, _coverage_enabled), do: widget
 
   defp analytics_chart_data(
          analytics_selected_widget,
