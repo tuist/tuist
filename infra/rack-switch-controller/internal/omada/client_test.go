@@ -13,7 +13,7 @@ func newClient(t *testing.T, fake *omadatest.Server) *omada.Client {
 	t.Helper()
 	return omada.New(fake.URL, func() (string, string, error) {
 		return omadatest.ClientID, omadatest.ClientSecret, nil
-	})
+	}, fake.RootCAs())
 }
 
 func TestClientReusesItsToken(t *testing.T) {
@@ -96,7 +96,7 @@ func TestClientReportsTheControllersMessage(t *testing.T) {
 func TestClientRefusedCredentialsAreAnError(t *testing.T) {
 	fake := omadatest.New()
 	defer fake.Close()
-	c := omada.New(fake.URL, func() (string, string, error) { return omadatest.ClientID, "wrong", nil })
+	c := omada.New(fake.URL, func() (string, string, error) { return omadatest.ClientID, "wrong", nil }, fake.RootCAs())
 
 	_, err := c.SiteID(context.Background(), omadatest.SiteName)
 	var apiErr *omada.Error

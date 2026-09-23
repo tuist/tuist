@@ -30,6 +30,9 @@ spec:
           args:
             - --namespace={{ include "rack-switch-controller.watchNamespace" . }}
             - --omada-url={{ .Values.omada.url }}
+            {{- with .Values.omada.caSecret }}
+            - --omada-ca-file=/etc/rack-switch-controller-ca/ca.crt
+            {{- end }}
             - --omada-site={{ required "omada.site is required" .Values.omada.site }}
             - --controller-address={{ required "omada.controllerAddress is required: the Omada controller's tailnet IP" .Values.omada.controllerAddress }}
             - --credentials-dir=/etc/rack-switch-controller
@@ -67,6 +70,11 @@ spec:
             - name: credentials
               mountPath: /etc/rack-switch-controller
               readOnly: true
+            {{- if .Values.omada.caSecret }}
+            - name: omada-ca
+              mountPath: /etc/rack-switch-controller-ca
+              readOnly: true
+            {{- end }}
       # One directory, one file per value, whichever Secret it comes from:
       # the layout `rack-switch-controller apply --credentials-dir` reads too.
       volumes:
@@ -96,6 +104,14 @@ spec:
                     - key: password
                       path: factory-password
               {{- end }}
+        {{- with .Values.omada.caSecret }}
+        - name: omada-ca
+          secret:
+            secretName: {{ . }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

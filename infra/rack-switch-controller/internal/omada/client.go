@@ -9,11 +9,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -40,13 +42,12 @@ type Client struct {
 }
 
 // New returns a client for the controller at baseURL, for example
-// https://omada-omada-controller.omada.svc:8043.
-func New(baseURL string, credentials CredentialsFunc) *Client {
+// https://omada-omada-controller.omada.svc:8043. rootCAs verifies the
+// controller's certificate, which infra/helm/omada issues from its own CA;
+// nil means the system's roots.
+func New(baseURL string, credentials CredentialsFunc, rootCAs *x509.CertPool) *Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	// The controller serves its own self-signed certificate. The connection
-	// stays inside the cluster, from this controller to the Omada Service;
-	// `apply` from an operator's machine reaches it over the tailnet.
-	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+	transport.TLSClientConfig = &tls.Config{RootCAs: rootCAs, MinVersion: tls.VersionTLS12}
 	return &Client{
 		baseURL:     strings.TrimRight(baseURL, "/"),
 		credentials: credentials,
@@ -248,4 +249,21 @@ func listPages[T any](ctx context.Context, c *Client, path string, size int) ([]
 
 func sitePath(siteID, rest string) string {
 	return "/sites/" + siteID + rest
+}
+
+// LoadRootCAs reads the PEM certificates at path into a pool, or returns nil
+// for an empty path.
+func LoadRootCAs(path string) (*x509.CertPool, error) {
+	if path == "" {
+		return nil, nil
+	}
+	pem, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("%s holds no PEM certificate", path)
+	}
+	return pool, nil
 }

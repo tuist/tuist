@@ -301,6 +301,9 @@ async fn initialize_and_serve(
         config.sync_peer_serving_max_inflight,
     ));
     let state = Arc::new(AppState {
+        account_identity: arc_swap::ArcSwap::from_pointee(crate::state::AccountIdentity::new(
+            config.tenant_id.clone(),
+        )),
         config,
         _data_dir_lock: data_dir_lock,
         store,
@@ -378,6 +381,11 @@ async fn initialize_and_serve(
         state
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
+        state.update_account_identity(
+            enrollment.account_handle.as_deref(),
+            enrollment.account_aliases.as_deref(),
+            enrollment.endpoint_redirects.as_ref(),
+        );
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
         crate::mesh_heartbeat::spawn(
             state.clone(),
@@ -1361,6 +1369,11 @@ pub(crate) async fn apply_renewed_enrollment(
     }
 
     // Pick up any newly-learned peers for discovery.
+    state.update_account_identity(
+        outcome.account_handle.as_deref(),
+        outcome.account_aliases.as_deref(),
+        outcome.endpoint_redirects.as_ref(),
+    );
     state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
     Ok(())
 }

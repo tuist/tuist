@@ -60,12 +60,11 @@ func TestObserveCPUUsageSizesForTheBusiestReplica(t *testing.T) {
 	if state == nil {
 		t.Fatal("expected an observation to be published")
 	}
-	if state.PeakMilli != 631 {
-		t.Fatalf("peak = %dm, want the busiest replica's 631m", state.PeakMilli)
+	if !reflect.DeepEqual(state.SamplesMilli, []int32{631}) {
+		t.Fatalf("samples = %v, want the busiest replica's 631m", state.SamplesMilli)
 	}
-	// 631m + a quarter is 788m, which lands on the 1000m band.
-	if state.RequestMilli != 1000 {
-		t.Fatalf("request = %dm, want 1000m", state.RequestMilli)
+	if state.RequestMilli != cpuColdStartMilli {
+		t.Fatalf("request = %dm before sustained demand was observed, want the cold start", state.RequestMilli)
 	}
 }
 
@@ -113,7 +112,7 @@ func TestObserveCPUUsageWithoutAMetricsClientLeavesTheColdStart(t *testing.T) {
 	}
 }
 
-func TestCPURequestGrowsAtOnce(t *testing.T) {
+func TestCPURequestGrowsOnceSustainedDemandIsRecorded(t *testing.T) {
 	now := time.Date(2026, 9, 5, 0, 0, 0, 0, time.UTC)
 
 	state := observeCPUPeak(nil, 3, now)

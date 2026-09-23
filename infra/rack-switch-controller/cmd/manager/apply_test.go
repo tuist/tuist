@@ -75,7 +75,7 @@ func TestApplyAdoptsAndConvergesOneSwitch(t *testing.T) {
 	var out bytes.Buffer
 	a := applier{
 		engine: &converge.Engine{
-			Omada:             omada.New(fake.URL, func() (string, string, error) { return creds.ClientID, creds.ClientSecret, nil }),
+			Omada:             omada.New(fake.URL, func() (string, string, error) { return creds.ClientID, creds.ClientSecret, nil }, fake.RootCAs()),
 			Site:              omadatest.SiteName,
 			ControllerAddress: "100.84.132.92",
 		},
@@ -126,12 +126,13 @@ func TestApplyRunsAgainstAConnectedSwitchFromTheCommandLine(t *testing.T) {
 		MAC: "d4:d6:df:03:d8:b2", State: omadatest.Connected, Hostname: "ber1-tor-b", Ports: omadatest.Ports(2),
 		Networks: []map[string]any{omadatest.ManagementInterface(omada.IPModeDHCP, "192.168.0.82", "255.255.255.0", "192.168.0.1")},
 	})
-	path := filepath.Join(writeFiles(t, map[string]string{"rsw.yaml": object}), "rsw.yaml")
+	dir := writeFiles(t, map[string]string{"rsw.yaml": object, "ca.pem": string(fake.CertificatePEM())})
 
 	var stdout, stderr bytes.Buffer
 	code := runApply([]string{
-		"--object", path, "--omada-url", fake.URL, "--site", omadatest.SiteName,
+		"--object", filepath.Join(dir, "rsw.yaml"), "--omada-url", fake.URL, "--site", omadatest.SiteName,
 		"--controller-address", "100.84.132.92", "--credentials-dir", credentialsDir(t),
+		"--omada-ca-file", filepath.Join(dir, "ca.pem"),
 	}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, stderr.String())
@@ -143,6 +144,24 @@ func TestApplyRunsAgainstAConnectedSwitchFromTheCommandLine(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout = %s, want %q", stdout.String(), want)
 		}
+	}
+}
+
+func TestApplyRefusesAControllerWhoseCertificateItCannotVerify(t *testing.T) {
+	fake := omadatest.New()
+	defer fake.Close()
+	path := filepath.Join(writeFiles(t, map[string]string{"rsw.yaml": object}), "rsw.yaml")
+
+	var stdout, stderr bytes.Buffer
+	code := runApply([]string{
+		"--object", path, "--omada-url", fake.URL, "--site", omadatest.SiteName,
+		"--controller-address", "100.84.132.92", "--credentials-dir", credentialsDir(t),
+	}, &stdout, &stderr)
+	if code != 1 || !strings.Contains(stderr.String(), "certificate") {
+		t.Fatalf("code = %d, stderr = %s", code, stderr.String())
+	}
+	if len(fake.Requests()) != 0 {
+		t.Fatalf("the fake answered %d requests over an unverified connection", len(fake.Requests()))
 	}
 }
 

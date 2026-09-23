@@ -48,7 +48,8 @@ const (
 // configRevision or generation moves past what status records, or when the
 // switch has just been adopted, and never while a switch of the same site
 // with a lower applyOrder is not Ready. Between changes it only reads, every
-// resync, and reports drift without writing over it.
+// resync, and reports drift, the site settings' included, without writing
+// over it.
 type RackSwitchReconciler struct {
 	client.Client
 	Recorder       record.EventRecorder
@@ -106,15 +107,6 @@ func (r *RackSwitchReconciler) reconcileManaged(ctx context.Context, rs *v1alpha
 		return ctrl.Result{}, err
 	}
 
-	if blocker == nil {
-		changes, err := r.Engine.EnsureSite(ctx, siteID, creds.DeviceAccount)
-		r.recordChanges(ctx, rs, "SiteConverged", "site "+r.Engine.Site, changes)
-		if err != nil {
-			r.failed(rs, "SiteWriteFailed", err)
-			return ctrl.Result{}, err
-		}
-	}
-
 	dev, err := r.Engine.Find(ctx, siteID, rs.Spec.MAC)
 	if err != nil {
 		r.failed(rs, "ControllerUnavailable", err)
@@ -170,6 +162,11 @@ func (r *RackSwitchReconciler) reconcileManaged(ctx context.Context, rs *v1alpha
 
 	needsApply := justAdopted || st.ObservedRevision != rs.Spec.ConfigRevision || st.ObservedGeneration != rs.Generation
 	apply := needsApply && blocker == nil
+	if apply {
+		if err := r.ensureSite(ctx, rs, siteID, creds); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 	report, err := r.Engine.Converge(ctx, siteID, rs, apply)
 	r.recordChanges(ctx, rs, "Wrote", "", report.Changes)
 	if err != nil {
@@ -177,6 +174,14 @@ func (r *RackSwitchReconciler) reconcileManaged(ctx context.Context, rs *v1alpha
 		r.condition(rs, v1alpha1.ConditionConverged, false, "ConvergeFailed", err.Error())
 		r.ready(rs)
 		return ctrl.Result{}, err
+	}
+	if !apply {
+		siteDrift, err := r.Engine.SiteDifferences(ctx, siteID, creds.DeviceAccount)
+		if err != nil {
+			r.failed(rs, "ControllerUnavailable", err)
+			return ctrl.Result{}, err
+		}
+		report.Drift = append(siteDrift, report.Drift...)
 	}
 
 	previousDrift := st.Drift
@@ -228,6 +233,14 @@ func (r *RackSwitchReconciler) adopt(ctx context.Context, rs *v1alpha1.RackSwitc
 		return ctrl.Result{RequeueAfter: applyOrderPollInterval}, nil
 	}
 
+	// Adoption hands the switch the site's device account and SSH setting and
+	// needs the address it connects back to, so the site is brought to what
+	// it should be as an attempt starts.
+	if attempt == nil {
+		if err := r.ensureSite(ctx, rs, siteID, creds); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 	adoption, err := r.Engine.Adopt(ctx, siteID, dev, attempt, creds, now)
 	for _, note := range adoption.Notes {
 		eventType := corev1.EventTypeNormal
@@ -257,6 +270,16 @@ func (r *RackSwitchReconciler) adopt(ctx context.Context, rs *v1alpha1.RackSwitc
 	}
 	r.ready(rs)
 	return result, nil
+}
+
+// ensureSite writes the site settings, as part of a change to this switch.
+func (r *RackSwitchReconciler) ensureSite(ctx context.Context, rs *v1alpha1.RackSwitch, siteID string, creds converge.Credentials) error {
+	changes, err := r.Engine.EnsureSite(ctx, siteID, creds.DeviceAccount)
+	r.recordChanges(ctx, rs, "SiteConverged", "site "+r.Engine.Site, changes)
+	if err != nil {
+		r.failed(rs, "SiteWriteFailed", err)
+	}
+	return err
 }
 
 // blockedBy is the switch of the same site with the lowest applyOrder below

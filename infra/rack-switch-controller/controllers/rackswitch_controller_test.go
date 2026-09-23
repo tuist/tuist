@@ -76,7 +76,7 @@ func newHarness(t *testing.T, objects ...client.Object) *harness {
 		Engine: &converge.Engine{
 			Omada: omada.New(fakeOmada.URL, func() (string, string, error) {
 				return creds.ClientID, creds.ClientSecret, nil
-			}),
+			}, fakeOmada.RootCAs()),
 			Site:              omadatest.SiteName,
 			ControllerAddress: controllerAddress,
 			Gates:             converge.Gates{ManagementAddressing: true},
@@ -319,6 +319,40 @@ func TestSpanningTreeIsWrittenOnARevisionChangeAndNotOnAResync(t *testing.T) {
 	h.reconcile("ber1-tor-b")
 	if got := h.omada.Switch(torBMAC).Loopback; got == nil || got.STP != omada.STPMSTP {
 		t.Fatalf("a changed mode at the same revision was not written: %+v", got)
+	}
+}
+
+func TestAResyncReportsSiteSettingsWithoutWritingThem(t *testing.T) {
+	h := newHarness(t, rackSwitch("ber1-tor-b", torBMAC, 1, v1alpha1.ManagedByController))
+	h.connected("ber1-tor-b", torBMAC)
+	h.reconcile("ber1-tor-b")
+	if got := h.omada.DeviceHost(); got != controllerAddress {
+		t.Fatalf("device host after the first pass = %q", got)
+	}
+
+	// An operator points the switches elsewhere during an incident.
+	h.omada.SetDeviceHost("100.64.0.9")
+	h.omada.ResetRequests()
+	h.reconcile("ber1-tor-b")
+	if writes := h.omada.Writes(); len(writes) != 0 {
+		t.Fatalf("a resync wrote %+v", writes)
+	}
+	if got := h.omada.DeviceHost(); got != "100.64.0.9" {
+		t.Fatalf("a resync reverted the device host to %q", got)
+	}
+	rs := h.get("ber1-tor-b")
+	if rs.Status.Drift != v1alpha1.DriftDrifted || !strings.Contains(condition(rs, v1alpha1.ConditionConverged).Message, `device host is "100.64.0.9", want "100.84.132.92"`) {
+		t.Fatalf("drift = %s, converged = %+v", rs.Status.Drift, condition(rs, v1alpha1.ConditionConverged))
+	}
+
+	// A new revision is an explicit change, and brings the site back too.
+	h.editSpec("ber1-tor-b", func(s *v1alpha1.RackSwitchSpec) { s.ConfigRevision = "rev-2" })
+	h.reconcile("ber1-tor-b")
+	if got := h.omada.DeviceHost(); got != controllerAddress {
+		t.Fatalf("device host after a new revision = %q", got)
+	}
+	if rs := h.get("ber1-tor-b"); rs.Status.Drift != v1alpha1.DriftNone {
+		t.Fatalf("drift after a new revision = %s", rs.Status.Drift)
 	}
 }
 

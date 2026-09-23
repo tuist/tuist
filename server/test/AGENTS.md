@@ -24,6 +24,7 @@ This directory contains ExUnit tests for the Tuist Server.
 - `processor_role_privileges_test.exs` runs profile publication and invalid-profile rejection with `ProcessorRole.as_processor/1`, using release-time PostgreSQL grants. Timeline regressions cover unavailable direct links, late profile publication, expired indexed steps and valid metrics-only builds.
 
 - GitLab runner tests reject unmocked HTTP requests; the Go executor uses a local fake coordinator for execution, artifacts and masked-log validation.
+  Cache rename coverage must preserve account-ID archive keys and cross-account isolation while rejecting another account's attempt to claim a retained handle.
 
 - Kura claim resolution coverage (`tuist/kura/placer_claims_test.exs` and the `disk footprint` describe in `tuist/kura_test.exs`) must include pins without a sized claim on creation, cold return, warm handoff and runner caches, the largest of disagreeing pins, volumeless and non-governed rows contributing nothing, and admission refusing at the pinned claim.
 
@@ -32,3 +33,6 @@ This directory contains ExUnit tests for the Tuist Server.
 - Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results.
 
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.
+
+- Kura rename regressions cover stable workload/peer identity with migrating client endpoints, retired-handle ownership, production rollout gating, historical identity backfill, mesh authentication, original CA enrollment, usage attribution and signed analytics ingestion through original/intermediate/current account handles. Endpoint migration defaults off even for already-renamed accounts; test actor isolation, independence from the rename flag, preserved deployed hosts/aliases on image updates, observation failures, paused expiry, and readiness-delayed publication after opt-in. Migration SQL tests use transaction-local shadow tables. URL-expiry coverage checks the exact 90-day boundary, independent deadlines, rename-back, automatic manifest reconciliation, and signup/rename refusal even after a client URL expires.
+- Standalone deployment-credential rename tests use accounts with no managed server or self-hosted-client rows. Registration and peer discovery must accept the permanent tenant, explain current/intermediate handles with authenticated 409 responses without creating endpoint rows, and disclose no tenant for invalid credentials or unknown handles.

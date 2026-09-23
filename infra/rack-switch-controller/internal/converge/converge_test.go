@@ -200,12 +200,11 @@ func TestVLANsCreateNetworksAndWriteEveryPortsMembership(t *testing.T) {
 	}
 
 	sw := fake.Switch(torMAC)
-	// Port 1 carries every site network: written as Allow All, since a port the API
-	// reports as following its profile can still hold an old custom list.
+	// Port 1 tags every site network, and is still written as its list.
 	wantPort1 := map[string]any{
 		"name": "Port1", "profileId": omadatest.ProfileAllID, "profileOverrideEnable": true,
 		"profileVlanOverrideEnable": true, "nativeNetworkId": omadatest.DefaultNetworkID,
-		"networkTagsSetting": float64(0),
+		"networkTagsSetting": float64(2), "tagNetworkIds": []any{"net-20"}, "untagNetworkIds": []any{},
 	}
 	if !reflect.DeepEqual(sw.Overrides[1], wantPort1) {
 		t.Fatalf("port 1 override = %v", sw.Overrides[1])
@@ -229,6 +228,36 @@ func TestVLANsCreateNetworksAndWriteEveryPortsMembership(t *testing.T) {
 	}
 	if !contains(report.Drift, "port 2 follows its profile, and the spec needs an override") {
 		t.Fatalf("drift = %q", report.Drift)
+	}
+}
+
+func TestAnExplicitVLANListIsNeverWrittenAsAllowAll(t *testing.T) {
+	// Port 1 tags every network the site has today, and port 2 none while the
+	// site has only its default network. Both are written as the lists they
+	// are: "Allow All" would carry a network added to the site later without a
+	// new revision, and the API cannot read an override back to notice.
+	fake, engine := newEngine(t, converge.Gates{VLANs: true})
+	connectedTor(fake, 2)
+	rs := torB(2, func(cfg *v1alpha1.SwitchConfig) {
+		cfg.VLANs = []v1alpha1.VLAN{{ID: 20, Name: "storage"}}
+		cfg.Ports[0].TaggedVLANs = []int{20}
+	})
+
+	if _, err := engine.Converge(context.Background(), omadatest.SiteID, rs, true); err != nil {
+		t.Fatal(err)
+	}
+	sw := fake.Switch(torMAC)
+	if got := sw.Overrides[1]; got["networkTagsSetting"] != float64(2) || !reflect.DeepEqual(got["tagNetworkIds"], []any{"net-20"}) {
+		t.Fatalf("port 1 override = %v", got)
+	}
+
+	fake2, engine2 := newEngine(t, converge.Gates{VLANs: true})
+	connectedTor(fake2, 2)
+	if _, err := engine2.Converge(context.Background(), omadatest.SiteID, torB(2, nil), true); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake2.Switch(torMAC).Overrides[2]; got["networkTagsSetting"] != float64(2) || !reflect.DeepEqual(got["tagNetworkIds"], []any{}) {
+		t.Fatalf("port 2 override = %v", got)
 	}
 }
 
@@ -289,18 +318,14 @@ func TestLAGsAreCreatedAsLACP(t *testing.T) {
 func TestALAGWithTheWrongMembersIsDeletedAndCreatedAgain(t *testing.T) {
 	fake, engine := newEngine(t, converge.Gates{LAGs: true})
 	connectedTor(fake, 32)
-	fake.Update(torMAC, func(sw *omadatest.Switch) {
-		sw.Ports[30].LAGPort = true
-		sw.Ports[30].Name = "isl"
-		sw.LAGs[1] = []int{31}
-	})
+	aggregated(fake, 1, "lag1", 31)
 	rs := torB(32, func(cfg *v1alpha1.SwitchConfig) { cfg.LAGs = []v1alpha1.LAG{{ID: 1, Ports: []int{31, 32}}} })
 
 	if _, err := engine.Converge(context.Background(), omadatest.SiteID, rs, true); err != nil {
 		t.Fatal(err)
 	}
 	got := writePaths(fake.Writes())
-	want := []string{"PATCH /general-config", "PUT /config/loopback", "DELETE /lags/1", "PATCH /ports/31"}
+	want := []string{"PATCH /general-config", "DELETE /lags/1", "PATCH /ports/31", "PUT /config/loopback"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("writes = %v, want %v", got, want)
 	}
@@ -309,6 +334,70 @@ func TestALAGWithTheWrongMembersIsDeletedAndCreatedAgain(t *testing.T) {
 	}
 	if name := fake.Switch(torMAC).Ports[31].Name; name != "lag1" {
 		t.Fatalf("a LAG the spec does not name is named %q, want lag1", name)
+	}
+}
+
+// aggregated puts ports into a LAG on the fake the way the controller shows
+// one: its members flagged and carrying its name, and no LAG id in portList.
+func aggregated(fake *omadatest.Server, id int, name string, ports ...int) {
+	fake.Update(torMAC, func(sw *omadatest.Switch) {
+		for _, p := range ports {
+			sw.Ports[p-1].LAGPort = true
+			sw.Ports[p-1].Name = name
+		}
+		sw.LAGs[id] = ports
+	})
+}
+
+func TestRegroupingLAGsIsDetectedAndApplied(t *testing.T) {
+	fake, engine := newEngine(t, converge.Gates{LAGs: true})
+	connectedTor(fake, 8)
+	aggregated(fake, 1, "lag1", 1, 2)
+	aggregated(fake, 2, "lag2", 3, 4)
+	rs := torB(8, func(cfg *v1alpha1.SwitchConfig) {
+		cfg.LAGs = []v1alpha1.LAG{{ID: 1, Ports: []int{1, 3}}, {ID: 2, Ports: []int{2, 4}}}
+	})
+	ctx := context.Background()
+
+	report, err := engine.Converge(ctx, omadatest.SiteID, rs, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`LAG 1 ("lag1"): members are 1, 2, want 1, 3`, `LAG 2 ("lag2"): members are 3, 4, want 2, 4`} {
+		if !contains(report.Drift, want) {
+			t.Fatalf("drift = %q, want %q", report.Drift, want)
+		}
+	}
+
+	report, err = engine.Converge(ctx, omadatest.SiteID, rs, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Drift) != 0 {
+		t.Fatalf("drift after apply = %q", report.Drift)
+	}
+	sw := fake.Switch(torMAC)
+	if !reflect.DeepEqual(sw.LAGs, map[int][]int{1: {1, 3}, 2: {2, 4}}) {
+		t.Fatalf("LAGs = %v", sw.LAGs)
+	}
+}
+
+func TestAWantedPortInALAGTheSpecDoesNotNameIsRefused(t *testing.T) {
+	fake, engine := newEngine(t, converge.Gates{LAGs: true})
+	connectedTor(fake, 8)
+	aggregated(fake, 5, "someone's", 3, 4)
+	rs := torB(8, func(cfg *v1alpha1.SwitchConfig) {
+		cfg.LAGs = []v1alpha1.LAG{{ID: 1, Ports: []int{3, 4}}}
+	})
+
+	_, err := engine.Converge(context.Background(), omadatest.SiteID, rs, true)
+	if err == nil || !strings.Contains(err.Error(), `LAG 1: port 3 is in LAG "someone's", which the spec does not name`) {
+		t.Fatalf("err = %v", err)
+	}
+	for _, w := range fake.Writes() {
+		if w.Method == "DELETE" || strings.Contains(w.Path, "/ports/") {
+			t.Fatalf("wrote %s %s", w.Method, w.Path)
+		}
 	}
 }
 
@@ -327,16 +416,13 @@ func TestTheControllersRefusalOfANameIsAnError(t *testing.T) {
 func TestALAGTheSpecDoesNotHaveIsReportedAndLeftAlone(t *testing.T) {
 	fake, engine := newEngine(t, converge.Gates{LAGs: true})
 	connectedTor(fake, 32)
-	fake.Update(torMAC, func(sw *omadatest.Switch) {
-		sw.Ports[9].LAGPort = true
-		sw.LAGs[2] = []int{10}
-	})
+	aggregated(fake, 2, "someone's", 10)
 
 	report, err := engine.Converge(context.Background(), omadatest.SiteID, torB(32, nil), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !contains(report.Drift, "port 10 is in a LAG the spec does not have") {
+	if !contains(report.Drift, `port 10 is in LAG "someone's", which the spec does not name`) {
 		t.Fatalf("drift = %q", report.Drift)
 	}
 	for _, w := range fake.Writes() {
@@ -381,15 +467,15 @@ func TestPortSpanningTreeIsWrittenForEveryPort(t *testing.T) {
 func TestWithAPerPortGateEveryPortIsWrittenInFull(t *testing.T) {
 	// A port that already holds an override: the API cannot say what it holds,
 	// so each per-port setting whose gate is on is written for every port.
-	allowAll := map[string]any{"profileVlanOverrideEnable": true, "nativeNetworkId": omadatest.DefaultNetworkID, "networkTagsSetting": float64(0)}
+	vlans := map[string]any{"profileVlanOverrideEnable": true, "nativeNetworkId": omadatest.DefaultNetworkID, "networkTagsSetting": float64(2), "tagNetworkIds": []any{}, "untagNetworkIds": []any{}}
 	stp := map[string]any{"spanningTreeEnable": true}
 	for _, tc := range []struct {
 		gates converge.Gates
 		want  []map[string]any
 	}{
-		{converge.Gates{VLANs: true}, []map[string]any{allowAll}},
+		{converge.Gates{VLANs: true}, []map[string]any{vlans}},
 		{converge.Gates{PortSpanningTree: true}, []map[string]any{stp}},
-		{converge.Gates{VLANs: true, PortSpanningTree: true}, []map[string]any{allowAll, stp}},
+		{converge.Gates{VLANs: true, PortSpanningTree: true}, []map[string]any{vlans, stp}},
 	} {
 		t.Run(fmt.Sprintf("%+v", tc.gates), func(t *testing.T) {
 			fake, engine := newEngine(t, tc.gates)

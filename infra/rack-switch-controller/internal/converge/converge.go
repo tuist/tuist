@@ -27,9 +27,9 @@ type Report struct {
 }
 
 // Converge compares a connected switch with its spec. With apply it writes,
-// in order: the management address (gated), the hostname, each port's
-// description, the spanning-tree mode, and then each other step whose gate is
-// on (site networks, link aggregation, port overrides, site services). What
+// in order: the management address (gated), the hostname, link aggregation
+// (gated), each port's description, the spanning-tree mode, and then each
+// other step whose gate is on (site networks, port overrides, site services). What
 // the API can read back is written only where it differs; what it cannot
 // (spanning-tree mode, a port override's content) is written on every apply.
 // It then reads the switch again, so the drift it reports is what the
@@ -53,12 +53,15 @@ func (e *Engine) Converge(ctx context.Context, siteID string, rs *v1alpha1.RackS
 	if e.Gates.ManagementAddressing {
 		steps = append(steps, w.management)
 	}
-	steps = append(steps, w.hostname, w.portDescriptions, w.spanningTree)
-	if e.Gates.VLANs {
-		steps = append(steps, w.networks)
-	}
+	steps = append(steps, w.hostname)
+	// LAGs before the per-port steps: a port a LAG gives back takes its own
+	// description and override in the same pass.
 	if e.Gates.LAGs {
 		steps = append(steps, w.lags)
+	}
+	steps = append(steps, w.portDescriptions, w.spanningTree)
+	if e.Gates.VLANs {
+		steps = append(steps, w.networks)
 	}
 	if e.Gates.VLANs || e.Gates.PortSpanningTree {
 		steps = append(steps, w.portOverrides)
@@ -165,22 +168,19 @@ func (e *Engine) differences(rs *v1alpha1.RackSwitch, s *observed) []string {
 	}
 
 	if e.Gates.LAGs {
-		desired := map[int]bool{}
+		groups := lagGroups(s.ports)
+		named := map[string]bool{}
 		for _, lag := range cfg.LAGs {
-			var missing []string
-			for _, member := range lag.Ports {
-				desired[member] = true
-				if p := portNumbered(s.ports, member); p == nil || !p.LAGPort {
-					missing = append(missing, strconv.Itoa(member))
-				}
-			}
-			if len(missing) > 0 {
-				drift = append(drift, fmt.Sprintf("LAG %d: ports %s are not aggregated", lag.ID, strings.Join(missing, ", ")))
+			name := lagName(lag)
+			named[name] = true
+			want := sortedInts(lag.Ports)
+			if have := groups[name]; !slices.Equal(have, want) {
+				drift = append(drift, fmt.Sprintf("LAG %d (%q): members are %s, want %s", lag.ID, name, membersOrNone(have), joinInts(want)))
 			}
 		}
-		for _, p := range s.ports {
-			if p.LAGPort && !desired[p.Port] {
-				drift = append(drift, fmt.Sprintf("port %d is in a LAG the spec does not have", p.Port))
+		for _, name := range sortedKeys(groups) {
+			if !named[name] {
+				drift = append(drift, fmt.Sprintf("%s in LAG %q, which the spec does not name", portsAre(groups[name]), name))
 			}
 		}
 	}
@@ -296,41 +296,119 @@ func (w *writer) networks() error {
 	return nil
 }
 
-// lags creates each LAG the switch lacks. A LAG only some of whose members are
-// aggregated is deleted and created again, since its members cannot be changed
-// in place. A LAG the spec does not have is left for a human: portList does
-// not say which LAG a port belongs to.
+// lags brings each LAG to exactly the spec's members. portList says only that
+// a port is in some LAG, and a LAG's members carry its name, so a LAG is
+// identified by that name: the one the reconciler created it with. Members
+// cannot be changed in place, so every LAG whose members differ is deleted
+// before any is created, which lets ports move between LAGs. A wanted port in
+// a LAG the spec does not name stops the step before anything is written:
+// portList cannot say which LAG id that is, and it is not the reconciler's.
 func (w *writer) lags() error {
+	if err := checkLAGs(w.cfg.LAGs); err != nil {
+		return err
+	}
+	groups := lagGroups(w.state.ports)
+	owner := map[int]string{}
+	for name, members := range groups {
+		for _, p := range members {
+			owner[p] = name
+		}
+	}
+	named := map[string]bool{}
 	for _, lag := range w.cfg.LAGs {
-		if len(lag.Ports) == 0 {
-			return fmt.Errorf("LAG %d has no ports", lag.ID)
-		}
-		aggregated := 0
-		for _, member := range lag.Ports {
-			if p := portNumbered(w.state.ports, member); p != nil && p.LAGPort {
-				aggregated++
-			}
-		}
-		if aggregated == len(lag.Ports) {
+		named[lagName(lag)] = true
+	}
+
+	var rebuild []v1alpha1.LAG
+	for _, lag := range w.cfg.LAGs {
+		if slices.Equal(groups[lagName(lag)], sortedInts(lag.Ports)) {
 			continue
 		}
-		first := portNumbered(w.state.ports, lag.Ports[0])
-		if first == nil {
-			return fmt.Errorf("LAG %d: port %d is not on the switch", lag.ID, lag.Ports[0])
-		}
-		if aggregated > 0 {
-			if err := w.e.Omada.DeleteLAG(w.ctx, w.siteID, w.mac, lag.ID); err != nil {
-				return err
+		for _, p := range lag.Ports {
+			if portNumbered(w.state.ports, p) == nil {
+				return fmt.Errorf("LAG %d: port %d is not on the switch", lag.ID, p)
 			}
-			w.record(Change{Subject: fmt.Sprintf("LAG %d", lag.ID), To: "deleted, to change its members"})
+			if name, ok := owner[p]; ok && !named[name] {
+				return fmt.Errorf("LAG %d: port %d is in LAG %q, which the spec does not name; delete it in the controller or name it in the spec", lag.ID, p, name)
+			}
 		}
+		rebuild = append(rebuild, lag)
+	}
+	if len(rebuild) == 0 {
+		return nil
+	}
+
+	for _, lag := range rebuild {
+		if len(groups[lagName(lag)]) == 0 {
+			continue
+		}
+		if err := w.e.Omada.DeleteLAG(w.ctx, w.siteID, w.mac, lag.ID); err != nil {
+			return err
+		}
+		w.record(Change{Subject: fmt.Sprintf("LAG %d", lag.ID), To: "deleted, to change its members"})
+	}
+	if err := w.refreshPorts(); err != nil {
+		return err
+	}
+	for _, lag := range rebuild {
+		first := portNumbered(w.state.ports, lag.Ports[0])
 		name := lagName(lag)
 		if err := w.e.Omada.CreateLAG(w.ctx, w.siteID, w.mac, *first, name, lag.ID, lag.Ports); err != nil {
 			return err
 		}
 		w.record(Change{Subject: fmt.Sprintf("LAG %d", lag.ID), To: fmt.Sprintf("LACP over ports %s as %q", joinInts(lag.Ports), name)})
 	}
+	return w.refreshPorts()
+}
+
+// refreshPorts reads portList again, for the steps after one that changed
+// which ports are in a LAG.
+func (w *writer) refreshPorts() error {
+	ports, err := w.e.Omada.SwitchPorts(w.ctx, w.siteID, w.mac)
+	if err != nil {
+		return err
+	}
+	sort.Slice(ports, func(i, j int) bool { return ports[i].Port < ports[j].Port })
+	w.state.ports = ports
 	return nil
+}
+
+// checkLAGs refuses a spec whose LAGs could not be told apart on the switch:
+// two with one name, or a port in two.
+func checkLAGs(lags []v1alpha1.LAG) error {
+	names := map[string]int{}
+	ports := map[int]int{}
+	for _, lag := range lags {
+		if len(lag.Ports) == 0 {
+			return fmt.Errorf("LAG %d has no ports", lag.ID)
+		}
+		name := lagName(lag)
+		if other, ok := names[name]; ok {
+			return fmt.Errorf("LAGs %d and %d are both named %q, and a LAG is known on the switch by its name", other, lag.ID, name)
+		}
+		names[name] = lag.ID
+		for _, p := range lag.Ports {
+			if other, ok := ports[p]; ok {
+				return fmt.Errorf("port %d is in both LAG %d and LAG %d", p, other, lag.ID)
+			}
+			ports[p] = lag.ID
+		}
+	}
+	return nil
+}
+
+// lagGroups is each LAG on the switch by name, with its members in order.
+func lagGroups(ports []omada.Port) map[string][]int {
+	groups := map[string][]int{}
+	for _, p := range ports {
+		if p.LAGPort {
+			groups[p.Name] = append(groups[p.Name], p.Port)
+		}
+	}
+	for name := range groups {
+		sort.Ints(groups[name])
+	}
+	return groups
 }
 
 // portOverrides gives each port that needs one its own VLAN membership or
@@ -359,10 +437,7 @@ func (w *writer) portOverrides() error {
 
 func (w *writer) describeOverride(o omada.PortOverride) string {
 	var parts []string
-	switch {
-	case o.VLANs != nil && o.VLANs.AllNetworks:
-		parts = append(parts, fmt.Sprintf("native %s, every network tagged", vlanOfNetwork(w.state.networks, o.VLANs.NativeNetworkID)))
-	case o.VLANs != nil:
+	if o.VLANs != nil {
 		parts = append(parts, fmt.Sprintf("native %s, tagged [%s]",
 			vlanOfNetwork(w.state.networks, o.VLANs.NativeNetworkID),
 			strings.Join(mapStrings(o.VLANs.TaggedNetworkIDs, func(id string) string { return vlanOfNetwork(w.state.networks, id) }), ", ")))
@@ -412,15 +487,10 @@ func (e *Engine) portOverride(cfg *v1alpha1.SwitchConfig, p omada.Port, s *obser
 		// profile's: a port returned to its profile keeps a custom VLAN override
 		// on the switch while the API reports it as following the profile
 		// (measured on ber1-tor-b port 20), so the API cannot tell which ports
-		// carry one. A port carrying every site network gets "Allow All".
-		var others []string
-		for _, n := range s.networks {
-			if n.ID != native.ID {
-				others = append(others, n.ID)
-			}
-		}
-		sort.Strings(others)
-		o.VLANs = &omada.PortVLANs{NativeNetworkID: native.ID, TaggedNetworkIDs: taggedIDs, AllNetworks: slices.Equal(taggedIDs, others)}
+		// carry one. It is always the spec's list, even one naming every network
+		// the site has: the render expands "every site VLAN" into that list, so
+		// a VLAN added to the site reaches a port only through a new revision.
+		o.VLANs = &omada.PortVLANs{NativeNetworkID: native.ID, TaggedNetworkIDs: taggedIDs}
 	}
 
 	if e.Gates.PortSpanningTree {
@@ -656,6 +726,36 @@ func copyMap(m map[string]any) map[string]any {
 
 func joinInts(ns []int) string {
 	return strings.Join(mapStrings(ns, strconv.Itoa), ", ")
+}
+
+func sortedInts(ns []int) []int {
+	out := slices.Clone(ns)
+	sort.Ints(out)
+	return out
+}
+
+func membersOrNone(ns []int) string {
+	if len(ns) == 0 {
+		return "none"
+	}
+	return joinInts(ns)
+}
+
+// portsAre is "port 3 is" or "ports 3, 4 are".
+func portsAre(ns []int) string {
+	if len(ns) == 1 {
+		return fmt.Sprintf("port %d is", ns[0])
+	}
+	return fmt.Sprintf("ports %s are", joinInts(ns))
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func mapStrings[T any](in []T, f func(T) string) []string {

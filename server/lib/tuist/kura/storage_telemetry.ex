@@ -7,10 +7,10 @@ defmodule Tuist.Kura.StorageTelemetry do
 
   import Ecto.Query
 
-  alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Kura.EvictionEvent
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.StorageSnapshot
 
   @max_events_per_batch 5_000
@@ -44,7 +44,7 @@ defmodule Tuist.Kura.StorageTelemetry do
   defp lookup_account_ids(events) do
     events
     |> Enum.map(& &1["tenant_id"])
-    |> Accounts.get_account_ids_by_handles()
+    |> Identity.account_ids()
   end
 
   defp eviction_row(event, account_ids_by_handle, now) do

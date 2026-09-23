@@ -60,30 +60,73 @@ func (e *Engine) SiteID(ctx context.Context) (string, error) {
 	return e.Omada.SiteID(ctx, e.Site)
 }
 
+// siteState is the settings every switch in the site depends on, as read.
+type siteState struct {
+	host    string
+	ssh     map[string]any
+	account omada.Login
+}
+
+func (e *Engine) readSite(ctx context.Context, siteID string) (siteState, error) {
+	var s siteState
+	var err error
+	if s.host, err = e.Omada.DeviceHost(ctx); err != nil {
+		return s, err
+	}
+	if s.ssh, err = e.Omada.SiteSSH(ctx, siteID); err != nil {
+		return s, err
+	}
+	s.account, err = e.Omada.DeviceAccount(ctx, siteID)
+	return s, err
+}
+
+// The controller pushes the site's SSH setting to every switch it adopts, and
+// it starts disabled. The fleet verifies over SSH, so it stays on.
+func sshOn(ssh map[string]any) bool {
+	enabled, _ := ssh["sshEnable"].(bool)
+	return enabled && number(ssh["sshServerPort"]) == 22
+}
+
+// SiteDifferences lists what differs in the site settings, without writing:
+// what a resync reports, since only an explicit change writes them.
+func (e *Engine) SiteDifferences(ctx context.Context, siteID string, account omada.Login) ([]string, error) {
+	s, err := e.readSite(ctx, siteID)
+	if err != nil {
+		return nil, err
+	}
+	var drift []string
+	if s.host != e.ControllerAddress {
+		drift = append(drift, fmt.Sprintf("device host is %q, want %q", s.host, e.ControllerAddress))
+	}
+	if !sshOn(s.ssh) {
+		drift = append(drift, "site SSH is not on port 22")
+	}
+	if s.account != account {
+		drift = append(drift, "the site's device account is not the configured login")
+	}
+	return drift, nil
+}
+
 // EnsureSite brings the settings every switch in the site depends on to what
 // they should be, writing only what differs: the address switches connect
-// back to, SSH on, and the device account.
+// back to, SSH on, and the device account. The reconciler calls it only when
+// it adopts or writes a switch, so a setting changed by hand stays until then.
 func (e *Engine) EnsureSite(ctx context.Context, siteID string, account omada.Login) ([]Change, error) {
 	var changes []Change
-
-	host, err := e.Omada.DeviceHost(ctx)
+	s, err := e.readSite(ctx, siteID)
 	if err != nil {
 		return changes, err
 	}
-	if host != e.ControllerAddress {
+
+	if s.host != e.ControllerAddress {
 		if err := e.Omada.SetDeviceHost(ctx, e.ControllerAddress); err != nil {
 			return changes, err
 		}
-		changes = append(changes, Change{Subject: "device host", From: host, To: e.ControllerAddress})
+		changes = append(changes, Change{Subject: "device host", From: s.host, To: e.ControllerAddress})
 	}
 
-	// The controller pushes the site's SSH setting to every switch it adopts,
-	// and it starts disabled. The fleet verifies over SSH, so it stays on.
-	ssh, err := e.Omada.SiteSSH(ctx, siteID)
-	if err != nil {
-		return changes, err
-	}
-	if enabled, _ := ssh["sshEnable"].(bool); !enabled || number(ssh["sshServerPort"]) != 22 {
+	if !sshOn(s.ssh) {
+		ssh := s.ssh
 		if ssh == nil {
 			ssh = map[string]any{}
 		}
@@ -95,11 +138,7 @@ func (e *Engine) EnsureSite(ctx context.Context, siteID string, account omada.Lo
 		changes = append(changes, Change{Subject: "site SSH", To: "on, port 22"})
 	}
 
-	current, err := e.Omada.DeviceAccount(ctx, siteID)
-	if err != nil {
-		return changes, err
-	}
-	if current != account {
+	if s.account != account {
 		if err := e.Omada.SetDeviceAccount(ctx, siteID, account); err != nil {
 			return changes, err
 		}

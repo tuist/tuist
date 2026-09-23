@@ -48,6 +48,13 @@ controller is with `controller inform-url` and the controller's tailnet IP
 names. DHCP option 138 is the equivalent for a factory switch, and `rack:ztp`
 serves the segment that would carry it.
 
+Its HTTPS certificate comes from a CA of its own, which cert-manager keeps in
+this namespace (`templates/tls.yaml`), for the Service's names and the tailnet
+name in `tls.extraDNSNames`. The rack switch controller verifies against that
+CA (the `ca.crt` of `omada-controller-tls`). The controller reads the
+certificate when it starts, so a renewal, a month before the five years are
+up, takes effect at its next restart.
+
 ## What it costs to run
 
 A StatefulSet with two volumes. The data volume holds adoption state for every

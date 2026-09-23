@@ -41,6 +41,7 @@ func init() {
 // engineFlags are the flags the manager and apply share.
 type engineFlags struct {
 	omadaURL          string
+	omadaCAFile       string
 	site              string
 	controllerAddress string
 	credentialsDir    string
@@ -50,6 +51,8 @@ type engineFlags struct {
 func (f *engineFlags) register(fs *flag.FlagSet, siteFlag string) {
 	fs.StringVar(&f.omadaURL, "omada-url", "https://omada-omada-controller.omada.svc:8043",
 		"Base URL of the Omada controller")
+	fs.StringVar(&f.omadaCAFile, "omada-ca-file", "",
+		"PEM file with the CA the Omada controller's certificate is issued from; empty trusts the system's roots")
 	fs.StringVar(&f.site, siteFlag, "", "Omada site the switches are adopted into")
 	fs.StringVar(&f.controllerAddress, "controller-address", "",
 		"Address the controller tells adopted switches to connect back to: its tailnet IP")
@@ -76,10 +79,14 @@ func (f *engineFlags) engine(siteFlag string) (*converge.Engine, func() (converg
 	if _, err := credentials(); err != nil {
 		return nil, nil, err
 	}
+	rootCAs, err := omada.LoadRootCAs(f.omadaCAFile)
+	if err != nil {
+		return nil, nil, err
+	}
 	client := omada.New(f.omadaURL, func() (string, string, error) {
 		creds, err := credentials()
 		return creds.ClientID, creds.ClientSecret, err
-	})
+	}, rootCAs)
 	return &converge.Engine{
 		Omada:             client,
 		Site:              f.site,

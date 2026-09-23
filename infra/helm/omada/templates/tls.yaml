@@ -1,0 +1,75 @@
+{{- /*
+The controller's HTTPS certificate, from a CA of its own, so the rack switch
+controller verifies the Open API's certificate instead of skipping it. Without
+this the controller serves one it generates at first boot (CN=localhost, SAN
+"Omada"), which nothing can verify by name. The CA is this namespace's alone:
+only the rack switch controller trusts it.
+
+The controller builds its keystore from the certificate when it starts, so a
+renewal takes effect at its next restart. The certificate lasts five years and
+renews a month before it ends; restart the controller within that month.
+*/ -}}
+{{- $service := printf "%s-omada-controller" .Release.Name }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: omada-selfsigned
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: omada-ca
+  namespace: {{ .Release.Namespace }}
+spec:
+  isCA: true
+  commonName: Omada controller CA
+  secretName: omada-ca
+  duration: 87600h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: omada-selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: omada-ca
+  namespace: {{ .Release.Namespace }}
+spec:
+  ca:
+    secretName: omada-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: omada-controller
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ index .Values "omada-controller-helm" "config" "tlsSecretName" | required "omada-controller-helm.config.tlsSecretName is required" }}
+  commonName: {{ $service }}
+  dnsNames:
+    - {{ $service }}
+    - {{ $service }}.{{ .Release.Namespace }}
+    - {{ $service }}.{{ .Release.Namespace }}.svc
+    - {{ $service }}.{{ .Release.Namespace }}.svc.cluster.local
+    {{- range .Values.tls.extraDNSNames }}
+    - {{ . }}
+    {{- end }}
+  duration: 43800h
+  renewBefore: 720h
+  # RSA, which the controller's keystore import takes.
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - server auth
+    - digital signature
+    - key encipherment
+  issuerRef:
+    name: omada-ca
+    kind: Issuer

@@ -3,6 +3,7 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+- `Projects.projects_by_full_handles/1` is the batch lookup for signed analytics ingestion. Resolve current and retained account handles through `account_handle_reservations` to the owning account ID so queued events and Kura storage-tenant fallbacks survive renames. This is attribution, not authorization.
 - Metric automations accept a one-time `trigger_config.apply_actions_to_existing_matches` request on create/update. A fresh request starts a baseline generation even when the condition is unchanged. Baselines recheck matches in bounded batches and serialize publication per alert with a session advisory lock. Each action runs outside a row-lock transaction, between a short preflight check and a durable checkpoint; edits may cancel the remaining work while an authorized action finishes. Clear the request on completion. Silent publication deduplication tokens include the sorted test ID set so changed payloads on retry are not dropped. Read-only match counts enumerate bounded pages and share the baseline metric, trusted-branch validation, and current-state eligibility logic. Condition edits require a fresh opt-in. Omitting the request preserves pending work; explicit false cancels remaining actions. Baseline attempt generations invalidate stale workers; nullable `event_generation` separately scopes recovery history (falling back to `baseline_generation` for existing rows), so opt-ins and cancellations retain active recovery events. Returned action errors are logged and checkpointed without publishing a successful trigger, allowing the baseline and subsequent evaluation to progress.
 - Build task summaries can omit CAS-output ID arrays. Expanded-task lookups resolve those arrays inside ClickHouse using both build ID and task key, group duplicate outputs by node ID, and return 20 rows plus a next-page indicator. Neither request parameters nor task summaries should carry the stored ID arrays.
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
@@ -72,6 +73,7 @@ This directory contains the core business logic and domain modules for the serve
 - Http: `server/lib/tuist/http/AGENTS.md`
 - Ingestion: `server/lib/tuist/ingestion/AGENTS.md`
 - Key Value Store: `server/lib/tuist/key_value_store/AGENTS.md`
+- Kura: `server/lib/tuist/kura/AGENTS.md`
 - Kubernetes: `server/lib/tuist/kubernetes/AGENTS.md`
 - Marketing: `server/lib/tuist/marketing/AGENTS.md`
 - MCP: `server/lib/tuist/mcp/AGENTS.md`

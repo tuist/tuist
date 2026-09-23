@@ -54,8 +54,9 @@ condition, which must be about its current generation and revision; a
 standalone one when `rack:fleet publish` last saw it at its revision with no
 drift. One reconcile at a time, one replica holding the leader lease.
 
-Between changes it only reads, every `--resync-interval` (10 minutes), so drift
-is reported (`drift: drifted`, `Converged=False` reason `Drifted`, one warning
+Between changes it only reads, every `--resync-interval` (10 minutes), so drift,
+the site settings' included (device host, site SSH, device account), is
+reported (`drift: drifted`, `Converged=False` reason `Drifted`, one warning
 event) and not written over: a change made during an incident is one somebody
 meant. A new revision converges it, and so does the one-shot `apply` below.
 
@@ -83,19 +84,27 @@ behind a flag (`gates` in the chart); all are on by default:
   never moved. Verified end to end on all three BER1 switches.
 - `--enable-vlans`: creates the site networks `config.vlans` lists (never
   deletes one; a site network is shared by every switch in the site) and writes
-  every port's VLAN membership: "Allow All" for a port carrying every site
-  network, a custom list otherwise. Every port, because a port the API reports
-  as following its profile can still hold an old custom list on the switch
-  (measured on ber1-tor-b), and the API cannot return an override's content.
-  Verified end to end.
+  every port's VLAN membership as the spec's list, never as "Allow All", even
+  for a port naming every network the site has: "Allow All" would carry a
+  network added to the site later without a new revision. The renderer expands
+  "every site VLAN" into that list, so a new site VLAN reaches a port through a
+  new revision. Every port, because a port the API reports as following its
+  profile can still hold an old custom list on the switch (measured on
+  ber1-tor-b), and the API cannot return an override's content. Verified end
+  to end.
 - `--enable-lags`: creates LACP groups through the first member's port
   endpoint, with the spec's `name` (the renderer defaults it to `lag<id>`),
   which the members then carry as their description; the SX3832's
-  controller refused a static LAG. A group with some members missing is
-  deleted and created again. A group the spec does not have is reported and
-  left, since `portList` does not say which LAG a port is in. LAG members are
-  skipped by every other port step, as the controller refuses changes to them.
-  Verified end to end.
+  controller refused a static LAG. `portList` says only that a port is in some
+  LAG, with no id (measured on ber1-tor-b), so a LAG is known by the name its
+  members carry, and the spec's LAG names must be unique. A LAG whose members
+  differ from the spec is deleted and created again, every such LAG deleted
+  before any is created, so ports can move between LAGs; drift names the
+  members each has and wants. A LAG the spec does not name is reported and
+  left, and a wanted port inside one stops the pass before anything is written,
+  since its id is unknowable. LAG members are skipped by every other port step,
+  as the controller refuses changes to them, and the LAG step runs first so a
+  port it frees takes its own settings in the same pass. Verified end to end.
 - `--enable-port-spanning-tree`: every port's `spanningTreeEnable`, for the
   same reason as VLAN membership: an override written for its VLANs alone would
   keep an earlier spanning-tree setting. Verified end to end.
@@ -131,9 +140,14 @@ model; they removed the ToRs' pre-adoption static route by hand.
 namespace (`omada`) by `.github/workflows/omada-deployment.yml`, watching the
 rack's namespace (`tuist-staging` for BER1). The pod has a required node
 affinity away from rack nodes (`rackNodeLabels`: `kubernetes.io/os=darwin`,
-`tuist.dev/runtime=tart`), because a controller behind the switches it changes
-would be reconciling its own path to the Omada controller. A rack node of
-another kind joining the cluster adds its label there.
+`tuist.dev/runtime=tart`, and `node.cluster.x-k8s.io/instance-type=rack` for the
+edge node), because a controller behind the switches it changes would be
+reconciling its own path to the Omada controller. A rack node of another kind
+joining the cluster adds its label there.
+
+It verifies the Omada controller's certificate against the CA in the
+`omada-controller-tls` Secret (`omada.caSecret`), which `infra/helm/omada` has
+cert-manager issue; only its `ca.crt` is mounted.
 
 Credentials are files in one directory (`--credentials-dir`): `client-id`,
 `client-secret`, `device-username`, `device-password`, and optionally
@@ -150,8 +164,12 @@ cd infra/rack-switch-controller
 go build -o rack-switch-controller ./cmd/manager
 ./rack-switch-controller apply --object <RackSwitch yaml> \
   --omada-url https://omada.<tailnet>.ts.net:8043 --site ber1 \
-  --controller-address 100.84.132.92 --credentials-dir <dir>
+  --controller-address 100.84.132.92 --credentials-dir <dir> \
+  --omada-ca-file <(kubectl -n omada get secret omada-controller-tls -o jsonpath='{.data.ca\.crt}' | base64 -d)
 ```
+
+The tailnet name is in the controller's certificate; the jsonpath reads only
+the CA, not the key beside it.
 
 It runs the same site settings, adoption and converge for one object, writing
 everything its spec asks for, prints each write, and exits non-zero when the
