@@ -20,6 +20,7 @@ table ip tuist_mgmt_path {
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
+    oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade
   }
   chain forward {
     type filter hook forward priority mangle;

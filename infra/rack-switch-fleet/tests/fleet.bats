@@ -2060,6 +2060,40 @@ STUB
     [[ "$output" != *"advertise-routes"* ]]
 }
 
+@test "a netbooting site hands UEFI firmware the signed shim from the boot server" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"dhcp-match=set:netboot,option:client-arch,7"* ]]
+    [[ "$output" == *"dhcp-match=set:netboot,option:client-arch,9"* ]]
+    [[ "$output" == *"dhcp-boot=tag:netboot,bootx64.efi,,192.168.50.1"* ]]
+    jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/nonetboot.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"dhcp-boot"* ]]
+}
+
+@test "a netbooting site translates the provisioning range onto the uplinks, and only then" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade'* ]]
+    jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/nonetboot.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *'oifname != '* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
+  }'* ]]
+}
+
+@test "netboot without a provisioning range is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    jq 'del(.management.edge.provisioning)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/noprov.json"
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/noprov.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.netboot serves the provisioning range"* ]]
+}
+
 @test "the rendered edge path runs under sh and loads both tables in one go" {
     source "$FLEET_ROOT/lib/edge.sh"
     bin="$BATS_TEST_TMPDIR/edge-run"

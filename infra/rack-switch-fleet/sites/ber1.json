@@ -16,7 +16,8 @@
       "ssh": "tuist@ber1-edge",
       "interface": "enp87s0",
       "address": "192.168.0.10",
-      "provisioning": "192.168.50.1/24"
+      "provisioning": "192.168.50.1/24",
+      "netboot": true
     },
     "controller": {
       "url": "https://omada.taild6d7bb.ts.net:8043",

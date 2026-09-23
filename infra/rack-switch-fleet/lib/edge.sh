@@ -45,19 +45,24 @@ fleet_edge_check() {
     echo "error: management.edge has an interface but no address" >&2
     return 1
   fi
+  if [ "$(jq -r '.management.edge.netboot // false' "$site_file")" = true ] && [ -z "$(jq -r '.management.edge.provisioning // empty' "$site_file")" ]; then
+    echo "error: management.edge.netboot serves the provisioning range, and the site has none" >&2
+    return 1
+  fi
 }
 
 # The management path, as a POSIX sh script run at pod start and again every
 # few minutes. Idempotent: each nft table is replaced whole in one transaction,
 # so re-running it keeps the connections it translated.
 fleet_edge_path() {
-  local site_file="$1" interface edge_address length provisioning sources
+  local site_file="$1" interface edge_address length provisioning sources netboot
   local -a switches behind known
   fleet_edge_check "$site_file" || return 1
   interface="$(jq -r '.management.edge.interface' "$site_file")"
   edge_address="$(jq -r '.management.edge.address' "$site_file")"
   length="$(jq -r '.management.prefix' "$site_file" | cut -d/ -f2)"
   provisioning="$(jq -r '.management.edge.provisioning // empty' "$site_file")"
+  netboot="$(jq -r '.management.edge.netboot // false' "$site_file")"
   mapfile -t switches < <(jq -r '.devices[] | .mgmt_address' "$site_file")
   mapfile -t behind < <(jq -r '.devices[] | select(.behind_edge) | .mgmt_address' "$site_file")
   mapfile -t known < <(jq -r '.devices[] | select(.behind_edge and .mac) | .mac' "$site_file")
@@ -87,6 +92,13 @@ SCRIPT
   # ignores broadcast replies, so the netdev table addresses each known
   # switch's replies to its MAC, matched on the client hardware address in the
   # reply (36 bytes into the UDP header).
+  # A netbooting installer can take its default route from either of its DHCP
+  # leases, the provisioning one through this node or its uplinks' one, so
+  # the provisioning range is translated onto the uplinks too.
+  local uplinks=""
+  if [ "$netboot" = true ]; then
+    uplinks="    oifname != { \"tailscale0\", \"$interface\" } ip saddr $(fleet_network "$provisioning") masquerade"
+  fi
   cat <<SCRIPT
 nft -f - <<'NFT'
 table ip tuist_mgmt_path
@@ -95,7 +107,8 @@ table ip tuist_mgmt_path {
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname "tailscale0" ip saddr { $sources } masquerade
-  }
+${uplinks:+$uplinks
+}  }
   chain forward {
     type filter hook forward priority mangle;
     oifname "tailscale0" ip saddr { $sources } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
@@ -156,5 +169,14 @@ CONF
     echo "dhcp-option=tag:provisioning,option:router,${provisioning%/*}"
   fi
   [ -n "$controller" ] && echo "dhcp-option=138,$controller"
+  if [ "$(jq -r '.management.edge.netboot // false' "$site_file")" = true ]; then
+    # x86-64 UEFI firmware (client architectures 7 and 9) netboots Ubuntu's
+    # signed shim from the rack's boot server on the provisioning address,
+    # which serves each host the install the cluster's operator published for
+    # it, and nothing to a host without one.
+    echo "dhcp-match=set:netboot,option:client-arch,7"
+    echo "dhcp-match=set:netboot,option:client-arch,9"
+    echo "dhcp-boot=tag:netboot,bootx64.efi,,${provisioning%/*}"
+  fi
   return 0
 }
