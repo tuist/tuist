@@ -1,9 +1,9 @@
 #if os(macOS)
-    import Command
     import Foundation
     import Mockable
     import Path
     import Testing
+    import TuistProcess
     @testable import Rosalind
 
     @Suite struct AssetUtilControllerTests {

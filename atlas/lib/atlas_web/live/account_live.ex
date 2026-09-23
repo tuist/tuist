@@ -487,6 +487,26 @@ defmodule AtlasWeb.AccountLive do
     end
   end
 
+  def handle_event("send_nudge", %{"id" => id}, socket) do
+    handle_send_result(Nudges.send(id, socket.assigns.current_user), socket)
+  end
+
+  def handle_event("retry_nudge", %{"id" => id}, socket) do
+    case Nudges.retry(id) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("Ready to send again."))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+      {:error, {:retry_not_allowed, stage}} ->
+        {:noreply, put_flash(socket, :error, gettext("Retry not allowed while delivery is %{s}.", s: to_string(stage)))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not retry the nudge."))}
+    end
+  end
+
   def handle_event("release_nudge", %{"id" => id}, socket) do
     case Nudges.release(id) do
       {:ok, _nudge} ->
@@ -2909,8 +2929,8 @@ defmodule AtlasWeb.AccountLive do
               </:col>
               <:col :let={nudge} label={gettext("State")}>
                 <.badge_cell
-                  label={nudge_state_label(nudge.state)}
-                  color={nudge_state_color(nudge.state)}
+                  label={nudge_state_label(nudge, nudge_stage(nudge))}
+                  color={nudge_state_color(nudge, nudge_stage(nudge))}
                   style="light-fill"
                 />
               </:col>
@@ -2944,14 +2964,45 @@ defmodule AtlasWeb.AccountLive do
                   <:button>
                     <.button_dropdown
                       id={"nudge-actions-#{nudge.id}"}
-                      label={gettext("Release")}
+                      label={gettext("Send")}
                       size="medium"
                       align="end"
-                      phx-click="release_nudge"
+                      phx-click="send_nudge"
                       phx-value-id={nudge.id}
                     >
                       <.dropdown_item
+                        id={"release-nudge-#{nudge.id}"}
+                        value="release"
+                        label={gettext("Release")}
+                        on_click="release_nudge"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.reload /></:left_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
                         id={"dismiss-claimed-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
+                  </:button>
+                </.button_cell>
+                <.button_cell :if={nudge.state == "sent" and nudge_stage(nudge) == :failed}>
+                  <:button>
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
+                      label={gettext("Retry")}
+                      size="medium"
+                      align="end"
+                      phx-click="retry_nudge"
+                      phx-value-id={nudge.id}
+                    >
+                      <.dropdown_item
+                        id={"dismiss-sent-nudge-#{nudge.id}"}
                         value="dismiss"
                         label={gettext("Dismiss")}
                         on_click="open_dismiss_nudge_modal"
@@ -4329,19 +4380,54 @@ defmodule AtlasWeb.AccountLive do
     |> put_flash(:info, message)
   end
 
-  defp nudge_state_label("pending_post"), do: gettext("Posting to Slack…")
-  defp nudge_state_label("proposed"), do: gettext("Open")
-  defp nudge_state_label("claimed"), do: gettext("Claimed")
-  defp nudge_state_label("dismissed"), do: gettext("Dismissed")
-  defp nudge_state_label("expired"), do: gettext("Expired")
-  defp nudge_state_label(state), do: state
+  defp handle_send_result({:ok, %{duplicate: true}}, socket),
+    do: {:noreply, refresh_nudges(socket, gettext("Email already queued in the last 15 minutes."))}
 
-  defp nudge_state_color("pending_post"), do: "neutral"
-  defp nudge_state_color("proposed"), do: "information"
-  defp nudge_state_color("claimed"), do: "success"
-  defp nudge_state_color("dismissed"), do: "neutral"
-  defp nudge_state_color("expired"), do: "neutral"
-  defp nudge_state_color(_state), do: "neutral"
+  defp handle_send_result({:ok, _nudge}, socket), do: {:noreply, refresh_nudges(socket, gettext("Email queued."))}
+
+  defp handle_send_result({:error, reason}, socket),
+    do: {:noreply, put_flash(socket, :error, send_error_message(reason))}
+
+  defp send_error_message(:not_found), do: gettext("Nudge not found.")
+
+  defp send_error_message(:not_authorized),
+    do: gettext("You must be the claimant or hold admin:write to send this nudge.")
+
+  defp send_error_message({:invalid_state, state}),
+    do: gettext("Nudge is in state %{s}; only claimed nudges can be sent.", s: state)
+
+  defp send_error_message(:contact_missing), do: gettext("This nudge has no contact. Add or edit a contact first.")
+
+  defp send_error_message(:contact_email_missing), do: gettext("The nudge's contact has no email address.")
+
+  defp send_error_message(:contact_bounced), do: gettext("The nudge's contact is marked as bounced.")
+
+  defp send_error_message(:contact_opted_out), do: gettext("The nudge's contact has opted out of outreach.")
+
+  defp send_error_message(_reason), do: gettext("Could not send the nudge.")
+
+  defp nudge_stage(nudge), do: Nudges.stage_for(nudge)
+
+  defp nudge_state_label(%{state: "pending_post"}, _stage), do: gettext("Posting to Slack…")
+  defp nudge_state_label(%{state: "proposed"}, _stage), do: gettext("Open")
+  defp nudge_state_label(%{state: "claimed"}, _stage), do: gettext("Claimed")
+  defp nudge_state_label(%{state: "sent"}, :delivered), do: gettext("Sent")
+  defp nudge_state_label(%{state: "sent"}, :failed), do: gettext("Send failed")
+  defp nudge_state_label(%{state: "sent"}, :retrying), do: gettext("Sent (retrying)")
+  defp nudge_state_label(%{state: "sent"}, _stage), do: gettext("Sent (queued)")
+  defp nudge_state_label(%{state: "dismissed"}, _stage), do: gettext("Dismissed")
+  defp nudge_state_label(%{state: "expired"}, _stage), do: gettext("Expired")
+  defp nudge_state_label(%{state: state}, _stage), do: state
+
+  defp nudge_state_color(%{state: "pending_post"}, _stage), do: "neutral"
+  defp nudge_state_color(%{state: "proposed"}, _stage), do: "information"
+  defp nudge_state_color(%{state: "claimed"}, _stage), do: "success"
+  defp nudge_state_color(%{state: "sent"}, :delivered), do: "success"
+  defp nudge_state_color(%{state: "sent"}, :failed), do: "destructive"
+  defp nudge_state_color(%{state: "sent"}, _stage), do: "attention"
+  defp nudge_state_color(%{state: "dismissed"}, _stage), do: "neutral"
+  defp nudge_state_color(%{state: "expired"}, _stage), do: "neutral"
+  defp nudge_state_color(_nudge, _stage), do: "neutral"
 
   defp format_nudge_timestamp(nil), do: "-"
   defp format_nudge_timestamp(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")

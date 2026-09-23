@@ -40,6 +40,7 @@ defmodule Tuist.Accounts.Organization do
   @sso_verification_fields [
     :sso_login_domain_verification_token,
     :sso_login_domain_verified_at,
+    :sso_login_domain_last_verified_at,
     :sso_legacy_email_domain_fallback
   ]
 
@@ -50,6 +51,7 @@ defmodule Tuist.Accounts.Organization do
     field :sso_login_domain, :string
     field :sso_login_domain_verification_token, :string
     field :sso_login_domain_verified_at, :utc_datetime
+    field :sso_login_domain_last_verified_at, :utc_datetime
     field :sso_automatic_enrollment, :boolean, default: false
     field :sso_default_role, :string, default: "user"
     field :sso_legacy_email_domain_fallback, :boolean, default: false
@@ -135,12 +137,21 @@ defmodule Tuist.Accounts.Organization do
     organization
     |> change(
       sso_login_domain_verified_at: verified_at,
+      sso_login_domain_last_verified_at: verified_at,
       sso_legacy_email_domain_fallback: false
     )
     |> unique_constraint(:sso_login_domain,
       name: :organizations_verified_sso_login_domain_index,
       message: "has already been verified by another organization"
     )
+  end
+
+  @doc """
+  Drops a verification whose record stopped resolving. The domain and its
+  token stay put, so publishing the record again and verifying restores it.
+  """
+  def lapse_sso_login_domain_verification_changeset(organization) do
+    change(organization, sso_login_domain_verified_at: nil)
   end
 
   def validate_sso_security_policy(changeset) do

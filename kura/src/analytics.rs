@@ -403,17 +403,12 @@ impl AnalyticsRuntime {
         let mut gradle_batch = Vec::with_capacity(self.config.batch_size);
         let mut reapi_cache_batch = Vec::with_capacity(self.config.batch_size);
 
-        // Circuit breakers used to guard the direct-POST path for these
-        // three pipelines; they now route through the durable outbox, so
-        // the forwarder owns retry/backoff. Publish the circuit-state
-        // gauges as closed once for parity with existing dashboards until
-        // the follow-up cleanup drops those gauges.
-        self.metrics
-            .update_analytics_circuit_state("xcode", CircuitState::Closed.code());
-        self.metrics
-            .update_analytics_circuit_state("gradle", CircuitState::Closed.code());
-        self.metrics
-            .update_analytics_circuit_state("reapi_cache", CircuitState::Closed.code());
+        // No circuit-state gauges for xcode / gradle / reapi any more.
+        // Those pipelines route through the durable outbox, and the
+        // forwarder owns retry/backoff; the previous release published
+        // them as `closed` only to keep the dashboard panel happy while
+        // this cleanup was pending. Bazel invocations still POST
+        // directly and keep their gauge in `run_bazel_invocations`.
 
         loop {
             tokio::select! {

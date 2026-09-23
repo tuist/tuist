@@ -1,6 +1,6 @@
-import Command
 import Foundation
 import Mockable
+import TuistProcess
 import TuistThreadSafe
 
 @Mockable

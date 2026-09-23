@@ -296,8 +296,21 @@
   & [data-part="domain-verification"] {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    /* Settles on the trailing edge, with the controls it belongs to. */
+    align-items: flex-end;
     gap: var(--noora-spacing-4);
+    text-align: right;
+
+    /* The record reads left to right, since it is copied out character by
+       character, and wraps rather than running past the column. */
+    & [data-part="read-only-value"] {
+      text-align: left;
+
+      & > code {
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }
+    }
 
     & > [data-part="domain-verification-status"] {
       border-radius: var(--noora-radius-4);
@@ -312,6 +325,11 @@
       &[data-status="pending"] {
         background: var(--noora-badge-light-fill-warning-background);
         color: var(--noora-badge-light-fill-warning-label);
+      }
+
+      &[data-status="expiring"] {
+        background: var(--noora-badge-light-fill-destructive-background);
+        color: var(--noora-badge-light-fill-destructive-label);
       }
     }
 

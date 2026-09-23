@@ -39,6 +39,8 @@ defmodule Atlas.MCP.ServerTest do
     assert Enum.any?(tools, &(&1["name"] == "list_account_nudges"))
     assert Enum.any?(tools, &(&1["name"] == "claim_nudge"))
     assert Enum.any?(tools, &(&1["name"] == "dismiss_nudge"))
+    assert Enum.any?(tools, &(&1["name"] == "send_nudge"))
+    assert Enum.any?(tools, &(&1["name"] == "release_nudge"))
     refute Enum.any?(tools, &(&1["name"] == "list_account_outcomes"))
     refute Enum.any?(tools, &(&1["name"] == "generate_account_outcome_proposals"))
     assert Enum.any?(tools, &(&1["name"] == "create_account"))
