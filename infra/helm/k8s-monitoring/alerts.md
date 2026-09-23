@@ -152,7 +152,7 @@ max by (cluster, node, pool) (
 # kura:pool_region
 # One series per pool that Kura serves a region from.
 max by (cluster, pool, region) (
-  (kube_pod_info{namespace="kura"} * on (cluster, pod) group_left(region) kura:pod_region)
+  (kube_pod_info{namespace="kura"} * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region))))
   * on (cluster, node) group_left(pool) kura:node_pool
 )
 ```
@@ -161,7 +161,7 @@ max by (cluster, pool, region) (
 # kura:node_region
 # One series per node of a pool that Kura serves a region from.
 max by (cluster, node, region) (
-  kura:node_pool * on (cluster, pool) group_left(region) kura:pool_region
+  kura:node_pool * on (cluster, pool) group_left(region) sgn(topk by (cluster, pool) (1, timestamp(kura:pool_region)))
 )
 ```
 
@@ -171,12 +171,29 @@ derived from cache pods alone, so every rule that joins through it is unchanged.
 Usage, for a per-pod and a per-node series respectively:
 
 ```promql
-sum by (cluster, region) (<per-pod expr>  * on (cluster, pod)  group_left(region) kura:pod_region)
-sum by (cluster, region) (<per-node expr> * on (cluster, node) group_left(region) kura:node_region)
+sum by (cluster, region) (<per-pod expr>  * on (cluster, pod)  group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region))))
+sum by (cluster, region) (<per-node expr> * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region))))
 ```
 
 node-exporter series carry the node name as `instance`, not `node`; join those
-through `label_replace(kura:node_region, "instance", "$1", "node", "(.*)")`.
+through `label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region))), "instance", "$1", "node", "(.*)")`.
+
+**Never join on a region series directly.** Always use the
+`sgn(topk by (cluster, <key>) (1, timestamp(...)))` form above. Grafana-managed
+recording rules write no staleness markers, so when a pod's `region` changes
+the series it stops writing stays readable for the five-minute lookback next
+to the new one. `group_left(region)` then finds two matches for the pod and
+fails with `found duplicate series for the match group`, and every rule on the
+join goes to Error, which is Alerting. On 2026-09-10 the `eu-central` pods moved
+to `eu-west`: the raw `kura_node_geo_info` overlapped for one minute, the
+recorded `kura:pod_region` for five, with 51 production pods duplicated at
+once. Canary and staging had the same on `kura:node_region` for two minutes.
+`timestamp()` returns each series' last written sample, so `topk by (cluster,
+<key>) (1, ...)` keeps the region that is still being written and `sgn` turns
+it back into the `1` the multiplication expects. With one series per key it
+returns exactly the recorded series, so the result of a rule does not change.
+The recording rules that join on each other (`kura:pool_region` on
+`kura:pod_region`, `kura:node_region` on `kura:pool_region`) use the same form.
 
 The recording rules cover every cluster so dashboards can use them, and the
 alert rules that join through them are scoped to production by matching on the
@@ -1309,28 +1326,28 @@ label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_memory_ceiling_mib"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_memory_ceiling_mib"})
             or max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_memory_ceiling_mib"}) * 0)) / (2 * 4096))
-  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "ceiling", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_allocatable{resource="memory"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="memory"})
             or max by (cluster, node) (kube_node_status_allocatable{resource="memory"}) * 0)) / 1048576 / (2 * 1024))
-  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "memory", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})
             or max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"}) * 0)) / (2 * 50 * 1073741824))
-  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "disk", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_egress_mbps"})
             or max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}) * 0)) / (2 * 25))
-  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "egress", "", "")
 ```
 
@@ -1555,7 +1572,7 @@ were never below it.
 min by (cluster, region, instance) (
   (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
   * on (cluster, instance) group_left(region)
-    label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+    label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
 )
 ```
 
@@ -1587,7 +1604,7 @@ host-level rule exists alongside the pod-level ones.
 ```promql
 max by (cluster, region, pod) (
   max by (cluster, pod) (kura_memory_pressure_state)
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
@@ -1627,11 +1644,11 @@ quiet on creation.
 max by (cluster, region, pod) (
   kube_pod_container_status_last_terminated_reason{namespace="kura", container="kura", reason="OOMKilled"} == 1
   and on (cluster, pod) increase(kube_pod_container_status_restarts_total{namespace="kura", container="kura"}[1h]) > 0
-) * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+) * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 or
 sum by (cluster, region, pod) (
   increase(kura_container_memory_oom_kill_events[1h])
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 ) > 0
 ```
 
@@ -1950,12 +1967,12 @@ label_replace(label_replace(
   sum by (cluster, region) (
     sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
     * on (cluster, instance) group_left(region)
-      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+      label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
   )
   /
   sum by (cluster, region) (
     max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
-    * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+    * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
   ),
 "scope", "region", "", ""), "target", "$1", "region", "(.*)")
 or
@@ -1964,7 +1981,7 @@ label_replace(label_replace(
   sum by (cluster, region, instance) (
     sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
     * on (cluster, instance) group_left(region)
-      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+      label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
   )
   / on (cluster, instance) group_left()
   label_replace(max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}), "instance", "$1", "node", "(.*)"),
@@ -3491,7 +3508,7 @@ in the fleet came close.
 ```promql
 max by (cluster, region, pod, kind) (
   increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
@@ -4324,12 +4341,12 @@ critical one pages and this one keeps the Slack thread.
 ```promql
 sum by (cluster, region) (
   node_memory_MemAvailable_bytes
-  * on (cluster, instance) group_left(region) label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+  * on (cluster, instance) group_left(region) label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
 )
 /
 sum by (cluster, region) (
   node_memory_MemTotal_bytes
-  * on (cluster, instance) group_left(region) label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+  * on (cluster, instance) group_left(region) label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
 )
 ```
 
@@ -4371,7 +4388,7 @@ creation; it is the guard rail.
 max by (cluster, region, pod) (
   avg_over_time(kura_container_memory_pressure_bytes[1h])
   / on (cluster, pod) group_left() max by (cluster, pod) (kube_pod_container_resource_requests{namespace="kura", container="kura", resource="memory"})
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
@@ -4417,12 +4434,12 @@ label_replace(label_replace(
   sum by (cluster, region) (
     sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
     * on (cluster, instance) group_left(region)
-      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+      label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
   )
   /
   sum by (cluster, region) (
     max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
-    * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+    * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
   ),
 "scope", "region", "", ""), "target", "$1", "region", "(.*)")
 or
@@ -4431,7 +4448,7 @@ label_replace(label_replace(
   sum by (cluster, region, instance) (
     sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
     * on (cluster, instance) group_left(region)
-      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+      label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
   )
   / on (cluster, instance) group_left()
   label_replace(max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}), "instance", "$1", "node", "(.*)"),
@@ -4500,7 +4517,7 @@ creation by a wide margin.
   sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{cluster="tuist-production"})
 )
 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace="kura", pod=~".*egress-tree-agent.*"})
-* on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+* on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ```
 
 - Threshold: `> 0.9`, as a separate threshold expression on `A`
@@ -4565,7 +4582,7 @@ or label_replace(
   and on (cluster, node) kube_node_status_capacity{resource="tuist_dev_egress_mbps"} > 0,
   "signal", "softnet_drops", "", "")
 or label_replace(
-  (kura:node_region{cluster="tuist-production"} and on (cluster, node) kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
+  (sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))) and on (cluster, node) kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
   unless on (cluster, node) max by (cluster, node) (
     kube_pod_info{namespace="kura", pod=~".*egress-tree-agent.*"} * on (cluster, pod) group_left() (up{job="egress-tree-agent"} == 1)
   ),
@@ -4669,17 +4686,17 @@ windows in the preceding two weeks, all false — for the reason described under
 sum by (cluster, region, protocol) (
   sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total{
     outcome=~"waited|degraded|degraded_timeout|degraded_memory_unavailable|queue_full|timeout"}[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 /
 sum by (cluster, region, protocol) (
   sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 and
 sum by (cluster, region, protocol) (
   sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 ) > 1
 ```
 
@@ -4739,12 +4756,12 @@ rather than dropping the protocol split.
 ```promql
 histogram_quantile(0.95, sum by (cluster, region, le) (
   sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 ))
 and on (cluster, region)
 sum by (cluster, region) (
   sum by (cluster, pod) (rate(kura_public_request_latency_seconds_count[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 ) > 1
 ```
 
