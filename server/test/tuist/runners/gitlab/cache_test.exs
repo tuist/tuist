@@ -2,6 +2,7 @@ defmodule Tuist.Runners.GitLab.CacheTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.Repo
   alias Tuist.Runners.GitLab.Cache
   alias Tuist.Runners.Workers.AbortGitLabCacheUploadWorker
@@ -73,7 +74,7 @@ defmodule Tuist.Runners.GitLab.CacheTest do
                {:error, :cache_unavailable}
     end
 
-    test "keys archives by account ID, so a handle freed by a rename does not reach them", %{
+    test "keeps archive keys stable across renames and isolated from other accounts", %{
       account: account,
       identity: identity,
       key: key
@@ -87,14 +88,16 @@ defmodule Tuist.Runners.GitLab.CacheTest do
 
       old_handle = account.name
       account |> Ecto.Changeset.change(name: "renamed-#{System.unique_integer([:positive])}") |> Repo.update!()
-      %{account: claimant} = AccountsFixtures.organization_fixture(name: old_handle, preload: [:account])
+      %{account: other} = AccountsFixtures.organization_fixture(preload: [:account])
+      assert {:error, changeset} = Accounts.update_account(other, %{name: old_handle})
+      assert "is reserved by another account" in errors_on(changeset).name
 
       assert {:ok, _} = Cache.download_url(identity, "project/123/gems-protected")
       assert_receive {:key, ^key}
 
-      assert {:ok, _} = Cache.download_url(%{identity | account_id: claimant.id}, "project/123/gems-protected")
-      assert_receive {:key, claimant_key}
-      refute claimant_key == key
+      assert {:ok, _} = Cache.download_url(%{identity | account_id: other.id}, "project/123/gems-protected")
+      assert_receive {:key, other_key}
+      refute other_key == key
     end
 
     test "projects with the same ID on different GitLab instances do not share archives", %{identity: identity, key: key} do

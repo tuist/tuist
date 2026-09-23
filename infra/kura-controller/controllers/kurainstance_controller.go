@@ -338,7 +338,12 @@ func (r *KuraInstanceReconciler) sharedPublicTLSCovers(ctx context.Context, inst
 	if err != nil {
 		return false
 	}
-	return leaf.VerifyHostname(host) == nil
+	for _, name := range clientHosts(instance) {
+		if leaf.VerifyHostname(name) != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *KuraInstanceReconciler) publicIngressTLSSecretName(ctx context.Context, instance *kurav1alpha1.KuraInstance) string {
@@ -1517,15 +1522,18 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 	// external-dns writes it, and starting that while volumes are provisioned and
 	// pods start, rather than after, is most of how soon a new instance can be
 	// handed out.
-	if target == "" && !instance.Spec.Private {
+	if target == "" {
 		existing := &unstructured.Unstructured{}
 		existing.SetGroupVersionKind(dnsEndpointGVK)
 		err := r.Get(ctx, types.NamespacedName{Namespace: endpoint.GetNamespace(), Name: endpoint.GetName()}, existing)
 		switch {
 		case err == nil:
-			return nil
+			return r.pruneClientDNSAliases(ctx, instance, existing)
 		case !apierrors.IsNotFound(err):
 			return err
+		}
+		if instance.Spec.Private {
+			return nil
 		}
 		target, err = r.regionBoxIP(ctx, instance)
 		if err != nil {
@@ -1543,19 +1551,49 @@ func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context,
 			"app.kubernetes.io/managed-by": "kura-controller",
 			"tuist.dev/account":            instance.Spec.AccountHandle,
 		})
-		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
-			map[string]interface{}{
-				"dnsName":    clientHost(instance),
-				"recordType": "A",
-				"recordTTL":  int64(60),
-				"targets":    []interface{}{target},
-			},
-		}, "spec", "endpoints"); err != nil {
+		records := make([]interface{}, 0, len(clientHosts(instance)))
+		for _, host := range clientHosts(instance) {
+			records = append(records, map[string]interface{}{
+				"dnsName": host, "recordType": "A", "recordTTL": int64(60), "targets": []interface{}{target},
+			})
+		}
+		if err := unstructured.SetNestedSlice(endpoint.Object, records, "spec", "endpoints"); err != nil {
 			return err
 		}
 		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
 	})
 	return err
+}
+
+// Retiring a hostname must not depend on a healthy gateway. Preserve the last
+// targets of still-desired records while removing aliases absent from the spec.
+func (r *KuraInstanceReconciler) pruneClientDNSAliases(ctx context.Context, instance *kurav1alpha1.KuraInstance, endpoint *unstructured.Unstructured) error {
+	records, _, err := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if err != nil {
+		return err
+	}
+	hosts := map[string]bool{}
+	for _, host := range clientHosts(instance) {
+		hosts[host] = true
+	}
+	retained := make([]interface{}, 0, len(records))
+	for _, record := range records {
+		fields, ok := record.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("invalid client DNS record for %s", instance.Name)
+		}
+		host, _ := fields["dnsName"].(string)
+		if hosts[host] {
+			retained = append(retained, record)
+		}
+	}
+	if len(retained) == len(records) {
+		return nil
+	}
+	if err := unstructured.SetNestedSlice(endpoint.Object, retained, "spec", "endpoints"); err != nil {
+		return err
+	}
+	return r.Update(ctx, endpoint)
 }
 
 // regionBoxIP returns the InternalIP of a box the instance's pods could be
@@ -1805,19 +1843,22 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 		ingress.Annotations = clientIngressAnnotations(instance, publicIngressAnnotations())
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      []string{clientHost(instance)},
+			Hosts:      clientHosts(instance),
 			SecretName: r.publicIngressTLSSecretName(ctx, instance),
 		}}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: clientHost(instance),
-			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{{
-					Path:     "/",
-					PathType: ptr(networkingv1.PathTypePrefix),
-					Backend:  ingressBackend(instance.Name, "http"),
+		ingress.Spec.Rules = nil
+		for _, host := range clientHosts(instance) {
+			ingress.Spec.Rules = append(ingress.Spec.Rules, networkingv1.IngressRule{
+				Host: host,
+				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: []networkingv1.HTTPIngressPath{{
+						Path:     "/",
+						PathType: ptr(networkingv1.PathTypePrefix),
+						Backend:  ingressBackend(instance.Name, "http"),
+					}},
 				}},
-			}},
-		}}
+			})
+		}
 		return nil
 	})
 	return err
@@ -1910,12 +1951,15 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 				Backend:  ingressBackend(instance.Name, servicePort),
 			})
 		}
-		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: clientHost(instance),
-			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: paths,
-			}},
-		}}
+		ingress.Spec.Rules = nil
+		for _, host := range clientHosts(instance) {
+			ingress.Spec.Rules = append(ingress.Spec.Rules, networkingv1.IngressRule{
+				Host: host,
+				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: paths,
+				}},
+			})
+		}
 		return nil
 	})
 	return err
@@ -2821,7 +2865,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   dnsNames(clientHost(instance)),
+			"dnsNames":   dnsNames(clientHosts(instance)...),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
