@@ -9,39 +9,29 @@ import Testing
 /// a temp file and reads it back, so the stub writes the canned test-results
 /// JSON to that redirect target — the real decoding and node classification then
 /// run unchanged through the public parsing API.
-private struct XCResultToolStub: CommandRunning {
+private struct XCResultToolStub {
     let testResultsJSON: String
 
-    func run(
-        arguments: [String],
-        environment _: [String: String],
-        workingDirectory _: AbsolutePath?
-    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    func callAsFunction(_ arguments: [String]) async throws -> XCResultToolOutput {
         let command = arguments.last ?? ""
-        return AsyncThrowingStream { continuation in
-            if let redirect = command.range(of: "> '") {
-                let tail = command[redirect.upperBound...]
-                if let close = tail.firstIndex(of: "'") {
-                    try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
-                }
+        if let redirect = command.range(of: "> '") {
+            let tail = command[redirect.upperBound...]
+            if let close = tail.firstIndex(of: "'") {
+                try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
             }
-            continuation.finish()
         }
+        return XCResultToolOutput(standardOutput: "", standardError: "", succeeded: true)
     }
 }
 
 /// Routes the two xcresulttool reads `parse` performs (`get test-results
 /// tests` and `get log --type action`) to separate canned payloads, so tests
 /// can exercise an empty/absent action log independently of the test results.
-private struct RoutingXCResultToolStub: CommandRunning {
+private struct RoutingXCResultToolStub {
     let testResultsJSON: String
     let actionLogJSON: String
 
-    func run(
-        arguments: [String],
-        environment _: [String: String],
-        workingDirectory _: AbsolutePath?
-    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    func callAsFunction(_ arguments: [String]) async throws -> XCResultToolOutput {
         let command = arguments.last ?? ""
         let payload =
             if command.contains("get log --type action") {
@@ -52,39 +42,31 @@ private struct RoutingXCResultToolStub: CommandRunning {
                 ""
             }
 
-        return AsyncThrowingStream { continuation in
-            if let redirect = command.range(of: "> '") {
-                let tail = command[redirect.upperBound...]
-                if let close = tail.firstIndex(of: "'") {
-                    try? payload.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
-                }
+        if let redirect = command.range(of: "> '") {
+            let tail = command[redirect.upperBound...]
+            if let close = tail.firstIndex(of: "'") {
+                try? payload.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
             }
-            continuation.finish()
         }
+        return XCResultToolOutput(standardOutput: "", standardError: "", succeeded: true)
     }
 }
 
 /// Records the shell payload of every command the parser issues.
-private struct RecordingXCResultToolStub: CommandRunning {
+private struct RecordingXCResultToolStub {
     let testResultsJSON: String
     let commands = OSAllocatedUnfairLock<[String]>(initialState: [])
 
-    func run(
-        arguments: [String],
-        environment _: [String: String],
-        workingDirectory _: AbsolutePath?
-    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    func callAsFunction(_ arguments: [String]) async throws -> XCResultToolOutput {
         let command = arguments.last ?? ""
         commands.withLock { $0.append(command) }
-        return AsyncThrowingStream { continuation in
-            if let redirect = command.range(of: "> '") {
-                let tail = command[redirect.upperBound...]
-                if let close = tail.firstIndex(of: "'") {
-                    try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
-                }
+        if let redirect = command.range(of: "> '") {
+            let tail = command[redirect.upperBound...]
+            if let close = tail.firstIndex(of: "'") {
+                try? testResultsJSON.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
             }
-            continuation.finish()
         }
+        return XCResultToolOutput(standardOutput: "", standardError: "", succeeded: true)
     }
 }
 
@@ -150,7 +132,7 @@ struct XCResultParserTests {
         {"devices": [], "testNodes": [], "testPlanConfigurations": []}
         """
         let parser = XCResultParser(
-            commandRunner: RoutingXCResultToolStub(testResultsJSON: emptyTestResults, actionLogJSON: "")
+            execute: RoutingXCResultToolStub(testResultsJSON: emptyTestResults, actionLogJSON: "").callAsFunction
         )
 
         let summary = try await parser.parse(path: try AbsolutePath(validating: "/tmp/empty.xcresult"), rootDirectory: nil)
@@ -214,7 +196,7 @@ struct XCResultParserTests {
           ]
         }
         """
-        let parser = XCResultParser(commandRunner: XCResultToolStub(testResultsJSON: json))
+        let parser = XCResultParser(execute: XCResultToolStub(testResultsJSON: json).callAsFunction)
 
         let statuses = try await parser.parseTestStatuses(path: try AbsolutePath(validating: "/tmp/app.xcresult"))
 
@@ -306,7 +288,7 @@ struct XCResultParserTests {
         }
         """
         let parser = XCResultParser(
-            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
         )
 
         let summary = try #require(
@@ -409,7 +391,7 @@ struct XCResultParserTests {
         }
         """
         let parser = XCResultParser(
-            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
         )
 
         let summary = try #require(
@@ -487,7 +469,7 @@ struct XCResultParserTests {
         }
         """
         let parser = XCResultParser(
-            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
         )
 
         let summary = try #require(
@@ -539,7 +521,7 @@ struct XCResultParserTests {
         }
         """
         let parser = XCResultParser(
-            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+            execute: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "").callAsFunction
         )
 
         let summary = try #require(
@@ -559,7 +541,7 @@ struct XCResultParserTests {
     @Test
     func shellCommandsExecTheToolSoTheyStayCancellable() async throws {
         let runner = RecordingXCResultToolStub(testResultsJSON: "{}")
-        let parser = XCResultParser(commandRunner: runner)
+        let parser = XCResultParser(execute: runner.callAsFunction)
 
         _ = try? await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
 
@@ -579,7 +561,7 @@ struct XCResultParserTests {
         defer { _ = runToCompletion("/usr/bin/pkill", ["-f", "sleep \(marker)"]) }
 
         let task = Task {
-            for try await _ in CommandRunner().run(arguments: ["/bin/sh", "-c", "exec /bin/sleep \(marker)"]) {}
+            _ = try await executeXCResultTool(["/bin/sh", "-c", "exec /bin/sleep \(marker)"])
         }
 
         try await waitFor("the child to start") { processExists(marker) }

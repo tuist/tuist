@@ -10,7 +10,7 @@ import Testing
 ///
 /// `@unchecked` because the recorded arguments are the only mutable state and every access to
 /// them goes through `lock`.
-private final class XccovStub: CommandRunning, @unchecked Sendable {
+private final class XccovStub: @unchecked Sendable {
     let reportJSON: String?
     let archiveJSON: String?
     private let lock = NSLock()
@@ -25,28 +25,18 @@ private final class XccovStub: CommandRunning, @unchecked Sendable {
         self.archiveJSON = archiveJSON
     }
 
-    func run(
-        arguments: [String],
-        environment _: [String: String],
-        workingDirectory _: AbsolutePath?
-    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    func callAsFunction(_ arguments: [String]) async throws -> XCResultToolOutput {
         if let last = arguments.last { lock.withLock { recorded.append(last) } }
         let output = arguments.contains("--file-list") ? "/repo/A.swift\n/repo/B.swift\n"
             : arguments.contains("--archive") ? archiveJSON : reportJSON
-        return AsyncThrowingStream { continuation in
-            guard let output, reportJSON != nil else {
-                continuation.finish(
-                    throwing: CommandError.terminated(
-                        1,
-                        stderr: "Error Domain=XCCovErrorDomain Code=0 \"No coverage data in result bundle\"",
-                        command: arguments
-                    )
-                )
-                return
-            }
-            continuation.yield(.standardOutput(Array(output.utf8)))
-            continuation.finish()
+        guard let output, reportJSON != nil else {
+            return XCResultToolOutput(
+                standardOutput: "",
+                standardError: "Error Domain=XCCovErrorDomain Code=0 \"No coverage data in result bundle\"",
+                succeeded: false
+            )
         }
+        return XCResultToolOutput(standardOutput: output, standardError: "", succeeded: true)
     }
 }
 
@@ -93,7 +83,7 @@ struct XcodeCoverageParserTests {
          "\(checkout)": [{"line": 1, "isExecutable": true, "executionCount": 1}],
          "\(outside)": [{"line": 1, "isExecutable": true, "executionCount": 1}]}
         """
-        let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json, archiveJSON: archive))
+        let subject = XcodeCoverageParser(execute: XccovStub(reportJSON: json, archiveJSON: archive).callAsFunction)
         let manifest = XcodeCoverageManifest(
             rootDirectories: ["/tmp/repo", "/private/tmp/repo/"],
             partial: false,
@@ -168,7 +158,7 @@ struct XcodeCoverageParserTests {
          "files": [{"name": "F.swift", "path": "/repo/F.swift", "coveredLines": 1, "executableLines": 1, "lineCoverage": 1, "functions": []}]}
         """)
         let archive = #"{"/repo/F.swift": [{"line": 1, "isExecutable": true, "executionCount": 1}]}"#
-        let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: json, archiveJSON: archive))
+        let subject = XcodeCoverageParser(execute: XccovStub(reportJSON: json, archiveJSON: archive).callAsFunction)
 
         let got = try #require(await subject.parse(
             resultBundlePath: try AbsolutePath(validating: "/run.xcresult"),
@@ -188,7 +178,7 @@ struct XcodeCoverageParserTests {
             let link = root.appending(component: "run")
             try await fileSystem.createSymbolicLink(from: link, to: bundle)
             let stub = XccovStub(reportJSON: report(""))
-            let subject = XcodeCoverageParser(commandRunner: stub)
+            let subject = XcodeCoverageParser(execute: stub.callAsFunction)
 
             #expect(try await subject.coveredFilePaths(resultBundlePath: link) == ["/repo/A.swift", "/repo/B.swift"])
             #expect(stub.bundleArguments.map { $0.hasSuffix(".xcresult") } == [true])
@@ -204,7 +194,7 @@ struct XcodeCoverageParserTests {
 
     @Test
     func reportsNothingForABundleWithoutCoverage() async throws {
-        let subject = XcodeCoverageParser(commandRunner: XccovStub(reportJSON: nil))
+        let subject = XcodeCoverageParser(execute: XccovStub(reportJSON: nil).callAsFunction)
         let bundle = try AbsolutePath(validating: "/run.xcresult")
 
         #expect(try await subject.coveredFilePaths(resultBundlePath: bundle) == nil)
