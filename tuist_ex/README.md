@@ -41,9 +41,8 @@ The release workflow sets the package version from the shared release checker;
 the version in `mix.exs` is the development baseline. Release notes are generated
 from scoped commits using `cliff.toml`.
 
-Publication reads the Hex publishing token from the password field of the
-`TUIST_EX_HEX_API_KEY` item in the `tuist` 1Password vault, using the repository's
-`OP_SERVICE_ACCOUNT_TOKEN` secret. The token must be allowed to publish `tuist_ex`.
-The first publication also requires the package name to be available or owned
-by Tuist. `TUIST_RELEASE_GITHUB_TOKEN` is used for GitHub releases when available,
-with the workflow token as the fallback.
+Publication reuses the repository's `HEX_API_KEY` secret, which also publishes
+Noora. Its Hex account must be the intended owner of `tuist_ex` and the key
+must have package publishing permission. The first publication requires the
+package name to be available. `TUIST_RELEASE_GITHUB_TOKEN` is used for GitHub
+releases when available, with the workflow token as the fallback.

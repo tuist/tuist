@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise-install
         with:
-          install: "erlang elixir git-cliff 1password-cli"
+          install: "erlang elixir git-cliff"
           cache: "false"
           working-directory: tuist_ex
       - name: Prepare release
@@ -89,8 +89,6 @@ jobs:
       - name: Publish package and documentation
         run: |
           set -euo pipefail
-          HEX_API_KEY=$(op read "op://tuist/TUIST_EX_HEX_API_KEY/password")
-          export HEX_API_KEY
           published_tar="$RUNNER_TEMP/tuist_ex-published.tar"
           published_status=$(curl --silent --show-error --location --output "$published_tar" \
             --write-out '%{http_code}' \
@@ -115,7 +113,7 @@ jobs:
               ;;
           esac
         env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

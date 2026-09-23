@@ -26,6 +26,5 @@ documented in `COMMUNITY_NOTIFICATIONS.md`.
 and package jobs. Compilation covers the minimum and current supported Elixir
 versions. The workflow is reused by `tuist-ex-release.yml` before publication.
 Releases run only from `main`, serialize publishing, and use the shared
-`release:check` registry with the `tuist-ex@` tag prefix. The
-`OP_SERVICE_ACCOUNT_TOKEN` secret must read the password field at
-`op://tuist/TUIST_EX_HEX_API_KEY/password`, whose token can publish `tuist_ex`.
+`release:check` registry with the `tuist-ex@` tag prefix. The existing
+`HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
