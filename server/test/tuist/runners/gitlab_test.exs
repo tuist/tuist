@@ -36,6 +36,7 @@ defmodule Tuist.Runners.GitLabTest do
 
     reject(&Req.request/1)
     stub(Client, :update_job, fn _, _, _, _ -> {:ok, %{}} end)
+    stub(Client, :write_trace, fn _, _, _ -> {:ok, nil} end)
     %{account: account, connection: connection}
   end
 
@@ -90,6 +91,49 @@ defmodule Tuist.Runners.GitLabTest do
     assert {:error, :not_found} = GitLab.mint_acquisition(account.id + 1, id)
   end
 
+  test "writes the waiting section the executor continues from", %{connection: connection, account: account} do
+    payload = payload()
+    test_pid = self()
+    expect(Client, :request_job, fn ^connection -> {:ok, payload} end)
+
+    expect(Client, :write_trace, fn "https://gitlab.com", ^payload, trace ->
+      send(test_pid, {:waiting_trace, trace})
+      {:ok, nil}
+    end)
+
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert_received {:waiting_trace, trace}
+    job = Repo.one!(Job)
+    unix = DateTime.to_unix(job.inserted_at)
+
+    # GitLab reads the first line's timestamp header as the whole log's format.
+    assert trace ==
+             Calendar.strftime(job.inserted_at, "%Y-%m-%dT%H:%M:%S") <>
+               ".000000Z 00O section_start:#{unix}:tuist_waiting_for_runner\r\e[0K" <>
+               "Waiting for a Tuist runner for tuist-macos (4 vCPU, 16 GB)\n"
+
+    assert {:ok, %{waiting_trace: ^trace}} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
+  end
+
+  test "writes the waiting section without a timestamp when the job turns timestamps off", %{connection: connection} do
+    payload = Map.update!(payload(), "variables", &(&1 ++ [%{"key" => "FF_TIMESTAMPS", "value" => "false"}]))
+    test_pid = self()
+    expect(Client, :request_job, fn _ -> {:ok, payload} end)
+    expect(Client, :write_trace, fn _, _, trace -> send(test_pid, {:waiting_trace, trace}) end)
+
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert_received {:waiting_trace, "section_start:" <> _}
+  end
+
+  test "does not write a waiting section for a job it rejects", %{connection: connection} do
+    payload = put_in(payload(), ["variables"], [%{"key" => "CI_JOB_TAGS", "value" => ~s(["other"])}])
+    expect(Client, :request_job, fn _ -> {:ok, payload} end)
+    expect(Client, :reject_job, fn _, ^payload, _ -> {:ok, nil} end)
+    reject(&Client.write_trace/3)
+
+    assert {:error, :invalid_job_tags} = GitLab.poll(connection)
+  end
+
   test "report tokens carry the coordinator's project and ref protection", %{connection: connection, account: account} do
     for protected? <- [true, false] do
       identity = mint_identity(connection, account, %{"protected" => protected?})
@@ -132,6 +176,20 @@ defmodule Tuist.Runners.GitLabTest do
         pipeline_id: 42,
         payload: JSON.encode!(payload)
       })
+
+    :ok =
+      WorkflowJobs.enqueue_many_if_missing([
+        %{
+          workflow_job_id: job.workflow_job_id,
+          provider: "gitlab",
+          account_id: account.id,
+          fleet_name: "pool-macos",
+          requested_dispatch_label: "tuist-macos",
+          platform: "macos",
+          vcpus: 4,
+          memory_gb: 16
+        }
+      ])
 
     assert {:ok, acquisition} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
     assert {:ok, identity} = JobReportToken.verify(acquisition.report_token)

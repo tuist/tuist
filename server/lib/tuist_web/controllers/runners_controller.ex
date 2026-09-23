@@ -386,7 +386,14 @@ defmodule TuistWeb.RunnersController do
   defp credential_fields(%{kind: :github, jit: jit}), do: %{encoded_jit_config: jit}
 
   defp credential_fields(%{kind: :gitlab} = credential) do
-    %{gitlab_job: %{url: credential.url, payload: credential.payload, report_token: credential.report_token}}
+    %{
+      gitlab_job: %{
+        url: credential.url,
+        payload: credential.payload,
+        report_token: credential.report_token,
+        waiting_trace: credential.waiting_trace
+      }
+    }
   end
 
   defp credential_fields(%{kind: :buildkite} = credential) do

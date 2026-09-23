@@ -37,3 +37,12 @@ omada-controller-helm:
       memory: 1Gi
     limits:
       memory: 2Gi
+
+  # The certificate templates/tls.yaml issues, which the chart mounts at /cert
+  # and the controller builds its keystore from.
+  config:
+    tlsSecretName: omada-controller-tls
+
+tls:
+  # Names the certificate carries beyond the in-cluster Service's.
+  extraDNSNames: []

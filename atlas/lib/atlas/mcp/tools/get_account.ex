@@ -20,10 +20,6 @@ defmodule Atlas.MCP.Tools.GetAccount do
         "handles" => %{"type" => "array", "items" => Atlas.MCP.Serializers.Accounts.handle_schema()},
         "terms" => %{"type" => "array", "items" => Atlas.MCP.Serializers.Accounts.term_schema()},
         "recent_events" => %{"type" => "array", "items" => Atlas.MCP.Serializers.Accounts.event_schema()},
-        "attention_suggestions" => %{
-          "type" => "array",
-          "items" => Atlas.MCP.Serializers.Accounts.account_attention_suggestion_schema()
-        },
         "service_levels" => %{"type" => "array", "items" => Atlas.MCP.Serializers.Accounts.service_level_schema()},
         "service_level_extraction_checks" => %{
           "type" => "array",
@@ -36,14 +32,12 @@ defmodule Atlas.MCP.Tools.GetAccount do
         "handles",
         "terms",
         "recent_events",
-        "attention_suggestions",
         "service_levels",
         "service_level_extraction_checks"
       ],
       "additionalProperties" => false
     }
 
-  alias Atlas.Accounts
   alias Atlas.Accounts.Query, as: AccountsQuery
   alias Atlas.MCP.AccountLookup
   alias Atlas.MCP.Serializers.Accounts, as: AccountSerializer
@@ -66,10 +60,6 @@ defmodule Atlas.MCP.Tools.GetAccount do
          handles: Enum.map(account.account_handles, &AccountSerializer.handle/1),
          terms: Enum.map(account.terms, &AccountSerializer.term/1),
          recent_events: account.events |> Enum.take(@recent_event_limit) |> Enum.map(&AccountSerializer.event/1),
-         attention_suggestions:
-           account
-           |> Accounts.list_account_attention_suggestions(statuses: ["pending", "snoozed"])
-           |> Enum.map(&AccountSerializer.account_attention_suggestion/1),
          service_levels: Enum.map(account.service_levels, &AccountSerializer.service_level/1),
          service_level_extraction_checks:
            account.service_level_extraction_checks

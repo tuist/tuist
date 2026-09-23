@@ -330,6 +330,44 @@ struct XCActivityLogParserTests {
         #expect(Set(result.cacheable_tasks.map(\.key)).count == 6)
     }
 
+    // MARK: - Xcode 27 Clang Caching
+    //
+    // `xcode_27_clang_cache_hits` is a clean rebuild against a local remote cache. Xcode 27
+    // titles clang caching steps without the JSON array Swift uses
+    // (`Clang caching query key 0~…`) and marks the query result with `cache hit` or
+    // `cache miss` notes. A key that is materialized without a query was found in the local
+    // action cache.
+
+    @Test func xcode27ClangCaching_countsEveryTaskXcodeReports() async throws {
+        let result = try await parseFixture("xcode_27_clang_cache_hits")
+        let summary = try xcodeCacheSummary(inFixture: "xcode_27_clang_cache_hits")
+
+        #expect(result.cacheable_tasks.count == summary.cacheable)
+        #expect(result.cacheable_tasks.filter { $0.status != "miss" }.count == summary.hits)
+        #expect(Set(result.cacheable_tasks.map(\.key)).count == result.cacheable_tasks.count)
+    }
+
+    @Test func xcode27ClangCaching_classifiesQueryResults() async throws {
+        let result = try await parseFixture("xcode_27_clang_cache_hits")
+        let clang = result.cacheable_tasks.filter { $0.type == "clang" }
+        let statuses = Dictionary(grouping: clang, by: \.status).mapValues(\.count)
+
+        #expect(statuses == ["hit_local": 2, "hit_remote": 1, "miss": 1])
+        for task in clang {
+            #expect(task.description?.hasPrefix("Compile ") == true)
+            #expect(!task.cas_output_node_ids.isEmpty)
+        }
+    }
+
+    private func xcodeCacheSummary(inFixture name: String) throws -> (hits: Int, cacheable: Int) {
+        let log = String(decoding: try gunzip(try fixtureURL(name)), as: UTF8.self)
+        let regex = try NSRegularExpression(pattern: "(\\d+) hits / (\\d+) cacheable tasks")
+        let match = try #require(regex.firstMatch(in: log, range: NSRange(log.startIndex..., in: log)))
+        let hits = try #require(Range(match.range(at: 1), in: log).flatMap { Int(log[$0]) })
+        let cacheable = try #require(Range(match.range(at: 2), in: log).flatMap { Int(log[$0]) })
+        return (hits, cacheable)
+    }
+
     private func localCacheHitKeys(inFixture name: String) throws -> (capitalised: Set<String>, lowercased: Set<String>) {
         let log = String(decoding: try gunzip(try fixtureURL(name)), as: UTF8.self)
         func keys(_ pattern: String) throws -> Set<String> {

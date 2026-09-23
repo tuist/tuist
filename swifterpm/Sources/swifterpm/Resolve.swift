@@ -97,14 +97,18 @@ enum PackageResolver {
         forwardOutput: Bool
     ) async throws -> ResolvedPins {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        let effectiveScratchDir = scratchDir ?? packageDir.appendingPathComponent(".build")
         // `swift package resolve` also reads pins from
         // `<scratch>/workspace-state.json` when Package.resolved is missing,
         // so a stale workspace state silently pins the resolve at whatever
         // the previous install had checked out — the exact scenario `update`
         // exists to escape. Clear both together and let SwiftPM rewrite each
         // from the fresh solver output.
-        let workspaceStatePath = (scratchDir ?? packageDir.appendingPathComponent(".build"))
-            .appendingPathComponent("workspace-state.json")
+        let workspaceStatePath = effectiveScratchDir.appendingPathComponent("workspace-state.json")
+        // Native SwiftPM updates an existing git checkout in place, which would rewrite a
+        // cached source through its `checkouts/<identity>` symlink.
+        try await detachNativeCheckoutSymlinks(scratchDir: effectiveScratchDir)
+        try await copyBinaryArtifactSymlinks(scratchDir: effectiveScratchDir)
         let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
@@ -152,6 +156,40 @@ enum PackageResolver {
                 try? await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
             }
             throw error
+        }
+    }
+
+    /// Only links whose target still has a `.git` can be checked out in place.
+    private static func detachNativeCheckoutSymlinks(scratchDir: URL) async throws {
+        let checkouts = scratchDir.appendingPathComponent("checkouts")
+        guard try await fileSystem.exists(checkouts.absolutePath) else { return }
+        for entry in try await fileSystem.contentsOfDirectory(at: checkouts)
+            where fileSystem.isSymlink(entry)
+        {
+            guard try await fileSystem.exists(entry.appendingPathComponent(".git").absolutePath) else {
+                continue
+            }
+            try await fileSystem.removePath(entry)
+        }
+    }
+
+    /// SwiftPM extracts a changed binary target over `artifacts/<identity>/<target>` but expects an
+    /// unchanged one to still be there, so each link becomes a copy SwiftPM can overwrite.
+    private static func copyBinaryArtifactSymlinks(scratchDir: URL) async throws {
+        let artifacts = scratchDir.appendingPathComponent("artifacts")
+        guard try await fileSystem.exists(artifacts.absolutePath) else { return }
+        for package in try await fileSystem.contentsOfDirectory(at: artifacts)
+            where fileSystem.isDirectoryAndNotSymlink(package)
+        {
+            for entry in try await fileSystem.contentsOfDirectory(at: package)
+                where fileSystem.isSymlink(entry)
+            {
+                let cached = entry.resolvingSymlinksInPath()
+                try await fileSystem.removePath(entry)
+                if try await fileSystem.exists(cached.absolutePath) {
+                    try await fileSystem.copy(cached.absolutePath, to: entry.absolutePath)
+                }
+            }
         }
     }
 

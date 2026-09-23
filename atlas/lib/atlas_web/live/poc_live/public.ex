@@ -7,6 +7,7 @@ defmodule AtlasWeb.POCLive.Public do
   alias Atlas.Accounts.POCs
   alias Atlas.Accounts.POCs.AccessRequest
   alias Atlas.Accounts.POCs.Notifier, as: POCNotifier
+  alias Atlas.Users
   alias AtlasWeb.Markdown
   alias AtlasWeb.POCPublicController
 
@@ -28,24 +29,27 @@ defmodule AtlasWeb.POCLive.Public do
   defp mount_for_poc(socket, poc, session) do
     cookie = Map.get(session, POCPublicController.session_cookie_name(poc))
 
-    case POCs.verify_session_cookie(poc, cookie) do
-      {:ok, _request} ->
-        socket
-        |> assign(:page_title, poc.title)
-        |> assign(:view_mode, :brief)
-        |> assign(:poc, poc)
-
-      _ ->
-        socket
-        |> assign(:page_title, "#{poc.title} · Access required")
-        |> assign(:view_mode, :gate)
-        |> assign(:poc, poc)
-        |> assign(:form, to_form(%{"email" => ""}, as: :access))
-        |> assign(:pending_request, nil)
-        |> assign(:connect_ip, connect_ip(socket))
-        |> assign(:connect_user_agent, connect_user_agent(socket))
+    if authenticated_atlas_user?(session) or match?({:ok, _request}, POCs.verify_session_cookie(poc, cookie)) do
+      socket
+      |> assign(:page_title, poc.title)
+      |> assign(:view_mode, :brief)
+      |> assign(:poc, poc)
+    else
+      socket
+      |> assign(:page_title, "#{poc.title} · Access required")
+      |> assign(:view_mode, :gate)
+      |> assign(:poc, poc)
+      |> assign(:form, to_form(%{"email" => ""}, as: :access))
+      |> assign(:pending_request, nil)
+      |> assign(:connect_ip, connect_ip(socket))
+      |> assign(:connect_user_agent, connect_user_agent(socket))
     end
   end
+
+  defp authenticated_atlas_user?(%{"user_id" => user_id}) when is_binary(user_id),
+    do: not is_nil(Users.get_user(user_id))
+
+  defp authenticated_atlas_user?(_session), do: false
 
   @impl true
   def handle_event("request_access", %{"access" => %{"email" => email}}, socket) do
@@ -199,7 +203,12 @@ defmodule AtlasWeb.POCLive.Public do
                 show_prefix={false}
                 required
               />
-              <Noora.Button.button variant="primary" size="large" label="Request access" />
+              <Noora.Button.button
+                type="submit"
+                variant="primary"
+                size="large"
+                label="Request access"
+              />
             </.form>
           <% end %>
         </div>

@@ -2690,11 +2690,6 @@ kataContainers:
 
 runnersController:
   replicaCount: 1
-  # Requires a controller image with the shadow flags and a server with
-  # /runners/shadow_snapshot. Records proposals only; never assigns jobs.
-  shadowScheduler:
-    enabled: false
-    intervalSeconds: 30
   image:
     repository: ghcr.io/tuist/tuist-runners-controller
     tag: ""

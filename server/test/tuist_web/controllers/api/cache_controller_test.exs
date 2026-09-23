@@ -46,6 +46,28 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["endpoints"] == expected_endpoints
     end
 
+    test "retired handles resolve the owning account's endpoint only after authorization", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+      KuraFixtures.active_server_fixture(renamed, url: "https://new-name.kura.tuist.dev")
+      authorized = conn |> Authentication.put_current_user(user) |> Headers.put_client_feature_flags(["kura"])
+      response = authorized |> get(~p"/api/cache/endpoints?account_handle=#{account.name}") |> json_response(:ok)
+      assert response["endpoints"] == ["https://new-name.kura.tuist.dev"]
+      stranger = AccountsFixtures.user_fixture()
+
+      response =
+        conn
+        |> Authentication.put_current_user(stranger)
+        |> Headers.put_client_feature_flags(["kura"])
+        |> get(~p"/api/cache/endpoints?account_handle=#{account.name}")
+        |> json_response(:ok)
+
+      assert response["endpoints"] == []
+    end
+
     test "returns empty list when self-hosted without endpoints configured", %{conn: conn} do
       # Given
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)

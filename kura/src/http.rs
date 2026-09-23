@@ -1379,7 +1379,7 @@ fn retry_after(response: &mut Response, seconds: u64) {
 
 async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
     let Some(auth) = state.auth.as_ref() else {
-        return next.run(req).await;
+        return serve_endpoint_alias(&state, req, next).await;
     };
 
     let route = request_route(&req);
@@ -1429,7 +1429,56 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
         }
     }
 
+    serve_endpoint_alias(&state, req, next).await
+}
+
+// Redirects are explicit capability negotiation: generic HTTP clients may drop
+// credentials across hosts or be unable to replay uploads. gRPC stays an alias.
+async fn serve_endpoint_alias(state: &SharedState, req: Request, next: Next) -> Response {
+    if req
+        .headers()
+        .get("x-tuist-accept-endpoint-redirect")
+        .is_some_and(|value| value == "1")
+        && let Some(target) = endpoint_alias_target(state, &req)
+    {
+        return (
+            StatusCode::TEMPORARY_REDIRECT,
+            [
+                (axum::http::header::LOCATION, target.as_str()),
+                (axum::http::header::CACHE_CONTROL, "no-store"),
+            ],
+        )
+            .into_response();
+    }
     next.run(req).await
+}
+
+fn endpoint_alias_target(state: &SharedState, req: &Request) -> Option<String> {
+    if skips_authorization(&request_route(req))
+        || req
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("application/grpc"))
+    {
+        return None;
+    }
+    let authority = req
+        .uri()
+        .authority()
+        .map(|value| value.as_str())
+        .or_else(|| req.headers().get(axum::http::header::HOST)?.to_str().ok())?;
+    let authority = authority.parse::<axum::http::uri::Authority>().ok()?;
+    let identity = state.account_identity.load();
+    let origin = identity
+        .endpoint_redirects
+        .get(&authority.host().to_ascii_lowercase())?;
+    Some(format!(
+        "{origin}{}",
+        req.uri()
+            .path_and_query()
+            .map_or("/", |value| value.as_str())
+    ))
 }
 
 fn skips_authorization(route: &str) -> bool {
@@ -1452,7 +1501,7 @@ async fn request_context_from_http(
     request: HttpRequestFacts<'_>,
 ) -> AuthRequestContext {
     let metadata = http_request_metadata(state, request.route, request.method, request.query).await;
-    AuthRequestContext {
+    let mut context = AuthRequestContext {
         transport: "http".into(),
         method: request.method.to_owned(),
         operation: metadata.operation,
@@ -1461,7 +1510,9 @@ async fn request_context_from_http(
         namespace_id: metadata.namespace_id,
         authorization: request.authorization,
         headers: BTreeMap::new(),
-    }
+    };
+    state.canonicalize_auth_context(&mut context);
+    context
 }
 
 struct HttpRequestFacts<'a> {

@@ -1,0 +1,88 @@
+name: Rack Edge Image
+
+# PR validation and main-branch image build for the rack-edge DaemonSet
+# (infra/helm/rack-edge): the path from a rack's switches into the tailnet and
+# their DHCP, run on the rack's edge node. The image carries only the tools the
+# rendered files call (infra/rack-switch-fleet/edge/Dockerfile).
+#
+# A push to main that changes the image's inputs publishes `sha-<12 sha>` and
+# `latest`; omada-deployment.yml waits for the sha tag and deploys it. Pull
+# requests render the chart with every environment's values.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/rack-switch-fleet/edge/**
+      - .github/workflows/rack-edge-image.yml
+  pull_request:
+    paths:
+      - infra/rack-switch-fleet/edge/**
+      - infra/helm/rack-edge/**
+      - .github/workflows/rack-edge-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/rack-edge
+
+jobs:
+  chart:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm"
+          cache: "false"
+      - name: The chart renders with every environment's values
+        run: |
+          set -euo pipefail
+          chart=infra/helm/rack-edge
+          for values in "$chart"/values-*.yaml; do
+            helm lint "$chart" -f "$chart/values.yaml" -f "$values"
+            helm template rack-edge "$chart" --namespace omada \
+              -f "$chart/values.yaml" -f "$values" > /dev/null
+          done
+
+  build:
+    needs: [chart]
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        # `sha-<12 sha>` is what omada-deployment.yml deploys. `latest` is for
+        # humans pulling by hand, and moves only on main.
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:sha-${GITHUB_SHA::12}"
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "${IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: infra/rack-switch-fleet/edge
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=rack-edge
+          cache-to: type=gha,mode=max,scope=rack-edge

@@ -54,8 +54,9 @@ assignment upstream if persistence fails.
 - Cache keys are
   `runner-gitlab-cache/<account id>/<instance digest>/<project id>/<protected|unprotected>/<key>`,
   written through `Storage` so custom-storage accounts use their own bucket.
-  Never key by handle: a handle freed by a rename can be claimed by another
-  account. Never drop the instance: project IDs are only unique within one
+  Never key by handle: archive keys must stay stable across account renames.
+  Historical handles remain reserved to their owning account. Never drop the
+  instance: project IDs are only unique within one
   GitLab instance, and an account can connect several. Hosted retention lists
   only that prefix, resolves plans by account ID, expires deleted accounts'
   archives with the Air window, and account deletion purges the prefix.
@@ -78,3 +79,5 @@ assignment upstream if persistence fails.
 - Persistence exceptions log their class and stack locations with argument values omitted; never log the assignment or exception message, which may contain tokens.
 
 - Build/test insight linkage follows CLI metadata: `ci_project_handle` is the bare project path, `ci_run_id` is the pipeline ID, and `ci_host` is matched separately. Accept legacy empty hosts, but exclude a known different instance. Partial indexes on non-null payloads keep waiting-assignment and expiry queries bounded by live assignments.
+
+- GitLab shows an acquired job as running while it waits for a machine, so acquisition writes a `tuist_waiting_for_runner` section to the start of the job log, best effort. `mint_acquisition` rebuilds the same bytes from the job's `inserted_at`, payload and workflow job and hands them to the executor as `waiting_trace`. The executor writes them first, so upstream resumes at GitLab's offset instead of dropping its own first bytes. GitLab reads the first line's timestamp header as the format of the whole log (rendering and coverage parsing), so the line follows the job's `FF_TIMESTAMPS` as GitLab Runner resolves it: the last variable wins, and an unparsable value keeps the default (on).
