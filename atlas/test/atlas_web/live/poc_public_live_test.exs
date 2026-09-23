@@ -62,6 +62,10 @@ defmodule AtlasWeb.POCLive.PublicTest do
     Plug.Test.init_test_session(conn, %{POCPublicController.session_cookie_name(poc) => cookie_value})
   end
 
+  defp authenticated_conn(conn, user) do
+    Plug.Test.init_test_session(conn, %{user_id: user.id})
+  end
+
   describe "unauthenticated visitor" do
     test "sees the email gate instead of the brief", %{conn: conn} do
       published = published_poc(user(), account())
@@ -71,6 +75,7 @@ defmodule AtlasWeb.POCLive.PublicTest do
       assert html =~ "Access required"
       refute html =~ "Two-week evaluation for the mobile platform team."
       assert has_element?(view, "#poc-access-form")
+      assert has_element?(view, "#poc-access-form button[type=submit]", "Request access")
     end
 
     test "not-found screen for an unknown token", %{conn: conn} do
@@ -87,6 +92,21 @@ defmodule AtlasWeb.POCLive.PublicTest do
       {:ok, _view, html} = live(conn, ~p"/p/pocs/#{published.public_token}")
 
       assert html =~ "POC not available"
+    end
+  end
+
+  describe "authenticated Atlas user" do
+    test "can read a published brief without a POC access request", %{conn: conn} do
+      published = published_poc(user(), account())
+
+      {:ok, _view, html} =
+        conn
+        |> authenticated_conn(user())
+        |> live(~p"/p/pocs/#{published.public_token}")
+
+      assert html =~ "Two-week evaluation for the mobile platform team."
+      assert html =~ "Proof of Concept"
+      refute html =~ "Access required"
     end
   end
 
