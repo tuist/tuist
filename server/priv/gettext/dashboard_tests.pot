@@ -123,7 +123,7 @@ msgid "Avg. test case run duration"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:203
-#: lib/tuist_web/live/once_overview_live.ex:150
+#: lib/tuist_web/live/once_overview_live.ex:159
 #: lib/tuist_web/live/once_runs_live.ex:735
 #: lib/tuist_web/live/once_tests_live.ex:211
 #: lib/tuist_web/live/test_runs_live.ex:396

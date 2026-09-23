@@ -30,6 +30,9 @@ defmodule TuistWeb.OnceOverviewLive do
     %{preset: analytics_preset, period: analytics_period} =
       DatePicker.date_picker_params(params, "analytics")
 
+    %{preset: builds_preset, period: builds_period} =
+      DatePicker.date_picker_params(params, "builds")
+
     socket
     |> assign(
       uri: uri,
@@ -37,7 +40,10 @@ defmodule TuistWeb.OnceOverviewLive do
       analytics_preset: analytics_preset,
       analytics_period: analytics_period,
       analytics_granularity: time_series_granularity(analytics_period),
-      analytics_trend_label: analytics_trend_label(analytics_preset)
+      analytics_trend_label: analytics_trend_label(analytics_preset),
+      builds_preset: builds_preset,
+      builds_period: builds_period,
+      builds_granularity: time_series_granularity(builds_period)
     )
     |> assign_async(:cache_summary, fn ->
       {:ok, %{cache_summary: cache_summary_with_trend(project.id, analytics_period)}}
@@ -51,12 +57,15 @@ defmodule TuistWeb.OnceOverviewLive do
          has_any_cache_observations: Enum.any?(analytics.lookup_values, &(&1 > 0))
        }}
     end)
-    |> assign_async([:build_summary, :recent_builds, :builds_duration_analytics], fn ->
+    |> assign_async(:build_summary, fn ->
+      {:ok, %{build_summary: summary_with_trends(project.id, analytics_period, @build_commands)}}
+    end)
+    |> assign_async([:recent_builds, :builds_duration_analytics, :builds_summary], fn ->
       {:ok,
        %{
-         build_summary: summary_with_trends(project.id, analytics_period, @build_commands),
-         recent_builds: recent_runs(project, analytics_period, @build_commands),
-         builds_duration_analytics: Analytics.invocation_analytics(project.id, opts(analytics_period, @build_commands))
+         recent_builds: recent_runs(project, builds_period, @build_commands),
+         builds_duration_analytics: Analytics.invocation_analytics(project.id, opts(builds_period, @build_commands)),
+         builds_summary: Analytics.summary(project.id, opts(builds_period, @build_commands))
        }}
     end)
     |> assign_async([:test_summary, :recent_test_runs], fn ->
@@ -254,11 +263,49 @@ defmodule TuistWeb.OnceOverviewLive do
         </div>
       </.card>
 
+      <.runs_card
+        id="once-overview-tests"
+        title={dgettext("dashboard_projects", "Tests")}
+        chart_part="test-runs-chart"
+        summary={@test_summary}
+        runs={@recent_test_runs}
+        passed_label={dgettext("dashboard_projects", "Passed runs")}
+        failed_label={dgettext("dashboard_projects", "Failed runs")}
+        empty_title={dgettext("dashboard_projects", "No test runs yet")}
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/tests"}
+      />
       <.card
         title={dgettext("dashboard_projects", "Builds")}
         icon="subtask"
         data-part="builds-card-section"
       >
+        <:actions>
+          <.date_picker
+            id="builds-date-range-picker"
+            name="builds-date-range"
+            presets={date_picker_presets()}
+            selected_preset={@builds_preset}
+            period={@builds_period}
+            on_period_change="builds_period_changed"
+            max={Date.utc_today()}
+          >
+            <:actions>
+              <.button
+                label={dgettext("dashboard_projects", "Cancel")}
+                variant="secondary"
+                phx-click={
+                  JS.dispatch("phx:date-picker-cancel", detail: %{id: "builds-date-range-picker"})
+                }
+              />
+              <.button
+                label={dgettext("dashboard_projects", "Apply")}
+                phx-click={
+                  JS.dispatch("phx:date-picker-apply", detail: %{id: "builds-date-range-picker"})
+                }
+              />
+            </:actions>
+          </.date_picker>
+        </:actions>
         <div data-part="builds-card-sections">
           <.card_section :if={!@recent_builds.ok?}>
             <div data-part="build-runs-chart">
@@ -314,7 +361,7 @@ defmodule TuistWeb.OnceOverviewLive do
             </div>
           </.card_section>
           <.card_section
-            :if={@builds_duration_analytics.ok? && @build_summary.ok?}
+            :if={@builds_duration_analytics.ok? && @builds_summary.ok?}
             data-part="average-build-time-card-section"
           >
             <div data-part="average-build-time-chart">
@@ -330,7 +377,7 @@ defmodule TuistWeb.OnceOverviewLive do
                   title={dgettext("dashboard_projects", "Average build time")}
                   value={
                     DateFormatter.format_duration_from_milliseconds(
-                      @build_summary.result.average_duration_ms
+                      @builds_summary.result.average_duration_ms
                     )
                   }
                   style="secondary"
@@ -364,7 +411,7 @@ defmodule TuistWeb.OnceOverviewLive do
                         formatter: "fn:formatMilliseconds"
                       }
                     },
-                    tooltip: chart_tooltip("fn:formatMilliseconds", @analytics_granularity),
+                    tooltip: chart_tooltip("fn:formatMilliseconds", @builds_granularity),
                     legend: %{show: false}
                   }
                 }
@@ -387,18 +434,6 @@ defmodule TuistWeb.OnceOverviewLive do
           </.card_section>
         </div>
       </.card>
-
-      <.runs_card
-        id="once-overview-tests"
-        title={dgettext("dashboard_projects", "Tests")}
-        chart_part="test-runs-chart"
-        summary={@test_summary}
-        runs={@recent_test_runs}
-        passed_label={dgettext("dashboard_projects", "Passed runs")}
-        failed_label={dgettext("dashboard_projects", "Failed runs")}
-        empty_title={dgettext("dashboard_projects", "No test runs yet")}
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/tests"}
-      />
     </div>
     """
   end
@@ -415,7 +450,7 @@ defmodule TuistWeb.OnceOverviewLive do
 
   defp runs_card(assigns) do
     ~H"""
-    <.card title={@title} icon="subtask" data-part="builds-card">
+    <.card title={@title} icon="subtask">
       <:actions>
         <.button
           variant="secondary"

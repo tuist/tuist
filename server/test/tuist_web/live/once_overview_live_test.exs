@@ -73,6 +73,20 @@ defmodule TuistWeb.OnceOverviewLiveTest do
     assert has_element?(view, "#once-overview-average-build-time-chart")
     assert has_element?(view, "[data-part=test-runs-chart]")
 
+    # Each card filters on its own period, and Tests sits above Builds.
+    assert has_element?(view, "[data-part=analytics] #once-overview-date-range-picker")
+    assert has_element?(view, "[data-part=builds-card-section] #builds-date-range-picker")
+
+    order =
+      view
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find("[data-part=title]")
+      |> Enum.map(&(&1 |> Floki.text() |> String.trim()))
+      |> Enum.filter(&(&1 in ["Analytics", "Tests", "Builds"]))
+
+    assert order == ["Analytics", "Tests", "Builds"]
+
     html = render(view)
     assert html =~ "Passed builds"
     assert html =~ "Failed builds"
