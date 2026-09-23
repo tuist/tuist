@@ -293,44 +293,64 @@
             }
             data-part="domain-verification"
           >
-            <%= if @organization.sso_login_domain_verified_at do %>
-              <span data-part="domain-verification-status" data-status="verified">
-                {dgettext("dashboard_account", "Verified")}
-              </span>
-            <% else %>
-              <span data-part="domain-verification-status" data-status="pending">
-                {dgettext("dashboard_account", "Pending verification")}
-              </span>
-              <span data-part="domain-verification-description">
-                {dgettext(
-                  "dashboard_account",
-                  "Add the following text record to your domain, then verify it."
-                )}
-              </span>
-              <div data-part="domain-record">
-                <span data-part="domain-record-label">
-                  {dgettext("dashboard_account", "Record name")}
+            <%= cond do %>
+              <% Accounts.sso_login_domain_expiring?(@organization) -> %>
+                <span data-part="domain-verification-status" data-status="expiring">
+                  {dgettext("dashboard_account", "Verification expiring")}
                 </span>
-                <div data-part="read-only-value">
-                  <code>{Accounts.sso_login_domain_record_name(@organization)}</code>
-                </div>
-              </div>
-              <div data-part="domain-record">
-                <span data-part="domain-record-label">
-                  {dgettext("dashboard_account", "Record value")}
+                <span data-part="domain-verification-description">
+                  {dngettext(
+                    "dashboard_account",
+                    "The text record no longer resolves. Publish it again and verify, or this domain loses its verification in %{count} day.",
+                    "The text record no longer resolves. Publish it again and verify, or this domain loses its verification in %{count} days.",
+                    Accounts.sso_login_domain_days_until_expiry(@organization)
+                  )}
                 </span>
-                <div data-part="read-only-value">
-                  <code>{Accounts.sso_login_domain_record_value(@organization)}</code>
-                </div>
-              </div>
-              <.button
-                type="button"
-                label={dgettext("dashboard_account", "Verify domain")}
-                variant="secondary"
-                size="medium"
-                phx-click="verify_sso_login_domain"
-              />
+              <% @organization.sso_login_domain_verified_at -> %>
+                <span data-part="domain-verification-status" data-status="verified">
+                  {dgettext("dashboard_account", "Verified")}
+                </span>
+              <% true -> %>
+                <span data-part="domain-verification-status" data-status="pending">
+                  {dgettext("dashboard_account", "Pending verification")}
+                </span>
+                <span data-part="domain-verification-description">
+                  {dgettext(
+                    "dashboard_account",
+                    "Add the following text record to your domain, then verify it."
+                  )}
+                </span>
             <% end %>
+            <div
+              :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
+              data-part="domain-record"
+            >
+              <span data-part="domain-record-label">
+                {dgettext("dashboard_account", "Record name")}
+              </span>
+              <div data-part="read-only-value">
+                <code>{Accounts.sso_login_domain_record_name(@organization)}</code>
+              </div>
+            </div>
+            <div
+              :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
+              data-part="domain-record"
+            >
+              <span data-part="domain-record-label">
+                {dgettext("dashboard_account", "Record value")}
+              </span>
+              <div data-part="read-only-value">
+                <code>{Accounts.sso_login_domain_record_value(@organization)}</code>
+              </div>
+            </div>
+            <.button
+              :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
+              type="button"
+              label={dgettext("dashboard_account", "Verify domain")}
+              variant="secondary"
+              size="medium"
+              phx-click="verify_sso_login_domain"
+            />
           </div>
         </div>
       </div>

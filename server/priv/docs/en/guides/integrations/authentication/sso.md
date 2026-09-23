@@ -38,6 +38,8 @@ New Okta and custom-provider configurations require a verified login email domai
 
 A verified login email domain can belong to only one Tuist organization. Changing the domain clears its verification and requires publishing the new text record. Automatic enrollment remains unavailable for new configurations until the domain is verified.
 
+Tuist re-checks the text record daily. A record that stops resolving does not clear the verification straight away: the domain keeps it for 14 days, and the Authentication settings show **Verification expiring** along with the record to publish again. Publishing the record and verifying clears the warning. A domain whose record is still missing after 14 days returns to unverified, and provider discovery, identity linking, and automatic enrollment stop until it is verified again. A lookup that fails for any other reason does not refresh the timer and does not clear the verification on its own.
+
 Google Workspace does not require this separate Tuist verification step because Google supplies the verified Workspace domain as part of the authenticated identity.
 
 ### Choose an enrollment policy {#choose-an-enrollment-policy}
