@@ -22,6 +22,8 @@ FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$FLEET_ROOT/lib/config.sh"
 # shellcheck source-path=SCRIPTDIR
 source "$FLEET_ROOT/lib/session.sh"
+# shellcheck source-path=SCRIPTDIR
+source "$FLEET_ROOT/lib/lock.sh"
 
 SITE="${RACK_SITE:-ber1}"
 create_device_account=0
@@ -368,6 +370,9 @@ case "$command" in
       print port "\t" text }' "$pairs")"
     rm -f "$pairs"
 
+    # The same one-change-at-a-time lock as rack:fleet, and the same hold while a
+    # ToR's rollback may be pending.
+    fleet_lock "omada apply $name" || exit 1
     connect
     current="$(api GET "/sites/$SITE_ID/switches/$mac/general-config" | jq -r '.result.name // empty')" || exit 1
     if [ "$current" != "$hostname" ]; then

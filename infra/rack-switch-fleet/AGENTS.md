@@ -666,8 +666,11 @@ rollback would throw those unsaved changes away along with its own. That
 comparison covers every line, including the ones the render does not own and
 `diff` ignores, such as `user name` and `system-time ntp`: a rollback restores
 those too, so an unsaved credential change is as much at risk as a managed
-line. Only terminal noise is normalised away. It costs no extra connection,
-since the startup configuration is read in the session that applies.
+line. Only terminal noise is normalised away. Both configurations are read in
+the session that applies, after the confirmation rather than before it, so a
+change made while the prompt waited counts; a running configuration that is
+saved but no longer the one the plan was made from stops the run too, with
+nothing changed. Neither costs an extra connection.
 
 A run that ends with the timer armed and not confirmed cancelled holds the
 rack. That covers a command the switch rejected, a result that did not verify,
@@ -678,7 +681,9 @@ changed as this one goes down. The one-change-at-a-time lock (a directory
 under `FLEET_LOCK_DIR`, `/tmp` by default) is released as usual, but the run
 leaves `rack-fleet-<site>.rollback` beside it, naming the switch, when the
 timer was armed and when it fires. Every command that takes the lock (`apply`,
-`save`, `replace`, `recover`) refuses while it is there and says why.
+`save`, `replace`, `recover`, and `rack:omada apply` for an adopted switch)
+refuses while it is there and says why. The lock and the hold are in
+`lib/lock.sh`, which both tools source.
 
 `mise run rack:fleet resolve <device>` is the only thing that lifts it. It
 refuses without connecting until the timer's deadline plus five minutes for the
@@ -987,7 +992,9 @@ controller, and three things change for it.
   spanning-tree mode and the port descriptions, a port the render does not
   describe getting the controller's own `Port<n>`. The hostname and descriptions
   are read first and written only where they differ; the API cannot read
-  spanning tree back, so that is written every time and checked over SSH. The
+  spanning tree back, so that is written every time and checked over SSH. It
+  takes the rack lock like any other change, and waits out a pending rollback
+  on a ToR. The
   SSH write paths, `apply`, `save`, `replace` and `recover`, refuse the device:
   the controller owns its configuration, and TP-Link documents SSH in controller
   mode as show commands only.

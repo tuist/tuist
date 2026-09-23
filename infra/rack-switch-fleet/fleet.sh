@@ -11,6 +11,7 @@ set -euo pipefail
 FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$FLEET_ROOT/lib/config.sh"
 source "$FLEET_ROOT/lib/session.sh"
+source "$FLEET_ROOT/lib/lock.sh"
 
 SITE="ber1"
 VERBOSE=0
@@ -19,9 +20,6 @@ STARTUP_CONFIG="show startup-config"
 # Long enough to apply and verify, short enough that a change which cut off the
 # management path is undone before anyone has to go and find a console cable.
 ROLLBACK_MINUTES=5
-# How long after its timer fires a switch is given to come back before its
-# rollback can be declared over; wait_for_reboot allows the same.
-ROLLBACK_BOOT_MARGIN=300
 
 site_file() { fleet_site_file "$SITE"; }
 
@@ -297,8 +295,8 @@ cmd_apply() {
   # one that does not verify, is undone by the switch itself: it comes back on
   # its saved configuration. The timer is cancelled only once the running
   # configuration matches the render, and only then is it saved.
-  local startup after raw armed status=0
-  startup="$(mktemp)"; after="$(mktemp)"; raw="$(mktemp)"; armed="$(mktemp)"
+  local startup current after raw armed status=0
+  startup="$(mktemp)"; current="$(mktemp)"; after="$(mktemp)"; raw="$(mktemp)"; armed="$(mktemp)"
   (
     trap switch_close EXIT
     trap 'switch_close; exit 130' INT TERM
@@ -309,7 +307,13 @@ cmd_apply() {
     switch_run "$STARTUP_CONFIG" || exit 10
     printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
     fleet_strip_transcript "$STARTUP_CONFIG" < "$raw" > "$startup"
-    fleet_same_config "$live" "$startup" || exit 11
+    # The plan came from a read before the confirmation, and the switch may have
+    # changed since, so the running configuration is read again here.
+    switch_run "$RUNNING_CONFIG" || exit 10
+    printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
+    fleet_strip_transcript "$RUNNING_CONFIG" < "$raw" > "$current"
+    fleet_same_config "$current" "$startup" || exit 11
+    fleet_same_config "$current" "$live" || exit 17
     switch_run "configure" || exit 10
     switch_run_confirm "reboot-schedule in $ROLLBACK_MINUTES" "Y" 30 || exit 16
     # From here until the cancel is confirmed a rollback is pending, and the
@@ -336,7 +340,7 @@ cmd_apply() {
     rollback_hold "$name" "$(cat "$armed")"
     fires="$(rollback_field fires)"
   fi
-  rm -f "$desired" "$live" "$additions" "$removals" "$commands" "$startup" "$after" "$raw" "$armed"
+  rm -f "$desired" "$live" "$additions" "$removals" "$commands" "$startup" "$current" "$after" "$raw" "$armed"
 
   local rollback="$name reboots on its saved configuration within $ROLLBACK_MINUTES minutes of the start"
   case "$status" in
@@ -346,6 +350,8 @@ cmd_apply() {
         echo "       which would discard them. Save or discard them first; nothing was changed." >&2
         echo "       Lines the render does not own, such as the login, count: a rollback restores" >&2
         echo "       them too, and rack:fleet diff does not show them." >&2;;
+    17) echo "error: $name changed after its plan was read, so nothing was changed." >&2
+        echo "       Run apply again to plan against what it has now." >&2;;
     16) echo "error: $name: the rollback timer could not be confirmed, so nothing was changed." >&2
         echo "       If it was armed after all, $rollback, unchanged." >&2;;
     12) echo "error: the change did not complete. $rollback." >&2;;
@@ -354,7 +360,8 @@ cmd_apply() {
     14) echo "error: $name matched the render but the rollback timer could not be cancelled." >&2
         echo "       $rollback, dropping the change; apply again once it is resolved." >&2;;
     15) echo "error: $name matches the render and the timer is cancelled, but saving failed." >&2
-        echo "       The running configuration is right and unsaved; apply again to save it." >&2;;
+        echo "       The running configuration is right and unsaved; save it with:" >&2
+        echo "         mise run rack:fleet save $name" >&2;;
     *)  echo "error: $name: interrupted; if the timer was armed, $rollback." >&2;;
   esac
   if [ -n "$fires" ]; then
@@ -412,109 +419,13 @@ cmd_backup() {
   done
 }
 
-# One change at a time per rack.
-#
-# The apply ordering refuses a switch whose predecessors are not at the render,
-# which is a check on state and not a lock. Two runs started together both see
-# clean predecessors and both proceed, so "never both ToRs at once" was true of
-# a careful operator and not of the tool. The lock is held across the change and
-# its verification, so the second run waits for the first to be proven rather
-# than merely finished.
-#
-# mkdir because macOS has no flock: it is the one atomic primitive available
-# here, and it leaves the holder's pid behind so a killed run can be recognised.
-#
-# A fixed path rather than TMPDIR, because TMPDIR differs per shell and per user
-# and two runs that do not share one would not see each other's lock at all.
-# This still only coordinates runs on one machine: two laptops, or a laptop and
-# a CI job, are not serialised by it. A Lease is the answer to that, and it
-# needs something in the cluster to hold one.
-#
-# A rollback that may still be pending holds the rack past the run that left it;
-# see rollback_hold below. Every acquisition refuses while that hold is there,
-# except the one `resolve` takes to lift it.
-FLEET_LOCK=""
-
-fleet_lock() {
-  local reason="$1" during_hold="${2:-}" dir owner pid
-  dir="${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$SITE.lock"
-
-  # `mkdir` and nothing else. Reclaiming a stale lock automatically means
-  # removing a directory this process did not create, and two runs that both
-  # read the same dead owner will both remove it: the second one deletes the
-  # lock the first just acquired, and then creates its own. Checking the second
-  # `mkdir` does not help, because by then the damage is the `rm`. There is no
-  # ordering of remove-then-create that is safe without a primitive this does
-  # not have, so a stale lock is a thing a human clears.
-  if mkdir "$dir" 2>/dev/null; then
-    printf '%s %s\n' "$$" "$reason" > "$dir/owner"
-    FLEET_LOCK="$dir"
-    trap fleet_unlock EXIT
-    # Read under the lock, because the run that leaves a hold writes it before
-    # letting go.
-    if [ -z "$during_hold" ] && [ -f "$(rollback_record)" ]; then
-      rollback_report >&2
-      fleet_unlock
-      return 1
-    fi
-    return 0
-  fi
-
-  owner="$(cat "$dir/owner" 2>/dev/null || echo unknown)"
-  pid="${owner%% *}"
-  echo "error: another change is in flight on $SITE: $owner" >&2
-  if [ "$owner" != unknown ] && ! kill -0 "$pid" 2>/dev/null; then
-    echo "       Process $pid is gone, so this is probably a run that was killed. Nothing" >&2
-    echo "       clears it automatically, because a second run doing that races the first." >&2
-    echo "       Check no change is actually in progress, then: rm -rf $dir" >&2
-  else
-    echo "       Only one switch in a rack is changed at a time. Wait for it to finish." >&2
-  fi
-  return 1
-}
-
-
-fleet_unlock() {
-  [ -n "$FLEET_LOCK" ] || return 0
-  rm -rf "$FLEET_LOCK"
-  FLEET_LOCK=""
-}
-
-# The hold a pending rollback puts on the rack.
-#
-# A reboot timer that was armed and not confirmed cancelled leaves the switch
-# minutes from rebooting, and a switch whose running configuration already
-# matches the render passes the apply ordering. Releasing the lock at that point
-# would let the next ToR be changed while this one goes down, which is exactly
-# the "never both ToRs at once" the lock exists for. So the run that leaves a
-# rollback pending records it, beside the lock and while still holding it, and
-# the rack stays held until `resolve` has seen the switch back on its saved
-# configuration. Nothing lifts it on its own: a later run cannot tell a rollback
-# that finished from one still to come.
-rollback_record() { echo "${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$SITE.rollback"; }
-rollback_field()  { awk -v key="$1" '$1 == key { print $2 }' "$(rollback_record)"; }
-
-# An epoch as local time: BSD date takes it with -r, GNU date with -d @.
-local_time() { date -r "$1" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -d "@$1" '+%Y-%m-%d %H:%M:%S'; }
-
+# The record lib/lock.sh's fleet_lock refuses on, written by the apply that
+# leaves a rollback pending.
 rollback_hold() {
   local name="$1" armed="$2" address
   address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
   printf 'device %s\naddress %s\narmed %s\nfires %s\n' \
     "$name" "$address" "$armed" "$(( armed + ROLLBACK_MINUTES * 60 ))" > "$(rollback_record)"
-}
-
-rollback_report() {
-  local device address armed fires
-  device="$(rollback_field device)"
-  address="$(rollback_field address)"
-  armed="$(rollback_field armed)"
-  fires="$(rollback_field fires)"
-  echo "error: $device may still be rolling back. Its reboot timer was armed at $(local_time "$armed")"
-  echo "       and never confirmed cancelled, so it reboots on its saved configuration by"
-  echo "       $(local_time "$fires"). Nothing else in $SITE is changed until that is over."
-  echo "       Once $device ($address) is back, from $(local_time $(( fires + ROLLBACK_BOOT_MARGIN ))), confirm it with:"
-  echo "         mise run rack:fleet resolve $device"
 }
 
 # Lift the hold, once the switch shows its rollback is over.

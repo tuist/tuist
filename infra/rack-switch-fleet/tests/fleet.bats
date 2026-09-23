@@ -1116,9 +1116,9 @@ mini_referencing() {
 }
 
 @test "the error names the pid and how to clear it by hand" {
-    run grep -c 'rm -rf \$dir' "$FLEET_ROOT/fleet.sh"
+    run grep -c 'rm -rf \$dir' "$FLEET_ROOT/lib/lock.sh"
     [ "$output" -ge 1 ]
-    run grep -c 'races the first' "$FLEET_ROOT/fleet.sh"
+    run grep -c 'races the first' "$FLEET_ROOT/lib/lock.sh"
     [ "$output" -ge 1 ]
 }
 
@@ -1353,9 +1353,12 @@ run_recover() {
 
 # --- apply is a confirmed commit ----------------------------------------------
 
-# A switch that holds FAKE_BEFORE as its running configuration until it has been
-# read once, then FAKE_AFTER, which is what the verification in the second
-# session sees. The count lives in a file because each session is its own ssh.
+# A switch that holds FAKE_BEFORE as its running configuration until a change
+# has been sent to it under an armed reboot timer, then FAKE_AFTER, which is what
+# the verification sees. FAKE_MEANWHILE, when set, is what it holds from its
+# second read until then: somebody changed it between the read apply planned from
+# and the session that applies. State lives in files because each session is its
+# own ssh.
 apply_stub() {
     local dir="$1"
     mkdir -p "$dir"
@@ -1364,6 +1367,7 @@ apply_stub() {
 echo "SESSION ${*: -1}" >> "$FAKE_LOG"
 sleep 0.2
 printf 'sw>'
+armed=0
 while IFS= read -r line; do
     line="${line%$'\r'}"
     echo "CMD $line" >> "$FAKE_LOG"
@@ -1374,11 +1378,18 @@ while IFS= read -r line; do
         continue
     fi
     case "$line" in
+        "reboot-schedule in "*) armed=1;;
+        "show "*|configure|end|exit|logout|Y|"reboot-schedule cancel"|"copy running-config startup-config") ;;
+        *) (( armed )) && : > "$FAKE_LOG.changed";;
+    esac
+    case "$line" in
         logout) exit 0;;
         "show running-config")
             reads=$(( $(cat "$FAKE_LOG.reads" 2>/dev/null || echo 0) + 1 ))
             echo "$reads" > "$FAKE_LOG.reads"
-            if [ "$reads" -eq 1 ]; then cat "$FAKE_BEFORE"; else cat "$FAKE_AFTER"; fi | sed 's/$/\r/';;
+            if [ -e "$FAKE_LOG.changed" ]; then cat "$FAKE_AFTER"
+            elif [ "$reads" -gt 1 ] && [ -n "${FAKE_MEANWHILE:-}" ]; then cat "$FAKE_MEANWHILE"
+            else cat "$FAKE_BEFORE"; fi | sed 's/$/\r/';;
         "show startup-config") sed 's/$/\r/' "$FAKE_STARTUP";;
         "reboot-schedule in "*) printf ' Reboot system in 5 minutes. Continue? (Y/N):'; continue;;
         Y) printf ' Reboot Schedule Settings\r\n Save before reboot: No\r\n';;
@@ -1420,7 +1431,7 @@ cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
     change="$(cmd_line "$bin" 'lldp$')"
     cancel="$(cmd_line "$bin" 'reboot-schedule cancel$')"
     save="$(cmd_line "$bin" 'copy running-config startup-config$')"
-    verify="$(grep -n '^CMD show running-config$' "$bin/log" | sed -n 2p | cut -d: -f1)"
+    verify="$(grep -n '^CMD show running-config$' "$bin/log" | tail -1 | cut -d: -f1)"
     [ "$arm" -lt "$change" ]
     [ "$change" -lt "$verify" ]
     [ "$verify" -lt "$cancel" ]
@@ -1684,6 +1695,39 @@ run_resolve() {
     run_apply "$bin" "$drifted" "$rendered" "$padded"
     [ "$status" -eq 0 ]
     [[ "$output" == *"applied, verified against the rendered configuration, and saved"* ]]
+}
+
+@test "an unsaved change made while apply waited for its confirmation still blocks it" {
+    # The plan is read before the prompt, and a change made during the prompt
+    # is not in that read.
+    apply_fixtures
+    changed="$BATS_TEST_TMPDIR/changed.cfg"
+    { cat "$drifted"; echo "user name admin privilege admin secret 5 EXAMPLEHASHNOTREAL-new"; } > "$changed"
+    bin="$BATS_TEST_TMPDIR/ap9"
+    apply_stub "$bin"
+    run env PATH="$bin:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" FAKE_LOG="$bin/log" \
+        FAKE_BEFORE="$drifted" FAKE_MEANWHILE="$changed" FAKE_AFTER="$rendered" FAKE_STARTUP="$drifted" FAKE_REJECT="" \
+        "$FLEET_ROOT/fleet.sh" apply ber1-tor-b --yes
+    [ "$status" -eq 11 ]
+    [[ "$output" == *"unsaved changes"* ]]
+    run grep -c '^CMD reboot-schedule in' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "apply changes nothing on a switch that was changed after its plan was read" {
+    # Somebody applied and saved in between: nothing is unsaved, but the plan is
+    # stale.
+    apply_fixtures
+    bin="$BATS_TEST_TMPDIR/ap10"
+    apply_stub "$bin"
+    run env PATH="$bin:$PATH" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" FAKE_LOG="$bin/log" \
+        FAKE_BEFORE="$drifted" FAKE_MEANWHILE="$rendered" FAKE_AFTER="$rendered" FAKE_STARTUP="$rendered" FAKE_REJECT="" \
+        "$FLEET_ROOT/fleet.sh" apply ber1-tor-b --yes
+    [ "$status" -eq 17 ]
+    [[ "$output" == *"ber1-tor-b changed after its plan was read"* ]]
+    run grep -c '^CMD reboot-schedule in' "$bin/log"
+    [ "$output" = "0" ]
+    [ ! -e "$BATS_TEST_TMPDIR/rack-fleet-ber1.rollback" ]
 }
 
 @test "publish writes to the namespace the site belongs to, not whatever is current" {
@@ -2194,8 +2238,9 @@ Tq3!nW8e#Yb5Lc2V'
 @test "an adopted switch's render goes through the Open API, and only what differs is written" {
     bin="$BATS_TEST_TMPDIR/omada14"
     omada_stub "$bin"
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" "$FLEET_ROOT/omada.sh" apply ber1-mgmt
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" "$FLEET_ROOT/omada.sh" apply ber1-mgmt
     [ "$status" -eq 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/rack-fleet-ber1.lock" ]
     [[ "$output" == *"hostname: A8-29-48-FE-B4-BE -> ber1-mgmt"* ]]
     [[ "$output" == *"port 52: api-write-test -> Port52"* ]]
     [[ "$output" != *"port 1:"* ]]
@@ -2207,6 +2252,19 @@ Tq3!nW8e#Yb5Lc2V'
     [ "$status" -eq 0 ]
     run bash -c "grep '^PUT switches/A8-29-48-FE-B4-BE/config/loopback ' '$bin/log.writes' | cut -d' ' -f3- | jq -c '{stp, loopbackDetectEnable}'"
     [ "$output" = '{"stp":2,"loopbackDetectEnable":true}' ]
+}
+
+@test "the Open API path waits out a ToR's pending rollback like every other change" {
+    bin="$BATS_TEST_TMPDIR/omada16"
+    omada_stub "$bin"
+    now="$(date +%s)"
+    printf 'device ber1-tor-b\naddress 192.168.0.12\narmed %s\nfires %s\n' "$now" "$(( now + 300 ))" \
+        > "$BATS_TEST_TMPDIR/rack-fleet-ber1.rollback"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" "$FLEET_ROOT/omada.sh" apply ber1-mgmt
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-tor-b may still be rolling back"* ]]
+    [ ! -e "$bin/log.writes" ]
+    [ ! -e "$BATS_TEST_TMPDIR/rack-fleet-ber1.lock" ]
 }
 
 @test "the Open API path is only for a switch the controller has adopted" {
