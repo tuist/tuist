@@ -34,6 +34,7 @@ type fakeOSUpdateHost struct {
 	updates     []bootstrap.OSUpdate
 	jobs        map[string]bootstrap.OSUpdateJob
 	console     string
+	noToken     bool
 	downloads   []string
 	installs    []fakeInstall
 }
@@ -56,7 +57,10 @@ func (f *fakeOSUpdateHost) Fingerprint() string                         { return
 func (f *fakeOSUpdateHost) Version(context.Context) (string, error)     { return f.version, nil }
 func (f *fakeOSUpdateHost) BootTime(context.Context) (int64, error)     { return f.bootTime, nil }
 func (f *fakeOSUpdateHost) ConsoleUser(context.Context) (string, error) { return f.console, nil }
-func (f *fakeOSUpdateHost) Close() error                                { return nil }
+func (f *fakeOSUpdateHost) SecureTokenEnabled(context.Context, string) (bool, error) {
+	return !f.noToken, nil
+}
+func (f *fakeOSUpdateHost) Close() error { return nil }
 func (f *fakeOSUpdateHost) ListUpdates(context.Context) ([]bootstrap.OSUpdate, error) {
 	return f.updates, nil
 }
@@ -326,6 +330,16 @@ func TestOSUpdateNeverInstallsAnAppWithAMatchingVersion(t *testing.T) {
 	}
 	if len(f.host.downloads) != 0 {
 		t.Fatal("downloaded an update that is not macOS")
+	}
+}
+
+func TestOSUpdateRefusesAnAccountWithoutASecureToken(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	f.host.noToken = true
+	f.step()
+	f.wantFailed("NoSecureToken")
+	if len(f.host.downloads) != 0 || f.cordoned() {
+		t.Fatal("drained or downloaded for an install the host cannot authorise")
 	}
 }
 

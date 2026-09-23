@@ -56,6 +56,25 @@ func TestParseKernBootTime(t *testing.T) {
 	}
 }
 
+// Output format from ber1-proto-01 on 26.6; sysadminctl writes it to stderr.
+func TestParseSecureTokenStatus(t *testing.T) {
+	for _, tc := range []struct {
+		out  string
+		want bool
+	}{
+		{"2026-09-23 10:10:38.619 sysadminctl[1053:11513] Secure token is ENABLED for user Tuist Runner Operator\n", true},
+		{"2026-09-23 09:41:40.102 sysadminctl[1290:12512] Secure token is DISABLED for user Tuist Runner Operator\n", false},
+	} {
+		got, err := ParseSecureTokenStatus(tc.out)
+		if err != nil || got != tc.want {
+			t.Errorf("ParseSecureTokenStatus(%q) = %t, %v; want %t", tc.out, got, err, tc.want)
+		}
+	}
+	if _, err := ParseSecureTokenStatus("2026-09-23 10:10:38.638 sysadminctl[1056:11522] Unknown user nosuchuser\n"); err == nil {
+		t.Error("an unknown user must be an error, not a missing token")
+	}
+}
+
 func TestParseOSUpdateJob(t *testing.T) {
 	for _, tc := range []struct {
 		out  string

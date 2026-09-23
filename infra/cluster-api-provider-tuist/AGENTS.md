@@ -652,8 +652,14 @@ rack.
 
 **Refused without touching the host**, with the annotation cleared: a target in
 another release family (that is an erase), a downgrade, a version Software
-Update does not offer, and a host that is not bootstrapped or holds a terminal
-drift failure. A host already on the target succeeds at once.
+Update does not offer, a host that is not bootstrapped or holds a terminal
+drift failure, and an SSH user with no secure token (`NoSecureToken`). A host
+already on the target succeeds at once.
+
+A newly enrolled host has no secure token for its SSH user: the only volume
+owner is the MDM bootstrap token until that user first logs in at the login
+window. Bootstrap configures auto-login, so restart the host once after its
+first bootstrap and `sysadminctl -secureTokenStatus <sshUser>` reads ENABLED.
 
 **Cancel** by removing the annotation during `Preparing`, `Downloading` or
 `Draining`; the Node is uncordoned. Once `Installing` starts, the update runs to

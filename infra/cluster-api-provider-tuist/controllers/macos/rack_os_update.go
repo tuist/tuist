@@ -58,6 +58,7 @@ type osUpdateHost interface {
 	StartInstall(ctx context.Context, label, user, password string) error
 	Job(ctx context.Context, job string) (bootstrap.OSUpdateJob, error)
 	ConsoleUser(ctx context.Context) (string, error)
+	SecureTokenEnabled(ctx context.Context, user string) (bool, error)
 	Close() error
 }
 
@@ -184,6 +185,16 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 	case cmp < 0:
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "Downgrade",
 			fmt.Sprintf("the host runs macOS %s, which is newer than %s", current, target), false)
+	}
+
+	user := oc.host.Spec.SSHUser
+	tokenEnabled, err := host.SecureTokenEnabled(ctx, user)
+	if err != nil {
+		return osUpdateWait(st, "could not read %s's secure token status: %v", user, err)
+	}
+	if !tokenEnabled {
+		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "NoSecureToken",
+			fmt.Sprintf("%s has no secure token, so softwareupdate cannot authorise an install as them; a newly enrolled host gets one at its first auto-login, so restart it once", user), false)
 	}
 
 	updates, err := host.ListUpdates(ctx)

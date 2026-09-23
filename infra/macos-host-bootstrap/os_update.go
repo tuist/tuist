@@ -50,7 +50,17 @@ var (
 	softwareUpdateTitle  = regexp.MustCompile(`Title:\s*(.+?),\s*Version:\s*([^,]+?)\s*,`)
 	kernBootTimeSeconds  = regexp.MustCompile(`sec\s*=\s*(\d+)`)
 	osUpdateJobStateLine = regexp.MustCompile(`^(absent|running|exited)(?:\s+(-?\d+))?$`)
+	secureTokenStatus    = regexp.MustCompile(`Secure token is (ENABLED|DISABLED)`)
 )
+
+// ParseSecureTokenStatus reads `sysadminctl -secureTokenStatus`, which reports on stderr and exits 0 even for an unknown user.
+func ParseSecureTokenStatus(out string) (bool, error) {
+	m := secureTokenStatus.FindStringSubmatch(out)
+	if m == nil {
+		return false, fmt.Errorf("unrecognised secure token status %q", strings.TrimSpace(out))
+	}
+	return m[1] == "ENABLED", nil
+}
 
 // ParseSoftwareUpdateList parses `softwareupdate --list` output.
 func ParseSoftwareUpdateList(out string) []OSUpdate {
@@ -199,6 +209,15 @@ func (s *OSUpdateSession) Job(ctx context.Context, job string) (OSUpdateJob, err
 		return OSUpdateJob{}, err
 	}
 	return parseOSUpdateJob(out)
+}
+
+// SecureTokenEnabled reports whether user holds a secure token, without which softwareupdate cannot authorise an install as them.
+func (s *OSUpdateSession) SecureTokenEnabled(ctx context.Context, user string) (bool, error) {
+	out, err := RunCommandOutput(ctx, s.client, "sysadminctl -secureTokenStatus "+shellQuote(user)+" 2>&1", nil)
+	if err != nil {
+		return false, err
+	}
+	return ParseSecureTokenStatus(out)
 }
 
 // ConsoleUser is the owner of /dev/console: the auto-login user once logged in, root at the login window.
