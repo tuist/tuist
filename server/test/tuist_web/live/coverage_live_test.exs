@@ -77,6 +77,23 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#coverage-chart")
     end
 
+    test "reads the page once, when the socket connects", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])])
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+
+      html = conn |> get(path) |> html_response(200)
+      assert html =~ ~s(data-part="loading")
+      refute html =~ ~s(id="widget-coverage")
+
+      {:ok, lv, _html} = live(conn, path)
+      assert has_element?(lv, "#widget-coverage")
+      refute has_element?(lv, "[data-part='loading']")
+    end
+
     test "leads to the branch's page over the same period", %{
       conn: conn,
       organization: organization,

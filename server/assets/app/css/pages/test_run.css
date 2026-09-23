@@ -914,6 +914,12 @@
     flex-direction: column;
     gap: var(--noora-spacing-6);
 
+    & [data-part="coverage-loading"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+    }
+
     & [data-part="coverage-files-section"],
     & [data-part="coverage-file-section"] {
       display: flex;

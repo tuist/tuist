@@ -630,6 +630,14 @@
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
           </:col>
         </.table>
+        <.pagination
+          :if={@runs_meta && (@runs_meta.has_next_page? or @runs_meta.has_previous_page?)}
+          uri={@uri}
+          has_previous_page={@runs_meta.has_previous_page?}
+          has_next_page={@runs_meta.has_next_page?}
+          start_cursor={@runs_meta.start_cursor}
+          end_cursor={@runs_meta.end_cursor}
+        />
       </.card_section>
       <.coverage_empty
         :if={@run_rows == []}
@@ -637,6 +645,22 @@
         image="table"
         data-part="empty-runs"
       />
+      <%!-- A page of the branch whose commits no run measured still leads on. --%>
+      <.card_section
+        :if={
+          (@run_rows == [] and @runs_meta) &&
+            (@runs_meta.has_next_page? or @runs_meta.has_previous_page?)
+        }
+        data-part="runs-pagination"
+      >
+        <.pagination
+          uri={@uri}
+          has_previous_page={@runs_meta.has_previous_page?}
+          has_next_page={@runs_meta.has_next_page?}
+          start_cursor={@runs_meta.start_cursor}
+          end_cursor={@runs_meta.end_cursor}
+        />
+      </.card_section>
     </.card>
 
     <%!-- Targets --%>

@@ -494,24 +494,32 @@ defmodule Tuist.Tests.Coverage do
   @doc """
   The published totals of every run of the project that gathered coverage,
   one row per run with the scheme they were measured for and whether the run
-  was partial.
+  was partial. `shas:` narrows it to the runs of those commits, read through
+  the table's index on the SHA rather than across the project's history.
   """
-  def run_totals_query(project_id) do
+  def run_totals_query(project_id, opts \\ []) do
+    project_id
+    |> run_totals_base(Keyword.get(opts, :shas))
+    |> select([c], %{
+      test_run_id: c.test_run_id,
+      scheme: fragment("argMax(?, ?)", c.scheme, c.version),
+      build_system: fragment("argMax(?, ?)", c.build_system, c.version),
+      git_commit_sha: fragment("argMax(?, ?)", c.git_commit_sha, c.version),
+      covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
+      executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
+      partial: fragment("argMax(?, ?)", c.partial, c.version)
+    })
+  end
+
+  defp run_totals_base(project_id, nil) do
     from(c in CoverageRun,
       where: c.project_id == ^project_id,
       group_by: c.test_run_id,
-      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0,
-      select: %{
-        test_run_id: c.test_run_id,
-        scheme: fragment("argMax(?, ?)", c.scheme, c.version),
-        build_system: fragment("argMax(?, ?)", c.build_system, c.version),
-        git_commit_sha: fragment("argMax(?, ?)", c.git_commit_sha, c.version),
-        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
-        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version),
-        partial: fragment("argMax(?, ?)", c.partial, c.version)
-      }
+      having: fragment("argMax(?, ?)", c.executable_lines, c.version) > 0
     )
   end
+
+  defp run_totals_base(project_id, shas), do: where(run_totals_base(project_id, nil), [c], c.git_commit_sha in ^shas)
 
   @doc "The rows of `run_totals_query/1` for the full runs: what branch coverage and baselines read."
   def full_run_totals_query(project_id) do

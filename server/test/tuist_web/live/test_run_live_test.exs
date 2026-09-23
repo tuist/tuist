@@ -155,8 +155,15 @@ defmodule TuistWeb.TestRunLiveTest do
       })
 
     base = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+    # The tab's lists are read once, when the socket connects.
+    html = conn |> get("#{base}?tab=coverage") |> html_response(200)
+    assert html =~ ~s(data-part="coverage-loading")
+    refute html =~ "coverage-targets-table"
+
     {:ok, lv, _html} = live(conn, "#{base}?tab=coverage")
 
+    refute has_element?(lv, "[data-part='coverage-loading']")
     assert has_element?(lv, "#widget-coverage-percentage", "33.3%")
     refute has_element?(lv, "#coverage-partial-run")
     assert has_element?(lv, "#coverage-targets-table", "Calculator")

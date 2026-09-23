@@ -214,7 +214,7 @@ defmodule TuistWeb.CoverageDetailLive do
       "commits" -> assign_commits(socket, query)
       "targets" -> assign_targets(socket)
       "files" -> assign_files(socket, query)
-      "runs" -> assign_runs(socket)
+      "runs" -> assign_runs(socket, query)
     end
   end
 
@@ -298,26 +298,37 @@ defmodule TuistWeb.CoverageDetailLive do
     |> assign(:commits_ordered_by, page.ordered_by)
   end
 
-  # The runs behind the subject: one commit's, or those of every commit the
-  # page holds.
-  defp assign_runs(%{assigns: %{selected_project: project}} = socket) do
-    runs = Commits.runs(project.id, subject_shas(socket))
+  # The runs behind the subject: one commit's, a pull request's commits', or
+  # those of a page of the branch's commits, read from the Commits tab's
+  # cursor so a long branch never loads more than a page.
+  defp assign_runs(%{assigns: %{selected_project: project, subject: %{kind: :branch} = subject}} = socket, query) do
+    page =
+      History.commit_cursor_page(
+        project,
+        subject.branch,
+        Keyword.merge(period_opts(socket), after: query["after"], before: query["before"], page_size: @page_size)
+      )
 
-    assign(socket, :run_rows, runs |> Enum.reverse() |> Enum.map(&Map.put(&1, :id, &1.test_run_id)))
+    shas = page.commits |> Enum.filter(& &1.measured) |> Enum.map(& &1.git_commit_sha)
+
+    socket
+    |> assign_run_rows(Commits.runs(project.id, shas))
+    |> assign(:runs_meta, Map.take(page, [:has_next_page?, :has_previous_page?, :start_cursor, :end_cursor]))
   end
+
+  defp assign_runs(%{assigns: %{selected_project: project}} = socket, _query) do
+    socket
+    |> assign_run_rows(Commits.runs(project.id, subject_shas(socket)))
+    |> assign(:runs_meta, nil)
+  end
+
+  defp assign_run_rows(socket, runs),
+    do: assign(socket, :run_rows, runs |> Enum.reverse() |> Enum.map(&Map.put(&1, :id, &1.test_run_id)))
 
   defp subject_shas(%{assigns: %{subject: %{kind: :commit, sha: sha}}}), do: [sha]
 
   defp subject_shas(%{assigns: %{subject: %{kind: :pull_request}, commits: commits}}),
     do: Enum.map(commits, & &1.git_commit_sha)
-
-  defp subject_shas(%{assigns: %{selected_project: project, subject: subject}} = socket) do
-    project
-    |> History.commit_page(subject.branch, Keyword.put(period_opts(socket), :page_size, 200))
-    |> Map.fetch!(:commits)
-    |> Enum.filter(& &1.measured)
-    |> Enum.map(& &1.git_commit_sha)
-  end
 
   defp assign_targets(%{assigns: %{comparison: comparison}} = socket) do
     assign(socket, :target_rows, Enum.map(comparison.targets, &Map.put(&1, :id, "target-" <> &1.name)))

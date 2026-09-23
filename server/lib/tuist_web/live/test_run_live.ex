@@ -662,33 +662,11 @@ defmodule TuistWeb.TestRunLive do
     assign_tab_data(socket, "overview", params)
   end
 
+  # The tab's lists are read once, when the socket connects.
   defp assign_tab_data(socket, "coverage", params) do
-    run = socket.assigns.run
-    page = Query.bounded_page(params["coverage-page"])
-
-    [targets, {files, files_count}, evidence, enumeration] =
-      Tuist.Tasks.parallel_tasks([
-        fn -> Coverage.targets_for_run(run.project_id, run.id) end,
-        fn -> Coverage.list_files(run.project_id, run.id, page, @table_page_size) end,
-        fn -> Evidence.summary(run) end,
-        fn -> Enumeration.summary(run) end
-      ])
-
-    socket
-    |> assign(:coverage_evidence, evidence)
-    |> assign(:coverage_enumeration, enumeration)
-    |> assign(:coverage_targets, Enum.map(targets, &Map.put(&1, :id, &1.name)))
-    |> assign(
-      :coverage_files,
-      Enum.map(
-        files,
-        &Map.merge(&1, %{id: &1.path, coverage: Coverage.percentage(&1.covered_lines, &1.executable_lines)})
-      )
-    )
-    |> assign(:coverage_files_meta, %{current_page: page, total_pages: max(1, ceil(files_count / @table_page_size))})
-    |> assign_selective_testing_defaults()
-    |> assign_binary_cache_defaults()
-    |> assign_param_defaults(params)
+    if connected?(socket),
+      do: socket |> assign(:coverage_loading, false) |> assign_coverage_tab(params),
+      else: assign_coverage_tab_loading(socket, params)
   end
 
   defp assign_tab_data(socket, "flaky-runs", params) do
@@ -731,6 +709,48 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_tab_data(socket, _tab, params) do
     socket
+    |> assign_selective_testing_defaults()
+    |> assign_binary_cache_defaults()
+    |> assign_param_defaults(params)
+  end
+
+  defp assign_coverage_tab_loading(socket, params) do
+    socket
+    |> assign(:coverage_loading, true)
+    |> assign(:coverage_evidence, nil)
+    |> assign(:coverage_enumeration, nil)
+    |> assign(:coverage_targets, [])
+    |> assign(:coverage_files, [])
+    |> assign(:coverage_files_meta, %{current_page: 1, total_pages: 1})
+    |> assign_selective_testing_defaults()
+    |> assign_binary_cache_defaults()
+    |> assign_param_defaults(params)
+  end
+
+  defp assign_coverage_tab(socket, params) do
+    run = socket.assigns.run
+    page = Query.bounded_page(params["coverage-page"])
+
+    [targets, {files, files_count}, evidence, enumeration] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> Coverage.targets_for_run(run.project_id, run.id) end,
+        fn -> Coverage.list_files(run.project_id, run.id, page, @table_page_size) end,
+        fn -> Evidence.summary(run) end,
+        fn -> Enumeration.summary(run) end
+      ])
+
+    socket
+    |> assign(:coverage_evidence, evidence)
+    |> assign(:coverage_enumeration, enumeration)
+    |> assign(:coverage_targets, Enum.map(targets, &Map.put(&1, :id, &1.name)))
+    |> assign(
+      :coverage_files,
+      Enum.map(
+        files,
+        &Map.merge(&1, %{id: &1.path, coverage: Coverage.percentage(&1.covered_lines, &1.executable_lines)})
+      )
+    )
+    |> assign(:coverage_files_meta, %{current_page: page, total_pages: max(1, ceil(files_count / @table_page_size))})
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)

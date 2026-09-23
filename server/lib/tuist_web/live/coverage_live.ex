@@ -63,10 +63,13 @@ defmodule TuistWeb.CoverageLive do
       |> assign(:coverage_period, period)
       |> assign(:branch, project.default_branch)
 
-    socket =
-      assign_page(socket, query)
-
-    {:noreply, socket}
+    # The page is read once, when the socket connects; the disconnected
+    # render shows its skeleton.
+    {:noreply,
+     if(connected?(socket),
+       do: socket |> assign(:loading, false) |> assign_page(query),
+       else: assign(socket, :loading, true)
+     )}
   end
 
   def handle_event(

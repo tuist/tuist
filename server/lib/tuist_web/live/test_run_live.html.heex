@@ -2358,7 +2358,13 @@
       </.card_section>
     </.card>
 
+    <div :if={@coverage_loading} data-part="coverage-loading">
+      <.skeleton_box width="100%" height="200px" />
+      <.skeleton_box width="100%" height="320px" />
+    </div>
+
     <.card
+      :if={not @coverage_loading}
       title={dgettext("dashboard_tests", "Targets")}
       icon="stack_2"
       data-part="coverage-targets-card"
@@ -2384,6 +2390,7 @@
     </.card>
 
     <.card
+      :if={not @coverage_loading}
       title={dgettext("dashboard_tests", "Files")}
       icon="file"
       data-part="coverage-files-card"

@@ -340,6 +340,12 @@
   }
 }
 
+#coverage [data-part="loading"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+}
+
 /* One file's page: its figures above a list of what it is made of. */
 #coverage-file-page {
   & [data-part="loading"] {

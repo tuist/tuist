@@ -467,10 +467,17 @@ defmodule Tuist.Tests.Coverage.Commits do
     |> Enum.sort_by(& &1.ran_at, NaiveDateTime)
   end
 
+  # The commits' runs are found through their coverage totals, which carry
+  # the SHA under an index, and joined to the runs by id: grouping every run
+  # of the project first made each commit read cost the project's history.
   defp runs_chunk(project_id, shas) do
+    totals = Coverage.run_totals_query(project_id, shas: shas)
+
     runs =
       from(t in Test,
-        where: t.project_id == ^project_id and t.git_commit_sha in ^shas,
+        where:
+          t.project_id == ^project_id and t.git_commit_sha in ^shas and
+            t.id in subquery(from(c in subquery(totals), select: c.test_run_id)),
         group_by: t.id,
         select: %{
           id: t.id,
@@ -488,7 +495,7 @@ defmodule Tuist.Tests.Coverage.Commits do
       )
 
     ClickHouseRepo.all(
-      from(c in subquery(Coverage.run_totals_query(project_id)),
+      from(c in subquery(totals),
         join: t in subquery(runs),
         on: t.id == c.test_run_id,
         where: t.git_dirty == false,

@@ -306,6 +306,39 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       end
     end
 
+    test "lists a branch's runs a page of commits at a time", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shas = for i <- 1..25, do: "m#{i}"
+
+      CoverageFixtures.seed_history(
+        organization.account,
+        shas
+        |> Enum.with_index(1)
+        |> Enum.map(fn {sha, i} -> CoverageFixtures.commit(sha, if(i == 1, do: [], else: ["m#{i - 1}"]), i) end),
+        branch_heads: [{"main", "m25"}]
+      )
+
+      for sha <- shas, do: main_run(project, organization, sha, [file("Sources/A.swift", [1, 0])])
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/branches/main?tab=runs"
+      {:ok, lv, _html} = live(conn, path)
+
+      rows = lv |> element("#coverage-runs-table") |> render() |> Floki.parse_fragment!() |> Floki.find("tbody tr")
+      assert length(rows) == 20
+
+      html = lv |> element("[data-part='runs-section']") |> render()
+      [next] = html |> Floki.parse_fragment!() |> Floki.find("a[href*='after=']") |> Floki.attribute("href")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/branches/main" <> next)
+
+      rows = lv |> element("#coverage-runs-table") |> render() |> Floki.parse_fragment!() |> Floki.find("tbody tr")
+      assert length(rows) == 5
+    end
+
     test "measures a branch other than the default one against it", %{
       conn: conn,
       organization: organization,

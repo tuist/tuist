@@ -60,13 +60,14 @@ defmodule TuistWeb.TestCaseLive do
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
       |> assign(:available_filters, define_filters(project))
       |> assign(:can_update_test_case, can_update_test_case?(socket.assigns[:current_user], project))
-      |> assign(:coverage_evidence, coverage_evidence(project, test_case_detail))
+      |> assign(:coverage_evidence, if(connected?(socket), do: coverage_evidence(project, test_case_detail)))
 
     {:ok, socket}
   end
 
   # What the test executed the last time a run recorded it, behind the
-  # account's coverage flag like the rest of coverage.
+  # account's coverage flag like the rest of coverage. Read once, on the
+  # connected mount: the disconnected render shows the page without it.
   defp coverage_evidence(project, test_case) do
     if Tuist.Tests.Coverage.enabled_for_project?(project.id) do
       Tuist.Tests.Coverage.Evidence.latest_for_test(

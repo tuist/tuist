@@ -44,6 +44,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
   @separator "\x1F"
   @insert_chunk_size 5_000
   @scopes ~w(test suite target)
+  @latest_runs_window 100
 
   @doc """
   Stores a run's evidence. `evidence` is the request's `coverage_evidence`,
@@ -260,16 +261,30 @@ defmodule Tuist.Tests.Coverage.Evidence do
 
   @doc """
   The latest run that holds evidence of the test's own, with the files it
-  ran there (`files/4`): what a test case's page shows. Nil when no run of the
-  project has any for it.
+  ran there (`files/4`): what a test case's page shows. Nil when none of the
+  test's #{@latest_runs_window} most recent runs recorded any.
   """
   def latest_for_test(project_id, module_name, suite_name, name) do
     scope_id = test_scope_id(module_name, suite_name || "", name)
+    test_case_id = Tests.generate_test_case_id(project_id, name, module_name, suite_name || "")
+
+    # Evidence is keyed by run, so the test's own runs are found first (in
+    # `test_case_runs` order) and only their rows are read: a filter on the
+    # test's scope alone would read every evidence row of the project.
+    recent_runs =
+      from(r in TestCaseRun,
+        where: r.project_id == ^project_id and r.test_case_id == ^test_case_id,
+        order_by: [desc: r.ran_at],
+        limit: ^@latest_runs_window,
+        select: r.test_run_id
+      )
 
     latest =
       ClickHouseRepo.one(
         from(f in CoverageFile,
-          where: f.project_id == ^project_id and f.scope_kind == "test" and f.scope_id == ^scope_id,
+          where:
+            f.project_id == ^project_id and f.test_run_id in subquery(recent_runs) and f.scope_kind == "test" and
+              f.scope_id == ^scope_id,
           order_by: [desc: f.inserted_at],
           limit: 1,
           select: %{test_run_id: f.test_run_id, git_commit_sha: f.git_commit_sha, inserted_at: f.inserted_at}

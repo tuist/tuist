@@ -88,6 +88,9 @@ defmodule TuistWeb.TestCaseLiveTest do
       {:ok, lv, _html} = live(conn, path)
       refute has_element?(lv, "#test-case-coverage-table")
 
+      # The evidence is read once, when the socket connects.
+      refute conn |> get(path <> "?tab=coverage") |> html_response(200) =~ "test-case-coverage-table"
+
       {:ok, lv, _html} = live(conn, path <> "?tab=coverage")
       assert has_element?(lv, "#test-case-coverage-table", "Math.swift")
       assert has_element?(lv, "#test-case-coverage-table [title='3–5, 9, 12–14']", "3–5, 9, …")
