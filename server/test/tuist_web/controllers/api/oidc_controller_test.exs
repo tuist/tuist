@@ -105,6 +105,40 @@ defmodule TuistWeb.API.OIDCControllerTest do
                "(#{Enum.join(Enum.sort([project1.account.name, project2.account.name]), ", ")})"
     end
 
+    test "returns access token when the repository claim differs in case from the linked repository", %{conn: conn} do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [repository_full_handle: "Tuist/Renamed"],
+          preload: [:account]
+        )
+
+      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/renamed"}} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+
+      response = json_response(conn, :ok)
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
+      assert claims["project_ids"] == [project.id]
+      assert claims["sub"] == to_string(project.account.id)
+    end
+
+    test "returns 403 when the repository is linked from multiple accounts with different casing", %{conn: conn} do
+      ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "Tuist/Cased"])
+      ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/cased"])
+
+      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/cased"}} end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+
+      assert json_response(conn, :forbidden)["message"] =~ "is linked to projects in multiple Tuist accounts"
+    end
+
     test "returns 403 when no project is linked to the repository", %{conn: conn} do
       stub(OIDC, :claims, fn _token -> {:ok, %{repository: "nonexistent/repo"}} end)
 

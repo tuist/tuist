@@ -746,7 +746,8 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Get all projects connected to a VCS repository.
+  Get all projects connected to a VCS repository. The handle is matched
+  case-insensitively, like GitHub matches owner and repository names.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
@@ -755,7 +756,7 @@ defmodule Tuist.Projects do
       from p in Project,
         join: pc in VCSConnection,
         on: pc.project_id == p.id,
-        where: pc.repository_full_handle == ^vcs_repository_full_handle,
+        where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
         order_by: [asc: p.id],
         preload: ^preload
     )

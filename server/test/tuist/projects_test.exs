@@ -1462,6 +1462,27 @@ defmodule Tuist.ProjectsTest do
       assert projects |> Enum.map(& &1.id) |> Enum.sort() == [project_one.id, project_two.id]
     end
 
+    test "matches the repository handle case-insensitively" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "Tuist/Tuist",
+            provider: :github
+          ]
+        )
+
+      # When
+      projects = Projects.projects_by_vcs_repository_full_handle("tuist/tuist")
+
+      # Then
+      assert Enum.map(projects, & &1.id) == [project.id]
+    end
+
     test "returns projects with preloaded associations" do
       # Given
       organization = AccountsFixtures.organization_fixture(name: "test-org")
