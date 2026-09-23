@@ -4,9 +4,9 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
   alias Tuist.Repo
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Query
+  alias Tuist.Runners.CacheVolumes.Schemas, as: RunnerVolumes
   alias Tuist.Runners.CacheVolumes.Usage
   alias TuistTestSupport.Fixtures.AccountsFixtures
-  alias TuistWeb.API.Schemas.RunnerVolumes
 
   setup do
     account = AccountsFixtures.account_fixture()

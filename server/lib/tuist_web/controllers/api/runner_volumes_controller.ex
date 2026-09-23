@@ -4,10 +4,10 @@ defmodule TuistWeb.API.RunnerVolumesController do
 
   alias Tuist.FeatureFlags
   alias Tuist.Runners.CacheVolumes.Query
+  alias Tuist.Runners.CacheVolumes.Schemas, as: RunnerVolumes
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.API.Schemas.RunnerVolumes
 
   plug TuistWeb.Plugs.LoaderPlug
   plug TuistWeb.Plugs.CastAndValidate, json_render_error_v2: true, render_error: TuistWeb.RenderAPIErrorPlug

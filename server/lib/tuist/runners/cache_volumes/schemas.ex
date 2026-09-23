@@ -1,4 +1,4 @@
-defmodule TuistWeb.API.Schemas.RunnerVolumes do
+defmodule Tuist.Runners.CacheVolumes.Schemas do
   @moduledoc "Shared HTTP and MCP contracts for the public volume surface."
   alias OpenApiSpex.Schema
 

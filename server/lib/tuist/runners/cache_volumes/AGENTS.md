@@ -61,3 +61,6 @@ these schemas persist volume identities and per-job uses.
 - `linux-<scope>` names are valid for storage only. Keep macOS dispatch validation
   restricted to built-in repository/account caches; this does not enable custom
   volumes on macOS. Export includes the new image digests/generation fields.
+- `Schemas` owns the shared OpenAPI/MCP contracts inside the Tuist boundary.
+  Keep `CacheVolumes`, `Query` and `Schemas` exported from `Tuist`; MCP must not
+  depend on `TuistWeb`. Validate with the Boundary compiler, which dev skips.

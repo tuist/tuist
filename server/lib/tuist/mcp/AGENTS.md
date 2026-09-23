@@ -39,6 +39,6 @@ This directory contains the Tuist [Model Context Protocol (MCP)](https://modelco
 - Numeric retained Bazel IDs stay readable across profile publication; missing indexed rows report unavailable rather than an empty available timeline. Gradle step tools include zero-duration cache and skip outcomes.
 
 - Runner-volume tools share `Runners.CacheVolumes.Query` with the public API and
-  derive schemas from `API.Schemas.RunnerVolumes`. Reads require runners-read;
+  derive schemas from `Runners.CacheVolumes.Schemas`. Reads require runners-read;
   clearing requires account-update and carries destructive annotations. Keep
   account scoping, unknown values and the runners feature gate intact.

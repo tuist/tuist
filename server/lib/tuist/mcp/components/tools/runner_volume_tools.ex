@@ -32,8 +32,8 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerVolumes do
     title: "List Runner Volumes",
     read_only_hint: true,
     destructive_hint: false,
-    schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.inputs(:list)),
-    output_schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.response(:list))
+    schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.inputs(:list)),
+    output_schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.response(:list))
 
   @impl EMCP.Tool
   def description,
@@ -50,8 +50,8 @@ defmodule Tuist.MCP.Components.Tools.GetRunnerVolume do
     title: "Get Runner Volume",
     read_only_hint: true,
     destructive_hint: false,
-    schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.inputs(:show)),
-    output_schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.response(:show))
+    schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.inputs(:show)),
+    output_schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.response(:show))
 
   @impl EMCP.Tool
   def description, do: "Get volume repository, provider, platform, capacity, used space and last use."
@@ -66,8 +66,8 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerVolumeJobs do
     title: "List Runner Volume Jobs",
     read_only_hint: true,
     destructive_hint: false,
-    schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.inputs(:jobs)),
-    output_schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.response(:jobs))
+    schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.inputs(:jobs)),
+    output_schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.response(:jobs))
 
   @impl EMCP.Tool
   def description, do: "List volume job history. Cache status describes saving changes, not the job result."
@@ -82,9 +82,9 @@ defmodule Tuist.MCP.Components.Tools.ListRunnerJobVolumes do
     title: "List Runner Job Volumes",
     read_only_hint: true,
     destructive_hint: false,
-    schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.inputs(:job_volumes)),
+    schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.inputs(:job_volumes)),
     output_schema:
-      TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.response(:job_volumes))
+      Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.response(:job_volumes))
 
   @impl EMCP.Tool
   def description, do: "List the volumes mounted by a runner job."
@@ -99,8 +99,8 @@ defmodule Tuist.MCP.Components.Tools.GetRunnerVolumeAnalytics do
     title: "Get Runner Volume Analytics",
     read_only_hint: true,
     destructive_hint: false,
-    schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.inputs(:analytics)),
-    output_schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.response(:analytics))
+    schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.inputs(:analytics)),
+    output_schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.response(:analytics))
 
   @impl EMCP.Tool
   def description,
@@ -117,8 +117,8 @@ defmodule Tuist.MCP.Components.Tools.ClearRunnerVolume do
     title: "Clear Runner Volume",
     read_only_hint: false,
     destructive_hint: true,
-    schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.inputs(:clear)),
-    output_schema: TuistWeb.API.Schemas.RunnerVolumes.json_schema(TuistWeb.API.Schemas.RunnerVolumes.response(:clear))
+    schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.inputs(:clear)),
+    output_schema: Tuist.Runners.CacheVolumes.Schemas.json_schema(Tuist.Runners.CacheVolumes.Schemas.response(:clear))
 
   @impl EMCP.Tool
   def description,
