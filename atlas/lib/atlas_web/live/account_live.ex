@@ -2032,27 +2032,31 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card title={gettext("Evaluations")} icon="checkup_list" data-part="account-pocs-card">
-        <:actions>
-          <.button
-            id="view-pocs-button"
-            label={gettext("View all")}
-            variant="secondary"
-            size="small"
-            navigate={~p"/commercial/sales/pocs"}
-          />
-        </:actions>
         <.card_section data-part="account-pocs-section">
-          <div :if={@pocs != []} id="account-pocs" data-part="account-pocs-list">
-            <.link
-              :for={poc <- @pocs}
-              id={"account-poc-#{poc.id}"}
-              navigate={~p"/commercial/sales/pocs/#{poc.id}"}
-              data-part="account-poc"
-            >
-              <span data-part="account-poc-title">{poc.title}</span>
-              <span data-part="account-poc-status">{Phoenix.Naming.humanize(poc.status)}</span>
-            </.link>
-          </div>
+          <.table
+            :if={@pocs != []}
+            id="account-pocs-table"
+            rows={@pocs}
+            row_key={fn poc -> "account-poc-#{poc.id}" end}
+            row_navigate={fn poc -> ~p"/commercial/sales/pocs/#{poc.id}" end}
+          >
+            <:col :let={poc} label={gettext("Evaluation")}>
+              <.text_cell label={poc.title} />
+            </:col>
+            <:col :let={poc} label={gettext("Status")}>
+              <.badge_cell
+                label={Phoenix.Naming.humanize(poc.status)}
+                color={evaluation_status_color(poc.status)}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={poc} label={gettext("Hosting")}>
+              <.text_cell label={Phoenix.Naming.humanize(poc.hosting)} />
+            </:col>
+            <:col :let={poc} label={gettext("Started")}>
+              <.text_cell label={format_date(poc.starts_on)} />
+            </:col>
+          </.table>
           <.account_empty_state
             :if={@pocs == []}
             id="account-pocs-empty"
@@ -4208,6 +4212,11 @@ defmodule AtlasWeb.AccountLive do
     |> assign_tax_certificate_request_form(account)
     |> assign(:signed_tax_certificate_upload_form, to_form(%{}, as: "signed_tax_certificate"))
   end
+
+  defp evaluation_status_color("active"), do: "information"
+  defp evaluation_status_color("closed_won"), do: "success"
+  defp evaluation_status_color("closed_lost"), do: "destructive"
+  defp evaluation_status_color(_status), do: "neutral"
 
   defp slack_threads_for(account) do
     account.events

@@ -43,6 +43,7 @@ defmodule AtlasWeb.AccountLiveTest do
     {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account-poc-#{poc.id}", poc.title)
+    assert has_element?(view, "#account-pocs-table")
     refute has_element?(view, "#account-poc-#{other_poc.id}")
     refute has_element?(view, "#account-pocs-empty")
   end
@@ -54,7 +55,7 @@ defmodule AtlasWeb.AccountLiveTest do
     {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
     assert has_element?(view, "#account-pocs-empty")
-    assert has_element?(view, "#view-pocs-button")
+    refute has_element?(view, "#account-pocs-table")
   end
 
   test "shows the tax certificate request action only to leadership", %{conn: conn} do
