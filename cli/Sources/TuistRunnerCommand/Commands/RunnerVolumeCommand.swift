@@ -11,7 +11,7 @@ public struct RunnerVolumeCommand: AsyncParsableCommand {
             subcommands: [
                 RunnerVolumeListCommand.self, RunnerVolumeShowCommand.self,
                 RunnerVolumeJobsCommand.self, RunnerVolumeAnalyticsCommand.self,
-                RunnerVolumeForJobCommand.self, RunnerVolumeClearCommand.self,
+                RunnerVolumeClearCommand.self,
             ]
         )
     }
@@ -86,18 +86,6 @@ struct RunnerVolumeJobsCommand: AsyncParsableCommand, NooraReadyCommand {
     var jsonThroughNoora: Bool { true }
     func validate() throws { try validateVolumeID(volumeID) }
     func run() async throws { try await RunnerVolumeService.resolve(options).jobs(volumeID, pagination: pagination) }
-}
-
-struct RunnerVolumeForJobCommand: AsyncParsableCommand, NooraReadyCommand {
-    static let configuration = CommandConfiguration(commandName: "for-job", abstract: "Show volumes mounted by a job.")
-    @Argument(help: "Tuist workflow job identifier.") var jobID: Int
-    @OptionGroup var options: RunnerVolumeOptions
-    var jsonThroughNoora: Bool { true }
-    func validate() throws {
-        guard jobID > 0 else { throw ValidationError("Job ID must be positive.") }
-    }
-
-    func run() async throws { try await RunnerVolumeService.resolve(options).forJob(jobID) }
 }
 
 struct RunnerVolumeAnalyticsCommand: AsyncParsableCommand, NooraReadyCommand {
