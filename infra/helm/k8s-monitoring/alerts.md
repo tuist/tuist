@@ -4741,27 +4741,36 @@ histogram_quantile(0.95, sum by (cluster, region, le) (
   sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket[5m]))
   * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
 ))
+and on (cluster, region)
+sum by (cluster, region) (
+  sum by (cluster, pod) (rate(kura_public_request_latency_seconds_count[5m]))
+  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+) > 1
 ```
 
-- Threshold: `> 1` second, as a separate threshold expression on `A`
+- Threshold: `> 1` second, as a separate threshold expression on `A`; the
+  traffic floor of one request per second stays inside the PromQL, since
+  `and` filters the series rather than reducing it to a boolean
 - Pending period: 30 minutes
 - Severity: warning
-- Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
-  `affected_service` for the cache component: this is customer-visible.
+- Live: rule `ffx2xchowcwlce`. Production only (see **Recording rules for
+  Kura regions** for where the scope lives). Folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+  Add `affected_service` for the cache component: this is customer-visible.
 - Summary: `Kura region {{ $labels.region }} p95 time to first byte has been
   {{ $values.A.Value | humanizeDuration }} for 30 minutes
   ({{ $labels.cluster }})`
 - Description: `p95 of time to first response byte for public cache requests
   (HTTP and gRPC, probes and internal routes excluded) across the region's
-  instances, sustained for 30 minutes. The catch-all customer-facing capacity
-  symptom: it rises whether the bottleneck is the NIC ("Kura egress budget
-  heavily used"), the response-stream pool ("Kura response streams waiting or
-  degraded"), memory pressure, or a wedged store. Read those rules first;
-  this one only says the customer is feeling it. The node also uses this
-  latency to throttle peer replication (kura_replication_bandwidth_*), so a
-  region sitting high here lets its outbox grow.`
+  instances, sustained for 30 minutes. Only evaluated while the region serves
+  more than one request per second: below that a handful of slow requests
+  decides the p95. The catch-all customer-facing capacity symptom: it rises
+  whether the bottleneck is the NIC ("Kura egress budget heavily used"), the
+  response-stream pool ("Kura response streams waiting or degraded"), memory
+  pressure, or a wedged store. Read those rules first; this one only says the
+  customer is feeling it. The node also uses this latency to throttle peer
+  replication (kura_replication_bandwidth_*), so a region sitting high here
+  lets its outbox grow.`
 
 The customer-facing symptom across all three capacity limits. It is not a
 diagnosis: the rules above say why, this one says the customer feels it. It
@@ -4777,6 +4786,20 @@ production region (its REAPI-heavy workload sits there normally), above 1 s in
 three windows fleet-wide, above 2 s in two. The typical 6 hour p95 is tens of
 milliseconds. One second for 30 minutes is the bar that separates that
 workload's normal from the two episodes.
+
+**Why the traffic floor.** A regional p95 over five minutes is decided by the
+slowest 5% of that window's requests, so at 0.3 requests per second it is the
+slowest four or five. Regions are bursty: over the 14 days to 2026-09-23 the
+median regional rate ranged from zero (`sa-west`, `scw-fr-par-runners`) to
+33 requests per second (`eu-west`), and every region spent part of the day
+near idle. Without the floor, every sustained breach in that period was an
+idle region: `ap-southeast` held the p95 above one second for about 28 hours
+in total, at 0.004 to 0.6 requests per second, and `us-central` and `sa-west`
+had shorter runs, the busiest averaging 1.1. At a floor of 0.5 requests per
+second three of those windows still fire; at one request per second none do.
+The floor is evaluated on the same five-minute window as the p95, so it is a
+statement about the sample the quantile came from, and it sits far below a
+working region, which runs at tens to hundreds of requests per second.
 
 ### Swift registry release work repeatedly deferred
 
