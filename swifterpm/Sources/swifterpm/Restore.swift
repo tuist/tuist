@@ -143,10 +143,10 @@ enum WorkspaceRestorer {
                 targetName: target.name,
                 checksum: checksum
             )
-            if try await binaryArtifact(in: cachedArtifact) == nil {
+            if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
                 let lock = try await cache.lock(namespace: "artifacts", key: cachedArtifact.path)
                 _ = lock
-                if try await binaryArtifact(in: cachedArtifact) == nil {
+                if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
                     try await downloadBinaryArtifact(
                         identity: identity,
                         targetName: target.name,
@@ -186,10 +186,11 @@ enum WorkspaceRestorer {
                 targetName: target.name,
                 checksum: checksum
             )
-            if try await binaryArtifact(in: cachedArtifact) == nil {
+            if try await !cachedBinaryArtifactIsUsable(cachedArtifact, checksum: checksum) {
                 try await extractBinaryArtifactArchive(
                     archivePath: artifactPath,
-                    destination: cachedArtifact
+                    destination: cachedArtifact,
+                    checksum: checksum
                 )
             }
             let scratchArtifact = artifactDirectory(
@@ -267,7 +268,8 @@ enum WorkspaceRestorer {
 
         try await extractBinaryArtifactArchive(
             archivePath: archivePath,
-            destination: destination
+            destination: destination,
+            checksum: checksum
         )
     }
 
@@ -288,7 +290,8 @@ enum WorkspaceRestorer {
 
     private static func extractBinaryArtifactArchive(
         archivePath: URL,
-        destination: URL
+        destination: URL,
+        checksum: String
     ) async throws {
         try await fileSystem.makeDirectory(
             at: destination.deletingLastPathComponent().absolutePath,
@@ -299,7 +302,7 @@ enum WorkspaceRestorer {
                 .appendingPathComponent(".\(destination.lastPathComponent).lock")
         )
         defer { _ = lock }
-        if try await binaryArtifact(in: destination) != nil {
+        if try await cachedBinaryArtifactIsUsable(destination, checksum: checksum) {
             return
         }
 
@@ -345,11 +348,25 @@ enum WorkspaceRestorer {
                     options: []
                 )
             }
+            try await fileSystem.atomicWrite(
+                checksum, to: destination.appendingPathComponent(binaryArtifactChecksumMarkerFilename)
+            )
             try? await fileSystem.removePath(temp)
         } catch {
             try? await fileSystem.removePath(temp)
             throw error
         }
+    }
+
+    private static let binaryArtifactChecksumMarkerFilename = ".swifterpm-artifact-sha"
+
+    private static func cachedBinaryArtifactIsUsable(_ directory: URL, checksum: String) async throws -> Bool {
+        guard try await binaryArtifact(in: directory) != nil else { return false }
+        let marker = directory.appendingPathComponent(binaryArtifactChecksumMarkerFilename)
+        guard try await fileSystem.exists(marker.absolutePath) else { return false }
+        let recorded = String(decoding: try await fileSystem.readFile(at: marker.absolutePath), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return recorded.caseInsensitiveCompare(checksum) == .orderedSame
     }
 
     private static func artifactURL(_ value: String) throws -> URL {

@@ -460,6 +460,65 @@ struct ResolveTests {
     }
 
     @Test
+    func restoringAVersionWhoseCachedBinaryArtifactHoldsAnotherVersionReextractsIt() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+
+            let package = root.appendingPathComponent("App")
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            for version in ["1.0.0", "2.0.0", "1.0.0", "2.0.0"] {
+                try await fileSystem.remove(scratch.absolutePath)
+                try await writeBinaryAppPackageManifest(
+                    at: package, dependencyURL: dependency.path, exactVersion: version
+                )
+                _ = try await SwifterPM().resolve(request)
+            }
+
+            let entries = cacheDirectory.appendingPathComponent("artifacts/dependency")
+            let restoredEntry = scratch.appendingPathComponent("artifacts/dependency/Framework")
+                .resolvingSymlinksInPath()
+            let otherEntry = try #require(
+                try await fileSystem.contentsOfDirectory(at: entries).first {
+                    fileSystem.isDirectoryAndNotSymlink($0)
+                        && $0.lastPathComponent != restoredEntry.lastPathComponent
+                }
+            )
+            try await fileSystem.remove(restoredEntry.absolutePath)
+            try await fileSystem.makeDirectory(at: restoredEntry.absolutePath)
+            try await fileSystem.copy(
+                otherEntry.appendingPathComponent("Framework.xcframework").absolutePath,
+                to: restoredEntry.appendingPathComponent("Framework.xcframework").absolutePath
+            )
+
+            try await fileSystem.remove(scratch.absolutePath)
+            _ = try await SwifterPM().resolve(request)
+            #expect(try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency") == "v2")
+
+            let inode: () async throws -> String = {
+                try await SystemProcess.output(
+                    "/usr/bin/stat",
+                    ["-f", "%i", restoredEntry.appendingPathComponent("Framework.xcframework").path]
+                )
+            }
+            let repaired = try await inode()
+            try await fileSystem.remove(scratch.absolutePath)
+            _ = try await SwifterPM().resolve(request)
+            #expect(try await inode() == repaired)
+        }
+    }
+
+    @Test
     func nativeResolveKeepsCachedCheckoutsWithoutAGitDirectoryLinked() async throws {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")
