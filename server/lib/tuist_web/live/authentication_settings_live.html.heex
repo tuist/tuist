@@ -272,10 +272,17 @@
             {dgettext("dashboard_account", "Login email domain")}
           </span>
           <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "Once verified, this domain is used to find the provider and determines which email addresses can be trusted for automatic enrollment and identity linking. It is independent of the provider URL."
-            )}
+            <%= if @organization.sso_login_domain_verified_at do %>
+              {dgettext(
+                "dashboard_account",
+                "This domain is used to find the provider and determines which email addresses are trusted for automatic enrollment and identity linking. It is independent of the provider URL."
+              )}
+            <% else %>
+              {dgettext(
+                "dashboard_account",
+                "Once verified, this domain is used to find the provider and determines which email addresses can be trusted for automatic enrollment and identity linking. It is independent of the provider URL."
+              )}
+            <% end %>
           </span>
         </div>
         <div data-part="field">
