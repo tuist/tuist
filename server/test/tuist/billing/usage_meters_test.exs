@@ -219,6 +219,40 @@ defmodule Tuist.Billing.UsageMetersTest do
     end
   end
 
+  describe "accounts_with_cache_downloads/2" do
+    test "lists accounts that downloaded through Kura or from a registered cache endpoint in the period", %{
+      account: account,
+      project: project
+    } do
+      kura_only = AccountsFixtures.organization_fixture(preload: [:account]).account
+      uploads_only = AccountsFixtures.organization_fixture(preload: [:account]).account
+      outside = AccountsFixtures.organization_fixture(preload: [:account]).account
+      kura_served_cas = AccountsFixtures.organization_fixture(preload: [:account]).account
+      kura_served_project = ProjectsFixtures.project_fixture(account_id: kura_served_cas.id)
+
+      insert_kura_event(%{account_id: kura_only.id, bytes: 1_000, request_count: 1})
+      insert_kura_event(%{account_id: uploads_only.id, direction: "ingress", operation: "upload", bytes: 1_000})
+      insert_kura_event(%{account_id: outside.id, bytes: 1_000, window_start: ~N[2026-05-02 00:00:00]})
+      insert_cas_event(%{project_id: project.id, size: 1_000})
+
+      insert_cas_event(%{
+        project_id: kura_served_project.id,
+        size: 1_000,
+        cache_endpoint: "kura-acme-eu-east-1-0.kura-acme-eu-east-1-headless.kura.svc.cluster.local:7443"
+      })
+
+      # ClickHouse is shared across tests and this reads every account, so
+      # the assertion is about these accounts rather than the whole result.
+      account_ids = UsageMeters.accounts_with_cache_downloads(@period_start, @period_end)
+
+      assert account.id in account_ids
+      assert kura_only.id in account_ids
+      refute uploads_only.id in account_ids
+      refute outside.id in account_ids
+      refute kura_served_cas.id in account_ids
+    end
+  end
+
   describe "project_names/1" do
     test "names the account's projects by id", %{account: account, project: project} do
       ProjectsFixtures.project_fixture()

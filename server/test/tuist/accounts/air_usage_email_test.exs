@@ -58,6 +58,27 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
     refute email.html_body =~ ~s(width="120%")
   end
 
+  test "an account on usage-based pricing is shown the cache allowance it reached" do
+    egress =
+      80
+      |> notification()
+      |> Map.merge(%{metric: :cache_egress_megabytes, usage: 82_300, limit: 100_000})
+
+    requests =
+      100
+      |> notification()
+      |> Map.merge(%{metric: :cache_requests, usage: 1_250_000, limit: 1_000_000})
+
+    egress_email = UserNotifier.air_usage_email(%{email: "admin@example.com"}, %{name: "acme"}, egress)
+    requests_email = UserNotifier.air_usage_email(%{email: "admin@example.com"}, %{name: "acme"}, requests)
+
+    assert egress_email.subject == "acme has reached 82% of its Air limit"
+    assert egress_email.text_body =~ "82.3 GB of 100.0 GB of cache egress used"
+    assert requests_email.text_body =~ "1,250,000 of 1,000,000 cache requests used"
+    assert requests_email.html_body =~ "Remote cache access is paused"
+    refute egress_email.html_body =~ "remote cache hits"
+  end
+
   test "runner emails identify the runner allowance and explain what pauses" do
     for threshold <- [80, 100] do
       notification =

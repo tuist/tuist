@@ -24,6 +24,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
   alias Tuist.Base64
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.CacheEndpoints
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
@@ -1065,17 +1066,33 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def update_account_current_month_usage(account_id, %{remote_cache_hits_count: remote_cache_hits_count}, opts \\ []) do
+  def update_account_current_month_usage(
+        account_id,
+        %{remote_cache_hits_count: remote_cache_hits_count} = usage,
+        opts \\ []
+      ) do
     %Account{id: account_id}
     |> Account.billing_changeset(%{
       current_month_remote_cache_hits_count: remote_cache_hits_count,
+      current_month_cache_egress_megabytes: Map.get(usage, :cache_egress_megabytes, 0),
+      current_month_cache_requests: Map.get(usage, :cache_requests, 0),
       current_month_remote_cache_hits_count_updated_at: Keyword.get(opts, :updated_at, NaiveDateTime.utc_now())
     })
     |> Repo.update!()
   end
 
+  @doc """
+  The account's usage since its free tier last started counting: remote cache
+  hits, which gate an Air account on the old pricing, and metered cache egress
+  and requests, which gate one on usage-based pricing.
+  """
   def account_month_usage(account_id, date \\ DateTime.utc_now()) do
-    CommandEvents.account_month_usage(account_id, date)
+    counted_from = Account |> Repo.get!(account_id) |> CommandEvents.usage_counted_from(date)
+    cache = UsagePricing.metered_cache_usage(account_id, counted_from, date)
+
+    account_id
+    |> CommandEvents.account_month_usage(date)
+    |> Map.merge(%{cache_egress_megabytes: cache.egress_megabytes, cache_requests: cache.requests})
   end
 
   def list_accounts_with_usage_not_updated_today(attrs \\ %{}) do

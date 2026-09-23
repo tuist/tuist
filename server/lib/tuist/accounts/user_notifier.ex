@@ -9,6 +9,7 @@ defmodule Tuist.Accounts.UserNotifier do
   alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.Mailer
+  alias Tuist.Utilities.ByteFormatter
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
@@ -448,12 +449,7 @@ defmodule Tuist.Accounts.UserNotifier do
         )
       end
 
-    usage_label =
-      if runner? do
-        dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
-      else
-        dgettext("dashboard_account", "%{usage} of %{limit} remote cache hits used", usage: usage, limit: limit)
-      end
+    usage_label = air_usage_label(Map.get(notification, :metric), usage, limit)
 
     date_format =
       if locale in Timex.Gettext.__gettext__(:known_locales), do: "{Mfull} {D}, {YYYY}", else: "{YYYY}-{0M}-{0D}"
@@ -526,6 +522,34 @@ defmodule Tuist.Accounts.UserNotifier do
     #{pricing_label}
     #{recipient_label}
     """)
+  end
+
+  defp air_usage_label(:runner_minutes, usage, limit),
+    do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
+
+  defp air_usage_label(:cache_egress_megabytes, usage, limit) do
+    dgettext("dashboard_account", "%{usage} of %{limit} of cache egress used",
+      usage: ByteFormatter.format_bytes(usage * 1_000_000),
+      limit: ByteFormatter.format_bytes(limit * 1_000_000)
+    )
+  end
+
+  defp air_usage_label(:cache_requests, usage, limit) do
+    dgettext("dashboard_account", "%{usage} of %{limit} cache requests used",
+      usage: delimit(usage),
+      limit: delimit(limit)
+    )
+  end
+
+  defp air_usage_label(_remote_cache_hits, usage, limit),
+    do: dgettext("dashboard_account", "%{usage} of %{limit} remote cache hits used", usage: usage, limit: limit)
+
+  defp delimit(number) do
+    number
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+    |> String.reverse()
   end
 
   defp air_usage_copy(true, 100) do
