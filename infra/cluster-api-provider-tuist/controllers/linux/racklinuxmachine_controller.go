@@ -376,14 +376,13 @@ func (r *RackLinuxMachineReconciler) converge(
 	if err != nil {
 		return err
 	}
-	pinKey := rackLinuxPinKey(host.Name)
-	reinstalled := machine.Status.TailnetDeviceID != "" && machine.Status.TailnetDeviceID != host.Status.Tailnet.DeviceID
-	if reinstalled {
+	pinKey := rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
+	if previous := machine.Status.TailnetDeviceID; previous != "" && previous != host.Status.Tailnet.DeviceID {
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "HostReinstalled",
 			"%s is on tailnet device %s, not %s: it was reinstalled, so its SSH host key is pinned afresh",
-			host.Name, host.Status.Tailnet.DeviceID, machine.Status.TailnetDeviceID)
-		if err := r.CredentialsManager.SetMachineHostFingerprint(ctx, pinKey, ""); err != nil {
-			return fmt.Errorf("clear the host key pin: %w", err)
+			host.Name, host.Status.Tailnet.DeviceID, previous)
+		if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, rackLinuxPinKey(host.Name, previous)); err != nil {
+			return fmt.Errorf("delete the previous install's host key pin: %w", err)
 		}
 	}
 	known := ""
@@ -607,8 +606,13 @@ func (r *RackLinuxMachineReconciler) reconcileDelete(ctx context.Context, machin
 			if err := r.deleteEgress(ctx, host.Name); err != nil {
 				return ctrl.Result{}, err
 			}
-			if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, rackLinuxPinKey(host.Name)); err != nil {
-				return ctrl.Result{}, err
+			for _, device := range []string{machine.Status.TailnetDeviceID, tailnetDeviceID(host)} {
+				if device == "" {
+					continue
+				}
+				if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, rackLinuxPinKey(host.Name, device)); err != nil {
+					return ctrl.Result{}, err
+				}
 			}
 			host.Status.ClaimedBy = ""
 			host.Status.ClaimedAt = nil
@@ -636,7 +640,7 @@ func (r *RackLinuxMachineReconciler) leave(ctx context.Context, machine *infrav1
 	key, err := r.CredentialsManager.ReadFleetSSHKey(ctx, machine.Spec.FleetName)
 	if err == nil {
 		known := ""
-		if creds, pinErr := r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey(host.Name)); pinErr == nil && creds != nil {
+		if creds, pinErr := r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey(host.Name, tailnetDeviceID(host))); pinErr == nil && creds != nil {
 			known = creds.HostFingerprint
 		}
 		run := r.RunScript
@@ -672,8 +676,17 @@ func rackLinuxProviderID(host *infrav1.RackLinuxHost) string {
 	return fmt.Sprintf("rack-linux://%s/%s", host.Spec.Location.Site, host.Name)
 }
 
-func rackLinuxPinKey(hostName string) string {
-	return "rack-linux-" + hostName
+// rackLinuxPinKey keys the SSH host key pin by host and tailnet device, which
+// is one per install: a reinstalled host is trusted on first use again.
+func rackLinuxPinKey(hostName, deviceID string) string {
+	return "rack-linux-" + hostName + "-" + strings.ToLower(deviceID)
+}
+
+func tailnetDeviceID(host *infrav1.RackLinuxHost) string {
+	if host.Status.Tailnet == nil {
+		return ""
+	}
+	return host.Status.Tailnet.DeviceID
 }
 
 func rackLinuxEgressName(hostName string) string {
