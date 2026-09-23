@@ -28,6 +28,7 @@ alias Atlas.Nudges.Workers.EvaluateSignals, as: EvaluateNudgeSignals
 alias Atlas.Nudges.Workers.ExpireStaleNudges
 alias Atlas.Nudges.Workers.ReconcileDeliveryOutcomes, as: ReconcileNudgeDeliveryOutcomes
 alias Atlas.Nudges.Workers.RefreshAnalyticsSnapshots, as: RefreshNudgeAnalyticsSnapshots
+alias Atlas.Nudges.Workers.RefreshFeatureFirstSeen, as: RefreshNudgeFeatureFirstSeen
 alias Atlas.OAuth.AccessTokens
 alias Atlas.OAuth.Clients
 alias Atlas.OAuth.ResourceOwners
@@ -88,6 +89,7 @@ config :atlas, Oban,
      crontab: [
        {"0 3 * * *", ScheduleOverviewSummaries},
        {"15 3 * * *", RefreshNudgeAnalyticsSnapshots},
+       {"45 3 * * *", RefreshNudgeFeatureFirstSeen},
        {"20 4 * * *", EvaluateNudgeSignals},
        {"30 4 * * *", ExpireStaleNudges},
        {"* * * * *", ReconcileNudgeDeliveryOutcomes},

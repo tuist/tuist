@@ -6,7 +6,11 @@ defmodule Atlas.Nudges.Workers.EvaluateSignals do
 
   use Oban.Worker, queue: :default, max_attempts: 1
 
+  alias Atlas.Nudges.Signals.ActivationStalled
   alias Atlas.Nudges.Signals.CacheEffectivenessDropped
+  alias Atlas.Nudges.Signals.FirstBuildEvent
+  alias Atlas.Nudges.Signals.FirstCacheEvent
+  alias Atlas.Nudges.Signals.FirstTestEvent
   alias Atlas.Nudges.Signals.HeavyUsageEnterpriseFit
   alias Atlas.Nudges.Signals.InvitedTeammatesSso
   alias Atlas.Nudges.Signals.TestSelectionEffectivenessDropped
@@ -16,7 +20,11 @@ defmodule Atlas.Nudges.Workers.EvaluateSignals do
     InvitedTeammatesSso,
     CacheEffectivenessDropped,
     TestSelectionEffectivenessDropped,
-    HeavyUsageEnterpriseFit
+    HeavyUsageEnterpriseFit,
+    ActivationStalled,
+    FirstCacheEvent,
+    FirstBuildEvent,
+    FirstTestEvent
   ]
 
   def signals, do: @signals

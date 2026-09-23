@@ -10,7 +10,6 @@ defmodule Atlas.Accounts do
   import Ecto.Query
 
   alias Atlas.Accounts.Account
-  alias Atlas.Accounts.AccountAttention
   alias Atlas.Accounts.AccountHandle
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.ContractValue
@@ -39,7 +38,6 @@ defmodule Atlas.Accounts do
   defdelegate list_overview_summary_candidate_ids(opts \\ []), to: Query
   defdelegate list_outcome_review_candidate_ids(opts \\ []), to: Query
   defdelegate list_outcome_proposal_candidate_ids(opts \\ []), to: Query
-  defdelegate list_attention_suggestion_candidate_ids(opts \\ []), to: Query
   defdelegate list_parent_account_options(account_id \\ nil), to: Query
   defdelegate list_stripe_customer_account_ids(), to: Query
   defdelegate list_attention_outcomes(opts \\ []), to: Query
@@ -58,9 +56,6 @@ defmodule Atlas.Accounts do
   defdelegate reject_outcome_proposal(proposal, reason, actor \\ nil), to: OutcomeProposals, as: :reject
   defdelegate approve_outcome_proposal(proposal, actor \\ nil), to: OutcomeProposals, as: :approve
   defdelegate generate_outcome_proposals(account_id), to: OutcomeProposals, as: :generate
-  defdelegate list_account_attention_suggestions(account_or_id, opts \\ []), to: AccountAttention, as: :list
-  defdelegate get_account_attention_suggestion(id), to: AccountAttention, as: :get
-  defdelegate get_account_attention_suggestion(account, id), to: AccountAttention, as: :get
   defdelegate get_account(id), to: Query
   defdelegate revenue_snapshot(opts \\ []), to: Revenue, as: :snapshot
   defdelegate stripe_invoices(account, opts \\ []), to: Invoices
