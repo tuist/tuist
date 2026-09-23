@@ -2,6 +2,7 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheckTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.SSOLoginDomainRecheck
   alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Repo
@@ -86,6 +87,46 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheckTest do
       refute reloaded.sso_login_domain_last_verified_at
     end
 
+    test "keeps a verification made while the sweep was looking up the record" do
+      now = ~U[2026-09-23 12:00:00Z]
+      organization = verified_organization(last_verified_at: ~U[2026-09-01 12:00:00Z])
+
+      stub(SSOLoginDomainVerification, :verified?, fn _domain, _token ->
+        organization
+        |> Organization.verify_sso_login_domain_changeset(~U[2026-09-23 11:59:00Z])
+        |> Repo.update!()
+
+        false
+      end)
+
+      assert %{refreshed: 0, missing: 0, lapsed: 0} = SSOLoginDomainRecheck.sweep(now)
+
+      reloaded = Repo.reload!(organization)
+      assert reloaded.sso_login_domain_verified_at == ~U[2026-09-23 11:59:00Z]
+      assert reloaded.sso_login_domain_last_verified_at == ~U[2026-09-23 11:59:00Z]
+    end
+
+    test "does not refresh a domain that changed while the sweep was looking up the record" do
+      now = ~U[2026-09-23 12:00:00Z]
+      organization = verified_organization(last_verified_at: ~U[2026-09-20 12:00:00Z])
+
+      stub(SSOLoginDomainVerification, :verified?, fn _domain, _token ->
+        organization
+        |> Ecto.Changeset.change(
+          sso_login_domain: "replacement.example",
+          sso_login_domain_verification_token: "replacement-token",
+          sso_login_domain_verified_at: nil,
+          sso_login_domain_last_verified_at: nil
+        )
+        |> Repo.update!()
+
+        true
+      end)
+
+      assert %{refreshed: 0, missing: 0, lapsed: 0} = SSOLoginDomainRecheck.sweep(now)
+      refute Repo.reload!(organization).sso_login_domain_last_verified_at
+    end
+
     test "counts a resolver failure as missing rather than lapsing on it" do
       now = ~U[2026-09-23 12:00:00Z]
       verified_organization(last_verified_at: ~U[2026-09-22 12:00:00Z])
@@ -100,21 +141,21 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheckTest do
       organization = verified_organization(last_verified_at: ~U[2026-09-15 12:00:00Z])
 
       assert SSOLoginDomainRecheck.expiring?(organization, ~U[2026-09-23 12:00:00Z])
-      assert SSOLoginDomainRecheck.awaiting_record?(organization)
+      assert SSOLoginDomainRecheck.awaiting_record?(organization, ~U[2026-09-23 12:00:00Z])
     end
 
     test "is false while the record keeps resolving" do
       organization = verified_organization(last_verified_at: ~U[2026-09-23 12:00:00Z])
 
       refute SSOLoginDomainRecheck.expiring?(organization, ~U[2026-09-23 12:00:00Z])
-      refute SSOLoginDomainRecheck.awaiting_record?(organization)
+      refute SSOLoginDomainRecheck.awaiting_record?(organization, ~U[2026-09-23 12:00:00Z])
     end
 
     test "is false for a domain verified before re-checks existed" do
       organization = verified_organization(last_verified_at: nil)
 
       refute SSOLoginDomainRecheck.expiring?(organization, ~U[2026-12-01 12:00:00Z])
-      refute SSOLoginDomainRecheck.awaiting_record?(organization)
+      refute SSOLoginDomainRecheck.awaiting_record?(organization, ~U[2026-12-01 12:00:00Z])
       assert SSOLoginDomainRecheck.expires_at(organization) == nil
     end
 
@@ -122,7 +163,7 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheckTest do
       organization = AccountsFixtures.organization_fixture()
 
       refute SSOLoginDomainRecheck.expiring?(organization, ~U[2026-09-23 12:00:00Z])
-      assert SSOLoginDomainRecheck.awaiting_record?(organization)
+      assert SSOLoginDomainRecheck.awaiting_record?(organization, ~U[2026-09-23 12:00:00Z])
     end
   end
 

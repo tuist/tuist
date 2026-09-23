@@ -40,12 +40,11 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheck do
     Enum.reduce(verified_organizations(), %{refreshed: 0, missing: 0, lapsed: 0}, fn organization, counts ->
       cond do
         record_published?(organization) ->
-          refresh(organization, now)
-          Map.update!(counts, :refreshed, &(&1 + 1))
+          count_if(counts, :refreshed, update_unchanged(organization, sso_login_domain_last_verified_at: now))
 
         expired?(organization, now) ->
-          lapse(organization)
-          Map.update!(counts, :lapsed, &(&1 + 1))
+          # The domain and its token stay, so publishing the record again and verifying restores it.
+          count_if(counts, :lapsed, update_unchanged(organization, sso_login_domain_verified_at: nil))
 
         true ->
           Map.update!(counts, :missing, &(&1 + 1))
@@ -82,8 +81,9 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheck do
   Whether the organization still has a record to publish, either because the
   domain was never verified or because the record stopped resolving.
   """
-  def awaiting_record?(%Organization{sso_login_domain_verified_at: nil}), do: true
-  def awaiting_record?(%Organization{} = organization), do: expiring?(organization)
+  def awaiting_record?(organization, now \\ DateTime.utc_now())
+  def awaiting_record?(%Organization{sso_login_domain_verified_at: nil}, _now), do: true
+  def awaiting_record?(%Organization{} = organization, now), do: expiring?(organization, now)
 
   @doc """
   Whole days until a verified domain lapses, floored at zero.
@@ -118,15 +118,24 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheck do
     end
   end
 
-  defp refresh(organization, now) do
-    organization
-    |> Ecto.Changeset.change(sso_login_domain_last_verified_at: now)
-    |> Repo.update!()
+  # The lookup ran against this snapshot, so a domain change or a verification
+  # made while the sweep was running is left alone.
+  defp update_unchanged(%Organization{} = organization, changes) do
+    {count, _} =
+      Repo.update_all(
+        from(o in Organization,
+          where: o.id == ^organization.id,
+          where: o.sso_login_domain == ^organization.sso_login_domain,
+          where: o.sso_login_domain_verification_token == ^organization.sso_login_domain_verification_token,
+          where: o.sso_login_domain_verified_at == ^organization.sso_login_domain_verified_at,
+          where: o.sso_login_domain_last_verified_at == ^organization.sso_login_domain_last_verified_at
+        ),
+        set: changes
+      )
+
+    count == 1
   end
 
-  defp lapse(organization) do
-    organization
-    |> Organization.lapse_sso_login_domain_verification_changeset()
-    |> Repo.update!()
-  end
+  defp count_if(counts, key, true), do: Map.update!(counts, key, &(&1 + 1))
+  defp count_if(counts, _key, false), do: counts
 end

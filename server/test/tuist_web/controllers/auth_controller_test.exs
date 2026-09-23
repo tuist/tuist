@@ -1204,6 +1204,30 @@ defmodule TuistWeb.AuthControllerTest do
                Tuist.Accounts.get_oauth2_identity(:oauth2, "work-identity", "https://login.vendor.example")
     end
 
+    test "links a signed-in member rather than starting a signup that cannot finish while signed in", %{
+      conn: conn
+    } do
+      member = AccountsFixtures.user_fixture(email: "personal@mail.example")
+
+      organization =
+        custom_provider_organization(
+          creator: member,
+          sso_login_domain: "customer.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: true
+        )
+
+      stub_sso_userinfo("work-identity", "person@customer.example")
+
+      conn =
+        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(member)})
+
+      assert redirected_to(conn) == "/auth/sso/link"
+      assert get_session(conn, :pending_sso_link)["user_id"] == member.id
+      refute get_session(conn, :pending_oauth_signup)
+    end
+
     test "does not offer a signed-in user who does not belong to the organization a link", %{conn: conn} do
       owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
       outsider = AccountsFixtures.user_fixture(email: "outsider@mail.example")

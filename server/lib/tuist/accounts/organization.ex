@@ -146,14 +146,6 @@ defmodule Tuist.Accounts.Organization do
     )
   end
 
-  @doc """
-  Drops a verification whose record stopped resolving. The domain and its
-  token stay put, so publishing the record again and verifying restores it.
-  """
-  def lapse_sso_login_domain_verification_changeset(organization) do
-    change(organization, sso_login_domain_verified_at: nil)
-  end
-
   def validate_sso_security_policy(changeset) do
     provider = get_field(changeset, :sso_provider)
     login_domain = get_field(changeset, :sso_login_domain)

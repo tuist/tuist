@@ -244,7 +244,19 @@ defmodule TuistWeb.AuthController do
                 sso_organization
               )
 
+            # A signed-in user is linked rather than signed up, since signup
+            # cannot be completed while signed in.
             cond do
+              signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
+                confirm_sso_link(
+                  conn,
+                  signed_in_user,
+                  auth,
+                  sso_organization,
+                  provider_organization_id,
+                  oauth_return_url
+                )
+
               new_sso_user_allowed?(auth.provider, sso_organization, auth.info.email, invitation) ->
                 oauth_data = %{
                   "provider" => to_string(auth.provider),
@@ -260,16 +272,6 @@ defmodule TuistWeb.AuthController do
                 |> put_session(:pending_oauth_signup, oauth_data)
                 |> redirect(to: ~p"/users/choose-username")
                 |> halt()
-
-              signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
-                confirm_sso_link(
-                  conn,
-                  signed_in_user,
-                  auth,
-                  sso_organization,
-                  provider_organization_id,
-                  oauth_return_url
-                )
 
               true ->
                 raise_sso_unauthorized(new_sso_user_rejection_reason(sso_organization, auth.info.email))

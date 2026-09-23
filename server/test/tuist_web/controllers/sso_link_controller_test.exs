@@ -110,10 +110,13 @@ defmodule TuistWeb.SSOLinkControllerTest do
 
       conn =
         conn
-        |> with_pending_link(invitee, organization)
+        |> with_pending_link(invitee, organization, %{"return_to" => "/oauth2/authorize?client_id=cli"})
         |> post(~p"/auth/sso/link")
 
       assert redirected_to(conn) == "/auth/invitations/#{invitation.token}"
+      assert get_session(conn, :post_invitation_return_to) == "/oauth2/authorize?client_id=cli"
+      assert get_session(conn, :post_invitation_user_id) == invitee.id
+      assert get_session(conn, :post_invitation_token) == invitation.token
 
       assert {:ok, identity} =
                Accounts.get_oauth2_identity(:oauth2, "work-identity", @provider_organization_id)

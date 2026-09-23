@@ -450,7 +450,7 @@ msgstr ""
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:578
+#: lib/tuist_web/controllers/auth_controller.ex:580
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr ""
@@ -580,7 +580,7 @@ msgstr ""
 msgid "Link account"
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:127
+#: lib/tuist_web/controllers/sso_link_controller.ex:140
 #, elixir-autogen, elixir-format
 msgid "Link expired"
 msgstr ""
@@ -590,7 +590,7 @@ msgstr ""
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:135
+#: lib/tuist_web/controllers/sso_link_controller.ex:148
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
 msgstr ""
@@ -600,12 +600,12 @@ msgstr ""
 msgid "Link single sign-on?"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:437
+#: lib/tuist_web/controllers/auth_controller.ex:439
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:128
+#: lib/tuist_web/controllers/sso_link_controller.ex:141
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
 msgstr ""

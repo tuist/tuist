@@ -43,7 +43,7 @@ defmodule TuistWeb.SSOLinkController do
       conn
       |> delete_session(:pending_sso_link)
       |> put_session(:user_return_to, return_to(link, user))
-      |> Authentication.log_in_user(user, %{auth_method: link.provider})
+      |> Authentication.log_in_user(user, log_in_params(link))
     else
       :error ->
         render_expired(conn)
@@ -112,12 +112,25 @@ defmodule TuistWeb.SSOLinkController do
   end
 
   defp return_to(%{invitation: %{token: token}}, _user), do: ~p"/auth/invitations/#{token}"
+  defp return_to(link, user), do: local_path(link.return_to) || Authentication.signed_in_path(user)
 
-  defp return_to(%{return_to: "/" <> _ = return_to}, user) do
-    if String.starts_with?(return_to, "//"), do: Authentication.signed_in_path(user), else: return_to
+  # Accepting the invitation resumes where the sign-in started, as the
+  # automatic linking flow does.
+  defp log_in_params(%{invitation: %{token: token}} = link) do
+    %{
+      auth_method: link.provider,
+      post_invitation_return_to: local_path(link.return_to),
+      post_invitation_token: token
+    }
   end
 
-  defp return_to(_link, user), do: Authentication.signed_in_path(user)
+  defp log_in_params(link), do: %{auth_method: link.provider}
+
+  defp local_path("/" <> _ = path) do
+    if String.starts_with?(path, "//"), do: nil, else: path
+  end
+
+  defp local_path(_path), do: nil
 
   defp render_expired(conn) do
     conn
