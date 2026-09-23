@@ -4,6 +4,7 @@ defmodule Tuist.TestsTest do
 
   import Ecto.Query
 
+  alias Ecto.Association.NotLoaded
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
@@ -299,7 +300,7 @@ defmodule Tuist.TestsTest do
       {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id)
 
       # Then
-      assert %Ecto.Association.NotLoaded{} = run.failures
+      assert %NotLoaded{} = run.failures
     end
   end
 
@@ -8439,25 +8440,9 @@ defmodule Tuist.TestsTest do
       assert length(group.runs) == 1
     end
 
-    test "resolves failures and repetitions when a flaky test case has thousands of cross-run matches" do
-      # Regression test for the test-run detail page 500ing when a flaky test
-      # case's related run ids number in the thousands. `get_failures_for_runs/1`
-      # and `get_repetitions_for_runs/1` used to bind each run id as its own
-      # scalar query parameter (`f.test_case_run_id in ^run_ids`), and ecto_ch
-      # sent each of those as its own HTTP form field; past ~1000 ids that
-      # overflowed ClickHouse's HTML form parser ("Too many form fields") and
-      # the page 500'd. They now bind the ids as a single `Array(UUID)`
-      # parameter per chunk (multipart, one field per chunk instead of one per
-      # id), chunked to stay under ClickHouse's per-parameter size limit.
-      #
-      # `fetch_cross_run_flaky_runs/2` orders matches by `ran_at` desc, and
-      # `all_run_ids` chunks that list without reordering, so the last-ran
-      # cross-run row is guaranteed to land in the last (second) chunk. Each
-      # seeded cross-run row below gets a distinct, strictly decreasing
-      # `ran_at`, so the one with `cross_run_count`'s offset is deterministically
-      # the last element and therefore in the second chunk — proving the
-      # chunked lookups actually resolve failures/repetitions beyond the first
-      # chunk, not just that the call doesn't crash.
+    test "resolves failures and repetitions for thousands of cross-run matches" do
+      # More run IDs than ClickHouse's `http_max_fields` (1,000) allows as
+      # individual query parameters.
       project = ProjectsFixtures.project_fixture()
       commit_sha = "regression-large-cross-run-set"
 
@@ -8512,22 +8497,22 @@ defmodule Tuist.TestsTest do
           )
         )
 
-      # Seed enough other runs of the same (project, test case, commit) that
-      # `fetch_cross_run_flaky_runs/2` pulls the current run's id plus more
-      # than 2000 cross-run ids into `all_run_ids`, so the failure/repetition
-      # lookup fans out over multiple chunks. Each row gets a strictly
-      # decreasing `ran_at` (base_time - i seconds), so sorting desc by
-      # `ran_at` (as `fetch_cross_run_flaky_runs/2` does) places i=1 first and
-      # i=cross_run_count last — deterministically in the second chunk.
-      cross_run_count = 2500
+      cross_run_count = 2_500
       base_time = NaiveDateTime.utc_now()
-
-      second_chunk_run_id = UUIDv7.generate()
+      newest_run_id = UUIDv7.generate()
+      oldest_run_id = UUIDv7.generate()
 
       cross_runs =
         for i <- 1..cross_run_count do
+          id =
+            case i do
+              1 -> newest_run_id
+              ^cross_run_count -> oldest_run_id
+              _ -> UUIDv7.generate()
+            end
+
           %{
-            id: if(i == cross_run_count, do: second_chunk_run_id, else: UUIDv7.generate()),
+            id: id,
             name: "testFlakyExample",
             test_run_id: UUIDv7.generate(),
             test_module_run_id: UUIDv7.generate(),
@@ -8556,60 +8541,155 @@ defmodule Tuist.TestsTest do
 
       TestCaseRun.Buffer.insert_all(cross_runs)
 
-      # Give the guaranteed-second-chunk row its own failure and repetition,
-      # distinct from the current run's, so we can assert the chunked lookup
-      # actually resolves detail for a run past the first 2000 ids — not just
-      # that the overall call succeeds.
-      TestCaseFailure.Buffer.insert_all([
-        %{
-          id: UUIDv7.generate(),
-          test_case_run_id: second_chunk_run_id,
-          test_case_run_argument_id: nil,
-          message: "Second-chunk failure",
-          path: "/path/to/other_test.swift",
-          line_number: 7,
-          issue_type: "assertion_failure",
-          inserted_at: NaiveDateTime.utc_now()
-        }
-      ])
+      detailed_runs = [{newest_run_id, "Newest"}, {oldest_run_id, "Oldest"}]
 
-      TestCaseRunRepetition.Buffer.insert_all([
-        %{
+      TestCaseFailure.Buffer.insert_all(
+        for {run_id, label} <- detailed_runs do
+          %{
+            id: UUIDv7.generate(),
+            test_case_run_id: run_id,
+            test_case_run_argument_id: nil,
+            message: "#{label} failure",
+            path: "/path/to/other_test.swift",
+            line_number: 7,
+            issue_type: "assertion_failure",
+            inserted_at: NaiveDateTime.utc_now()
+          }
+        end
+      )
+
+      TestCaseRunRepetition.Buffer.insert_all(
+        for {run_id, label} <- detailed_runs do
+          %{
+            id: UUIDv7.generate(),
+            test_case_run_id: run_id,
+            test_case_run_argument_id: nil,
+            repetition_number: 1,
+            name: "#{label} run",
+            status: "failure",
+            duration: 250,
+            source: "run",
+            inserted_at: NaiveDateTime.utc_now()
+          }
+        end
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert [group] = Tests.get_flaky_runs_for_test_run(test_run.id)
+      assert group.name == "testFlakyExample"
+      assert length(group.runs) == cross_run_count + 1
+
+      runs_by_id = Map.new(group.runs, &{&1.id, &1})
+
+      assert [%{message: "Assertion failed"}] = runs_by_id[current_run_id].failures
+      assert ["First Run", "Retry 1"] = Enum.map(runs_by_id[current_run_id].repetitions, & &1.name)
+
+      for {run_id, label} <- detailed_runs do
+        failure_message = "#{label} failure"
+        repetition_name = "#{label} run"
+        assert [%{message: ^failure_message}] = runs_by_id[run_id].failures
+        assert [%{name: ^repetition_name}] = runs_by_id[run_id].repetitions
+      end
+    end
+
+    test "returns every group when a test run has more flaky test cases than ClickHouse's form field limit" do
+      project = ProjectsFixtures.project_fixture()
+      flaky_test_case_count = 1_100
+
+      {:ok, test_run} =
+        Tests.create_test(%{
           id: UUIDv7.generate(),
-          test_case_run_id: second_chunk_run_id,
-          test_case_run_argument_id: nil,
-          repetition_number: 1,
-          name: "Second-chunk Run",
-          status: "failure",
-          duration: 250,
-          source: "run",
-          inserted_at: NaiveDateTime.utc_now()
-        }
-      ])
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "many-flaky-test-cases",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases:
+                for i <- 1..flaky_test_case_count do
+                  %{
+                    name: "testFlaky#{i}",
+                    status: "success",
+                    duration: 10,
+                    repetitions: [
+                      %{repetition_number: 1, name: "First Run", status: "failure", duration: 4},
+                      %{repetition_number: 2, name: "Retry 1", status: "success", duration: 6}
+                    ]
+                  }
+                end
+            }
+          ]
+        })
 
       RunsFixtures.optimize_test_case_runs()
 
       result = Tests.get_flaky_runs_for_test_run(test_run.id)
 
-      assert length(result) == 1
-      group = hd(result)
-      assert group.name == "testFlakyExample"
-      # current run + every seeded cross-run match
-      assert length(group.runs) == cross_run_count + 1
+      assert length(result) == flaky_test_case_count
+      assert Enum.all?(result, fn group -> match?([%{repetitions: [_, _]}], group.runs) end)
+    end
 
-      current_run = Enum.find(group.runs, &(&1.id == current_run_id))
-      assert current_run
-      assert length(current_run.failures) == 1
-      assert hd(current_run.failures).message == "Assertion failed"
-      assert length(current_run.repetitions) == 2
-      assert current_run.repetitions |> Enum.map(& &1.name) |> Enum.sort() == ["First Run", "Retry 1"]
+    test "loads failures and repetitions only through put_flaky_run_details/1 when details are skipped" do
+      project = ProjectsFixtures.project_fixture()
 
-      second_chunk_run = Enum.find(group.runs, &(&1.id == second_chunk_run_id))
-      assert second_chunk_run
-      assert length(second_chunk_run.failures) == 1
-      assert hd(second_chunk_run.failures).message == "Second-chunk failure"
-      assert length(second_chunk_run.repetitions) == 1
-      assert hd(second_chunk_run.repetitions).name == "Second-chunk Run"
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "deferred-flaky-details",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ],
+                  failures: [
+                    %{
+                      message: "Assertion failed",
+                      path: "/path/to/test.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert [group] = Tests.get_flaky_runs_for_test_run(test_run.id, details: false)
+      assert [%{failures: %NotLoaded{}, repetitions: %NotLoaded{}}] = group.runs
+      refute Map.has_key?(group, :passed_count)
+
+      assert Tests.put_flaky_run_details([group]) == Tests.get_flaky_runs_for_test_run(test_run.id)
     end
   end
 

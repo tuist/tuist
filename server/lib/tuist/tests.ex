@@ -1285,22 +1285,17 @@ defmodule Tuist.Tests do
   def get_test_case_states_at(project_id, test_case_ids, at) do
     resolved =
       test_case_ids
-      |> Enum.uniq()
-      |> Enum.chunk_every(2_000)
-      |> Enum.flat_map(fn ids ->
-        ClickHouseRepo.all(
-          from(s in TestCaseState,
-            where: s.project_id == ^project_id,
-            where: fragment("? IN (?)", s.test_case_id, type(^ids, {:array, Ecto.UUID})),
-            where: s.inserted_at <= ^at,
-            group_by: s.test_case_id,
-            select: %{
-              test_case_id: s.test_case_id,
-              state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
-              is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
-            }
-          ),
-          multipart: true
+      |> all_by_uuid_chunks(fn ids ->
+        from(s in TestCaseState,
+          where: s.project_id == ^project_id,
+          where: fragment("? IN (?)", s.test_case_id, type(^ids, {:array, Ecto.UUID})),
+          where: s.inserted_at <= ^at,
+          group_by: s.test_case_id,
+          select: %{
+            test_case_id: s.test_case_id,
+            state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
+            is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+          }
         )
       end)
       |> Map.new(&{&1.test_case_id, normalize_test_case_state(&1)})
@@ -1670,56 +1665,71 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  defp fetch_full_test_case_runs([]), do: []
+  # ClickHouse rejects requests with more than `http_max_fields` (1,000) form
+  # fields, and `in ^ids` binds one field per id. `query_fun` receives each
+  # chunk to bind as a single `Array(UUID)` parameter; the chunk size keeps that
+  # parameter below `http_max_field_value_size` (128 KiB).
+  @uuid_lookup_batch_size 2_000
+
+  defp all_by_uuid_chunks(ids, query_fun) do
+    ids
+    |> Enum.uniq()
+    |> Enum.chunk_every(@uuid_lookup_batch_size)
+    |> Enum.flat_map(&ClickHouseRepo.all(query_fun.(&1), multipart: true))
+  end
 
   defp fetch_full_test_case_runs(slim_results) do
+    slim_results
+    |> Enum.chunk_every(@uuid_lookup_batch_size)
+    |> Enum.flat_map(&fetch_full_test_case_runs_chunk/1)
+  end
+
+  defp fetch_full_test_case_runs_chunk(slim_results) do
     ids = Enum.map(slim_results, & &1.id)
 
-    {runs_with_test_case_id, runs_without_test_case_id} =
-      Enum.split_with(slim_results, &(not is_nil(&1.test_case_id)))
-
-    ids_without_test_case_id = Enum.map(runs_without_test_case_id, & &1.id)
-
     # `test_case_runs` is ordered by `(project_id, test_case_id, ran_at, id)`,
-    # so hydrating by `id` alone reads the whole table. Correlating each run's
-    # full primary key turns the hydration into one point read per run. Ecto
-    # cannot compile a tuple `in` against an interpolated list, so the same
-    # condition is expressed as an OR of per-run key equalities, which
-    # ClickHouse still resolves through the primary key. Runs without a test
-    # case id fall back to the id predicate because NULL never matches a key
-    # comparison.
-    key_condition =
-      Enum.reduce(
-        runs_with_test_case_id,
-        dynamic([tcr], tcr.id in ^ids_without_test_case_id),
-        fn run, acc ->
-          dynamic(
-            [tcr],
-            ^acc or
-              (tcr.project_id == ^run.project_id and tcr.test_case_id == ^run.test_case_id and
-                 tcr.ran_at == ^run.ran_at and tcr.id == ^run.id)
-          )
-        end
+    # so hydrating by `id` alone reads the whole table. Constraining the key
+    # prefix to the runs' projects, test cases and `ran_at` span keeps the read
+    # on their primary-key ranges. The key values travel as array parameters
+    # rather than as one OR branch of key equalities per run, which ClickHouse
+    # 26.1 crashes on while evaluating skip indexes. Runs without a test case id
+    # can only be matched by id, because NULL never matches a key comparison.
+    base_query =
+      from(tcr in TestCaseRun,
+        where: fragment("? IN (?)", tcr.id, type(^ids, {:array, Ecto.UUID})),
+        order_by: [desc: tcr.inserted_at]
       )
 
     base_query =
-      from(tcr in TestCaseRun,
-        where: ^key_condition,
-        order_by: [desc: tcr.inserted_at]
-      )
+      if Enum.all?(slim_results, &(not is_nil(&1.test_case_id))) do
+        project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
+        test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
+        {min_ran_at, max_ran_at} = slim_results |> Enum.map(& &1.ran_at) |> Enum.min_max_by(& &1, NaiveDateTime)
+
+        where(
+          base_query,
+          [tcr],
+          fragment("? IN (?)", tcr.project_id, type(^project_ids, {:array, :integer})) and
+            fragment("? IN (?)", tcr.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})) and
+            tcr.ran_at >= ^min_ran_at and tcr.ran_at <= ^max_ran_at
+        )
+      else
+        base_query
+      end
 
     results =
       case inserted_at_by_id(slim_results) do
         nil ->
-          ClickHouseRepo.all(base_query)
+          ClickHouseRepo.all(base_query, multipart: true)
 
         inserted_at_by_id ->
-          inserted_ats = inserted_at_by_id |> Map.values() |> Enum.uniq()
+          {min_inserted_at, max_inserted_at} =
+            inserted_at_by_id |> Map.values() |> Enum.min_max_by(& &1, NaiveDateTime)
 
           versioned_results =
             base_query
-            |> where([tcr], tcr.inserted_at in ^inserted_ats)
-            |> ClickHouseRepo.all()
+            |> where([tcr], tcr.inserted_at >= ^min_inserted_at and tcr.inserted_at <= ^max_inserted_at)
+            |> ClickHouseRepo.all(multipart: true)
 
           versioned_results =
             Enum.filter(versioned_results, fn result ->
@@ -1736,8 +1746,8 @@ defmodule Tuist.Tests do
 
               missing_ids ->
                 base_query
-                |> where([tcr], tcr.id in ^missing_ids)
-                |> ClickHouseRepo.all()
+                |> where([tcr], fragment("? IN (?)", tcr.id, type(^missing_ids, {:array, Ecto.UUID})))
+                |> ClickHouseRepo.all(multipart: true)
             end
 
           versioned_results ++ missing_results
@@ -2158,13 +2168,6 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
-  # Chunk size for the default-branch validation lookup. An alert's triggered
-  # set can be large (a `flakiness_rate < threshold` cleanup rule matches most
-  # of a project's test cases, which can run into tens of thousands). The ids
-  # travel as a single ClickHouse array parameter, so chunking keeps that
-  # parameter's encoded value below ClickHouse's per-request limits.
-  @default_branch_validation_batch_size 2_000
-
   @doc """
   Given a list of test case ids, returns the subset that has at least one
   successful, non-flaky run on the project's default branch. A test case with
@@ -2174,12 +2177,6 @@ defmodule Tuist.Tests do
   """
   def test_case_ids_with_successful_default_branch_run(_project_id, [], _default_branch), do: []
 
-  def test_case_ids_with_successful_default_branch_run(project_id, test_case_ids, default_branch) do
-    test_case_ids
-    |> Enum.chunk_every(@default_branch_validation_batch_size)
-    |> Enum.flat_map(&fetch_validated_test_case_ids_chunk(project_id, &1, default_branch))
-  end
-
   # Reads `test_case_runs_validated_on_branch`, a ReplacingMergeTree fed by the
   # `test_case_runs_validated_on_branch_mv` materialized view holding one marker
   # row per `(project_id, git_branch, test_case_id)` that has ever had a
@@ -2188,22 +2185,18 @@ defmodule Tuist.Tests do
   # instead of scanning every matching run of the raw `test_case_runs` table
   # (which, on busy projects, read millions of rows per evaluation).
   #
-  # Binds the ids as a single `Array(UUID)` parameter via a fragment instead of
-  # `v.test_case_id in ^ids_chunk`. `in` expands to one bound parameter per id,
-  # which overflows ClickHouse's request limits when the triggered set is large.
   # `distinct` collapses any not-yet-merged duplicate marker rows; the schema is
   # borrowed from `TestCaseRun` purely to type the shared columns.
-  defp fetch_validated_test_case_ids_chunk(project_id, ids_chunk, default_branch) do
-    ClickHouseRepo.all(
+  def test_case_ids_with_successful_default_branch_run(project_id, test_case_ids, default_branch) do
+    all_by_uuid_chunks(test_case_ids, fn ids_chunk ->
       from(v in {"test_case_runs_validated_on_branch", TestCaseRun},
         where: v.project_id == ^project_id,
         where: v.git_branch == ^default_branch,
         where: fragment("? IN (?)", v.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
         distinct: true,
         select: v.test_case_id
-      ),
-      multipart: true
-    )
+      )
+    end)
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
@@ -4150,34 +4143,13 @@ defmodule Tuist.Tests do
       |> ClickHouseRepo.all()
       |> Enum.filter(fn run -> MapSet.member?(group_keys, {run.scheme, run.git_commit_sha}) end)
 
-    run_ids = Enum.map(group_runs, & &1.id)
-
-    failures = get_failures_for_runs(run_ids)
-    failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
-
-    repetitions = get_repetitions_for_runs(run_ids)
-    repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
-
+    run_details = fetch_run_details(group_runs)
     runs_by_group = Enum.group_by(group_runs, fn run -> {run.scheme, run.git_commit_sha} end)
 
     flaky_groups =
       Enum.map(groups, fn group ->
         group_key = {group.scheme, group.git_commit_sha}
-        runs = Map.get(runs_by_group, group_key, [])
-
-        runs_with_details =
-          Enum.map(runs, fn run ->
-            run_failures = Map.get(failures_by_run_id, run.id, [])
-
-            run_repetitions =
-              repetitions_by_run_id
-              |> Map.get(run.id, [])
-              |> Enum.sort_by(& &1.repetition_number)
-
-            run
-            |> Map.put(:failures, run_failures)
-            |> Map.put(:repetitions, run_repetitions)
-          end)
+        runs_with_details = runs_by_group |> Map.get(group_key, []) |> put_run_details(run_details)
 
         {passed_count, failed_count} = count_passed_failed(runs_with_details)
 
@@ -4216,28 +4188,7 @@ defmodule Tuist.Tests do
       )
 
     if Enum.any?(group_runs, & &1.is_flaky) do
-      run_ids = Enum.map(group_runs, & &1.id)
-
-      failures = get_failures_for_runs(run_ids)
-      failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
-
-      repetitions = get_repetitions_for_runs(run_ids)
-      repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
-
-      runs_with_details =
-        Enum.map(group_runs, fn run ->
-          run_failures = Map.get(failures_by_run_id, run.id, [])
-
-          run_repetitions =
-            repetitions_by_run_id
-            |> Map.get(run.id, [])
-            |> Enum.sort_by(& &1.repetition_number)
-
-          run
-          |> Map.put(:failures, run_failures)
-          |> Map.put(:repetitions, run_repetitions)
-        end)
-
+      runs_with_details = put_run_details(group_runs, fetch_run_details(group_runs))
       {passed_count, failed_count} = count_passed_failed(runs_with_details)
 
       %{
@@ -4270,84 +4221,120 @@ defmodule Tuist.Tests do
   @doc """
   Gets flaky runs for a specific test run, grouped by test case name.
   Returns a list of groups, each containing runs with their failures.
+
+  See `get_flaky_runs_for_test_runs/2` for the supported options.
   """
-  def get_flaky_runs_for_test_run(test_run_id) do
+  def get_flaky_runs_for_test_run(test_run_id, opts \\ []) do
     [test_run_id]
-    |> get_flaky_runs_for_test_runs()
+    |> get_flaky_runs_for_test_runs(opts)
     |> Map.get(test_run_id, [])
   end
 
   @doc """
-  Batched form of `get_flaky_runs_for_test_run/1`. Returns a map keyed by
+  Batched form of `get_flaky_runs_for_test_run/2`. Returns a map keyed by
   `test_run_id`. The CommentWorker fan-out path resolves N test runs per PR
   comment; using this avoids N round-trips against `test_case_runs_by_test_run`
   during the post-CI burst.
-  """
-  def get_flaky_runs_for_test_runs([]), do: %{}
 
-  def get_flaky_runs_for_test_runs(test_run_ids) when is_list(test_run_ids) do
+  ## Options
+
+    * `:details` - when `false`, the runs' `:failures` and `:repetitions` are
+      not loaded, and groups have no `:passed_count` and `:failed_count`. Pass
+      the groups that are displayed to `put_flaky_run_details/1` to load them.
+      Defaults to `true`.
+  """
+  def get_flaky_runs_for_test_runs(test_run_ids, opts \\ [])
+
+  def get_flaky_runs_for_test_runs([], _opts), do: %{}
+
+  def get_flaky_runs_for_test_runs(test_run_ids, opts) when is_list(test_run_ids) do
     current_by_test_run = fetch_flaky_runs_for_test_runs(test_run_ids)
 
     cross_by_test_run =
       fetch_cross_run_flaky_runs(test_run_ids, current_by_test_run)
 
-    flaky_runs_by_test_run =
+    groups_by_test_run =
       Map.new(test_run_ids, fn test_run_id ->
         current = Map.get(current_by_test_run, test_run_id, [])
         cross = Map.get(cross_by_test_run, test_run_id, [])
-        {test_run_id, current ++ cross}
+        {test_run_id, group_flaky_runs(current ++ cross)}
       end)
 
-    all_run_ids =
-      flaky_runs_by_test_run
-      |> Map.values()
-      |> Enum.flat_map(fn runs -> Enum.map(runs, & &1.id) end)
+    if Keyword.get(opts, :details, true) do
+      run_details =
+        groups_by_test_run
+        |> Map.values()
+        |> Enum.flat_map(&Enum.flat_map(&1, fn group -> group.runs end))
+        |> fetch_run_details()
 
-    failures_by_run_id =
-      all_run_ids |> get_failures_for_runs() |> Enum.group_by(& &1.test_case_run_id)
-
-    repetitions_by_run_id =
-      all_run_ids |> get_repetitions_for_runs() |> Enum.group_by(& &1.test_case_run_id)
-
-    Map.new(flaky_runs_by_test_run, fn {test_run_id, flaky_runs} ->
-      {test_run_id, group_flaky_runs(flaky_runs, failures_by_run_id, repetitions_by_run_id)}
-    end)
+      Map.new(groups_by_test_run, fn {test_run_id, groups} ->
+        {test_run_id, Enum.map(groups, &put_group_run_details(&1, run_details))}
+      end)
+    else
+      groups_by_test_run
+    end
   end
 
-  defp group_flaky_runs(flaky_runs, failures_by_run_id, repetitions_by_run_id) do
+  @doc """
+  Loads the failures and repetitions of every run in the given flaky run
+  groups, as returned by `get_flaky_runs_for_test_runs/2` with
+  `details: false`, and derives each group's pass and fail counts from them.
+  """
+  def put_flaky_run_details(groups) do
+    run_details = groups |> Enum.flat_map(& &1.runs) |> fetch_run_details()
+    Enum.map(groups, &put_group_run_details(&1, run_details))
+  end
+
+  defp group_flaky_runs(flaky_runs) do
     flaky_runs
     |> Enum.group_by(fn run -> {run.test_case_id, run.name, run.module_name, run.suite_name} end)
     |> Enum.map(fn {{test_case_id, name, module_name, suite_name}, runs} ->
-      latest_ran_at = runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime)
-
-      runs_with_details =
-        Enum.map(runs, fn run ->
-          run_failures = Map.get(failures_by_run_id, run.id, [])
-
-          run_repetitions =
-            repetitions_by_run_id
-            |> Map.get(run.id, [])
-            |> Enum.sort_by(& &1.repetition_number)
-
-          run
-          |> Map.put(:failures, run_failures)
-          |> Map.put(:repetitions, run_repetitions)
-        end)
-
-      {passed_count, failed_count} = count_passed_failed(runs_with_details)
-
       %{
         test_case_id: test_case_id,
         name: name,
         module_name: module_name,
         suite_name: suite_name,
-        latest_ran_at: latest_ran_at,
-        passed_count: passed_count,
-        failed_count: failed_count,
-        runs: runs_with_details
+        latest_ran_at: runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime),
+        runs: runs
       }
     end)
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
+  end
+
+  defp put_group_run_details(group, run_details) do
+    runs_with_details = put_run_details(group.runs, run_details)
+    {passed_count, failed_count} = count_passed_failed(runs_with_details)
+
+    Map.merge(group, %{
+      passed_count: passed_count,
+      failed_count: failed_count,
+      runs: runs_with_details
+    })
+  end
+
+  defp fetch_run_details(runs) do
+    run_ids = Enum.map(runs, & &1.id)
+
+    [failures, repetitions] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> get_failures_for_runs(run_ids) end,
+        fn -> get_repetitions_for_runs(run_ids) end
+      ])
+
+    {Enum.group_by(failures, & &1.test_case_run_id), Enum.group_by(repetitions, & &1.test_case_run_id)}
+  end
+
+  defp put_run_details(runs, {failures_by_run_id, repetitions_by_run_id}) do
+    Enum.map(runs, fn run ->
+      run_repetitions =
+        repetitions_by_run_id
+        |> Map.get(run.id, [])
+        |> Enum.sort_by(& &1.repetition_number)
+
+      run
+      |> Map.put(:failures, Map.get(failures_by_run_id, run.id, []))
+      |> Map.put(:repetitions, run_repetitions)
+    end)
   end
 
   # Avoids `FINAL` (which forces a cross-part merge of the entire matched
@@ -4357,21 +4344,22 @@ defmodule Tuist.Tests do
   # Returns a map keyed by `test_run_id` so callers can preserve per-run
   # grouping after the batched query.
   defp fetch_flaky_runs_for_test_runs(test_run_ids) do
-    slim_query =
-      from(mv in TestCaseRunByTestRun,
-        where: mv.test_run_id in ^test_run_ids,
-        group_by: [mv.test_run_id, mv.id],
-        having: fragment("argMax(?, ?) = ?", mv.is_flaky, mv.inserted_at, true),
-        select: %{
-          id: mv.id,
-          test_run_id: mv.test_run_id,
-          project_id: fragment("argMax(?, ?)", mv.project_id, mv.inserted_at),
-          test_case_id: fragment("argMax(?, ?)", mv.test_case_id, mv.inserted_at),
-          ran_at: fragment("argMax(?, ?)", mv.ran_at, mv.inserted_at)
-        }
-      )
+    slim_results =
+      all_by_uuid_chunks(test_run_ids, fn ids_chunk ->
+        from(mv in TestCaseRunByTestRun,
+          where: fragment("? IN (?)", mv.test_run_id, type(^ids_chunk, {:array, Ecto.UUID})),
+          group_by: [mv.test_run_id, mv.id],
+          having: fragment("argMax(?, ?) = ?", mv.is_flaky, mv.inserted_at, true),
+          select: %{
+            id: mv.id,
+            test_run_id: mv.test_run_id,
+            project_id: fragment("argMax(?, ?)", mv.project_id, mv.inserted_at),
+            test_case_id: fragment("argMax(?, ?)", mv.test_case_id, mv.inserted_at),
+            ran_at: fragment("argMax(?, ?)", mv.ran_at, mv.inserted_at)
+          }
+        )
+      end)
 
-    slim_results = ClickHouseRepo.all(slim_query)
     full_by_id = slim_results |> fetch_full_test_case_runs() |> Map.new(&{&1.id, &1})
 
     slim_results
@@ -4388,12 +4376,13 @@ defmodule Tuist.Tests do
   end
 
   # Resolves the "same test_case_id ran on the same commit in OTHER
-  # test_runs" lookup for an entire batch of test_run_ids in one query. The
-  # test cases are already known to be flaky (they come from each run's own
-  # flagged runs); this pulls every run on the commit for them — passes
-  # included — so the grouped view shows the full pass/fail breakdown.
+  # test_runs" lookup for an entire batch of test_run_ids in one query per
+  # chunk of test case ids. The test cases are already known to be flaky (they
+  # come from each run's own flagged runs); this pulls every run on the commit
+  # for them — passes included — so the grouped view shows the full pass/fail
+  # breakdown.
   #
-  # The single ClickHouse query is filtered against the *union* of
+  # The ClickHouse query is filtered against the *union* of
   # per-axis IN sets across the batch, but each test_run's slice of the
   # result is then re-filtered in Elixir against THAT test_run's own
   # per-axis sets. This preserves the per-call semantics — run A only
@@ -4424,14 +4413,15 @@ defmodule Tuist.Tests do
 
       true ->
         all_matches =
-          ClickHouseRepo.all(
+          test_case_ids
+          |> all_by_uuid_chunks(fn ids_chunk ->
             from(tcr in TestCaseRun,
-              where: tcr.project_id in ^project_ids,
-              where: tcr.test_case_id in ^test_case_ids,
-              where: tcr.git_commit_sha in ^commit_shas,
-              order_by: [desc: tcr.ran_at]
+              where: fragment("? IN (?)", tcr.project_id, type(^project_ids, {:array, :integer})),
+              where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
+              where: fragment("? IN (?)", tcr.git_commit_sha, type(^commit_shas, {:array, :string}))
             )
-          )
+          end)
+          |> Enum.sort_by(& &1.ran_at, {:desc, NaiveDateTime})
 
         Map.new(test_run_ids, fn test_run_id ->
           {test_run_id, scope_cross_run_matches(all_matches, test_run_id, per_run_keys)}
@@ -4472,28 +4462,8 @@ defmodule Tuist.Tests do
     {project_ids, test_case_ids, commit_shas}
   end
 
-  # Chunk size for the flaky-run failure/repetition lookups. A flaky test-run
-  # detail page can pull together thousands of related run ids (current run's
-  # repetitions plus cross-run flaky occurrences), and `in ^run_ids` expands to
-  # one scalar query parameter per id — each of which ecto_ch sent as its own
-  # HTTP form field. Past ~1000 ids that overflowed ClickHouse's HTML form
-  # parser ("Too many form fields") and 500'd the page. Binding the ids as a
-  # single `Array(UUID)` parameter via a fragment collapses that to one field
-  # per chunk instead of one per id; chunking keeps each chunk's encoded array
-  # value below ClickHouse's per-parameter size limit.
-  @flaky_run_lookup_batch_size 2_000
-
-  defp get_failures_for_runs([]), do: []
-
   defp get_failures_for_runs(run_ids) do
-    run_ids
-    |> Enum.uniq()
-    |> Enum.chunk_every(@flaky_run_lookup_batch_size)
-    |> Enum.flat_map(&fetch_failures_for_runs_chunk/1)
-  end
-
-  defp fetch_failures_for_runs_chunk(ids_chunk) do
-    ClickHouseRepo.all(
+    all_by_uuid_chunks(run_ids, fn ids_chunk ->
       from(f in TestCaseFailure,
         where: fragment("? IN (?)", f.test_case_run_id, type(^ids_chunk, {:array, Ecto.UUID})),
         select: %{
@@ -4503,22 +4473,12 @@ defmodule Tuist.Tests do
           line_number: f.line_number,
           issue_type: f.issue_type
         }
-      ),
-      multipart: true
-    )
+      )
+    end)
   end
-
-  defp get_repetitions_for_runs([]), do: []
 
   defp get_repetitions_for_runs(run_ids) do
-    run_ids
-    |> Enum.uniq()
-    |> Enum.chunk_every(@flaky_run_lookup_batch_size)
-    |> Enum.flat_map(&fetch_repetitions_for_runs_chunk/1)
-  end
-
-  defp fetch_repetitions_for_runs_chunk(ids_chunk) do
-    ClickHouseRepo.all(
+    all_by_uuid_chunks(run_ids, fn ids_chunk ->
       from(r in TestCaseRunRepetition,
         where: fragment("? IN (?)", r.test_case_run_id, type(^ids_chunk, {:array, Ecto.UUID})),
         select: %{
@@ -4529,9 +4489,8 @@ defmodule Tuist.Tests do
           duration: r.duration,
           source: r.source
         }
-      ),
-      multipart: true
-    )
+      )
+    end)
   end
 
   @doc """
