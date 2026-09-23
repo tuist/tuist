@@ -260,7 +260,8 @@ connection reuse and remote addresses. Requests use ordinary system DNS, not a
 forced failover address; TLS verification remains enabled.
 
 `--latency-only` needs no token and compares system and authoritative DNS with
-three fresh TCP/TLS `/up` requests per box every minute, matching the CLI's probe
+three paired rounds of fresh TCP/TLS `/up` requests per box every minute,
+starting both regions together in each round, matching the CLI's probe
 path. It excludes regional DNS lookup time and is a controlled client-side
 measurement, not historical native-client telemetry. The authenticated mode also
 records a `/ready` latency series. Bound runs with `--duration` (maximum two hours).
@@ -275,3 +276,8 @@ only the injected selector. Require a Ready survivor and healthy DNS records
 before starting. Record actual health/DNS transitions and unchanged-process
 recovery, then verify gateway readiness and restored health. Never treat a
 health-check configuration fault as proof of actual gateway recovery.
+
+For latency comparisons, inspect probe CPU-throttling counters before interpreting
+results. The initial 200m staging probe ceiling throttled fresh TLS handshakes;
+independent probes with a one-core ceiling removed that confound. Retain the
+original series when refining the sampling method, including mismatches.

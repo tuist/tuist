@@ -274,20 +274,31 @@ func measure(ctx context.Context, origin, path string) {
 		system, se := dns(net.DefaultResolver)
 		auth, ae := dns(authority)
 		v := map[string]any{"origin": origin, "path": path, "system_dns": system, "system_error": se, "authoritative_dns": auth, "authoritative_error": ae}
-		latencies := map[string]any{}
-		for _, ip := range boxes {
-			samples := []map[string]any{}
-			for i := 0; i < 3; i++ {
-				c := client("http", ip)
-				_, r, e := request(c, "http", "GET", path, "", nil)
-				c.CloseIdleConnections()
-				if e != nil {
-					r["error"] = e.Error()
-				}
-				samples = append(samples, r)
+		latencies := map[string][]map[string]any{}
+		// Start both destinations together in each round, as the CLI does.
+		// Sequential regions can confuse a short client-side slowdown with
+		// a geographic steering mismatch.
+		for i := 0; i < 3; i++ {
+			var probes sync.WaitGroup
+			var samplesMu sync.Mutex
+			for _, ip := range boxes {
+				probes.Add(1)
+				go func(ip string) {
+					defer probes.Done()
+					c := client("http", ip)
+					_, result, err := request(c, "http", "GET", path, "", nil)
+					c.CloseIdleConnections()
+					if err != nil {
+						result["error"] = err.Error()
+					}
+					samplesMu.Lock()
+					latencies[ip] = append(latencies[ip], result)
+					samplesMu.Unlock()
+				}(ip)
 			}
-			latencies[ip] = samples
+			probes.Wait()
 		}
+		v["sampling"] = "paired_parallel"
 		v["latencies"] = latencies
 		emit("steering", v)
 		select {
