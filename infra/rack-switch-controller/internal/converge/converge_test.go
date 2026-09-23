@@ -240,7 +240,7 @@ func TestLAGsAreCreatedAsLACP(t *testing.T) {
 	fake, engine := newEngine(t, converge.Gates{LAGs: true})
 	connectedTor(fake, 32)
 	rs := torB(32, func(cfg *v1alpha1.SwitchConfig) {
-		cfg.LAGs = []v1alpha1.LAG{{ID: 1, Ports: []int{31, 32}}}
+		cfg.LAGs = []v1alpha1.LAG{{ID: 1, Name: "isl ber1-tor-a", Ports: []int{31, 32}}}
 		cfg.Ports[30].Description = "isl ber1-tor-a"
 	})
 	ctx := context.Background()
@@ -299,6 +299,21 @@ func TestALAGWithTheWrongMembersIsDeletedAndCreatedAgain(t *testing.T) {
 	}
 	if members := fake.Switch(torMAC).LAGs[1]; !reflect.DeepEqual(members, []int{31, 32}) {
 		t.Fatalf("members = %v", members)
+	}
+	if name := fake.Switch(torMAC).Ports[31].Name; name != "lag1" {
+		t.Fatalf("a LAG the spec does not name is named %q, want lag1", name)
+	}
+}
+
+func TestTheControllersRefusalOfANameIsAnError(t *testing.T) {
+	fake, engine := newEngine(t, converge.Gates{})
+	connectedTor(fake, 4)
+	rs := torB(4, func(cfg *v1alpha1.SwitchConfig) { cfg.Ports[1].Description = "uplink (spare)" })
+
+	_, err := engine.Converge(context.Background(), omadatest.SiteID, rs, true)
+	var apiErr *omada.Error
+	if !errors.As(err, &apiErr) || apiErr.Message != "The format of the port or LAG name is invalid." {
+		t.Fatalf("err = %v", err)
 	}
 }
 

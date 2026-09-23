@@ -124,6 +124,12 @@ spec:
                         id:
                           minimum: 1
                           type: integer
+                        name:
+                          description: |-
+                            The group's name, which its members carry as their description. Unset
+                            means lag<id>; the controller refuses an empty one.
+                          pattern: ^[A-Za-z0-9 ._-]{1,32}$
+                          type: string
                         ports:
                           items:
                             type: integer
@@ -153,7 +159,8 @@ spec:
                         description:
                           description: |-
                             Description the port carries. Empty means the controller's own
-                            "Port<n>".
+                            "Port<n>". The controller refuses parentheses in it.
+                          pattern: ^[A-Za-z0-9 ._-]{0,32}$
                           type: string
                         nativeVlan:
                           description: VLAN carried untagged. Unset means the management

@@ -88,7 +88,8 @@ a time:
   profile gives it. The `All` profile carries every site network tagged
   although its `tagNetworkIds` is empty. Measured.
 - `--enable-lags`: creates LACP groups through the first member's port
-  endpoint, named after that member's description or `LAG<id>`; the SX3832's
+  endpoint, with the spec's `name` (the renderer defaults it to `lag<id>`),
+  which the members then carry as their description; the SX3832's
   controller refused a static LAG. A group with some members missing is
   deleted and created again. A group the spec does not have is reported and
   left, since `portList` does not say which LAG a port is in. LAG members are
@@ -100,6 +101,11 @@ a time:
 - `--enable-site-services`: the site-wide LLDP and SNMP settings. Unmeasured
   field names; SNMP is only ever turned off, since the spec carries no
   community or user to turn it on with.
+
+The controller refuses a port or LAG name that is empty or has parentheses in
+it; the CRD admits only `[A-Za-z0-9 ._-]`, up to 32, as the renderer does. A
+write the controller refuses anyway ends the pass with `Converged=False`,
+reason `ConvergeFailed`, carrying its message, and is retried with backoff.
 
 Two measured endpoints it deliberately does not call:
 `POST devices/{mac}/forget` factory-resets a switch and releases it from the

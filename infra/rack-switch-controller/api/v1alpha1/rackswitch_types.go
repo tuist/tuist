@@ -75,6 +75,11 @@ type VLAN struct {
 type LAG struct {
 	// +kubebuilder:validation:Minimum=1
 	ID int `json:"id"`
+	// The group's name, which its members carry as their description. Unset
+	// means lag<id>; the controller refuses an empty one.
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9 ._-]{1,32}$`
+	// +optional
+	Name string `json:"name,omitempty"`
 	// +kubebuilder:validation:MinItems=1
 	Ports []int `json:"ports"`
 }
@@ -84,7 +89,8 @@ type PortConfig struct {
 	// +kubebuilder:validation:Minimum=1
 	Port int `json:"port"`
 	// Description the port carries. Empty means the controller's own
-	// "Port<n>".
+	// "Port<n>". The controller refuses parentheses in it.
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9 ._-]{0,32}$`
 	// +optional
 	Description string `json:"description,omitempty"`
 	// Whether spanning tree runs on the port. Unset follows the port's

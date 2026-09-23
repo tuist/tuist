@@ -580,10 +580,18 @@ func (s *Server) patchPort(sw *Switch, n int, body map[string]any) error {
 	if body["profileId"] != p.ProfileID {
 		return fail(generalError, "Invalid request parameters.")
 	}
+	if name, present := body["name"]; present {
+		if err := checkName(fmt.Sprint(name)); err != nil {
+			return err
+		}
+	}
 	if body["operation"] == "aggregating" {
 		setting, _ := body["lagSetting"].(map[string]any)
 		name, _ := body["name"].(string)
-		if number(setting["lagType"]) != 2 || name == "" {
+		if err := checkName(name); err != nil {
+			return err
+		}
+		if number(setting["lagType"]) != 2 {
 			return fail(generalError, "General error.")
 		}
 		var members []int
@@ -618,6 +626,18 @@ func (s *Server) patchPort(sw *Switch, n int, body map[string]any) error {
 		} else {
 			delete(sw.Overrides, n)
 		}
+	}
+	return nil
+}
+
+// checkName refuses a port or LAG name the way the controller does: empty, or
+// with parentheses in it.
+func checkName(name string) error {
+	if name == "" {
+		return fail(generalError, "The length of the port or LAG name is invalid.")
+	}
+	if strings.ContainsAny(name, "()") {
+		return fail(generalError, "The format of the port or LAG name is invalid.")
 	}
 	return nil
 }

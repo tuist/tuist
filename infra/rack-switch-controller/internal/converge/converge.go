@@ -339,7 +339,7 @@ func (w *writer) lags() error {
 			}
 			w.record(Change{Subject: fmt.Sprintf("LAG %d", lag.ID), To: "deleted, to change its members"})
 		}
-		name := lagName(w.cfg, lag)
+		name := lagName(lag)
 		if err := w.e.Omada.CreateLAG(w.ctx, w.siteID, w.mac, *first, name, lag.ID, lag.Ports); err != nil {
 			return err
 		}
@@ -588,12 +588,12 @@ func (e *Engine) lagMembers(cfg *v1alpha1.SwitchConfig) map[int]bool {
 }
 
 // lagName is the name a LAG is created with, which its members then carry as
-// their description: its first member's description, or LAG<id>.
-func lagName(cfg *v1alpha1.SwitchConfig, lag v1alpha1.LAG) string {
-	if pc := portConfig(cfg, lag.Ports[0]); pc != nil && pc.Description != "" {
-		return pc.Description
+// their description: the spec's, or lag<id> as the renderer defaults it.
+func lagName(lag v1alpha1.LAG) string {
+	if lag.Name != "" {
+		return lag.Name
 	}
-	return fmt.Sprintf("LAG%d", lag.ID)
+	return fmt.Sprintf("lag%d", lag.ID)
 }
 
 // description is the description a port should carry: the spec's, or the

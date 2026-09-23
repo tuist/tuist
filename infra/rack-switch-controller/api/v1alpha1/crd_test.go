@@ -55,10 +55,11 @@ spec:
     vlans:
       - {id: 20, name: storage}
     lags:
-      - {id: 1, ports: [31, 32]}
+      - {id: 1, name: lag1, ports: [31, 32]}
     ports:
       - {port: 1, description: "", spanningTree: true, nativeVlan: 1, taggedVlans: [20]}
-      - {port: 32, description: isl ber1-tor-a}
+      - {port: 31, description: lag1}
+      - {port: 32, description: lag1}
 status:
   observedRevision: 5ef04ee11ceedbe0
   observedGeneration: 1
@@ -183,10 +184,12 @@ func TestAControllerManagedSwitchNeedsItsMAC(t *testing.T) {
 func TestTheSchemaRefusesWhatTheControllerCannotUse(t *testing.T) {
 	validator := schemaValidator(t)
 	cases := map[string]string{
-		"mac: D4-D6-DF-03-D8-B2":                 "spec.mac",
-		"managedBy: someone":                     "spec.managedBy",
-		"config: {spanningTree: pvst}":           "spec.config.spanningTree",
-		"config: {vlans: [{id: 4095, name: x}]}": "spec.config.vlans[0].id",
+		"mac: D4-D6-DF-03-D8-B2":                                      "spec.mac",
+		"managedBy: someone":                                          "spec.managedBy",
+		"config: {spanningTree: pvst}":                                "spec.config.spanningTree",
+		"config: {vlans: [{id: 4095, name: x}]}":                      "spec.config.vlans[0].id",
+		`config: {ports: [{port: 1, description: "uplink (spare)"}]}`: "spec.config.ports[0].description",
+		"config: {lags: [{id: 1, name: '', ports: [1]}]}":             "spec.config.lags[0].name",
 	}
 	base := strings.SplitN(controllerManaged, "  mac:", 2)[0]
 	for field, path := range cases {

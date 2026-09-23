@@ -485,6 +485,26 @@ func TestADisconnectedSwitchIsUnreachableWithUnknownDrift(t *testing.T) {
 	}
 }
 
+func TestARefusedWriteIsAConditionNotACrash(t *testing.T) {
+	rs := rackSwitch("ber1-tor-b", torBMAC, 1, v1alpha1.ManagedByController)
+	rs.Spec.Config.Ports[1].Description = "uplink (spare)"
+	h := newHarness(t, rs)
+	h.connected("ber1-tor-b", torBMAC)
+
+	_, err := h.r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: namespace, Name: "ber1-tor-b"}})
+	if err == nil {
+		t.Fatal("a refused write was not an error, so it would not be retried")
+	}
+	got := h.get("ber1-tor-b")
+	converged := condition(got, v1alpha1.ConditionConverged)
+	if converged.Reason != "ConvergeFailed" || !strings.Contains(converged.Message, "The format of the port or LAG name is invalid.") {
+		t.Fatalf("Converged = %+v", converged)
+	}
+	if got.Status.ObservedRevision == "rev-1" || condition(got, v1alpha1.ConditionReady).Status != metav1.ConditionFalse {
+		t.Fatalf("status = %+v", got.Status)
+	}
+}
+
 func TestASwitchWithoutConfigIsAdoptedButNotConverged(t *testing.T) {
 	rs := rackSwitch("ber1-tor-b", torBMAC, 1, v1alpha1.ManagedByController)
 	rs.Spec.Config = nil
