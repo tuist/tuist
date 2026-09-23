@@ -308,8 +308,8 @@
       text-align: left;
 
       & [data-part="read-only-value"] > code {
-        overflow-wrap: anywhere;
         white-space: normal;
+        overflow-wrap: anywhere;
       }
     }
 
