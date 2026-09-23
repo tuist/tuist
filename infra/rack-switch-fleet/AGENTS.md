@@ -425,8 +425,10 @@ machine.
 
 A switch is a `RackSwitch` in the `tuist.dev` group, so its state is visible next
 to the `RackHost`s behind it rather than only in somebody's terminal. The CRD is
-`infra/helm/tuist/crds/tuist.dev_rackswitches.yaml`, hand-written and in `crds/`
-for the same reasons as `RunnerPool`. Helm only installs that directory on first
+`infra/helm/tuist/crds/tuist.dev_rackswitches.yaml`, generated from the Go types
+in `infra/rack-switch-controller/api/v1alpha1` by
+`mise run rack-switch-controller:generate`, and in `crds/` for the same reasons
+as `RunnerPool`. Helm only installs that directory on first
 install, so `server-deployment.yml` applies it on every deploy, and the Rack
 Switches workflow applies it too before its objects.
 
@@ -447,7 +449,11 @@ the cluster `--context` names (never whatever context happens to be current), wh
 preflight and records drift, reachability, when it was verified and how many of
 the boot's connections have been spent. It is reported against the
 `configRevision` it was measured with, so a status can never be read as applying
-to a revision it did not see.
+to a revision it did not see. A switch whose object says `managedBy: controller`
+is adopted and converged by the rack switch controller, which writes its status
+instead; see [`rack-switch-controller/AGENTS.md`](../rack-switch-controller/AGENTS.md).
+The renderer does not emit `mac`, `managedBy` or `config` yet, so every object
+is standalone until it does.
 
 ### Why this cannot be managed the way a datacentre switch would be
 
@@ -648,8 +654,12 @@ is in the data center. Where that stands on 2026-09-23:
   spanning-tree mode and port descriptions from its render and keeps them
   across a reboot, and with the controller's own lines left out it matches its
   render; see "Switches the controller has adopted".
-- **Not started.** The reconciler that watches `RackSwitch` objects and drives
-  the controller; joining `ber1-edge` to staging as a node, which would let
+- **Built, not yet driving a switch.** The reconciler that watches `RackSwitch`
+  objects and drives the controller,
+  [`infra/rack-switch-controller`](../rack-switch-controller/AGENTS.md),
+  deployed by `omada-deployment.yml`. It acts only on objects with
+  `managedBy: controller`, which the renderer does not emit yet.
+- **Not started.** Joining `ber1-edge` to staging as a node, which would let
   `rack:ztp` and the edge path run as workloads; and a factory-reset run of
   zero touch, for the two questions it left open.
 

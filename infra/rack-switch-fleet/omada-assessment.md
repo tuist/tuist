@@ -184,8 +184,10 @@ with that account's password instead of the key.
 
 ## What the reconciler looks like
 
-Not built. Adoption holds on the TL-SG3452, measured above, and
-`rack:omada apply` is the shell form of its write half for one switch at a time.
+Built as [`infra/rack-switch-controller`](../rack-switch-controller/AGENTS.md),
+from the sketch below; that node records where it differs. Adoption holds on
+the TL-SG3452, measured above, and `rack:omada apply` is the shell form of its
+write half for one switch at a time.
 
 - **It lives in the rack's cluster**, staging while the rack is at home, as one
   replica holding a `Lease` per site, which replaces the laptop-local lock.
