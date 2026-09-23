@@ -131,7 +131,7 @@ func TestEnvtestTheReconcilersStatusIsAdmitted(t *testing.T) {
 		Client:   c,
 		Recorder: record.NewFakeRecorder(100),
 		Engine: &converge.Engine{
-			Omada:             omada.New(fakeOmada.URL, func() (string, string, error) { return creds.ClientID, creds.ClientSecret, nil }),
+			Omada:             omada.New(fakeOmada.URL, func() (string, string, error) { return creds.ClientID, creds.ClientSecret, nil }, fakeOmada.RootCAs()),
 			Site:              omadatest.SiteName,
 			ControllerAddress: controllerAddress,
 		},

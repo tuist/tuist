@@ -19,7 +19,7 @@ import (
 )
 
 const applyUsage = `usage: rack-switch-controller apply --object <RackSwitch yaml> --omada-url <url> --site <omada site>
-       --controller-address <tailnet ip> --credentials-dir <dir> [--enable-...]
+       --controller-address <tailnet ip> --credentials-dir <dir> [--omada-ca-file <pem>] [--enable-...]
 
 Runs the reconciler's steps once for one object, without a cluster: the site
 settings, adoption when the switch is pending, and every write its spec asks

@@ -19,6 +19,10 @@ omada:
   # The address the Omada controller tells adopted switches to connect back
   # to: its tailnet IP, since a switch has no resolver for MagicDNS names.
   controllerAddress: ""
+  # The Secret whose ca.crt the controller's certificate is issued from: the
+  # one infra/helm/omada has cert-manager write, in the same namespace. Only
+  # ca.crt is mounted.
+  caSecret: omada-controller-tls
 
 # How often each switch is read again, which is how drift is noticed.
 resyncInterval: 10m

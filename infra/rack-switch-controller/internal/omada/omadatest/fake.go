@@ -5,7 +5,9 @@
 package omadatest
 
 import (
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -198,6 +200,28 @@ func (s *Server) DeviceHost() string {
 		return ""
 	}
 	return s.deviceHost
+}
+
+// RootCAs trusts the fake's certificate, as a client of the real controller
+// trusts the CA infra/helm/omada issues its certificate from.
+func (s *Server) RootCAs() *x509.CertPool {
+	pool := x509.NewCertPool()
+	pool.AddCert(s.Certificate())
+	return pool
+}
+
+// CertificatePEM is the fake's certificate, for a --omada-ca-file.
+func (s *Server) CertificatePEM() []byte {
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: s.Certificate().Raw})
+}
+
+// SetDeviceHost changes the advertised address as an operator would in the
+// controller's UI.
+func (s *Server) SetDeviceHost(host string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deviceHost = host
+	s.deviceHostOn = true
 }
 
 // SSH is the site's SSH setting.

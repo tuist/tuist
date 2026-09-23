@@ -32,7 +32,7 @@ func newEngine(t *testing.T, gates converge.Gates) (*omadatest.Server, *converge
 	t.Helper()
 	fake := omadatest.New()
 	t.Cleanup(fake.Close)
-	client := omada.New(fake.URL, func() (string, string, error) { return creds.ClientID, creds.ClientSecret, nil })
+	client := omada.New(fake.URL, func() (string, string, error) { return creds.ClientID, creds.ClientSecret, nil }, fake.RootCAs())
 	return fake, &converge.Engine{Omada: client, Site: omadatest.SiteName, ControllerAddress: controllerAddress, Gates: gates}
 }
 

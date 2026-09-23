@@ -36,3 +36,9 @@ omada-controller-helm:
       memory: 1Gi
     limits:
       memory: 2Gi
+
+tls:
+  # The tailnet name the Tailscale operator gives the Service, which the fleet
+  # tooling and `rack-switch-controller apply` reach it by.
+  extraDNSNames:
+    - omada.taild6d7bb.ts.net

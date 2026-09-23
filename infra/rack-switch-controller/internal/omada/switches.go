@@ -7,7 +7,9 @@ import (
 )
 
 // Port is one entry of a switch's portList. The list does not echo a port's
-// VLAN or spanning-tree override, only whether it has one.
+// VLAN or spanning-tree override, only whether it has one, nor which LAG a
+// port is in: a LAG's members carry its name, and nothing else says so
+// (measured on ber1-tor-b, 2026-09-23).
 type Port struct {
 	Port                  int    `json:"port"`
 	Name                  string `json:"name"`
@@ -15,7 +17,6 @@ type Port struct {
 	ProfileName           string `json:"profileName"`
 	ProfileOverrideEnable bool   `json:"profileOverrideEnable"`
 	LAGPort               bool   `json:"lagPort"`
-	LAGID                 *int   `json:"lagId"`
 	Status                int    `json:"status"`
 }
 
@@ -54,13 +55,12 @@ func DefaultLoopback(stp int) Loopback {
 	}
 }
 
-// PortVLANs is the VLAN membership a port carries in place of its profile's.
-// AllNetworks carries every site network tagged, written as the controller's
-// "Allow All" rather than as a list, so networks added later are carried too.
+// PortVLANs is the VLAN membership a port carries in place of its profile's,
+// written as the controller's custom list: its "Allow All" would also carry
+// every network added to the site later.
 type PortVLANs struct {
 	NativeNetworkID  string
 	TaggedNetworkIDs []string
-	AllNetworks      bool
 }
 
 // PortOverride is what a port carries in place of its profile's. A nil field
@@ -129,13 +129,9 @@ func (c *Client) OverridePort(ctx context.Context, siteID, mac string, port Port
 		}
 		body["profileVlanOverrideEnable"] = true
 		body["nativeNetworkId"] = v.NativeNetworkID
-		if v.AllNetworks {
-			body["networkTagsSetting"] = 0
-		} else {
-			body["networkTagsSetting"] = 2
-			body["tagNetworkIds"] = tagged
-			body["untagNetworkIds"] = []string{}
-		}
+		body["networkTagsSetting"] = 2
+		body["tagNetworkIds"] = tagged
+		body["untagNetworkIds"] = []string{}
 	}
 	if override.SpanningTree != nil {
 		body["spanningTreeEnable"] = *override.SpanningTree
