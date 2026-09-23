@@ -106,11 +106,10 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     remote = %{
       "id" => 42,
       "status" => "running",
-      "pipeline" => %{"id" => 5, "project_id" => 123},
+      "pipeline" => %{"id" => 5, "project_id" => 123, "source" => "push"},
       "commit" => %{"id" => "abc"},
       "ref" => "main",
-      "tag" => false,
-      "source" => "push"
+      "tag" => false
     }
 
     {job, payload, remote}
@@ -190,8 +189,10 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     branches = [%{"name" => "main", "default" => true}]
     assert Identity.gitlab_writer?(remote, branches)
 
-    for source <- ["merge_request_event", "external_pull_request_event", "parent_pipeline", nil] do
-      refute Identity.gitlab_writer?(%{remote | "source" => source}, branches)
+    for source <- ["merge_request_event", "external_pull_request_event", "parent_pipeline", "api", nil] do
+      denied = put_in(remote, ["pipeline", "source"], source)
+      refute Identity.gitlab_writer?(denied, branches)
+      refute Identity.gitlab_writer?(Map.put(denied, "source", "push"), branches)
     end
 
     refute Identity.gitlab_writer?(%{remote | "tag" => true}, branches)
@@ -199,5 +200,19 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     refute Identity.gitlab_writer?(remote, [%{"name" => "main", "default" => false}])
     refute Identity.gitlab_writer?(remote, [nil, %{}, "invalid"])
     refute Identity.gitlab_writer?(remote, nil)
+  end
+
+  test "GitLab supports older job responses with only a top-level source" do
+    {_job, _payload, remote} = gitlab()
+    branches = [%{"name" => "main", "default" => true}]
+    remote = update_in(remote, ["pipeline"], &Map.delete(&1, "source"))
+
+    for source <- ["push", "schedule", "web"] do
+      assert Identity.gitlab_writer?(Map.put(remote, "source", source), branches)
+      assert Identity.gitlab_writer?(put_in(remote, ["pipeline", "source"], source), branches)
+    end
+
+    refute Identity.gitlab_writer?(remote, branches)
+    refute Identity.gitlab_writer?(Map.put(remote, "source", "api"), branches)
   end
 end

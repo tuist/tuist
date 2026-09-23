@@ -149,7 +149,7 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   def gitlab_identity(_, _, _), do: {:error, :unavailable}
 
   def gitlab_writer?(remote, branches) when is_list(branches) do
-    remote["tag"] == false and remote["source"] in ["push", "schedule", "web"] and
+    remote["tag"] == false and gitlab_pipeline_source(remote) in ["push", "schedule", "web"] and
       Enum.any?(branches, fn
         %{"name" => name, "default" => true} -> name == remote["ref"]
         _ -> false
@@ -157,4 +157,7 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   end
 
   def gitlab_writer?(_, _), do: false
+
+  defp gitlab_pipeline_source(%{"pipeline" => %{"source" => source}}), do: source
+  defp gitlab_pipeline_source(remote), do: remote["source"]
 end

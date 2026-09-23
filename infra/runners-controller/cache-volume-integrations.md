@@ -98,7 +98,9 @@ permission from the mount request or job environment.
   canonical instance digest and immutable project ID. Find the exact branch
   with an escaped anchored regex through the
   [branches listing API](https://docs.gitlab.com/api/branches/); require its
-  `default` flag and an allowed job `source`, with `tag == false`, to save.
+  `default` flag and an allowed job `pipeline.source`, with `tag == false`, to
+  save. Use the older top-level `source` only when the nested field is absent;
+  an unknown or denied nested source cannot fall back to a permissive value.
   Both endpoints are available to [job tokens](https://docs.gitlab.com/ci/jobs/ci_job_token/).
   `CI_PROJECT_ID`, `CI_DEFAULT_BRANCH` and other overridable variables grant
   no authority. A GitLab instance without the source field cannot grant save
