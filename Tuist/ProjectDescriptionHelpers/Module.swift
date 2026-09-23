@@ -1645,8 +1645,17 @@ public enum Module: String, CaseIterable {
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .generateCommand,
-                 .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android, .reapi:
+                 .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
                 []
+            case .runnerCommand:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                ]
             case .xcodeGraph:
                 []
             case .testSupport, .logging:

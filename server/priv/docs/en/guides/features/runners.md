@@ -54,7 +54,6 @@ and account administration for clearing.
 tuist runner volume list --name gradle-dependencies --repository acme/android --sort-by used_space --sort-order desc --page-size 20 --json
 tuist runner volume show VOLUME_UUID
 tuist runner volume jobs VOLUME_UUID --page 2
-tuist runner volume for-job JOB_ID
 tuist runner volume analytics --volume VOLUME_UUID --start 2026-09-01T00:00:00Z --end 2026-09-08T00:00:00Z --json
 tuist runner volume clear VOLUME_UUID --yes
 ```
@@ -63,10 +62,12 @@ The `--name` and `--repository` filters match exactly; combine them to require b
 Use `--account` to override the configured account or when running outside a configured project.
 Omit `--volume` for account-wide analytics. The default range is the last seven
 days; an explicit range must be ordered, at most 90 days, and end no later than
-now. Pagination starts at 1 and accepts up to 100 rows per page. Use the Tuist job
-identifier shown in the dashboard for `for-job`, including for Buildkite and GitLab.
+now. Pagination starts at 1 and accepts up to 100 rows per page. Inventory and job
+history use interactive tables; details and analytics use readable summaries.
 `--path` selects a project's configuration and server URL. `--json` includes
 pagination metadata; unknown optional values are omitted by the CLI's JSON encoder.
+To look up volumes mounted by a specific job, use the API or MCP with the Tuist
+job identifier shown in the dashboard, including for Buildkite and GitLab.
 
 The API paths below are relative to `/api/accounts/{account_handle}/runners`:
 
