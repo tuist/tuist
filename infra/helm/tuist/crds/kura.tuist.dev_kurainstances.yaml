@@ -295,6 +295,15 @@ spec:
                 cpuAutosize:
                   type: object
                   properties:
+                    samplesMilli:
+                      type: array
+                      maxItems: 10
+                      items:
+                        type: integer
+                        format: int32
+                    sampledAt:
+                      type: string
+                      format: date-time
                     requestMilli:
                       type: integer
                       format: int32
