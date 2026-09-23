@@ -2,7 +2,7 @@
 
 Cluster API infrastructure provider that joins Scaleway and OVH nodes as
 workers into the existing caph/Hetzner clusters, surfaced through
-CAPI's standard Machine/MachineDeployment shape. It manages five
+CAPI's standard Machine/MachineDeployment shape. It manages these
 machine kinds:
 
 - `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
@@ -12,6 +12,11 @@ machine kinds:
   loop as the Scaleway kind; the host comes from a `RackHost` in the
   cluster's own inventory rather than a vendor API, and its reboot is
   a PDU outlet. See "Rack-owned hosts" below.
+- `RackLinuxMachine`: x86 Linux machines **we own** in the same rack (the
+  BER1 edge, services and storage nodes), claimed from `RackLinuxHost`
+  inventory, joined over their own tailnet address with a kubeadm
+  `system:node` identity and kept converged. See "Rack-owned Linux hosts"
+  below.
 - `ScalewayElasticMetalMachine` — Scaleway Linux bare metal (e.g. the
   `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
   has no user-data channel); adopts a pre-ordered box and
@@ -44,6 +49,8 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `RackAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
+| `RackLinuxMachine` (+ `…Template`) | One rack Linux node: node labels, taints, `adoptPool`, `fleetName`. No host identity. |
+| `RackLinuxHost` | One x86 Linux machine we own: pool, role, site, the tailnet tags its install stick joins it with. Status carries its current tailnet device. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
 | `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (the us-east / us-west / ap-southeast cache regions and the Gravelines runner pool): adopts a pre-prepped box by displayName prefix, `fleetName`, `nodeTaints`. Reinstall-on-release. |
@@ -51,7 +58,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
-`samm`, `sammt`, `sasc`, `rasm`, `rasmt`, `rh`.
+`samm`, `sammt`, `sasc`, `rasm`, `rasmt`, `rh`, `rlm`, `rlmt`, `rlh`.
 
 Every kind above is generated from the annotated types in
 [`api/v1alpha1/`](api/v1alpha1/) by
@@ -577,6 +584,72 @@ kubectl rollout restart deploy/capi-controller-manager -n capi-system
 
 Nothing else reconciles the old kind, so this is log volume rather than a fleet
 fault, and no fleet changes across the restart.
+
+## Rack-owned Linux hosts
+
+`RackLinuxMachine` joins x86 Linux machines we own (the BER1 MS-01s) and keeps
+them converged. Its inventory is `RackLinuxHost`, rendered from
+`rackLinuxFleet.hosts`, one MachineDeployment per role. How a box is installed
+is in [`infra/rack-nodes/AGENTS.md`](../rack-nodes/AGENTS.md).
+
+**The first dial is the host's own tailnet address.** The install stick joins
+the host to the tailnet with a single-use tagged key, so no subnet router is
+involved: `RackLinuxHostReconciler` finds the device through the Tailscale API
+(its OS hostname is the host's name and it carries every tag in
+`spec.tailnet.tags`), and the machine reconciler dials it through an egress
+Service, `rack-linux-<host>` in the egress namespace, annotated
+`tailscale.com/tailnet-ip`. The operator reads the OAuth client from
+`--rack-linux-tailscale-secret-name` (`client-id`, `client-secret`, Devices Core
+scope on the rack tags). The operator never touches tailscaled, so a session
+over the host's own tailnet identity is safe.
+
+**Every install registers a new device.** Once the newest device is connected
+and an older one with the same name and tags is not, the host controller deletes
+the older one and renames the newest to the host's name. Two connected devices
+are left alone and reported as `DuplicateDevices`. The machine reconciler keys
+reinstalls off the device ID: a new one re-pins the SSH host key.
+
+**The kubelet's identity is `system:node:<host>`, not an operator-minted
+ServiceAccount.** The converge script exits 42 when the kubelet has no valid
+client certificate; the reconciler then deletes a stale Node of that name (only
+one with this host's providerID, or none), mints a one-hour kubeadm bootstrap
+token labelled `tuist.dev/bootstrap-node`, runs the script again with a
+bootstrap kubeconfig, and deletes the token once the kubelet holds its
+certificate. kubeadm's bindings approve the CSR and later rotations. The labels
+(`node.cluster.x-k8s.io/instance-type=rack`, `cilium.io/no-schedule=true`, the
+role's), the taints, the providerID (`rack-linux://<site>/<host>`) and the local
+CNI (`10.254.254.0/24`) are all in place before the kubelet first starts.
+
+**One script does the join, the drift repair and the upgrades**
+(`rack_linux_converge.go`). It writes only files whose content differs, restarts
+containerd or the kubelet when their configuration changed, when they are not
+running, or when the host has not finished a converge of this configuration
+(`/var/lib/tuist/rack-converge.hash`), and installs exactly the kubelet release
+the control plane runs, never downgrading. It exits 43 on a host kubeadm joined.
+The reconciler converges when the rendered configuration's hash changes (an
+operator image, a control plane patch release, a new tailnet address), on a new
+tailnet device, every five minutes while the Node is NotReady, and hourly
+regardless; failures back off from one minute to thirty. A control plane on a
+minor other than the operator's `KubernetesMinor` holds converges
+(`ConvergeHeld`) until the operator renders for it. Before any converge it
+refuses while `kube-system/cilium` would schedule onto a node carrying
+`cilium.io/no-schedule=true`.
+
+**Deleting a Machine** stops the host's kubelet and removes its certificate over
+SSH (bounded, best effort), then deletes the Node, the egress Service and the
+host key pin, and releases the claim. A host that is off keeps its kubelet and
+re-registers its Node when it returns; reinstall it to retire it. The
+MachineDeployment's replacement claims the same host and joins it afresh, which
+is how to force a re-join.
+
+```bash
+kubectl get rlh                     # hosts: pool, role, tailnet address, connected, claim
+kubectl get rlm -o wide             # machines: host, phase, last converge
+kubectl describe rlm <name>         # HostConverged / TailnetReady / NodeReady, events
+```
+
+The API server cannot reach a kubelet at a tailnet address, so `kubectl logs`
+and `exec` time out for these nodes, as for the Mac minis.
 
 ## Host macOS updates
 

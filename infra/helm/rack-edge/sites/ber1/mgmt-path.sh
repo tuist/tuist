@@ -6,7 +6,7 @@ if ip route show default | awk '{for (i = 1; i < NF; i++) if ($i == "dev") print
   exit 1
 fi
 if [ "$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
-  echo "net.ipv4.ip_forward is off; rack:edge-join turns it on" >&2
+  echo "net.ipv4.ip_forward is off; the node's converge turns it on" >&2
   exit 1
 fi
 ip link set enp87s0 up

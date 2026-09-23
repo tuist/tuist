@@ -220,7 +220,7 @@ mise run rack:fleet ports [device]          # what is plugged into each port
 mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
 mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credentials]  # zero touch
-mise run rack:edge-join --context <ctx>     # the edge node into the rack's cluster, for the rack-edge pod
+mise run rack:write-install-usb <disk> --host <node>   # a stick that makes a rack Linux host a node (infra/rack-nodes)
 mise run rack:omada controller|devices|inform|adopt|apply|api [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
 ```
@@ -692,11 +692,12 @@ is in the data center. Where that stands on 2026-09-23:
   switch whose MAC an object names, writes the management address and the
   rest of the render through the Open API, and reports status. Deployed by
   `omada-deployment.yml`. All three objects now say `managedBy: controller`.
-- **The edge node is a node.** `ber1-edge` joined staging on 2026-09-23
-  (`rack:edge-join`), and the switches' path and their DHCP run there as the
-  rack-edge DaemonSet rather than as systemd units; see "The edge node" below.
-  A reboot of `ber1-edge` with no units left brought the path and DHCP back
-  from the pod within half a minute of boot.
+- **The edge node is a node.** `ber1-edge` is a `RackLinuxMachine` of staging:
+  installed from a stick, on the tailnet by itself, joined and kept converged
+  by the operator ([`infra/rack-nodes`](../rack-nodes/AGENTS.md)). The
+  switches' path and their DHCP run there as the rack-edge DaemonSet; see "The
+  edge node" below. A reboot of `ber1-edge` brought the path and DHCP back from
+  the pod within half a minute of boot.
 
 ## The edge node
 
@@ -726,27 +727,28 @@ NET_BIND_SERVICE for dnsmasq) rather than privileged. Its image
 (`edge/Dockerfile`, built by `rack-edge-image.yml`) carries only dnsmasq,
 iproute2 and nftables.
 
-A new edge node, once Ubuntu is installed and the site definition names it
-(`management.edge.ssh`, `.interface`, `.address`):
+A new edge node is declared in `rackLinuxFleet.hosts` of the tuist chart's
+values for the rack's environment, with the `edge` role, whose
+`tuist.dev/rack-edge=<site>` label and taint keep everything but the rack-edge
+pod off it (the node exporter tolerates everything and uses host networking
+too). Then it is installed from a stick and needs nothing else:
 
 ```
-mise run rack:edge-join --context <kube context> --dry-run
-mise run rack:edge-join --context <kube context>
+mise run rack:write-install-usb <disk> --host <node>
 ```
 
-It installs Tailscale when it is missing and says how to join the tailnet,
-which is the one step that needs a person. It refuses until the cluster's
-Cilium agent stays off nodes labelled `cilium.io/no-schedule=true`: the edge
-node's own networks sit inside the pod CIDR (staging gave `192.168.0.0/24`,
-the house network, to a runner node), and an agent would route them into the
-tunnel and cut the node off. Then kubeadm's join, with a one-hour bootstrap
-token it deletes afterwards, the node's tailnet address as its InternalIP, the
-labels `tuist.dev/rack-edge=<site>`, `node.cluster.x-k8s.io/instance-type=rack`
-and `cilium.io/no-schedule=true`, and the taint `tuist.dev/rack-edge=<site>`,
-so only the rack-edge pod lands there (and the node exporter, which tolerates
-everything and uses host networking too). The kubelet gets a local CNI
-configuration in `10.254.254.0/24`, used by nothing, so it reports Ready.
-`--leave` deletes the node and resets kubeadm.
+The node joins the tailnet on first boot, and the operator joins it to the
+cluster over the tailnet as a `RackLinuxMachine`, with the tailnet address as
+its InternalIP, and keeps it converged; see
+[`infra/rack-nodes`](../rack-nodes/AGENTS.md). Every rack Linux node carries
+`cilium.io/no-schedule=true` and a local CNI configuration in
+`10.254.254.0/24`, used by nothing, so it reports Ready: the edge node's own
+networks sit inside the pod CIDR (staging gave `192.168.0.0/24`, the house
+network, to a runner node), and a Cilium agent would route them into the tunnel
+and cut the node off. The operator refuses to join it until the cluster's
+Cilium agent stays off that label. The site definition names the node for the
+fleet commands that reach it (`management.edge.ssh`, `.interface`,
+`.address`).
 
 **Reading the pod's logs.** The API server cannot reach the kubelet at a tailnet
 address, the same as for the Mac minis, so `kubectl logs` and `exec` time out

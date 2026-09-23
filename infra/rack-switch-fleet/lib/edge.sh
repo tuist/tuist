@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # What the rack's edge node runs for the switches, rendered from the site
 # definition into infra/helm/rack-edge/sites/<site>/, where the rack-edge
-# DaemonSet picks it up on the node rack:edge-join labelled for the site.
+# DaemonSet picks it up on the site's edge node.
 #
 # The switches reach the Omada controller, which lives in a cluster on the
 # tailnet, by a static route to the tailnet's range via the edge node's address;
@@ -74,7 +74,7 @@ if ip route show default | awk '{for (i = 1; i < NF; i++) if (\$i == "dev") prin
   exit 1
 fi
 if [ "\$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
-  echo "net.ipv4.ip_forward is off; rack:edge-join turns it on" >&2
+  echo "net.ipv4.ip_forward is off; the node's converge turns it on" >&2
   exit 1
 fi
 ip link set $interface up
