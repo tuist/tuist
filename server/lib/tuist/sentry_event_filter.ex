@@ -25,6 +25,16 @@ defmodule Tuist.SentryEventFilter do
     false
   end
 
+  # When a LiveView raises a 4xx exception (e.g. NotFoundError) during a
+  # connected mount, such as a live navigation to a missing docs page,
+  # LiveView reloads the page and re-raises it as a ReloadError from the
+  # static render. The original exception is already ignored above, so its
+  # reload wrapper carries no signal either.
+  def before_send(%Sentry.Event{original_exception: %Phoenix.LiveView.ReloadError{plug_status: status}})
+      when status in 400..499 do
+    false
+  end
+
   def before_send(event) do
     event
     |> QueryErrorContext.enrich_event()
