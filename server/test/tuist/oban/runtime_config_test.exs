@@ -19,6 +19,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
   alias Tuist.Runners.Workers.StaleQueuedJobsWorker
+  alias Tuist.Sandboxes.Workers.RetentionWorker
   alias Tuist.Slack.Workers.ReportWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
@@ -130,6 +131,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert ExpireStaleTestRunsWorker in workers
         assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
+        assert RetentionWorker in workers
 
         refute ExpireInteractiveSessionsWorker in workers
         refute DailySlackReportWorker in workers
@@ -262,6 +264,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert ExpireStaleTestRunsWorker in workers
         assert SweepPendingTestCaseRunFlakyCorrectionsWorker in workers
         assert PruneArchivedLogsWorker in workers
+        assert RetentionWorker in workers
 
         assert ExpireInteractiveSessionsWorker in workers
         assert DailySlackReportWorker in workers

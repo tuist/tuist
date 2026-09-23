@@ -43,6 +43,20 @@ spec:
         - protocol: TCP
           port: metrics
     {{- end }}
+    {{- if .Values.sandboxes.enabled }}
+    # sandboxd daemons dial the node WebSocket, and the sandboxes behind
+    # them reach the API through the daemon Pod's NAT.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.sandboxes.namespace | default "tuist-sandboxes" | quote }}
+          podSelector:
+            matchLabels:
+              tuist.dev/sandboxd: "true"
+      ports:
+        - protocol: TCP
+          port: http
+    {{- end }}
   egress:
     - to:
         - namespaceSelector:
