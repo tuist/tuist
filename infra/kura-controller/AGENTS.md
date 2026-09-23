@@ -82,12 +82,13 @@ Runner sizing uses the existing account disk policy and plan memory/CPU profiles
 ## Stable cache DNS
 
 The stable chart tests render the actual canary and production overlays with
-distinct DNS owners and separate ESO credentials. Certificate promotion tests
-exercise the deployment script against pending, stale, and current certificates
-without contacting Kubernetes; an old Ready condition cannot advance the cascade.
+distinct DNS owners and separate ESO credentials. Certificate readiness tests
+exercise the operator bootstrap script against pending, stale, and current
+certificates without contacting Kubernetes; an old Ready condition cannot pass
+the rollout check. Routine deployments do not run that check.
 
-Repeatable staging probes live in their own module at
-[`../cache-dns/probes`](../cache-dns/probes/AGENTS.md), outside the controller build.
+The staging validation checklist and immutable links to one-off probe sources
+and completed evidence live in [`../cache-dns/README.md`](../cache-dns/README.md).
 
 `controllers/stable_endpoint.go` separates rendering from latency-record advertising. Managed host-network instances add `stableHost`, `stableAdvertise`, and `stableAWSRegion`; private instances cannot advertise. Probe the actual gateway using stable SNI before publishing, then require the exact provider record for readiness. Regional TLS keeps its working wildcard while stable TLS is pending. Host-network Ingresses use annotation-only external-dns sourcing, making DNSEndpoints authoritative.
 

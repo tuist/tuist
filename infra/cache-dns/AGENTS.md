@@ -7,7 +7,8 @@ retained on stack deletion. No workflow applies it automatically.
 Keep bootstrap, rollback, and the repeatable staging test sequence in `README.md`.
 Preserve completed evidence with the PR rather than adding point-in-time logs
 to the tree; the README links the immutable staging validation record.
-Repeatable tools have their own Go module: [probes/AGENTS.md](probes/AGENTS.md).
+One-off probe sources are preserved at an immutable revision linked from the
+README; they are not maintained runtime or CI tools.
 The controller owns box health checks; external-dns alone writes account A/TXT
 records; cert-manager writes ACME TXT challenges. Do not combine their credentials.
 
@@ -20,11 +21,6 @@ generation. Complete initial issuance serially before the merge rollout;
 routine deployments do not wait for certificates. The controller's TLS probe
 remains the runtime advertising safeguard.
 
-`probes/cmd/staging-probe` validates readiness and authenticated HTTP/REAPI blob round trips
-against staging hosts only. It keeps TLS verification enabled when pinning a box
-IP, accepts tokens through a local file, and writes credential-free JSONL evidence.
-Its embedded `reapi-smoke.proto` is the minimal wire-compatible CAS schema used by grpcurl.
-
 `staging-ci-smoke.sh` is the public stable-endpoint mode of the existing Linux
 runner smoke workflow. It rejects any server or project outside the spec95
 staging fixture, removes the private runner endpoint override, asserts the API
@@ -35,7 +31,3 @@ Use `runner_label=ubuntu-latest` for an external public-endpoint CI soak. The
 staging self-hosted runner policy denies public Kura node IPs as Cilium
 `remote-node` destinations when the private endpoint override is removed;
 do not weaken that policy to make this public-client check pass.
-
-`probes/cmd/staging-soak` adds bounded persistent-connection and
-DNS/latency evidence for the fixed staging fixture. Distinguish its fresh
-TCP/TLS readiness timings from historical native-client `/up` telemetry.

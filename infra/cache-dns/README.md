@@ -212,39 +212,21 @@ The server checks used isolated local PostgreSQL and ClickHouse test databases.
 These checks do not establish real Route53 propagation, public resolver steering,
 ACME issuance, ingress reloads, or client HTTP/gRPC behavior against the new name.
 
-## Repeatable staging probes
+## Staging validation tools and evidence
 
-`probes/cmd/staging-probe` has its own Go module and
-requires grpcurl at runtime. It refuses non-staging
-hostnames and requires the hostname to match the test account. Use a short-lived,
-project-scoped cache token in a local file with permissions `0600`; do not commit
-it or put its value in command arguments. Each invocation emits JSONL with UTC
-timestamps, transport status, latency, target IP where available, and verified
-artifact digests. HTTP probes use the Gradle cache route; gRPC probes perform
-REAPI `BatchUpdateBlobs`/`BatchReadBlobs`, checking both RPC result codes and bytes.
-These protocol probes complement actual client builds; they do not replace them.
+The initial rollout used purpose-built HTTP/REAPI round-trip and persistent-
+connection probes restricted to the spec 95 staging fixture. They are not runtime
+or CI dependencies and are not maintained in this tree. Their sources and usage
+remain available at the [validation tooling revision](https://github.com/tuist/tuist/tree/9e8963e9a0052b925609838c3b5b9d4acceecfa9/infra/cache-dns/probes)
+and its [runbook](https://github.com/tuist/tuist/blob/9e8963e9a0052b925609838c3b5b9d4acceecfa9/infra/cache-dns/README.md#repeatable-staging-probes).
+If repeating those experiments, use a separate checkout of that revision, verify
+that the fixture still exists, and supply a fresh project-scoped token; recorded
+hosts and IPs describe the original setup. Keep TLS verification enabled and
+credentials out of command arguments and logs. Protocol probes complement real
+client builds rather than replacing them.
 
-```bash
-cd infra/cache-dns/probes
-GOWORK=off go build -o /tmp/staging-probe ./cmd/staging-probe
-/tmp/staging-probe roundtrip \
-  --host kura-spec95-e2e-staging.cache.tuist.dev \
-  --account kura-spec95-e2e --project probe \
-  --token-file /path/to/local-token \
-  --write-ip PARIS_BOX_IP --read-ip MONTREAL_BOX_IP
-```
-
-Omit both IP flags to exercise real DNS. Pin both to the same box to prove each
-region serves the stable SNI independently, or use different boxes to verify
-replication. Run `ready` without a token for TLS/readiness checks. Use
-`--repeat N --interval 5s` to collect continuous traffic evidence during lifecycle
-operations. The harness stops on an error so a failed request cannot disappear
-inside an otherwise green summary; capture stderr and the process exit status too.
-For the regional baseline, pass the other region's hostname as `--read-host`;
-stable-name probes deliberately use the same hostname on both boxes.
-
-See [the staging validation record](https://github.com/tuist/tuist/blob/0e7cc8d2dcce18012377f3d6efa9656b1e23b17e/infra/cache-dns/staging-validation.md) for completed checks,
-the exact deployment revision, and outstanding prerequisites.
+See [the staging validation record](https://github.com/tuist/tuist/blob/0e7cc8d2dcce18012377f3d6efa9656b1e23b17e/infra/cache-dns/staging-validation.md)
+for completed checks, exact deployment revisions, and coverage limits.
 
 ## Staging validation checklist
 
@@ -280,22 +262,15 @@ retains deleted references for several days, so a cold return cannot recreate
 one using only its deterministic box identity. Existing legacy checks remain
 adoptable; uncertain create retries retain their reference to avoid duplicates.
 
-### Bounded staging outage and steering harness
+### Gateway outage and steering checks
 
-`GOWORK=off go run ./cmd/staging-soak --origin <location> --token-file <private-file>` (from
-`infra/cache-dns/probes`) keeps HTTP/1.1 and HTTP/2 REAPI transports alive for one
-hour against **only** `kura-spec95-e2e-staging.cache.tuist.dev`. It seeds a small
-fixture on both boxes, checks downloaded bytes every two seconds, and records
-connection reuse and remote addresses. Requests use ordinary system DNS, not a
-forced failover address; TLS verification remains enabled.
-
-`--latency-only` needs no token and compares system and authoritative DNS with
-three paired rounds of fresh TCP/TLS `/up` requests per box every minute,
-starting both regions together in each round, matching the CLI's probe
-path. It excludes regional DNS lookup time and is a controlled client-side
-measurement, not historical native-client telemetry. The authenticated mode also
-records a `/ready` latency series. Bound runs with `--duration` (maximum two hours).
-Keep the fixture IP list current; do not generalize the harness to production.
+For outage validation, keep authenticated HTTP/1.1 and HTTP/2 REAPI connections
+alive across the failure, verify downloaded bytes, and record connection reuse,
+remote addresses, and recovery time without restarting the clients. Use ordinary
+DNS and verified TLS. For steering comparisons, pair system and authoritative DNS
+answers with fresh TCP/TLS `/up` timings to each serving region. Distinguish these
+measurements from historical native-client telemetry and bound the experiment's
+duration. The archived tools above implement the original staging experiment.
 
 Before a gateway drill, inventory every Ingress and KuraInstance on its ingress
 class and every DNS record referencing its health check. A fixture-only gateway
