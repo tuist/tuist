@@ -13,8 +13,9 @@ The controller owns box health checks; external-dns alone writes account A/TXT
 records; cert-manager writes ACME TXT challenges. Do not combine their credentials.
 
 Managed canary enables stable advertising and hand-out on merge. Production
-prepares the same infrastructure but requires the `kura_stable_hostname`
-FunWithFlags account/global opt-in; absent is off. Keep that gate on both intent
+and staging prepare the same infrastructure but require the `kura_stable_hostname`
+FunWithFlags account/global opt-in; absent is off. This is the only server rollout
+control: no environment toggle or account allowlist. Keep that gate on both intent
 and hand-out. Operators use `wait-for-certificate.sh` during initial bootstrap
 and hostname changes to verify both wildcard names and Ready at the current
 generation. Complete initial issuance serially before the merge rollout;

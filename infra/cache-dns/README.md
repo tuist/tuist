@@ -2,9 +2,10 @@
 
 Implements [Atlas spec 95](https://atlas.tuist.dev/engineering/specs/95).
 Chart defaults remain off. Managed overlays prepare DNS infrastructure in all
-three environments. Staging restricts activation to its validation accounts;
-canary enables eligible accounts on merge; production requires the
-`kura_stable_hostname` account feature flag, which is off when absent.
+three environments. Canary enables eligible accounts on merge. Staging and
+production use the `kura_stable_hostname` FunWithFlags account/global flag as
+the sole rollout control; absent is off. No server environment toggle or
+account-name allowlist is required.
 
 ## Managed rollout on merge
 
@@ -37,10 +38,10 @@ this certificate. The controller independently verifies HTTPS with the stable
 hostname before advertising any endpoint, so pending issuance keeps accounts
 on their regional URLs.
 
-Both canary and production enable the infrastructure and hand-out environment
-switches. Canary requires no account flag. In production, an absent or disabled
-`kura_stable_hostname` flag keeps accounts on regional URLs and creates no stable
-DNS advertising intent. Use the existing `/ops/flags` surface to create the flag
+Managed overlays enable the DNS infrastructure. Canary requires no account
+flag. In staging and production, an absent or disabled `kura_stable_hostname`
+flag keeps accounts on regional URLs and creates no stable DNS advertising
+intent. Use the existing `/ops/flags` surface to create the flag
 and enable it for actor `account:<id>`, or use an authorized release console:
 
 ```elixir
@@ -54,14 +55,18 @@ traffic cutover. Once the initial accounts are validated, enable the same flag
 for everyone with `FunWithFlags.enable(:kura_stable_hostname)`. Explicit actor
 disables still take precedence; clear those overrides separately if intended.
 No deploy is required for either flag change. New eligible accounts then inherit
-the global setting. Infrastructure and hand-out environment switches remain
-hard gates, and staging's account allowlist remains in effect.
+the global setting. For staging, enable only the validation accounts initially.
+Before deploying this change to the existing staging setup, enable the flag for
+`kura-spec95-e2e` and `kura-spec95-health` if those fixtures should remain active;
+the old environment allowlist is no longer read. Without those actor gates,
+reconciliation will safely withdraw their existing stable records.
 
 Disabling an account flag stops hand-out and withdraws its advertising through
 the existing provider-confirmed drain. Follow the rollback ordering below for
 clients with persisted URLs. Disabling the global boolean alone does not revoke
-explicit actor enables; use the hand-out environment switch when all accounts
-must stop receiving the stable URL.
+explicit actor enables; remove all enabling actor/group/percentage gates as
+well when rolling back every account. Canary activation is automatic and does
+not consult the flag; reverting canary requires a code/configuration rollback.
 
 ## Bootstrap (operator step, not performed by local validation)
 
@@ -97,23 +102,16 @@ must stop receiving the stable URL.
    Environments share an ACME name set: issue serially, without deleting Secrets.
    Regional ingress TLS stays on its working wildcard while stable TLS is
    pending. Hosts not covered by the wildcard use the per-instance Certificate.
-8. Enable server environment `TUIST_KURA_STABLE_HOSTNAME_ENABLED=true` through
-   `server.extraEnv`. Keep `TUIST_KURA_STABLE_HOSTNAME_HANDOUT_ENABLED` unset.
-   Set `TUIST_KURA_STABLE_HOSTNAME_ACCOUNTS` to a comma-separated list of exact
-   test-account handles for the first rollout. Empty means all managed placement
-   accounts. The same allowlist gates advertising and endpoint hand-out; removing
-   an account safely withdraws its records through the normal drain barrier.
-9. After staging routing/steering validation, independently set
-   `TUIST_KURA_STABLE_HOSTNAME_HANDOUT_ENABLED=true`. A response collapses only
-   when every desired region is active and every advertising managed region has
-   fresh, generation-matched controller readiness. Self-hosted registrations and
-   eligible custom endpoints remain alongside the managed stable name.
-   Production additionally requires `kura_stable_hostname` for the account or
-   globally, even when the environment switches and allowlist permit it.
-
-The current catalog calls the Paris region `eu-west` (the spec's `eu-central`
-was renamed). Its AWS tag is `eu-west-3`; Northern Virginia is `us-east-1`, Oregon
-`us-west-2`, Montreal `ca-central-1`, and Singapore `ap-southeast-1`.
+8. In staging, enable `kura_stable_hostname` through `/ops/flags` for the selected
+   validation account actors. Use the same account-level opt-in for the initial
+   production cohort. Canary is automatically enabled. No separate advertising,
+   hand-out, or account-list environment variables are needed.
+9. Reconciliation publishes intent and waits for DNS/TLS readiness before
+   returning the stable hostname. A response collapses only when every desired
+   region is active and every advertising managed region has fresh,
+   generation-matched controller readiness. Self-hosted registrations and
+   eligible custom endpoints remain alongside the managed stable name. After
+   validating the initial production cohort, enable the same flag globally.
 
 ## Lifetimes and failure behavior
 
@@ -169,17 +167,23 @@ selected, preserving archived-account provisioning and legacy fallback.
 
 ## Rollback
 
-First turn off **hand-out**. Keep advertising and rendering for persisted clients
-until they have refreshed configuration. If withdrawing the stable lane is then
-appropriate, turn off **hostname enabled**, leaving the controller, AWS writer,
-zone delegation, credentials and solver running. The controller retains the old
-name from status until each regional record is observed absent and its drain
-elapses. Confirm there are no stable DNSEndpoints, provider A records, retained
-stable status, or owned health checks before disabling the writer/provider.
-Do not remove finalizers, delete the zone, or remove AWS credentials to force a
-rollback: those actions defeat the withdrawal barrier. Regional names remain
-available throughout, but deliberately withdrawing the stable lane requires
-persisted clients to refresh configuration first.
+Disable `kura_stable_hostname` for the affected account. This immediately stops
+new stable URL hand-out once the flag change reaches each server and requests
+DNS withdrawal on the next reconciliation. There is no separate hand-out-only
+switch. Coordinate refresh of persisted client endpoint configuration before
+withdrawing stable URLs: the drain protects existing connections and cached
+answers for a bounded period, not indefinitely saved configuration.
+
+For a full staging/production rollback, disable the global flag and remove any
+enabling actor, group, or percentage gates; a false global gate alone does not
+override explicit actor enables. Canary remains automatically enabled and needs
+a code/configuration rollback instead. Leave the controller, AWS writer, zone
+delegation, credentials and solver running. The controller retains the old name
+from status until each regional record is observed absent and its drain elapses.
+Confirm there are no stable DNSEndpoints, provider A records, retained stable
+status, or owned health checks before disabling the writer/provider. Do not
+remove finalizers, delete the zone, or remove AWS credentials to force a rollback.
+Regional names remain available throughout.
 
 Existing account handles ending in `-staging` or `-canary` are not silently
 renamed: they stay on regional endpoints. New names/renames with those suffixes

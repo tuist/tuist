@@ -1829,18 +1829,6 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
-  def kura_stable_hostname_enabled?, do: System.get_env("TUIST_KURA_STABLE_HOSTNAME_ENABLED") == "true"
-  def kura_stable_hostname_handout_enabled?, do: System.get_env("TUIST_KURA_STABLE_HOSTNAME_HANDOUT_ENABLED") == "true"
-
-  def kura_stable_hostname_accounts do
-    "TUIST_KURA_STABLE_HOSTNAME_ACCOUNTS"
-    |> System.get_env("")
-    |> String.downcase()
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
   # Kura-side env vars stay unprefixed so the implementation in Kura
   # remains Tuist-agnostic. The encrypted `kura.*` secrets stay as a
   # compatibility fallback for existing deployments and dev secrets.

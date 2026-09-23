@@ -9,23 +9,23 @@ defmodule Tuist.FeatureFlagsTest do
   setup :set_mimic_from_context
 
   describe "kura_stable_hostname_enabled?/1" do
-    test "production requires an explicit account or global flag" do
+    test "staging and production require an explicit account or global flag" do
       account = %Account{id: 42, name: "tuist"}
-      stub(Environment, :env, fn -> :prod end)
-      expect(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> false end)
-      refute FeatureFlags.kura_stable_hostname_enabled?(account)
 
-      expect(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> true end)
-      assert FeatureFlags.kura_stable_hostname_enabled?(account)
+      for env <- [:stag, :prod, :dev, :test] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> false end)
+        refute FeatureFlags.kura_stable_hostname_enabled?(account)
+
+        expect(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> true end)
+        assert FeatureFlags.kura_stable_hostname_enabled?(account)
+      end
     end
 
-    test "canary and staging do not require a production flag" do
+    test "canary enables stable hostnames automatically" do
       reject(FunWithFlags, :enabled?, 2)
-
-      for env <- [:can, :stag] do
-        stub(Environment, :env, fn -> env end)
-        assert FeatureFlags.kura_stable_hostname_enabled?(%Account{id: 42, name: "tuist"})
-      end
+      stub(Environment, :env, fn -> :can end)
+      assert FeatureFlags.kura_stable_hostname_enabled?(%Account{id: 42, name: "tuist"})
     end
 
     test "global rollout enables accounts while preserving explicit account opt-outs" do

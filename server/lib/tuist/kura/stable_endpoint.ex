@@ -1,7 +1,7 @@
 defmodule Tuist.Kura.StableEndpoint do
   @moduledoc """
-  Managed cache hostname intent and readiness. Rendering and hand-out are
-  independent switches. Readiness is a shared, freshness-bounded projection of
+  Managed cache hostname intent and readiness. Advertising and hand-out share
+  one account feature flag. Readiness is a shared, freshness-bounded projection of
   controller observations; endpoint requests never call Kubernetes or AWS.
   """
   import Ecto.Query
@@ -41,11 +41,7 @@ defmodule Tuist.Kura.StableEndpoint do
   def supported?(_), do: false
 
   def enabled_for_account?(account) do
-    allowed = Environment.kura_stable_hostname_accounts()
-
-    Environment.kura_stable_hostname_enabled?() and
-      (allowed == [] or String.downcase(account.name) in allowed) and
-      FeatureFlags.kura_stable_hostname_enabled?(account)
+    FeatureFlags.kura_stable_hostname_enabled?(account)
   end
 
   def intent(server, region, claimed \\ nil)
@@ -144,8 +140,7 @@ defmodule Tuist.Kura.StableEndpoint do
   end
 
   def resolve(account, regional_urls, servers \\ nil) do
-    if regional_urls != [] and enabled_for_account?(account) and
-         Environment.kura_stable_hostname_handout_enabled?() do
+    if regional_urls != [] and enabled_for_account?(account) do
       resolve_ready(account, regional_urls, servers)
     else
       regional_urls

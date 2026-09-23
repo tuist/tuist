@@ -15,6 +15,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   setup :set_mimic_from_context
 
   setup do
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
+
     # The manifest resolves the account's egress override from the database, the
     # same way it resolves its disk claim. These tests render manifests for
     # unpersisted accounts, so the unoverridden answer is stubbed here and the
@@ -36,7 +38,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "disabled rollout leaves instances without stable fields untouched" do
-      stub(Tuist.Environment, :kura_stable_hostname_enabled?, fn -> false end)
+      stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
       server = %Server{account: %Account{name: "acme"}, region: "eu-west", provisioner_node_ref: "instance"}
       expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, %{"spec" => %{}}} end)
       reject(&Client.patch/3)
@@ -45,8 +47,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
     test "patches only stable intent with an optimistic concurrency guard" do
       stub(Tuist.Environment, :env, fn -> :prod end)
-      stub(Tuist.Environment, :kura_stable_hostname_enabled?, fn -> true end)
-      stub(Tuist.Environment, :kura_stable_hostname_accounts, fn -> [] end)
+
       region = Regions.get("eu-west")
 
       server = %Server{
@@ -79,8 +80,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
     test "explicitly withdraws advertisement when draining without removing rendering" do
       stub(Tuist.Environment, :env, fn -> :prod end)
-      stub(Tuist.Environment, :kura_stable_hostname_enabled?, fn -> true end)
-      stub(Tuist.Environment, :kura_stable_hostname_accounts, fn -> [] end)
+
       region = Regions.get("eu-west")
 
       server = %Server{

@@ -25,9 +25,7 @@ defmodule Tuist.Kura.StableEndpointTest do
 
   setup do
     stub(Environment, :env, fn -> :prod end)
-    stub(Environment, :kura_stable_hostname_enabled?, fn -> true end)
-    stub(Environment, :kura_stable_hostname_handout_enabled?, fn -> true end)
-    stub(Environment, :kura_stable_hostname_accounts, fn -> [] end)
+
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> true end)
     :ok
   end
@@ -77,6 +75,25 @@ defmodule Tuist.Kura.StableEndpointTest do
 
     assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
     assert StableEndpoint.resolve(account, [server.url]) == ["https://#{account.name}-canary.cache.tuist.dev"]
+  end
+
+  test "staging uses the account flag for both intent and hand-out" do
+    stub(Environment, :env, fn -> :stag end)
+    selected = AccountsFixtures.user_fixture().account
+    other = AccountsFixtures.user_fixture().account
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: account] -> account.id == selected.id end)
+
+    for account <- [selected, other] do
+      {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+      server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
+      observe(server, account)
+      enabled = account.id == selected.id
+
+      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"] == enabled
+
+      expected = if enabled, do: ["https://#{account.name}-staging.cache.tuist.dev"], else: [server.url]
+      assert StableEndpoint.resolve(account, [server.url]) == expected
+    end
   end
 
   test "environment suffixes and reserved handles cannot collide" do
@@ -157,7 +174,7 @@ defmodule Tuist.Kura.StableEndpointTest do
              "https://custom.example.com"
            ]
 
-    stub(Environment, :kura_stable_hostname_handout_enabled?, fn -> false end)
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
     assert Accounts.kura_cache_endpoint_urls(account) == [server.url, "https://registered.example.com"]
   end
 
@@ -317,19 +334,23 @@ defmodule Tuist.Kura.StableEndpointTest do
     refute draining["stableAdvertise"]
   end
 
-  test "hand-out, rendering, and account allowlist gates are independent" do
+  test "disabling an account flag stops hand-out and requests withdrawal" do
     account = AccountsFixtures.user_fixture().account
     {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
     server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
     observe(server, account)
-    stub(Environment, :kura_stable_hostname_handout_enabled?, fn -> false end)
-    assert StableEndpoint.resolve(account, [server.url]) == [server.url]
+    assert StableEndpoint.resolve(account, [server.url]) == ["https://#{account.name}.cache.tuist.dev"]
     assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
-    stub(Environment, :kura_stable_hostname_accounts, fn -> ["another-account"] end)
-    refute StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
-    stub(Environment, :kura_stable_hostname_accounts, fn -> [] end)
-    stub(Environment, :kura_stable_hostname_enabled?, fn -> false end)
-    assert StableEndpoint.intent(server, Regions.get(server.region))["stableHost"] == ""
+
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> false end)
+
+    assert StableEndpoint.resolve(account, [server.url]) == [server.url]
+
+    assert StableEndpoint.intent(server, Regions.get(server.region)) == %{
+             "stableHost" => "",
+             "stableAWSRegion" => "",
+             "stableAdvertise" => false
+           }
   end
 
   defp observe(server, account, opts \\ []) do

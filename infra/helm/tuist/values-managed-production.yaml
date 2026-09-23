@@ -198,11 +198,6 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Production remains off per account until kura_stable_hostname is enabled in /ops/flags.
-    - name: TUIST_KURA_STABLE_HOSTNAME_ENABLED
-      value: "true"
-    - name: TUIST_KURA_STABLE_HOSTNAME_HANDOUT_ENABLED
-      value: "true"
     # Keep clients on the existing registry base address while the Worker
     # moves its origin from the cache nodes to the standalone frontend.
     - name: TUIST_REGISTRY_URL
