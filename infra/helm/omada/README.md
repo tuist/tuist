@@ -72,3 +72,13 @@ client as the item `management.controller.credential_item` in the site
 definition names ("omada staging open api"), with `client-id` and
 `client-secret` fields; `rack:omada` reads it from there. The API client needs
 the Administrator role over the site the switches are adopted into.
+
+After the wizard, `mise run rack:omada controller --create-device-account` sets
+what the switches depend on from the site definition, and is safe to re-run:
+the address the controller tells switches to connect back to (its tailnet IP;
+it starts unset), SSH on for the site's switches (it starts off, and adoption
+applies it), and the site's device account, which adoption puts on every
+switch in place of its own login. The account comes from the 1Password item
+`management.controller.device_account_item` names; the flag creates it with a
+generated password the first time. Skip the wizard's device step: adoption
+goes through `rack:omada adopt`, which runs the same settings first.
