@@ -80,6 +80,11 @@ Runner sizing uses the existing account disk policy and plan memory/CPU profiles
 
 ## Stable cache DNS
 
+`cmd/staging-probe` provides the staging-only public TLS and authenticated
+HTTP/REAPI probe. It embeds the minimal protobuf schema and invokes grpcurl with
+the token in its subprocess environment, never in arguments. Keep the runbook in
+`../cache-dns/README.md` and evidence in `../cache-dns/staging-validation.md`.
+
 `controllers/stable_endpoint.go` separates rendering from latency-record advertising. Managed host-network instances add `stableHost`, `stableAdvertise`, and `stableAWSRegion`; private instances cannot advertise. Probe the actual gateway using stable SNI before publishing, then require the exact provider record for readiness. Regional TLS keeps its working wildcard while stable TLS is pending. Host-network Ingresses use annotation-only external-dns sourcing, making DNSEndpoints authoritative.
 
 Persist identity before creating a DNS source. Rollback, rename and deletion all retain that identity in status, withdraw only its regional record, and wait the full drain after Route53 observes absence. Provider errors never count as absence. Do not remove the finalizer or disable provider credentials to unblock this barrier. Shared TCP box checks are controller-owned and garbage-collected under the same reconciliation lock only when both provider records and persisted intent release them. `../cache-dns/README.md` owns rollout and deferred staging validation.

@@ -136,7 +136,8 @@ ACME issuance, ingress reloads, or client HTTP/gRPC behavior against the new nam
 
 ## Repeatable staging probes
 
-`staging_probe.py` requires Python 3, curl, and grpcurl. It refuses non-staging
+`../kura-controller/cmd/staging-probe` uses the controller's Go toolchain and
+requires grpcurl at runtime. It refuses non-staging
 hostnames and requires the hostname to match the test account. Use a short-lived,
 project-scoped cache token in a local file with permissions `0600`; do not commit
 it or put its value in command arguments. Each invocation emits JSONL with UTC
@@ -146,7 +147,9 @@ REAPI `BatchUpdateBlobs`/`BatchReadBlobs`, checking both RPC result codes and by
 These protocol probes complement actual client builds; they do not replace them.
 
 ```bash
-python3 infra/cache-dns/staging_probe.py roundtrip \
+cd infra/kura-controller
+go build -o /tmp/staging-probe ./cmd/staging-probe
+/tmp/staging-probe roundtrip \
   --host kura-spec95-e2e-staging.cache.tuist.dev \
   --account kura-spec95-e2e --project probe \
   --token-file /path/to/local-token \
@@ -156,7 +159,7 @@ python3 infra/cache-dns/staging_probe.py roundtrip \
 Omit both IP flags to exercise real DNS. Pin both to the same box to prove each
 region serves the stable SNI independently, or use different boxes to verify
 replication. Run `ready` without a token for TLS/readiness checks. Use
-`--repeat N --interval 5` to collect continuous traffic evidence during lifecycle
+`--repeat N --interval 5s` to collect continuous traffic evidence during lifecycle
 operations. The harness stops on an error so a failed request cannot disappear
 inside an otherwise green summary; capture stderr and the process exit status too.
 For the regional baseline, pass the other region's hostname as `--read-host`;
