@@ -160,7 +160,7 @@ defmodule AtlasWeb.Router do
     get "/support/chat/verify/:token", SupportChatVerificationController, :confirm
 
     live_session :public_postmortem, layout: false do
-      live "/p/postmortems/:share_token", PostmortemLive.Public
+      live "/p/postmortems/:reference", PostmortemLive.Public
     end
 
     live_session :public_poc,

@@ -37,10 +37,4 @@ defmodule Atlas.Engineering.Postmortems.Postmortem do
     |> validate_length(:body, min: 10, max: 100_000)
     |> foreign_key_constraint(:created_by_user_id)
   end
-
-  def share_token_changeset(postmortem, token) do
-    postmortem
-    |> change(share_token: token)
-    |> unique_constraint(:share_token)
-  end
 end

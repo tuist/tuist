@@ -8,20 +8,31 @@ defmodule AtlasWeb.PostmortemLive.Public do
   alias AtlasWeb.Markdown
 
   @impl true
-  def mount(%{"share_token" => token}, _session, socket) do
-    case Postmortems.get_postmortem_by_share_token(token) do
-      %{} = postmortem ->
-        {:ok,
-         socket
-         |> assign(:page_title, Postmortems.title(postmortem))
-         |> assign(:postmortem, postmortem)}
-
-      nil ->
-        {:ok,
-         socket
-         |> assign(:page_title, dgettext("postmortems", "Postmortem not available"))
-         |> assign(:postmortem, nil)}
+  def mount(%{"reference" => reference}, _session, socket) do
+    case Integer.parse(reference) do
+      {number, ""} -> mount_postmortem(Postmortems.get_postmortem_by_number(number), socket)
+      _ -> mount_share_token(Postmortems.get_postmortem_by_share_token(reference), socket)
     end
+  end
+
+  defp mount_share_token(nil, socket), do: mount_postmortem(nil, socket)
+
+  defp mount_share_token(postmortem, socket) do
+    {:ok, push_navigate(socket, to: ~p"/p/postmortems/#{postmortem.number}")}
+  end
+
+  defp mount_postmortem(nil, socket) do
+    {:ok,
+     socket
+     |> assign(:page_title, dgettext("postmortems", "Postmortem not available"))
+     |> assign(:postmortem, nil)}
+  end
+
+  defp mount_postmortem(postmortem, socket) do
+    {:ok,
+     socket
+     |> assign(:page_title, Postmortems.title(postmortem))
+     |> assign(:postmortem, postmortem)}
   end
 
   @impl true
@@ -30,10 +41,7 @@ defmodule AtlasWeb.PostmortemLive.Public do
     <section id="postmortem-public-not-found">
       <h1>{dgettext("postmortems", "Postmortem not available")}</h1>
       <p>
-        {dgettext(
-          "postmortems",
-          "This postmortem is either private or does not exist."
-        )}
+        {dgettext("postmortems", "This postmortem does not exist.")}
       </p>
     </section>
     """

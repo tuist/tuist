@@ -87,14 +87,6 @@ defmodule Atlas.Engineering.Postmortems do
     Ecto.Query.CastError -> nil
   end
 
-  def ensure_share_token(%Postmortem{share_token: token} = postmortem) when is_binary(token), do: {:ok, postmortem}
-
-  def ensure_share_token(%Postmortem{} = postmortem) do
-    postmortem
-    |> Postmortem.share_token_changeset(Ecto.UUID.generate())
-    |> Repo.update()
-  end
-
   def get_postmortem_by_reference(reference) when is_integer(reference), do: get_postmortem_by_number(reference)
 
   def get_postmortem_by_reference(reference) when is_binary(reference) do

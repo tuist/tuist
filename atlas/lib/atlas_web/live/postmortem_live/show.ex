@@ -16,14 +16,12 @@ defmodule AtlasWeb.PostmortemLive.Show do
   def mount(%{"number" => number}, _session, socket) do
     case Postmortems.fetch_visible_postmortem_by_number(number, socket.assigns.current_user) do
       {:ok, postmortem} ->
-        {:ok, postmortem} = Postmortems.ensure_share_token(postmortem)
-
         {:ok,
          socket
          |> assign(:page_title, Postmortems.title(postmortem))
          |> assign(:postmortem, postmortem)
          |> assign(:can_edit?, Postmortems.can_edit?(postmortem, socket.assigns.current_user))
-         |> assign(:public_url, url(~p"/p/postmortems/#{postmortem.share_token}"))
+         |> assign(:public_url, url(~p"/p/postmortems/#{postmortem.number}"))
          |> assign(:editing_action_item_id, nil)
          |> assign(:expanded_action_item_keys, MapSet.new())
          |> assign_action_item_form(Postmortems.change_action_item())}
@@ -181,7 +179,6 @@ defmodule AtlasWeb.PostmortemLive.Show do
         </div>
         <div data-part="header-actions">
           <button
-            :if={@public_url}
             id="share-postmortem"
             class="noora-button"
             data-variant="secondary"

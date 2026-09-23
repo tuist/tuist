@@ -124,22 +124,4 @@ defmodule Atlas.Engineering.PostmortemsTest do
     assert {:ok, _} = Postmortems.delete_postmortem(postmortem, owner)
     assert is_nil(Postmortems.get_postmortem(postmortem.id))
   end
-
-  test "ensure_share_token lazily generates and persists a UUID" do
-    owner = user()
-
-    {:ok, postmortem} =
-      Postmortems.publish_postmortem(%{"body" => "# share\n\nlink me"}, owner)
-
-    assert is_nil(postmortem.share_token)
-
-    assert {:ok, %{share_token: token}} = Postmortems.ensure_share_token(postmortem)
-    assert is_binary(token)
-
-    reloaded = Postmortems.get_postmortem!(postmortem.id)
-    assert reloaded.share_token == token
-
-    assert {:ok, %{share_token: ^token}} = Postmortems.ensure_share_token(reloaded)
-    assert Postmortems.get_postmortem_by_share_token(token).id == postmortem.id
-  end
 end

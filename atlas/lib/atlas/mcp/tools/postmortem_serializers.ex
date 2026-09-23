@@ -14,13 +14,13 @@ defmodule Atlas.MCP.Tools.PostmortemSerializers do
       "number" => postmortem.number,
       "title" => PostmortemContext.title(postmortem),
       "body" => postmortem.body,
-      "share_token" => postmortem.share_token,
       "author" => author(postmortem),
       "domains" => domains(postmortem),
       "action_items" => action_items(postmortem),
       "inserted_at" => Tool.iso8601(postmortem.inserted_at),
       "updated_at" => Tool.iso8601(postmortem.updated_at),
-      "path" => "/engineering/postmortems/#{postmortem.number}"
+      "path" => "/engineering/postmortems/#{postmortem.number}",
+      "public_path" => "/p/postmortems/#{postmortem.number}"
     }
   end
 
@@ -67,26 +67,26 @@ defmodule Atlas.MCP.Tools.PostmortemSerializers do
         "number" => %{"type" => "integer"},
         "title" => %{"type" => "string"},
         "body" => %{"type" => "string"},
-        "share_token" => %{"type" => ["string", "null"]},
         "author" => %{"type" => ["object", "null"]},
         "domains" => %{"type" => "array", "items" => %{"type" => "object"}},
         "action_items" => %{"type" => "array", "items" => action_item_schema()},
         "inserted_at" => %{"type" => ["string", "null"]},
         "updated_at" => %{"type" => ["string", "null"]},
-        "path" => %{"type" => "string"}
+        "path" => %{"type" => "string"},
+        "public_path" => %{"type" => "string"}
       },
       "required" => [
         "id",
         "number",
         "title",
         "body",
-        "share_token",
         "author",
         "domains",
         "action_items",
         "inserted_at",
         "updated_at",
-        "path"
+        "path",
+        "public_path"
       ],
       "additionalProperties" => false
     }
