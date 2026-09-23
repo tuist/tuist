@@ -13,6 +13,7 @@ defmodule TuistWeb.OnceTestsLive do
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
   alias Tuist.Utilities.DateFormatter
@@ -58,9 +59,12 @@ defmodule TuistWeb.OnceTestsLive do
           :flaky_test_runs_analytics,
           :failed_test_runs_analytics,
           :test_runs_duration_analytics,
+          :analytics_series,
           :analytics_chart_data
         ],
-        fn -> analytics_bundle(project.id, analytics_period, commands, analytics_selected_widget) end
+        fn ->
+          analytics_bundle(project.id, analytics_period, commands, analytics_selected_widget, selected_duration_type)
+        end
       )
       |> assign_async(
         [
@@ -87,7 +91,8 @@ defmodule TuistWeb.OnceTestsLive do
      socket
      |> assign(:analytics_selected_widget, widget)
      |> assign(:uri, URI.new!("?" <> query))
-     |> push_event("replace-url", %{url: "?" <> query})}
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> refresh_chart_data()}
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
@@ -101,7 +106,8 @@ defmodule TuistWeb.OnceTestsLive do
      |> assign(:selected_duration_type, type)
      |> assign(:analytics_selected_widget, "test_run_duration")
      |> assign(:uri, URI.new!("?" <> query))
-     |> push_event("replace-url", %{url: "?" <> query})}
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> refresh_chart_data()}
   end
 
   def handle_event(
@@ -124,7 +130,7 @@ defmodule TuistWeb.OnceTestsLive do
 
   # ---- Async bundles ---------------------------------------------------
 
-  defp analytics_bundle(project_id, period, commands, widget) do
+  defp analytics_bundle(project_id, period, commands, widget, duration_type) do
     summary = summary_with_trends(project_id, period, commands)
     time_series = Analytics.invocation_analytics(project_id, analytics_opts(period, commands))
 
@@ -150,18 +156,14 @@ defmodule TuistWeb.OnceTestsLive do
       p99_values: time_series.p99_duration_values
     }
 
-    analytics_chart_data = %{
-      dates: time_series.dates,
-      values: values_for_widget(time_series, widget)
-    }
-
     {:ok,
      %{
        test_runs_analytics: test_runs_analytics,
        flaky_test_runs_analytics: flaky_test_runs_analytics,
        failed_test_runs_analytics: failed_test_runs_analytics,
        test_runs_duration_analytics: test_runs_duration_analytics,
-       analytics_chart_data: analytics_chart_data
+       analytics_series: time_series,
+       analytics_chart_data: chart_data(time_series, widget, duration_type)
      }}
   end
 
@@ -258,10 +260,31 @@ defmodule TuistWeb.OnceTestsLive do
     |> Keyword.put(:commands, commands)
   end
 
-  defp values_for_widget(time_series, "failed_test_run_count"), do: time_series.failed_values
-  defp values_for_widget(time_series, "test_run_duration"), do: time_series.average_duration_values
-  defp values_for_widget(time_series, "flaky_test_run_count"), do: Enum.map(time_series.dates, fn _ -> 0 end)
-  defp values_for_widget(time_series, _), do: time_series.total_values
+  # Selecting a widget only swaps which series the one chart renders, so it
+  # is re-derived from the series already in hand rather than re-queried.
+  # Without this the chart kept the previous metric's values under the new
+  # label until something else triggered `handle_params/3`.
+  defp refresh_chart_data(%{assigns: %{analytics_series: %{ok?: true, result: series}}} = socket) do
+    data = chart_data(series, socket.assigns.analytics_selected_widget, socket.assigns.selected_duration_type)
+
+    assign(socket, :analytics_chart_data, AsyncResult.ok(socket.assigns.analytics_chart_data, data))
+  end
+
+  defp refresh_chart_data(socket), do: socket
+
+  defp chart_data(time_series, widget, duration_type) do
+    %{dates: time_series.dates, values: values_for_widget(time_series, widget, duration_type)}
+  end
+
+  defp values_for_widget(time_series, "failed_test_run_count", _duration), do: time_series.failed_values
+  defp values_for_widget(time_series, "test_run_duration", "p50"), do: time_series.median_duration_values
+  defp values_for_widget(time_series, "test_run_duration", "p90"), do: time_series.p90_duration_values
+  defp values_for_widget(time_series, "test_run_duration", "p99"), do: time_series.p99_duration_values
+  defp values_for_widget(time_series, "test_run_duration", _duration), do: time_series.average_duration_values
+
+  defp values_for_widget(time_series, "flaky_test_run_count", _duration), do: Enum.map(time_series.dates, fn _ -> 0 end)
+
+  defp values_for_widget(time_series, _widget, _duration), do: time_series.total_values
 
   defp to_number(nil), do: 0
   defp to_number(%Decimal{} = value), do: Decimal.to_float(value)
