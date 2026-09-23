@@ -3,6 +3,8 @@ defmodule Atlas.NudgesTest do
 
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.Contact
+  alias Atlas.Audit.Activity
+  alias Atlas.GTM.Delivery
   alias Atlas.Nudges
   alias Atlas.Nudges.Nudge
   alias Atlas.Nudges.Proposal
@@ -172,6 +174,143 @@ defmodule Atlas.NudgesTest do
     end
   end
 
+  describe "send/2" do
+    test "queues a delivery, transitions to sent, records immutable audit" do
+      account = insert_account!()
+      user = insert_user!()
+      contact = insert_contact!(account, %{email: "primary@example.com", is_primary: true})
+
+      {:ok, claimed} = claim_nudge_with_contact(account, user, contact)
+
+      assert {:ok, %Nudge{state: "sent", sent_at: sent_at, email_delivery_id: delivery_id} = nudge} =
+               Nudges.send(claimed.id, user)
+
+      assert sent_at
+      assert delivery_id
+      assert nudge.duplicate == false
+
+      delivery = Repo.get!(Delivery, delivery_id)
+      assert delivery.recipient_email == "primary@example.com"
+      assert delivery.subject == claimed.draft_subject
+
+      assert Activity
+             |> Atlas.Repo.all()
+             |> Enum.any?(&(&1.action == "nudge.sent" and &1.target_id == nudge.id))
+    end
+
+    test "collapses to sent with duplicate=true when the same subject+body is queued twice" do
+      account = insert_account!()
+      user = insert_user!()
+      contact = insert_contact!(account, %{email: "dup@example.com"})
+      {:ok, first_claimed} = claim_nudge_with_contact(account, user, contact)
+
+      {:ok, _first} = Nudges.send(first_claimed.id, user)
+
+      # Second nudge with the same draft to the same recipient.
+      {:ok, second_claimed} = claim_nudge_with_contact(account, user, contact, "k2")
+
+      assert {:ok, %Nudge{state: "sent", duplicate: true}} =
+               Nudges.send(second_claimed.id, user)
+    end
+
+    test "rejects when the actor is neither claimant nor holds admin:write" do
+      account = insert_account!()
+      owner = insert_user!()
+      intruder = insert_user!()
+      contact = insert_contact!(account, %{email: "target@example.com"})
+
+      {:ok, claimed} = claim_nudge_with_contact(account, owner, contact)
+
+      assert {:error, :not_authorized} = Nudges.send(claimed.id, intruder)
+    end
+
+    test "allows an admin:write user who is not the claimant to send" do
+      account = insert_account!()
+      owner = insert_user!()
+      admin = insert_user!(%{role: :executive})
+      contact = insert_contact!(account, %{email: "target@example.com"})
+
+      {:ok, claimed} = claim_nudge_with_contact(account, owner, contact)
+
+      assert {:ok, %Nudge{state: "sent"}} = Nudges.send(claimed.id, admin)
+    end
+
+    test "rejects when the nudge is not claimed" do
+      account = insert_account!()
+      admin = insert_user!(%{role: :executive})
+      contact = insert_contact!(account, %{email: "target@example.com"})
+      {:ok, proposed} = propose_with_contact(account, contact)
+
+      # Admin bypasses the claimant check, so we hit the state gate cleanly.
+      assert {:error, {:invalid_state, "pending_post"}} =
+               Nudges.send(proposed.id, admin)
+    end
+
+    test "rejects when the contact has been bounced since the nudge was created" do
+      account = insert_account!()
+      user = insert_user!()
+      contact = insert_contact!(account, %{email: "target@example.com"})
+      {:ok, claimed} = claim_nudge_with_contact(account, user, contact)
+
+      contact
+      |> Ecto.Changeset.change(bounced_at: DateTime.utc_now() |> DateTime.truncate(:second))
+      |> Repo.update!()
+
+      assert {:error, :contact_bounced} = Nudges.send(claimed.id, user)
+    end
+  end
+
+  describe "retry/1" do
+    test "moves a sent nudge with a failed delivery back to claimed" do
+      account = insert_account!()
+      user = insert_user!()
+      contact = insert_contact!(account, %{email: "target@example.com"})
+      {:ok, claimed} = claim_nudge_with_contact(account, user, contact)
+      {:ok, sent} = Nudges.send(claimed.id, user)
+
+      # In Oban :testing :manual, the delivery worker is enqueued as
+      # `available`. Retry only fires once no active job remains; delete it
+      # to simulate an exhausted retry loop.
+      Ecto.Adapters.SQL.query!(
+        Repo,
+        "DELETE FROM oban_jobs WHERE worker = $1 AND args->>'delivery_id' = $2",
+        ["Atlas.GTM.Workers.DeliverDirectEmail", sent.email_delivery_id]
+      )
+
+      Repo.get!(Delivery, sent.email_delivery_id)
+      |> Ecto.Changeset.change(status: "failed")
+      |> Repo.update!()
+
+      assert {:ok, %Nudge{state: "claimed", email_delivery_id: nil}} = Nudges.retry(sent.id)
+    end
+
+    test "refuses when the delivery is still retrying at the Oban level" do
+      account = insert_account!()
+      user = insert_user!()
+      contact = insert_contact!(account, %{email: "target@example.com"})
+      {:ok, claimed} = claim_nudge_with_contact(account, user, contact)
+      {:ok, sent} = Nudges.send(claimed.id, user)
+
+      # Delivery failed but a live Oban job is scheduled to retry.
+      delivery_id = sent.email_delivery_id
+
+      Repo.get!(Delivery, delivery_id)
+      |> Ecto.Changeset.change(status: "failed")
+      |> Repo.update!()
+
+      Ecto.Adapters.SQL.query!(
+        Repo,
+        """
+        INSERT INTO oban_jobs (state, queue, worker, args, attempt, max_attempts, inserted_at, scheduled_at)
+        VALUES ('retryable', 'mailing', $1, $2::jsonb, 1, 5, now(), now())
+        """,
+        ["Atlas.GTM.Workers.DeliverDirectEmail", ~s({"delivery_id":"#{delivery_id}"})]
+      )
+
+      assert {:error, {:retry_not_allowed, :retrying}} = Nudges.retry(sent.id)
+    end
+  end
+
   describe "expire_stale/1" do
     test "flips open nudges past expires_at into 'expired'" do
       account = insert_account!()
@@ -190,6 +329,16 @@ defmodule Atlas.NudgesTest do
 
       assert %Nudge{state: "pending_post"} = Repo.get!(Nudge, still_open.id)
     end
+  end
+
+  defp claim_nudge_with_contact(account, user, contact, key \\ "k1") do
+    {:ok, nudge} = propose_with_contact(account, contact, key)
+    {:ok, posted} = Nudges.mark_nudge_posted(nudge, "C-CHAN", "1700000000.#{key}")
+    Nudges.claim(posted.id, user)
+  end
+
+  defp propose_with_contact(account, contact, key \\ "k1") do
+    Nudges.propose(account, "invited_teammates_sso", %{proposal(key) | contact_id: contact.id})
   end
 
   defp proposal(key) do
@@ -243,13 +392,19 @@ defmodule Atlas.NudgesTest do
   end
 
   defp insert_user!(attrs \\ %{}) do
+    {role, scopes, attrs} = AtlasWeb.ConnCase.extract_role_and_scopes(attrs)
+
     defaults = %{
       email: "user-#{System.unique_integer([:positive])}@tuist.dev",
       name: "Test User"
     }
 
-    %User{}
-    |> User.changeset(Map.merge(defaults, attrs))
-    |> Repo.insert!()
+    user =
+      %User{}
+      |> User.changeset(Map.merge(defaults, attrs))
+      |> Repo.insert!()
+
+    AtlasWeb.ConnCase.assign_role_or_scopes(user, role, scopes)
+    user
   end
 end

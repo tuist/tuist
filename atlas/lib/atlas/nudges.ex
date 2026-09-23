@@ -23,15 +23,21 @@ defmodule Atlas.Nudges do
 
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.Contact
+  alias Atlas.Audit
+  alias Atlas.GTM
+  alias Atlas.GTM.Delivery
   alias Atlas.Nudges.Nudge
   alias Atlas.Nudges.Proposal
   alias Atlas.Nudges.SignalEpisode
   alias Atlas.Nudges.SlackPostAttempt
   alias Atlas.Repo
+  alias Atlas.Users
   alias Atlas.Users.User
   alias Ecto.Multi
 
   @open_nudges_per_account 3
+  @deliver_worker "Atlas.GTM.Workers.DeliverDirectEmail"
+  @active_oban_states ~w(available scheduled executing retryable)
 
   @doc "Open nudges for an account, newest first."
   def list_open_nudges(%Account{id: account_id}), do: list_open_nudges(account_id)
@@ -57,6 +63,7 @@ defmodule Atlas.Nudges do
     |> maybe_filter_states(states)
     |> order_by([n], desc: n.inserted_at)
     |> limit(^limit)
+    |> preload(:email_delivery)
     |> Repo.all()
   end
 
@@ -290,6 +297,180 @@ defmodule Atlas.Nudges do
     with_locked_nudge(nudge_id, fn nudge ->
       nudge |> Nudge.dismiss_changeset(attrs) |> Repo.update()
     end)
+  end
+
+  @doc """
+  Queues the drafted email via `Atlas.GTM.DirectEmails` and transitions the
+  nudge to `sent`. Requires the actor to be either the claimant or hold the
+  `admin:write` scope. Reloads and revalidates the frozen `contact_id` before
+  queueing; never re-selects a different contact.
+  """
+  def send(nudge_id, %User{} = actor) when is_binary(nudge_id) do
+    Repo.transaction(fn ->
+      case Repo.one(from n in Nudge, where: n.id == ^nudge_id, lock: "FOR UPDATE") do
+        nil ->
+          Repo.rollback(:not_found)
+
+        nudge ->
+          with :ok <- authorize_send(nudge, actor),
+               :ok <- ensure_claimed(nudge),
+               {:ok, contact} <- reload_and_validate_contact(nudge),
+               {:ok, %{delivery: delivery, duplicate: duplicate?}} <-
+                 queue_delivery(nudge, contact, actor),
+               {:ok, updated} <- Repo.update(Nudge.send_changeset(nudge, delivery)) do
+            audit_sent(updated, contact, delivery, duplicate?, actor)
+            %{updated | email_delivery: delivery, duplicate: duplicate?}
+          else
+            {:error, reason} -> Repo.rollback(reason)
+          end
+      end
+    end)
+  end
+
+  @doc """
+  Moves a nudge whose delivery is terminally failed back to `claimed` so the
+  operator can Send again. Refuses if the delivery is still retrying
+  (`delivery_stage/1 == :retrying`) so we never race with an in-flight Oban
+  retry.
+  """
+  def retry(nudge_id) when is_binary(nudge_id) do
+    with_locked_nudge(nudge_id, fn nudge ->
+      delivery = load_delivery(nudge)
+
+      case delivery_stage(delivery) do
+        :failed -> nudge |> Nudge.retry_changeset() |> Repo.update()
+        stage -> {:error, {:retry_not_allowed, stage}}
+      end
+    end)
+  end
+
+  @doc """
+  Records that we have observed and reflected the delivery's terminal status
+  in the Slack card. Called by the reconciler worker.
+  """
+  def observe_delivery(%Nudge{} = nudge) do
+    nudge |> Nudge.observe_delivery_changeset() |> Repo.update()
+  end
+
+  @doc """
+  Nudges in `sent` state with a linked delivery whose current stage is
+  `:delivered` or `:failed` and whose `email_delivery_observed_at` is nil.
+  The reconciler worker refreshes each row's Slack card and stamps the
+  observed_at timestamp.
+  """
+  def list_nudges_for_reconciliation(limit \\ 100) do
+    Nudge
+    |> where([n], n.state == "sent" and is_nil(n.email_delivery_observed_at))
+    |> where([n], not is_nil(n.email_delivery_id))
+    |> limit(^limit)
+    |> Repo.all()
+    |> Enum.map(fn nudge ->
+      delivery = load_delivery(nudge)
+      %{nudge: nudge, delivery: delivery, stage: delivery_stage(delivery)}
+    end)
+    |> Enum.filter(fn %{stage: stage} -> stage in [:delivered, :failed] end)
+  end
+
+  @doc """
+  The observable stage of a nudge's linked delivery:
+
+    * `:pending` — delivery is queued but has not yet been attempted.
+    * `:retrying` — a delivery attempt failed and Oban has retries queued.
+    * `:delivered` — the provider accepted the message.
+    * `:failed` — Oban's automatic retries are exhausted.
+  """
+  def delivery_stage(nil), do: :pending
+  def delivery_stage(%Delivery{status: "delivered"}), do: :delivered
+
+  def delivery_stage(%Delivery{status: "failed", id: id}) do
+    if any_active_deliver_job?(id), do: :retrying, else: :failed
+  end
+
+  def delivery_stage(%Delivery{}), do: :pending
+
+  @doc """
+  Resolves the current delivery stage from a nudge, loading the delivery on
+  demand when the association is unset or unloaded.
+  """
+  def stage_for(%Nudge{email_delivery_id: nil}), do: :pending
+  def stage_for(%Nudge{email_delivery: %Delivery{} = delivery}), do: delivery_stage(delivery)
+  def stage_for(%Nudge{} = nudge), do: nudge |> load_delivery() |> delivery_stage()
+
+  defp load_delivery(%Nudge{email_delivery_id: nil}), do: nil
+  defp load_delivery(%Nudge{email_delivery_id: id}), do: Repo.get(Delivery, id)
+
+  defp any_active_deliver_job?(delivery_id) when is_binary(delivery_id) do
+    Repo.exists?(
+      from j in "oban_jobs",
+        where:
+          j.worker == ^@deliver_worker and
+            fragment("?->>'delivery_id' = ?", j.args, ^delivery_id) and
+            j.state in ^@active_oban_states
+    )
+  end
+
+  defp authorize_send(%Nudge{claimed_by_user_id: user_id}, %User{id: user_id}), do: :ok
+
+  defp authorize_send(_nudge, %User{} = actor) do
+    if Users.has_scope?(actor, "admin:write"), do: :ok, else: {:error, :not_authorized}
+  end
+
+  defp ensure_claimed(%Nudge{state: "claimed"}), do: :ok
+  defp ensure_claimed(%Nudge{state: state}), do: {:error, {:invalid_state, state}}
+
+  defp reload_and_validate_contact(%Nudge{contact_id: nil}), do: {:error, :contact_missing}
+
+  defp reload_and_validate_contact(%Nudge{contact_id: contact_id}) do
+    case Repo.get(Contact, contact_id) do
+      nil -> {:error, :contact_missing}
+      %Contact{email: email} when is_nil(email) or email == "" -> {:error, :contact_email_missing}
+      %Contact{bounced_at: bounced} when not is_nil(bounced) -> {:error, :contact_bounced}
+      %Contact{opted_out_at: opted} when not is_nil(opted) -> {:error, :contact_opted_out}
+      %Contact{} = contact -> {:ok, contact}
+    end
+  end
+
+  defp queue_delivery(%Nudge{} = nudge, %Contact{} = contact, %User{} = actor) do
+    account = Repo.get(Account, nudge.account_id)
+
+    GTM.queue_direct_email(
+      %{
+        recipient_email: contact.email,
+        recipient_name: contact.full_name,
+        subject: nudge.draft_subject,
+        body_markdown: nudge.draft_body,
+        account: account
+      },
+      actor
+    )
+  end
+
+  defp audit_sent(%Nudge{} = nudge, %Contact{} = contact, %Delivery{} = delivery, duplicate?, actor) do
+    Audit.record(
+      "nudge.sent",
+      %{
+        target_type: "nudge",
+        target_id: nudge.id,
+        target_label: nudge.title,
+        metadata: %{
+          "nudge_id" => nudge.id,
+          "delivery_id" => delivery.id,
+          "duplicate" => duplicate?,
+          "recipient_email" => contact.email,
+          "contact_id" => contact.id,
+          "subject" => nudge.draft_subject,
+          "body_digest" => body_digest(nudge.draft_body),
+          "signal" => nudge.signal,
+          "account_id" => nudge.account_id,
+          "path" => "/commercial/sales/accounts/#{nudge.account_id}"
+        }
+      },
+      actor: actor
+    )
+  end
+
+  defp body_digest(body) when is_binary(body) do
+    :crypto.hash(:sha256, body) |> Base.encode16(case: :lower)
   end
 
   @doc """

@@ -21,6 +21,8 @@ defmodule Atlas.Nudges.SlackActions do
       case action do
         "claim" -> claim(nudge_id, actor)
         "release" -> release(nudge_id)
+        "send" -> send_email(nudge_id, actor)
+        "retry" -> retry(nudge_id)
         "dismiss" -> dismiss(nudge_id)
         _action -> {:error, :unsupported_nudge_action}
       end
@@ -56,6 +58,22 @@ defmodule Atlas.Nudges.SlackActions do
     end
   end
 
+  defp send_email(nudge_id, actor) do
+    case Nudges.send(nudge_id, actor) do
+      {:ok, nudge} -> {:ok, nudge}
+      {:error, :not_found} -> {:error, :nudge_not_found}
+      other -> other
+    end
+  end
+
+  defp retry(nudge_id) do
+    case Nudges.retry(nudge_id) do
+      {:ok, nudge} -> {:ok, nudge}
+      {:error, :not_found} -> {:error, :nudge_not_found}
+      other -> other
+    end
+  end
+
   defp refresh_card({:ok, nudge} = ok) do
     _ = maybe_update_card(nudge)
     ok
@@ -70,12 +88,14 @@ defmodule Atlas.Nudges.SlackActions do
 
       %{slack_channel_id: channel, slack_message_ts: ts}
       when is_binary(channel) and is_binary(ts) ->
+        stage = Nudges.stage_for(nudge)
+
         case API.update_message(
                :company,
                channel,
                ts,
                "Account nudge: #{nudge.title}",
-               SlackNotifier.build_blocks(nudge, expired: false),
+               SlackNotifier.build_blocks(nudge, expired: false, stage: stage),
                metadata: %{
                  event_type: "atlas_nudge",
                  event_payload: %{key: Nudges.post_attempt_client_msg_id(nudge)}
@@ -107,6 +127,13 @@ defmodule Atlas.Nudges.SlackActions do
   defp action_message({:ok, nudge}, "release"), do: {:ok, %{message: "Released: #{nudge.title}"}}
 
   defp action_message({:ok, nudge}, "dismiss"), do: {:ok, %{message: "Dismissed: #{nudge.title}"}}
+
+  defp action_message({:ok, %{duplicate: true} = nudge}, "send"),
+    do: {:ok, %{message: "Already queued: #{nudge.title}"}}
+
+  defp action_message({:ok, nudge}, "send"), do: {:ok, %{message: "Email queued: #{nudge.title}"}}
+
+  defp action_message({:ok, nudge}, "retry"), do: {:ok, %{message: "Ready to resend: #{nudge.title}"}}
 
   defp action_message({:error, reason}, _action), do: {:error, reason}
 end
