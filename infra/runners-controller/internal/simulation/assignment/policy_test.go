@@ -1,4 +1,4 @@
-package shadow
+package assignment
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ var testNow = time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
 var small = Resources{VCPUs: 2, MemoryGB: 8}
 
 func demand(id, account int64, pool string, age time.Duration) Demand {
-	return Demand{JobID: id, AccountID: account, Pool: pool, Platform: "linux", Resources: small, EnqueuedAt: testNow.Add(-age)}
+	return Demand{CacheVolume: AccountCacheVolume, JobID: id, AccountID: account, Pool: pool, Platform: "linux", Resources: small, EnqueuedAt: testNow.Add(-age)}
 }
 func runner(pod, pool string) Runner {
 	return Runner{Pod: pod, UID: pod + "-uid", Node: pod + "-node", Pool: pool, Platform: "linux", Resources: small}
@@ -103,8 +103,15 @@ func TestClaimsOverrideStaleQueueAndWarmPodObservations(t *testing.T) {
 func TestLocalityChoosesRunnerWithoutReorderingDemand(t *testing.T) {
 	s := fixture(demand(1, 1, "a", time.Minute), demand(2, 2, "a", time.Second))
 	a, b := runner("a", "a"), runner("b", "a")
-	a.ResidentAccounts = map[int64]bool{2: true}
-	b.ResidentAccounts = map[int64]bool{1: true}
+	a.Platform, b.Platform = "macos", "macos"
+	for i := range s.Demand {
+		s.Demand[i].Platform = "macos"
+	}
+	for i := range s.Accounts {
+		s.Accounts[i].Platform = "macos"
+	}
+	a.ResidentVolumes = map[int64]map[string]bool{2: {AccountCacheVolume: true}}
+	b.ResidentVolumes = map[int64]map[string]bool{1: {AccountCacheVolume: true}}
 	p := propose(t, s, a, b)
 	if len(p.Assignments) != 2 || p.Assignments[0].JobID != 1 || p.Assignments[0].Pod != "b" || !p.Assignments[0].CacheResident {
 		t.Fatalf("%+v", p)
@@ -128,6 +135,80 @@ func TestExactShapePoolAndPlatform(t *testing.T) {
 	}
 }
 
+func TestRepositoryCacheAffinity(t *testing.T) {
+	const volume = "repo-0123456789abcdef"
+	const other = "repo-fedcba9876543210"
+	for _, tc := range []struct {
+		name     string
+		account  int64
+		volume   string
+		resident bool
+		platform string
+		warm     bool
+	}{
+		{"repository master", 1, volume, true, "macos", true},
+		{"account fallback", 1, AccountCacheVolume, true, "macos", true},
+		{"different repository", 1, other, true, "macos", false},
+		{"different account", 2, volume, true, "macos", false},
+		{"false residency", 1, volume, false, "macos", false},
+		{"Linux ignores cache masters", 1, volume, true, "linux", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := demand(1, 1, "pool", time.Minute)
+			d.Platform, d.CacheVolume = tc.platform, volume
+			s := fixture(d)
+			s.Accounts[0].Platform = tc.platform
+			a, b := runner("a-cold", "pool"), runner("b-master", "pool")
+			a.Platform, b.Platform = tc.platform, tc.platform
+			b.ResidentVolumes = map[int64]map[string]bool{tc.account: {tc.volume: tc.resident}}
+			p := propose(t, s, b, a)
+			want := a.Pod
+			if tc.warm {
+				want = b.Pod
+			}
+			if len(p.Assignments) != 1 || p.Assignments[0].Pod != want || p.Assignments[0].CacheResident != tc.warm {
+				t.Fatalf("%+v", p)
+			}
+		})
+	}
+}
+
+func TestCacheMasterUnionPreservesDeterminismAndConsumesRunners(t *testing.T) {
+	const volume = "repo-0123456789abcdef"
+	s := fixture(demand(1, 1, "pool", time.Minute), demand(2, 1, "pool", time.Second))
+	s.Accounts[0].Platform = "macos"
+	for i := range s.Demand {
+		s.Demand[i].Platform, s.Demand[i].CacheVolume = "macos", volume
+	}
+	a, b := runner("a-account-master", "pool"), runner("b-repository-master", "pool")
+	a.Platform, b.Platform = "macos", "macos"
+	a.ResidentVolumes = map[int64]map[string]bool{1: {AccountCacheVolume: true, volume: true}}
+	b.ResidentVolumes = map[int64]map[string]bool{1: {volume: true}}
+	p := propose(t, s, b, a)
+	if len(p.Assignments) != 2 || p.Assignments[0].Pod != a.Pod || p.Assignments[1].Pod != b.Pod || !p.Assignments[1].CacheResident {
+		t.Fatalf("%+v", p)
+	}
+	delete(a.ResidentVolumes[1], volume)
+	if other := propose(t, s, a, b); !reflect.DeepEqual(p, other) {
+		t.Fatalf("account fallback changed ordering: %+v", other)
+	}
+}
+
+func TestCacheVolumeRequiredInVersionTwo(t *testing.T) {
+	for _, volume := range []string{"", "private/repository", "repo-ABCDEF0123456789", "repo-0123456789abcdef\n"} {
+		s := fixture(demand(1, 1, "pool", time.Second))
+		s.Demand[0].CacheVolume = volume
+		if _, err := Propose(s, nil, testNow); err == nil {
+			t.Fatalf("accepted invalid cache volume %q", volume)
+		}
+	}
+	s := fixture()
+	s.Version = 1
+	if _, err := Propose(s, nil, testNow); err == nil {
+		t.Fatal("accepted version 1")
+	}
+}
+
 func TestOldUnplaceableDemandDoesNotBlockOtherPools(t *testing.T) {
 	s := fixture(demand(1, 1, "large", time.Hour), demand(2, 2, "a", time.Second))
 	p := propose(t, s, runner("a", "a"))
@@ -138,7 +219,7 @@ func TestOldUnplaceableDemandDoesNotBlockOtherPools(t *testing.T) {
 
 func TestInvalidSnapshotsAndDuplicateRunners(t *testing.T) {
 	for _, change := range []func(*Snapshot){
-		func(s *Snapshot) { s.Complete = false }, func(s *Snapshot) { s.Version = 2 },
+		func(s *Snapshot) { s.Complete = false }, func(s *Snapshot) { s.Version = Version + 1 },
 		func(s *Snapshot) { s.CapturedAt = testNow.Add(-time.Minute) }, func(s *Snapshot) { s.CapturedAt = testNow.Add(time.Minute) },
 		func(s *Snapshot) { s.Demand = append(s.Demand, s.Demand[0]) }, func(s *Snapshot) { s.Accounts = append(s.Accounts, s.Accounts[0]) },
 		func(s *Snapshot) { s.Claims = []Claim{{Pod: "broken", AccountID: 1}} },

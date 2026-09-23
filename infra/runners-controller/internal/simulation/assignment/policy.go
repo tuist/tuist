@@ -1,19 +1,21 @@
-// Package shadow proposes assignments without owning or changing any resources.
-package shadow
+// Package assignment proposes assignments without owning or changing any resources.
+package assignment
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"time"
 )
 
 const (
-	Version        = 1
-	MaxDemand      = 1000
-	MaxClaims      = 10000
-	MaxAssignments = 100
-	MaxSnapshotAge = 15 * time.Second
-	AgingThreshold = 2 * time.Minute
+	Version            = 2
+	AccountCacheVolume = "tuist-cache"
+	MaxDemand          = 1000
+	MaxClaims          = 10000
+	MaxAssignments     = 100
+	MaxSnapshotAge     = 15 * time.Second
+	AgingThreshold     = 2 * time.Minute
 )
 
 type Resources struct {
@@ -22,12 +24,13 @@ type Resources struct {
 }
 
 type Demand struct {
-	JobID      int64     `json:"job_id"`
-	AccountID  int64     `json:"account_id"`
-	Pool       string    `json:"pool"`
-	Platform   string    `json:"platform"`
-	Resources  Resources `json:"resources"`
-	EnqueuedAt time.Time `json:"enqueued_at"`
+	CacheVolume string    `json:"cache_volume"`
+	JobID       int64     `json:"job_id"`
+	AccountID   int64     `json:"account_id"`
+	Pool        string    `json:"pool"`
+	Platform    string    `json:"platform"`
+	Resources   Resources `json:"resources"`
+	EnqueuedAt  time.Time `json:"enqueued_at"`
 }
 
 type Account struct {
@@ -58,13 +61,13 @@ type Snapshot struct {
 // Runner is an existing warm VM. Resources are the advertised job shape,
 // not host capacity or the RuntimeClass overhead already paid at placement.
 type Runner struct {
-	Pod              string         `json:"pod"`
-	UID              string         `json:"uid"`
-	Node             string         `json:"node"`
-	Pool             string         `json:"pool"`
-	Platform         string         `json:"platform"`
-	Resources        Resources      `json:"resources"`
-	ResidentAccounts map[int64]bool `json:"resident_accounts"`
+	Pod             string                    `json:"pod"`
+	UID             string                    `json:"uid"`
+	Node            string                    `json:"node"`
+	Pool            string                    `json:"pool"`
+	Platform        string                    `json:"platform"`
+	Resources       Resources                 `json:"resources"`
+	ResidentVolumes map[int64]map[string]bool `json:"resident_volumes"`
 }
 
 type Assignment struct {
@@ -101,7 +104,7 @@ func (s Snapshot) Validate(now time.Time) error {
 	}
 	jobs := map[int64]bool{}
 	for _, d := range s.Demand {
-		if d.JobID <= 0 || d.AccountID <= 0 || jobs[d.JobID] || d.EnqueuedAt.IsZero() || d.EnqueuedAt.After(now.Add(5*time.Second)) {
+		if !ValidCacheVolume(d.CacheVolume) || d.JobID <= 0 || d.AccountID <= 0 || jobs[d.JobID] || d.EnqueuedAt.IsZero() || d.EnqueuedAt.After(now.Add(5*time.Second)) {
 			return fmt.Errorf("invalid or duplicate demand")
 		}
 		jobs[d.JobID] = true
@@ -129,7 +132,7 @@ func (s Snapshot) Validate(now time.Time) error {
 // budget across pools. After two minutes, age wins over share. Within an
 // account/platform, the oldest feasible demand wins. Cache residency only breaks ties
 // between compatible runners; it never delays demand for a warmer host.
-// This is a policy experiment, not a simulation of the live dispatch loop.
+// This is a policy experiment, not a simulation of the live dispatch loop. It is used only by the offline simulator.
 func Propose(snapshot Snapshot, runners []Runner, now time.Time) (Plan, error) {
 	plan := Plan{Assignments: []Assignment{}, Deferred: map[string]int{}}
 	if err := snapshot.Validate(now); err != nil {
@@ -191,7 +194,7 @@ func Propose(snapshot Snapshot, runners []Runner, now time.Time) (Plan, error) {
 		plan.Assignments = append(plan.Assignments, Assignment{
 			JobID: d.JobID, AccountID: d.AccountID, Pod: r.Pod, UID: r.UID,
 			Node: r.Node, Pool: d.Pool, Platform: d.Platform,
-			CacheResident: r.ResidentAccounts[d.AccountID], QueueSeconds: max(0, int64(now.Sub(d.EnqueuedAt).Seconds())),
+			CacheResident: r.cacheResident(d), QueueSeconds: max(0, int64(now.Sub(d.EnqueuedAt).Seconds())),
 		})
 		key := accountKey{d.AccountID, d.Platform}
 		u := used[key]
@@ -229,6 +232,7 @@ type runnerKey struct {
 	pool, platform string
 	resources      Resources
 	account        int64
+	volume         string
 }
 type runnerIndex map[runnerKey][]Runner
 
@@ -237,10 +241,14 @@ func indexRunners(runners []Runner) runnerIndex {
 	for _, r := range runners {
 		key := runnerKey{pool: r.Pool, platform: r.Platform, resources: r.Resources}
 		index[key] = append(index[key], r)
-		for account, resident := range r.ResidentAccounts {
-			if resident {
-				key.account = account
-				index[key] = append(index[key], r)
+		if r.Platform == "macos" {
+			for account, volumes := range r.ResidentVolumes {
+				for volume, resident := range volumes {
+					if resident && account > 0 && ValidCacheVolume(volume) {
+						key.account, key.volume = account, volume
+						index[key] = append(index[key], r)
+					}
+				}
 			}
 		}
 	}
@@ -248,12 +256,32 @@ func indexRunners(runners []Runner) runnerIndex {
 }
 
 func (index runnerIndex) find(d Demand, claimed map[string]bool) (Runner, bool) {
-	key := runnerKey{pool: d.Pool, platform: d.Platform, resources: d.Resources, account: d.AccountID}
-	if r, ok := index.first(key, claimed); ok {
-		return r, true
+	key := runnerKey{pool: d.Pool, platform: d.Platform, resources: d.Resources, account: d.AccountID, volume: d.CacheVolume}
+	exact, hasExact := index.first(key, claimed)
+	key.volume = AccountCacheVolume
+	fallback, hasFallback := index.first(key, claimed)
+	// Live dispatch considers either master resident. Preserve Pod-name tie
+	// breaking across that union, rather than ranking account-wide caches lower.
+	if hasExact && (!hasFallback || exact.Pod < fallback.Pod) {
+		return exact, true
 	}
-	key.account = 0
+	if hasFallback {
+		return fallback, true
+	}
+	key.account, key.volume = 0, ""
 	return index.first(key, claimed)
+}
+
+var cacheVolumePattern = regexp.MustCompile(`^repo-[0-9a-f]{16}$`)
+
+// ValidCacheVolume mirrors Tuist.Runners.VolumeHeads.valid_volume_name?/1.
+func ValidCacheVolume(volume string) bool {
+	return volume == AccountCacheVolume || cacheVolumePattern.MatchString(volume)
+}
+
+func (r Runner) cacheResident(d Demand) bool {
+	volumes := r.ResidentVolumes[d.AccountID]
+	return r.Platform == "macos" && (volumes[d.CacheVolume] || volumes[AccountCacheVolume])
 }
 
 func (index runnerIndex) first(key runnerKey, claimed map[string]bool) (Runner, bool) {

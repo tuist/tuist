@@ -10,12 +10,6 @@ This node covers Helm assets under `infra/helm/`.
 
 ## Conventions
 - Kura archival defaults to hourly sweeps with a 24-hour never-used Air window. Canary inherits the hourly default; staging keeps its five-minute sweep override for lifecycle drills.
-- `runnersController.shadowScheduler` is enabled in the canary and production
-  overlays at a 30-second interval; staging and the chart default remain disabled.
-  Use canary to validate collection and production to observe real demand. Enable only after
-  both the controller flags and server snapshot endpoint are deployed; disabling
-  stops observations without changing runner execution. See
-  `../runners-controller/shadow-scheduler.md`.
 - Prefer one umbrella chart that models deployable capabilities, not implementation brands.
 - When a workload needs an independent workflow and release cadence, give it its own chart
   rather than adding it to `helm/tuist/`.
