@@ -79,6 +79,13 @@ spec:
                 privateHost:
                   type: string
                   maxLength: 253
+                clientHostAliases:
+                  description: Retained client hostnames for account renames; DNS, ingress and TLS only.
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 253
+                    pattern: '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'
                 publicHost:
                   type: string
                   maxLength: 253
@@ -257,6 +264,15 @@ spec:
                 cpuAutosize:
                   type: object
                   properties:
+                    samplesMilli:
+                      type: array
+                      maxItems: 10
+                      items:
+                        type: integer
+                        format: int32
+                    sampledAt:
+                      type: string
+                      format: date-time
                     requestMilli:
                       type: integer
                       format: int32

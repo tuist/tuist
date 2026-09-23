@@ -165,6 +165,10 @@ const DEMAND_BATCH_LINGER: Duration = Duration::from_millis(3);
 // answers UNAVAILABLE while it builds a large namespace's snapshot index,
 // and timeouts/transport errors are transient by the same token.
 const SNAPSHOT_ERROR_RETRY_INTERVAL: Duration = Duration::from_secs(60);
+// How long a snapshot that advertised a blob the remote no longer holds stays
+// out of service before its full refetch. Resolves go per key meanwhile, where
+// the server's presence gate answers an entry with evicted blobs as a miss.
+const SNAPSHOT_STALE_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
 
@@ -2803,6 +2807,9 @@ impl Proxy {
                     skipped.push(digest.to_vec());
                 }
             };
+            // Nodes the batch read did not return, root included, with their blobs.
+            // Not yet evidence of eviction: a read can also be refused.
+            let mut absent_remotely: Vec<(Vec<u8>, reapi::Digest)> = Vec::new();
             while !ordered.is_empty() {
                 let count = ordered.len();
                 let mut deferred = Vec::new();
@@ -2821,6 +2828,7 @@ impl Proxy {
                             // needs it retries — and surfaces the failure —
                             // per object.
                             None => {
+                                absent_remotely.push((entry.llcas_digest.clone(), entry.blob.clone()));
                                 skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
                                 continue;
                             }
@@ -2910,6 +2918,11 @@ impl Proxy {
             // measuring against the whole graph reads as `skipped=1 of 40` when
             // only two nodes were in play, which under-reports the failure rate
             // this counter exists to trend.
+            if !remote.declining_reads() {
+                self.distrust_snapshots_advertising(&confirmed_evicted(&absent_remotely, |blobs| {
+                    remote.find_missing(blobs)
+                }));
+            }
             let root_already_local = !root_pending;
             let skipped = skipped_digests.len();
             // Now narrow the pessimistic record to what the pass actually
@@ -3282,7 +3295,15 @@ impl Proxy {
                 let remote = self.remote_for(&instance);
                 match self.demand_fetch(&instance, &remote, &blob)? {
                     Some(bytes) => bytes,
-                    None => return Ok(false),
+                    None => {
+                        if !remote.declining_reads() {
+                            self.distrust_snapshots_advertising(&confirmed_evicted(
+                                &[(digest.to_vec(), blob.clone())],
+                                |blobs| remote.find_missing(blobs),
+                            ));
+                        }
+                        return Ok(false);
+                    }
                 }
             }
         };
@@ -5023,6 +5044,48 @@ impl Proxy {
             .insert(instance.to_string())
     }
 
+    /// Takes out of service every Ready snapshot that advertises one of `nodes`,
+    /// whose blobs the remote just answered as absent.
+    ///
+    /// A snapshot is a copy of the remote's action cache as of its fetch. An
+    /// entry whose blobs were evicted since keeps resolving from it to a
+    /// candidate the plugin cannot restore, so every such key misses without a
+    /// lookup the analytics can see. The same key per key is answered by the
+    /// server's presence gate as an ordinary miss, and the recompiled value is
+    /// published again. The full refetch after `SNAPSHOT_STALE_RETRY_INTERVAL`
+    /// brings back a view the server has gated.
+    fn distrust_snapshots_advertising(&self, nodes: &[Vec<u8>]) {
+        if nodes.is_empty() {
+            return;
+        }
+        let mut distrusted = Vec::new();
+        {
+            let mut snapshots = self.snapshots.lock().unwrap();
+            for (instance, state) in snapshots.iter_mut() {
+                let SnapshotState::Ready { snapshot, .. } = state else {
+                    continue;
+                };
+                if nodes
+                    .iter()
+                    .any(|node| snapshot.node_index.contains_key(node))
+                {
+                    *state = SnapshotState::Absent {
+                        checked: Instant::now(),
+                        retry_after: SNAPSHOT_STALE_RETRY_INTERVAL,
+                    };
+                    distrusted.push(instance.clone());
+                }
+            }
+        }
+        for instance in distrusted {
+            crate::log_line(&format!(
+                "snapshot for {instance} advertises blobs the remote no longer has; \
+                 serving resolves per key until a full refetch in {}s",
+                SNAPSHOT_STALE_RETRY_INTERVAL.as_secs()
+            ));
+        }
+    }
+
     /// Says once per instance that its snapshot has aged out of serving. Worth a
     /// line: the effect is silent otherwise — resolves keep succeeding, just via
     /// a round trip each — so a refresh loop that stopped would surface only as
@@ -5725,6 +5788,34 @@ fn encode_node_blob_accounted(
     Ok((blob, ref_digests, chunked))
 }
 
+/// The nodes among `absent` whose blobs the remote confirms it no longer holds.
+///
+/// A blob missing from a read is not proof of eviction: a node under memory
+/// pressure refuses individual reads, and a partly refused batch comes back
+/// without those blobs while the rest succeed. `FindMissingBlobs` answers
+/// presence alone, so only what it names is gone. A failed query confirms
+/// nothing.
+fn confirmed_evicted(
+    absent: &[(Vec<u8>, reapi::Digest)],
+    find_missing: impl FnOnce(Vec<reapi::Digest>) -> Result<Vec<reapi::Digest>, String>,
+) -> Vec<Vec<u8>> {
+    if absent.is_empty() {
+        return Vec::new();
+    }
+    let Ok(missing) = find_missing(absent.iter().map(|(_, blob)| blob.clone()).collect()) else {
+        return Vec::new();
+    };
+    let missing: HashSet<(String, i64)> = missing
+        .into_iter()
+        .map(|digest| (digest.hash, digest.size_bytes))
+        .collect();
+    absent
+        .iter()
+        .filter(|(_, blob)| missing.contains(&(blob.hash.clone(), blob.size_bytes)))
+        .map(|(node, _)| node.clone())
+        .collect()
+}
+
 fn walk_closure(
     state: &'static PathState,
     root: &[u8],
@@ -5989,6 +6080,77 @@ mod tests {
     /// ADD, so a view refreshed by deltas alone looks continuously fresh while
     /// never re-applying the server's eviction gate — which is precisely the
     /// state that serves keys the remote has dropped.
+    #[test]
+    fn a_snapshot_advertising_a_node_the_remote_lost_stops_serving() {
+        let proxy = test_proxy();
+        let snapshot = |node: &[u8]| SnapshotState::Ready {
+            snapshot: Arc::new(Snapshot {
+                nodes: Vec::new(),
+                node_index: HashMap::from([(node.to_vec(), 0)]),
+                keys: HashMap::new(),
+                key_order: Vec::new(),
+                watermark: 0,
+            }),
+            full_at: Instant::now(),
+            refreshed_at: Instant::now(),
+            last_used: Instant::now(),
+        };
+        proxy
+            .snapshots
+            .lock()
+            .unwrap()
+            .insert("tuist/stale".to_string(), snapshot(b"evicted-node"));
+        proxy
+            .snapshots
+            .lock()
+            .unwrap()
+            .insert("tuist/other".to_string(), snapshot(b"live-node"));
+
+        proxy.distrust_snapshots_advertising(&[b"evicted-node".to_vec()]);
+
+        assert!(proxy.snapshot_ready("tuist/stale").is_none());
+        assert!(matches!(
+            proxy.snapshots.lock().unwrap().get("tuist/stale"),
+            Some(SnapshotState::Absent { retry_after, .. })
+                if *retry_after == SNAPSHOT_STALE_RETRY_INTERVAL
+        ));
+        assert!(
+            proxy.snapshot_ready("tuist/other").is_some(),
+            "a snapshot that does not advertise the lost node keeps serving"
+        );
+    }
+
+    /// A partly refused batch read (RESOURCE_EXHAUSTED on some blobs) returns
+    /// without them, like an eviction does. Only what the remote confirms
+    /// missing may take a snapshot out of service.
+    #[test]
+    fn only_blobs_the_remote_confirms_missing_count_as_evicted() {
+        let blob = |byte: u8| reapi::Digest {
+            hash: format!("{byte:02x}").repeat(32),
+            size_bytes: 7,
+        };
+        let absent = vec![
+            (b"refused-node".to_vec(), blob(0x01)),
+            (b"evicted-node".to_vec(), blob(0x02)),
+        ];
+
+        assert_eq!(
+            confirmed_evicted(&absent, |asked| {
+                assert_eq!(asked, vec![blob(0x01), blob(0x02)]);
+                Ok(vec![blob(0x02)])
+            }),
+            vec![b"evicted-node".to_vec()]
+        );
+        assert!(
+            confirmed_evicted(&absent, |_| Ok(Vec::new())).is_empty(),
+            "blobs the remote still holds were refused, not evicted"
+        );
+        assert!(
+            confirmed_evicted(&absent, |_| Err("unavailable".into())).is_empty(),
+            "a failed presence query confirms nothing"
+        );
+    }
+
     #[test]
     fn snapshot_age_comes_from_the_full_fetch_not_the_delta() {
         let dir = std::env::temp_dir().join(format!("tuist-snapage-{}", std::process::id()));

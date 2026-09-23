@@ -24,3 +24,5 @@ staging credentials for local tests.
 - `cacheVolumeEnvironment` forwards only the three pod-local volume routing
   variables to generated job scripts. The server verifies identity independently.
   Keep them available in before_script and exercise this through TestExecute.
+
+- `waiting_trace` holds the bytes the server may already have written to the GitLab job log while the job waited for a machine. Write them before anything else, then close the `tuist_waiting_for_runner` section on its own line in the same timestamp format. Upstream skips to GitLab's offset on a range mismatch, so any other first bytes would drop the start of the runner's own log. `TestExecuteContinuesAfterServerWaitingTrace` runs against a coordinator that enforces `Content-Range` like GitLab.

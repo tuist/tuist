@@ -1,0 +1,390 @@
+{
+  "site": "ber1",
+  "location": "Berlin, rack 1",
+  "credentials": {
+    "vault": "pqwnigzdk46jpjvofoqpeuhmgq",
+    "username": "tuist",
+    "ssh_key": "~/.ssh/ber1-switch-rsa"
+  },
+  "management": {
+    "vlan": 1,
+    "vlan_name": "System-VLAN",
+    "prefix": "192.168.0.0/24",
+    "netmask": "255.255.255.0",
+    "gateway": "192.168.0.1",
+    "edge": {
+      "ssh": "tuist@ber1-edge",
+      "interface": "enp87s0",
+      "address": "192.168.0.10",
+      "provisioning": "192.168.50.1/24"
+    },
+    "controller": {
+      "url": "https://omada.taild6d7bb.ts.net:8043",
+      "address": "100.84.132.92",
+      "site": "ber1",
+      "credential_item": "omada staging open api",
+      "device_account_item": "ber1 switch device account",
+      "vault": "tuist-k8s-staging"
+    }
+  },
+  "services": {
+    "telnet": false,
+    "http": false,
+    "snmp": false,
+    "lldp": true,
+    "cloud_controller": false,
+    "spanning_tree": "rstp"
+  },
+  "devices": [
+    {
+      "name": "ber1-tor-b",
+      "role": "tor",
+      "model": "sx3832",
+      "mgmt_address": "192.168.0.12",
+      "credential_item": "ber1-tor-b switch admin",
+      "console_baud": 38400,
+      "apply_order": 1,
+      "apply_note": "No WAN path lands here, so a bad change costs one half of the rack's redundancy rather than the site's connectivity. Always the first switch changed, and the only one used to try a change out.",
+      "ports": {
+        "32": {
+          "purpose": "isl",
+          "peer": "ber1-tor-a",
+          "media": "dac",
+          "description": "isl ber1-tor-a"
+        }
+      },
+      "note": "Carries a spare LR optic, pre-provisioned so WAN failover is a matter of moving the LC jumper rather than sourcing hardware. Its port is not recorded yet.",
+      "mac": "d4:d6:df:03:d8:b2",
+      "adopted": true
+    },
+    {
+      "name": "ber1-tor-a",
+      "role": "tor",
+      "model": "sx3832",
+      "mgmt_address": "192.168.0.11",
+      "credential_item": "ber1-tor-a switch admin",
+      "console_baud": 38400,
+      "apply_order": 2,
+      "apply_note": "Carries the WAN optic and the router uplink, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.",
+      "ports": {
+        "24": {
+          "purpose": "wan",
+          "peer": "router",
+          "media": "copper",
+          "description": "router uplink WAN",
+          "protected": true
+        },
+        "32": {
+          "purpose": "isl",
+          "peer": "ber1-tor-b",
+          "media": "dac",
+          "description": "isl ber1-tor-b"
+        }
+      },
+      "mac": "d4:d6:df:06:fd:3b",
+      "adopted": true
+    },
+    {
+      "name": "ber1-mgmt",
+      "role": "mgmt",
+      "model": "tl-sg3452",
+      "mgmt_address": "192.168.0.13",
+      "credential_item": "ber1-mgmt switch admin",
+      "console_baud": 38400,
+      "apply_order": 3,
+      "apply_note": "There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.",
+      "ports": {},
+      "mac": "a8:29:48:fe:b4:be",
+      "behind_edge": true,
+      "adopted": true
+    }
+  ],
+  "node_roles": {
+    "edge": {
+      "description": "WAN termination and the path every other node reaches the internet through"
+    },
+    "storage": {
+      "description": "bulk storage"
+    },
+    "services": {
+      "description": "DHCP, DNS, NTP and the tailnet subnet router"
+    },
+    "runner": {
+      "description": "Mac mini running the runner fleet"
+    },
+    "console": {
+      "description": "crash-cart KVM reached over the network"
+    },
+    "power": {
+      "description": "PDU or transfer-switch management card"
+    },
+    "environment": {
+      "description": "temperature and humidity probe"
+    }
+  },
+  "nodes": [
+    {
+      "name": "ber1-edge",
+      "role": "edge",
+      "note": "Dual-homed, one SFP+ DAC to each ToR, on an Intel X710 that takes TL-SM5220 DACs.",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": 25,
+          "media": "dac",
+          "nic": "sfp28-1",
+          "purpose": "data"
+        },
+        {
+          "switch": "ber1-tor-a",
+          "port": null,
+          "media": "dac",
+          "nic": "sfp28-2",
+          "purpose": "data"
+        },
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "i226-lm",
+          "purpose": "management"
+        }
+      ],
+      "status": "installed",
+      "hardware": "ms-01"
+    },
+    {
+      "name": "ber1-store-a",
+      "role": "storage",
+      "note": "Single-homed to ToR A. The storage pair is split one node per ToR, the same way it is split across opposite ATS chains, so losing a ToR costs one storage node and not both. Moving these onto one switch would quietly remove that.",
+      "links": [
+        {
+          "switch": "ber1-tor-a",
+          "port": null,
+          "media": "dac",
+          "purpose": "data",
+          "nic": "sfp28-1"
+        },
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "i226-lm",
+          "purpose": "management"
+        }
+      ],
+      "status": "installed",
+      "hardware": "ms-01"
+    },
+    {
+      "name": "ber1-svc",
+      "role": "services",
+      "note": "Single-homed to ToR B today, which puts DHCP, DNS, NTP, the tailnet subnet router and half the runners behind one switch. A seventh DAC would dual-home it; add the second link here when it arrives.",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": null,
+          "media": "dac",
+          "purpose": "data",
+          "nic": "sfp28-1"
+        },
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "i226-lm",
+          "purpose": "management"
+        }
+      ],
+      "status": "installed",
+      "hardware": "ms-01"
+    },
+    {
+      "name": "ber1-store-b",
+      "role": "storage",
+      "status": "planned",
+      "note": "Not bought yet, arriving November, and the only one of the four x86 nodes still to come. Single-homed to ToR B as the other half of the storage pair. In the prep bay it is the empty slot in racknex #2 beside ber1-svc.",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": null,
+          "media": "dac",
+          "purpose": "data",
+          "nic": "sfp28-1"
+        },
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "i226-lm",
+          "purpose": "management"
+        }
+      ],
+      "hardware": "ms-01"
+    },
+    {
+      "name": "ber1-kvm-a",
+      "role": "console",
+      "hardware": "appliance",
+      "status": "installed",
+      "note": "Crash-cart KVM, one of a pair.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "mgmt",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-kvm-b",
+      "role": "console",
+      "hardware": "appliance",
+      "status": "installed",
+      "note": "Crash-cart KVM, one of a pair.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "mgmt",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-ats-1",
+      "role": "power",
+      "hardware": "eats16n",
+      "status": "planned",
+      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "netpack",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-ats-2",
+      "role": "power",
+      "hardware": "eats16n",
+      "status": "planned",
+      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "netpack",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-ats-3",
+      "role": "power",
+      "hardware": "eats16n",
+      "status": "planned",
+      "note": "Eaton EATS16N. Ordered as 3x with the PDUs in one Mindfactory order, not yet placed.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "netpack",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-pdu-a",
+      "role": "power",
+      "hardware": "evmafc20a",
+      "status": "planned",
+      "note": "Eaton Rack PDU G4. Feeds the A side, and carries an RS485 sensor chain on its USB port.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "netpack",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-pdu-b",
+      "role": "power",
+      "hardware": "evmafc20a",
+      "status": "planned",
+      "note": "Eaton Rack PDU G4. Feeds the B side.",
+      "links": [
+        {
+          "switch": "ber1-mgmt",
+          "port": null,
+          "media": "copper",
+          "nic": "netpack",
+          "purpose": "management"
+        }
+      ]
+    },
+    {
+      "name": "ber1-env-inlet",
+      "role": "environment",
+      "hardware": "emp-gen2",
+      "status": "planned",
+      "note": "Temperature and humidity at the cold aisle inlet.",
+      "links": [],
+      "attachment": {
+        "host": "ber1-pdu-a",
+        "bus": "rs485",
+        "address": 1,
+        "terminator": false
+      }
+    },
+    {
+      "name": "ber1-env-top",
+      "role": "environment",
+      "hardware": "emp-gen2",
+      "status": "planned",
+      "note": "Temperature and humidity at the top of rack.",
+      "links": [],
+      "attachment": {
+        "host": "ber1-pdu-a",
+        "bus": "rs485",
+        "address": 2,
+        "terminator": false
+      }
+    },
+    {
+      "name": "ber1-env-exhaust",
+      "role": "environment",
+      "hardware": "emp-gen2",
+      "status": "planned",
+      "note": "Temperature and humidity at the hot aisle exhaust.",
+      "links": [],
+      "attachment": {
+        "host": "ber1-pdu-a",
+        "bus": "rs485",
+        "address": 3,
+        "terminator": true
+      }
+    }
+  ],
+  "placement": {
+    "runner": "A Mac mini has one NIC, so it lands on exactly one ToR. Minis are split A/B across the two ToRs the same way the power feeds are, so losing a ToR costs half the fleet rather than all of it.",
+    "storage": "One storage node per ToR, matching the split across opposite ATS chains. Losing a ToR must cost one storage node, never both, so ber1-store-a is on ToR A and ber1-store-b on ToR B. The fleet tests enforce it.",
+    "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band.",
+    "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs, one Mindfactory order not yet placed, so every power appliance is planned. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
+    "sensors": "Environmental probes are not on the network. They chain off a PDU's USB port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links."
+  },
+  "kubernetes": {
+    "namespace": "tuist-staging"
+  }
+}

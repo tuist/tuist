@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -29,11 +30,18 @@ import (
 
 const maxLogBytes = 64 * 1024 * 1024
 
+// Matches the section the server opens in the job log while the job waits.
+const waitingSection = "tuist_waiting_for_runner"
+
+var timestampHeader = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z [0-9a-f]{2}[EO][ +]`)
+
 type assignment struct {
 	URL         string   `json:"url"`
 	Payload     spec.Job `json:"payload"`
 	ReportToken string   `json:"report_token"`
 	ReportURL   string   `json:"report_url"`
+	// The server may already have written these bytes to the GitLab job log.
+	WaitingTrace string `json:"waiting_trace"`
 }
 
 // GitLab's build logger masks variables and credentials before writing to
@@ -120,6 +128,7 @@ func execute(job assignment, buildsDir, resultFile string) error {
 	defer os.Remove(logFile.Name())
 	defer logFile.Close()
 	trace := &jobTrace{JobTrace: upstreamTrace, log: logFile}
+	writeWaitingTrace(trace, job.WaitingTrace, time.Now())
 	defer func() {
 		// This is idempotent in GitLab Runner when Build.Run already failed.
 		trace.mu.Lock()
@@ -300,4 +309,19 @@ func cacheVolumeEnvironment() []string {
 		}
 	}
 	return env
+}
+
+// Upstream skips to GitLab's offset when the log already holds bytes, so the
+// log continues after the server's waiting section only if it starts with the
+// same bytes. GitLab reads from the first line whether every line carries a
+// timestamp header, so the closing line follows the server's format.
+func writeWaitingTrace(trace io.Writer, waitingTrace string, now time.Time) {
+	if waitingTrace == "" {
+		return
+	}
+	header := ""
+	if timestampHeader.MatchString(waitingTrace) {
+		header = now.UTC().Format("2006-01-02T15:04:05.000000Z") + " 00O "
+	}
+	_, _ = fmt.Fprintf(trace, "%s%ssection_end:%d:%s\r\x1b[0K\n", waitingTrace, header, now.UTC().Unix(), waitingSection)
 }

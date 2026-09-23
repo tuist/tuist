@@ -83,6 +83,7 @@ defmodule Tuist do
       Kura.SelfHostedClient,
       Kura.SelfHostedClients,
       Kura.Mesh,
+      Kura.Identity,
       Kura.Registrations,
       Kura.RegisteredEndpoint,
       Gradle,
@@ -282,7 +283,6 @@ defmodule Tuist do
       Runners.Profiles,
       Runners.RunnerSession,
       Runners.RunnerSessions,
-      Runners.Shadow.Snapshot,
       Runners.PromExPlugin,
       Runners.Telemetry,
       Kubernetes.Client

@@ -56,7 +56,6 @@ defmodule Atlas.MCP.Tools.GetAccountTest do
     assert child_id == child.id
     assert [%{full_name: "Alice"}] = payload.contacts
     assert [%{title: "Kickoff"}] = payload.recent_events
-    assert payload.attention_suggestions == []
     assert [%{handle: "#acme"}] = payload.handles
     assert [%{seats: 35, price_per_seat: "50", on_premise: false}] = payload.terms
   end

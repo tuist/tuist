@@ -26,6 +26,10 @@ use uuid::Uuid;
 
 use crate::{
     action_cache_refs::referenced_blob_keys,
+    action_cache_removals::{
+        ACTION_CACHE_REMOVAL_LOG_MAX, ActionCacheRemoval, ActionCacheRemovalLog,
+        ActionCacheRemovals,
+    },
     artifact::{
         manifest::{ArtifactManifest, PersistedManifestRecord},
         producer::ArtifactProducer,
@@ -180,6 +184,15 @@ pub struct Store {
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
     multipart_uploads: Arc<AtomicUsize>,
+    /// In-memory approximate count of durable entries in the analytics
+    /// outbox column family. Hydrated once at [`Self::open`] by scanning
+    /// the CF; every subsequent [`Self::append_analytics_outbox_entry`]
+    /// increments and every [`Self::delete_analytics_outbox_entries`]
+    /// decrements. Kept precise as long as callers only mutate the CF
+    /// through those two methods, which the producer and forwarder do.
+    /// Used by the producer's depth-cap admission so it does not have
+    /// to scan the CF on every event.
+    analytics_outbox_entries: AtomicUsize,
     multipart_admission_waiters: AtomicUsize,
     multipart_admission_turn: Mutex<()>,
     multipart_slots_changed: Arc<Notify>,
@@ -224,6 +237,10 @@ pub struct Store {
     /// per node: it only ever gates a local cache, a fresh process rebuilds once,
     /// and the apply path bumps it too so a peer's write is not missed.
     action_cache_generations: StdMutex<HashMap<String, u64>>,
+    /// Entries and blobs removed per namespace, so a cached snapshot index can
+    /// drop what it advertises before its next reconcile (see
+    /// `action_cache_removals`).
+    action_cache_removals: Arc<StdMutex<ActionCacheRemovalLog>>,
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
@@ -402,6 +419,15 @@ const MAX_PENDING_PROMOTIONS: usize = 262_144;
 /// queue ahead of one. Reserving a slice rather than raising the ceiling keeps
 /// the queue's total memory bound unchanged.
 const VOUCHED_PROMOTION_RESERVE: usize = 65_536;
+
+/// Snapshot returned by [`Store::analytics_outbox_stats`]. `entries` is
+/// the precise in-memory counter and `bytes` is RocksDB's live-data-size
+/// estimate for the analytics outbox column family.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct AnalyticsOutboxStats {
+    pub entries: usize,
+    pub bytes: u64,
+}
 
 pub struct StoreSnapshot {
     pub multipart_uploads: usize,
@@ -1125,6 +1151,9 @@ struct CascadeProgress {
     seen_recipes: HashSet<String>,
     pending_entries: Vec<String>,
     pending_namespaces: HashSet<String>,
+    /// Entries and blobs staged for deletion in the current chunk, recorded for
+    /// cached snapshot indexes when the chunk commits.
+    removals: Vec<(String, ActionCacheRemoval)>,
     total: usize,
     recipe_total: usize,
 }
@@ -1321,6 +1350,7 @@ impl Store {
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
             multipart_uploads: Arc::new(AtomicUsize::new(0)),
+            analytics_outbox_entries: AtomicUsize::new(0),
             multipart_admission_waiters: AtomicUsize::new(0),
             multipart_admission_turn: Mutex::new(()),
             multipart_slots_changed: Arc::new(Notify::new()),
@@ -1343,6 +1373,9 @@ impl Store {
             #[cfg(test)]
             write_thread_observer: Arc::new(StdMutex::new(None)),
             action_cache_generations: StdMutex::new(HashMap::new()),
+            action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
+                ACTION_CACHE_REMOVAL_LOG_MAX,
+            ))),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
             durable_seq: AtomicU64::new(0),
@@ -1385,6 +1418,13 @@ impl Store {
         store.rederive_active_segment_max_version()?;
         store.init_backfill_index_state()?;
         store.sweep_legacy_outbox()?;
+        // Hydrate the analytics outbox entry counter once at open. From
+        // here on every append/delete keeps it precise; the producer
+        // admission check reads this counter instead of scanning the CF.
+        let analytics_outbox_entries = store.count_cf_entries(ROCKSDB_CF_ANALYTICS_OUTBOX)?;
+        store
+            .analytics_outbox_entries
+            .store(analytics_outbox_entries, Ordering::Release);
         let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
         store
             .multipart_uploads
@@ -4142,6 +4182,14 @@ impl Store {
                         );
                         batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
                         self.stage_backfill_index_delete(&mut batch, &manifest);
+                        if manifest.producer == ArtifactProducer::Reapi
+                            && let Some(removal) =
+                                ActionCacheRemoval::for_artifact_key(&manifest.key)
+                        {
+                            cascade
+                                .removals
+                                .push((manifest.namespace_id.clone(), removal));
+                        }
                         *removed_artifacts.entry(manifest.producer).or_default() += 1;
                         removed_artifact_ids.push(artifact_id);
                     }
@@ -4230,6 +4278,13 @@ impl Store {
         // there, and it costs only a re-read if the commit then fails.
         self.invalidate_committed_eviction(removed_artifact_ids, cascade);
         let db = Arc::clone(&self.db);
+        // Removals are recorded for cached snapshot indexes only once the write
+        // has landed, and from the blocking task, which runs to completion even
+        // when the future awaiting it is dropped. Recording earlier would let a
+        // concurrent rebuild stamp the new sequence over rows still present,
+        // and nothing would record them again once the commit removed them.
+        let removals = std::mem::take(&mut cascade.removals);
+        let removal_log = Arc::clone(&self.action_cache_removals);
         #[cfg(test)]
         let commits = Arc::clone(&self.eviction_commits);
         #[cfg(test)]
@@ -4255,6 +4310,14 @@ impl Store {
                 }
             }
             let result = db.write(batch);
+            if result.is_ok() {
+                let mut log = removal_log
+                    .lock()
+                    .expect("action-cache removal log lock poisoned");
+                for (namespace_id, removal) in removals {
+                    log.record(&namespace_id, removal);
+                }
+            }
             #[cfg(test)]
             if result.is_ok() {
                 let hook = commits
@@ -4389,6 +4452,11 @@ impl Store {
                     continue;
                 }
                 self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
+                if let Some(removal) = ActionCacheRemoval::for_artifact_key(&entry_manifest.key) {
+                    cascade
+                        .removals
+                        .push((entry_manifest.namespace_id.clone(), removal));
+                }
                 cascade.record(&entry_manifest.namespace_id, entry_id);
                 // Bound the batch inside the cascade, not just between blobs. The
                 // caller stages this blob's own rows only after this returns, so
@@ -4494,6 +4562,11 @@ impl Store {
                     // representation. Removing the recipe cannot strand them when
                     // the complete blob remains on another segment.
                     if !canonical_blob_survives {
+                        if let Some(removal) = ActionCacheRemoval::for_artifact_key(&blob_key) {
+                            cascade
+                                .removals
+                                .push((recipe_manifest.namespace_id.clone(), removal));
+                        }
                         self.stage_action_cache_cascade_for_blob(
                             batch,
                             &blob_id,
@@ -6377,11 +6450,36 @@ impl Store {
         self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
     }
 
-    /// Depth of the analytics outbox in entries. Zero for the life of the
-    /// release that declared the column family; goes non-zero once a
-    /// producer routes cache analytics through it.
+    /// Depth of the analytics outbox in entries. Reads the in-memory
+    /// counter that is hydrated at [`Self::open`] and maintained by
+    /// [`Self::append_analytics_outbox_entry`] and
+    /// [`Self::delete_analytics_outbox_entries`]. Result is always `Ok`
+    /// so the signature can stay the same as when the count required a
+    /// scan; the `Result` shape is preserved for callers.
     pub fn analytics_outbox_entry_count(&self) -> Result<usize, String> {
-        self.count_cf_entries(ROCKSDB_CF_ANALYTICS_OUTBOX)
+        Ok(self.analytics_outbox_entries.load(Ordering::Acquire))
+    }
+
+    /// Approximate depth signal for the producer's admission check.
+    /// `entries` is precise (the in-memory counter). `bytes` is the
+    /// RocksDB estimate for live data in the column family, which lags
+    /// behind flushes and compactions but is O(1) to read and never
+    /// blocks the drain. The producer treats both as soft ceilings and
+    /// drops new batches once either is exceeded, matching the
+    /// dual-cap pattern the Sentry SDK, OpenTelemetry BatchSpan
+    /// exporter, and Vector's disk buffers use for telemetry outboxes.
+    pub fn analytics_outbox_stats(&self) -> AnalyticsOutboxStats {
+        let entries = self.analytics_outbox_entries.load(Ordering::Acquire);
+        let bytes = self
+            .db
+            .property_int_value_cf(
+                self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX),
+                "rocksdb.estimate-live-data-size",
+            )
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+        AnalyticsOutboxStats { entries, bytes }
     }
 
     /// Append one encoded outbox entry, durably.
@@ -6392,15 +6490,14 @@ impl Store {
     /// inside the encoded payload before this method sees it) can share
     /// the same wall-clock read.
     ///
-    /// The follow-up outbox module wraps this with a producer-facing
-    /// helper that owns admission (memory pressure, cap enforcement).
     /// This method is deliberately unopinionated about admission so the
     /// forwarder can also use it, for example when moving a decoded
-    /// entry back to the live prefix after a version-skew fix.
+    /// entry back to the live prefix after a version-skew fix. The
+    /// producer's admission (depth caps, byte caps, memory pressure)
+    /// lives in [`crate::analytics`].
     ///
-    /// Marked `dead_code`-allowed because no production caller exists in
-    /// this PR; the follow-up wires it up.
-    #[allow(dead_code)]
+    /// Bumps the in-memory entry counter on success. A failed write
+    /// leaves the counter untouched.
     pub async fn append_analytics_outbox_entry(
         &self,
         pipeline: crate::analytics_outbox::Pipeline,
@@ -6416,7 +6513,9 @@ impl Store {
             "analytics outbox append",
             ApplyDurability::Sync,
         )
-        .await
+        .await?;
+        self.analytics_outbox_entries.fetch_add(1, Ordering::AcqRel);
+        Ok(())
     }
 
     /// Read the oldest entries for one pipeline, bounded by count and
@@ -6530,12 +6629,17 @@ impl Store {
     /// Runs through the off-runtime write path for the same reason
     /// [`Self::append_analytics_outbox_entry`] does.
     ///
-    /// Marked `dead_code`-allowed for the same reason.
-    #[allow(dead_code)]
+    /// Decrements the in-memory entry counter by `keys.len()` on
+    /// success. Because the caller is expected to pass keys that
+    /// actually existed (from a prior read of the CF), the counter
+    /// stays consistent with the CF; a stray delete of a non-existent
+    /// key would drift the counter one below reality until the next
+    /// process restart re-hydrates it from a scan.
     pub async fn delete_analytics_outbox_entries(&self, keys: &[Vec<u8>]) -> Result<(), String> {
         if keys.is_empty() {
             return Ok(());
         }
+        let count = keys.len();
         let mut batch = WriteBatch::default();
         for key in keys {
             batch.delete_cf(self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX), key);
@@ -6545,7 +6649,24 @@ impl Store {
             "analytics outbox delete",
             ApplyDurability::Sync,
         )
-        .await
+        .await?;
+        // fetch_update-style saturating subtract: a delete never wraps
+        // the counter around, even if the caller passes keys that
+        // predate the last open.
+        let mut current = self.analytics_outbox_entries.load(Ordering::Acquire);
+        loop {
+            let next = current.saturating_sub(count);
+            match self.analytics_outbox_entries.compare_exchange_weak(
+                current,
+                next,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(observed) => current = observed,
+            }
+        }
+        Ok(())
     }
 
     pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {
@@ -6672,6 +6793,15 @@ impl Store {
         }
         self.write_batch_sync(batch, "artifact metadata deletes")?;
         self.remove_manifest_cache_keys(&ids);
+        self.record_action_cache_removals(
+            manifests
+                .iter()
+                .filter(|manifest| manifest.producer == ArtifactProducer::Reapi)
+                .filter_map(|manifest| {
+                    ActionCacheRemoval::for_artifact_key(&manifest.key)
+                        .map(|removal| (manifest.namespace_id.clone(), removal))
+                }),
+        );
         Ok(())
     }
 
@@ -6920,6 +7050,41 @@ impl Store {
             .get(namespace_id)
             .copied()
             .unwrap_or(0)
+    }
+
+    /// The removal sequence a snapshot index built from the store now resumes
+    /// from.
+    pub fn action_cache_removal_seq(&self) -> u64 {
+        self.action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned")
+            .last()
+    }
+
+    /// The entries and blobs removed from the namespace after `after`, or `None`
+    /// when the log no longer retains all of them and the index has to rebuild.
+    pub fn action_cache_removals_since(
+        &self,
+        namespace_id: &str,
+        after: u64,
+    ) -> Option<ActionCacheRemovals> {
+        self.action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned")
+            .since(namespace_id, after)
+    }
+
+    fn record_action_cache_removals(
+        &self,
+        removals: impl IntoIterator<Item = (String, ActionCacheRemoval)>,
+    ) {
+        let mut log = self
+            .action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned");
+        for (namespace_id, removal) in removals {
+            log.record(&namespace_id, removal);
+        }
     }
 
     fn bump_action_cache_generation(&self, namespace_id: &str) {
@@ -17310,6 +17475,58 @@ mod tests {
             "the entry stranded by the evicted blob should be cascaded away"
         );
         assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn segment_eviction_records_its_removals_for_cached_snapshots() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+        let before = store.action_cache_removal_seq();
+        let seen_before_commit = Arc::new(AtomicU64::new(u64::MAX));
+        {
+            let seen = seen_before_commit.clone();
+            let log = store.action_cache_removals.clone();
+            store.eviction_commits.lock().unwrap().before_commit = Some(Arc::new(move || {
+                seen.store(log.lock().unwrap().last(), Ordering::SeqCst);
+            }));
+        }
+
+        store
+            .evict_segment(blob.segment_id.as_deref().expect("segment-backed blob"))
+            .await
+            .expect("failed to evict segment");
+
+        assert_eq!(
+            seen_before_commit.load(Ordering::SeqCst),
+            before,
+            "a rebuild during the commit must not see the removals as applied yet"
+        );
+
+        let removals = store
+            .action_cache_removals_since("acme", before)
+            .expect("the log retains this eviction");
+        let Some(ActionCacheRemoval::Entry(entry_hash)) =
+            ActionCacheRemoval::for_artifact_key(&entry.key)
+        else {
+            panic!("the entry key should name an action hash");
+        };
+        let Some(ActionCacheRemoval::Blob { hash, size }) =
+            ActionCacheRemoval::for_artifact_key(&blob.key)
+        else {
+            panic!("the blob key should name a digest");
+        };
+        assert!(removals.entries.contains(&entry_hash));
+        assert!(removals.blobs.contains(&(hash, size)));
+        assert_eq!(removals.through, store.action_cache_removal_seq());
     }
 
     #[tokio::test]

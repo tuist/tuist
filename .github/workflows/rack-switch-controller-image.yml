@@ -1,0 +1,149 @@
+name: Rack Switch Controller Image
+
+# PR validation and main-branch image build for the rack switch controller
+# (infra/rack-switch-controller), which adopts a rack's switches into the Omada
+# controller and writes their configuration through its Open API, from the
+# RackSwitch objects in the rack's namespace.
+#
+# A push to main that changes the image's inputs publishes
+# `sha-<12 sha>` and `latest`; omada-deployment.yml waits for the sha tag and
+# deploys it. Pull requests also render the chart and check that the CRD
+# generated from the Go types is committed, since nothing else ties a
+# rackswitch_types.go edit to infra/helm/tuist/crds/tuist.dev_rackswitches.yaml.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/rack-switch-controller/**
+      - .github/workflows/rack-switch-controller-image.yml
+  pull_request:
+    paths:
+      - infra/rack-switch-controller/**
+      - infra/helm/rack-switch-controller/**
+      - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - mise/tasks/rack-switch-controller/**
+      - .github/workflows/rack-switch-controller-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/rack-switch-controller
+
+jobs:
+  test:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/rack-switch-controller/go.mod
+          cache-dependency-path: infra/rack-switch-controller/go.sum
+      - name: Check formatting
+        working-directory: infra/rack-switch-controller
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      # kube-apiserver and etcd for controllers/envtest_test.go, which skips
+      # without them. It checks the generated CRD admits the committed objects
+      # and the reconciler's status patches, which the fake client cannot.
+      - name: Install envtest binaries
+        working-directory: infra/rack-switch-controller
+        run: |
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          echo "KUBEBUILDER_ASSETS=$(setup-envtest use 1.32.0 --bin-dir /tmp/envtest -p path)" >> "$GITHUB_ENV"
+      - name: Test
+        working-directory: infra/rack-switch-controller
+        run: go test ./...
+      - name: Vet
+        working-directory: infra/rack-switch-controller
+        run: go vet ./...
+
+  chart:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm"
+          cache: "false"
+      - name: The chart renders with the staging values
+        run: |
+          set -euo pipefail
+          chart=infra/helm/rack-switch-controller
+          helm lint "$chart" -f "$chart/values.yaml" -f "$chart/values-staging.yaml"
+          helm template rack-switch-controller "$chart" --namespace omada \
+            -f "$chart/values.yaml" -f "$chart/values-staging.yaml" > /dev/null
+
+  generated:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/rack-switch-controller/go.mod
+          cache-dependency-path: infra/rack-switch-controller/go.sum
+      - uses: ./.github/actions/mise
+        with:
+          # controller-gen comes in through `go run`; the task needs no tools.
+          install: "false"
+          cache: "false"
+      - name: Regenerate DeepCopy and the CRD
+        run: mise run --skip-tools rack-switch-controller:generate
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error title=Generated RackSwitch artefacts out of sync::The committed CRD and DeepCopy methods do not match the API types. Run 'mise run rack-switch-controller:generate' and commit the result."
+            git status --porcelain
+            git diff
+            exit 1
+          fi
+          echo "Generated RackSwitch artefacts are up to date"
+
+  build:
+    needs: [test, chart, generated]
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        # `sha-<12 sha>` is what omada-deployment.yml deploys. `latest` is for
+        # humans pulling by hand, and moves only on main.
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:sha-${GITHUB_SHA::12}"
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "${IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/rack-switch-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=rack-switch-controller
+          cache-to: type=gha,mode=max,scope=rack-switch-controller

@@ -48,6 +48,7 @@ defmodule Tuist.Kura.Capacity do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.Admission
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -614,10 +615,10 @@ defmodule Tuist.Kura.Capacity do
   # The handle the controller labels the instance's pods with. Read off the
   # row rather than asked for, so a caller holding a bare `%Server{}`, which is
   # what the claim re-pin builds, needs to know nothing about labels.
-  defp account_handle(%Server{account: %Account{name: name}}), do: String.downcase(name)
+  defp account_handle(%Server{account: %Account{} = account}), do: Identity.tenant_id(account)
 
   defp account_handle(%Server{account_id: account_id}) when is_integer(account_id) do
-    case Repo.one(from(account in Account, where: account.id == ^account_id, select: account.name)) do
+    case Repo.one(from(account in Account, where: account.id == ^account_id, select: account.kura_tenant_id)) do
       name when is_binary(name) -> String.downcase(name)
       _ -> nil
     end

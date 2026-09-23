@@ -663,6 +663,22 @@ defmodule Tuist.ProjectsTest do
       assert got["#{account2.name}/project3"].id == project3.id
     end
 
+    test "resolves retained account handles to their owner's projects after repeated renames" do
+      account = AccountsFixtures.organization_fixture(name: "original-#{System.unique_integer([:positive])}").account
+      project = ProjectsFixtures.project_fixture(account_id: account.id, name: "shared-name")
+      other = ProjectsFixtures.project_fixture(name: project.name)
+      {:ok, middle} = Accounts.update_account(account, %{name: "middle-#{account.id}"})
+      {:ok, renamed} = Accounts.update_account(middle, %{name: "renamed-#{account.id}"})
+      aliases = [account.name, middle.name, renamed.name, String.upcase(account.name)]
+      full_handles = Enum.map(aliases, &"#{&1}/#{project.name}")
+      other_handle = "#{other.account.name}/#{other.name}"
+      missing_handle = "missing-account/#{project.name}"
+      result = Projects.projects_by_full_handles(full_handles ++ [other_handle, missing_handle])
+      for handle <- full_handles, do: assert(result[handle].id == project.id)
+      assert result[other_handle].id == other.id
+      refute Map.has_key?(result, missing_handle)
+    end
+
     test "returns empty map when no full handles provided" do
       # When
       got = Projects.projects_by_full_handles([])
@@ -1460,6 +1476,27 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert projects |> Enum.map(& &1.id) |> Enum.sort() == [project_one.id, project_two.id]
+    end
+
+    test "matches the repository handle case-insensitively" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "Tuist/Tuist",
+            provider: :github
+          ]
+        )
+
+      # When
+      projects = Projects.projects_by_vcs_repository_full_handle("tuist/tuist")
+
+      # Then
+      assert Enum.map(projects, & &1.id) == [project.id]
     end
 
     test "returns projects with preloaded associations" do

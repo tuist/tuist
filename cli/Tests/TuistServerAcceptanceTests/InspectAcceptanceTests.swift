@@ -153,7 +153,6 @@ struct InspectAcceptanceTests {
     }
 
     @Test(
-        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -165,29 +164,58 @@ struct InspectAcceptanceTests {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        // When: I build the app
-        let commandRunner = CommandRunner()
-        try await commandRunner.run(
-            arguments: [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "test",
-                "-scheme", "App",
-                "-destination", "platform=iOS Simulator,name=iPhone 17",
-                "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
-                "-derivedDataPath", temporaryDirectory.pathString,
-            ]
-        ).pipedStream().awaitCompletion()
-
-        // When: I inspect the test
+        // When: I test the app, uploading the result bundle for the server to process
         try await TuistTest.run(
-            InspectTestCommand.self,
-            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
+            XcodeBuildTestCommand.self,
+            ["--inspect-mode", "remote"]
+                + xcodeBuildArguments(fixtureDirectory: fixtureDirectory, derivedDataPath: temporaryDirectory)
         )
 
         // Then
-        #expect(ui().contains("View the analyzed test at"))
+        #expect(ui().contains("Result bundle uploaded for processing"))
+        try await expectTestRunProcessed()
+    }
+
+    /// Waits for the server to finish processing the uploaded result bundle.
+    ///
+    /// The test run is created with a `processing` status and the result bundle is parsed
+    /// afterwards on the xcresult processor fleet, so the command's success says nothing about
+    /// whether anything was processed. A test run only has module runs once that parse completed.
+    ///
+    /// Retries back off 30 seconds after the first failed attempt, so the deadline leaves room for
+    /// one transient failure and for the processor's Tart VM to finish booting after the deploy.
+    private func expectTestRunProcessed(
+        timeout: Duration = .seconds(420),
+        pollInterval: Duration = .seconds(5)
+    ) async throws {
+        let fullHandle = try #require(TuistTest.fixtureFullHandle)
+        let serverURL = try #require(TuistTest.fixtureServerURL)
+        let testRunId = try #require(await RunMetadataStorage.current.testRunId)
+        let listTestModuleRunsService = ListTestModuleRunsService()
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        var lastError: Error?
+
+        while ContinuousClock.now < deadline {
+            do {
+                let page = try await listTestModuleRunsService.listTestModuleRuns(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    testRunId: testRunId,
+                    status: nil,
+                    page: nil,
+                    pageSize: 1
+                )
+                if !page.modules.isEmpty { return }
+                lastError = nil
+            } catch {
+                lastError = error
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+
+        Issue.record(
+            "Test run \(testRunId) was uploaded to \(serverURL.absoluteString) but \(fullHandle) reported no processed test modules within \(timeout). The upload path works and the xcresult processing path does not. Last error: \(lastError.map(String.init(describing:)) ?? "none")"
+        )
     }
 
     @Test(

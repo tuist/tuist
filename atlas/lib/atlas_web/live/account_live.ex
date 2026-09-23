@@ -19,6 +19,7 @@ defmodule AtlasWeb.AccountLive do
   alias Atlas.Audit
   alias Atlas.Letters
   alias Atlas.LLMs
+  alias Atlas.Nudges
   alias Atlas.Slack
   alias Atlas.Users
   alias AtlasWeb.AccountLive.FeatureUsageView
@@ -52,6 +53,8 @@ defmodule AtlasWeb.AccountLive do
          |> assign(:staged_screenshots, [])
          |> assign(:overview_summary_processing, false)
          |> assign(:overview_summary_error, nil)
+         |> assign(:dismiss_nudge_id, nil)
+         |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
          |> assign(:outcome_proposals_processing, false)
          |> assign(:outcome_proposals_error, nil)
          |> assign_favicon(account)
@@ -468,6 +471,103 @@ defmodule AtlasWeb.AccountLive do
              Accounts.generate_outcome_proposals(account_id)
            end)
          end)}
+    end
+  end
+
+  def handle_event("claim_nudge", %{"id" => id}, socket) do
+    case Nudges.claim(id, socket.assigns.current_user) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("You now own this nudge."))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not claim the nudge."))}
+    end
+  end
+
+  def handle_event("send_nudge", %{"id" => id}, socket) do
+    handle_send_result(Nudges.send(id, socket.assigns.current_user), socket)
+  end
+
+  def handle_event("retry_nudge", %{"id" => id}, socket) do
+    case Nudges.retry(id) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("Ready to send again."))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+      {:error, {:retry_not_allowed, stage}} ->
+        {:noreply, put_flash(socket, :error, gettext("Retry not allowed while delivery is %{s}.", s: to_string(stage)))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not retry the nudge."))}
+    end
+  end
+
+  def handle_event("release_nudge", %{"id" => id}, socket) do
+    case Nudges.release(id) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("Nudge released."))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not release the nudge."))}
+    end
+  end
+
+  def handle_event("open_dismiss_nudge_modal", %{"id" => id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:dismiss_nudge_id, id)
+     |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+     |> push_event("open-modal", %{id: "dismiss-nudge-modal"})}
+  end
+
+  def handle_event("close_dismiss_nudge_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:dismiss_nudge_id, nil)
+     |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+     |> push_event("close-modal", %{id: "dismiss-nudge-modal"})}
+  end
+
+  def handle_event("dismiss_nudge", %{"dismiss_nudge" => %{"reason" => reason}}, socket) do
+    nudge_id = socket.assigns.dismiss_nudge_id
+    trimmed = String.trim(reason || "")
+
+    cond do
+      is_nil(nudge_id) ->
+        {:noreply, put_flash(socket, :error, gettext("No nudge selected."))}
+
+      trimmed == "" ->
+        {:noreply,
+         assign(
+           socket,
+           :dismiss_nudge_form,
+           to_form(%{"reason" => reason}, as: "dismiss_nudge", errors: [reason: {"can't be blank", []}])
+         )}
+
+      true ->
+        case Nudges.dismiss(nudge_id, %{dismissed_reason: trimmed}) do
+          {:ok, _nudge} ->
+            {:noreply,
+             socket
+             |> assign(:dismiss_nudge_id, nil)
+             |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+             |> push_event("close-modal", %{id: "dismiss-nudge-modal"})
+             |> refresh_nudges(gettext("Nudge dismissed."))}
+
+          {:error, :not_found} ->
+            {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, gettext("Could not dismiss the nudge."))}
+        end
     end
   end
 
@@ -1429,25 +1529,6 @@ defmodule AtlasWeb.AccountLive do
                             }
                             rows={3}
                             max_length={600}
-                          />
-                        </div>
-                        <div data-part="account-settings-grid-full">
-                          <.text_area
-                            id="account-attention-context-input"
-                            field={@account_form[:attention_context]}
-                            label={gettext("Agent guidance")}
-                            placeholder={
-                              gettext(
-                                "Explain what makes this account strategically important and which usage patterns matter."
-                              )
-                            }
-                            hint={
-                              gettext(
-                                "For example: test sharding, automations, and test selections are central to this customer's delivery workflow."
-                              )
-                            }
-                            rows={4}
-                            max_length={2_000}
                           />
                         </div>
                         <div data-part="account-settings-grid-full">
@@ -2811,6 +2892,185 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
+        title={gettext("Account nudges")}
+        icon="bell"
+        data-part="account-nudges-card"
+      >
+        <.card_section data-part="account-nudges-section">
+          <div :if={@nudges != []} id="account-nudges-table" data-part="account-nudges-table">
+            <.table id="account-nudges" rows={@nudges} row_key={fn n -> "nudge-row-#{n.id}" end}>
+              <:col :let={nudge} label={gettext("Nudge")}>
+                <.text_and_description_cell
+                  label={nudge.title}
+                  description={nudge.rationale}
+                />
+              </:col>
+              <:col :let={nudge} label={gettext("Signal")}>
+                <.badge_cell label={nudge.signal} color="information" style="light-fill" />
+              </:col>
+              <:col :let={nudge} label={gettext("State")}>
+                <.badge_cell
+                  label={nudge_state_label(nudge, nudge_stage(nudge))}
+                  color={nudge_state_color(nudge, nudge_stage(nudge))}
+                  style="light-fill"
+                />
+              </:col>
+              <:col :let={nudge} label={gettext("Opened")}>
+                <.text_cell label={format_nudge_timestamp(nudge.inserted_at)} />
+              </:col>
+              <:col :let={nudge} label="">
+                <.button_cell :if={nudge.state == "proposed"}>
+                  <:button>
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
+                      label={gettext("Claim")}
+                      size="medium"
+                      align="end"
+                      phx-click="claim_nudge"
+                      phx-value-id={nudge.id}
+                    >
+                      <.dropdown_item
+                        id={"dismiss-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
+                  </:button>
+                </.button_cell>
+                <.button_cell :if={nudge.state == "claimed"}>
+                  <:button>
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
+                      label={gettext("Send")}
+                      size="medium"
+                      align="end"
+                      phx-click="send_nudge"
+                      phx-value-id={nudge.id}
+                    >
+                      <.dropdown_item
+                        id={"release-nudge-#{nudge.id}"}
+                        value="release"
+                        label={gettext("Release")}
+                        on_click="release_nudge"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.reload /></:left_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        id={"dismiss-claimed-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
+                  </:button>
+                </.button_cell>
+                <.button_cell :if={nudge.state == "sent" and nudge_stage(nudge) == :failed}>
+                  <:button>
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
+                      label={gettext("Retry")}
+                      size="medium"
+                      align="end"
+                      phx-click="retry_nudge"
+                      phx-value-id={nudge.id}
+                    >
+                      <.dropdown_item
+                        id={"dismiss-sent-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
+                  </:button>
+                </.button_cell>
+              </:col>
+            </.table>
+          </div>
+
+          <.account_empty_state
+            :if={@nudges == []}
+            id="account-nudges-empty"
+            title={gettext("No nudges yet")}
+            subtitle={
+              gettext(
+                "Signals will drop a card here (and in Slack) when the account crosses a threshold worth reaching out about."
+              )
+            }
+          />
+
+          <.modal
+            id="dismiss-nudge-modal"
+            title={gettext("Dismiss nudge")}
+            description={
+              gettext("Add a short reason. This helps tune thresholds and shows on the account.")
+            }
+            header_type="icon"
+            header_size="small"
+            on_dismiss="close_dismiss_nudge_modal"
+          >
+            <:header_icon><.circle_x /></:header_icon>
+            <:trigger :let={modal_attrs}>
+              <button id="dismiss-nudge-modal-trigger" type="button" hidden {modal_attrs}></button>
+            </:trigger>
+
+            <div data-part="dismiss-nudge-modal-content">
+              <.form
+                id="dismiss-nudge-form"
+                for={@dismiss_nudge_form}
+                phx-submit="dismiss_nudge"
+              >
+                <.text_area
+                  id="dismiss-nudge-reason-input"
+                  field={@dismiss_nudge_form[:reason]}
+                  label={gettext("Reason")}
+                  placeholder={gettext("Not the right moment; team already knows; ...")}
+                  rows={4}
+                  max_length={500}
+                  required
+                />
+              </.form>
+            </div>
+
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    id="cancel-dismiss-nudge-button"
+                    label={gettext("Cancel")}
+                    variant="secondary"
+                    size="small"
+                    type="button"
+                    phx-click="close_dismiss_nudge_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    id="confirm-dismiss-nudge-button"
+                    label={gettext("Dismiss")}
+                    variant="destructive"
+                    size="small"
+                    type="submit"
+                    form="dismiss-nudge-form"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </.card_section>
+      </.card>
+
+      <.card
         :if={false}
         title={gettext("Customer Outcomes")}
         icon="checkup_list"
@@ -3894,6 +4154,7 @@ defmodule AtlasWeb.AccountLive do
     |> assign(:account, account)
     |> assign(:ready_to_sign_tax_certificate_requests, ready_to_sign_tax_certificate_requests(account))
     |> assign(:feature_interests, Accounts.list_feature_interests_for_account(account))
+    |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
     |> clear_feature_interest_modal()
     |> clear_feature_interest_notes_modal()
     |> assign(:linked_slack_channel, linked_slack_channel)
@@ -4091,6 +4352,67 @@ defmodule AtlasWeb.AccountLive do
   end
 
   defp pending_outcome_proposals(_account), do: []
+
+  defp refresh_nudges(socket, message) do
+    account = socket.assigns.account
+
+    socket
+    |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
+    |> put_flash(:info, message)
+  end
+
+  defp handle_send_result({:ok, %{duplicate: true}}, socket),
+    do: {:noreply, refresh_nudges(socket, gettext("Email already queued in the last 15 minutes."))}
+
+  defp handle_send_result({:ok, _nudge}, socket), do: {:noreply, refresh_nudges(socket, gettext("Email queued."))}
+
+  defp handle_send_result({:error, reason}, socket),
+    do: {:noreply, put_flash(socket, :error, send_error_message(reason))}
+
+  defp send_error_message(:not_found), do: gettext("Nudge not found.")
+
+  defp send_error_message(:not_authorized),
+    do: gettext("You must be the claimant or hold admin:write to send this nudge.")
+
+  defp send_error_message({:invalid_state, state}),
+    do: gettext("Nudge is in state %{s}; only claimed nudges can be sent.", s: state)
+
+  defp send_error_message(:contact_missing), do: gettext("This nudge has no contact. Add or edit a contact first.")
+
+  defp send_error_message(:contact_email_missing), do: gettext("The nudge's contact has no email address.")
+
+  defp send_error_message(:contact_bounced), do: gettext("The nudge's contact is marked as bounced.")
+
+  defp send_error_message(:contact_opted_out), do: gettext("The nudge's contact has opted out of outreach.")
+
+  defp send_error_message(_reason), do: gettext("Could not send the nudge.")
+
+  defp nudge_stage(nudge), do: Nudges.stage_for(nudge)
+
+  defp nudge_state_label(%{state: "pending_post"}, _stage), do: gettext("Posting to Slack…")
+  defp nudge_state_label(%{state: "proposed"}, _stage), do: gettext("Open")
+  defp nudge_state_label(%{state: "claimed"}, _stage), do: gettext("Claimed")
+  defp nudge_state_label(%{state: "sent"}, :delivered), do: gettext("Sent")
+  defp nudge_state_label(%{state: "sent"}, :failed), do: gettext("Send failed")
+  defp nudge_state_label(%{state: "sent"}, :retrying), do: gettext("Sent (retrying)")
+  defp nudge_state_label(%{state: "sent"}, _stage), do: gettext("Sent (queued)")
+  defp nudge_state_label(%{state: "dismissed"}, _stage), do: gettext("Dismissed")
+  defp nudge_state_label(%{state: "expired"}, _stage), do: gettext("Expired")
+  defp nudge_state_label(%{state: state}, _stage), do: state
+
+  defp nudge_state_color(%{state: "pending_post"}, _stage), do: "neutral"
+  defp nudge_state_color(%{state: "proposed"}, _stage), do: "information"
+  defp nudge_state_color(%{state: "claimed"}, _stage), do: "success"
+  defp nudge_state_color(%{state: "sent"}, :delivered), do: "success"
+  defp nudge_state_color(%{state: "sent"}, :failed), do: "destructive"
+  defp nudge_state_color(%{state: "sent"}, _stage), do: "attention"
+  defp nudge_state_color(%{state: "dismissed"}, _stage), do: "neutral"
+  defp nudge_state_color(%{state: "expired"}, _stage), do: "neutral"
+  defp nudge_state_color(_nudge, _stage), do: "neutral"
+
+  defp format_nudge_timestamp(nil), do: "-"
+  defp format_nudge_timestamp(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
+  defp format_nudge_timestamp(%NaiveDateTime{} = ndt), do: Calendar.strftime(ndt, "%b %d, %Y")
 
   defp outcome_proposal_subject(%OutcomeProposal{proposal_type: "new_outcome", title: title}), do: title
 

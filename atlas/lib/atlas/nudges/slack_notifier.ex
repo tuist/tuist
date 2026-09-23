@@ -121,11 +121,11 @@ defmodule Atlas.Nudges.SlackNotifier do
 
   def build_blocks(%Nudge{} = nudge, opts) do
     expired? = Keyword.get(opts, :expired, false)
+    stage = Keyword.get(opts, :stage, :pending)
 
     account_url = url(~p"/commercial/sales/accounts/#{nudge.account_id}")
 
-    header_text =
-      if expired?, do: "Nudge expired", else: "Account nudge"
+    header_text = if expired?, do: "Nudge expired", else: "Account nudge"
 
     base = [
       %{
@@ -135,7 +135,11 @@ defmodule Atlas.Nudges.SlackNotifier do
       %{
         "type" => "context",
         "elements" => [
-          %{"type" => "mrkdwn", "text" => "*Atlas* | Signal: #{escape(nudge.signal)}"}
+          %{
+            "type" => "mrkdwn",
+            "text" =>
+              "*Atlas* | Signal: #{escape(nudge.signal)} | Status: #{escape(status_label(nudge, stage, expired?))}"
+          }
         ]
       },
       %{
@@ -155,43 +159,88 @@ defmodule Atlas.Nudges.SlackNotifier do
       }
     ]
 
-    actions =
-      cond do
-        expired? ->
-          [
-            %{
-              "type" => "actions",
-              "elements" => [url_button("Open account", account_url, nil)]
-            }
-          ]
-
-        nudge.state == "claimed" ->
-          [
-            %{
-              "type" => "actions",
-              "elements" => [
-                url_button("Open account", account_url, "primary"),
-                action_button("Release", "release", nudge.id),
-                action_button("Dismiss", "dismiss", nudge.id, "danger")
-              ]
-            }
-          ]
-
-        true ->
-          [
-            %{
-              "type" => "actions",
-              "elements" => [
-                url_button("Open account", account_url, "primary"),
-                action_button("Claim", "claim", nudge.id),
-                action_button("Dismiss", "dismiss", nudge.id, "danger")
-              ]
-            }
-          ]
-      end
-
-    base ++ actions
+    base ++ action_blocks(nudge, account_url, expired?, stage)
   end
+
+  defp action_blocks(_nudge, account_url, true, _stage) do
+    [%{"type" => "actions", "elements" => [url_button("Open account", account_url, nil)]}]
+  end
+
+  defp action_blocks(%Nudge{state: "claimed"} = nudge, account_url, false, _stage) do
+    [
+      %{
+        "type" => "actions",
+        "elements" => [
+          url_button("Open account", account_url, "primary"),
+          action_button("Send", "send", nudge.id, "primary"),
+          action_button("Release", "release", nudge.id),
+          action_button("Dismiss", "dismiss", nudge.id, "danger")
+        ]
+      }
+    ]
+  end
+
+  defp action_blocks(%Nudge{state: "sent"} = nudge, account_url, false, :failed) do
+    [
+      %{
+        "type" => "actions",
+        "elements" => [
+          url_button("Open account", account_url, "primary"),
+          action_button("Retry", "retry", nudge.id),
+          action_button("Dismiss", "dismiss", nudge.id, "danger")
+        ]
+      }
+    ]
+  end
+
+  defp action_blocks(%Nudge{state: "sent"}, account_url, false, _stage) do
+    [%{"type" => "actions", "elements" => [url_button("Open account", account_url, nil)]}]
+  end
+
+  defp action_blocks(nudge, account_url, false, _stage) do
+    [
+      %{
+        "type" => "actions",
+        "elements" => [
+          url_button("Open account", account_url, "primary"),
+          action_button("Claim", "claim", nudge.id),
+          action_button("Dismiss", "dismiss", nudge.id, "danger")
+        ]
+      }
+    ]
+  end
+
+  defp status_label(_nudge, _stage, true), do: "expired"
+  defp status_label(%Nudge{state: "pending_post"}, _stage, false), do: "posting"
+  defp status_label(%Nudge{state: "proposed"}, _stage, false), do: "open"
+  defp status_label(%Nudge{state: "claimed"}, _stage, false), do: "claimed"
+  defp status_label(%Nudge{state: "sent"}, :delivered, false), do: "sent"
+  defp status_label(%Nudge{state: "sent"}, :failed, false), do: "send failed"
+  defp status_label(%Nudge{state: "sent"}, :retrying, false), do: "sent (retrying)"
+  defp status_label(%Nudge{state: "sent"}, _stage, false), do: "sent (queued)"
+  defp status_label(%Nudge{state: "dismissed"}, _stage, false), do: "dismissed"
+  defp status_label(%Nudge{state: state}, _stage, false), do: state
+
+  @doc """
+  Updates the Slack card to reflect the current nudge + delivery stage.
+  Used by the ReconcileDeliveryOutcomes worker.
+  """
+  def update_sent_card(%Nudge{slack_channel_id: channel, slack_message_ts: ts} = nudge, stage)
+      when is_binary(channel) and is_binary(ts) do
+    case API.update_message(
+           @app_key,
+           channel,
+           ts,
+           fallback_text(nudge),
+           build_blocks(nudge, expired: false, stage: stage),
+           metadata: metadata(nudge)
+         ) do
+      {:ok, _} -> :ok
+      {:error, _} = err -> err
+    end
+  end
+
+  def update_sent_card(_nudge, _stage), do: :ok
 
   defp url_button(label, url, style) do
     %{

@@ -954,7 +954,7 @@
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {Enum.reduce(@flaky_runs_grouped, 0, fn group, acc -> acc + length(group.runs) end)}
+            {@flaky_runs_meta.total_runs_count}
           </span>
           <.button
             variant="secondary"
@@ -965,7 +965,7 @@
         </div>
         <div data-part="flaky-runs-list">
           <div
-            :for={group <- Enum.take(@flaky_runs_grouped, 4)}
+            :for={group <- @flaky_runs_grouped}
             id={"flaky-group-#{group.test_case_id}"}
             phx-hook="NooraCollapsible"
             data-part="collapsible"
@@ -1118,7 +1118,7 @@
               </div>
             </div>
           </div>
-          <div :if={length(@flaky_runs_grouped) > 4} data-part="more-cards-wrapper">
+          <div :if={@flaky_runs_meta.total_groups_count > 4} data-part="more-cards-wrapper">
             <div data-part="more-card" data-index="two"></div>
             <div data-part="more-card" data-index="one"></div>
           </div>
