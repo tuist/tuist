@@ -132,6 +132,9 @@ type RackAppleSiliconMachineReconciler struct {
 	// down; zero means defaultPowerCycleSettle. See the RackHost reconciler's
 	// field for why this is not operator-facing.
 	PowerCycleSettle time.Duration
+
+	// osUpdateDial opens the SSH side of an in-place macOS update; nil dials the host.
+	osUpdateDial osUpdateDialFunc
 }
 
 func (r *RackAppleSiliconMachineReconciler) powerCycleSettle() time.Duration {
@@ -271,6 +274,19 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 		knownFingerprint = bootstrapCreds.HostFingerprint
 	}
 
+	osUpdate := &osUpdateContext{
+		machine:          machine,
+		host:             host,
+		sshKey:           sshKey,
+		sudoPassword:     sudoPassword,
+		knownFingerprint: knownFingerprint,
+	}
+	if osUpdateInstalling(machine) {
+		if result, updateErr := r.reconcileOSUpdate(ctx, osUpdate); updateErr != nil || !result.IsZero() {
+			return result, updateErr
+		}
+	}
+
 	// Bootstrap previously succeeded but the Node is gone: re-running bootstrap
 	// reloads launchd and tart-kubelet re-registers. Flipping the condition
 	// False lets the stage below drive the repair.
@@ -341,6 +357,11 @@ func (r *RackAppleSiliconMachineReconciler) reconcileNormal(
 	machine.Status.Ready = true
 	if !terminalPhasePinned(machine.Status.FailureReason) {
 		machine.Status.Phase = "Ready"
+	}
+	if osUpdatePending(machine) {
+		if result, updateErr := r.reconcileOSUpdate(ctx, osUpdate); updateErr != nil || !result.IsZero() {
+			return result, updateErr
+		}
 	}
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }

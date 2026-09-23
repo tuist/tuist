@@ -695,6 +695,58 @@ defaults read /Library/Preferences/com.apple.SoftwareUpdate
 softwareupdate --history | grep -i -E 'xprotect|gatekeeper'
 ```
 
+### Updating a rack host
+
+An in-family update (a `_minor` in Apple's terms, such as 26.6 to 26.7) is one
+annotation on the host's machine:
+
+```bash
+kubectl annotate rasm <machine> tuist.dev/os-update=26.7
+kubectl get rasm -o wide          # OSUpdate and OSTarget columns
+kubectl get rasm <machine> -o jsonpath='{.status.osUpdate}'
+```
+
+The controller moves `status.osUpdate.phase` through:
+
+| Phase | What happens |
+|---|---|
+| `Preparing` | Checks the host is bootstrapped, reads its version, resolves the `softwareupdate` label for the target |
+| `Downloading` | Downloads the update while the Node keeps taking work |
+| `Draining` | Cordons the Node and waits for every pod on it to finish. The runners controller retires idle warm runners on a cordoned Node, so what is left are pods running jobs, which are never evicted |
+| `Installing` | Sets `cluster.x-k8s.io/skip-remediation` on the CAPI Machine, installs, and waits for the host to restart on the target version. The drift loop does not dial the host in this phase |
+| `Converging` | Pushes the whole host config again, because the installer resets files it owns such as `/etc/pf.conf`. Waits for the push, a Ready Node and the auto-login console session |
+| `Succeeded` | Uncordons, removes `skip-remediation`, clears the annotation |
+
+Update one host, let it run real jobs, then do the next. Nothing sequences a
+rack.
+
+**Refused without touching the host**, with the annotation cleared: a target in
+another release family (that is an erase), a downgrade, a version Software
+Update does not offer, and a host that is not bootstrapped or holds a terminal
+drift failure. A host already on the target succeeds at once.
+
+**Cancel** by removing the annotation during `Preparing`, `Downloading` or
+`Draining`; the Node is uncordoned. Once `Installing` starts, the update runs to
+the end.
+
+**Failures** are `phase: Failed` with a `reason` and a Warning event. Every
+failure removes `skip-remediation`. What happens to the Node depends on whether
+the host changed:
+
+| Reason | Node |
+|---|---|
+| `DownloadFailed`, `DownloadTimedOut`, `DownloadLost` | Never cordoned |
+| `InstallFailed` (exited before restarting) | Uncordoned: the host is unchanged |
+| `InstallTimedOut`, `VersionMismatch`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human; a NotReady Node goes back to the MachineHealthCheck |
+
+Reading the outcome on the host: the jobs log to `/var/tmp/tuist-os-update/`.
+Nothing in the cluster reports a host's macOS version outside
+`status.osUpdate`, because `tart-kubelet` leaves `NodeInfo.OSImage` empty.
+
+A host's version only changes this way while its Machine holds it. An unclaimed
+host has neither the update policy nor the values-rendered SSH guard entries,
+so claim it and let it converge before updating it.
+
 ## Module layout
 
 ```
@@ -711,6 +763,7 @@ infra/cluster-api-provider-tuist/
 │   ├── macos/
 │   │   ├── scalewayapplesiliconmachine_controller.go
 │   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
+│   │   ├── rack_os_update.go        # tuist.dev/os-update: in-place macOS updates
 │   │   ├── rackhost_controller.go   # physical inventory: power, orphan claims
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-

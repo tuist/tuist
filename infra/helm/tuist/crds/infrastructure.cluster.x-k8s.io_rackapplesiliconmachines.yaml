@@ -33,6 +33,14 @@ spec:
         - jsonPath: .status.ready
           name: Ready
           type: boolean
+        - jsonPath: .status.osUpdate.phase
+          name: OSUpdate
+          priority: 1
+          type: string
+        - jsonPath: .status.osUpdate.target
+          name: OSTarget
+          priority: 1
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -293,6 +301,57 @@ spec:
                     per cooldown rather than per reconcile.
                   format: date-time
                   type: string
+                osUpdate:
+                  description: |-
+                    OSUpdate is the progress of the latest in-place macOS update requested
+                    with the tuist.dev/os-update annotation.
+                  properties:
+                    bootTimeBefore:
+                      description: |-
+                        BootTimeBefore is the host's boot time (Unix seconds) read just before the
+                        install, so the reboot is detected by the boot time moving.
+                      format: int64
+                      type: integer
+                    completedAt:
+                      format: date-time
+                      type: string
+                    cordoned:
+                      description: |-
+                        Cordoned records that the update cordoned the Node, so it only uncordons
+                        a Node it cordoned itself.
+                      type: boolean
+                    fromVersion:
+                      description: FromVersion is the macOS version the host ran when the update started.
+                      type: string
+                    label:
+                      description: Label is the softwareupdate label resolved for Target.
+                      type: string
+                    message:
+                      description: Message describes what the update is doing or why it stopped.
+                      type: string
+                    phase:
+                      description: |-
+                        Phase is one of Preparing, Downloading, Draining, Installing, Converging,
+                        Succeeded or Failed.
+                      type: string
+                    phaseStartedAt:
+                      format: date-time
+                      type: string
+                    reason:
+                      description: Reason is a machine-readable cause when Phase is Failed.
+                      type: string
+                    remediationSuspended:
+                      description: |-
+                        RemediationSuspended records that the update set skip-remediation on the
+                        owning Machine, so it only removes an annotation it added itself.
+                      type: boolean
+                    startedAt:
+                      format: date-time
+                      type: string
+                    target:
+                      description: Target is the requested macOS version, e.g. "26.7".
+                      type: string
+                  type: object
                 phase:
                   description: |-
                     Phase tracks lifecycle for operators: Pending | Adopting |

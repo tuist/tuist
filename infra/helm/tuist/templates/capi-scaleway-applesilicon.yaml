@@ -83,8 +83,12 @@ rules:
       - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
-    resources: [machines, machinesets, machinedeployments, clusters]
+    resources: [machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
+  # `patch` sets cluster.x-k8s.io/skip-remediation for the length of a rack host's macOS install.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines]
+    verbs: [get, list, watch, patch]
   # The SASC reconciler marks the parent Cluster's
   # ControlPlaneInitialized condition True (externally-managed
   # control plane: Mac minis join an existing Hetzner cluster, so
