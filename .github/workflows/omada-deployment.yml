@@ -1,0 +1,105 @@
+name: Rack Fleet Controller Deployment
+
+# The Omada SDN controller for the rack fleet (infra/helm/omada). One
+# controller, because a switch can be adopted by only one; it lives in the
+# staging cluster while the rack is at home and moves to production with the
+# rack. Its admin account and Open API client come from the controller's own
+# first-boot wizard, so nothing here seeds credentials.
+#
+# It also applies the RackSwitch CRD to the same cluster. server-deployment.yml
+# carries that CRD to every cluster it deploys, but merges only deploy canary
+# and production; staging gets a server deploy only when someone dispatches
+# one, and the rack's objects need their CRD where the rack is.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/helm/omada/**
+      - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - .github/workflows/omada-deployment.yml
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Commit SHA to deploy (defaults to github.sha)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omada-deploy-staging
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  HELM_CHART_PATH: infra/helm/omada
+  HELM_RELEASE_NAME: omada
+  NAMESPACE: omada
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+
+jobs:
+  deploy:
+    name: Deploy staging
+    if: github.repository == 'tuist/tuist'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: server-k8s-staging
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" \
+            --vault "tuist-k8s-staging" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Apply the RackSwitch CRD
+        run: |
+          set -euo pipefail
+          kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev
+      - name: Fetch the wrapped chart
+        run: helm dependency build "$HELM_CHART_PATH"
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            -f "$HELM_CHART_PATH/values-staging.yaml" \
+            --atomic --timeout 10m --wait
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::workload resources"
+          kubectl -n "$NAMESPACE" get statefulset,svc,pvc,pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::logs"
+          kubectl -n "$NAMESPACE" logs statefulset/"$HELM_RELEASE_NAME-omada-controller" --tail=200 || true
+          echo "::endgroup::"
+          echo "::group::events"
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"
