@@ -85,12 +85,13 @@
 
   /* Clipped per section rather than per card: a card's header can hold a date
      picker, whose calendar has to open over the card's edge. */
-  & .noora-card__section {
+  & .noora-card__section:not(.tuist-widget) {
     overflow-x: hidden;
   }
 
-  /* A widget's tooltip is positioned inside its section, so a section of
-     widgets must not clip it; widgets never overflow sideways. */
+  /* A widget's tooltip opens inside the widget, so neither the widget nor
+     the section holding widgets may clip it; widgets never overflow
+     sideways. */
   & .noora-card__section:has(> [data-part="widgets"]) {
     overflow: visible;
   }
