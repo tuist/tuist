@@ -139,6 +139,39 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
     }
   end
 
+  @scatter_data_limit 1000
+
+  @doc """
+  One point per finalized run: its action-cache hit rate against when it
+  started, grouped for the scatter chart. `:group_by` is `:host` or
+  `:version`, the two dimensions a Once run records that are worth
+  splitting on, and the shape matches what `TuistWeb.Components.ScatterChart`
+  expects.
+  """
+  def hit_rate_scatter_data(project_id, opts \\ []) do
+    {start_dt, end_dt} = period_datetimes(opts)
+    group_by = Keyword.get(opts, :group_by, :host)
+
+    runs =
+      Run
+      |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
+      |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> where([r], r.total_actions > 0)
+      |> order_by([r], desc: r.started_at)
+      |> limit(^@scatter_data_limit)
+      |> select([r], %{
+        run_id: r.run_id,
+        started_at: r.started_at,
+        host_class: r.host_class,
+        once_version: r.once_version,
+        kind: r.kind,
+        value: fragment("(?::float / ?) * 100.0", r.cached_actions, r.total_actions)
+      })
+      |> Repo.all()
+
+    scatter_result(runs, group_by)
+  end
+
   @doc """
   Per-invocation cache-hit-rate distribution over the selected
   period. Same map shape as `Tuist.ReapiCache.invocation_hit_rate_metrics/2`.
@@ -432,4 +465,42 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
   defp to_float(%Decimal{} = d), do: Decimal.to_float(d)
   defp to_float(n) when is_number(n), do: n * 1.0
   defp to_float(_), do: 0.0
+
+  # `ScatterChart` wants `%{series: [%{name, data: [%{value: [ts_ms, y], id, meta}]}],
+  # truncated, oldest_entry}`; the limit above is what `truncated` reports on.
+  defp scatter_result(runs, group_by) do
+    truncated = length(runs) >= @scatter_data_limit
+
+    series =
+      runs
+      |> Enum.group_by(&scatter_group(&1, group_by))
+      |> Enum.map(fn {group, grouped} ->
+        %{
+          name: group,
+          data:
+            Enum.map(grouped, fn run ->
+              %{
+                value: [DateTime.to_unix(run.started_at, :millisecond), round_value(run.value)],
+                id: run.run_id,
+                meta: %{host: run.host_class, version: run.once_version, kind: run.kind}
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: if(truncated, do: runs |> List.last() |> Map.get(:started_at))
+    }
+  end
+
+  defp scatter_group(run, :version), do: presence(run.once_version, "Unknown version")
+  defp scatter_group(run, _host), do: presence(run.host_class, "Unknown host")
+
+  defp presence(value, fallback) when is_binary(value) and value != "", do: value
+  defp presence(_value, fallback), do: fallback
+
+  defp round_value(value) when is_float(value), do: Float.round(value, 1)
+  defp round_value(value), do: value
 end

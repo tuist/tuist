@@ -193,7 +193,7 @@ msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:117
 #: lib/tuist_web/live/bazel_cache_live.ex:815
-#: lib/tuist_web/live/once_cache_live.ex:820
+#: lib/tuist_web/live/once_cache_live.ex:884
 #: lib/tuist_web/live/xcode_cache_live.html.heex:242
 #: lib/tuist_web/live/xcode_cache_live.html.heex:259
 #: lib/tuist_web/live/xcode_cache_live.html.heex:276
@@ -2884,7 +2884,7 @@ msgid "Disk is sized automatically: the claim grows when the cache starts discar
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:166
-#: lib/tuist_web/live/once_cache_live.ex:24
+#: lib/tuist_web/live/once_cache_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Once Cache"
 msgstr ""

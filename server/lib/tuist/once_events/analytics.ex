@@ -104,6 +104,69 @@ defmodule Tuist.OnceEvents.Analytics do
     normalize_summary(row || empty_summary())
   end
 
+  @scatter_data_limit 1000
+
+  @doc """
+  One point per finalized run: its wall duration against when it started,
+  grouped for the scatter chart. `:group_by` is `:host` or `:version`, the
+  same dimensions `Tuist.OnceEvents.CacheAnalytics.hit_rate_scatter_data/2`
+  splits on, and the shape is what `TuistWeb.Components.ScatterChart` wants.
+  """
+  def duration_scatter_data(project_id, opts \\ []) do
+    commands = Keyword.get(opts, :commands)
+    {start_dt, end_dt} = period_datetimes(opts)
+    group_by = Keyword.get(opts, :group_by, :host)
+
+    runs =
+      Run
+      |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
+      |> maybe_filter_kinds(commands)
+      |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> where([r], not is_nil(r.wall_ms) and r.wall_ms > 0)
+      |> order_by([r], desc: r.started_at)
+      |> limit(^@scatter_data_limit)
+      |> select([r], %{
+        run_id: r.run_id,
+        started_at: r.started_at,
+        host_class: r.host_class,
+        once_version: r.once_version,
+        kind: r.kind,
+        value: r.wall_ms
+      })
+      |> Repo.all()
+
+    truncated = length(runs) >= @scatter_data_limit
+
+    series =
+      runs
+      |> Enum.group_by(&scatter_group(&1, group_by))
+      |> Enum.map(fn {group, grouped} ->
+        %{
+          name: group,
+          data:
+            Enum.map(grouped, fn run ->
+              %{
+                value: [DateTime.to_unix(run.started_at, :millisecond), run.value],
+                id: run.run_id,
+                meta: %{host: run.host_class, version: run.once_version, kind: run.kind}
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: if(truncated, do: runs |> List.last() |> Map.get(:started_at))
+    }
+  end
+
+  defp scatter_group(run, :version), do: scatter_presence(run.once_version, "Unknown version")
+  defp scatter_group(run, _host), do: scatter_presence(run.host_class, "Unknown host")
+
+  defp scatter_presence(value, _fallback) when is_binary(value) and value != "", do: value
+  defp scatter_presence(_value, fallback), do: fallback
+
   @doc """
   Time-bucketed series over the selected period. Same shape as
   `Tuist.Bazel.invocation_analytics/2`: `dates` + one `_values` list

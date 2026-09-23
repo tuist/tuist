@@ -9,10 +9,13 @@ defmodule TuistWeb.OnceCacheLive do
   use Noora
 
   import TuistWeb.BazelAnalyticsHelpers
+  import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.OnceEvents.CacheAnalytics
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
@@ -39,6 +42,8 @@ defmodule TuistWeb.OnceCacheLive do
      |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
      |> assign(:analytics_selected_widget, params["analytics-selected-widget"] || "cache_hit_rate")
      |> assign(:selected_hit_rate_type, selected_hit_rate_type(params["hit-rate-type"]))
+     |> assign(:hit_rate_chart_type, hit_rate_chart_type(params["cache-hit-rate-chart-type"]))
+     |> assign(:hit_rate_scatter_group_by, scatter_group_by(params["cache-hit-rate-scatter-group-by"]))
      |> assign(:selected_transfer_type, params["transfer-type"] || "combined")
      |> assign(:selected_latency_type, params["latency-type"] || "combined")
      |> assign(:selected_throughput_type, params["throughput-type"] || "combined")
@@ -54,6 +59,11 @@ defmodule TuistWeb.OnceCacheLive do
               CacheAnalytics.observations_present?(project.id)
         }}
      end)
+     |> assign_hit_rate_scatter(
+       hit_rate_chart_type(params["cache-hit-rate-chart-type"]),
+       scatter_group_by(params["cache-hit-rate-scatter-group-by"]),
+       analytics_period
+     )
      |> assign_async(:recent_cache_invocations, fn ->
        {:ok,
         %{
@@ -73,6 +83,22 @@ defmodule TuistWeb.OnceCacheLive do
      |> assign(:analytics_selected_widget, widget)
      |> assign(:uri, URI.new!("?" <> query))
      |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  def handle_event("select_hit_rate_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "cache-hit-rate-chart-type", type)
+    type = hit_rate_chart_type(type)
+
+    {:noreply,
+     socket
+     |> assign(:hit_rate_chart_type, type)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> assign_hit_rate_scatter(
+       type,
+       socket.assigns.hit_rate_scatter_group_by,
+       socket.assigns.analytics_period
+     )}
   end
 
   def handle_event("select_hit_rate_type", %{"type" => type}, socket),
@@ -357,7 +383,44 @@ defmodule TuistWeb.OnceCacheLive do
           }
           data-part="analytics-card-chart-section"
         >
+          <.chart_type_toggle
+            :if={@analytics_selected_widget == "cache_hit_rate"}
+            id="once-cache-hit-rate"
+            chart_type={@hit_rate_chart_type}
+            chart_type_event="select_hit_rate_chart_type"
+            group_by_options={[
+              %{value: "host", label: dgettext("dashboard_projects", "Host")},
+              %{value: "version", label: dgettext("dashboard_projects", "Once version")}
+            ]}
+            selected_group_by={@hit_rate_scatter_group_by}
+            group_by_query_param="cache-hit-rate-scatter-group-by"
+            uri={@uri}
+          />
+          <.scatter_chart
+            :if={@analytics_selected_widget == "cache_hit_rate" and @hit_rate_chart_type == "scatter"}
+            id="once-cache-hit-rate-scatter-chart"
+            chart={@hit_rate_chart}
+            period={@analytics_period}
+            value_format="{value}%"
+            y_axis_max={100}
+            url_fn={
+              fn point ->
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{point.id}"
+              end
+            }
+            truncation_title={
+              dgettext(
+                "dashboard_projects",
+                "The 1,000 run limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent runs.",
+                date: scatter_oldest_entry_formatted(@hit_rate_chart.result)
+              )
+            }
+          />
           <.chart
+            :if={
+              not (@analytics_selected_widget == "cache_hit_rate" and
+                     @hit_rate_chart_type == "scatter")
+            }
             id="once-cache-analytics-chart"
             type="line"
             extra_options={
@@ -466,6 +529,7 @@ defmodule TuistWeb.OnceCacheLive do
             <.table
               id="once-cache-invocations-table"
               rows={Enum.take(@recent_cache_invocations.result, 7)}
+              row_key={fn invocation -> invocation.invocation_id end}
               row_navigate={
                 fn invocation ->
                   url(
@@ -821,5 +885,26 @@ defmodule TuistWeb.OnceCacheLive do
       </div>
     </.dropdown_item>
     """
+  end
+
+  # Only the hit rate widget has a scatter view; the other three are
+  # aggregates over the period with no per-run point to plot.
+  defp hit_rate_chart_type("scatter"), do: "scatter"
+  defp hit_rate_chart_type(_line), do: "line"
+
+  defp scatter_group_by("version"), do: "version"
+  defp scatter_group_by(_host), do: "host"
+
+  defp assign_hit_rate_scatter(socket, "scatter", group_by, period) do
+    project_id = socket.assigns.selected_project.id
+    opts = period |> period_opts() |> Keyword.put(:group_by, String.to_existing_atom(group_by))
+
+    assign_async(socket, :hit_rate_chart, fn ->
+      {:ok, %{hit_rate_chart: {:scatter, CacheAnalytics.hit_rate_scatter_data(project_id, opts)}}}
+    end)
+  end
+
+  defp assign_hit_rate_scatter(socket, _line, _group_by, _period) do
+    assign(socket, :hit_rate_chart, AsyncResult.ok(:line))
   end
 end

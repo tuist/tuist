@@ -9,11 +9,14 @@ defmodule TuistWeb.OnceRunsLive do
   use Noora
 
   import TuistWeb.BazelAnalyticsHelpers
+  import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
 
   alias Noora.Filter
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
   alias Tuist.Utilities.ByteFormatter
@@ -66,6 +69,7 @@ defmodule TuistWeb.OnceRunsLive do
     sort_order = params["invocations-sort-order"] || "desc"
     uri = URI.new!("?" <> URI.encode_query(params))
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+    search = String.trim(params["search"] || "")
 
     %{preset: analytics_preset, period: analytics_period} =
       DatePicker.date_picker_params(params, "analytics")
@@ -74,6 +78,7 @@ defmodule TuistWeb.OnceRunsLive do
 
     filters =
       [%{field: :project_id, op: :==, value: project.id}] ++
+        search_filters(search) ++
         Filter.Operations.convert_filters_to_flop(active_filters)
 
     commands = [socket.assigns.once_kind_filter]
@@ -111,6 +116,15 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign(:has_any_invocations, has_any_invocations)
       |> assign(:selected_duration_type, params["duration-type"] || "avg")
       |> assign(:active_filters, active_filters)
+      |> assign(:search, search)
+      |> assign(:duration_chart_type, duration_chart_type(params["build-duration-chart-type"]))
+      |> assign(:duration_scatter_group_by, scatter_group_by(params["build-duration-scatter-group-by"]))
+      |> assign_duration_scatter(
+        duration_chart_type(params["build-duration-chart-type"]),
+        scatter_group_by(params["build-duration-scatter-group-by"]),
+        analytics_period,
+        commands
+      )
       |> assign_async([:invocation_summary, :invocation_analytics], fn ->
         {:ok,
          %{
@@ -144,6 +158,32 @@ defmodule TuistWeb.OnceRunsLive do
      |> assign(:analytics_selected_widget, "build-duration")
      |> assign(:uri, URI.new!("?" <> query))
      |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
+  def handle_event("select_duration_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "build-duration-chart-type", type)
+    type = duration_chart_type(type)
+
+    {:noreply,
+     socket
+     |> assign(:duration_chart_type, type)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> assign_duration_scatter(
+       type,
+       socket.assigns.duration_scatter_group_by,
+       socket.assigns.analytics_period,
+       [socket.assigns.once_kind_filter]
+     )}
+  end
+
+  def handle_event("search", %{"search" => search}, socket) do
+    query =
+      socket.assigns.uri.query
+      |> Query.put("search", search)
+      |> Query.put("page", "1")
+
+    {:noreply, push_patch(socket, to: invocation_list_path(socket, URI.decode_query(query)))}
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -371,7 +411,43 @@ defmodule TuistWeb.OnceRunsLive do
           }
           data-part="analytics-card-chart-section"
         >
+          <.chart_type_toggle
+            :if={@analytics_selected_widget == "build-duration"}
+            id="once-build-duration"
+            chart_type={@duration_chart_type}
+            chart_type_event="select_duration_chart_type"
+            group_by_options={[
+              %{value: "host", label: dgettext("dashboard_projects", "Host")},
+              %{value: "version", label: dgettext("dashboard_projects", "Once version")}
+            ]}
+            selected_group_by={@duration_scatter_group_by}
+            group_by_query_param="build-duration-scatter-group-by"
+            uri={@uri}
+          />
+          <.scatter_chart
+            :if={@analytics_selected_widget == "build-duration" and @duration_chart_type == "scatter"}
+            id="once-build-duration-scatter-chart"
+            chart={@duration_chart}
+            period={@analytics_period}
+            value_format="fn:formatMilliseconds"
+            url_fn={
+              fn point ->
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs/#{point.id}"
+              end
+            }
+            truncation_title={
+              dgettext(
+                "dashboard_projects",
+                "The 1,000 run limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent runs.",
+                date: scatter_oldest_entry_formatted(@duration_chart.result)
+              )
+            }
+          />
           <.chart
+            :if={
+              not (@analytics_selected_widget == "build-duration" and
+                     @duration_chart_type == "scatter")
+            }
             id="once-builds-analytics-chart"
             type="line"
             extra_options={
@@ -500,6 +576,17 @@ defmodule TuistWeb.OnceRunsLive do
       >
         <.card_section data-part="bazel-invocations-table-section">
           <div data-part="filters">
+            <.form for={%{}} id="once-invocations-search-form" phx-change="search" phx-submit="search">
+              <.text_input
+                type="search"
+                id="once-invocations-search"
+                name="search"
+                placeholder={dgettext("dashboard_projects", "Search runs...")}
+                show_suffix={false}
+                value={@search}
+                phx-debounce="200"
+              />
+            </.form>
             <.filter_dropdown
               id="once-invocations-filter-dropdown"
               label={dgettext("dashboard_projects", "Filter")}
@@ -882,5 +969,37 @@ defmodule TuistWeb.OnceRunsLive do
         value: nil
       }
     ]
+  end
+
+  # The runs list is searched by its displayed command, which is the only
+  # human readable thing a run carries; `apply_flop_filters/2` maps
+  # `:command` onto both `command_display` and `kind`.
+  defp search_filters(""), do: []
+  defp search_filters(search), do: [%{field: :command, op: :=~, value: search}]
+
+  # Only the duration widget has a per-run value worth plotting; the other
+  # widgets are counts and rates aggregated over the period.
+  defp duration_chart_type("scatter"), do: "scatter"
+  defp duration_chart_type(_line), do: "line"
+
+  defp scatter_group_by("version"), do: "version"
+  defp scatter_group_by(_host), do: "host"
+
+  defp assign_duration_scatter(socket, "scatter", group_by, period, commands) do
+    project_id = socket.assigns.selected_project.id
+
+    opts =
+      period
+      |> period_opts()
+      |> Keyword.put(:commands, commands)
+      |> Keyword.put(:group_by, String.to_existing_atom(group_by))
+
+    assign_async(socket, :duration_chart, fn ->
+      {:ok, %{duration_chart: {:scatter, Analytics.duration_scatter_data(project_id, opts)}}}
+    end)
+  end
+
+  defp assign_duration_scatter(socket, _line, _group_by, _period, _commands) do
+    assign(socket, :duration_chart, AsyncResult.ok(:line))
   end
 end
