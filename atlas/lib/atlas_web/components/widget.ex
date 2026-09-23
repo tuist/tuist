@@ -21,7 +21,7 @@ defmodule AtlasWeb.Widget do
   attr :legend_color, :string,
     default: nil,
     doc:
-      "Color of the legend bar shown next to the title. Hidden when nil. One of: primary, secondary, attention, warning, destructive, success, neutral."
+      "Color of the legend bar shown next to the title. Hidden when nil. One of: primary, secondary, tertiary, quaternary, attention, warning, destructive, success, neutral."
 
   attr :empty, :boolean,
     default: false,

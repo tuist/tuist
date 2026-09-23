@@ -23,6 +23,27 @@ defmodule Atlas.GTM.Email do
   end
 
   @doc """
+  Renders a direct, per-recipient email from the body and sender stored on the
+  delivery.
+
+  Carries no unsubscribe footer and no `List-Unsubscribe` headers: these are
+  transactional notices such as a billing or contract change, which the
+  recipient cannot opt out of and which are not sent on behalf of an audience.
+  """
+  def direct(%Delivery{} = delivery) do
+    metadata = delivery.metadata || %{}
+    defaults = email_defaults()
+
+    base_email(
+      delivery,
+      metadata["from_name"] || defaults[:from_name],
+      metadata["from_email"] || defaults[:from_email],
+      metadata["reply_to_email"] || defaults[:reply_to_email],
+      metadata["body_markdown"] || ""
+    )
+  end
+
+  @doc """
   Renders a transactional template from the variables stored on the delivery.
 
   The newsletter confirmation is sent on behalf of the Tuist marketing site,
@@ -127,7 +148,7 @@ defmodule Atlas.GTM.Email do
 
     content =
       MDEx.to_html!(markdown,
-        extension: [autolink: true],
+        extension: [autolink: true, table: true],
         sanitize: MDEx.Document.default_sanitize_options()
       )
 
@@ -164,6 +185,9 @@ defmodule Atlas.GTM.Email do
           .broadcast-content blockquote { margin: 0 0 16px 0; padding: 8px 16px; border-left: 3px solid #eff0f1; color: #535659; }
           .broadcast-content hr { border: none; border-top: 1px solid #eff0f1; margin: 24px 0; }
           .broadcast-content img { max-width: 100%; height: auto; }
+          .broadcast-content table { width: 100%; border-collapse: collapse; margin: 0 0 16px 0; }
+          .broadcast-content th { font-weight: 500; font-size: 13px; line-height: 20px; text-align: left; padding: 8px 12px; border: 1px solid #eff0f1; background: #f7f7f7; color: #535659; }
+          .broadcast-content td { font-size: 15px; line-height: 24px; padding: 8px 12px; border: 1px solid #eff0f1; color: #191a1b; }
         </style>
       </head>
       <body style="margin: 0; padding: 0; background: #f7f7f7; font-family: #{@email_font}; -webkit-font-smoothing: antialiased;">

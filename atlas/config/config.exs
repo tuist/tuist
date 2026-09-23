@@ -7,8 +7,6 @@
 # General application configuration
 import Config
 
-alias Atlas.Accounts.Workers.DeliverDueAccountAttentionSuggestions
-alias Atlas.Accounts.Workers.ScheduleAccountAttentionSuggestions
 alias Atlas.Accounts.Workers.ScheduleOverviewSummaries
 alias Atlas.Accounts.Workers.ScheduleServiceLevelExtractions
 alias Atlas.Accounts.Workers.ScheduleStripeInvoiceReconciliations
@@ -26,6 +24,8 @@ alias Atlas.Licenses.RateLimiter
 alias Atlas.Licenses.Workers.NotifyExpiringLicenses
 alias Atlas.MCP.Workers.RefreshOAuthSessions
 alias Atlas.Memory.Workers.RefreshBulletin, as: RefreshMemoryBulletin
+alias Atlas.Nudges.Workers.EvaluateSignals, as: EvaluateNudgeSignals
+alias Atlas.Nudges.Workers.ExpireStaleNudges
 alias Atlas.OAuth.AccessTokens
 alias Atlas.OAuth.Clients
 alias Atlas.OAuth.ResourceOwners
@@ -85,8 +85,8 @@ config :atlas, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        {"0 3 * * *", ScheduleOverviewSummaries},
-       {"20 4 * * *", ScheduleAccountAttentionSuggestions},
-       {"30 4 * * *", DeliverDueAccountAttentionSuggestions},
+       {"20 4 * * *", EvaluateNudgeSignals},
+       {"30 4 * * *", ExpireStaleNudges},
        {"15 3 * * *", ScheduleStripeInvoiceReconciliations},
        {"5 * * * *", SyncNotes, args: %{mode: "incremental"}},
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},

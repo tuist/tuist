@@ -24,11 +24,14 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Billing
   alias Tuist.CacheEndpoints
   alias Tuist.Environment
+  alias Tuist.IngestRepo
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.Server
+  alias Tuist.Kura.UsageEvent
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -109,7 +112,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       stale = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -13, :hour)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(u in User, where: u.id == ^user.id),
         set: [last_sign_in_at: stale]
       )
@@ -213,7 +216,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.account_month_usage(account_id)
 
       # Then
-      assert %{remote_cache_hits_count: 1} == got
+      assert %{remote_cache_hits_count: 1, cache_egress_megabytes: 0, cache_requests: 0} == got
     end
 
     test "ignores events that ran before the free tier was reset" do
@@ -243,7 +246,46 @@ defmodule Tuist.AccountsTest do
       got = Accounts.account_month_usage(account_id, now)
 
       # Then
-      assert %{remote_cache_hits_count: 1} == got
+      assert %{remote_cache_hits_count: 1, cache_egress_megabytes: 0, cache_requests: 0} == got
+    end
+
+    test "meters cache egress and requests from the free tier's reset onwards, with runner traffic at half" do
+      now = ~U[2025-05-18 15:27:00Z]
+      _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
+
+      Account
+      |> Repo.get!(account_id)
+      |> Ecto.Changeset.change(free_tier_reset_at: ~U[2025-05-15 00:00:00Z])
+      |> Repo.update!()
+
+      for {region, bytes, requests, window_start} <- [
+            {"eu-west", 9_000_000_000, 900, ~N[2025-05-10 12:00:00]},
+            {"eu-west", 3_000_000_000, 300, ~N[2025-05-16 12:00:00]},
+            {"scw-fr-par-runners", 2_000_000_000, 200, ~N[2025-05-17 12:00:00]}
+          ] do
+        IngestRepo.insert_all(UsageEvent, [
+          %{
+            event_id: "evt-#{System.unique_integer([:positive])}",
+            account_id: account_id,
+            project_id: 0,
+            node_id: "kura-test",
+            region: region,
+            traffic_plane: "public",
+            direction: "egress",
+            operation: "download",
+            protocol: "http",
+            artifact_kind: "xcode",
+            bytes: bytes,
+            request_count: requests,
+            window_start: window_start,
+            window_seconds: 60,
+            inserted_at: window_start
+          }
+        ])
+      end
+
+      # 3 GB since the reset, plus 2 GB served from a runner region at half
+      assert %{cache_egress_megabytes: 4_000, cache_requests: 400} = Accounts.account_month_usage(account_id, now)
     end
 
     test "returns the right value when there are no remote cache hits" do
@@ -256,7 +298,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.account_month_usage(account_id, now)
 
       # Then
-      assert %{remote_cache_hits_count: 0} == got
+      assert %{remote_cache_hits_count: 0, cache_egress_megabytes: 0, cache_requests: 0} == got
     end
   end
 
@@ -341,8 +383,8 @@ defmodule Tuist.AccountsTest do
       stub(DateTime, :utc_now, fn -> today end)
 
       org = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
-      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
+      account = Repo.get_by!(Account, organization_id: org.id)
+      account = Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
 
       {:ok, _} =
         Billing.create_token_usage(%{
@@ -368,8 +410,8 @@ defmodule Tuist.AccountsTest do
       stub(DateTime, :utc_now, fn -> today end)
 
       org = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
-      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
+      account = Repo.get_by!(Account, organization_id: org.id)
+      account = Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
 
       {:ok, _} =
         Billing.create_token_usage(%{
@@ -600,7 +642,7 @@ defmodule Tuist.AccountsTest do
         )
 
       user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
-      Tuist.Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+      Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
 
       # Then
       refute Accounts.organization_viewer?(user, organization)
@@ -622,7 +664,7 @@ defmodule Tuist.AccountsTest do
         )
 
       user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
-      Tuist.Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+      Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
 
       # Then — the enrollment role decides, rather than defaulting to user.
       viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
@@ -1329,7 +1371,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1360,7 +1402,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1412,12 +1454,12 @@ defmodule Tuist.AccountsTest do
           url: fn token -> token end
         })
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^older.id),
         set: [created_at: ~N[2026-01-01 00:00:00]]
       )
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^newer.id),
         set: [created_at: ~N[2026-02-01 00:00:00]]
       )
@@ -1473,7 +1515,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1563,7 +1605,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1711,7 +1753,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -3286,7 +3328,7 @@ defmodule Tuist.AccountsTest do
 
       # Then - Should only have one role/user_role for this user+organization
       roles =
-        Tuist.Repo.all(
+        Repo.all(
           from(ur in UserRole,
             join: r in Role,
             on: ur.role_id == r.id,
@@ -3312,7 +3354,7 @@ defmodule Tuist.AccountsTest do
 
       # Then - Should only have one role (the first one created)
       roles =
-        Tuist.Repo.all(
+        Repo.all(
           from(ur in UserRole,
             join: r in Role,
             on: ur.role_id == r.id,
@@ -3614,7 +3656,7 @@ defmodule Tuist.AccountsTest do
               url: &"/auth/invitations/#{&1}"
             })
 
-          Tuist.Repo.update_all(
+          Repo.update_all(
             from(i in Invitation, where: i.id == ^invitation.id),
             set: [created_at: NaiveDateTime.add(~N[2026-01-01 00:00:00], index, :day)]
           )

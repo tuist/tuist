@@ -253,9 +253,13 @@ async fn initialize_and_serve(
         Err(error) => tracing::warn!(%error, "failed to read analytics outbox depth at startup"),
     }
     let store = Arc::new(store);
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let analytics = Analytics::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        metrics.clone(),
+        Some(Arc::clone(&store)),
+    )
+    .map_err(|error| format!("failed to initialize analytics: {error}"))?;
     let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
         config.analytics.as_ref(),
         &config.node_url,
@@ -337,6 +341,13 @@ async fn initialize_and_serve(
     bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
     Usage::spawn_tasks(state.clone());
+    // The analytics outbox forwarder drains the shared column family into
+    // the server's webhook endpoints. In this release the pipeline is
+    // empty because no producer routes through it yet, so the tasks idle
+    // on the depth gauge; landing them ahead of the producer switch keeps
+    // activation independent from the code change that starts filling
+    // the outbox.
+    crate::analytics_forwarder::spawn_tasks(&state);
 
     if let Some(registration) =
         crate::registration::RegistrationConfig::from_env(&state.config.node_url)
