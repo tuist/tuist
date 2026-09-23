@@ -14,7 +14,7 @@ these schemas persist volume identities and per-job uses.
   and local fencing. Preserve legacy GitHub volume UUIDs when changing identity.
   See `infra/runners-controller/cache-volume-integrations.md` for provider policies.
 - GitLab's verified job response supplies trigger type in `pipeline.source`.
-  Fall back to the older top-level `source` only when that nested field is
+  Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.
 - An open Linux session awaiting its verified execution binding returns pending
   (425 to the authenticated agent). The agent retries for at most 30 seconds;

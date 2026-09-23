@@ -99,7 +99,7 @@ permission from the mount request or job environment.
   with an escaped anchored regex through the
   [branches listing API](https://docs.gitlab.com/api/branches/); require its
   `default` flag and an allowed job `pipeline.source`, with `tag == false`, to
-  save. Use the older top-level `source` only when the nested field is absent;
+  save. Use the top-level `source` only when the nested field is absent;
   an unknown or denied nested source cannot fall back to a permissive value.
   Both endpoints are available to [job tokens](https://docs.gitlab.com/ci/jobs/ci_job_token/).
   `CI_PROJECT_ID`, `CI_DEFAULT_BRANCH` and other overridable variables grant

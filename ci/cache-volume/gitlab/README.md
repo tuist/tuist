@@ -58,7 +58,7 @@ invalid inputs and nonempty targets fail the step.
 The server verifies the current job through `GET /job` and its exact branch
 through `GET /projects/:id/repository/branches`, using the acquired job token.
 The GitLab instance must expose the job API's `pipeline.source` field (or the
-older top-level `source` when the nested field is absent) and permit branch
+top-level `source` when the nested field is absent) and permit branch
 listing with that token. Missing source metadata never grants save permission;
 API failure declines attachment. Predefined-looking `CI_*` variables are not
 used to grant permission. Successful default-branch push, schedule and web

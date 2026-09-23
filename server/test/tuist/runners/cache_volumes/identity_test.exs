@@ -202,7 +202,7 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     refute Identity.gitlab_writer?(remote, nil)
   end
 
-  test "GitLab supports older job responses with only a top-level source" do
+  test "GitLab supports job responses with only a top-level source" do
     {_job, _payload, remote} = gitlab()
     branches = [%{"name" => "main", "default" => true}]
     remote = update_in(remote, ["pipeline"], &Map.delete(&1, "source"))

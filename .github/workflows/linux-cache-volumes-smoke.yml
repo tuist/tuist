@@ -28,10 +28,6 @@ on:
         description: Time to keep the volume mounted for isolation and lifecycle tests
         type: number
         default: 0
-      action_ref:
-        description: Reviewed commit of tuist/tuist containing the action
-        type: string
-        default: 07f5e5ac8403a676bf1d7f2e35ee8f1c7c7a7a97
 
 permissions:
   contents: read
@@ -51,12 +47,7 @@ jobs:
     container: ${{ matrix.container }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: tuist/tuist
-          ref: ${{ inputs.action_ref }}
-          sparse-checkout: .github/actions/cache-volume
-      - uses: ./.github/actions/cache-volume
+      - uses: tuist/tuist/.github/actions/cache-volume@07f5e5ac8403a676bf1d7f2e35ee8f1c7c7a7a97
         id: cache
         with:
           key: ${{ inputs.cache_key }}-${{ matrix.mode }}
