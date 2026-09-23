@@ -622,6 +622,94 @@ defaults read /Library/Preferences/com.apple.SoftwareUpdate
 softwareupdate --history | grep -i -E 'xprotect|gatekeeper'
 ```
 
+### Running a wave
+
+One host at a time: take it out of service, install, let it come back, put it
+back. **Never delete the Machine to update a host.** That revokes its kubelet
+identity and drops its Node, so a 30 minute update becomes a full re-bootstrap.
+`spec.unclaimable` is not the tool either: it stops the next claim without
+evicting the current one.
+
+**First, confirm the host has two ways in.** The guard ships
+`<ssh_allowed>` with the tailnet range and the operator's egress and nothing
+else, so the tailnet is a single path in. A rack host's tailnet device is
+ephemeral until `rackFleet.sshIngressAllowCIDRs` and the persistent-device flag
+have reached it, and an ephemeral device is deleted 30 to 60 minutes after it
+goes offline. An update's offline window sits inside that, and losing the device
+with no second path is a console visit.
+
+```bash
+pfctl -a com.apple/tuist.sshguard -t ssh_allowed -T show
+```
+
+The subnet router's address has to be in that table before the wave starts. It
+is rendered there from the values, so the durable fix is a host that has taken a
+drift push, not a hand-edited anchor. The anchor file is the source of truth and
+`dev.tuist.pfctl-sshguard` reloads it at boot, so an edit that is not in the
+values is undone by the next bootstrap.
+
+**A host parked at `replicas: 0` has neither of those.** The update policy and
+the guard both ship through the drift loop, so an unclaimed host still runs
+whatever it was last given: it is the least safe host in the fleet to update,
+not the safest. Claim it first, let it converge, then wave it.
+
+**Drain and suppress.**
+
+```bash
+kubectl cordon <node>
+kubectl get pods -A --field-selector spec.nodeName=<node>   # let running builds finish
+kubectl annotate machine <machine> cluster.x-k8s.io/skip-remediation=""
+kubectl annotate rasm <machine> cluster.x-k8s.io/paused=true
+```
+
+Both annotations are load-bearing and stop different things, on different
+objects. `skip-remediation` is read by the MachineHealthCheck, whose 1800s
+`Ready` timeout is shorter than an update: without it, remediation deletes the
+Machine part-way through the install. `paused` is read by this controller and
+stops the drift loop dialling a rebooting box, which would otherwise burn the
+update-retry budget and drive the CR terminal-Failed for reasons that have
+nothing to do with its config.
+
+**Install an explicit label. Never `-r`, `--all` or `--recommended`.** Apple
+marks the next major release Recommended alongside the in-family patch: a host
+on 26.6 is offered `macOS Tahoe 26.7-25G229` and `macOS 27-26A428`, both
+`Recommended: YES`. Installing recommended updates therefore moves release
+family, which is a DFU decision and not a wave.
+
+```bash
+softwareupdate --list
+softwareupdate --install 'macOS Tahoe 26.7-25G229' --restart --user <sshUser> --stdinpass
+```
+
+Apple silicon authorises the install against a volume owner, so `--user` and
+`--stdinpass` are both required. The fleet service account qualifies because of
+the one GUI login in the MDM validation checklist: that login is what grants the
+account its secure token and escrows the bootstrap token. Check rather than
+assume, since a host that skipped it fails at the authorisation step after the
+download:
+
+```bash
+sysadminctl -secureTokenStatus <sshUser>
+diskutil apfs listUsers /
+```
+
+**Give the password to stdin, never to a command line.** `--stdinpass` exists
+for this: a password in an argument is visible in the host's process table to
+every local user for the length of the install, and is captured by anything
+logging the command.
+
+**Reverse it in order**: remove `paused`, remove `skip-remediation`,
+`kubectl uncordon`. Confirm the host is Ready and taking work before starting
+the next one.
+
+Confirm the version landed over SSH, because nothing in the cluster reports it:
+`tart-kubelet` leaves `NodeInfo.OSImage` empty, so `kubectl get nodes -o wide`
+shows no OS for these hosts and a wave cannot be verified from the cluster.
+
+```bash
+sw_vers -productVersion
+```
+
 ## Module layout
 
 ```
