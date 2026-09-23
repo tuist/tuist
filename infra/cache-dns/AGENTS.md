@@ -5,6 +5,9 @@
 retained on stack deletion. No workflow applies it automatically.
 
 Keep bootstrap, rollback, and the repeatable staging test sequence in `README.md`.
+The client selection contract in that runbook also covers the follow-up client
+cleanup's global-production-rollout merge/release hold. Multiple endpoint
+responses remain unranked; global activation is not a singleton guarantee.
 Preserve completed evidence with the PR rather than adding point-in-time logs
 to the tree; the README links the immutable staging validation record.
 One-off probe sources are preserved at an immutable revision linked from the

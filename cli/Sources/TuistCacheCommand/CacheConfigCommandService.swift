@@ -81,20 +81,18 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         let token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
-        let cacheURL: URL
+        let selection: CacheEndpointSelection
         do {
-            cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
+            selection = try await cacheURLStore.getCacheEndpointSelection(for: resolvedServerURL, accountHandle: accountHandle)
         } catch CacheURLStoreError.endpointBeingPrepared {
             if !json {
                 Noora.current.error(.alert("The remote cache is being prepared and has no endpoint yet."))
             }
             throw ExitCode(Self.endpointBeingPreparedExitCode)
         }
-        let endpoints = try await cacheURLStore.getCacheEndpoints(for: resolvedServerURL, accountHandle: accountHandle)
-
         let result = CacheConfiguration(
-            url: cacheURL.absoluteString,
-            endpoints: endpoints.map(\.absoluteString),
+            url: selection.url.absoluteString,
+            endpoints: selection.endpoints.map(\.absoluteString),
             token: token,
             accountHandle: accountHandle,
             projectHandle: projectHandle
@@ -147,7 +145,7 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
 
 struct CacheConfiguration: Codable {
     let url: String
-    /// Every endpoint the account is served from. `url` is the nearest of them.
+    /// The unranked endpoints from the same response used to select `url`.
     let endpoints: [String]
     let token: String
     let accountHandle: String

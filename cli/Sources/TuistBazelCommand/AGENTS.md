@@ -1,5 +1,7 @@
 # Bazel commands
 
+- Preserve the cache hostname in generated gRPC URLs so DNS can steer stable managed endpoints. Setup's REAPI capability probe is not latency selection and remains required. Credential-helper endpoint refresh remains necessary for regional fallback and rollback; changes to `.bazelrc.tuist` apply to a subsequent Bazel invocation, not an already-running build.
+
 - `setup` configures remote caching and build insights for ordinary Bazel commands. Remote Asset dependency downloads are enabled by default; `--no-remote-downloader` opts out and removes generated downloader settings on the next setup. The server is deployed ahead of the CLI, so setup does not perform Remote Asset discovery. Credential-helper refresh must never backfill an absent downloader. Use the cache endpoint and credentials for the remote downloader, explicitly enable local fallback for rolling Kura upgrades, and preserve custom/disabled downloader and fallback preferences when refreshing configuration. Origin credential propagation stays opt-in. A repository downloader preference must not block the managed import; insert the import before downloader preferences so their option precedence survives setup.
 - `test` fetches every page of quarantined test cases before executing Bazel.
   Skipped cases exclude their entire target, including healthy cases. Muted

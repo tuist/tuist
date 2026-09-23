@@ -74,8 +74,8 @@ enum EndpointVerdict {
 
 /// What to do with a resolution given the endpoint in force.
 ///
-/// The CLI picks by one latency probe per endpoint, so a single bad probe of a
-/// healthy endpoint makes it pick a far one. The current endpoint is therefore
+/// Multi-endpoint responses still use latency selection and can pick a farther
+/// endpoint after transient probe failures. The current endpoint is therefore
 /// left at once only when the account is no longer served from it, or when it
 /// does not answer; any other disagreement has to be repeated by the next
 /// resolution first.
@@ -7894,6 +7894,54 @@ mod tests {
                     .collect()
             }),
         }
+    }
+
+    #[test]
+    fn stable_endpoint_rollout_and_rollback_do_not_wait_for_latency_confirmation() {
+        let stable = "https://acme.cache.tuist.dev";
+        let regional = "https://acme-eu-west.kura.tuist.dev";
+        for (current, next) in [(regional, stable), (stable, regional)] {
+            assert_eq!(
+                endpoint_verdict(current, &resolution(next, Some(&[next])), None, || {
+                    panic!("a withdrawn URL needs neither a reachability probe nor confirmation")
+                }),
+                EndpointVerdict::Move
+            );
+        }
+    }
+
+    #[test]
+    fn an_unchanged_stable_url_needs_no_probe_or_channel_replacement() {
+        let stable = "https://acme.cache.tuist.dev";
+        assert_eq!(
+            endpoint_verdict(stable, &resolution(stable, Some(&[stable])), None, || {
+                panic!("DNS steering does not change the endpoint URL")
+            }),
+            EndpointVerdict::Keep
+        );
+    }
+
+    #[test]
+    fn mixed_stable_and_custom_endpoints_still_require_confirmation_when_reachable() {
+        let stable = "https://acme.cache.tuist.dev";
+        let custom = "http://cache.internal:8080";
+        let resolved = resolution(custom, Some(&[stable, custom]));
+        assert_eq!(
+            endpoint_verdict(stable, &resolved, None, || true),
+            EndpointVerdict::Confirm
+        );
+        assert_eq!(
+            endpoint_verdict(stable, &resolved, None, || false),
+            EndpointVerdict::Move
+        );
+        assert_eq!(
+            endpoint_verdict(stable, &resolved, Some(custom), || true),
+            EndpointVerdict::Move
+        );
+        assert_eq!(
+            endpoint_verdict(custom, &resolution(stable, None), None, || true),
+            EndpointVerdict::Confirm
+        );
     }
 
     #[test]

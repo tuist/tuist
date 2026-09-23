@@ -10,8 +10,18 @@ import TuistServer
 @Mockable
 public protocol CacheURLStoring: Sendable {
     func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL
-    /// Every endpoint the account is currently served from, unranked.
-    func getCacheEndpoints(for serverURL: URL, accountHandle: String?) async throws -> [URL]
+    /// Select from one fresh response, keeping the selected URL and its unranked alternatives together.
+    func getCacheEndpointSelection(for serverURL: URL, accountHandle: String?) async throws -> CacheEndpointSelection
+}
+
+public struct CacheEndpointSelection: Equatable, Sendable {
+    public let url: URL
+    public let endpoints: [URL]
+
+    public init(url: URL, endpoints: [URL]) {
+        self.url = url
+        self.endpoints = endpoints
+    }
 }
 
 /// Whether resolving an endpoint waits for a cache instance the server is preparing.
@@ -112,20 +122,20 @@ public struct CacheURLStore: CacheURLStoring {
         return url
     }
 
-    public func getCacheEndpoints(for serverURL: URL, accountHandle: String?) async throws -> [URL] {
+    public func getCacheEndpointSelection(for serverURL: URL, accountHandle: String?) async throws -> CacheEndpointSelection {
         if Environment.current.variables["TUIST_CACHE_ENDPOINT"] != nil {
-            return [try await getCacheURL(for: serverURL, accountHandle: accountHandle)]
+            let url = try await getCacheURL(for: serverURL, accountHandle: accountHandle)
+            return CacheEndpointSelection(url: url, endpoints: [url])
         }
 
-        return try await getCacheEndpointsService.getCacheEndpoints(
-            serverURL: serverURL,
-            accountHandle: accountHandle
-        )
-        .endpoints
-        .map { endpoint in
+        let resolution = try await resolutionWaitingForProvisioning(serverURL: serverURL, accountHandle: accountHandle)
+        let selected = try await selectEndpoint(from: resolution)
+        guard let url = URL(string: selected) else { throw CacheURLStoreError.invalidURL(selected) }
+        let endpoints = try resolution.endpoints.map { endpoint in
             guard let url = URL(string: endpoint) else { throw CacheURLStoreError.invalidURL(endpoint) }
             return url
         }
+        return CacheEndpointSelection(url: url, endpoints: endpoints)
     }
 
     private func refreshCacheInBackground(for serverURL: URL, accountHandle: String?, key: String) async {
@@ -148,6 +158,10 @@ public struct CacheURLStore: CacheURLStoring {
         Logger.current.debug("Selecting best cache endpoint for \(serverURL.absoluteString)")
 
         let resolution = try await resolutionWaitingForProvisioning(serverURL: serverURL, accountHandle: accountHandle)
+        return try await (value: selectEndpoint(from: resolution), expiresAt: expiration(maxAge: resolution.maxAge))
+    }
+
+    private func selectEndpoint(from resolution: CacheEndpointsResolution) async throws -> String {
         let endpoints = resolution.endpoints
 
         guard !endpoints.isEmpty else {
@@ -156,9 +170,11 @@ public struct CacheURLStore: CacheURLStoring {
 
         if endpoints.count == 1 {
             Logger.current.debug("Only one endpoint available, using it directly: \(endpoints[0])")
-            return (value: endpoints[0], expiresAt: expiration(maxAge: resolution.maxAge))
+            return endpoints[0]
         }
 
+        // Multiple endpoints remain unranked, including stable URLs mixed with custom caches.
+        // Keep latency selection for these responses and for older servers or regional fallback.
         let endpointLatencies: [(String, TimeInterval?)] = try await endpoints.concurrentMap { endpoint in
             guard let endpointURL = URL(string: endpoint) else {
                 Logger.current.warning("Invalid endpoint URL: \(endpoint)")
@@ -192,7 +208,7 @@ public struct CacheURLStore: CacheURLStoring {
                 "Selected endpoint \(bestEndpoint.0) with latency \(String(format: "%.3f", bestEndpoint.1))s"
             )
 
-        return (value: bestEndpoint.0, expiresAt: expiration(maxAge: resolution.maxAge))
+        return bestEndpoint.0
     }
 
     /// The server's answer, asked again every `provisioningPollInterval` while it has no endpoint

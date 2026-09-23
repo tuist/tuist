@@ -165,6 +165,73 @@ managed-server query's readiness fields and evaluates the account flag once.
 Custom URLs join a stable response only after the stable hostname is actually
 selected, preserving archived-account provisioning and legacy fallback.
 
+## Client selection contract and follow-up cleanup
+
+**Hold the client follow-up merge and all client releases until the parent
+stable-hostname feature has rolled out globally in production and been
+verified.** Canary success, a selected production cohort, or merely enabling
+the global flag does not satisfy this hold. Record production DNS/TLS readiness,
+native-client behavior across serving regions, mixed endpoints, and rollback
+checks in the follow-up PR before lifting it. This is a release condition, not
+a new client feature flag.
+
+The endpoint API returns an **unranked** list. It replaces supported managed
+regional URLs only after readiness converges; unsupported placements, enrolled
+self-hosted nodes, and eligible custom URLs can still accompany the stable URL.
+Stale/missing readiness restores regional URLs, and older/self-hosted servers
+retain their existing response shape. No hostname suffix or first array element
+establishes a preference among multiple URLs.
+
+| Response/configuration | Client selection |
+| --- | --- |
+| `TUIST_CACHE_ENDPOINT` override | Use it directly; do not query or rank API endpoints. |
+| One stable managed URL | Use it without a latency probe; DNS chooses the serving region. |
+| One regional, custom, or self-hosted URL | Use it directly, preserving the existing single-endpoint behavior. |
+| Several regional URLs, including readiness fallback/rollback | Keep client latency selection among reachable endpoints. |
+| Stable URL plus unsupported/custom/self-hosted URLs | Keep all alternatives eligible and retain latency selection. |
+| Empty response | Preserve provisioning waits and the existing local-cache/error behavior. |
+
+Swift's shared `CacheURLStore` covers module caching, Xcode setup/proxy startup,
+and Bazel setup/credential refresh. Gradle follows the same singleton versus
+multiple-endpoint rule. These singleton fast paths predate the follow-up: there
+is no remaining managed-region latency race to delete for a stable-only answer.
+The follow-up keeps compatibility selection and makes `tuist cache config`
+return its choice and endpoint list from **one fresh API response**. Previously
+it selected a URL (possibly cached) and fetched the list independently; a
+readiness change between requests could report a regional choice with only the
+stable URL in its list, or vice versa. The proxy uses list membership to detect
+withdrawal, so those fields must describe the same observation. This does not
+make API reads atomic with subsequent DNS or control-plane changes.
+
+No new server capability is required for this cleanup. Removing the remaining
+multi-endpoint probe would require an explicit server-selected endpoint or an
+ordered failover contract that defines custom/self-hosted preference and
+reachability fallback. It would still need a compatibility path for servers
+without that contract. Returning the stable URL first is insufficient, and
+silently preferring it could bypass a faster or uniquely reachable private
+cache. Global production activation alone cannot remove that prerequisite.
+
+The CAS plugin delegates URL selection to the CLI via its proxy; it has no
+separate latency selector to remove. Keep periodic endpoint refresh, the
+reachability check and confirmation for competing choices, transport retries,
+and reconnect-time DNS resolution. A sole stable URL replacing a regional URL
+(or the reverse on rollback) moves immediately when the old URL disappears
+from the returned list. An unchanged stable URL retains existing channels;
+DNS steering affects new connections, not healthy established ones.
+
+Bazel must persist the hostname in `.bazelrc.tuist`, including for its remote
+downloader. Its REAPI capability check validates usability and is not a latency
+ranking probe. Keep credential-helper refresh for rollback and regional
+fallback; rewritten configuration takes effect on a later Bazel invocation.
+Preserve user overrides, custom downloader settings and local fallback.
+
+The follow-up changes no endpoint API schema, DNS configuration, flags, retry
+policy or cache format. Client rollback needs no data migration. Server rollback
+must still retain stable DNS while already-configured clients refresh, as below.
+Local selection tests do not extend the parent PR's staging evidence: the
+recorded gateway recovery, steering anomalies, and native SDK/large-transfer
+limitations remain in the linked validation record.
+
 ## Rollback
 
 Disable `kura_stable_hostname` for the affected account. This immediately stops

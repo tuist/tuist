@@ -1,10 +1,14 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistNooraTesting
 import TuistServer
 import TuistTesting
 
@@ -14,6 +18,47 @@ struct BazelCredentialHelperCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
 
     private struct RefreshError: Error {}
+
+    @Test(.withMockedEnvironment(), .withMockedNoora, .inTemporaryDirectory, arguments: [
+        ("acme-eu-west.kura.tuist.dev", "acme.cache.tuist.dev"),
+        ("acme.cache.tuist.dev", "acme-eu-west.kura.tuist.dev"),
+    ])
+    func refreshes_persisted_endpoints_for_stable_rollout_and_regional_rollback(previous: String, next: String) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let bazelrc = directory.appending(component: ".bazelrc.tuist")
+        try await fileSystem.writeText("""
+        build --remote_cache=grpcs://\(previous)
+        build --experimental_remote_downloader=grpcs://\(previous)
+        build --experimental_remote_downloader_local_fallback=true
+
+        """, at: bazelrc)
+        let serverEnvironment = MockServerEnvironmentServicing()
+        let authentication = MockServerAuthenticationControlling()
+        let configLoader = MockConfigLoading()
+        let cacheURLStore = MockCacheURLStoring()
+        given(serverEnvironment).url(configServerURL: .any).willReturn(serverURL)
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("token"))
+        given(configLoader).loadConfig(path: .any)
+            .willReturn(Tuist.test(fullHandle: "acme/app", url: serverURL))
+        given(cacheURLStore).getCacheURL(for: .value(serverURL), accountHandle: .value("acme"))
+            .willReturn(URL(string: "https://\(next)")!)
+        let subject = BazelCredentialHelperCommandService(
+            serverEnvironmentService: serverEnvironment,
+            serverAuthenticationController: authentication,
+            configLoader: configLoader,
+            cacheURLStore: cacheURLStore,
+            fileSystem: fileSystem
+        )
+
+        try await subject.run(helperCommand: "get", directory: directory.pathString)
+
+        let rewritten = try await fileSystem.readTextFile(at: bazelrc)
+        #expect(rewritten.contains("build --remote_cache=grpcs://\(next)"))
+        #expect(rewritten.contains("build --experimental_remote_downloader=grpcs://\(next)"))
+        #expect(rewritten.contains("build --experimental_remote_downloader_local_fallback=true"))
+        #expect(!rewritten.contains(previous))
+    }
 
     private func makeSubject(
         date: @escaping () -> Date = { Date() }

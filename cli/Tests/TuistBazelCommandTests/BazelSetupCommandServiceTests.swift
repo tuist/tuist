@@ -713,11 +713,16 @@ struct BazelSetupCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
-    func run_probes_the_resolved_cache_endpoint() async throws {
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory, arguments: [
+        "acme.cache.tuist.dev",
+        "acme-eu-west.kura.tuist.dev",
+    ])
+    func run_preserves_the_resolved_hostname_and_probes_capabilities(host: String) async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject()
+        let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject(
+            cacheURL: URL(string: "https://\(host)")!
+        )
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))
@@ -728,12 +733,15 @@ struct BazelSetupCommandServiceTests {
         // Then
         verify(remoteCacheProbeService)
             .probe(
-                endpoint: .value(GRPCEndpoint(host: "cache.tuist.dev", explicitPort: nil, isTLS: true)),
+                endpoint: .value(GRPCEndpoint(host: host, explicitPort: nil, isTLS: true)),
                 accountHandle: .value("my-account"),
                 instanceName: .value("my-project"),
                 token: .value("token")
             )
             .called(1)
+        let bazelrcContent = try await fileSystem.readTextFile(at: temporaryDirectory.appending(component: ".bazelrc.tuist"))
+        #expect(bazelrcContent.contains("build --remote_cache=grpcs://\(host)"))
+        #expect(bazelrcContent.contains("build --experimental_remote_downloader=grpcs://\(host)"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)

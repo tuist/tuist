@@ -2,9 +2,16 @@ package dev.tuist.gradle
 
 import dev.tuist.gradle.api.model.CacheEndpoints
 import dev.tuist.gradle.services.GetCacheEndpointsService
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
+import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.URI
 import java.util.concurrent.TimeUnit
@@ -43,14 +50,56 @@ class CacheEndpointResolverTest {
         assertEquals("https://env-cache.dev", result)
     }
 
-    @Test
-    fun `single endpoint from API is used directly`() {
+    @ParameterizedTest
+    @ValueSource(strings = [
+        "https://acme.cache.tuist.dev",
+        "https://acme-canary.cache.tuist.dev",
+        "https://acme-staging.cache.tuist.dev",
+        "https://acme-eu-west.kura.tuist.dev",
+        "http://cache.internal:8080"
+    ])
+    fun `single endpoint from API is used without constructing a probe client`(endpoint: String) {
+        val httpClients = object : TuistHttpClients() {
+            override val latencyClient: OkHttpClient
+                get() = error("A single endpoint must not be probed")
+        }
         val result = CacheEndpointResolver.resolve(
             serverURL, accountHandle, stubTokenProvider,
             envProvider = { null },
-            getCacheEndpointsService = stubService(listOf("https://cache1.dev"))
+            httpClients = httpClients,
+            getCacheEndpointsService = stubService(listOf(endpoint))
         )
-        assertEquals("https://cache1.dev", result)
+        assertEquals(endpoint, result)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = [
+        "http://cache.internal:8080",
+        "https://custom.example.com",
+        "https://acme-unsupported.kura.tuist.dev"
+    ])
+    fun `unreachable stable endpoint does not hide a reachable alternative`(alternative: String) {
+        val stable = "https://acme.cache.tuist.dev"
+        val probed = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val httpClients = object : TuistHttpClients() {
+            override val latencyClient = OkHttpClient.Builder().addInterceptor { chain ->
+                val request = chain.request()
+                probed.add(request.url.toString())
+                if (request.url.host == "acme.cache.tuist.dev") throw IOException("unreachable")
+                Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
+                    .code(200).message("OK").body("ok".toResponseBody()).build()
+            }.build()
+        }
+
+        val result = CacheEndpointResolver.resolve(
+            serverURL, accountHandle, stubTokenProvider,
+            envProvider = { null },
+            httpClients = httpClients,
+            getCacheEndpointsService = stubService(listOf(stable, alternative))
+        )
+
+        assertEquals(alternative, result)
+        assertEquals(setOf("$stable/up", "$alternative/up"), probed.toSet())
     }
 
     @Test
