@@ -299,13 +299,16 @@
     align-items: flex-start;
     gap: var(--noora-spacing-4);
 
-    /* A verified domain carries only its badge. Without a record to publish
-       there is nothing to fill the column, so it tracks the control it
-       describes rather than sitting at the opposite edge of the row. */
-    &:not(:has([data-part="domain-record"])) {
-      align-self: flex-end;
-      width: 320px;
-      max-width: 100%;
+    /* Tracks the control it describes rather than spanning the column it
+       shares with it. The record values wrap instead of running past that
+       width, since they are copied out by hand. */
+    align-self: flex-end;
+    width: 320px;
+    max-width: 100%;
+
+    & [data-part="read-only-value"] > code {
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
 
     & > [data-part="domain-verification-status"] {
