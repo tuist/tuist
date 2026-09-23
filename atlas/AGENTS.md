@@ -37,6 +37,11 @@ Do not add README entries for internal operational details such as env var names
 - The internal evaluation pages are styled by `assets/css/routes/pocs.css`, imported from `assets/js/app.js`. The public brief has separate styles in `assets/css/routes/poc_public.css`.
 - Card and cell icon names must exist in `noora/lib/noora/icons/` (replace filename hyphens with underscores). Unsupported names raise during rendering; include conditional sections when verifying these pages.
 
+## Tasks
+
+- General tasks and their scheduled Slack reminders live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
+- The task page is `/tasks`. Tasks may optionally reference an account and have a due date or reminder, but always have an Atlas user assignee when created. The task list uses the shared Noora filter and search controls; their state is encoded in the page URL.
+
 ## Project guidelines
 
 - When opening GitHub pull requests, use a semantic commit style title, for example `feat(accounts): reconcile Stripe invoices`.

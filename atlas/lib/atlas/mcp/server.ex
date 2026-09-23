@@ -28,6 +28,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
   alias Atlas.MCP.Tools.ClaimNudge
   alias Atlas.MCP.Tools.CompleteOutreachNextStep
+  alias Atlas.MCP.Tools.CompleteTask
   alias Atlas.MCP.Tools.ConfirmTaxCertificateDelivery
   alias Atlas.MCP.Tools.ConvertGTMOpportunity
   alias Atlas.MCP.Tools.CreateAccount
@@ -57,6 +58,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateSocialPostRevision
   alias Atlas.MCP.Tools.CreateSpec
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
+  alias Atlas.MCP.Tools.CreateTask
   alias Atlas.MCP.Tools.DecommissionDataCenter
   alias Atlas.MCP.Tools.DeleteAccountTerm
   alias Atlas.MCP.Tools.DeleteAsset
@@ -200,6 +202,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListSpecComments
   alias Atlas.MCP.Tools.ListSpecs
   alias Atlas.MCP.Tools.ListSupportThreads
+  alias Atlas.MCP.Tools.ListTasks
   alias Atlas.MCP.Tools.ListTuistClickhouseTables
   alias Atlas.MCP.Tools.ListTuistPostgresTables
   alias Atlas.MCP.Tools.ListUpcomingRenewals
@@ -276,6 +279,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateSpec
   alias Atlas.MCP.Tools.UpdateSpecComment
   alias Atlas.MCP.Tools.UpdateSupportThread
+  alias Atlas.MCP.Tools.UpdateTask
   alias Atlas.MCP.Tools.UploadPostalLetter
 
   @name "atlas"
@@ -546,6 +550,10 @@ defmodule Atlas.MCP.Server do
     AddSupportThreadNote,
     UpdateSupportThread,
     ListAccounts,
+    ListTasks,
+    CreateTask,
+    UpdateTask,
+    CompleteTask,
     ListUpcomingRenewals,
     CreateAccount,
     GetAccount,
