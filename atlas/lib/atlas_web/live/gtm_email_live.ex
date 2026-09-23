@@ -3,6 +3,7 @@ defmodule AtlasWeb.GTMEmailLive do
   use Noora
 
   import AtlasWeb.CoreComponents, only: []
+  import AtlasWeb.EmailHeader
   import AtlasWeb.Widget
   import Noora.Filter
 
@@ -359,14 +360,7 @@ defmodule AtlasWeb.GTMEmailLive do
 
   defp index_view(assigns) do
     ~H"""
-    <div data-part="header">
-      <div data-part="text">
-        <h1 data-part="title">{gettext("Email")}</h1>
-        <p data-part="description">
-          {gettext("Own subscribers, audiences, and group email delivery inside Atlas.")}
-        </p>
-      </div>
-    </div>
+    <.email_header selected={:audiences} />
 
     <.card title={gettext("Audiences")} icon="users" data-part="email-audiences-card">
       <:actions>

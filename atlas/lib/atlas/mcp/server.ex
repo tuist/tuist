@@ -135,6 +135,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetPostmortem
   alias Atlas.MCP.Tools.GetPostmortemActionItem
   alias Atlas.MCP.Tools.GetProjectErrorDsn
+  alias Atlas.MCP.Tools.GetSentEmail
   alias Atlas.MCP.Tools.GetSocialChannelIdea
   alias Atlas.MCP.Tools.GetSocialPostRevision
   alias Atlas.MCP.Tools.GetSpec
@@ -169,6 +170,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListDataCenters
   alias Atlas.MCP.Tools.ListDocuments
   alias Atlas.MCP.Tools.ListEmailAudiences
+  alias Atlas.MCP.Tools.ListEmailInbox
+  alias Atlas.MCP.Tools.ListEmailOutbox
   alias Atlas.MCP.Tools.ListEmailSubscribers
   alias Atlas.MCP.Tools.ListEngineeringDomains
   alias Atlas.MCP.Tools.ListEngineeringProjects
@@ -526,6 +529,9 @@ defmodule Atlas.MCP.Server do
     UnsubscribeEmailAudienceSubscriber,
     SendEmailBroadcast,
     SendAccountEmail,
+    ListEmailInbox,
+    ListEmailOutbox,
+    GetSentEmail,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment,
     FinanceGetTransaction,

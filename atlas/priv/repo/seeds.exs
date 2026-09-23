@@ -293,6 +293,48 @@ for subscriber_email <- ["newsletter-reader@atlas.dev", "product-signup@atlas.de
   |> Repo.insert_or_update!()
 end
 
+for seed <- [
+      %{
+        recipient_email: "billing@acme.example",
+        recipient_name: "Acme Billing",
+        subject: "Your Tuist pricing is changing on 1 November 2026",
+        body_markdown:
+          "Hello,\n\nYour Tuist price changes on **1 November 2026**. Reply to this email with any questions.",
+        status: "delivered",
+        provider_message_id: "seed-direct-pricing",
+        error: nil,
+        delivered_at: ~U[2026-09-22 16:40:00Z]
+      },
+      %{
+        recipient_email: "finance@globex.example",
+        recipient_name: nil,
+        subject: "Your Tuist contract renewal",
+        body_markdown: "Hello,\n\nYour Tuist contract renews next month.",
+        status: "failed",
+        provider_message_id: nil,
+        error: "{:mailgun, 400, \"to parameter is not a valid address\"}",
+        delivered_at: nil
+      }
+    ] do
+  delivery =
+    Repo.get_by(Delivery, kind: "direct", recipient_email: seed.recipient_email, subject: seed.subject) ||
+      %Delivery{}
+
+  delivery
+  |> Delivery.changeset(%{
+    kind: "direct",
+    recipient_email: seed.recipient_email,
+    recipient_name: seed.recipient_name,
+    subject: seed.subject,
+    status: seed.status,
+    provider_message_id: seed.provider_message_id,
+    error: seed.error,
+    delivered_at: seed.delivered_at,
+    metadata: %{"body_markdown" => seed.body_markdown}
+  })
+  |> Repo.insert_or_update!()
+end
+
 # Pre-populate the company Slack app's tracked channels for the demo.
 demo_slack_channels = [
   %{slack_app: :company, channel_id: "C001SUPPORT", channel_name: "support"},
