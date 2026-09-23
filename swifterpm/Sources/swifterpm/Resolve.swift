@@ -108,6 +108,7 @@ enum PackageResolver {
         // Native SwiftPM updates an existing git checkout in place, which would rewrite a
         // cached source through its `checkouts/<identity>` symlink.
         try await detachNativeCheckoutSymlinks(scratchDir: effectiveScratchDir)
+        try await copyBinaryArtifactSymlinks(scratchDir: effectiveScratchDir)
         let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
@@ -169,6 +170,26 @@ enum PackageResolver {
                 continue
             }
             try await fileSystem.removePath(entry)
+        }
+    }
+
+    /// SwiftPM extracts a changed binary target over `artifacts/<identity>/<target>` but expects an
+    /// unchanged one to still be there, so each link becomes a copy SwiftPM can overwrite.
+    private static func copyBinaryArtifactSymlinks(scratchDir: URL) async throws {
+        let artifacts = scratchDir.appendingPathComponent("artifacts")
+        guard try await fileSystem.exists(artifacts.absolutePath) else { return }
+        for package in try await fileSystem.contentsOfDirectory(at: artifacts)
+            where fileSystem.isDirectoryAndNotSymlink(package)
+        {
+            for entry in try await fileSystem.contentsOfDirectory(at: package)
+                where fileSystem.isSymlink(entry)
+            {
+                let cached = entry.resolvingSymlinksInPath()
+                try await fileSystem.removePath(entry)
+                if try await fileSystem.exists(cached.absolutePath) {
+                    try await fileSystem.copy(cached.absolutePath, to: entry.absolutePath)
+                }
+            }
         }
     }
 

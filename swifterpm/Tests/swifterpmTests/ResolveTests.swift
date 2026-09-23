@@ -426,6 +426,40 @@ struct ResolveTests {
     }
 
     @Test
+    func switchingVersionsBackAndForthKeepsEachVersionsCachedBinaryArtifact() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+
+            let package = root.appendingPathComponent("App")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: root.appendingPathComponent("cache"),
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            for version in ["1.0.0", "2.0.0", "1.0.0"] {
+                try await writeBinaryAppPackageManifest(
+                    at: package, dependencyURL: dependency.path, exactVersion: version
+                )
+                _ = try await SwifterPM().resolve(request)
+            }
+
+            try await fileSystem.remove(scratch.absolutePath)
+            try await writeBinaryAppPackageManifest(
+                at: package, dependencyURL: dependency.path, exactVersion: "2.0.0"
+            )
+            _ = try await SwifterPM().resolve(request)
+            let restored = try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency")
+            #expect(restored == "v2")
+        }
+    }
+
+    @Test
     func nativeResolveKeepsCachedCheckoutsWithoutAGitDirectoryLinked() async throws {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")
