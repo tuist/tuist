@@ -565,7 +565,7 @@ msgstr ""
 msgid "Google sign-in could not be completed. Please try logging in again."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:56
+#: lib/tuist_web/controllers/sso_link_controller.ex:57
 #, elixir-autogen, elixir-format
 msgid "Already linked"
 msgstr ""
@@ -580,7 +580,7 @@ msgstr ""
 msgid "Link account"
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:140
+#: lib/tuist_web/controllers/sso_link_controller.ex:120
 #, elixir-autogen, elixir-format
 msgid "Link expired"
 msgstr ""
@@ -590,7 +590,7 @@ msgstr ""
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:148
+#: lib/tuist_web/controllers/sso_link_controller.ex:128
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
 msgstr ""
@@ -605,7 +605,7 @@ msgstr ""
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:141
+#: lib/tuist_web/controllers/sso_link_controller.ex:121
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
 msgstr ""
@@ -620,7 +620,7 @@ msgstr ""
 msgid "The %{organization} identity provider account that will sign in to your Tuist account."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:58
+#: lib/tuist_web/controllers/sso_link_controller.ex:59
 #, elixir-autogen, elixir-format
 msgid "This identity provider account is already linked to another Tuist account."
 msgstr ""

@@ -38,7 +38,7 @@ New Okta and custom-provider configurations require a verified login email domai
 
 A verified login email domain can belong to only one Tuist organization. Changing the domain clears its verification and requires publishing the new text record. Automatic enrollment remains unavailable for new configurations until the domain is verified.
 
-Tuist re-checks the text record daily. A record that stops resolving does not clear the verification straight away: the domain keeps it for 14 days, and the Authentication settings show **Verification expiring** along with the record to publish again. Publishing the record and verifying clears the warning. A domain whose record is still missing after 14 days returns to unverified, and provider discovery, identity linking, and automatic enrollment stop until it is verified again. A lookup that fails for any other reason does not refresh the timer and does not clear the verification on its own. Domains verified before daily re-checks were introduced are not re-checked until they are verified again.
+Tuist re-checks the text record daily. A record that stops resolving does not clear the verification straight away: the domain keeps it for 14 days, and the Authentication settings show **Verification expiring** along with the record to publish again. Publishing the record and verifying clears the warning. A domain whose record is still missing after 14 days returns to unverified, and provider discovery, identity linking, and automatic enrollment stop until it is verified again. A lookup that fails for any other reason does not refresh the timer and does not clear the verification on its own. Domains verified before daily re-checks were introduced are not re-checked.
 
 Google Workspace does not require this separate Tuist verification step because Google supplies the verified Workspace domain as part of the authenticated identity.
 
@@ -46,7 +46,7 @@ Google Workspace does not require this separate Tuist verification step because 
 
 Tuist supports two enrollment policies:
 
-- **Invitation only:** A user needs an organization invitation. For Okta and custom providers, the login email domain must still be verified before the provider can create a brand-new Tuist account. An invited user with an existing Tuist account links the provider identity to it as described in <.localized_link href="/guides/integrations/authentication/sso#link-an-existing-account">Link an existing Tuist account</.localized_link>.
+- **Invitation only:** A user needs an organization invitation. For Okta and custom providers, the login email domain must still be verified before the provider can create a brand-new Tuist account. An invited user with an existing Tuist account accepts the invitation first, then links the provider identity as described in <.localized_link href="/guides/integrations/authentication/sso#link-an-existing-account">Link an existing Tuist account</.localized_link>.
 - **Automatic:** A user whose authenticated email matches the trusted domain can create or link an account and join the organization without an invitation. Google configurations use the Workspace domain. Okta and custom providers require a verified login email domain.
 
 Google configurations default to automatic enrollment. New Okta and custom-provider configurations default to invitation-only enrollment. Existing Okta and custom-provider configurations retain their previous automatic enrollment behavior until an administrator verifies a login domain, disables automatic enrollment, or changes the provider configuration.
@@ -63,7 +63,7 @@ The setting cannot be set to `admin`, applies to members provisioned over <.loca
 
 A linked provider identity signs in to the whole Tuist account, including every other organization the account belongs to. For Okta and custom providers, Tuist links an existing account automatically only when its email address is on the verified login email domain, or when the organization's SCIM provisioning created the account.
 
-Members and invited users whose account does not qualify link the identity themselves:
+Members whose account does not qualify link the identity themselves:
 
 1. Log in to Tuist with the account's usual sign-in method.
 2. Open Tuist from the identity provider, such as its application tile, or open one of the organization's projects if it enforces single sign-on.

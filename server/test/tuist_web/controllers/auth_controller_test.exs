@@ -1265,6 +1265,27 @@ defmodule TuistWeb.AuthControllerTest do
       refute get_session(conn, :pending_oauth_signup)
     end
 
+    test "does not offer a signed-in user who was only invited a link", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      invitee = AccountsFixtures.user_fixture(email: "invitee@mail.example")
+      organization = custom_provider_organization(creator: owner)
+
+      {:ok, _invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: owner, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      stub_sso_userinfo("provider-chosen-identity", "someone@provider.example")
+
+      assert_error_sent 401, fn ->
+        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(invitee)})
+      end
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "provider-chosen-identity", "https://login.vendor.example")
+    end
+
     test "does not offer a signed-in user who does not belong to the organization a link", %{conn: conn} do
       owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
       outsider = AccountsFixtures.user_fixture(email: "outsider@mail.example")

@@ -95,14 +95,14 @@ defmodule TuistWeb.SSOLinkControllerTest do
       assert identity.user_id == user.id
     end
 
-    test "continues to the invitation when the user was invited rather than a member", %{
+    test "refuses a user who was only invited to the organization", %{
       conn: conn,
       user: admin,
       organization: organization
     } do
       invitee = AccountsFixtures.user_fixture(email: "invitee@mail.example")
 
-      {:ok, invitation} =
+      {:ok, _invitation} =
         Accounts.invite_user_to_organization(
           invitee.email,
           %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
@@ -110,18 +110,13 @@ defmodule TuistWeb.SSOLinkControllerTest do
 
       conn =
         conn
-        |> with_pending_link(invitee, organization, %{"return_to" => "/oauth2/authorize?client_id=cli"})
+        |> with_pending_link(invitee, organization)
         |> post(~p"/auth/sso/link")
 
-      assert redirected_to(conn) == "/auth/invitations/#{invitation.token}"
-      assert get_session(conn, :post_invitation_return_to) == "/oauth2/authorize?client_id=cli"
-      assert get_session(conn, :post_invitation_user_id) == invitee.id
-      assert get_session(conn, :post_invitation_token) == invitation.token
+      assert html_response(conn, 410) =~ "Link expired"
 
-      assert {:ok, identity} =
+      assert {:error, :not_found} =
                Accounts.get_oauth2_identity(:oauth2, "work-identity", @provider_organization_id)
-
-      assert identity.user_id == invitee.id
     end
 
     test "refuses the link once the organization points at another provider", %{

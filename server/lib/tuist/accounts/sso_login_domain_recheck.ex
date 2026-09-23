@@ -15,8 +15,9 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheck do
 
   A domain verified before re-checks existed has no
   `sso_login_domain_last_verified_at` and is not re-checked, since its
-  administrators were never asked to keep the record published. It joins the
-  re-check the next time the domain is verified.
+  administrators were never asked to keep the record published. It stays out
+  of the re-check unless the organization changes its login email domain and
+  verifies the new one.
   """
 
   import Ecto.Query

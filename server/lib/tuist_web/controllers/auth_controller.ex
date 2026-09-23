@@ -401,12 +401,12 @@ defmodule TuistWeb.AuthController do
 
   # Being signed in proves ownership of the account whatever email the provider
   # reports. Linking still waits for confirmation, since a provider that signs
-  # anyone in could otherwise attach itself through a link the user opened.
+  # anyone in could otherwise attach itself through a link the user opened, and
+  # it needs membership: any organization can invite any address, so a pending
+  # invitation would leave the confirmation as the only barrier.
   defp signed_in_sso_link_user(conn, provider, %Organization{} = organization) when provider in [:okta, :oauth2] do
     with %User{} = user <- conn.assigns[:current_user],
-         true <-
-           Accounts.belongs_to_organization?(user, organization) or
-             not is_nil(pending_invitation_for(user, organization)) do
+         true <- Accounts.belongs_to_organization?(user, organization) do
       user
     else
       _ -> nil
