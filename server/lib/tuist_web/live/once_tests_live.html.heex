@@ -469,6 +469,7 @@
       <.table
         id="recent-test-runs-table"
         rows={@recent_test_runs.result |> Enum.reverse() |> Enum.take(7)}
+        row_key={fn run -> run.invocation_id end}
         row_navigate={fn run -> run_detail_path(assigns, run) end}
       >
         <:col :let={run} label={dgettext("dashboard_tests", "Run")}>
