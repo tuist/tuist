@@ -12,6 +12,11 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheck do
   A lookup that fails for any reason simply does not refresh the timestamp, so
   a transient resolver failure costs one day of the grace period rather than
   the verification.
+
+  A domain verified before re-checks existed has no
+  `sso_login_domain_last_verified_at` and is not re-checked, since its
+  administrators were never asked to keep the record published. It joins the
+  re-check the next time the domain is verified.
   """
 
   import Ecto.Query
@@ -52,12 +57,10 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheck do
   When a verified domain loses its verification if its record stays absent.
   """
   def expires_at(%Organization{sso_login_domain_verified_at: nil}), do: nil
+  def expires_at(%Organization{sso_login_domain_last_verified_at: nil}), do: nil
 
-  def expires_at(%Organization{} = organization) do
-    case last_seen_at(organization) do
-      nil -> nil
-      last_seen_at -> DateTime.add(last_seen_at, @grace_period_days, :day)
-    end
+  def expires_at(%Organization{sso_login_domain_last_verified_at: last_verified_at}) do
+    DateTime.add(last_verified_at, @grace_period_days, :day)
   end
 
   @doc """
@@ -97,6 +100,7 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheck do
       from(organization in Organization,
         where:
           not is_nil(organization.sso_login_domain_verified_at) and
+            not is_nil(organization.sso_login_domain_last_verified_at) and
             not is_nil(organization.sso_login_domain) and
             not is_nil(organization.sso_login_domain_verification_token)
       )
@@ -124,13 +128,5 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheck do
     organization
     |> Organization.lapse_sso_login_domain_verification_changeset()
     |> Repo.update!()
-  end
-
-  defp last_seen_at(%Organization{sso_login_domain_last_verified_at: nil} = organization) do
-    organization.sso_login_domain_verified_at
-  end
-
-  defp last_seen_at(%Organization{sso_login_domain_last_verified_at: last_verified_at}) do
-    last_verified_at
   end
 end

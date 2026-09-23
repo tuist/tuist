@@ -511,7 +511,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         |> render_submit()
 
       assert html =~ "Pending verification"
-      assert html =~ "users from the login email domain can join this organization automatically"
+      assert html =~ "This existing configuration allows any email address reported by the provider"
 
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
       assert updated_organization.sso_enforced
@@ -519,9 +519,6 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert updated_organization.sso_legacy_email_domain_fallback
       assert updated_organization.sso_login_domain == "customer.example"
       refute updated_organization.sso_login_domain_verified_at
-
-      assert Accounts.sso_automatic_enrollment_allowed?(updated_organization, "person@customer.example")
-      refute Accounts.sso_automatic_enrollment_allowed?(updated_organization, "person@unrelated.example")
     end
 
     test "verifies a saved login domain", %{

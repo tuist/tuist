@@ -2,7 +2,6 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheckTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
-  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.SSOLoginDomainRecheck
   alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Repo
@@ -72,6 +71,21 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheckTest do
       refute Repo.reload!(organization).sso_login_domain_verified_at
     end
 
+    test "leaves a domain verified before re-checks existed alone" do
+      organization = verified_organization(last_verified_at: nil)
+
+      stub(SSOLoginDomainVerification, :verified?, fn _domain, _token ->
+        flunk("a domain verified before re-checks existed must not be re-checked")
+      end)
+
+      assert %{refreshed: 0, missing: 0, lapsed: 0} =
+               SSOLoginDomainRecheck.sweep(~U[2026-12-01 12:00:00Z])
+
+      reloaded = Repo.reload!(organization)
+      assert reloaded.sso_login_domain_verified_at
+      refute reloaded.sso_login_domain_last_verified_at
+    end
+
     test "counts a resolver failure as missing rather than lapsing on it" do
       now = ~U[2026-09-23 12:00:00Z]
       verified_organization(last_verified_at: ~U[2026-09-22 12:00:00Z])
@@ -94,6 +108,14 @@ defmodule Tuist.Accounts.SSOLoginDomainRecheckTest do
 
       refute SSOLoginDomainRecheck.expiring?(organization, ~U[2026-09-23 12:00:00Z])
       refute SSOLoginDomainRecheck.awaiting_record?(organization)
+    end
+
+    test "is false for a domain verified before re-checks existed" do
+      organization = verified_organization(last_verified_at: nil)
+
+      refute SSOLoginDomainRecheck.expiring?(organization, ~U[2026-12-01 12:00:00Z])
+      refute SSOLoginDomainRecheck.awaiting_record?(organization)
+      assert SSOLoginDomainRecheck.expires_at(organization) == nil
     end
 
     test "is false for a domain that was never verified" do

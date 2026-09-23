@@ -4607,7 +4607,7 @@ defmodule Tuist.AccountsTest do
       refute Accounts.sso_identity_linking_allowed?(organization, "person@unrelated.example")
     end
 
-    test "bounds a legacy organization by its login domain before the domain is verified" do
+    test "keeps a legacy organization's enrollment unchanged while its login domain is unverified" do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :oauth2,
@@ -4623,13 +4623,11 @@ defmodule Tuist.AccountsTest do
           oauth2_user_info_url: "https://login.vendor.example/userinfo"
         )
 
-      assert Accounts.sso_automatic_enrollment_allowed?(organization, "Person@EXAMPLE.COM")
+      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
       assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@example.com", false)
+      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
+      assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
 
-      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
-      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
-
-      # Absorbing a pre-existing account stays behind domain verification.
       refute Accounts.sso_identity_linking_allowed?(organization, "person@example.com")
     end
 
