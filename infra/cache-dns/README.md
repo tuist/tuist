@@ -218,9 +218,11 @@ stable-name probes deliberately use the same hostname on both boxes.
 See [the staging validation record](staging-validation.md) for completed checks,
 the exact deployment revision, and outstanding prerequisites.
 
-## Deferred staging validation
+## Staging validation checklist
 
-No step in this list is executed by the local checks.
+These live checks are separate from local tests. See the
+[validation record](staging-validation.md) for completed runs and remaining
+coverage limits; the checklist is also the procedure for repeating them.
 
 - Verify delegation, credentials, solver selection, separate TXT ownership, and
   that Cloudflare does not create records under the delegated zone.

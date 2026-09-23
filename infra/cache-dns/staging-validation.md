@@ -1,12 +1,17 @@
 # Spec 95 staging validation — 2026-09-22–23
 
-Status: staging DNS, TLS, cache protocols, demotion, failure ordering, and real
-client checks have passed. Both full withdrawal drains completed. Testing
-found two hand-out races; both fixes are deployed, and the final local client
-soak passed. DNS source inspection now passes through the normal read-only
-identity, and the external GitHub CI soak passed all twelve remote hits. The
-self-hosted runner's public-endpoint attempt was denied by its network policy.
-The temporary GitHub Actions secret has been deleted.
+Status: staging DNS, TLS, cache protocols, demotion, withdrawal/draining, native
+client builds, external CI and the actual gateway-outage drill are complete.
+Established HTTP/1.1 and HTTP/2 clients recovered after about 126 seconds.
+The one-hour latency comparison and supplemental forty-minute paired run are
+complete: one measured steering mismatch and four DNS timeouts are retained
+below; all 1,830 pinned TLS requests succeeded. This is bounded staging evidence,
+not multi-day or all-region validation. Two hand-out races and a health-check
+recreation defect were fixed and deployed to staging. The self-hosted runner's
+public-endpoint attempt remains denied by its existing network policy.
+The fixture token was revoked, its GitHub secret and local file were removed,
+and temporary probe pods were deleted. The fixture placements remain available
+for reproduction. Canary and production preparation is committed but undeployed.
 
 ## Revisions and rollout boundaries
 
@@ -29,13 +34,14 @@ The temporary GitHub Actions secret has been deleted.
 ## Fixture and evidence
 
 The dedicated staging organization is `kura-spec95-e2e` (account 49), with project
-`probe` (46). A project-restricted account token with cache write scopes expires
-24 hours after creation. It is held in a local file with mode `0600` and was
+`probe` (46). A project-restricted account token with cache write scopes was
+created with a 24-hour expiry. It was held in a local file with mode `0600` and was
 temporarily supplied to GitHub Actions with the user's explicit approval. The
 current Go probe sends it in the HTTP Authorization header and to grpcurl through
 the subprocess environment, never through command arguments or evidence logs.
+The token was explicitly revoked after the final authenticated run, before expiry.
 
-Public placements were created through the server's normal admission APIs, with
+Public placements were initially created through the server's normal admission APIs, with
 `eu-west` primary and `ca-east` secondary. Both have keep-warm enabled while the
 validation is in progress. Project creation also provisioned its normal private
 runner cache. All three instances reached Kubernetes phase `Ready`.
@@ -388,25 +394,28 @@ runner DNS source still targeted its private address separately.
 Evidence: `dns-source-after-access-pr.json` and
 `dns-provider-after-access-pr.json`.
 
-## Remaining work
+## Follow-up scope and fixture state
 
 1. The self-hosted runner's public endpoint override remains blocked by its
    network policy, as recorded above. Use the external runner for this public
    client validation; the ordinary runner-cache path keeps its private override.
-2. Before expanding the production feature flag, validate longer-term steering telemetry and an actual
-   shared-gateway outage. These remain distinct from the regional spot comparisons
-   and isolated health-check failure above.
+2. The actual gateway outage and persistent-connection recovery are recorded
+   below. The bounded client-latency comparison supplements the earlier spot
+   checks; multi-day historical telemetry and the other production regions
+   remain outside this staging exercise.
 
-The main fixture remains available for the remaining staging drills, with Montreal
-and its private runner cache active. Account 50 and the main fixture's Paris resources
-are gone. All temporary fault settings are restored: the AWS writer is 1/1,
-the controller's temporary inline IAM deny is absent, and the surviving health
-check uses port 443. The wildcard certificate remains Ready. The isolated CAS
-proxy, Bazel server, and completed local probes have been stopped. When validation
-ends, revoke the token, clear keep-warm, and remove only this account's test placements through the
-normal lifecycle. If stable advertising has been enabled, complete withdrawal and
-the drain before removing provider credentials or DNS resources. Do not strip
-finalizers to force cleanup.
+The main fixture remains available for reproduction, with Montreal primary,
+Paris restored as secondary for the final outage drill, and its private runner
+cache active. Both public placements retain keep-warm. Account 50 is gone.
+All temporary fault settings are restored: the AWS writer is 1/1, the controller's
+temporary inline IAM deny is absent, and both health checks use port 443. The
+wildcard certificate remains Ready. The isolated CAS proxy and Bazel server
+have been stopped. The cache-only token was revoked after authenticated probes
+finished, and its local file was removed; the GitHub secret was already absent.
+Final fixture teardown is separate from temporary probe cleanup: clear keep-warm
+and retire only this account's placements through the normal lifecycle, completing
+withdrawal and the full drain before removing provider credentials or DNS resources.
+Do not strip finalizers to force cleanup.
 
 ## Canary and production preparation — September 23
 
@@ -516,8 +525,8 @@ instant failover. The gateway was still down when every client recovered.
 Existing healthy connections can remain on the survivor after restoration;
 DNS proximity is reconsidered on the next resolution, not on every request.
 
-Restoration and the final steering-window results are recorded below after the
-bounded probes finish. Raw evidence remains under `/tmp/spec95-staging-e2e/`
+Restoration and the final steering-window results are recorded below.
+Raw evidence remains under `/tmp/spec95-staging-e2e/`
 (`gateway-outage-timeline.log`, `outage-health-*.json`, `outage-dns-watch.log`,
 `outage-soak-{paris,montreal,laptop}.jsonl`, and `steering-up-*.jsonl`).
 
@@ -529,3 +538,91 @@ by **13:29:54**. Both controller stable observations returned Ready.
 The full Route53 record-set snapshot compares byte-for-byte equal before and
 after the outage. Thirty consecutive endpoint API requests after recovery
 returned exactly the stable URL with `provisioning: false`.
+
+The persistent runs completed with **1,801 requests per origin and protocol**:
+10,806 reads in total, including 124 failed attempts during the induced outage
+(62 Montreal attempts per protocol) and 10,682 successful byte-verified reads.
+There were no failed results from Paris or the laptop. Montreal's recovered
+connections remained on Paris for 1,000 requests, then naturally reconnected
+to Montreal at **13:58:19.250 UTC** with no further failures. The gateway's
+`keepalive_requests 1000` setting agrees with that observed renewal. Restoring
+DNS proximity did not migrate an already healthy socket.
+
+All three persistent processes completed by **14:02:13 UTC**. The fixture-only
+cache token was revoked through the normal account-token API at **14:03:02**,
+its absence was verified, and its local file was deleted. Both authenticated
+measurement pods were deleted after saving their final logs. Subsequent `/up`
+latency measurements require no credentials.
+
+## Bounded DNS and client-latency comparison — September 23
+
+The initial 200m CPU ceiling on the persistent probe pods throttled fresh TLS
+handshakes, as demonstrated by their cgroup counters. Those timings are retained
+as diagnostic evidence but excluded from the performance comparison. The outage
+connection and byte-verification observations above remain valid. Independent
+unauthenticated measurement pods used a one-core ceiling on the same regional
+nodes; their throttling counters were checked throughout the clean runs.
+
+The primary series samples once per minute for one hour from Paris, Montreal,
+and an external laptop. Each sample resolves the stable hostname using ordinary
+system DNS and a direct authoritative query, then makes three fresh TLS `/up`
+requests to each regional IP with the same stable SNI and certificate validation.
+The per-region median selects the measured faster destination. Timings include
+TCP, TLS and response headers, but exclude regional hostname lookup. The `/up`
+path matches the CLI's latency probe; this is controlled measurement, not
+historical native-client telemetry.
+
+The first clean series measured the two regions sequentially. At
+**13:46:41.227 UTC**, the laptop measured Paris at **881.830 ms** and Montreal
+at **757.989 ms**, while both DNS paths selected Paris: a **123.841 ms**
+measured penalty. Both regional timings were unusually high; the cause is
+unconfirmed. Sequential order can confound a short client-side slowdown with a
+regional difference, so an additional forty-minute series starts both regions
+together in each of three paired rounds, matching the CLI's concurrent selection.
+The original mismatch is retained; the paired run supplements the original
+series and does not replace it.
+
+The paired series also retained two DNS lookup failures: the laptop's system
+resolver timed out in the sample recorded at **14:29:43.386 UTC**, and Paris's
+direct authoritative query timed out at **14:30:38.384 UTC**. The alternate DNS
+path succeeded in each sample, and all six pinned TLS requests succeeded.
+Their cause is unconfirmed; these are failed DNS lookups, not evidence that DNS
+selected the slower region. No retry or replacement sample hides either error.
+The serial series recorded the same classes of timeout nearby: Paris's
+authoritative lookup at **14:29:37.621 UTC** and the laptop's system lookup at
+**14:29:42.505 UTC**. Across both series there were four failed lookups out of
+610 queries. Their proximity in time is recorded without assigning a cause.
+
+### Completed steering results
+
+Successful DNS answers are compared with the faster measured region; timed-out lookups are counted separately:
+
+| Series / origin | Successful latency samples | System matches / answers | Authoritative matches / answers | DNS timeouts (system / authoritative) | Paris median (ms) | Montreal median (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| One-hour serial / paris | 61/61 | 61/61 | 60/60 | 0 / 1 | 9.7 | 272.4 |
+| One-hour serial / montreal | 61/61 | 61/61 | 61/61 | 0 / 0 | 278.3 | 26.9 |
+| One-hour serial / laptop | 61/61 | 59/60 | 60/61 | 1 / 0 | 117.9 | 401.8 |
+| 40-minute paired / paris | 41/41 | 41/41 | 40/40 | 0 / 1 | 9.7 | 272.2 |
+| 40-minute paired / montreal | 41/41 | 41/41 | 41/41 | 0 / 0 | 279.0 | 30.1 |
+| 40-minute paired / laptop | 40/40 | 39/39 | 40/40 | 1 / 0 | 118.2 | 394.5 |
+
+Each latency in the table is the median of per-minute regional medians. The
+one-hour serial series began at 13:35 UTC and ended at 14:35 UTC; the paired
+series ran 13:50–14:30 UTC. Full timestamps, counts and retained mismatches
+are in [the machine-readable summary](staging-validation-summary.json).
+
+All 305 latency samples completed their six TLS requests successfully (1,830
+requests). Both regional pods finished with zero throttled periods and zero
+throttled microseconds. System-DNS latency penalty had a zero p95 for each
+origin/series; the one serial laptop mismatch produced the maximum 123.841 ms
+penalty. A timed-out lookup has no chosen destination and is excluded from that
+penalty calculation, but remains in the error counts above.
+
+All six runs reached their full requested duration. Logs and CPU counters were
+saved before deleting the remaining latency pods. The final restoration check
+at **14:32:14 UTC** verified the original gateway template, unchanged provider
+records, generation-matched Ready endpoint observations and 16/16 healthy AWS
+observers for each box. This exercise does not measure large in-flight transfer
+recovery, every native SDK's retry budget, historical native-client choices,
+multi-day behavior, or the other three production regions. Observe those during
+the gated rollout before enabling the flag globally.

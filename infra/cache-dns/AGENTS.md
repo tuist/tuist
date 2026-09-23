@@ -4,7 +4,9 @@
 `cache.tuist.dev` zone and three distinct runtime IAM policies. The zone is
 retained on stack deletion. No workflow applies it automatically.
 
-Keep bootstrap, rollback, and the deferred staging test sequence in `README.md`.
+Keep bootstrap, rollback, and the repeatable staging test sequence in `README.md`.
+Record completed runs, failures, measurement limits, and fixture cleanup in
+`staging-validation.md`; do not treat a bounded soak as multi-day validation.
 The controller owns box health checks; external-dns alone writes account A/TXT
 records; cert-manager writes ACME TXT challenges. Do not combine their credentials.
 
