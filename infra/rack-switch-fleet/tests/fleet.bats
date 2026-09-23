@@ -2005,7 +2005,9 @@ ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
     for address in 192.168.0.11 192.168.0.12 192.168.0.13; do
         [ "${SWITCH_LOGIN_ITEMS[$address]}" = "ber1 switch device account" ]
     done
-    [ "$SWITCH_VAULT" = "$(jq -r '.credentials.vault' "$SITE_FILE")" ]
+    # the device account lives with the API client, in the vault the cluster reads
+    [ "$SWITCH_VAULT" = "$(jq -r '.management.controller.vault' "$SITE_FILE")" ]
+    [ "$SWITCH_VAULT" = "tuist-k8s-staging" ]
 }
 
 @test "the jump comes from the site definition, for the devices behind the edge" {

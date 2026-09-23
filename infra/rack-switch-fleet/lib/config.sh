@@ -686,7 +686,7 @@ fleet_load_jumps() {
 fleet_load_logins() {
   local site_file="$1" address item
   # shellcheck disable=SC2034  # read by lib/session.sh
-  SWITCH_VAULT="$(jq -r '.credentials.vault' "$site_file")"
+  SWITCH_VAULT="$(jq -r '.management.controller.vault // .credentials.vault' "$site_file")"
   item="$(jq -r '.management.controller.device_account_item // empty' "$site_file")"
   [ -n "$item" ] || return 0
   while read -r address; do

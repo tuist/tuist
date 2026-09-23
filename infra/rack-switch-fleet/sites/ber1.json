@@ -22,7 +22,8 @@
       "address": "100.84.132.92",
       "site": "ber1",
       "credential_item": "omada staging open api",
-      "device_account_item": "ber1 switch device account"
+      "device_account_item": "ber1 switch device account",
+      "vault": "tuist-k8s-staging"
     }
   },
   "services": {

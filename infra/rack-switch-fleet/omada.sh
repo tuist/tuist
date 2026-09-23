@@ -49,6 +49,10 @@ url="$(jq -r '.management.controller.url // empty' "$site_file")"
 site_name="$(jq -r '.management.controller.site // "Default"' "$site_file")"
 api_item="$(jq -r '.management.controller.credential_item // empty' "$site_file")"
 vault="$(jq -r '.credentials.vault' "$site_file")"
+# The API client and the device account live where the cluster that runs the
+# reconciler reads secrets from, which can be another vault than the switches'
+# own logins.
+controller_vault="$(jq -r '.management.controller.vault // .credentials.vault' "$site_file")"
 if [ -z "$url" ] || [ -z "$api_item" ]; then
   echo "error: $SITE has no management.controller with url and credential_item" >&2
   exit 2
@@ -64,7 +68,7 @@ omadac_id() {
 
 access_token() {
   local omadac="$1" item client_id client_secret
-  item="$(op item get "$api_item" --vault "$vault" --format=json)" || {
+  item="$(op item get "$api_item" --vault "$controller_vault" --format=json)" || {
     echo "error: 1Password did not return '$api_item'" >&2
     return 1
   }
@@ -197,17 +201,17 @@ device_account_login() {
   local item login password tries=0
   item="$(jq -r '.management.controller.device_account_item // empty' "$site_file")"
   [ -n "$item" ] || { echo "error: $SITE has no management.controller.device_account_item" >&2; return 1; }
-  if ! login="$(op item get "$item" --vault "$vault" --format=json 2>/dev/null)"; then
+  if ! login="$(op item get "$item" --vault "$controller_vault" --format=json 2>/dev/null)"; then
     if (( ! create_device_account )); then
       echo "error: no 1Password item '$item'; --create-device-account makes one" >&2
       return 1
     fi
     # shellcheck disable=SC2054  # commas belong to op's own flag values
-    op item create --category=login "--title=$item" --vault "$vault" \
+    op item create --category=login "--title=$item" --vault "$controller_vault" \
       --generate-password=letters,digits,symbols,24 "--tags=$SITE,rack,network" \
       "username=$(jq -r '.credentials.username' "$site_file")" >/dev/null || return 1
     echo "created the 1Password item '$item'" >&2
-    login="$(op item get "$item" --vault "$vault" --format=json)" || return 1
+    login="$(op item get "$item" --vault "$controller_vault" --format=json)" || return 1
   fi
   password="$(jq -r '.fields[]? | select(.id == "password") | .value // empty' <<<"$login")"
   while ! device_password_ok "$password"; do
@@ -216,8 +220,8 @@ device_account_login() {
       return 1
     fi
     # shellcheck disable=SC2054
-    op item edit "$item" --vault "$vault" --generate-password=letters,digits,symbols,24 >/dev/null || return 1
-    login="$(op item get "$item" --vault "$vault" --format=json)" || return 1
+    op item edit "$item" --vault "$controller_vault" --generate-password=letters,digits,symbols,24 >/dev/null || return 1
+    login="$(op item get "$item" --vault "$controller_vault" --format=json)" || return 1
     password="$(jq -r '.fields[]? | select(.id == "password") | .value // empty' <<<"$login")"
   done
   jq -c '{username: (.fields[] | select(.id == "username") | .value),
