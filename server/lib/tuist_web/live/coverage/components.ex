@@ -991,4 +991,61 @@ defmodule TuistWeb.Coverage.Components do
         covered: format_number(file.covered_lines),
         executable: format_number(file.executable_lines)
       )
+
+  attr :id, :string, required: true
+  attr :points, :list, required: true, doc: "The trend's points, oldest first (`History.branch_points/3`)."
+
+  @doc """
+  A branch's coverage over time, one point per chained commit: the chart the
+  Code Coverage page leads with, and the project's overview repeats.
+  """
+  def coverage_trend_chart(assigns) do
+    ~H"""
+    <.chart
+      id={@id}
+      type="line"
+      extra_options={
+        %{
+          grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+          xAxis: %{
+            boundaryGap: false,
+            type: "category",
+            axisLabel: %{
+              color: "var:noora-surface-label-secondary",
+              formatter: "fn:toLocaleDate",
+              customValues: [
+                @points |> List.first() |> point_time(),
+                @points |> List.last() |> point_time()
+              ],
+              padding: [10, 0, 0, 0]
+            }
+          },
+          yAxis: %{
+            splitNumber: 4,
+            splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+            axisLabel: %{
+              color: "var:noora-surface-label-secondary",
+              formatter: "{value}%"
+            }
+          },
+          legend: %{show: false},
+          tooltip: %{valueFormat: "{value}%"}
+        }
+      }
+      series={[
+        %{
+          color: "var:noora-chart-primary",
+          data: Enum.map(@points, &[point_time(&1), &1.coverage]),
+          name: dgettext("dashboard_tests", "Code coverage"),
+          type: "line",
+          smooth: 0.1,
+          symbol: "circle",
+          symbolSize: 4
+        }
+      ]}
+      y_axis_min={0}
+      y_axis_max={100}
+    />
+    """
+  end
 end

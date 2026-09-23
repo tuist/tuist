@@ -11,7 +11,7 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1024
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1066
 #, elixir-autogen, elixir-format
 msgid "%{average_build_time}s"
 msgstr ""
@@ -56,9 +56,9 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:682
 #: lib/tuist_web/live/project_notifications_live.ex:754
 #: lib/tuist_web/live/project_notifications_live.ex:757
-#: lib/tuist_web/live/xcode_overview_live.ex:272
+#: lib/tuist_web/live/xcode_overview_live.ex:285
 #: lib/tuist_web/live/xcode_overview_live.html.heex:15
-#: lib/tuist_web/live/xcode_overview_live.html.heex:819
+#: lib/tuist_web/live/xcode_overview_live.html.heex:861
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
@@ -69,7 +69,7 @@ msgstr ""
 msgid "Anyone with the link"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:652
+#: lib/tuist_web/live/xcode_overview_live.html.heex:694
 #, elixir-autogen, elixir-format
 msgid "App:"
 msgstr ""
@@ -83,8 +83,8 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:432
 #: lib/tuist_web/live/bazel_overview_live.ex:467
 #: lib/tuist_web/live/xcode_overview_live.html.heex:154
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1022
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1092
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1064
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1134
 #, elixir-autogen, elixir-format
 msgid "Average build time"
 msgstr ""
@@ -111,12 +111,12 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_builds_live.ex:10
 #: lib/tuist_web/live/bazel_overview_live.ex:301
-#: lib/tuist_web/live/xcode_overview_live.html.heex:807
+#: lib/tuist_web/live/xcode_overview_live.html.heex:849
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:774
+#: lib/tuist_web/live/xcode_overview_live.html.heex:816
 #, elixir-autogen, elixir-format
 msgid "Bundle install size"
 msgstr ""
@@ -128,7 +128,7 @@ msgstr ""
 #: lib/tuist_web/live/project_coverage_settings_live.html.heex:34
 #: lib/tuist_web/live/project_notifications_live.html.heex:38
 #: lib/tuist_web/live/project_settings_live.html.heex:38
-#: lib/tuist_web/live/xcode_overview_live.html.heex:644
+#: lib/tuist_web/live/xcode_overview_live.html.heex:686
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr ""
@@ -139,9 +139,9 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:676
 #: lib/tuist_web/live/bazel_overview_live.ex:683
 #: lib/tuist_web/live/project_notifications_live.ex:756
-#: lib/tuist_web/live/xcode_overview_live.ex:274
+#: lib/tuist_web/live/xcode_overview_live.ex:287
 #: lib/tuist_web/live/xcode_overview_live.html.heex:23
-#: lib/tuist_web/live/xcode_overview_live.html.heex:827
+#: lib/tuist_web/live/xcode_overview_live.html.heex:869
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -176,8 +176,8 @@ msgstr ""
 #: lib/tuist_web/live/project_settings_live.html.heex:305
 #: lib/tuist_web/live/project_settings_live.html.heex:377
 #: lib/tuist_web/live/xcode_overview_live.html.heex:71
-#: lib/tuist_web/live/xcode_overview_live.html.heex:692
-#: lib/tuist_web/live/xcode_overview_live.html.heex:875
+#: lib/tuist_web/live/xcode_overview_live.html.heex:734
+#: lib/tuist_web/live/xcode_overview_live.html.heex:917
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -234,7 +234,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:114
 #: lib/tuist_web/live/bazel_overview_live.ex:309
 #: lib/tuist_web/live/xcode_overview_live.html.heex:11
-#: lib/tuist_web/live/xcode_overview_live.html.heex:815
+#: lib/tuist_web/live/xcode_overview_live.html.heex:857
 #, elixir-autogen, elixir-format
 msgid "Environment:"
 msgstr ""
@@ -242,7 +242,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_invocations_live.ex:669
 #: lib/tuist_web/live/bazel_invocations_live.ex:784
 #: lib/tuist_web/live/bazel_overview_live.ex:367
-#: lib/tuist_web/live/xcode_overview_live.html.heex:918
+#: lib/tuist_web/live/xcode_overview_live.html.heex:960
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
 msgstr ""
@@ -270,13 +270,13 @@ msgstr ""
 
 #: lib/tuist_web/live/project_bundle_settings_live.ex:323
 #: lib/tuist_web/live/project_notifications_live.ex:781
-#: lib/tuist_web/live/xcode_overview_live.html.heex:724
+#: lib/tuist_web/live/xcode_overview_live.html.heex:766
 #, elixir-autogen, elixir-format
 msgid "Install size"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:383
-#: lib/tuist_web/live/xcode_overview_live.html.heex:971
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1013
 #, elixir-autogen, elixir-format
 msgid "Last 30 runs"
 msgstr ""
@@ -294,7 +294,7 @@ msgstr ""
 msgid "Last interacted with %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:614
+#: lib/tuist_web/live/xcode_overview_live.html.heex:656
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
 msgstr ""
@@ -305,9 +305,9 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:677
 #: lib/tuist_web/live/bazel_overview_live.ex:684
 #: lib/tuist_web/live/project_notifications_live.ex:755
-#: lib/tuist_web/live/xcode_overview_live.ex:273
+#: lib/tuist_web/live/xcode_overview_live.ex:286
 #: lib/tuist_web/live/xcode_overview_live.html.heex:31
-#: lib/tuist_web/live/xcode_overview_live.html.heex:835
+#: lib/tuist_web/live/xcode_overview_live.html.heex:877
 #, elixir-autogen, elixir-format
 msgid "Local"
 msgstr ""
@@ -329,22 +329,22 @@ msgid "Name"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:668
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1107
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1149
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:788
+#: lib/tuist_web/live/xcode_overview_live.html.heex:830
 #, elixir-autogen, elixir-format
 msgid "No bundles yet"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:624
+#: lib/tuist_web/live/xcode_overview_live.html.heex:666
 #, elixir-autogen, elixir-format
 msgid "No previews yet"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:976
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1018
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
 msgstr ""
@@ -362,7 +362,7 @@ msgid "Overview"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_overview_live.ex:362
-#: lib/tuist_web/live/xcode_overview_live.html.heex:913
+#: lib/tuist_web/live/xcode_overview_live.html.heex:955
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
 msgstr ""
@@ -378,7 +378,7 @@ msgstr ""
 msgid "Preview access"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:587
+#: lib/tuist_web/live/xcode_overview_live.html.heex:629
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
@@ -494,8 +494,9 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:425
 #: lib/tuist_web/live/bazel_overview_live.ex:484
 #: lib/tuist_web/live/xcode_overview_live.html.heex:485
-#: lib/tuist_web/live/xcode_overview_live.html.heex:591
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1015
+#: lib/tuist_web/live/xcode_overview_live.html.heex:596
+#: lib/tuist_web/live/xcode_overview_live.html.heex:633
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1057
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr ""
@@ -512,19 +513,19 @@ msgid "You are not authorized to perform this action."
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:30
-#: lib/tuist_web/live/xcode_overview_live.ex:270
+#: lib/tuist_web/live/xcode_overview_live.ex:283
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:27
-#: lib/tuist_web/live/xcode_overview_live.ex:267
+#: lib/tuist_web/live/xcode_overview_live.ex:280
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:28
-#: lib/tuist_web/live/xcode_overview_live.ex:268
+#: lib/tuist_web/live/xcode_overview_live.ex:281
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -534,59 +535,59 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:146
 #: lib/tuist_web/live/bazel_overview_live.ex:341
 #: lib/tuist_web/live/xcode_overview_live.html.heex:80
-#: lib/tuist_web/live/xcode_overview_live.html.heex:701
-#: lib/tuist_web/live/xcode_overview_live.html.heex:882
+#: lib/tuist_web/live/xcode_overview_live.html.heex:743
+#: lib/tuist_web/live/xcode_overview_live.html.heex:924
 #, elixir-autogen, elixir-format
 msgid "Apply"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:38
 #: lib/tuist_web/live/xcode_overview_live.html.heex:62
-#: lib/tuist_web/live/xcode_overview_live.html.heex:683
-#: lib/tuist_web/live/xcode_overview_live.html.heex:866
+#: lib/tuist_web/live/xcode_overview_live.html.heex:725
+#: lib/tuist_web/live/xcode_overview_live.html.heex:908
 #, elixir-autogen, elixir-format
 msgid "Custom"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:37
 #: lib/tuist_web/live/xcode_overview_live.html.heex:59
-#: lib/tuist_web/live/xcode_overview_live.html.heex:680
-#: lib/tuist_web/live/xcode_overview_live.html.heex:863
+#: lib/tuist_web/live/xcode_overview_live.html.heex:722
+#: lib/tuist_web/live/xcode_overview_live.html.heex:905
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:34
 #: lib/tuist_web/live/xcode_overview_live.html.heex:44
-#: lib/tuist_web/live/xcode_overview_live.html.heex:848
+#: lib/tuist_web/live/xcode_overview_live.html.heex:890
 #, elixir-autogen, elixir-format
 msgid "Last 24 hours"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:36
 #: lib/tuist_web/live/xcode_overview_live.html.heex:54
-#: lib/tuist_web/live/xcode_overview_live.html.heex:675
-#: lib/tuist_web/live/xcode_overview_live.html.heex:858
+#: lib/tuist_web/live/xcode_overview_live.html.heex:717
+#: lib/tuist_web/live/xcode_overview_live.html.heex:900
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:35
 #: lib/tuist_web/live/xcode_overview_live.html.heex:49
-#: lib/tuist_web/live/xcode_overview_live.html.heex:670
-#: lib/tuist_web/live/xcode_overview_live.html.heex:853
+#: lib/tuist_web/live/xcode_overview_live.html.heex:712
+#: lib/tuist_web/live/xcode_overview_live.html.heex:895
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:29
-#: lib/tuist_web/live/xcode_overview_live.ex:269
+#: lib/tuist_web/live/xcode_overview_live.ex:282
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:26
-#: lib/tuist_web/live/xcode_overview_live.ex:266
+#: lib/tuist_web/live/xcode_overview_live.ex:279
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""

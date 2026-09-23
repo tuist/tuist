@@ -15,6 +15,7 @@ defmodule TuistWeb.XcodeOverviewLive do
   alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Coverage.History
+  alias TuistWeb.Coverage.Components
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -184,22 +185,34 @@ defmodule TuistWeb.XcodeOverviewLive do
   end
 
   # The default branch's coverage at its latest measured commit of the
-  # period, and how far it moved over it, behind the account's coverage flag.
+  # period, and how far it moved over it; and the Code Coverage page's own
+  # chart, over its default period. Behind the account's coverage flag.
   defp assign_coverage_analytics(socket, project, period) do
     if FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account) do
-      assign_async(socket, :coverage_analytics, fn ->
+      socket
+      |> assign_async(:coverage_analytics, fn ->
         points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
 
         {:ok,
          %{
            coverage_analytics: %{
              latest: List.last(points),
-             trend: TuistWeb.Coverage.Components.period_trend(points)
+             trend: Components.period_trend(points)
            }
          }}
       end)
+      |> assign_async(:coverage_trend, fn ->
+        %{period: trend_period} = DatePicker.date_picker_params(%{}, "coverage", default_preset: "last-30-days")
+
+        points =
+          project
+          |> History.branch_points(project.default_branch, DatePicker.period_opts(trend_period))
+          |> Components.chart_points(trend_period)
+
+        {:ok, %{coverage_trend: points}}
+      end)
     else
-      assign(socket, :coverage_analytics, nil)
+      socket |> assign(:coverage_analytics, nil) |> assign(:coverage_trend, nil)
     end
   end
 
