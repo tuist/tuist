@@ -95,3 +95,8 @@ and hand out regional names until its next observation. Initial identity and
 changed health-check claims still persist before advertising. Completed probe
 or provider failures clear readiness, with a separate bounded status-write
 context so an expired provider deadline does not prevent recording the failure.
+
+Health-check incarnations use a random caller-reference suffix: Route53 retains
+references after deletion and rejects reusing them for days. Adopt both legacy
+and suffixed checks by box identity, keep the same reference across ambiguous
+create retries, and rotate it only after a definite AlreadyExists response.
