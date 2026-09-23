@@ -126,10 +126,13 @@ private final class XCResultToolProcess: @unchecked Sendable {
         sigfillset(&defaultSignals)
         sigdelset(&defaultSignals, SIGKILL)
         sigdelset(&defaultSignals, SIGSTOP)
-        guard posix_spawnattr_setsigdefault(&attributes, &defaultSignals) == 0,
+        var signalMask = sigset_t()
+        sigemptyset(&signalMask)
+        guard posix_spawnattr_setsigmask(&attributes, &signalMask) == 0,
+              posix_spawnattr_setsigdefault(&attributes, &defaultSignals) == 0,
               posix_spawnattr_setflags(
                   &attributes,
-                  Int16(POSIX_SPAWN_START_SUSPENDED | POSIX_SPAWN_SETSIGDEF)
+                  Int16(POSIX_SPAWN_START_SUSPENDED | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK)
               ) == 0
         else {
             throw POSIXError(.EIO)
