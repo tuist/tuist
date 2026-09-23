@@ -666,6 +666,10 @@ enum WorkspaceRestorer {
                 try await fileSystem.remove(destination.absolutePath)
             }
 
+            let gitDirectory = checkout.appendingPathComponent(".git")
+            if try await fileSystem.exists(gitDirectory.absolutePath) {
+                try await fileSystem.remove(gitDirectory.absolutePath)
+            }
             try await writeSourceRevisionMarker(directory: checkout, revision: expectedRevision)
             try await fileSystem.move(from: checkout.absolutePath, to: destination.absolutePath)
             do {
@@ -789,29 +793,9 @@ enum WorkspaceRestorer {
         guard recorded == expectedRevision else {
             return false
         }
-        return try await gitHEADMatches(source, expectedRevision: expectedRevision)
-    }
-
-    /// The marker above records the revision this slot was written for, but nothing
-    /// stops a process that reaches the slot through the mutable `checkouts/<identity>`
-    /// symlink from moving its actual working tree to a different revision without
-    /// touching the marker — chiefly native SwiftPM's own in-place `git checkout` when
-    /// it updates what it believes is its own disposable working copy (see
-    /// `PackageResolver.detachNativeCheckoutSymlinks`, which now prevents that
-    /// specific case going forward). Cross-checking git's own HEAD catches that class
-    /// of corruption instead of trusting the marker alone. A source with no `.git`
-    /// (registry-style archives extracted without one) has no independent state to
-    /// check against, so the marker is the only signal there.
-    private static func gitHEADMatches(_ source: URL, expectedRevision: String) async throws -> Bool {
-        guard try await fileSystem.exists(source.appendingPathComponent(".git").absolutePath) else {
-            return true
-        }
-        guard let head = try? await SystemProcess.output(
-            "/usr/bin/git", ["-C", source.path, "rev-parse", "HEAD"]
-        ) else {
-            return false
-        }
-        return head.trimmingCharacters(in: .whitespacesAndNewlines) == expectedRevision
+        return try await !fileSystem.exists(
+            source.appendingPathComponent(".git/objects/info/alternates").absolutePath
+        )
     }
 
     private static func submodulesAreMaterialized(in source: URL) async throws -> Bool {

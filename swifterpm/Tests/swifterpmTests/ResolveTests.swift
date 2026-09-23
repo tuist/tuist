@@ -425,6 +425,66 @@ struct ResolveTests {
         }
     }
 
+    @Test
+    func resolvingARevisionWhoseCachedSourceWasCheckedOutInPlaceRestoresThatRevisionsBinaryArtifact() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+            let revision1 = try await SystemProcess.output(
+                "/usr/bin/git", ["-C", dependency.path, "rev-parse", "1.0.0"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let package = root.appendingPathComponent("App")
+            try await writeBinaryAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "1.0.0"
+            )
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            _ = try await SwifterPM().resolve(request)
+
+            let slot = cacheDirectory.appendingPathComponent("sources/dependency/1.0.0-\(revision1)")
+            #expect(try await fileSystem.exists(slot.absolutePath))
+            try await fileSystem.remove(slot.absolutePath)
+            try await SystemProcess.run(
+                "/usr/bin/git", ["clone", "--quiet", "--shared", "--no-checkout", dependency.path, slot.path]
+            )
+            try await SystemProcess.run("/usr/bin/git", ["-C", slot.path, "checkout", "--quiet", "-f", revision1])
+            try await fileSystem.atomicWrite(
+                revision1, to: slot.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename)
+            )
+            try await SystemProcess.run(
+                "/usr/bin/find", [slot.path, "-type", "f", "-exec", "chmod", "a-w", "{}", "+"]
+            )
+            _ = try? await SystemProcess.run("/usr/bin/git", ["-C", slot.path, "checkout", "-f", "2.0.0"])
+            #expect(
+                try await SystemProcess.output("/usr/bin/git", ["-C", slot.path, "rev-parse", "HEAD"])
+                    .trimmingCharacters(in: .whitespacesAndNewlines) == revision1
+            )
+            await #expect(throws: (any Error).self) {
+                try await SystemProcess.run(
+                    "/usr/bin/git", ["-C", slot.path, "diff-index", "--cached", "--quiet", "HEAD"]
+                )
+            }
+
+            try await fileSystem.remove(scratch.absolutePath)
+            try await fileSystem.remove(cacheDirectory.appendingPathComponent("artifacts").absolutePath)
+            _ = try await SwifterPM().resolve(request)
+            let restored = try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency")
+            #expect(restored == "v1")
+        }
+    }
+
     enum SourceAvailability: CaseIterable, Sendable {
         case cached, staleCheckout, coldLocalRepository, editedLocalRepository
     }
