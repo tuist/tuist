@@ -69,6 +69,6 @@ The admin account and the Open API client are created in the controller's own
 first-boot wizard, at `https://omada.<tailnet>.ts.net:8043`, so no
 ExternalSecret can seed them. Store the admin login in 1Password, and the API
 client as the item `management.controller.credential_item` in the site
-definition names ("omada staging open api"), with `client_id` and
-`client_secret` fields; `rack:omada` reads it from there. The API client needs
+definition names ("omada staging open api"), with `client-id` and
+`client-secret` fields; `rack:omada` reads it from there. The API client needs
 the Administrator role over the site the switches are adopted into.

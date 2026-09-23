@@ -613,21 +613,23 @@ is in the data center. Where that stands on 2026-09-23:
   the route and is reached through the edge node by every fleet command).
 - **Running in staging.** The controller, deployed by `omada-deployment.yml` and
   on the tailnet as `omada` at `100.84.132.92`, recorded as
-  `management.controller.address`; the `RackSwitch` CRD beside it. `ber1-edge`
-  is on the tailnet as `tag:tuist-rack-edge` and reaches the controller's device
-  ports.
-- **Waiting on a merge.** The Rack Switches workflow applies the objects to
-  `tuist-staging` once this directory is on `main`. Applying them by hand, and
-  `rack:fleet publish` patching their status, need write access to the kind,
-  which the built-in `edit` role does not give; `tuist-edit-rackswitches-write`
-  in `infra/helm/pomerium/templates/access-tiers.yaml` does.
-- **Waiting on a person, once.** The controller's first-boot wizard and its Open
-  API client, stored in 1Password as "omada staging open api" with `client_id`
-  and `client_secret` fields.
-- **Then, with no one.** `rack:omada inform ber1-mgmt`,
-  `rack:omada adopt ber1-mgmt`, and the adoption questions in the assessment
-  get answered: what adoption does to a configured switch, and whether it honours
-  a write the API accepts.
+  `management.controller.address`, with its site `ber1` and an Open API client
+  in 1Password as "omada staging open api" (`client-id`, `client-secret`). The
+  `RackSwitch` CRD and the site's objects in `tuist-staging`; editing them needs
+  `tuist-edit-rackswitches-write` from
+  `infra/helm/pomerium/templates/access-tiers.yaml`, since the built-in `edit`
+  role covers no custom resources. `ber1-edge` on the tailnet as
+  `tag:tuist-rack-edge`.
+- **Adopted.** `ber1-mgmt`, on 2026-09-23, once `ber1-edge` clamped the MSS of
+  what it forwards into the tailnet. Adoption replaced the switch's login with
+  the site's device account and switched SSH off until the site turned it back
+  on; the fleet cannot log in to it as `tuist` any more. The details are in
+  "Adoption, measured on ber1-mgmt" in the assessment.
+- **Open.** Which login the switches carry under the controller: the site's
+  device account is one account for every switch, set before adoption, and the
+  fleet key does not survive. Until that is decided, no ToR is adopted. Then
+  what adoption left of `ber1-mgmt`'s configuration, and whether it honours a
+  write the API accepts.
 - **Not started.** The reconciler that watches `RackSwitch` objects and drives
   the controller; joining `ber1-edge` to staging as a node, which would let
   `rack:ztp` and the edge path run as workloads; and a factory-reset run of

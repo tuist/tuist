@@ -69,15 +69,15 @@ it removes the write path whose every bug this PR has been fixing.
 
 The API is no longer one of them. These are.
 
-**Adoption behaviour is unknown.** What happens to the configuration already on
-`ber1-tor-a` and `ber1-tor-b` when the controller adopts them, whether it is
-preserved, replaced or merged, and whether the management address survives, has
-not been established. That is the first thing the prototype answers.
+**Adoption takes over the switch's login and services.** Measured on
+`ber1-mgmt`; see "Adoption, measured on ber1-mgmt" below. What it does to the
+rest of the configuration already on `ber1-tor-a` and `ber1-tor-b`, whether it
+is preserved, replaced or merged, has not been established yet.
 
 **Model support is likely, not tried.** The firmware carries controller
 settings, since `no controller cloud-based` is in the running configuration, and
 the 6.3.0.45 web bundle's device table lists both `SX3832` and `TL-SG3452`,
-hardware version 1.0. Nothing has been adopted.
+hardware version 1.0. The SG3452 has been adopted; the SX3832 has not.
 
 **The controller is another thing to run.** A
 [Helm chart exists](https://github.com/mbentley/docker-omada-controller/blob/master/helm/omada-controller-helm/README.md),
@@ -119,6 +119,41 @@ bring-up, backups, and recovery when the controller is unavailable.
 
 If it does not, the finding is worth as much: it is the evidence the original
 decision was missing.
+
+## Adoption, measured on ber1-mgmt
+
+Steps 1 to 3 ran on 2026-09-23, against the staging controller (6.3.0.45) and
+`ber1-mgmt` on firmware 1.30.0.
+
+- **The path needs its MSS clamped.** The switch opens its management
+  connection to TCP 29814 advertising an MSS for a 1500-byte link; the tailnet
+  carries 1280. The controller's full-size segments never arrived, so the switch
+  saw only the last segment of each reply, gave up after five seconds, and the
+  controller reported the adoption as failed. Discovery on UDP 29810 and the Open
+  API were unaffected, being small. `rack:edge-path` now clamps the MSS of what
+  `ber1-edge` forwards into `tailscale0`, and adoption succeeded on the next try.
+- **The controller must advertise its tailnet address** as the device
+  management host, which starts unset. `rack:omada controller`, and `adopt`
+  before it adopts, set it from `management.controller.address`.
+- **Adoption did not reboot the switch.** Its uptime ran on through it.
+- **Adoption applies the site's SSH setting, which starts disabled.** Port 22
+  refused connections until the site's SSH was turned on through the API; then
+  it answered again. `rack:omada controller` keeps it on.
+- **Adoption replaces the switch's login with the site's device account.**
+  Afterwards `tuist`, with the fleet key or its password, is refused. The
+  account the controller set is the site's device account (`admin` here, from
+  the setup wizard), one account for every switch in the site. So under the
+  controller there are no per-switch logins, and the fleet key does not survive
+  adoption.
+- **Not yet known:** whether the management address, VLANs, spanning tree and
+  port configuration survived (reading them needs the new login), whether the
+  switch honours a write the API accepts, and what a scheduled reboot reloads.
+
+The login is the finding that shapes the design. Every SSH path in this
+directory, including the spanning-tree read-back the reconciler sketch keeps,
+authenticates as `tuist` with the fleet key, which adoption removes. Under the
+controller the switch login is whatever the site's device account says, so it
+has to be set deliberately, from 1Password, before a switch is adopted.
 
 ## What the reconciler looks like, if adoption holds
 

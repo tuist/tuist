@@ -1621,6 +1621,7 @@ STUB
     [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
     [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp87s0"* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.13,192.168.50.0/24 } masquerade'* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
     [[ "$output" != *"advertise-routes"* ]]
     [[ "$output" == *"dry run, nothing changed"* ]]
 }
@@ -1637,8 +1638,9 @@ STUB
 
 # --- the Omada controller's Open API -----------------------------------------
 
-# A controller behind curl: one site, Default, and whatever FAKE_PENDING and
-# FAKE_ADOPTED list. The adoption request body is kept to check what was sent.
+# A controller behind curl: one site, ber1, whose device list is FAKE_DEVICES
+# (pending switches included, as on the real one) and whose pending list is
+# FAKE_PENDING. The adoption request body is kept to check what was sent.
 omada_stub() {
     local dir="$1"
     mkdir -p "$dir"
@@ -1656,17 +1658,32 @@ while [ $# -gt 0 ]; do
 done
 empty='{"errorCode":0,"result":{"data":[]}}'
 pending="${FAKE_PENDING:-$empty}"
-adopted="${FAKE_ADOPTED:-$empty}"
+devices="${FAKE_DEVICES:-$empty}"
+unset_host='{"errorCode":0,"result":{"deviceManage":null}}'
+general="${FAKE_GENERAL:-$unset_host}"
+ssh_off='{"errorCode":0,"result":{"sshEnable":false,"sshServerPort":22,"layer3Access":false}}'
+ssh="${FAKE_SSH:-$ssh_off}"
 echo "$method $url" >> "$FAKE_LOG"
 case "$url" in
     */api/info) echo '{"result":{"omadacId":"OMC"}}';;
     */openapi/authorize/token*)
         if [ -n "${FAKE_REFUSE:-}" ]; then echo '{"errorCode":-44106,"msg":"Invalid client"}'
         else echo '{"errorCode":0,"result":{"accessToken":"AT-1"}}'; fi;;
-    */sites\?page*) echo '{"errorCode":0,"result":{"data":[{"name":"Default","siteId":"S1"}]}}';;
+    */sites\?page*) echo '{"errorCode":0,"result":{"data":[{"name":"ber1","siteId":"S1"}]}}';;
     */grid/devices/pending*) echo "$pending";;
-    */devices\?page*) echo "$adopted";;
+    */devices\?page*)
+        # One document per line, one per call, the last repeating.
+        n=$(( $(cat "$FAKE_LOG.polls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$FAKE_LOG.polls"
+        line="$(printf '%s\n' "$devices" | sed -n "${n}p")"
+        [ -n "$line" ] || line="$(printf '%s\n' "$devices" | tail -1)"
+        echo "$line";;
     */start-adopt) printf '%s' "$body" > "$FAKE_LOG.adopt"; echo '{"errorCode":0}';;
+    */controller/setting/general)
+        if [ "$method" = GET ]; then echo "$general"
+        else printf '%s' "$body" > "$FAKE_LOG.general"; echo '{"errorCode":0}'; fi;;
+    */sites/S1/ssh)
+        if [ "$method" = GET ]; then echo "$ssh"
+        else printf '%s' "$body" > "$FAKE_LOG.ssh"; echo '{"errorCode":0}'; fi;;
     *) echo '{"errorCode":-1,"msg":"unexpected"}';;
 esac
 STUB
@@ -1674,12 +1691,13 @@ STUB
 #!/usr/bin/env bash
 case "$3" in
     "omada staging open api")
-        echo '{"fields":[{"label":"client_id","value":"cid"},{"label":"client_secret","value":"csecret"}]}';;
+        echo '{"fields":[{"label":"client-id","value":"cid"},{"label":"client-secret","value":"csecret"}]}';;
     *)
         echo '{"fields":[{"id":"username","value":"tuist"},{"id":"password","value":"SwitchNotReal24chars0000"}]}';;
 esac
 STUB
-    chmod +x "$dir/curl" "$dir/op"
+    printf '#!/bin/sh\n:\n' > "$dir/sleep"
+    chmod +x "$dir/curl" "$dir/op" "$dir/sleep"
     : > "$dir/log"
 }
 
@@ -1696,8 +1714,8 @@ STUB
     bin="$BATS_TEST_TMPDIR/omada2"
     omada_stub "$bin"
     pending='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","status":0}]}}'
-    adopted='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":1}]}}'
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_ADOPTED="$adopted" \
+    devices='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":1,"detailStatus":14}]}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_DEVICES="$devices" \
         "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
     [ "$status" -eq 0 ]
     [[ "$output" == *"adopted and connected"* ]]
@@ -1705,7 +1723,7 @@ STUB
     [ "$output" = "1" ]
     run jq -r '"\(.username) \(.password)"' "$bin/log.adopt"
     [ "$output" = "tuist SwitchNotReal24chars0000" ]
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_ADOPTED="$adopted" \
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_DEVICES="$devices" \
         "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
     [[ "$output" != *"SwitchNotReal24chars0000"* ]]
     [[ "$output" != *"csecret"* ]]
@@ -1715,10 +1733,95 @@ STUB
 @test "the controller's devices are named from the site definition" {
     bin="$BATS_TEST_TMPDIR/omada3"
     omada_stub "$bin"
-    pending='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","model":"SG3452 v1.30","status":0}]}}'
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" "$FLEET_ROOT/omada.sh" devices
+    devices='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","model":"SG3452 v1.30","status":2,"detailStatus":20},{"mac":"00-11-22-33-44-55","ip":"192.168.0.99","model":"SG3428 v2","status":1}]}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEVICES="$devices" "$FLEET_ROOT/omada.sh" devices
     [ "$status" -eq 0 ]
-    [[ "$output" == *"pending"*"A8-29-48-FE-B4-BE"*"ber1-mgmt"* ]]
+    [[ "$output" == *"A8-29-48-FE-B4-BE"*"ber1-mgmt"*"pending"* ]]
+    [[ "$output" == *"00-11-22-33-44-55"*"(not in the site)"*"connected"* ]]
+    [ "$(grep -c 'A8-29-48-FE-B4-BE' <<<"$output")" -eq 1 ]
+}
+
+@test "adoption stops as soon as the controller reports it failed" {
+    bin="$BATS_TEST_TMPDIR/omada5"
+    omada_stub "$bin"
+    pending='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","status":2}]}}'
+    devices='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":2,"detailStatus":22}]}}
+{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":2,"detailStatus":24}]}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_DEVICES="$devices" \
+        "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"adopting ber1-mgmt failed; check the login in 'ber1-mgmt switch admin'"* ]]
+    [ "$(cat "$bin/log.polls")" -eq 2 ]
+}
+
+@test "adoption first has the controller advertise the address switches reach it at" {
+    # The setting starts unset on a new controller, and the switches reach it
+    # only at its tailnet address.
+    bin="$BATS_TEST_TMPDIR/omada7"
+    omada_stub "$bin"
+    pending='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","status":2}]}}'
+    devices='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":1,"detailStatus":14}]}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_DEVICES="$devices" \
+        "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
+    [ "$status" -eq 0 ]
+    address="$(jq -r '.management.controller.address' "$SITE_FILE")"
+    [[ "$output" == *"connect back to $address"* ]]
+    run jq -c '.deviceManage' "$bin/log.general"
+    [ "$output" = "{\"deviceHostEnable\":true,\"deviceHost\":\"$address\"}" ]
+}
+
+@test "adoption leaves the advertised address alone when it is already right" {
+    bin="$BATS_TEST_TMPDIR/omada8"
+    omada_stub "$bin"
+    address="$(jq -r '.management.controller.address' "$SITE_FILE")"
+    general="{\"errorCode\":0,\"result\":{\"deviceManage\":{\"deviceHostEnable\":true,\"deviceHost\":\"$address\"}}}"
+    pending='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","status":2}]}}'
+    devices='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":1,"detailStatus":14}]}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_DEVICES="$devices" FAKE_GENERAL="$general" \
+        "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"connect back"* ]]
+    [ ! -e "$bin/log.general" ]
+}
+
+@test "the controller keeps SSH on for the site's switches, since the fleet verifies over it" {
+    # Adopted under the site's default, ber1-mgmt refused SSH.
+    bin="$BATS_TEST_TMPDIR/omada9"
+    omada_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" "$FLEET_ROOT/omada.sh" controller
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"keeps SSH on for the switches in ber1"* ]]
+    run jq -c . "$bin/log.ssh"
+    [ "$output" = '{"sshEnable":true,"sshServerPort":22,"layer3Access":false}' ]
+}
+
+@test "the controller command changes nothing that already matches" {
+    bin="$BATS_TEST_TMPDIR/omada10"
+    omada_stub "$bin"
+    address="$(jq -r '.management.controller.address' "$SITE_FILE")"
+    general="{\"errorCode\":0,\"result\":{\"deviceManage\":{\"deviceHostEnable\":true,\"deviceHost\":\"$address\"}}}"
+    ssh='{"errorCode":0,"result":{"sshEnable":true,"sshServerPort":22,"layer3Access":false}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_GENERAL="$general" FAKE_SSH="$ssh" \
+        "$FLEET_ROOT/omada.sh" controller
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"matches the site definition for ber1"* ]]
+    [ ! -e "$bin/log.general" ]
+    [ ! -e "$bin/log.ssh" ]
+}
+
+@test "a failure left over from an earlier attempt does not end a new adoption" {
+    # The setup wizard tried ber1-mgmt with the factory login, and the device
+    # still read "adoption failed" when rack:omada adopt started.
+    bin="$BATS_TEST_TMPDIR/omada6"
+    omada_stub "$bin"
+    pending='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","ip":"192.168.0.13","status":2}]}}'
+    devices='{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":2,"detailStatus":24}]}}
+{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":2,"detailStatus":22}]}}
+{"errorCode":0,"result":{"data":[{"mac":"A8-29-48-FE-B4-BE","status":1,"detailStatus":14}]}}'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_PENDING="$pending" FAKE_DEVICES="$devices" \
+        "$FLEET_ROOT/omada.sh" adopt ber1-mgmt
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"adopted and connected"* ]]
 }
 
 @test "a refused Open API client says which 1Password item it came from" {

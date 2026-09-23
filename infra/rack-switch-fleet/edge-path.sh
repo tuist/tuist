@@ -12,6 +12,13 @@
 # home the management prefix is the house network, which must not become a
 # route every device on the tailnet can use. Nothing here advertises anything.
 #
+# The switches advertise a TCP MSS for a 1500-byte link, tailscale0 carries
+# 1280, and full-size segments coming back from the controller vanish inside
+# the tailnet rather than asking for a smaller size. Measured on ber1-mgmt: its
+# management connection to the controller received only the last segment of
+# every reply, and adoption failed. So the edge node clamps the MSS of the
+# connections it forwards to the route's MTU.
+#
 #   mise run rack:edge-path --interface enp89s0 [--dry-run]
 #
 # Idempotent. What it installs survives a reboot of the edge node through one
@@ -96,6 +103,10 @@ table ip tuist_mgmt_path {
   chain postrouting {
     type nat hook postrouting priority srcnat;
     oifname \"tailscale0\" ip saddr { $sources } masquerade
+  }
+  chain forward {
+    type filter hook forward priority mangle;
+    oifname \"tailscale0\" ip saddr { $sources } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
   }
 }
 NFT"
