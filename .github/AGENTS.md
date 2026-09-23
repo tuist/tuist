@@ -19,3 +19,11 @@ documented in `COMMUNITY_NOTIFICATIONS.md`.
   PR head or merge ref. Keep contributor text in plain-text Slack blocks.
 - Validate changes with `node --test scripts/community-notifications.test.cjs`
   from this directory and `actionlint workflows/community-notifications.yml`.
+
+## Tuist Elixir package
+
+`tuist-ex.yml` validates the Hex package on the minimum and current supported
+Elixir versions. It is reused by `tuist-ex-release.yml` before publication.
+Releases run only from `main`, serialize publishing, and use the shared
+`release:check` registry with the `tuist-ex@` tag prefix. The existing
+`HEX_API_KEY` secret must be authorized to publish `tuist_ex`.

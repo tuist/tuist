@@ -12,6 +12,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
+- `tuist_ex/` - Elixir build and test instrumentation Hex package - see `tuist_ex/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `atlas/` - Atlas internal ops app (Elixir/Phoenix) covering CRM, contracts, GTM, finance, letters, and the MCP tools other services call into. Deployed to `atlas-production` on the CAPI cluster. MPL-2.0. See `atlas/AGENTS.md`.
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
@@ -62,6 +63,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
 - `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
+- `tuist-ex` - Changes to the Elixir build and test integration
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
 - `search` - Changes to the search infrastructure (TypeSense)
