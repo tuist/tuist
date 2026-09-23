@@ -73,6 +73,45 @@ defmodule TuistWeb.AnalyticsControllerTest do
              }
     end
 
+    test "returns not found when the project was deleted after it was cached", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      Repo.delete!(project)
+
+      stub(Tuist.Projects, :get_project_by_slug, fn _slug, _opts -> {:ok, project} end)
+
+      # When / Then
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "generate",
+            subcommand: "generate",
+            command_arguments: ["App"],
+            duration: 100,
+            tuist_version: "1.0.0",
+            swift_version: "5.0",
+            macos_version: "10.15",
+            params: %{},
+            is_ci: false,
+            client_id: "client-id"
+          }
+        )
+      end
+
+      Buffer.flush()
+
+      assert ClickHouseRepo.aggregate(from(e in CommandEvents.Event, where: e.project_id == ^project.id), :count) == 0
+    end
+
     test "returns newly created command event when cacheable analytics are missing", %{
       conn: conn,
       user: user
