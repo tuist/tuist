@@ -313,8 +313,17 @@
     }
   }
 
-  /* A cell or status with a title explains itself on hover. */
-  & [data-part="cell"][title],
+  /* A cell or status with a title explains itself on hover. In a row that
+     opens a page, the row's link overlay covers every cell, so a titled cell
+     sits above it, as wide as its content, and the rest of the cell still
+     opens the row. */
+  & [data-part="cell"][title] {
+    position: relative;
+    z-index: 1;
+    width: fit-content;
+    cursor: help;
+  }
+
   & [data-part="status"][title] {
     cursor: help;
   }
