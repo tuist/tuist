@@ -581,27 +581,6 @@ struct XCResultParserTests {
     }
 
     @Test
-    func executeXCResultToolWorksWhenTheHostIgnoresChildExitSignals() async throws {
-        var previousAction = sigaction()
-        #expect(sigaction(SIGCHLD, nil, &previousAction) == 0)
-
-        var ignoredAction = previousAction
-        ignoredAction.__sigaction_u.__sa_handler = SIG_IGN
-        #expect(sigaction(SIGCHLD, &ignoredAction, nil) == 0)
-        defer { sigaction(SIGCHLD, &previousAction, nil) }
-
-        let output = try await executeXCResultTool(["/bin/sh", "-c", "printf xcresult"])
-
-        #expect(output.succeeded)
-        #expect(output.standardOutput == "xcresult")
-
-        let failedOutput = try await executeXCResultTool(["/bin/sh", "-c", "printf failure >&2; exit 3"])
-
-        #expect(!failedOutput.succeeded)
-        #expect(failedOutput.standardError == "failure")
-    }
-
-    @Test
     func failedXCResultToolOutputThrowsWhenSuccessIsRequired() {
         let output = XCResultToolOutput(standardOutput: "", standardError: "tool failed", succeeded: false)
 

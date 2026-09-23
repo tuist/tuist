@@ -210,6 +210,16 @@ private final class XCResultToolProcess: @unchecked Sendable {
         guard event.ident == UInt(processIdentifier), event.filter == Int16(EVFILT_PROC) else {
             throw POSIXError(.EIO)
         }
+        try lock.withLock {
+            defer { self.processIdentifier = nil }
+            // The event preserves the status even when the host auto-reaps children.
+            // Ordinary hosts still need waitpid to release the exited process.
+            while waitpid(processIdentifier, nil, 0) == -1 {
+                if errno == EINTR { continue }
+                if errno == ECHILD { break }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+        }
         return Int32(event.data)
     }
 }
