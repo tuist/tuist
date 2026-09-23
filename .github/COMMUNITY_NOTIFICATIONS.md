@@ -26,6 +26,12 @@ instead of treating an unknown membership as a community author.
 
 ## Activation
 
+The `#support` webhook secret and both staff-team lookups were verified in
+[setup run 35845427668](https://github.com/tuist/tuist/actions/runs/35845427668)
+on September 23, 2026, including receipt of a clearly marked Slack test card.
+Automatic intake starts when the notification workflow reaches the default
+branch. The temporary setup workflow was removed after verification.
+
 1. Create an incoming webhook for `#support` (`C0BSD8790F5`) in Tuist Company
    (`T061C1JGAHH`) using the existing GitHub Notifications app (`A0B2Z862NA1`).
    The webhook determines the destination and the app's display identity.
@@ -40,6 +46,14 @@ instead of treating an unknown membership as a community author.
 5. Verify a real community issue and fork PR each produce a Slack card, and an
    employee/contractor contribution is skipped. Check the workflow run logs
    when a card is missing. A missing webhook fails eligible notifications.
+
+On September 23, 2026, the organization Actions policy page showed no configured
+policies and warned that GitHub's default public-repository restriction on
+`pull_request_target` will be enforced on November 2, 2026. Before that date,
+configure an applicable event policy allowing this workflow's `issues` and
+`pull_request_target` events, scoped to `tuist/tuist` and
+`.github/workflows/community-notifications.yml`. Retain restrictions on other
+workflows. Recheck the effective policies when changing this configuration.
 
 The PR trigger is `pull_request_target` so fork events can access the webhook.
 Checkout is pinned to the trusted event SHA and restricted to `.github/scripts`;
