@@ -189,13 +189,6 @@ defmodule AtlasWeb.EmailMailboxLive do
     <.card title={gettext("Outbox")} icon="mail" data-part="email-outbox-card">
       <.card_section>
         <div data-part="filters">
-          <.filter_dropdown
-            id="email-outbox-filters-dropdown"
-            available_filters={@available_filters}
-            active_filters={@active_filters}
-            on_select="add_filter"
-          />
-
           <div data-part="search">
             <.form
               id="email-outbox-search-form"
@@ -208,10 +201,17 @@ defmodule AtlasWeb.EmailMailboxLive do
                 field={@search_form[:query]}
                 type="search"
                 show_suffix={false}
-                placeholder={gettext("Search by recipient, sender, or subject")}
+                placeholder={gettext("Search by recipient or subject")}
               />
             </.form>
           </div>
+
+          <.filter_dropdown
+            id="email-outbox-filters-dropdown"
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+            on_select="add_filter"
+          />
         </div>
 
         <div :if={@active_filters != []} data-part="active-filters">

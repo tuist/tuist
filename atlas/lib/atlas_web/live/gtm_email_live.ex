@@ -368,13 +368,6 @@ defmodule AtlasWeb.GTMEmailLive do
       </:actions>
       <.card_section>
         <div data-part="filters">
-          <.filter_dropdown
-            id="email-audiences-filters-dropdown"
-            available_filters={@audiences_available_filters}
-            active_filters={@audiences_active_filters}
-            on_select="add_filter"
-          />
-
           <div data-part="search">
             <.form
               id="email-audiences-search-form"
@@ -387,10 +380,17 @@ defmodule AtlasWeb.GTMEmailLive do
                 field={@audiences_search_form[:query]}
                 type="search"
                 show_suffix={false}
-                placeholder={gettext("Search by name, description, or slug")}
+                placeholder={gettext("Search by name or slug")}
               />
             </.form>
           </div>
+
+          <.filter_dropdown
+            id="email-audiences-filters-dropdown"
+            available_filters={@audiences_available_filters}
+            active_filters={@audiences_active_filters}
+            on_select="add_filter"
+          />
         </div>
 
         <div :if={@audiences_active_filters != []} data-part="active-filters">
@@ -447,13 +447,6 @@ defmodule AtlasWeb.GTMEmailLive do
       </:actions>
       <.card_section>
         <div data-part="filters">
-          <.filter_dropdown
-            id="email-subscribers-filters-dropdown"
-            available_filters={@subscribers_available_filters}
-            active_filters={@subscribers_active_filters}
-            on_select="add_filter"
-          />
-
           <div data-part="search">
             <.form
               id="email-subscribers-search-form"
@@ -470,6 +463,13 @@ defmodule AtlasWeb.GTMEmailLive do
               />
             </.form>
           </div>
+
+          <.filter_dropdown
+            id="email-subscribers-filters-dropdown"
+            available_filters={@subscribers_available_filters}
+            active_filters={@subscribers_active_filters}
+            on_select="add_filter"
+          />
         </div>
 
         <div :if={@subscribers_active_filters != []} data-part="active-filters">
@@ -616,13 +616,6 @@ defmodule AtlasWeb.GTMEmailLive do
       </:actions>
       <.card_section>
         <div :if={not Audience.dynamic?(@audience)} data-part="filters">
-          <.filter_dropdown
-            id="email-members-filters-dropdown"
-            available_filters={@memberships_available_filters}
-            active_filters={@memberships_active_filters}
-            on_select="add_filter"
-          />
-
           <div data-part="search">
             <.form
               id="email-members-search-form"
@@ -639,6 +632,13 @@ defmodule AtlasWeb.GTMEmailLive do
               />
             </.form>
           </div>
+
+          <.filter_dropdown
+            id="email-members-filters-dropdown"
+            available_filters={@memberships_available_filters}
+            active_filters={@memberships_active_filters}
+            on_select="add_filter"
+          />
         </div>
 
         <div :if={@memberships_active_filters != []} data-part="active-filters">
