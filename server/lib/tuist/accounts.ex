@@ -31,6 +31,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Origins
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
@@ -2056,6 +2057,13 @@ defmodule Tuist.Accounts do
   def update_account(%Account{} = account, attrs) do
     account
     |> Account.update_changeset(attrs)
+    |> Changeset.validate_change(:name, fn :name, name ->
+      if String.downcase(name) == String.downcase(account.name) or Identity.rename_allowed?(account) do
+        []
+      else
+        [name: "cannot be changed until the cache supports account renames"]
+      end
+    end)
     |> Repo.update()
   end
 

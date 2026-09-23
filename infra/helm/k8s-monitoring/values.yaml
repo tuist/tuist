@@ -1957,6 +1957,145 @@ k8s-monitoring:
           - key: tuist.dev/runner-cache
             operator: Exists
             effect: NoSchedule
+    # Pod logs from a rack's edge node (the rack-edge DaemonSet, see
+    # infra/rack-switch-fleet/AGENTS.md), which alloy-logs cannot collect.
+    # The Cilium agent never runs on that node, so a pod there on the pod
+    # network reaches neither cluster Services nor cluster DNS, and the API
+    # server cannot reach its tailnet-addressed kubelet, so `kubectl logs`
+    # times out too.
+    #
+    # This collector runs on the node's host network instead and reads
+    # /var/log/pods itself. It pushes to the receiver's loki.source.api on
+    # 3100 at the receiver's tailnet name, the path the Mac minis use, so the
+    # Grafana Cloud credential never reaches the node. Enabled per env in
+    # values-<env>.yaml where a rack's edge node is joined.
+    alloy-rack-edge:
+      enabled: false
+      controller:
+        type: daemonset
+        hostNetwork: true
+        # The node's own resolver, which answers tailnet names:
+        # a rack node's kubelet (RackLinuxMachine) points resolv.conf at
+        # systemd-resolved's stub.
+        dnsPolicy: Default
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: tuist.dev/rack-edge
+                      operator: Exists
+        tolerations:
+          - key: tuist.dev/rack-edge
+            operator: Exists
+            effect: NoSchedule
+        volumes:
+          extra:
+            - name: storage
+              hostPath:
+                path: /var/lib/tuist-alloy-rack-edge
+                type: DirectoryOrCreate
+      alloy:
+        mounts:
+          varlog: true
+          extra:
+            - name: storage
+              mountPath: /var/lib/alloy
+        # Read positions survive a restart on the node. The receiver stamps
+        # each line with the time it arrives, so a restart that read the
+        # files again from the start would ship them again as new lines.
+        storagePath: /var/lib/alloy
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      # There is no API access from the node, so namespace, pod and container
+      # come from the log file's path, /var/log/pods/<namespace>_<pod>_<uid>/
+      # <container>/<n>.log, and service_name falls back to the container,
+      # as it does for pods without an app.kubernetes.io/name label.
+      extraConfig: |
+        local.file_match "rack_edge_pod_logs" {
+          path_targets = [{"__path__" = "/var/log/pods/*/*/*.log"}]
+        }
+
+        discovery.relabel "rack_edge_pod_logs" {
+          targets = local.file_match.rack_edge_pod_logs.targets
+          rule {
+            source_labels = ["__path__"]
+            regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
+            target_label = "namespace"
+            replacement = "$1"
+          }
+          rule {
+            source_labels = ["__path__"]
+            regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
+            target_label = "pod"
+            replacement = "$2"
+          }
+          rule {
+            source_labels = ["__path__"]
+            regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
+            target_label = "container"
+            replacement = "$3"
+          }
+          rule {
+            source_labels = ["__path__"]
+            regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
+            target_label = "job"
+            replacement = "$1/$3"
+          }
+          rule {
+            source_labels = ["container"]
+            target_label = "service_name"
+          }
+          rule {
+            source_labels = ["namespace"]
+            target_label = "service_namespace"
+          }
+          rule {
+            source_labels = ["namespace", "pod", "container"]
+            separator = "."
+            target_label = "service_instance_id"
+          }
+        }
+
+        loki.source.file "rack_edge_pod_logs" {
+          targets = discovery.relabel.rack_edge_pod_logs.output
+          forward_to = [loki.process.rack_edge_pod_logs.receiver]
+        }
+
+        loki.process "rack_edge_pod_logs" {
+          stage.cri {}
+
+          stage.labels {
+            values = {
+              flags = "",
+              stream = "",
+            }
+          }
+
+          stage.structured_metadata {
+            values = {
+              pod = "pod",
+              service_instance_id = "service_instance_id",
+            }
+          }
+
+          stage.label_drop {
+            values = ["filename", "pod", "service_instance_id"]
+          }
+
+          forward_to = [loki.write.tuist_alloy_receiver.receiver]
+        }
+
+        loki.write "tuist_alloy_receiver" {
+          endpoint {
+            url = "http://{{ required "alloy-rack-edge pushes to the receiver's tailnet name: set tailscale.com/hostname on collectors.alloy-receiver.service.annotations" (dig "alloy-receiver" "service" "annotations" "tailscale.com/hostname" "" .Values.collectors) }}.taild6d7bb.ts.net:3100/loki/api/v1/push"
+          }
+        }
     # Kubernetes Events must come from exactly one replica — otherwise
     # every pod watches the event stream and emits duplicate log lines.
     alloy-singleton:

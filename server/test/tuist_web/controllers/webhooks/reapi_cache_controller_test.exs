@@ -4,8 +4,10 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
 
   import Ecto.Query
 
+  alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.ReapiCache.CacheEvent
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -37,6 +39,51 @@ defmodule TuistWeb.Webhooks.ReapiCacheControllerTest do
   end
 
   describe "POST /webhooks/reapi-cache" do
+    test "ingests current and retained account handles even after URL expiry", %{conn: conn, project: project} do
+      original = project.account
+      other = ProjectsFixtures.project_fixture(name: project.name, build_system: :bazel)
+      {:ok, middle} = Accounts.update_account(original, %{name: "middle-#{original.id}"})
+      {:ok, renamed} = Accounts.update_account(middle, %{name: "renamed-#{original.id}"})
+
+      Repo.query!(
+        "UPDATE account_handle_reservations SET client_url_expires_at = now() - interval '1 second' WHERE account_id = $1 AND name <> $2",
+        [original.id, renamed.name]
+      )
+
+      # Kura's no-tenant-header fallback and queued batches still carry the
+      # original storage tenant; explicit headers can carry an intermediate name.
+      events =
+        for handle <- [original.name, middle.name, renamed.name, "missing-account"] do
+          %{
+            "account_handle" => handle,
+            "project_handle" => project.name,
+            "client_kind" => "bazel",
+            "operation" => "cas",
+            "outcome" => "hit",
+            "action_digest" => "cached-before-rename",
+            "size" => 512,
+            "duration_us" => 123,
+            "invocation_id" => "rename-invocation"
+          }
+        end
+
+      {body, signature} = sign_request(%{"events" => events})
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "original.kura.tuist.dev")
+        |> post(~p"/webhooks/reapi-cache", body)
+
+      assert json_response(response, 202) == %{"accepted" => 3, "rejected" => 1}
+      stored = ClickHouseRepo.all(from(e in CacheEvent, where: e.project_id == ^project.id))
+      assert length(stored) == 3
+      assert Enum.sort(Enum.map(stored, & &1.account_handle)) == Enum.sort([original.name, middle.name, renamed.name])
+      assert Enum.all?(stored, &(&1.invocation_id == "rename-invocation" and &1.duration_us == 123))
+      refute ClickHouseRepo.exists?(from(e in CacheEvent, where: e.project_id == ^other.id))
+    end
+
     test "accepts an empty event batch", %{conn: conn} do
       {body, signature} = sign_request(%{"events" => []})
 

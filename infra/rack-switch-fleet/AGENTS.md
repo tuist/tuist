@@ -730,8 +730,8 @@ iproute2 and nftables.
 A new edge node is declared in `rackLinuxFleet.hosts` of the tuist chart's
 values for the rack's environment, with the `edge` role, whose
 `tuist.dev/rack-edge=<site>` label and taint keep everything but the rack-edge
-pod off it (the node exporter tolerates everything and uses host networking
-too). Then it is installed from a stick and needs nothing else:
+pod off it (the node exporter and the log collector tolerate it and use host
+networking too). Then it is installed from a stick and needs nothing else:
 
 ```
 mise run rack:write-install-usb <disk> --host <node>
@@ -742,18 +742,31 @@ cluster over the tailnet as a `RackLinuxMachine`, with the tailnet address as
 its InternalIP, and keeps it converged; see
 [`infra/rack-nodes`](../rack-nodes/AGENTS.md). Every rack Linux node carries
 `cilium.io/no-schedule=true` and a local CNI configuration in
-`10.254.254.0/24`, used by nothing, so it reports Ready: the edge node's own
-networks sit inside the pod CIDR (staging gave `192.168.0.0/24`, the house
-network, to a runner node), and a Cilium agent would route them into the tunnel
-and cut the node off. The operator refuses to join it until the cluster's
+`10.254.254.0/24`, used by nothing, so it reports Ready, and its kubelet hands
+host-network pods systemd-resolved's stub, which answers tailnet names. The
+edge node's own networks sit inside the pod CIDR (staging gave
+`192.168.0.0/24`, the house network, to a runner node), and a Cilium agent
+would route them into the tunnel and cut the node off. The operator refuses to join it until the cluster's
 Cilium agent stays off that label. The site definition names the node for the
 fleet commands that reach it (`management.edge.ssh`, `.interface`,
 `.address`).
 
 **Reading the pod's logs.** The API server cannot reach the kubelet at a tailnet
 address, the same as for the Mac minis, so `kubectl logs` and `exec` time out
-for this node. On the node: `sudo crictl -r unix:///run/containerd/containerd.sock
-logs <container>`.
+for this node. The pod's logs are in Loki like any other pod's:
+
+```
+{cluster="tuist-staging", namespace="omada", container="dhcp"}
+{cluster="tuist-staging", namespace="omada", container="path-reapply"}
+```
+
+They get there through `alloy-rack-edge` in
+[`infra/helm/k8s-monitoring`](../helm/k8s-monitoring), an Alloy collector on
+the node's host network that reads `/var/log/pods` and pushes to the cluster's
+Alloy receiver at its tailnet name. Each line carries the time the receiver got
+it, so lines the collector catches up on after an outage are stamped late;
+dnsmasq's own time is at the start of each line. On the node itself:
+`sudo crictl -r unix:///run/containerd/containerd.sock logs <container>`.
 
 ### Auto Install on the edge node
 

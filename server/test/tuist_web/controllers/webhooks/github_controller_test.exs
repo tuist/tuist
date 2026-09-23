@@ -890,6 +890,25 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       refute_enqueued(worker: DispatchWorker)
     end
 
+    test "200s without enqueueing when workflow_job is null", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", "deadbeef-null-workflow-job")
+
+      params = %{
+        "action" => "queued",
+        "installation" => %{"id" => System.unique_integer([:positive])},
+        "workflow_job" => nil,
+        "repository" => %{"full_name" => "tuist/tuist"}
+      }
+
+      result = GitHubController.handle(conn, params)
+
+      assert result.status == 200
+      refute_enqueued(worker: DispatchWorker)
+    end
+
     test "enqueues for action=in_progress so the worker can record the runner→job binding",
          %{conn: conn} do
       installation_id = System.unique_integer([:positive])
