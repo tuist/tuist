@@ -24,6 +24,7 @@ This directory contains ExUnit tests for the Tuist Server.
 - `processor_role_privileges_test.exs` runs profile publication and invalid-profile rejection with `ProcessorRole.as_processor/1`, using release-time PostgreSQL grants. Timeline regressions cover unavailable direct links, late profile publication, expired indexed steps and valid metrics-only builds.
 
 - GitLab runner tests reject unmocked HTTP requests; the Go executor uses a local fake coordinator for execution, artifacts and masked-log validation.
+  Cache rename coverage must preserve account-ID archive keys and cross-account isolation while rejecting another account's attempt to claim a retained handle.
 
 - Kura claim resolution coverage (`tuist/kura/placer_claims_test.exs` and the `disk footprint` describe in `tuist/kura_test.exs`) must include pins without a sized claim on creation, cold return, warm handoff and runner caches, the largest of disagreeing pins, volumeless and non-governed rows contributing nothing, and admission refusing at the pinned claim.
 
