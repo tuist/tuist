@@ -4,6 +4,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Synchronization
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
@@ -37,16 +38,15 @@ private final class AnswerSequence<Answer: Sendable>: @unchecked Sendable {
 }
 
 /// When each bootstrap happened, relative to the start of the test.
-private final class BootstrapTimes: @unchecked Sendable {
-    private let lock = NSLock()
-    private var times: [Duration] = []
+private final class BootstrapTimes: Sendable {
+    private let times = Mutex<[Duration]>([])
 
     var first: Duration? {
-        lock.withLock { times.first }
+        times.withLock { $0.first }
     }
 
     func record(_ time: Duration) {
-        lock.withLock { times.append(time) }
+        times.withLock { $0.append(time) }
     }
 }
 
