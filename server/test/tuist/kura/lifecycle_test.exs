@@ -1524,6 +1524,7 @@ defmodule Tuist.Kura.LifecycleTest do
     test "stable rollout waits for the survivor to advertise before retiring" do
       stub(Environment, :kura_stable_hostname_enabled?, fn -> true end)
       stub(Environment, :kura_stable_hostname_accounts, fn -> [] end)
+      stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> true end)
       account = account(plan: :enterprise)
       source = active_instance(account)
       destination = active_instance_in(account, "eu-west")

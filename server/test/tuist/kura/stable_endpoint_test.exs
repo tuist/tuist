@@ -23,7 +23,55 @@ defmodule Tuist.Kura.StableEndpointTest do
     stub(Environment, :kura_stable_hostname_enabled?, fn -> true end)
     stub(Environment, :kura_stable_hostname_handout_enabled?, fn -> true end)
     stub(Environment, :kura_stable_hostname_accounts, fn -> [] end)
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> true end)
     :ok
+  end
+
+  test "production without the feature flag keeps regional URLs and publishes no stable intent" do
+    account = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+    server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
+    observe(server, account)
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> false end)
+
+    assert StableEndpoint.resolve(account, [server.url]) == [server.url]
+
+    assert StableEndpoint.intent(server, Regions.get(server.region)) == %{
+             "stableHost" => "",
+             "stableAWSRegion" => "",
+             "stableAdvertise" => false
+           }
+  end
+
+  test "production account opt-in does not enable another account" do
+    opted_in = AccountsFixtures.user_fixture().account
+    other = AccountsFixtures.user_fixture().account
+
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: account] -> account.id == opted_in.id end)
+
+    for account <- [opted_in, other] do
+      {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+      server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
+      observe(server, account)
+      enabled = account.id == opted_in.id
+
+      assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"] == enabled
+
+      expected = if enabled, do: ["https://#{account.name}.cache.tuist.dev"], else: [server.url]
+      assert StableEndpoint.resolve(account, [server.url]) == expected
+    end
+  end
+
+  test "canary advertises and hands out a ready stable endpoint without a production flag" do
+    stub(Environment, :env, fn -> :can end)
+    reject(FunWithFlags, :enabled?, 2)
+    account = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+    server = %{KuraFixtures.active_server_fixture(account, region: "eu-west") | account: account}
+    observe(server, account)
+
+    assert StableEndpoint.intent(server, Regions.get(server.region))["stableAdvertise"]
+    assert StableEndpoint.resolve(account, [server.url]) == ["https://#{account.name}-canary.cache.tuist.dev"]
   end
 
   test "environment suffixes and reserved handles cannot collide" do

@@ -4,6 +4,11 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+`server-deployment.yml` runs `infra/cache-dns/wait-for-certificate.sh` after
+Helm when stable DNS is enabled. Keep this gate before environment promotion:
+canary and production share the ACME name set and must finish initial issuance
+serially. It requires both wildcard names and Ready at the current generation.
+
 ## Community notifications
 
 `workflows/community-notifications.yml` sends new community issues and PRs to

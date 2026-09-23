@@ -17,6 +17,10 @@ import (
 // Render the owned templates in isolation: upstream subcharts are deliberately
 // outside this test. No cluster, Helm repository, AWS or Cloudflare is contacted.
 func renderStableChart(t *testing.T, chart string, templates []string, settings ...string) []map[string]interface{} {
+	return renderStableChartWithValues(t, chart, templates, nil, settings...)
+}
+
+func renderStableChartWithValues(t *testing.T, chart string, templates, values []string, settings ...string) []map[string]interface{} {
 	t.Helper()
 	helm := os.Getenv("TUIST_TEST_HELM")
 	if helm == "" {
@@ -45,6 +49,9 @@ func renderStableChart(t *testing.T, chart string, templates []string, settings 
 		}
 	}
 	args := []string{"template", "test", destination, "--namespace", "platform"}
+	for _, file := range values {
+		args = append(args, "--values", filepath.Join(source, file))
+	}
 	for _, setting := range settings {
 		args = append(args, "--set", setting)
 	}
@@ -66,6 +73,55 @@ func renderStableChart(t *testing.T, chart string, templates []string, settings 
 		}
 	}
 	return docs
+}
+
+func TestStableDNSCanaryAndProductionInfrastructure(t *testing.T) {
+	for _, env := range []string{"canary", "production"} {
+		t.Run(env, func(t *testing.T) {
+			platformValues := "values-tuist-canary.yaml"
+			if env == "production" {
+				platformValues = "values-tuist.yaml"
+			}
+			docs := renderStableChartWithValues(t, "platform", []string{"templates/cache-dns.yaml", "templates/cluster-issuer.yaml"}, []string{platformValues})
+			writer, secrets := false, 0
+			for _, doc := range docs {
+				if doc["kind"] == "ExternalSecret" {
+					secrets++
+				}
+				if doc["kind"] == "Deployment" {
+					containers, _, _ := unstructured.NestedSlice(doc, "spec", "template", "spec", "containers")
+					args, _, _ := unstructured.NestedStringSlice(containers[0].(map[string]interface{}), "args")
+					joined := strings.Join(args, " ")
+					writer = strings.Contains(joined, "--txt-owner-id=tuist-"+env+"-cache") && strings.Contains(joined, "--zone-id-filter=Z046862130S1WUMPV7Z3P")
+				}
+			}
+			if !writer || secrets != 2 {
+				t.Fatalf("missing isolated writer/solver: writer=%v secrets=%d", writer, secrets)
+			}
+			docs = renderStableChartWithValues(t, "tuist", []string{"templates/_helpers.tpl", "templates/kura-controller.yaml", "templates/kura-cache-dns-secret.yaml"}, []string{"values-managed-common.yaml", "values-managed-" + env + ".yaml"}, "kuraController.image.tag=test")
+			controller, secret := false, false
+			for _, doc := range docs {
+				if doc["kind"] == "ExternalSecret" {
+					secret = true
+				}
+				if doc["kind"] != "Deployment" {
+					continue
+				}
+				containers, _, _ := unstructured.NestedSlice(doc, "spec", "template", "spec", "containers")
+				args, _, _ := unstructured.NestedStringSlice(containers[0].(map[string]interface{}), "args")
+				joined := strings.Join(args, " ")
+				for _, value := range []string{"--stable-dns-owner=tuist-" + env + "-cache", "*.cache.tuist.dev", "*.kura.tuist.dev", "--stable-dns-drain=3720s"} {
+					if !strings.Contains(joined, value) {
+						t.Fatalf("missing controller argument %q: %s", value, joined)
+					}
+				}
+				controller = true
+			}
+			if !controller || !secret {
+				t.Fatalf("controller=%v secret=%v", controller, secret)
+			}
+		})
+	}
 }
 
 func TestStableDNSPlatformChartIsInertByDefaultAndIsolatesWriter(t *testing.T) {

@@ -1310,6 +1310,9 @@ jobs:
             --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
+      - name: Wait for stable cache wildcard certificate
+        timeout-minutes: 12
+        run: bash infra/cache-dns/wait-for-certificate.sh
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the

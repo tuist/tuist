@@ -8,6 +8,7 @@ defmodule Tuist.Kura.StableEndpoint do
 
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
@@ -42,7 +43,8 @@ defmodule Tuist.Kura.StableEndpoint do
     allowed = Environment.kura_stable_hostname_accounts()
 
     Environment.kura_stable_hostname_enabled?() and
-      (allowed == [] or String.downcase(account.name) in allowed)
+      (allowed == [] or String.downcase(account.name) in allowed) and
+      FeatureFlags.kura_stable_hostname_enabled?(account)
   end
 
   def intent(server, region, claimed \\ nil)

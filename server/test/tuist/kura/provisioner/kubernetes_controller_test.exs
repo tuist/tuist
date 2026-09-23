@@ -31,6 +31,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "sync_stable_endpoint/3" do
     setup do
       stub(StableEndpoint, :observe, fn _region, _name, _instance -> :ok end)
+      stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> true end)
       :ok
     end
 

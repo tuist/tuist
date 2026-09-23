@@ -393,7 +393,7 @@ Evidence: `dns-source-after-access-pr.json` and
 1. The self-hosted runner's public endpoint override remains blocked by its
    network policy, as recorded above. Use the external runner for this public
    client validation; the ordinary runner-cache path keeps its private override.
-2. Before broader rollout, validate longer-term steering telemetry and an actual
+2. Before expanding the production feature flag, validate longer-term steering telemetry and an actual
    shared-gateway outage. These remain distinct from the regional spot comparisons
    and isolated health-check failure above.
 
@@ -407,3 +407,47 @@ ends, revoke the token, clear keep-warm, and remove only this account's test pla
 normal lifecycle. If stable advertising has been enabled, complete withdrawal and
 the drain before removing provider credentials or DNS resources. Do not strip
 finalizers to force cleanup.
+
+## Canary and production preparation — September 23
+
+The draft now enables the DNS infrastructure and server environment switches in
+both managed overlays. Canary enables eligible accounts automatically after
+readiness converges. Production additionally requires the `kura_stable_hostname`
+FunWithFlags account/global gate for both DNS intent and endpoint hand-out;
+the absent flag is off. No production account or global gate was enabled here.
+
+Six separate IAM users were created:
+`tuist-{canary,production}-cache-dns-{writer,solver,controller}`. Each has one
+active key and only its intended writer, solver, or controller managed policy.
+Credentials were written directly into the three `cache-dns-*` items in each
+matching `tuist-k8s-{canary,production}` vault. The creation responses confirmed
+the destination items, and IAM inventory verified the policy/key state. A
+separate secret-value read-back attempt awaited 1Password authorization and was
+cancelled; new-identity authentication and live ESO synchronization are not
+claimed as validated. No canary or production Kubernetes deployment was
+dispatched. The existing zone and delegation were reused.
+
+The merge deployment now waits for the wildcard Certificate to contain both
+DNS zones and report Ready at its current generation. Canary must pass before
+the cascade can proceed to production, preventing overlapping initial issuance
+of the shared ACME name set. A post-Helm gate failure stops promotion; it does
+not automatically undo the completed Helm upgrade. The predicate accepts the
+actual current staging certificate.
+
+Validation of this preparation:
+
+- Full controller race suite passed, including the actual canary/production
+  overlay renders and six certificate-gate cases (disabled, current, old names,
+  stale generation, pending issuance, and pending-to-ready). `go vet` passed.
+- Affected feature-flag, stable-endpoint, provisioner and lifecycle tests:
+  **221 of 222 passed**, with only the previously reproduced `us-east`
+  disk-envelope assertion failing. After adding the global-rollout/actor-opt-out
+  case, the final focused feature-flag and stable-endpoint run passed **24 tests**.
+- Changed Elixir formatting passed; focused Credo reported no added issues.
+  ShellCheck, deployment-workflow actionlint (existing custom-label exception),
+  and `git diff --check` passed.
+
+Evidence: `/tmp/spec95-rollout-{identities,iam-inventory,elixir-tests,flags-final,go-tests,credo}.log`.
+The earlier staging results refer to the deployed integration revision. The new
+production gate and canary/production overlays have been tested locally and
+remain pending the draft PR's merge deployment.

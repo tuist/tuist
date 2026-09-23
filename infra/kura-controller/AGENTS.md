@@ -81,6 +81,11 @@ Runner sizing uses the existing account disk policy and plan memory/CPU profiles
 
 ## Stable cache DNS
 
+The stable chart tests render the actual canary and production overlays with
+distinct DNS owners and separate ESO credentials. Certificate promotion tests
+exercise the deployment script against pending, stale, and current certificates
+without contacting Kubernetes; an old Ready condition cannot advance the cascade.
+
 `cmd/staging-probe` provides the staging-only public TLS and authenticated
 HTTP/REAPI probe. It embeds the minimal protobuf schema and invokes grpcurl with
 the token in its subprocess environment, never in arguments. Keep the runbook in

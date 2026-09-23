@@ -1,8 +1,54 @@
 # Proximity-steered managed cache hostnames
 
 Implements [Atlas spec 95](https://atlas.tuist.dev/engineering/specs/95).
-All rollout switches default off. Adding these files does not provision a zone,
-change delegation, enable advertising, or change client endpoint responses.
+Chart defaults remain off. Managed overlays prepare DNS infrastructure in all
+three environments. Staging restricts activation to its validation accounts;
+canary enables eligible accounts on merge; production requires the
+`kura_stable_hostname` account feature flag, which is off when absent.
+
+## Managed rollout on merge
+
+The shared zone and Cloudflare delegation already exist. Each environment has
+separate `cache-dns-writer`, `cache-dns-solver`, and `cache-dns-controller` items
+in its `tuist-k8s-<environment>` 1Password vault. ESO supplies the credentials;
+no keys are committed. The canary and production IAM identities and vault items
+were prepared on September 23; Kubernetes resources are applied by the normal
+merge deployment, not by the credential bootstrap.
+
+The deployment cascade applies canary first, waits for its controller-managed
+wildcard Certificate to cover both `*.kura.tuist.dev` and `*.cache.tuist.dev`
+with a Ready condition at the current generation, then runs acceptance tests
+before production. The same certificate gate runs after the production Helm
+upgrade. This serializes initial ACME issuance across environments; a stale
+Ready condition from the old certificate cannot advance the cascade. A gate
+failure stops promotion but does not roll back the already completed Helm
+upgrade automatically.
+
+Both canary and production enable the infrastructure and hand-out environment
+switches. Canary requires no account flag. In production, an absent or disabled
+`kura_stable_hostname` flag keeps accounts on regional URLs and creates no stable
+DNS advertising intent. Use the existing `/ops/flags` surface to create the flag
+and enable it for actor `account:<id>`, or use an authorized release console:
+
+```elixir
+account = Tuist.Accounts.get_account_by_handle("example")
+FunWithFlags.enable(:kura_stable_hostname, for_actor: account)
+```
+
+The normal reconciliation loop publishes DNS and observes gateway/provider
+readiness before API responses change; enabling the flag is not an immediate
+traffic cutover. Once the initial accounts are validated, enable the same flag
+for everyone with `FunWithFlags.enable(:kura_stable_hostname)`. Explicit actor
+disables still take precedence; clear those overrides separately if intended.
+No deploy is required for either flag change. New eligible accounts then inherit
+the global setting. Infrastructure and hand-out environment switches remain
+hard gates, and staging's account allowlist remains in effect.
+
+Disabling an account flag stops hand-out and withdraws its advertising through
+the existing provider-confirmed drain. Follow the rollback ordering below for
+clients with persisted URLs. Disabling the global boolean alone does not revoke
+explicit actor enables; use the hand-out environment switch when all accounts
+must stop receiving the stable URL.
 
 ## Bootstrap (operator step, not performed by local validation)
 
@@ -49,6 +95,8 @@ change delegation, enable advertising, or change client endpoint responses.
    when every desired region is active and every advertising managed region has
    fresh, generation-matched controller readiness. Self-hosted registrations and
    eligible custom endpoints remain alongside the managed stable name.
+   Production additionally requires `kura_stable_hostname` for the account or
+   globally, even when the environment switches and allowlist permit it.
 
 The current catalog calls the Paris region `eu-west` (the spec's `eu-central`
 was renamed). Its AWS tag is `eu-west-3`; Northern Virginia is `us-east-1`, Oregon
