@@ -166,6 +166,37 @@ func TestRejectsFilesystemWithoutReflinksAndLowSpace(t *testing.T) {
 	}
 }
 
+func TestDeferredLoopDetachCannotPublishOrDeleteAnImage(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	b.Run = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if name == "losetup" && args[0] == "--json" {
+			return []byte(`{"loopdevices":[{"name":"/dev/loop17"}]}`), nil
+		}
+		if name == "losetup" && args[0] == "--detach" {
+			return nil, nil
+		}
+		t.Fatalf("unexpected command %s %v", name, args)
+		return nil, nil
+	}
+	if err := b.Seal(slot, path); err == nil {
+		t.Fatal("published image with a live loop reference")
+	}
+	if err := b.Delete(slot, path); err == nil {
+		t.Fatal("deleted image with a live loop reference")
+	}
+	if remote.uploads != 0 {
+		t.Fatal("uploaded before writer fence")
+	}
+	if _, err := os.Stat(b.image(slot)); err != nil {
+		t.Fatal("lost private image", err)
+	}
+}
+
 func TestRefusesLegacyJournalInsteadOfTreatingRBDLeaseAsLocal(t *testing.T) {
 	b, _ := newLocal(t)
 	os.Remove(filepath.Join(b.Root, ".backend"))

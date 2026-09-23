@@ -11,7 +11,15 @@ defmodule TuistWeb.RunnerCacheVolumesController do
          {:ok, identity} <- CacheVolumes.allocate(params) do
       conn |> put_resp_header("cache-control", "no-store") |> json(identity)
     else
-      _ -> conn |> put_status(:forbidden) |> json(%{error: "cache volume unavailable"})
+      {:error, :pending} ->
+        conn
+        |> put_resp_header("cache-control", "no-store")
+        |> put_resp_header("retry-after", "1")
+        |> put_status(425)
+        |> json(%{error: "job execution pending"})
+
+      _ ->
+        conn |> put_status(:forbidden) |> json(%{error: "cache volume unavailable"})
     end
   end
 

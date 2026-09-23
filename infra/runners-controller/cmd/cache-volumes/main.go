@@ -19,12 +19,15 @@ import (
 	"time"
 
 	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 type agent struct {
@@ -34,6 +37,7 @@ type agent struct {
 	http                                   *http.Client
 	requests                               chan struct{}
 	tokenPath                              string
+	runtime                                runtimeapi.RuntimeServiceClient
 }
 type request struct {
 	PodName      string `json:"pod_name"`
@@ -74,26 +78,8 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 	// The agent authenticates to the server. Repository and publication rights
 	// come from the job GitHub actually assigned to this live runner.
 	body, _ := json.Marshal(map[string]any{"pod_name": input.PodName, "pod_uid": input.PodUID, "node_name": a.node, "key": input.Key, "architecture": input.Architecture, "uid": input.UID})
-	auth, err := http.NewRequestWithContext(ctx, "POST", a.authorizeURL, bytes.NewReader(body))
+	identity, err := a.authorize(ctx, body)
 	if err != nil {
-		http.Error(w, "unavailable", 503)
-		return
-	}
-	token, err := os.ReadFile(a.tokenPath)
-	if err != nil {
-		http.Error(w, "unavailable", 503)
-		return
-	}
-	auth.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
-	auth.Header.Set("Content-Type", "application/json")
-	response, err := a.http.Do(auth)
-	if err != nil {
-		http.Error(w, "unavailable", 503)
-		return
-	}
-	defer response.Body.Close()
-	var identity cachevolumes.Identity
-	if response.StatusCode != 200 || json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&identity) != nil {
 		http.Error(w, "unavailable", 403)
 		return
 	}
@@ -116,11 +102,7 @@ func (a *agent) gone(name, uid string) (bool, error) {
 	if err != nil && !apierrors.IsNotFound(err) {
 		return false, err
 	}
-	_, err = os.Lstat(filepath.Join(a.kubelet, uid))
-	if os.IsNotExist(err) {
-		return true, nil
-	}
-	return false, err
+	return runtimeGone(ctx, a.runtime, uid)
 }
 func (a *agent) reconcile() error {
 	if err := a.store.Reconcile(a.gone, a.report); err != nil {
@@ -163,6 +145,7 @@ func main() {
 	maxSlots := flag.Int("max-slots", 100, "Maximum active clones on this host")
 	minFreeGB := flag.Int("min-free-gb", 40, "Free filesystem reserve before creating a branch")
 	sizeGB := flag.Int("volume-gb", 20, "Capacity of each new volume in decimal GB")
+	runtimeEndpoint := flag.String("runtime-endpoint", "unix:///run/host-containerd.sock", "Host CRI endpoint for writer teardown verification")
 	tokenPath := flag.String("token-path", "/var/run/secrets/kubernetes.io/serviceaccount/token", "Storage agent token")
 	flag.Parse()
 	if *url == "" || *node == "" || *maxSlots < 1 || *sizeGB < 1 || *minFreeGB < *sizeGB {
@@ -204,6 +187,18 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	a := &agent{tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client}
+	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer runtimeConn.Close()
+	a.runtime = runtimeapi.NewRuntimeServiceClient(runtimeConn)
+	runtimeCtx, cancelRuntime := context.WithTimeout(context.Background(), 10*time.Second)
+	_, err = a.runtime.Version(runtimeCtx, &runtimeapi.VersionRequest{Version: "0.1.0"})
+	cancelRuntime()
+	if err != nil {
+		log.Fatalf("runtime teardown verification unavailable: %v", err)
+	}
 	go func() {
 		for {
 			if err := a.reconcile(); err != nil {

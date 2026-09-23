@@ -325,7 +325,19 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 		return err
 	}
 	_, err = b.command("losetup", "--detach", device)
-	return err
+	if err != nil {
+		return err
+	}
+	// LOOP_CLR_FD may only mark a busy device for deferred destruction. Never
+	// compress or delete its image while another mount can still write to it.
+	remaining, err := b.device(b.image(slot))
+	if err != nil {
+		return err
+	}
+	if remaining != "" {
+		return errors.New("loop device still has live references after detach")
+	}
+	return nil
 }
 func (b *LocalImages) Seal(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {

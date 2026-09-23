@@ -104,7 +104,8 @@ See [provider policies](cache-volume-integrations.md).
 
 Publication remains synchronous in the existing node-agent reconciliation path;
 there is no background-upload service or detached publication queue. Linux must
-first prove the pod and its kubelet directory are absent, then unmount and detach
+first prove the pod is absent and the host CRI reports no ready sandbox or
+non-exited container for that pod UID, then unmount and detach
 its private image. It compresses the settled image, preflights the base generation,
 uploads it and asks the shared macOS HEAD code to fast-forward. Only an accepted
 image becomes a local master. A slow job cannot overwrite a newer generation;
@@ -116,6 +117,18 @@ Consequently this implementation does **not** promise that the runner slot stays
 reserved during upload. The upload-before-publication protocol and shared storage
 machinery are the same; moving the Linux writer fence or slot-release boundary
 requires validation against Kata, rather than trusting a job's completion signal.
+
+The privileged agent alone receives the host containerd socket and uses CRI list
+operations for that writer fence. Runtime errors fail closed. Waiting for the
+whole kubelet directory before unmounting deadlocks: propagated child mounts
+keep kubelet's SubPath mounts busy. After the runtime fence, unmounting releases
+those children so kubelet can complete cleanup. Directory removal still waits
+for kubelet's directory to disappear. No runtime socket enters a workflow pod.
+
+GitHub's execution webhook can arrive after the first workflow step. An open
+Linux session without that verified binding returns an explicit pending response;
+the agent waits up to 30 seconds, retrying once per second. A denied identity is
+not retried, and no volume is allocated before verified attribution arrives.
 
 The journal is persisted and fsynced before creating a branch. Cold images are
 formatted in a private temporary file and atomically renamed before exposure;

@@ -8,8 +8,11 @@ HEAD publication protocol as the macOS cache. See [runbook](../../cache-volumes.
 - Bind requests to source IP, node and UID; resolve scope/trust on the server.
 - Journal before creation; format only an unexposed temporary image and atomically
   rename it before mount. Retries never format an existing branch.
-- Seal/delete require API pod absence AND kubelet-directory absence. A webhook,
-  terminal phase, timeout or failed API request is not a writer fence.
+- Seal/delete require API pod absence AND host CRI proof that the pod UID has no
+  ready sandbox or non-exited container. Runtime errors fail closed. Waiting for
+  kubelet-directory absence before unmounting deadlocks on propagated SubPath
+  child mounts; directory cleanup still waits for kubelet after unmounting.
+  A webhook, terminal phase, timeout or failed API request is not a writer fence.
 - Publish synchronously: detach, compress, preflight, upload, fast-forward, then
   install the accepted master. Failed/rejected uploads never become masters.
 - Local masters use generation/digest filenames; checksummed downloads are

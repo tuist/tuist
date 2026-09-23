@@ -130,6 +130,9 @@ spec:
               mountPath: /tmp
             - name: run
               mountPath: /run
+            - name: containerd
+              mountPath: /run/host-containerd.sock
+              readOnly: true
             - name: host-root-device
               mountPath: /host-root-device
               readOnly: true
@@ -143,6 +146,8 @@ spec:
           emptyDir: {}
         - name: run
           emptyDir: {}
+        - name: containerd
+          hostPath: {path: /run/containerd/containerd.sock, type: Socket}
         - name: cache
           hostPath:
             path: {{ .Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}

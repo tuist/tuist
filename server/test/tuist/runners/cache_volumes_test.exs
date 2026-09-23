@@ -7,6 +7,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -63,6 +64,39 @@ defmodule Tuist.Runners.CacheVolumesTest do
   end
 
   defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
+
+  test "only an open Linux session waiting for execution attribution is retryable", %{account: account, job: job} do
+    session =
+      Repo.insert!(%RunnerSession{
+        account_id: account.id,
+        workflow_job_id: job.workflow_job_id,
+        fleet_name: "linux",
+        pod_name: "pending-pod",
+        node_name: "node",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: 10_000,
+        started_at: DateTime.utc_now()
+      })
+
+    params = %{
+      "pod_name" => "pending-pod",
+      "pod_uid" => "uid",
+      "node_name" => "node",
+      "key" => "gradle",
+      "architecture" => "amd64",
+      "uid" => 1001
+    }
+
+    assert {:error, :pending} = CacheVolumes.allocate(params)
+    assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "node_name" => "other"})
+    assert {:error, :unavailable} = CacheVolumes.allocate(%{params | "pod_name" => "unknown"})
+    assert CacheVolumes.list(account.id).volumes == []
+
+    Repo.update!(Ecto.Changeset.change(session, ended_at: DateTime.utc_now()))
+    assert {:error, :unavailable} = CacheVolumes.allocate(params)
+  end
 
   test "custom Linux names never become valid macOS dispatch names", %{job: job, account: account} do
     {:ok, _} = CacheVolumes.allocate_for_job(job, identity(), attrs())

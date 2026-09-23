@@ -46,13 +46,27 @@ defmodule Tuist.Runners.CacheVolumes do
         uid: user_id
       })
     else
-      _ -> {:error, :unavailable}
+      nil ->
+        if pending_execution?(pod, node), do: {:error, :pending}, else: {:error, :unavailable}
+
+      _ ->
+        {:error, :unavailable}
     end
   end
 
   def allocate(_), do: {:error, :unavailable}
 
   def valid_key?(key), do: is_binary(key) and Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_.\/-]{0,199}$/, key)
+
+  defp pending_execution?(pod, node) do
+    Repo.exists?(
+      from(s in RunnerSession,
+        where:
+          s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform == :linux and
+            is_nil(s.executed_workflow_job_id)
+      )
+    )
+  end
 
   defp executing_job(pod, node) do
     Repo.one(

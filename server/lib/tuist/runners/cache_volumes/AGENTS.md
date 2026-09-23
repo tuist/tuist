@@ -13,6 +13,9 @@ these schemas persist volume identities and per-job uses.
   PRs can read private clones; publication requires a successful eligible job
   and local fencing. Preserve legacy GitHub volume UUIDs when changing identity.
   See `infra/runners-controller/cache-volume-integrations.md` for provider policies.
+- An open Linux session awaiting its verified execution binding returns pending
+  (425 to the authenticated agent). The agent retries for at most 30 seconds;
+  unknown/closed sessions and denied provider identities remain unavailable.
 - Logical invalidation and acknowledged physical deletion are distinct states.
 - Preserve unknown metrics. Reported logical usage is not unique physical allocation.
 - Size measurements are appended on the first report, changed used/capacity

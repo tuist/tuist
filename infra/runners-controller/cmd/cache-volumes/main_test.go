@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 type testBackend struct{}
@@ -86,10 +87,12 @@ func TestAcquireBindsSourceIPNodeUIDAndAuthorization(t *testing.T) {
 		t.Fatal("valid request rejected", got)
 	}
 }
-func TestGoneWaitsForAPIDeletionAndKubeletTeardown(t *testing.T) {
+func TestGoneWaitsForAPIDeletionAndRuntimeTeardown(t *testing.T) {
 	kubelet := t.TempDir()
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "p", Namespace: "runners", UID: types.UID("u")}, Status: corev1.PodStatus{Phase: corev1.PodSucceeded}}
-	a := &agent{kube: fake.NewSimpleClientset(pod), namespace: "runners", kubelet: kubelet}
+	a := &agent{kube: fake.NewSimpleClientset(pod), namespace: "runners", kubelet: kubelet, runtime: testRuntime{
+		sandboxes: []*runtimeapi.PodSandbox{{Metadata: &runtimeapi.PodSandboxMetadata{Uid: "u"}, State: runtimeapi.PodSandboxState_SANDBOX_READY}},
+	}}
 	if gone, err := a.gone("p", "u"); err != nil || gone {
 		t.Fatal("terminal pod reused before deletion")
 	}
@@ -100,11 +103,9 @@ func TestGoneWaitsForAPIDeletionAndKubeletTeardown(t *testing.T) {
 		t.Fatal(err)
 	}
 	if gone, err := a.gone("p", "u"); err != nil || gone {
-		t.Fatal("reused before kubelet unmount")
+		t.Fatal("reused before runtime teardown")
 	}
-	if err := os.Remove(filepath.Join(kubelet, "u")); err != nil {
-		t.Fatal(err)
-	}
+	a.runtime = testRuntime{}
 	if gone, err := a.gone("p", "u"); err != nil || !gone {
 		t.Fatal("finished teardown not reclaimed")
 	}
