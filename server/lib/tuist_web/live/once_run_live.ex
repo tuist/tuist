@@ -26,7 +26,7 @@ defmodule TuistWeb.OnceRunLive do
          socket
          |> put_flash(:error, dgettext("dashboard_projects", "Run not found"))
          |> push_navigate(
-           to: ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/once/runs"
+           to: ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/once/build-runs"
          )}
 
       run ->
@@ -148,7 +148,7 @@ defmodule TuistWeb.OnceRunLive do
         data-part="back-button"
         variant="secondary"
         size="medium"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/runs"}
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/build-runs"}
       >
         <:icon_left><.icon name="arrow_left" /></:icon_left>
       </.button>

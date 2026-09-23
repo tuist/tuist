@@ -1410,8 +1410,8 @@ defmodule TuistWeb.Router do
       live "/builds/tasks", GradleTasksLive, :tasks
       live "/builds/tasks/:name", GradleTasksLive, :task
       live "/bazel-cache", BazelCacheLive
-      live "/once", OnceRunsLive
-      live "/once/runs", OnceRunsLive
+      get "/once", RedirectPlug, to: "/once/builds"
+      get "/once/runs", RedirectPlug, to: "/once/build-runs"
       live "/once/runs/:once_run_id", OnceRunLive, :overview
       live "/once/runs/:once_run_id/cache", OnceRunLive, :cache
       live "/once/builds", OnceRunsLive, :builds
