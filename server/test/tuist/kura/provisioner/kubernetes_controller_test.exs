@@ -38,7 +38,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "disabled rollout leaves instances without stable fields untouched" do
       stub(Tuist.Environment, :kura_stable_hostname_enabled?, fn -> false end)
       server = %Server{account: %Account{name: "acme"}, region: "eu-west", provisioner_node_ref: "instance"}
-      expect(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, %{"spec" => %{}}} end)
+      expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, %{"spec" => %{}}} end)
       reject(&Client.patch/3)
       assert :ok = KubernetesController.sync_stable_endpoint(server, Regions.get("eu-west"), [])
     end
@@ -58,7 +58,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       }
 
       instance = %{"metadata" => %{"resourceVersion" => "42", "generation" => 1}, "spec" => %{"image" => "unchanged"}}
-      expect(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, instance} end)
+      expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, instance} end)
 
       expect(Client, :patch, fn "/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/instance",
                                 [guard | changes],
@@ -100,7 +100,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         }
       }
 
-      expect(Client, :get_kura_instance, fn "kura", "instance", [] -> {:ok, instance} end)
+      expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, instance} end)
 
       expect(Client, :patch, fn _, [_guard, operation], [] ->
         assert operation == %{"op" => "add", "path" => "/spec/stableAdvertise", "value" => false}

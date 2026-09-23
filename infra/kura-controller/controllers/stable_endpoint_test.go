@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -22,6 +23,54 @@ type fakeStableDNS struct {
 	record  *StableDNSRecord
 	err     error
 	ensures int
+}
+
+func TestStableWithdrawalFailureStillRepairsWorkload(t *testing.T) {
+	ctx := context.Background()
+	r, instance, pods, samples, dns, _ := stableFixture(t)
+	if err := r.reconcileStableEndpoint(ctx, instance, pods[0].Name, pods, samples); err != nil {
+		t.Fatal(err)
+	}
+	instance.Spec.StableAdvertise = false
+	instance.Spec.Image = "ghcr.io/tuist/kura:repair"
+	if err := r.Update(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	dns.err = errors.New("AWS unavailable")
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal("withdrawal failure prevented workload repair:", err)
+	}
+	if sts.Spec.Template.Spec.Containers[0].Image != instance.Spec.Image {
+		t.Fatal("withdrawal failure prevented image convergence")
+	}
+	ingress := &networkingv1.Ingress{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatal(err)
+	}
+	if len(ingress.Spec.Rules) != 2 || ingress.Spec.Rules[1].Host != "acme.cache.tuist.dev" {
+		t.Fatal("repair dropped retained stable routing")
+	}
+}
+
+func TestStableWithdrawalBeforePublicationNeedsNoProviderOrDrain(t *testing.T) {
+	ctx := context.Background()
+	r, instance, pods, samples, _, probe := stableFixture(t)
+	probe.err = errors.New("certificate not ready")
+	if err := r.reconcileStableEndpoint(ctx, instance, pods[0].Name, pods, samples); err != nil {
+		t.Fatal(err)
+	}
+	if instance.Status.StableEndpoint == nil || instance.Status.StableEndpoint.Target != "" {
+		t.Fatal("expected persisted identity without publication")
+	}
+	r.StableDNS = nil
+	done, err := r.withdrawStableEndpoint(ctx, instance)
+	if err != nil || !done || instance.Status.StableEndpoint != nil {
+		t.Fatalf("unpublished identity should withdraw immediately: done=%v err=%v", done, err)
+	}
 }
 
 func (f *fakeStableDNS) EnsureHealthCheck(context.Context, string) (string, error) {

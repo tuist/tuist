@@ -158,6 +158,8 @@ func (p *Route53StableDNS) Record(ctx context.Context, host, setID string) (*Sta
 // Provider records AND persisted instance intent retain it until external-dns
 // has caught up. Other environments' checks never match this caller prefix.
 func (p *Route53StableDNS) collectHealthChecks(ctx context.Context, inUse map[string]bool) error {
+	p.healthMu.Lock()
+	defer p.healthMu.Unlock()
 	input := &route53.ListResourceRecordSetsInput{HostedZoneId: aws.String(p.zone)}
 	for {
 		page, err := p.api.ListResourceRecordSets(ctx, input)
@@ -180,6 +182,13 @@ func (p *Route53StableDNS) collectHealthChecks(ctx context.Context, inUse map[st
 		if strings.HasPrefix(aws.ToString(check.CallerReference), p.healthPrefix()) && !inUse[aws.ToString(check.Id)] {
 			if _, err := p.api.DeleteHealthCheck(ctx, &route53.DeleteHealthCheckInput{HealthCheckId: check.Id}); err != nil {
 				return err
+			}
+			// Retain references through stale list responses after a successful
+			// create, but never reuse one after its check was collected.
+			for target, reference := range p.healthReferences {
+				if reference == aws.ToString(check.CallerReference) {
+					delete(p.healthReferences, target)
+				}
 			}
 		}
 	}

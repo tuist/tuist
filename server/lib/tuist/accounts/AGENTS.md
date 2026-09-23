@@ -25,3 +25,7 @@ This context owns business logic and data related to accounts, users, organizati
 - Migrations: `server/priv/AGENTS.md`
 
 - Account handles ending in `-staging` or `-canary` are reserved case-insensitively to prevent stable cache DNS collisions across environments. Existing suffixed handles keep regional endpoints until explicitly renamed. Stable managed endpoint responses preserve eligible custom endpoints and registered self-hosted URLs.
+- Email-derived signup handles receive a numeric suffix when reserved, with the
+  normal collision retries; explicit reserved handles remain invalid. Add custom
+  endpoints only after stable hand-out succeeds, so absent managed instances
+  still trigger provisioning and the existing client-specific fallback.

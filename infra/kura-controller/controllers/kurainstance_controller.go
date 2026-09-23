@@ -475,10 +475,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if instance.Status.StableEndpoint != nil && !stableAdvertising(instance) {
 		done, err := r.withdrawStableEndpoint(ctx, instance)
 		if err != nil {
-			return ctrl.Result{}, err
+			logger.Error(err, "withdraw stable DNS advertisement")
 		}
 		if !done && (instance.Spec.Private || instance.Spec.PublicHost == "") {
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 		}
 	}
 

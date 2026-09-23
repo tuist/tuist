@@ -128,6 +128,10 @@ stalled external-dns retain routing indefinitely. Authoritative DNS and real
 client behavior still require the staging validation below; a local fake API
 cannot prove AWS's propagation or ingress-nginx reload behavior.
 
+An identity whose target was never persisted cannot have published a DNS source
+and clears immediately. Once publication was possible, provider failures keep
+the withdrawal barrier in place while normal public workload repairs continue.
+
 Health checks use standard 30-second TCP probes on port 443, three failures,
 shared per box and cluster. They do not promise failover within a single second
 or detect a broken account on a healthy box. Route53 skips unhealthy records
@@ -137,11 +141,18 @@ persisted instance state release them, including orphans from interrupted create
 
 Readiness is projected into PostgreSQL `kura_servers.stable_endpoint`, shared
 between the reconciler and all web replicas without requiring Redis. It retains
-the controller's timestamp and is usable for at most three minutes. Re-reading
+the controller's timestamp and expires after three minutes, with a 30-second
+tolerance for an observation ahead of the server clock. Re-reading
 frozen status does not renew it; absent or stale evidence restores regional
 responses. Archival and cold return clear it. The additive nullable column needs
 no backfill: the next reconciliation populates it. DNS and readiness state are
 documented in `server/data-export.md`.
+
+Stable intent synchronization uses eight concurrent workers with bounded reads,
+and unchanged projections do not rewrite rows. Endpoint resolution reuses the
+managed-server query's readiness fields and evaluates the account flag once.
+Custom URLs join a stable response only after the stable hostname is actually
+selected, preserving archived-account provisioning and legacy fallback.
 
 ## Rollback
 
@@ -161,6 +172,10 @@ Existing account handles ending in `-staging` or `-canary` are not silently
 renamed: they stay on regional endpoints. New names/renames with those suffixes
 are rejected case-insensitively. Audit and resolve any existing collisions before
 enabling their stable lane.
+
+Email-derived signup handles that would use a reserved suffix receive a numeric
+suffix through the existing collision retry path; explicit handle requests
+remain subject to validation.
 
 ## Local validation (2026-09-22)
 
@@ -186,7 +201,7 @@ ACME issuance, ingress reloads, or client HTTP/gRPC behavior against the new nam
 
 ## Repeatable staging probes
 
-`../kura-controller/cmd/staging-probe` uses the controller's Go toolchain and
+`probes/cmd/staging-probe` has its own Go module and
 requires grpcurl at runtime. It refuses non-staging
 hostnames and requires the hostname to match the test account. Use a short-lived,
 project-scoped cache token in a local file with permissions `0600`; do not commit
@@ -197,8 +212,8 @@ REAPI `BatchUpdateBlobs`/`BatchReadBlobs`, checking both RPC result codes and by
 These protocol probes complement actual client builds; they do not replace them.
 
 ```bash
-cd infra/kura-controller
-go build -o /tmp/staging-probe ./cmd/staging-probe
+cd infra/cache-dns/probes
+GOWORK=off go build -o /tmp/staging-probe ./cmd/staging-probe
 /tmp/staging-probe roundtrip \
   --host kura-spec95-e2e-staging.cache.tuist.dev \
   --account kura-spec95-e2e --project probe \
@@ -215,13 +230,13 @@ inside an otherwise green summary; capture stderr and the process exit status to
 For the regional baseline, pass the other region's hostname as `--read-host`;
 stable-name probes deliberately use the same hostname on both boxes.
 
-See [the staging validation record](staging-validation.md) for completed checks,
+See [the staging validation record](https://github.com/tuist/tuist/blob/0e7cc8d2dcce18012377f3d6efa9656b1e23b17e/infra/cache-dns/staging-validation.md) for completed checks,
 the exact deployment revision, and outstanding prerequisites.
 
 ## Staging validation checklist
 
 These live checks are separate from local tests. See the
-[validation record](staging-validation.md) for completed runs and remaining
+[validation record](https://github.com/tuist/tuist/blob/0e7cc8d2dcce18012377f3d6efa9656b1e23b17e/infra/cache-dns/staging-validation.md) for completed runs and remaining
 coverage limits; the checklist is also the procedure for repeating them.
 
 - Verify delegation, credentials, solver selection, separate TXT ownership, and
@@ -254,8 +269,8 @@ adoptable; uncertain create retries retain their reference to avoid duplicates.
 
 ### Bounded staging outage and steering harness
 
-`go run ./cmd/staging-soak --origin <location> --token-file <private-file>` (from
-`infra/kura-controller`) keeps HTTP/1.1 and HTTP/2 REAPI transports alive for one
+`GOWORK=off go run ./cmd/staging-soak --origin <location> --token-file <private-file>` (from
+`infra/cache-dns/probes`) keeps HTTP/1.1 and HTTP/2 REAPI transports alive for one
 hour against **only** `kura-spec95-e2e-staging.cache.tuist.dev`. It seeds a small
 fixture on both boxes, checks downloaded bytes every two seconds, and records
 connection reuse and remote addresses. Requests use ordinary system DNS, not a

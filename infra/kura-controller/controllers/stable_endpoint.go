@@ -206,6 +206,12 @@ func (r *KuraInstanceReconciler) withdrawStableEndpoint(ctx context.Context, ins
 	if state == nil {
 		return true, nil
 	}
+	// The target is persisted before a DNS source can be created. An identity
+	// that never reached that point cannot have sent traffic to this gateway.
+	if state.Target == "" {
+		instance.Status.StableEndpoint = nil
+		return true, r.saveStableEndpoint(ctx, instance)
+	}
 	if r.StableDNS == nil {
 		return false, fmt.Errorf("cannot confirm stable DNS withdrawal without Route53")
 	}

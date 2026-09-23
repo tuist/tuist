@@ -7,14 +7,19 @@ defmodule Tuist.Kura.StableEndpointTest do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Kura
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.PlacerRegions
+  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Registrations
+  alias Tuist.Kura.Server
   alias Tuist.Kura.StableEndpoint
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.KuraFixtures
+  alias TuistTestSupport.TelemetryCapture
 
   setup :set_mimic_from_context
 
@@ -154,6 +159,123 @@ defmodule Tuist.Kura.StableEndpointTest do
 
     stub(Environment, :kura_stable_hostname_handout_enabled?, fn -> false end)
     assert Accounts.kura_cache_endpoint_urls(account) == [server.url, "https://registered.example.com"]
+  end
+
+  test "custom endpoints do not bypass an archived account's provisioning and fallback" do
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Environment, :dev?, fn -> false end)
+    stub(Environment, :test?, fn -> false end)
+    stub(Environment, :kura_available_region_ids, fn -> ["eu-west"] end)
+    stub(Environment, :cache_endpoints, fn -> ["https://legacy.example.com"] end)
+
+    for technology <- [:kura, :kura_with_legacy_fallback] do
+      account = AccountsFixtures.user_fixture().account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom.example.com"})
+      {:ok, _} = Demand.upsert(account.id, "eu-west", DateTime.utc_now())
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "eu-west",
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-eu-west"
+      })
+
+      endpoints = if technology == :kura, do: [], else: ["https://legacy.example.com"]
+
+      assert Accounts.get_cache_resolution_for_handle(account.name, technology) ==
+               %{endpoints: endpoints, provisioning: true}
+
+      assert_enqueued(worker: ProvisionOnDemandWorker, args: %{account_id: account.id})
+    end
+  end
+
+  test "custom endpoints wait for stable hand-out, even with a serving managed instance" do
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    account = AccountsFixtures.user_fixture().account
+    BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+    {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+    {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom.example.com"})
+    {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+
+    assert Accounts.kura_cache_endpoint_urls(account) == [server.url]
+  end
+
+  test "readiness tolerates bounded clock skew without accepting far-future observations" do
+    account = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+    observe(server, account, checked_at: DateTime.add(DateTime.utc_now(), 20))
+    assert StableEndpoint.resolve(account, [server.url]) == ["https://#{account.name}.cache.tuist.dev"]
+    observe(server, account, checked_at: DateTime.add(DateTime.utc_now(), 60))
+    assert StableEndpoint.resolve(account, [server.url]) == [server.url]
+  end
+
+  test "observing unchanged controller state does not rewrite the projection" do
+    account = AccountsFixtures.user_fixture().account
+    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+    checked_at = DateTime.utc_now()
+    assert {1, _} = observe(server, account, checked_at: checked_at)
+    assert {0, _} = observe(server, account, checked_at: checked_at)
+  end
+
+  test "endpoint resolution reads managed servers and the feature flag once" do
+    account = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+    observe(server, account)
+    flag_read = make_ref()
+
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] ->
+      send(self(), flag_read)
+      true
+    end)
+
+    ref = TelemetryCapture.attach_event_handlers([[:tuist, :repo, :query]])
+
+    assert Accounts.kura_cache_endpoint_urls(account) == ["https://#{account.name}.cache.tuist.dev"]
+    assert_received ^flag_read
+    refute_received ^flag_read
+
+    {:messages, messages} = Process.info(self(), :messages)
+    queries = for {[:tuist, :repo, :query], ^ref, _, %{query: query}} <- messages, do: query
+    assert Enum.count(queries, &String.contains?(&1, ~s(FROM "kura_servers"))) == 1
+  end
+
+  test "stable reconciliation overlaps independent instance requests" do
+    account = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+
+    for region <- ["eu-west", "ca-east"] do
+      KuraFixtures.active_server_fixture(account, region: region)
+    end
+
+    owner = self()
+
+    stub(KubernetesController, :sync_stable_endpoint, fn server, _region, _claimed ->
+      send(owner, {:syncing, self(), server.id})
+
+      receive do
+        :continue -> :ok
+      after
+        5_000 -> raise "independent stable endpoint requests were serialized"
+      end
+    end)
+
+    task = Task.async(fn -> StableEndpoint.reconcile() end)
+
+    try do
+      assert_receive {:syncing, first, _}, 1_000
+      assert_receive {:syncing, second, _}, 1_000
+      assert first != second
+      send(first, :continue)
+      send(second, :continue)
+      Task.await(task)
+    after
+      Task.shutdown(task, :brutal_kill)
+    end
   end
 
   test "a reader without the reconciler's local cache still hands out the stable endpoint" do

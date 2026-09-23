@@ -5,8 +5,9 @@
 retained on stack deletion. No workflow applies it automatically.
 
 Keep bootstrap, rollback, and the repeatable staging test sequence in `README.md`.
-Record completed runs, failures, measurement limits, and fixture cleanup in
-`staging-validation.md`; do not treat a bounded soak as multi-day validation.
+Preserve completed evidence with the PR rather than adding point-in-time logs
+to the tree; the README links the immutable staging validation record.
+Repeatable tools have their own Go module: [probes/AGENTS.md](probes/AGENTS.md).
 The controller owns box health checks; external-dns alone writes account A/TXT
 records; cert-manager writes ACME TXT challenges. Do not combine their credentials.
 
@@ -17,7 +18,7 @@ and hand-out. `wait-for-certificate.sh` blocks environment promotion until the
 shared certificate includes both DNS zones and is Ready at its current
 generation, preventing overlapping initial ACME issuance in the cascade.
 
-`../kura-controller/cmd/staging-probe` validates readiness and authenticated HTTP/REAPI blob round trips
+`probes/cmd/staging-probe` validates readiness and authenticated HTTP/REAPI blob round trips
 against staging hosts only. It keeps TLS verification enabled when pinning a box
 IP, accepts tokens through a local file, and writes credential-free JSONL evidence.
 Its embedded `reapi-smoke.proto` is the minimal wire-compatible CAS schema used by grpcurl.
@@ -33,6 +34,6 @@ staging self-hosted runner policy denies public Kura node IPs as Cilium
 `remote-node` destinations when the private endpoint override is removed;
 do not weaken that policy to make this public-client check pass.
 
-`../kura-controller/cmd/staging-soak` adds bounded persistent-connection and
+`probes/cmd/staging-soak` adds bounded persistent-connection and
 DNS/latency evidence for the fixed staging fixture. Distinguish its fresh
 TCP/TLS readiness timings from historical native-client `/up` telemetry.

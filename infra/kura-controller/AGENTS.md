@@ -86,14 +86,17 @@ distinct DNS owners and separate ESO credentials. Certificate promotion tests
 exercise the deployment script against pending, stale, and current certificates
 without contacting Kubernetes; an old Ready condition cannot advance the cascade.
 
-`cmd/staging-probe` provides the staging-only public TLS and authenticated
-HTTP/REAPI probe. It embeds the minimal protobuf schema and invokes grpcurl with
-the token in its subprocess environment, never in arguments. Keep the runbook in
-`../cache-dns/README.md` and evidence in `../cache-dns/staging-validation.md`.
+Repeatable staging probes live in their own module at
+[`../cache-dns/probes`](../cache-dns/probes/AGENTS.md), outside the controller build.
 
 `controllers/stable_endpoint.go` separates rendering from latency-record advertising. Managed host-network instances add `stableHost`, `stableAdvertise`, and `stableAWSRegion`; private instances cannot advertise. Probe the actual gateway using stable SNI before publishing, then require the exact provider record for readiness. Regional TLS keeps its working wildcard while stable TLS is pending. Host-network Ingresses use annotation-only external-dns sourcing, making DNSEndpoints authoritative.
 
 Persist identity before creating a DNS source. Rollback, rename and deletion all retain that identity in status, withdraw only its regional record, and wait the full drain after Route53 observes absence. Provider errors never count as absence. Do not remove the finalizer or disable provider credentials to unblock this barrier. Shared TCP box checks are controller-owned and garbage-collected under the same reconciliation lock only when both provider records and persisted intent release them. `../cache-dns/README.md` owns rollout and deferred staging validation.
+
+An identity with no persisted target never reached publication and clears without
+a provider read or drain. For published endpoints, withdrawal errors retain the
+host but must not stop ordinary workload repair; only deletion or a change that
+would drop public serving blocks the rest of reconciliation.
 
 Publish completed stable readiness observations. A steady reconciliation must not
 persist an intermediate `ready: false` before probing: the server can sample it
@@ -105,9 +108,5 @@ context so an expired provider deadline does not prevent recording the failure.
 Health-check incarnations use a random caller-reference suffix: Route53 retains
 references after deletion and rejects reusing them for days. Adopt both legacy
 and suffixed checks by box identity, keep the same reference across ambiguous
-create retries, and rotate it only after a definite AlreadyExists response.
-
-`cmd/staging-soak` is restricted to the spec95 staging fixture. It keeps one
-HTTP/1.1 transport and one HTTP/2 REAPI transport alive, records connection reuse
-and addresses, and compares system/authoritative DNS with three fresh verified
-TLS `/ready` probes per box each minute. No production host option is exposed.
+create retries and stale lists after success. Release the reference after
+confirmed collection, or rotate it after a definite AlreadyExists response.

@@ -18,6 +18,7 @@ defmodule Tuist.Kura.StableEndpoint do
   require Logger
 
   @freshness_seconds 180
+  @clock_skew_seconds 30
 
   def host(%Account{name: name}) do
     suffix =
@@ -73,18 +74,33 @@ defmodule Tuist.Kura.StableEndpoint do
 
     claimed = servers |> Enum.map(& &1.account) |> PlacerRegions.claimed_regions_all()
 
-    Enum.each(servers, fn server ->
-      region = Regions.get(server.region)
+    servers
+    |> Enum.filter(&supported?(Regions.get(&1.region)))
+    |> Task.async_stream(
+      fn server ->
+        result =
+          KubernetesController.sync_stable_endpoint(
+            server,
+            Regions.get(server.region),
+            Map.get(claimed, server.account_id, [])
+          )
 
-      if supported?(region) do
-        case KubernetesController.sync_stable_endpoint(server, region, Map.get(claimed, server.account_id, [])) do
-          {:error, reason} ->
-            Logger.warning("[Kura.StableEndpoint] could not synchronize #{server.id}: #{inspect(reason)}")
+        {server.id, result}
+      end,
+      max_concurrency: 8,
+      ordered: false,
+      timeout: 15_000,
+      on_timeout: :kill_task
+    )
+    |> Enum.each(fn
+      {:ok, {id, {:error, reason}}} ->
+        Logger.warning("[Kura.StableEndpoint] could not synchronize #{id}: #{inspect(reason)}")
 
-          _ ->
-            :ok
-        end
-      end
+      {:exit, reason} ->
+        Logger.warning("[Kura.StableEndpoint] synchronization task exited: #{inspect(reason)}")
+
+      _ ->
+        :ok
     end)
   end
 
@@ -102,6 +118,7 @@ defmodule Tuist.Kura.StableEndpoint do
     Server
     |> where([s], s.region == ^region and s.provisioner_node_ref == ^name)
     |> where([s], s.status in [:provisioning, :replicating, :active, :failed, :drain_pending])
+    |> where([s], is_nil(s.stable_endpoint) or s.stable_endpoint != ^projection)
     |> Repo.update_all(set: [stable_endpoint: projection])
   end
 
@@ -109,7 +126,7 @@ defmodule Tuist.Kura.StableEndpoint do
     with %{"ready" => true, "host" => ^expected_host, "checked_at" => checked_at} <- projection,
          true <- is_binary(checked_at),
          {:ok, checked, _} <- DateTime.from_iso8601(checked_at),
-         age when age >= 0 and age <= @freshness_seconds <- DateTime.diff(DateTime.utc_now(), checked) do
+         age when age >= -@clock_skew_seconds and age <= @freshness_seconds <- DateTime.diff(DateTime.utc_now(), checked) do
       true
     else
       _ -> false
@@ -126,23 +143,23 @@ defmodule Tuist.Kura.StableEndpoint do
     end
   end
 
-  def resolve(account, regional_urls) do
+  def resolve(account, regional_urls, servers \\ nil) do
     if regional_urls != [] and enabled_for_account?(account) and
          Environment.kura_stable_hostname_handout_enabled?() do
-      resolve_ready(account, regional_urls)
+      resolve_ready(account, regional_urls, servers)
     else
       regional_urls
     end
   end
 
-  defp resolve_ready(account, regional_urls) do
+  defp resolve_ready(account, regional_urls, servers) do
     desired = PlacerRegions.serving_regions(account)
 
     servers =
-      Repo.all(from s in Server, where: s.account_id == ^account.id and s.status == :active and s.move_phase == :none)
+      servers || Repo.all(from s in Server, where: s.account_id == ^account.id and s.status == :active)
 
     host = host(account)
-    managed = Enum.filter(servers, &supported?(Regions.get(&1.region)))
+    managed = Enum.filter(servers, &(&1.move_phase == :none and supported?(Regions.get(&1.region))))
     serving = Enum.filter(managed, &(&1.region in desired))
 
     all_ready =

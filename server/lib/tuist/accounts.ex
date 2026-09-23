@@ -935,21 +935,7 @@ defmodule Tuist.Accounts do
   def create_user(email, opts \\ []) do
     token = Tuist.Tokens.generate_token()
 
-    suffix = Keyword.get(opts, :suffix, "")
-
-    handle =
-      Keyword.get(
-        opts,
-        :handle
-      ) ||
-        (email
-         |> String.split("@")
-         |> List.first()
-         |> String.replace(".", "-")
-         |> String.replace("_", "-")
-         |> String.replace(~r/[^a-zA-Z0-9-]/, "")
-         |> String.trim("-")
-         |> String.downcase()) <> suffix
+    {handle, opts} = user_handle(email, opts)
 
     password = Keyword.get(opts, :password, "")
     confirmed_at = Keyword.get(opts, :confirmed_at, default_confirmed_at())
@@ -1036,6 +1022,30 @@ defmodule Tuist.Accounts do
       when step in [:runner_concurrency_limits, :default_runner_profile, :default_macos_runner_profile] ->
         Logger.error("create_user: account bootstrap insert failed (#{step}): #{inspect(reason)}")
         {:error, :internal_server_error}
+    end
+  end
+
+  defp user_handle(email, opts) do
+    suffix = Keyword.get(opts, :suffix, "")
+
+    handle =
+      Keyword.get(
+        opts,
+        :handle
+      ) ||
+        (email
+         |> String.split("@")
+         |> List.first()
+         |> String.replace(".", "-")
+         |> String.replace("_", "-")
+         |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+         |> String.trim("-")
+         |> String.downcase()) <> suffix
+
+    if not Keyword.has_key?(opts, :handle) and StableEndpoint.reserved_handle?(handle) do
+      {handle <> "1", Keyword.put(opts, :suffix, "1")}
+    else
+      {handle, opts}
     end
   end
 
@@ -2928,11 +2938,13 @@ defmodule Tuist.Accounts do
   drift.
   """
   def kura_cache_endpoint_urls(%Account{} = account, origin \\ nil) do
-    managed_urls = StableEndpoint.resolve(account, Kura.managed_cache_endpoint_urls(account, origin))
+    servers = Kura.managed_cache_endpoints(account, origin)
+    managed_urls = StableEndpoint.resolve(account, Enum.uniq(Enum.map(servers, & &1.url)), servers)
     registered_urls = registered_kura_endpoint_urls(account)
+    stable_host = StableEndpoint.host(account)
 
     custom_urls =
-      if StableEndpoint.enabled_for_account?(account) and Environment.kura_stable_hostname_handout_enabled?() do
+      if stable_host != nil and "https://#{stable_host}" in managed_urls do
         account |> custom_cache_endpoints() |> Enum.map(& &1.url)
       else
         []

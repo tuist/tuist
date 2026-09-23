@@ -92,7 +92,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   def sync_stable_endpoint(%Server{} = server, region, claimed \\ nil) do
     name = server.provisioner_node_ref
 
-    with {:ok, instance} <- client_get_kura_instance(@namespace, name, region) do
+    with {:ok, instance} <- client_get_kura_instance(@namespace, name, region, timeout: 3_000) do
       StableEndpoint.observe(region.id, name, instance)
       desired = StableEndpoint.intent(server, region, claimed)
 

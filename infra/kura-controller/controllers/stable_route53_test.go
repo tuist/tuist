@@ -188,6 +188,22 @@ func TestStableHealthCheckRetriesAnUncertainCreateWithSameReference(t *testing.T
 	}
 }
 
+func TestStableHealthCheckSuccessfulCreateRetainsReferenceThroughStaleList(t *testing.T) {
+	api := &fakeRoute53{}
+	p := &Route53StableDNS{api: api, zone: "zone", owner: "staging"}
+	ctx := context.Background()
+	if _, err := p.EnsureHealthCheck(ctx, "203.0.113.20"); err != nil {
+		t.Fatal(err)
+	}
+	api.checks = nil
+	if _, err := p.EnsureHealthCheck(ctx, "203.0.113.20"); err != nil {
+		t.Fatal(err)
+	}
+	if api.createReferences[0] != api.createReferences[1] {
+		t.Fatal("stale list after success could create a duplicate check")
+	}
+}
+
 func TestStableHealthCheckAdoptsLegacyReference(t *testing.T) {
 	api := &fakeRoute53{}
 	p := &Route53StableDNS{api: api, zone: "zone", owner: "staging"}
@@ -205,7 +221,7 @@ func TestStableHealthCheckAdoptsLegacyReference(t *testing.T) {
 	}
 }
 
-func TestStableHealthCheckRotatesOnlyAfterDefiniteConflict(t *testing.T) {
+func TestStableHealthCheckCanReturnWithoutControllerRestart(t *testing.T) {
 	api := &fakeRoute53{}
 	p := &Route53StableDNS{api: api, zone: "zone", owner: "staging"}
 	ctx := context.Background()
@@ -216,11 +232,19 @@ func TestStableHealthCheckRotatesOnlyAfterDefiniteConflict(t *testing.T) {
 	if err := p.collectHealthChecks(ctx, map[string]bool{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.EnsureHealthCheck(ctx, "203.0.113.20"); err == nil {
-		t.Fatal("expected definite retained-reference conflict")
-	}
 	second, err := p.EnsureHealthCheck(ctx, "203.0.113.20")
 	if err != nil || second == first {
 		t.Fatalf("could not recover from retained reference: %s %v", second, err)
+	}
+}
+
+func TestStableHealthCheckRotatesOnlyAfterDefiniteConflict(t *testing.T) {
+	api := &fakeRoute53{tombstones: map[string]bool{"retained": true}}
+	p := &Route53StableDNS{api: api, zone: "zone", owner: "staging", healthReferences: map[string]string{"203.0.113.20": "retained"}}
+	if _, err := p.EnsureHealthCheck(context.Background(), "203.0.113.20"); err == nil {
+		t.Fatal("expected definite retained-reference conflict")
+	}
+	if _, err := p.EnsureHealthCheck(context.Background(), "203.0.113.20"); err != nil {
+		t.Fatal(err)
 	}
 }
