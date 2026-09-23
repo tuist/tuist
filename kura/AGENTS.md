@@ -29,6 +29,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer TLS support: `src/peer_tls.rs`
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
+  - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.
   - ByteStream admission uses the standard ShellSpec `support.sh` lifecycle and the Compose override in `test/e2e/bytestream-admission/`. The CI bytestream-admission shard runs it against the shared prebuilt Kura image and the existing Go load-client image. Optional resource captures use the same test path.
   - `test/e2e/multipart-admission/run.py` launches an isolated native server for the multipart admission ShellSpec.
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries

@@ -8,14 +8,16 @@ Describe 'account rename through managed discovery'
     RENAME_TMP="$(mktemp -d)"
     KURA_MTLS_CERT_DIR="$RENAME_TMP"
     generate_peer_tls_material || return 1
-    python3 test/e2e/account-rename/control_plane.py "$RENAME_TMP/control-port" >"$RENAME_TMP/control.log" 2>&1 &
+    node test/e2e/account-rename/control_plane.mjs "$RENAME_TMP" >"$RENAME_TMP/control.log" 2>&1 &
     CONTROL_PID=$!
     for _ in $(seq 1 100); do
       [ -s "$RENAME_TMP/control-port" ] && break
+      kill -0 "$CONTROL_PID" 2>/dev/null || { cat "$RENAME_TMP/control.log" >&2; return 1; }
       sleep 0.1
     done
+    [ -s "$RENAME_TMP/control-port" ] || { cat "$RENAME_TMP/control.log" >&2; return 1; }
     CONTROL_URL="http://127.0.0.1:$(cat "$RENAME_TMP/control-port")"
-    read -r PORT INTERNAL_PORT < <(python3 -c 'import socket; a=socket.socket(); b=socket.socket(); a.bind(("127.0.0.1",0)); b.bind(("127.0.0.1",0)); print(a.getsockname()[1],b.getsockname()[1])')
+    read -r PORT INTERNAL_PORT < "$RENAME_TMP/kura-ports"
     RENAME_URL="http://127.0.0.1:$PORT"
     env -i PATH="$PATH" KURA_PORT="$PORT" KURA_INTERNAL_PORT="$INTERNAL_PORT" \
       KURA_TENANT_ID=original KURA_REGION=local KURA_NODE_URL="https://127.0.0.1:$INTERNAL_PORT" \
