@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/mise-install
         with:
-          install: "erlang elixir git-cliff"
+          install: "erlang elixir git-cliff 1password-cli"
           cache: "false"
           working-directory: tuist_ex
       - name: Prepare release
@@ -87,9 +87,35 @@ jobs:
       - run: mix hex.build
       - run: mix docs --warnings-as-errors
       - name: Publish package and documentation
-        run: mix hex.publish --yes --replace
+        run: |
+          set -euo pipefail
+          HEX_API_KEY=$(op read "op://tuist/TUIST_EX_HEX_API_KEY/password")
+          export HEX_API_KEY
+          published_tar="$RUNNER_TEMP/tuist_ex-published.tar"
+          published_status=$(curl --silent --show-error --location --output "$published_tar" \
+            --write-out '%{http_code}' \
+            "https://repo.hex.pm/tarballs/tuist_ex-${{ needs.check.outputs.next-version-number }}.tar")
+
+          case "$published_status" in
+            200)
+              local_checksum=$(sha256sum "tuist_ex-${{ needs.check.outputs.next-version-number }}.tar" | cut -d ' ' -f1)
+              published_checksum=$(sha256sum "$published_tar" | cut -d ' ' -f1)
+              if [ "$local_checksum" != "$published_checksum" ]; then
+                echo "The published Hex package has different contents for this version" >&2
+                exit 1
+              fi
+              mix hex.publish docs --yes
+              ;;
+            404)
+              mix hex.publish --yes
+              ;;
+            *)
+              echo "Could not check the published Hex package (status $published_status)" >&2
+              exit 1
+              ;;
+          esac
         env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
