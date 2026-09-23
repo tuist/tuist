@@ -25,6 +25,8 @@ on:
     paths:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
+      - infra/rack-nodes/**
+      - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
@@ -35,6 +37,8 @@ on:
     paths:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
+      - infra/rack-nodes/**
+      - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/omada/**
       - infra/helm/rack-edge/sites/**
@@ -81,6 +85,9 @@ jobs:
       - name: Test the console bring-up
         run: mise run rack:prep-test
 
+      - name: Test the rack node install stick
+        run: mise run rack:nodes-test
+
       # The Omada wrapper is an evaluation and is not deployed by any workflow,
       # so nothing else would notice it going stale.
       - name: The Omada chart still renders
@@ -97,7 +104,8 @@ jobs:
           set -euo pipefail
           command -v shellcheck >/dev/null || (sudo apt-get update && sudo apt-get install -y shellcheck)
           # From inside the directory, so the sourced libraries resolve.
-          (cd infra/rack-switch-fleet && shellcheck -x fleet.sh ztp.sh edge-join.sh omada.sh lib/*.sh)
+          (cd infra/rack-switch-fleet && shellcheck -x fleet.sh ztp.sh omada.sh lib/*.sh)
+          (cd infra/rack-nodes && shellcheck -x *.sh)
           shellcheck mise/tasks/rack/*.sh
 
       # A hash in git history cannot be removed without rewriting it, and every
