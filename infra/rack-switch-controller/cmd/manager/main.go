@@ -20,12 +20,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/tuist/tuist/infra/rack-switch-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/rack-switch-controller/controllers"
 	"github.com/tuist/tuist/infra/rack-switch-controller/internal/converge"
 	"github.com/tuist/tuist/infra/rack-switch-controller/internal/omada"
+	"github.com/tuist/tuist/infra/rack-switch-controller/internal/telemetry"
 )
 
 var (
@@ -159,6 +161,13 @@ func main() {
 		ResyncInterval: resyncInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackSwitch reconciler")
+		os.Exit(1)
+	}
+
+	poller := telemetry.New(engine.Omada, ef.site, mgr.GetClient(), namespace, ctrl.Log.WithName("telemetry"))
+	metrics.Registry.MustRegister(poller)
+	if err := mgr.Add(poller); err != nil {
+		setupLog.Error(err, "setup switch telemetry")
 		os.Exit(1)
 	}
 

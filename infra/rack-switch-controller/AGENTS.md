@@ -69,6 +69,47 @@ state), `reachable` (connected), `observedRevision` and `observedGeneration`
 `Adopted`, `Converged`, `Ready`. `connectionsUsedSinceBoot` is only ever
 written by `rack:fleet publish`.
 
+## Telemetry
+
+`internal/telemetry` reads every managed switch from the Omada controller once a
+minute and exports it on the metrics port, which k8s-monitoring's annotation
+autodiscovery scrapes. It asks the controller rather than the switch for the
+same reason the rest of this controller does: a switch allows only a few SSH
+logins per boot, and SNMP is off site-wide. It runs on the leader only and
+shares the reconciler's client, so the controller sees one token and one reader.
+
+| Metric | Labels | Source |
+| --- | --- | --- |
+| `rack_switch_up` | `switch` | device list: 1 when connected |
+| `rack_switch_cpu_utilization_ratio` | `switch` | device list `cpuUtil` |
+| `rack_switch_memory_utilization_ratio` | `switch` | device list `memUtil` |
+| `rack_switch_temperature_celsius` | `switch` | `switches/{mac}/health/detail`, 10-minute average |
+| `rack_switch_optic_temperature_celsius` | `switch`, `port` | `switches/{mac}/ddm/info` |
+| `rack_switch_telemetry_last_success_timestamp_seconds` | | when a poll last completed |
+| `rack_switch_telemetry_errors_total` | `stage` | failed reads, by what was being read |
+
+`switch` is the `RackSwitch` name, not the controller's device name, which
+adoption resets to the MAC.
+
+What gets exported, and what does not:
+
+- **A disconnected switch exports `rack_switch_up 0` and nothing else.** The
+  controller keeps the last numbers of a switch it has lost, and they read as
+  current. Nothing per-switch is fetched for it either.
+- **A standalone object, or one the site does not list, exports nothing.** There
+  is no reading to take for it.
+- **A model without a temperature sensor exports no temperature**, rather than a
+  zero: the health detail says `support: false` for it.
+- **A port with a passive DAC has no optic reading.** Digital diagnostics come from
+  the transceiver, so only a real optic reports.
+- **When the controller cannot be read, every reading is dropped** and the last
+  success stays where it was. Alert on its age, not on a missing `rack_switch_up`.
+
+**The chassis temperature's unit is inferred.** The API documents the transceiver
+temperature as Celsius and the health detail's average only as "average value of
+common dimension, such as cpu, memory", as an integer. Compare it once against a
+reading taken on the switch before alerting on an absolute value.
+
 ## The API, and the gates
 
 Every call was measured on controller 6.3.0.45 and a real switch;
