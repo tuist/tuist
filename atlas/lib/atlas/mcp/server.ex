@@ -1,7 +1,7 @@
 defmodule Atlas.MCP.Server do
   @moduledoc """
   Atlas MCP server. Exposes a set of tools that surface account
-  context (timeline events, contacts, invoices, account attention, overview summary) so
+  context (timeline events, contacts, invoices, nudges, overview summary) so
   external agents can compose follow-ups and draft emails locally with
   full context.
   """
@@ -129,6 +129,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetInsurancePolicy
   alias Atlas.MCP.Tools.GetMCPConnectionStatus
   alias Atlas.MCP.Tools.GetNote
+  alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
   alias Atlas.MCP.Tools.GetPOC
@@ -146,7 +147,6 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.LinkAssetToInsuranceClaim
   alias Atlas.MCP.Tools.LinkProjectDomain
   alias Atlas.MCP.Tools.LinkProjectRepository
-  alias Atlas.MCP.Tools.ListAccountAttentionSuggestions
   alias Atlas.MCP.Tools.ListAccountContacts
   alias Atlas.MCP.Tools.ListAccountEvents
   alias Atlas.MCP.Tools.ListAccountFeatureInterests
@@ -311,7 +311,7 @@ defmodule Atlas.MCP.Server do
   4. If the user asks only for an order form, fetch only the appropriate order form rather than the full contract package. Use `order-form-tuist-hosted.docx` for a hosted deal and `order-form-self-hosted.docx` for a self-hosted deal. Ask the user when the hosting model cannot be determined from their request, conversation context, or the latest commercial term.
   5. Do not invent missing legal, billing, signatory, date, or renewal fields. Ask the user for required values that are absent from both their request and Atlas.
 
-  Signals detect the moments worth reaching out about (see the nudges pipeline in `Atlas.Nudges`) and drop cards into Slack for a human to claim. Use `list_account_nudges` to see the account's open and historical nudges, `claim_nudge` to take ownership of an open card, and `dismiss_nudge` (with a required reason and optional `mute_days`) to close one out. Use `update_account` with `attention_context` when the user provides strategic account guidance, such as why a product capability is important to the relationship.
+  Signals detect the moments worth reaching out about (see the nudges pipeline in `Atlas.Nudges`) and drop cards into Slack for a human to claim. Use `list_account_nudges` to see the account's open and historical nudges, `claim_nudge` to take ownership of an open card, `send_nudge` to queue the drafted email, `release_nudge` to hand ownership back, and `dismiss_nudge` (with a required reason and optional `mute_days`) to close one out.
 
   For outbound prospecting, Apollo is only a search provider and Atlas is the source of truth. Use `search_apollo_outreach` to discover people, `list_outreach_candidates` to review the Atlas-owned queue, and `enroll_outreach_candidate` or `reject_outreach_candidate` to make an explicit decision. Do not treat Apollo saved contacts as outreach state. Use `get_outreach_next_step` to read Atlas's guided suggestion. Use `generate_outreach_next_step` when the user asks for a fresh analysis. Only call `complete_outreach_next_step` after the user confirms the action happened, and use `dismiss_outreach_next_step` with specific feedback when the suggestion is not useful. Atlas never sends LinkedIn invitations or messages automatically.
 
@@ -456,6 +456,7 @@ defmodule Atlas.MCP.Server do
   ]
   @static_tools [
     GetMCPConnectionStatus,
+    GetNudgeAnalyticsStatus,
     ListEngineeringProjects,
     GetEngineeringProject,
     CreateEngineeringProject,
@@ -573,7 +574,6 @@ defmodule Atlas.MCP.Server do
     DismissNudge,
     ReleaseNudge,
     SendNudge,
-    ListAccountAttentionSuggestions,
     ListAccountNudges,
     ListAccountServiceLevels,
     ListDocuments,

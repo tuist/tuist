@@ -1532,25 +1532,6 @@ defmodule AtlasWeb.AccountLive do
                           />
                         </div>
                         <div data-part="account-settings-grid-full">
-                          <.text_area
-                            id="account-attention-context-input"
-                            field={@account_form[:attention_context]}
-                            label={gettext("Agent guidance")}
-                            placeholder={
-                              gettext(
-                                "Explain what makes this account strategically important and which usage patterns matter."
-                              )
-                            }
-                            hint={
-                              gettext(
-                                "For example: test sharding, automations, and test selections are central to this customer's delivery workflow."
-                              )
-                            }
-                            rows={4}
-                            max_length={2_000}
-                          />
-                        </div>
-                        <div data-part="account-settings-grid-full">
                           <div data-part="account-settings-select">
                             <.label label={gettext("Slack channel")} />
                             <input
