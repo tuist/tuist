@@ -847,12 +847,26 @@ defmodule Tuist.OnceEvents do
     sort_by = Keyword.get(opts, :sort_by, "observed")
     sort_order = Keyword.get(opts, :sort_order, "desc")
 
+    # A target owns many actions, so joining on `target_execution_id` alone
+    # multiplied every cache event by the number of actions sharing its
+    # target. `count_cache_events/2` counts unjoined events, so the count
+    # and the page disagreed: rows appeared several times and the events
+    # past the first page became unreachable. The identifier is display
+    # only, so it comes from one deterministic action per event instead.
+    identifier_query =
+      from a in Action,
+        where:
+          a.once_run_id == parent_as(:event).once_run_id and
+            a.target_execution_id == parent_as(:event).target_execution_id,
+        order_by: [asc: a.capability, asc: a.action_index],
+        limit: 1,
+        select: a.identifier
+
     query =
       from e in CacheEvent,
+        as: :event,
         where: e.once_run_id == ^run.id,
-        left_join: a in Action,
-        on: a.once_run_id == e.once_run_id and a.target_execution_id == e.target_execution_id,
-        select: %{event: e, action_identifier: a.identifier}
+        select: %{event: e, action_identifier: subquery(identifier_query)}
 
     query
     |> where([e], e.kind in ["upload", "download"] and not is_nil(e.content_hash))
