@@ -30,6 +30,12 @@ func bootstrapOverSSH(ctx context.Context, user, host string, privateKey []byte,
 // Host keys are pinned TOFU-style through hk, so whichever call makes first
 // contact establishes the fingerprint every later one verifies against.
 func runScriptOverSSH(ctx context.Context, user, host string, privateKey []byte, script string, hk *bootstrap.HostKeyState) (string, error) {
+	return runOverSSH(ctx, user, host, privateKey, "bash -s", script, sshRunTimeout, hk)
+}
+
+// runOverSSH runs command on host with script on its stdin, within timeout.
+// A non-zero exit is returned wrapping the *ssh.ExitError.
+func runOverSSH(ctx context.Context, user, host string, privateKey []byte, command, script string, timeout time.Duration, hk *bootstrap.HostKeyState) (string, error) {
 	signer, err := ssh.ParsePrivateKey(privateKey)
 	if err != nil {
 		return "", fmt.Errorf("parse ssh private key: %w", err)
@@ -41,7 +47,7 @@ func runScriptOverSSH(ctx context.Context, user, host string, privateKey []byte,
 		Timeout:         30 * time.Second,
 	}
 
-	dialCtx, cancel := context.WithTimeout(ctx, sshRunTimeout)
+	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	var d net.Dialer
@@ -68,7 +74,7 @@ func runScriptOverSSH(ctx context.Context, user, host string, privateKey []byte,
 	defer session.Close()
 
 	session.Stdin = strings.NewReader(script)
-	out, runErr := session.CombinedOutput("bash -s")
+	out, runErr := session.CombinedOutput(command)
 	if runErr != nil {
 		return string(out), fmt.Errorf("run script on %s: %w (output: %s)", host, runErr, truncate(out, 2000))
 	}

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -279,6 +281,10 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	var rackLinuxTailscaleSecretName string
+	flag.StringVar(&rackLinuxTailscaleSecretName, "rack-linux-tailscale-secret-name", "",
+		"Secret in the operator namespace holding the Tailscale OAuth client (client-id, client-secret) "+
+			"the RackLinuxHost controller finds hosts on the tailnet with. Empty leaves rack Linux hosts unreachable.")
 	var rackHostQuarantineRetryAfter time.Duration
 	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
 		"How long a RackHost stays out of the claim pool after bootstrap exhaustion. "+
@@ -646,6 +652,36 @@ func main() {
 		os.Exit(1)
 	}
 
+	var rackTailnet linux.TailnetAPI
+	if rackLinuxTailscaleSecretName != "" {
+		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
+	}
+	if err := (&linux.RackLinuxHostReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("racklinuxhost-controller"),
+		Tailnet:  rackTailnet,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackLinuxHostReconciler")
+		os.Exit(1)
+	}
+
+	if err := (&linux.RackLinuxMachineReconciler{
+		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
+		Scheme:              mgr.GetScheme(),
+		Recorder:            mgr.GetEventRecorderFor("racklinuxmachine-controller"),
+		CredentialsManager:  credsManager,
+		APIServerURL:        apiServerURL,
+		KubernetesMinor:     "v1.34",
+		ControlPlaneVersion: controlPlaneVersion(restConfig),
+		EgressNamespace:     egressNamespace,
+		EgressProxyGroup:    egressProxyGroup,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackLinuxMachineReconciler")
+		os.Exit(1)
+	}
+
 	// Elastic Metal (bare-metal) machines: the kura runner-cache pool. Same
 	// provider, separate reconciler from Apple Silicon: bare-metal servers
 	// ordered through the Baremetal API that pass through an OS-install wait,
@@ -927,4 +963,31 @@ func discoverAPIServerURL(restConfig *rest.Config) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("cluster-info kubeconfig has no cluster.server entry")
+}
+
+// controlPlaneVersion reads the API server's gitVersion, at most once a
+// minute.
+func controlPlaneVersion(cfg *rest.Config) func(context.Context) (string, error) {
+	var (
+		mu      sync.Mutex
+		version string
+		readAt  time.Time
+	)
+	return func(context.Context) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if version != "" && time.Since(readAt) < time.Minute {
+			return version, nil
+		}
+		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+		if err != nil {
+			return "", err
+		}
+		info, err := dc.ServerVersion()
+		if err != nil {
+			return "", err
+		}
+		version, readAt = info.GitVersion, time.Now()
+		return version, nil
+	}
 }

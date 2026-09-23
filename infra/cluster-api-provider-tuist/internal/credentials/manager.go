@@ -227,6 +227,24 @@ func (m *Manager) ReadFleetSSHCredentials(ctx context.Context, fleet string) ([]
 	return key, password, nil
 }
 
+// ReadFleetSSHKey returns the fleet's private key from its ESO-synced Secret,
+// erring rather than minting one when the Secret is not there yet.
+func (m *Manager) ReadFleetSSHKey(ctx context.Context, fleet string) ([]byte, error) {
+	secretName := fleet + sshKeySecretSuffix
+	secret := &corev1.Secret{}
+	if err := m.Client.Get(ctx, types.NamespacedName{Namespace: m.Namespace, Name: secretName}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("fleet secret %s/%s not found yet (ESO sync pending?); will retry", m.Namespace, secretName)
+		}
+		return nil, fmt.Errorf("get fleet secret %s/%s: %w", m.Namespace, secretName, err)
+	}
+	key := secret.Data["id_ed25519"]
+	if len(key) == 0 {
+		return nil, fmt.Errorf("secret %s/%s has no id_ed25519 (ESO mid-sync?); will retry", m.Namespace, secretName)
+	}
+	return key, nil
+}
+
 // FleetSSHKeyID returns the Scaleway-side SSH key ID registered for `fleet`,
 // recorded as an annotation on the per-fleet Secret by EnsureFleetSSHKey. The
 // Elastic Metal machine kind authorizes this key on the server at install time
