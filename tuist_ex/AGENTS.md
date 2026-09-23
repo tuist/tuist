@@ -1,8 +1,10 @@
 # Tuist Elixir integration
 
-This is the skeleton of an independently published Hex package for the future
-Mix and ExUnit integration. No instrumentation or transport is implemented yet.
-Server ingestion and dashboard presentation belong in `server/`.
+This independently published Hex package provides `mix tuist.login` with browser,
+email/password, and continuous integration authentication. It shares the Tuist
+credential file and uses the command line tool's refresh lock path. Build and ExUnit
+instrumentation are future work. Server ingestion and dashboard presentation
+belong in `server/`.
 
 - Quokka runs through `mix format`; use `mix format --check-formatted` for checks.
 - Use Mimic for mocks. Register copied modules in `test/test_helper.exs`.
