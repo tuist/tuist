@@ -910,19 +910,19 @@ impl ReapiService {
                 .expect("snapshot served_full lock poisoned")
                 .get(&cache_key)
                 .cloned()
-                .filter(|_| self.served_full_is_current(namespace_id, &cache_key));
+                .filter(|view| self.nothing_removed_since(namespace_id, view.removal_seq));
             if let Some(cached) = cached {
                 let permit = self
                     .state
                     .memory
-                    .try_acquire_response_materialization(cached.len())
+                    .try_acquire_response_materialization(cached.bytes.len())
                     .map_err(|_| {
                         Status::resource_exhausted(
                             "action-cache snapshot serve declined under memory pressure",
                         )
                     })?;
                 let _build = self.ensure_index_build(namespace_id, trunk, IndexBuildTrigger::Serve);
-                return Ok(MaterializedSnapshot::new((*cached).clone(), permit));
+                return Ok(MaterializedSnapshot::new((*cached.bytes).clone(), permit));
             }
         }
         // Cold path: wait briefly for the build so small (and already
@@ -983,17 +983,19 @@ impl ReapiService {
     /// Whether the cached full view still describes the store: nothing it could
     /// advertise was removed since it was encoded. A stale one is not served,
     /// and the request waits for the rebuild like a cold one.
+    #[cfg(test)]
     fn served_full_is_current(&self, namespace_id: &str, cache_key: &str) -> bool {
-        let Some(removal_seq) = self
+        let view = self
             .snapshot_cache
-            .served_full_removal_seq
+            .served_full
             .lock()
             .expect("snapshot served_full lock poisoned")
             .get(cache_key)
-            .copied()
-        else {
-            return false;
-        };
+            .cloned();
+        view.is_some_and(|view| self.nothing_removed_since(namespace_id, view.removal_seq))
+    }
+
+    fn nothing_removed_since(&self, namespace_id: &str, removal_seq: u64) -> bool {
         self.state
             .store
             .action_cache_removals_since(namespace_id, removal_seq)
@@ -1034,16 +1036,28 @@ impl ReapiService {
                 .record_memory_action("snapshot_full_view_budget_rejected");
             return;
         }
-        self.snapshot_cache
-            .served_full
-            .lock()
-            .expect("snapshot served_full lock poisoned")
-            .insert(cache_key.to_owned(), std::sync::Arc::new(bytes.to_vec()));
-        self.snapshot_cache
-            .served_full_removal_seq
-            .lock()
-            .expect("snapshot served_full lock poisoned")
-            .insert(cache_key.to_owned(), removal_seq);
+        {
+            let mut served_full = self
+                .snapshot_cache
+                .served_full
+                .lock()
+                .expect("snapshot served_full lock poisoned");
+            // Concurrent serves finish in any order; one encoded before a later
+            // removal must not replace a view that already reflects it.
+            if served_full
+                .get(cache_key)
+                .is_some_and(|view| view.removal_seq > removal_seq)
+            {
+                return;
+            }
+            served_full.insert(
+                cache_key.to_owned(),
+                ServedFullView {
+                    bytes: std::sync::Arc::new(bytes.to_vec()),
+                    removal_seq,
+                },
+            );
+        }
         self.snapshot_cache
             .trim_to(target_bytes, "capacity", &self.state.metrics);
     }
@@ -1275,7 +1289,7 @@ impl ReapiService {
         let generation = state.store.action_cache_generation(&namespace);
         // Read before the scan: every removal up to here is already out of the
         // store it reads, and later ones are applied on the next serve.
-        let removal_seq = state.store.action_cache_removal_seq(&namespace);
+        let removal_seq = state.store.action_cache_removal_seq();
         let index = cache
             .indexes
             .lock()
@@ -1367,7 +1381,7 @@ impl ReapiService {
     ) -> Result<(), String> {
         let _build_guard = cache.build_lock.lock().await;
         let generation = state.store.action_cache_generation(&namespace);
-        let removal_seq = state.store.action_cache_removal_seq(&namespace);
+        let removal_seq = state.store.action_cache_removal_seq();
         let index = cache
             .indexes
             .lock()
@@ -5383,11 +5397,13 @@ mod tests {
                 .lock()
                 .unwrap()
                 .insert(namespace.to_owned(), index);
-            cache
-                .served_full
-                .lock()
-                .unwrap()
-                .insert(namespace.to_owned(), std::sync::Arc::new(vec![0; 2 * 1024]));
+            cache.served_full.lock().unwrap().insert(
+                namespace.to_owned(),
+                ServedFullView {
+                    bytes: std::sync::Arc::new(vec![0; 2 * 1024]),
+                    removal_seq: 0,
+                },
+            );
         }
 
         cache.trim_to(3 * 1024, "test", &metrics);

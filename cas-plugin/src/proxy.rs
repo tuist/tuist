@@ -2807,9 +2807,9 @@ impl Proxy {
                     skipped.push(digest.to_vec());
                 }
             };
-            // Nodes the batch read did not return, root included: the evidence a
-            // snapshot advertising them is stale.
-            let mut absent_remotely: Vec<Vec<u8>> = Vec::new();
+            // Nodes the batch read did not return, root included, with their blobs.
+            // Not yet evidence of eviction: a read can also be refused.
+            let mut absent_remotely: Vec<(Vec<u8>, reapi::Digest)> = Vec::new();
             while !ordered.is_empty() {
                 let count = ordered.len();
                 let mut deferred = Vec::new();
@@ -2828,7 +2828,7 @@ impl Proxy {
                             // needs it retries — and surfaces the failure —
                             // per object.
                             None => {
-                                absent_remotely.push(entry.llcas_digest.clone());
+                                absent_remotely.push((entry.llcas_digest.clone(), entry.blob.clone()));
                                 skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
                                 continue;
                             }
@@ -2919,7 +2919,9 @@ impl Proxy {
             // only two nodes were in play, which under-reports the failure rate
             // this counter exists to trend.
             if !remote.declining_reads() {
-                self.distrust_snapshots_advertising(&absent_remotely);
+                self.distrust_snapshots_advertising(&confirmed_evicted(&absent_remotely, |blobs| {
+                    remote.find_missing(blobs)
+                }));
             }
             let root_already_local = !root_pending;
             let skipped = skipped_digests.len();
@@ -3295,7 +3297,10 @@ impl Proxy {
                     Some(bytes) => bytes,
                     None => {
                         if !remote.declining_reads() {
-                            self.distrust_snapshots_advertising(&[digest.to_vec()]);
+                            self.distrust_snapshots_advertising(&confirmed_evicted(
+                                &[(digest.to_vec(), blob.clone())],
+                                |blobs| remote.find_missing(blobs),
+                            ));
                         }
                         return Ok(false);
                     }
@@ -5783,6 +5788,34 @@ fn encode_node_blob_accounted(
     Ok((blob, ref_digests, chunked))
 }
 
+/// The nodes among `absent` whose blobs the remote confirms it no longer holds.
+///
+/// A blob missing from a read is not proof of eviction: a node under memory
+/// pressure refuses individual reads, and a partly refused batch comes back
+/// without those blobs while the rest succeed. `FindMissingBlobs` answers
+/// presence alone, so only what it names is gone. A failed query confirms
+/// nothing.
+fn confirmed_evicted(
+    absent: &[(Vec<u8>, reapi::Digest)],
+    find_missing: impl FnOnce(Vec<reapi::Digest>) -> Result<Vec<reapi::Digest>, String>,
+) -> Vec<Vec<u8>> {
+    if absent.is_empty() {
+        return Vec::new();
+    }
+    let Ok(missing) = find_missing(absent.iter().map(|(_, blob)| blob.clone()).collect()) else {
+        return Vec::new();
+    };
+    let missing: HashSet<(String, i64)> = missing
+        .into_iter()
+        .map(|digest| (digest.hash, digest.size_bytes))
+        .collect();
+    absent
+        .iter()
+        .filter(|(_, blob)| missing.contains(&(blob.hash.clone(), blob.size_bytes)))
+        .map(|(node, _)| node.clone())
+        .collect()
+}
+
 fn walk_closure(
     state: &'static PathState,
     root: &[u8],
@@ -6084,6 +6117,37 @@ mod tests {
         assert!(
             proxy.snapshot_ready("tuist/other").is_some(),
             "a snapshot that does not advertise the lost node keeps serving"
+        );
+    }
+
+    /// A partly refused batch read (RESOURCE_EXHAUSTED on some blobs) returns
+    /// without them, like an eviction does. Only what the remote confirms
+    /// missing may take a snapshot out of service.
+    #[test]
+    fn only_blobs_the_remote_confirms_missing_count_as_evicted() {
+        let blob = |byte: u8| reapi::Digest {
+            hash: format!("{byte:02x}").repeat(32),
+            size_bytes: 7,
+        };
+        let absent = vec![
+            (b"refused-node".to_vec(), blob(0x01)),
+            (b"evicted-node".to_vec(), blob(0x02)),
+        ];
+
+        assert_eq!(
+            confirmed_evicted(&absent, |asked| {
+                assert_eq!(asked, vec![blob(0x01), blob(0x02)]);
+                Ok(vec![blob(0x02)])
+            }),
+            vec![b"evicted-node".to_vec()]
+        );
+        assert!(
+            confirmed_evicted(&absent, |_| Ok(Vec::new())).is_empty(),
+            "blobs the remote still holds were refused, not evicted"
+        );
+        assert!(
+            confirmed_evicted(&absent, |_| Err("unavailable".into())).is_empty(),
+            "a failed presence query confirms nothing"
         );
     }
 

@@ -1,5 +1,5 @@
-//! What the store removed from each namespace's action cache, so a cached
-//! snapshot index can stop advertising it before its next reconcile.
+//! What the store removed from the action cache, so a cached snapshot index
+//! can stop advertising it before its next reconcile.
 //!
 //! A snapshot index is served from memory and reconciled in the background, so
 //! the first serve after an eviction answers from a view that still lists the
@@ -9,17 +9,25 @@
 //! sequence number lets the serve path drop exactly those entries from the
 //! cached index, without the namespace scan a reconcile costs.
 //!
-//! The log is in memory and per node, like the action-cache generation: a fresh
-//! process builds its indexes from the store, which already reflects every
-//! removal. It is bounded per namespace; a reader that fell behind the retained
-//! window is told so and rebuilds instead of trusting a partial list.
+//! One log serves every namespace, so its memory is bounded by a single cap no
+//! matter how many namespaces churn through the node. A namespace is kept as a
+//! hash rather than its name: a collision can only make an index drop an entry
+//! whose key also matches another namespace's removal, which sends that key per
+//! key. The log is in memory, like the action-cache generation: a fresh process
+//! builds its indexes from the store, which already reflects every removal. A
+//! reader whose position fell out of the retained window is told so and
+//! rebuilds instead of trusting a partial list.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{
+    collections::{HashSet, VecDeque},
+    hash::{DefaultHasher, Hash, Hasher},
+};
 
-/// Removals retained per namespace, about 4 MiB at most. A reader behind the
-/// window rebuilds from the store, so this only has to cover the removals between
-/// two serves of a busy namespace; a cascade larger than it (160k entries were
-/// measured in one segment eviction) is exactly when a rebuild is the right call.
+/// Removals retained across all namespaces: 64 bytes each, 4 MiB at most. A
+/// power of two, so the ring never grows past it. Readers are restamped by
+/// every reconcile, so this only has to cover the removals between a reconcile
+/// and the next serves; a larger burst (160k entries were measured in one
+/// segment eviction) is exactly when a rebuild is the right call.
 pub const ACTION_CACHE_REMOVAL_LOG_MAX: usize = 65_536;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -46,7 +54,7 @@ impl ActionCacheRemoval {
     }
 }
 
-/// The removals after a reader's sequence number, up to `through`.
+/// A namespace's removals after a reader's sequence number, up to `through`.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ActionCacheRemovals {
     pub through: u64,
@@ -60,60 +68,59 @@ impl ActionCacheRemovals {
     }
 }
 
-#[derive(Default)]
-struct NamespaceLog {
+pub struct ActionCacheRemovalLog {
     /// Sequence number of the newest recorded removal; 0 before the first.
     last: u64,
-    /// `(sequence, removal)` pairs, oldest first.
-    retained: VecDeque<(u64, ActionCacheRemoval)>,
-}
-
-#[derive(Default)]
-pub struct ActionCacheRemovalLog {
-    namespaces: HashMap<String, NamespaceLog>,
-    max_per_namespace: usize,
+    /// `(sequence, namespace hash, removal)`, oldest first.
+    retained: VecDeque<(u64, u64, ActionCacheRemoval)>,
+    max: usize,
 }
 
 impl ActionCacheRemovalLog {
-    pub fn new(max_per_namespace: usize) -> Self {
+    pub fn new(max: usize) -> Self {
         Self {
-            namespaces: HashMap::new(),
-            max_per_namespace,
+            last: 0,
+            retained: VecDeque::new(),
+            max: max.max(1),
         }
     }
 
     pub fn record(&mut self, namespace_id: &str, removal: ActionCacheRemoval) {
-        let log = self.namespaces.entry(namespace_id.to_owned()).or_default();
-        log.last += 1;
-        log.retained.push_back((log.last, removal));
-        while log.retained.len() > self.max_per_namespace {
-            log.retained.pop_front();
+        // Make room first: pushing onto a full ring would double its buffer.
+        if self.retained.len() >= self.max {
+            self.retained.pop_front();
         }
+        self.last += 1;
+        self.retained
+            .push_back((self.last, namespace_hash(namespace_id), removal));
     }
 
-    /// The sequence number a reader built from the store now should resume from.
-    pub fn last(&self, namespace_id: &str) -> u64 {
-        self.namespaces.get(namespace_id).map_or(0, |log| log.last)
+    /// The sequence number a reader built from the store now resumes from.
+    pub fn last(&self) -> u64 {
+        self.last
     }
 
-    /// The removals recorded after `after`, or `None` when some of them are no
-    /// longer retained and the reader has to rebuild from the store.
+    /// The namespace's removals recorded after `after`, or `None` when the log
+    /// has discarded removals after `after` (any namespace's) and the reader
+    /// has to rebuild from the store.
     pub fn since(&self, namespace_id: &str, after: u64) -> Option<ActionCacheRemovals> {
-        let Some(log) = self.namespaces.get(namespace_id) else {
-            return Some(ActionCacheRemovals {
-                through: after,
-                ..Default::default()
-            });
-        };
-        let oldest_retained = log.retained.front().map_or(log.last + 1, |(seq, _)| *seq);
-        if after < log.last && after + 1 < oldest_retained {
+        let oldest_retained = self
+            .retained
+            .front()
+            .map_or(self.last + 1, |(seq, ..)| *seq);
+        if after < self.last && after + 1 < oldest_retained {
             return None;
         }
+        let namespace = namespace_hash(namespace_id);
         let mut removals = ActionCacheRemovals {
-            through: log.last.max(after),
+            through: self.last.max(after),
             ..Default::default()
         };
-        for (_, removal) in log.retained.iter().filter(|(seq, _)| *seq > after) {
+        for (_, _, removal) in self
+            .retained
+            .iter()
+            .filter(|(seq, hash, _)| *seq > after && *hash == namespace)
+        {
             match removal {
                 ActionCacheRemoval::Entry(hash) => {
                     removals.entries.insert(*hash);
@@ -125,6 +132,17 @@ impl ActionCacheRemovalLog {
         }
         Some(removals)
     }
+
+    #[cfg(test)]
+    fn retained_capacity(&self) -> usize {
+        self.retained.capacity()
+    }
+}
+
+fn namespace_hash(namespace_id: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    namespace_id.hash(&mut hasher);
+    hasher.finish()
 }
 
 #[cfg(test)]
@@ -136,10 +154,10 @@ mod tests {
     }
 
     #[test]
-    fn a_reader_gets_only_the_removals_after_its_sequence() {
+    fn a_reader_gets_only_its_namespaces_removals_after_its_sequence() {
         let mut log = ActionCacheRemovalLog::new(16);
         log.record("ios", entry(1));
-        let resume = log.last("ios");
+        let resume = log.last();
         log.record("ios", entry(2));
         log.record(
             "ios",
@@ -152,14 +170,14 @@ mod tests {
 
         let removals = log.since("ios", resume).expect("within the window");
 
-        assert_eq!(removals.through, 3);
+        assert_eq!(removals.through, 4);
         assert_eq!(removals.entries, HashSet::from([[2; 32]]));
         assert_eq!(removals.blobs, HashSet::from([([0xaa; 32], 7)]));
-        assert!(log.since("ios", 3).expect("caught up").is_empty());
+        assert!(log.since("ios", 4).expect("caught up").is_empty());
     }
 
     #[test]
-    fn a_namespace_with_no_removals_is_caught_up() {
+    fn an_empty_log_is_caught_up() {
         let log = ActionCacheRemovalLog::new(16);
 
         let removals = log.since("ios", 0).expect("nothing to miss");
@@ -178,6 +196,32 @@ mod tests {
         assert_eq!(log.since("ios", 1), None);
         let removals = log.since("ios", 2).expect("the next removal is retained");
         assert_eq!(removals.entries, HashSet::from([[3; 32], [4; 32]]));
+    }
+
+    #[test]
+    fn another_namespaces_churn_pushes_a_reader_out_of_the_window() {
+        let mut log = ActionCacheRemovalLog::new(4);
+        log.record("ios", entry(1));
+        let resume = log.last();
+        for byte in 2..=8 {
+            log.record(&format!("churn-{byte}"), entry(byte));
+        }
+
+        assert_eq!(
+            log.since("ios", resume),
+            None,
+            "discarded history may have held this namespace's removals"
+        );
+    }
+
+    #[test]
+    fn a_full_log_never_grows_past_its_cap() {
+        let mut log = ActionCacheRemovalLog::new(1024);
+        for round in 0..10_000u32 {
+            log.record(&format!("namespace-{round}"), entry(round as u8));
+        }
+
+        assert!(log.retained_capacity() <= 1024);
     }
 
     #[test]

@@ -633,6 +633,14 @@ fn snapshot_wire_writer_rejects_bytes_past_its_limit() {
 /// from scratch and timed out the same way — the snapshot never became
 /// servable. A detached build completes and caches regardless of who is
 /// still waiting.
+/// A cached full encoding and the removal sequence it reflects, kept as one value
+/// so a reader can never pair one view's bytes with another view's sequence.
+#[derive(Clone)]
+pub(super) struct ServedFullView {
+    pub(super) bytes: std::sync::Arc<Vec<u8>>,
+    pub(super) removal_seq: u64,
+}
+
 pub(crate) struct SnapshotCache {
     pub(super) indexes: std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>,
     pub(super) builds: std::sync::Mutex<std::collections::HashMap<String, SharedIndexBuild>>,
@@ -643,10 +651,7 @@ pub(crate) struct SnapshotCache {
     /// the (slightly stale) snapshot. Bounded at the wire ceiling per entry and
     /// pruned with the index LRU — unlike cloning the whole index, whose
     /// node table the entry cap does not bound.
-    pub(super) served_full: std::sync::Mutex<BTreeMap<String, std::sync::Arc<Vec<u8>>>>,
-    /// The removal sequence each `served_full` view reflects. A view without one
-    /// is not served.
-    pub(super) served_full_removal_seq: std::sync::Mutex<BTreeMap<String, u64>>,
+    pub(super) served_full: std::sync::Mutex<BTreeMap<String, ServedFullView>>,
     pub(super) build_lock: tokio::sync::Mutex<()>,
     pub(super) max_bytes: usize,
 }
@@ -672,7 +677,6 @@ impl SnapshotCache {
             indexes: Default::default(),
             builds: Default::default(),
             served_full: Default::default(),
-            served_full_removal_seq: Default::default(),
             build_lock: Default::default(),
             max_bytes: max_bytes.max(1),
         }
@@ -695,7 +699,7 @@ impl SnapshotCache {
 
     fn stats_locked(
         indexes: &BTreeMap<String, NamespaceSnapshotIndex>,
-        served_full: &BTreeMap<String, std::sync::Arc<Vec<u8>>>,
+        served_full: &BTreeMap<String, ServedFullView>,
     ) -> SnapshotCacheStats {
         let entries = indexes.values().map(|index| index.entries.len()).sum();
         let nodes = indexes.values().map(|index| index.nodes.len()).sum();
@@ -709,8 +713,8 @@ impl SnapshotCache {
             .sum::<usize>();
         let served_full_bytes = served_full
             .iter()
-            .map(|(namespace, bytes)| {
-                bytes
+            .map(|(namespace, view)| {
+                view.bytes
                     .capacity()
                     .saturating_add(estimated_map_item_bytes(namespace.len()))
             })

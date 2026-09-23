@@ -240,7 +240,7 @@ pub struct Store {
     /// Entries and blobs removed per namespace, so a cached snapshot index can
     /// drop what it advertises before its next reconcile (see
     /// `action_cache_removals`).
-    action_cache_removals: StdMutex<ActionCacheRemovalLog>,
+    action_cache_removals: Arc<StdMutex<ActionCacheRemovalLog>>,
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
@@ -1373,9 +1373,9 @@ impl Store {
             #[cfg(test)]
             write_thread_observer: Arc::new(StdMutex::new(None)),
             action_cache_generations: StdMutex::new(HashMap::new()),
-            action_cache_removals: StdMutex::new(ActionCacheRemovalLog::new(
+            action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
                 ACTION_CACHE_REMOVAL_LOG_MAX,
-            )),
+            ))),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
             durable_seq: AtomicU64::new(0),
@@ -4275,12 +4275,16 @@ impl Store {
         // store no longer has and snapshots advertising cascaded entries: the
         // `CAS error: missing object` class again. Clearing early is safe in
         // the other direction, because a miss just re-reads a row that is still
-        // there, and it costs only a re-read if the commit then fails. Recording
-        // the removals early is safe for the same reason: a snapshot that drops
-        // an entry the commit then keeps only sends that key per key.
-        self.record_action_cache_removals(std::mem::take(&mut cascade.removals));
+        // there, and it costs only a re-read if the commit then fails.
         self.invalidate_committed_eviction(removed_artifact_ids, cascade);
         let db = Arc::clone(&self.db);
+        // Removals are recorded for cached snapshot indexes only once the write
+        // has landed, and from the blocking task, which runs to completion even
+        // when the future awaiting it is dropped. Recording earlier would let a
+        // concurrent rebuild stamp the new sequence over rows still present,
+        // and nothing would record them again once the commit removed them.
+        let removals = std::mem::take(&mut cascade.removals);
+        let removal_log = Arc::clone(&self.action_cache_removals);
         #[cfg(test)]
         let commits = Arc::clone(&self.eviction_commits);
         #[cfg(test)]
@@ -4306,6 +4310,14 @@ impl Store {
                 }
             }
             let result = db.write(batch);
+            if result.is_ok() {
+                let mut log = removal_log
+                    .lock()
+                    .expect("action-cache removal log lock poisoned");
+                for (namespace_id, removal) in removals {
+                    log.record(&namespace_id, removal);
+                }
+            }
             #[cfg(test)]
             if result.is_ok() {
                 let hook = commits
@@ -7042,11 +7054,11 @@ impl Store {
 
     /// The removal sequence a snapshot index built from the store now resumes
     /// from.
-    pub fn action_cache_removal_seq(&self, namespace_id: &str) -> u64 {
+    pub fn action_cache_removal_seq(&self) -> u64 {
         self.action_cache_removals
             .lock()
             .expect("action-cache removal log lock poisoned")
-            .last(namespace_id)
+            .last()
     }
 
     /// The entries and blobs removed from the namespace after `after`, or `None`
@@ -17478,12 +17490,26 @@ mod tests {
             1,
         )
         .await;
-        let before = store.action_cache_removal_seq("acme");
+        let before = store.action_cache_removal_seq();
+        let seen_before_commit = Arc::new(AtomicU64::new(u64::MAX));
+        {
+            let seen = seen_before_commit.clone();
+            let log = store.action_cache_removals.clone();
+            store.eviction_commits.lock().unwrap().before_commit = Some(Arc::new(move || {
+                seen.store(log.lock().unwrap().last(), Ordering::SeqCst);
+            }));
+        }
 
         store
             .evict_segment(blob.segment_id.as_deref().expect("segment-backed blob"))
             .await
             .expect("failed to evict segment");
+
+        assert_eq!(
+            seen_before_commit.load(Ordering::SeqCst),
+            before,
+            "a rebuild during the commit must not see the removals as applied yet"
+        );
 
         let removals = store
             .action_cache_removals_since("acme", before)
@@ -17500,7 +17526,7 @@ mod tests {
         };
         assert!(removals.entries.contains(&entry_hash));
         assert!(removals.blobs.contains(&(hash, size)));
-        assert_eq!(removals.through, store.action_cache_removal_seq("acme"));
+        assert_eq!(removals.through, store.action_cache_removal_seq());
     }
 
     #[tokio::test]
