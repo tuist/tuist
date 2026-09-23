@@ -1,9 +1,9 @@
-import Command
 import FileSystem
 import Foundation
 import Path
 import TuistCore
 import TuistLogging
+import TuistProcess
 import TuistSupport
 
 #if canImport(Darwin)

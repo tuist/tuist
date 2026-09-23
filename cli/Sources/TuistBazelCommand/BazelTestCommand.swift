@@ -1,7 +1,7 @@
 import ArgumentParser
-import Command
 import Foundation
 import TuistAlert
+import TuistProcess
 
 public struct BazelTestCommand: AsyncParsableCommand {
     public init() {}
