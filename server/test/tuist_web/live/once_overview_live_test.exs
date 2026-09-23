@@ -57,10 +57,18 @@ defmodule TuistWeb.OnceOverviewLiveTest do
     assert has_element?(view, "#once-average-build-time")
     assert has_element?(view, "#once-average-test-run-time")
 
-    # Two builds, one of which failed, and one passing test run.
-    assert has_element?(view, "#once-overview-builds-passed", "1")
-    assert has_element?(view, "#once-overview-builds-failed", "1")
-    assert has_element?(view, "#once-overview-tests-passed", "1")
+    # Builds and Tests each chart their recent runs with passed/failed
+    # legends, the same shape the Bazel and Xcode overviews use.
+    assert has_element?(view, "#once-overview-builds-chart")
+    assert has_element?(view, "#once-overview-tests-chart")
+
+    html = render(view)
+    assert html =~ "Passed builds"
+    assert html =~ "Failed builds"
+    assert html =~ "Passed runs"
+
+    # The percentage axis must not leak a formatter name into the label.
+    refute html =~ "formatPercentage"
   end
 
   test "changing the period keeps the overview rendered", %{conn: conn, path: path} do

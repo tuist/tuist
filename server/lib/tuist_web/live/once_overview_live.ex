@@ -51,52 +51,61 @@ defmodule TuistWeb.OnceOverviewLive do
          has_any_cache_observations: Enum.any?(analytics.lookup_values, &(&1 > 0))
        }}
     end)
-    |> assign_async(:build_summary, fn ->
-      {:ok, %{build_summary: summary_with_trends(project.id, analytics_period, @build_commands)}}
+    |> assign_async([:build_summary, :recent_builds], fn ->
+      {:ok,
+       %{
+         build_summary: summary_with_trends(project.id, analytics_period, @build_commands),
+         recent_builds: recent_runs(project, analytics_period, @build_commands)
+       }}
     end)
-    |> assign_async(:test_summary, fn ->
-      {:ok, %{test_summary: summary_with_trends(project.id, analytics_period, @test_commands)}}
+    |> assign_async([:test_summary, :recent_test_runs], fn ->
+      {:ok,
+       %{
+         test_summary: summary_with_trends(project.id, analytics_period, @test_commands),
+         recent_test_runs: recent_runs(project, analytics_period, @test_commands)
+       }}
     end)
   end
 
   def render(assigns) do
     ~H"""
     <div id="once-overview" class="bazel-overview">
-      <div data-part="filters">
-        <.date_picker
-          id="once-overview-date-range-picker"
-          name="analytics-date-range"
-          presets={date_picker_presets()}
-          selected_preset={@analytics_preset}
-          period={@analytics_period}
-          on_period_change="analytics_period_changed"
-          max={Date.utc_today()}
-        >
-          <:actions>
-            <.button
-              label={dgettext("dashboard_projects", "Cancel")}
-              variant="secondary"
-              phx-click={
-                JS.dispatch("phx:date-picker-cancel",
-                  detail: %{id: "once-overview-date-range-picker"}
-                )
-              }
-            />
-            <.button
-              label={dgettext("dashboard_projects", "Apply")}
-              phx-click={
-                JS.dispatch("phx:date-picker-apply", detail: %{id: "once-overview-date-range-picker"})
-              }
-            />
-          </:actions>
-        </.date_picker>
-      </div>
-
       <.card
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="analytics-card"
       >
+        <:actions>
+          <.date_picker
+            id="once-overview-date-range-picker"
+            name="analytics-date-range"
+            presets={date_picker_presets()}
+            selected_preset={@analytics_preset}
+            period={@analytics_period}
+            on_period_change="analytics_period_changed"
+            max={Date.utc_today()}
+          >
+            <:actions>
+              <.button
+                label={dgettext("dashboard_projects", "Cancel")}
+                variant="secondary"
+                phx-click={
+                  JS.dispatch("phx:date-picker-cancel",
+                    detail: %{id: "once-overview-date-range-picker"}
+                  )
+                }
+              />
+              <.button
+                label={dgettext("dashboard_projects", "Apply")}
+                phx-click={
+                  JS.dispatch("phx:date-picker-apply",
+                    detail: %{id: "once-overview-date-range-picker"}
+                  )
+                }
+              />
+            </:actions>
+          </.date_picker>
+        </:actions>
         <div data-part="analytics-content">
           <div data-part="widgets">
             <.widget
@@ -165,6 +174,10 @@ defmodule TuistWeb.OnceOverviewLive do
           >
             <.legend
               title={dgettext("dashboard_projects", "Action cache hit rate")}
+              value={
+                if @cache_summary.ok? and @cache_summary.result.hit_rate,
+                  do: "#{@cache_summary.result.hit_rate}%"
+              }
               style="primary"
             />
             <.chart
@@ -174,8 +187,8 @@ defmodule TuistWeb.OnceOverviewLive do
                 %{
                   grid: %{width: "97%", left: "0.4%", height: "80%", top: "5%"},
                   xAxis: chart_x_axis(@cache_hit_rate_analytics.result.dates, @analytics_granularity),
-                  yAxis: chart_y_axis("fn:formatPercentage"),
-                  tooltip: chart_tooltip("fn:formatPercentage", @analytics_granularity)
+                  yAxis: percentage_y_axis(),
+                  tooltip: chart_tooltip("{value}%", @analytics_granularity)
                 }
               }
               series={[
@@ -212,28 +225,26 @@ defmodule TuistWeb.OnceOverviewLive do
         </div>
       </.card>
 
-      <.summary_card
+      <.runs_card
         id="once-overview-builds"
         title={dgettext("dashboard_projects", "Builds")}
-        icon="subtask"
         summary={@build_summary}
+        runs={@recent_builds}
         passed_label={dgettext("dashboard_projects", "Passed builds")}
         failed_label={dgettext("dashboard_projects", "Failed builds")}
         empty_title={dgettext("dashboard_projects", "No builds yet")}
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/builds"}
-        trend_label={@analytics_trend_label}
       />
 
-      <.summary_card
+      <.runs_card
         id="once-overview-tests"
         title={dgettext("dashboard_projects", "Tests")}
-        icon="subtask"
         summary={@test_summary}
+        runs={@recent_test_runs}
         passed_label={dgettext("dashboard_projects", "Passed runs")}
         failed_label={dgettext("dashboard_projects", "Failed runs")}
         empty_title={dgettext("dashboard_projects", "No test runs yet")}
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/tests"}
-        trend_label={@analytics_trend_label}
       />
     </div>
     """
@@ -241,48 +252,60 @@ defmodule TuistWeb.OnceOverviewLive do
 
   attr :id, :string, required: true
   attr :title, :string, required: true
-  attr :icon, :string, required: true
   attr :summary, :map, required: true
+  attr :runs, :map, required: true
   attr :passed_label, :string, required: true
   attr :failed_label, :string, required: true
   attr :empty_title, :string, required: true
   attr :navigate, :string, required: true
-  attr :trend_label, :string, required: true
 
-  defp summary_card(assigns) do
+  defp runs_card(assigns) do
     ~H"""
-    <.card title={@title} icon={@icon} data-part="builds-card">
+    <.card title={@title} icon="subtask" data-part="builds-card">
       <:actions>
         <.button
           variant="secondary"
           label={dgettext("dashboard_projects", "View more")}
           size="medium"
           navigate={@navigate}
-          disabled={@summary.ok? && @summary.result.total == 0}
+          disabled={@runs.ok? && Enum.empty?(@runs.result)}
         />
       </:actions>
-      <.card_section :if={!@summary.ok?}>
-        <.skeleton_chart />
+      <.card_section :if={!@runs.ok?}>
+        <div data-part="build-runs-chart">
+          <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
+          <.skeleton_chart />
+        </div>
       </.card_section>
-      <.card_section :if={@summary.ok? && @summary.result.total > 0} data-part="widgets">
-        <.widget
-          id={"#{@id}-passed"}
-          loading={false}
-          title={@passed_label}
-          value={to_string(@summary.result.successful)}
-          trend_value={0}
-          trend_label={@trend_label}
-        />
-        <.widget
-          id={"#{@id}-failed"}
-          loading={false}
-          title={@failed_label}
-          value={to_string(@summary.result.failed)}
-          trend_value={0}
-          trend_label={@trend_label}
-        />
+      <.card_section :if={@runs.ok? && Enum.any?(@runs.result)}>
+        <div data-part="build-runs-chart">
+          <div data-part="legends">
+            <.legend
+              title={@passed_label}
+              value={Enum.count(@runs.result, &(&1.status == "success"))}
+              style="primary"
+            />
+            <.legend
+              title={@failed_label}
+              value={Enum.count(@runs.result, &(&1.status == "failure"))}
+              style="destructive"
+            />
+          </div>
+          <.chart
+            data-lazy="true"
+            id={"#{@id}-chart"}
+            type="bar"
+            extra_options={recent_runs_chart_options(@runs.result)}
+            series={[%{data: @runs.result, name: @title, type: "bar"}]}
+            y_axis_min={0}
+            grid_lines
+            bar_width={8}
+            bar_radius={2}
+          />
+          <span data-part="label">{dgettext("dashboard_projects", "Last 30 runs")}</span>
+        </div>
       </.card_section>
-      <.empty_card_section :if={@summary.ok? && @summary.result.total == 0} title={@empty_title}>
+      <.empty_card_section :if={@runs.ok? && Enum.empty?(@runs.result)} title={@empty_title}>
         <:image>
           <img src={~p"/images/empty_chart_light.png"} data-theme="light" loading="lazy" />
           <img src={~p"/images/empty_chart_dark.png"} data-theme="dark" loading="lazy" />
@@ -290,6 +313,47 @@ defmodule TuistWeb.OnceOverviewLive do
       </.empty_card_section>
     </.card>
     """
+  end
+
+  # Same point shape the Bazel overview charts: value + per-status colour,
+  # newest last so the bars read left to right.
+  defp recent_runs(project, period, commands) do
+    {runs, _meta} =
+      Analytics.list_invocations(
+        project.id,
+        %{page: 1, page_size: 30, order_by: [:finished_at], order_directions: [:desc]},
+        opts(period, commands)
+      )
+
+    runs
+    |> Enum.reverse()
+    |> Enum.map(fn run ->
+      %{
+        value: run.duration_ms || 0,
+        itemStyle: %{
+          color:
+            if(run.status == "success",
+              do: "var:noora-chart-primary",
+              else: "var:noora-chart-destructive"
+            )
+        },
+        date: run.finished_at,
+        status: run.status
+      }
+    end)
+  end
+
+  defp recent_runs_chart_options(runs) do
+    %{
+      grid: %{width: "100%", left: "0.4%", height: "88%", top: "5%"},
+      tooltip: %{valueFormat: "fn:formatMilliseconds", dateFormat: "minute"},
+      xAxis: %{axisLabel: %{show: false}, data: Enum.map(runs, & &1.date)},
+      yAxis: %{
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "fn:formatMilliseconds"}
+      },
+      legend: %{show: false}
+    }
   end
 
   defp summary_with_trends(project_id, {start_dt, end_dt} = period, commands) do
@@ -318,4 +382,15 @@ defmodule TuistWeb.OnceOverviewLive do
   end
 
   defp opts(period, commands), do: period |> period_opts() |> Keyword.put(:commands, commands)
+
+  # There is no `fn:formatPercentage` in the chart hook, so the label was
+  # rendering as that literal string. Percentages use an ECharts template,
+  # the way the Xcode overview does it.
+  defp percentage_y_axis do
+    %{
+      splitNumber: 4,
+      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+      axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+    }
+  end
 end
