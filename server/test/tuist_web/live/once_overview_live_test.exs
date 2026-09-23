@@ -63,8 +63,15 @@ defmodule TuistWeb.OnceOverviewLiveTest do
 
     # Builds and Tests each chart their recent runs with passed/failed
     # legends, the same shape the Bazel and Xcode overviews use.
+    # Builds is the two column `builds-card-sections` Xcode uses: recent runs
+    # on the left, average build time with its own View more on the right.
+    assert has_element?(view, "[data-part=builds-card-sections]")
+    assert has_element?(view, "[data-part=build-runs-chart]")
+    assert has_element?(view, "[data-part=average-build-time-card-section]")
+    assert has_element?(view, "[data-part=average-build-time-chart] [data-part=view-more]")
     assert has_element?(view, "#once-overview-builds-chart")
-    assert has_element?(view, "#once-overview-tests-chart")
+    assert has_element?(view, "#once-overview-average-build-time-chart")
+    assert has_element?(view, "[data-part=test-runs-chart]")
 
     html = render(view)
     assert html =~ "Passed builds"

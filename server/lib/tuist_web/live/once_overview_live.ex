@@ -51,11 +51,12 @@ defmodule TuistWeb.OnceOverviewLive do
          has_any_cache_observations: Enum.any?(analytics.lookup_values, &(&1 > 0))
        }}
     end)
-    |> assign_async([:build_summary, :recent_builds], fn ->
+    |> assign_async([:build_summary, :recent_builds, :builds_duration_analytics], fn ->
       {:ok,
        %{
          build_summary: summary_with_trends(project.id, analytics_period, @build_commands),
-         recent_builds: recent_runs(project, analytics_period, @build_commands)
+         recent_builds: recent_runs(project, analytics_period, @build_commands),
+         builds_duration_analytics: Analytics.invocation_analytics(project.id, opts(analytics_period, @build_commands))
        }}
     end)
     |> assign_async([:test_summary, :recent_test_runs], fn ->
@@ -253,17 +254,139 @@ defmodule TuistWeb.OnceOverviewLive do
         </div>
       </.card>
 
-      <.runs_card
-        id="once-overview-builds"
+      <.card
         title={dgettext("dashboard_projects", "Builds")}
-        chart_part="build-runs-chart"
-        summary={@build_summary}
-        runs={@recent_builds}
-        passed_label={dgettext("dashboard_projects", "Passed builds")}
-        failed_label={dgettext("dashboard_projects", "Failed builds")}
-        empty_title={dgettext("dashboard_projects", "No builds yet")}
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/builds"}
-      />
+        icon="subtask"
+        data-part="builds-card-section"
+      >
+        <div data-part="builds-card-sections">
+          <.card_section :if={!@recent_builds.ok?}>
+            <div data-part="build-runs-chart">
+              <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
+              <.skeleton_chart />
+            </div>
+          </.card_section>
+          <.card_section :if={@recent_builds.ok? && not Enum.empty?(@recent_builds.result)}>
+            <div data-part="build-runs-chart">
+              <div data-part="legends">
+                <.legend
+                  title={dgettext("dashboard_projects", "Passed builds")}
+                  value={Enum.count(@recent_builds.result, &(&1.status == "success"))}
+                  style="primary"
+                />
+                <.legend
+                  title={dgettext("dashboard_projects", "Failed builds")}
+                  value={Enum.count(@recent_builds.result, &(&1.status == "failure"))}
+                  style="destructive"
+                />
+              </div>
+              <.chart
+                data-lazy="true"
+                id="once-overview-builds-chart"
+                type="bar"
+                extra_options={recent_runs_chart_options(@recent_builds.result)}
+                series={[%{data: @recent_builds.result, name: "Build", type: "bar"}]}
+                y_axis_min={0}
+                grid_lines
+                bar_width={8}
+                bar_radius={2}
+              />
+              <span data-part="label">{dgettext("dashboard_projects", "Last 30 runs")}</span>
+            </div>
+          </.card_section>
+          <.empty_card_section
+            :if={@recent_builds.ok? && Enum.empty?(@recent_builds.result)}
+            title={dgettext("dashboard_projects", "No recent builds yet")}
+          >
+            <:image>
+              <img src={~p"/images/empty_bar_chart_light.png"} data-theme="light" loading="lazy" />
+              <img src={~p"/images/empty_bar_chart_dark.png"} data-theme="dark" loading="lazy" />
+            </:image>
+          </.empty_card_section>
+
+          <.card_section
+            :if={!@builds_duration_analytics.ok?}
+            data-part="average-build-time-card-section"
+          >
+            <div data-part="average-build-time-chart">
+              <div data-part="legends"><.skeleton_legend /></div>
+              <.skeleton_chart />
+            </div>
+          </.card_section>
+          <.card_section
+            :if={@builds_duration_analytics.ok? && @build_summary.ok?}
+            data-part="average-build-time-card-section"
+          >
+            <div data-part="average-build-time-chart">
+              <.button
+                data-part="view-more"
+                label={dgettext("dashboard_projects", "View more")}
+                size="small"
+                variant="secondary"
+                navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/builds"}
+              />
+              <div data-part="legends">
+                <.legend
+                  title={dgettext("dashboard_projects", "Average build time")}
+                  value={
+                    DateFormatter.format_duration_from_milliseconds(
+                      @build_summary.result.average_duration_ms
+                    )
+                  }
+                  style="secondary"
+                />
+              </div>
+              <.chart
+                data-lazy="true"
+                id="once-overview-average-build-time-chart"
+                type="line"
+                extra_options={
+                  %{
+                    grid: %{width: "95%", left: "0.4%", height: "88%", top: "5%"},
+                    xAxis: %{
+                      boundaryGap: false,
+                      type: "category",
+                      axisLabel: %{
+                        color: "var:noora-surface-label-secondary",
+                        formatter: "fn:toLocaleDate",
+                        customValues: [
+                          List.first(@builds_duration_analytics.result.dates),
+                          List.last(@builds_duration_analytics.result.dates)
+                        ],
+                        padding: [10, 0, 0, 0]
+                      }
+                    },
+                    yAxis: %{
+                      splitNumber: 4,
+                      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                      axisLabel: %{
+                        color: "var:noora-surface-label-secondary",
+                        formatter: "fn:formatMilliseconds"
+                      }
+                    },
+                    tooltip: chart_tooltip("fn:formatMilliseconds", @analytics_granularity),
+                    legend: %{show: false}
+                  }
+                }
+                series={[
+                  %{
+                    color: "var:noora-chart-secondary",
+                    data:
+                      @builds_duration_analytics.result.dates
+                      |> Enum.zip(@builds_duration_analytics.result.average_duration_values)
+                      |> Enum.map(&Tuple.to_list/1),
+                    name: dgettext("dashboard_projects", "Average build time"),
+                    type: "line",
+                    smooth: 0.1,
+                    symbol: "none"
+                  }
+                ]}
+                y_axis_min={0}
+              />
+            </div>
+          </.card_section>
+        </div>
+      </.card>
 
       <.runs_card
         id="once-overview-tests"
