@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -8,6 +7,7 @@ import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistLoggerTesting
+import TuistProcess
 import TuistTesting
 
 @testable import TuistLaunchctl

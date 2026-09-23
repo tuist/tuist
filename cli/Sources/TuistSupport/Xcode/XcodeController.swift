@@ -1,9 +1,8 @@
-import struct Command.CommandRunner
-import protocol Command.CommandRunning
 import Foundation
 import Mockable
 import Path
 import TSCUtility
+import TuistProcess
 import TuistThreadSafe
 
 @Mockable
