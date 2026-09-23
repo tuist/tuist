@@ -1,9 +1,9 @@
 # Spec 95 staging validation — 2026-09-22
 
 Status: staging DNS, TLS, cache protocols, demotion, failure ordering, and real
-client checks have passed. The full withdrawal drain is still running. Testing
-found a cross-replica hand-out bug; the PostgreSQL projection fix is validated
-locally and awaits staging rollout. GitHub CI also awaits permission to store
+client checks have passed. The first full withdrawal drain completed. Testing
+found two hand-out races: the PostgreSQL projection fix passed staging restart
+checks, and a controller observation fix awaits rollout. GitHub CI awaits permission to store
 the temporary fixture token as an Actions secret.
 
 ## Revisions and rollout boundaries
@@ -149,7 +149,7 @@ the fixture while hand-out remained disabled.
 - Successful provider observation started the drain at **09:48:22 UTC**. A
   rolling controller restart preserved that exact timestamp. Deleting only the
   retiring fixture CR at **09:49:42 UTC** left its finalizer and routing intact.
-  Its teardown deadline is **10:50:22 UTC**, with the full 3720 seconds unchanged.
+Its teardown deadline is **10:50:22 UTC**, with the full 3720 seconds unchanged.
 
 The first two fault-script attempts had inconclusive checkpoints: one checked
 logs before a denial appeared; another allowed too little recovery time after
@@ -169,6 +169,15 @@ Evidence: `records-{before,after}-demotion.json`, `demotion-*.jsonl`,
 `after-controller-restart.json`, `deletion-during-drain.json`,
 `drain-survivor-soak.jsonl`, and `drain-paris-rendering.jsonl`.
 
+The full drain completed without shortening its timer. Both authenticated
+protocols passed on Paris at 10:49:23 UTC, and the pinned HTTP probe still passed
+at **10:50:16 UTC**. A Kubernetes watch recorded CR deletion at exactly
+**10:50:22 UTC**. The first subsequent pinned probe, at 10:50:49 UTC, received
+the expected TLS `unrecognized name` rejection. The Ingresses, Services, and
+StatefulSet were gone; pods entered their normal termination grace period.
+Montreal's authenticated round trips continued without interruption. Evidence:
+`paris-final-drain-roundtrip.jsonl` and `paris-teardown-watch.jsonl`.
+
 ## Shared health checks and failover
 
 A second fixture, `kura-spec95-health` (account 50), advertised from both boxes
@@ -184,7 +193,8 @@ caused real TCP failures and switched authoritative queries from Paris to
 Montreal by **10:00:42 UTC**. The surviving stable endpoint returned HTTP 200.
 With both checks probing the closed port, authoritative DNS still returned an
 address at **10:02:40 UTC** instead of NXDOMAIN. Both checks were restored to
-port 443. The gateways themselves stayed running: this tests failed TCP probes
+port 443; subsequent reads confirmed all 16 observers for each check reported
+successful connections. The gateways themselves stayed running: this tests failed TCP probes
 and DNS steering, not a shared-gateway process outage or recovery of existing
 client connections to a dead gateway.
 
@@ -213,7 +223,11 @@ project-restricted token:
   hits. After draining uploads, cleaning products, and selecting a new empty
   local CAS directory, the rebuild reported **138/138 hits (100%)**. Build/run
   report uploads were refused because the token grants cache access only; this
-  does not validate the analytics upload path.
+  does not validate the analytics upload path. The isolated proxy's launch
+  endpoint was the stable hostname; its endpoint log showed no change before
+  these builds completed at 09:55 UTC. At 10:23:29 UTC it switched to the regional
+  Montreal hostname during an endpoint refresh, another consequence of the
+  inconsistent hand-out described below (`cas-endpoint-evidence.json`).
 
 The local preflight for the prepared CI soak then exposed inconsistent API
 hand-out. Eight requests alternated between the stable and regional URL.
@@ -232,7 +246,40 @@ run passed **11 tests**. The complete affected suites subsequently passed
 **206 tests**, excluding only the existing, separately reproduced `us-east`
 disk-budget assertion. Credo reported no issues. The migration safety check
 reported no warning for the new migration (existing historical migration
-warnings remain). Staging revalidation is still pending.
+warnings remain).
+
+The fix deployed successfully in
+[run 35848047301](https://github.com/tuist/tuist/actions/runs/35848047301), using
+server revision `4a256a44063636429871b3119df412bd85a948c6` while preserving the
+previously validated controller and Kura runtime images. By 10:40 UTC both web
+replicas read the same fresh PostgreSQL projection. After replacing exactly one
+of the two healthy web pods, the replacement and survivor again read the same
+projection; the migration version was also present in `schema_migrations`.
+All **90 API requests**, thirty before, during, and after the restart, returned
+only the stable hostname with `provisioning: false`.
+
+Bazel then restored its artifact from the remote cache with the saved
+`.bazelrc.tuist` checksum unchanged. At 10:43:31 UTC the existing CAS proxy
+automatically returned to the stable hostname during its normal refresh,
+without being restarted. Evidence: `shared-readiness-*.jsonl`,
+`before-single-web-restart.json`, `bazel-fixed-hit.log`, and `cas-proxy.log`.
+
+The longer local Gradle soak then stopped at 10:45:23 UTC after five successful
+fresh-process restores because the API again returned a regional name. This was
+a second race: every controller pass persisted `ready: false` before probing,
+then `true` after completing its checks. A staging watch captured that exact
+false/true transition at 10:49:37 UTC. The server could sample the intermediate
+state and retain it until its next reconciliation even while cache traffic was
+healthy. The first soak is therefore a failure, not a completed twelve-hit run.
+
+The controller fix persists initial identity before publication as before, but
+steady passes publish only completed observations. Failed probes and provider
+reads still persist false readiness; a separate five-second status-write
+context allows recording a provider deadline failure. The regression failed
+before the fix. The full controller suite, including Helm rendering, then passed
+with `go test -race ./...`. This controller fix still awaits staging rollout.
+Evidence: `readiness-watch-before-fix.jsonl`, `gradle-fixed-soak.log`, and the
+local `spec95-controller-readiness-{red,green}.log` files.
 
 The prepared CI mode is `linux-runners-staging-smoke.yml` with both
 `gradle_cache` and `stable_cache_dns` enabled, project `kura-spec95-e2e/probe`,
@@ -245,8 +292,7 @@ is pending, and no secret has been uploaded.
 
 ## Remaining work
 
-1. Deploy the shared-readiness fix and verify identical hand-out across both web
-   replicas, including through a restart and the client soak.
+1. Complete the fresh-process client soak against the shared-readiness fix.
 2. Observe the complete drain and finalizer/health-check cleanup at the deadlines
    above, with survivor traffic and persisted client configuration retained.
 3. Run the prepared GitHub CI soak if credential transfer is approved.

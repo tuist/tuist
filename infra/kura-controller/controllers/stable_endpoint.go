@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -98,7 +99,7 @@ func (r *KuraInstanceReconciler) saveStableEndpoint(ctx context.Context, instanc
 	return err
 }
 
-func (r *KuraInstanceReconciler) reconcileStableEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance, primary string, pods []corev1.Pod, samples map[string]runtimeStatus) error {
+func (r *KuraInstanceReconciler) reconcileStableEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance, primary string, pods []corev1.Pod, samples map[string]runtimeStatus) (reconcileErr error) {
 	if !stableAdvertising(instance) {
 		return nil
 	}
@@ -108,9 +109,11 @@ func (r *KuraInstanceReconciler) reconcileStableEndpoint(ctx context.Context, in
 	if r.StableDNS == nil {
 		return fmt.Errorf("stable DNS configured without a Route53 provider")
 	}
+	parentCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	state := instance.Status.StableEndpoint
+	newIdentity := state == nil
 	if state == nil {
 		state = &kurav1alpha1.StableEndpointStatus{Host: instance.Spec.StableHost, SetIdentifier: instance.Spec.Region, AWSRegion: instance.Spec.StableAWSRegion}
 		instance.Status.StableEndpoint = state
@@ -119,10 +122,19 @@ func (r *KuraInstanceReconciler) reconcileStableEndpoint(ctx context.Context, in
 	state.ObservedGeneration = instance.Generation
 	state.LastCheckedAt = time.Now().UTC().Format(time.RFC3339)
 	state.WithdrawnAt = ""
-	// Persist identity before creating anything that can send traffic here.
-	if err := r.saveStableEndpoint(ctx, instance); err != nil {
-		return err
+	if newIdentity {
+		// Persist identity before creating anything that can send traffic here.
+		if err := r.saveStableEndpoint(ctx, instance); err != nil {
+			return err
+		}
 	}
+	// Readers must see a completed observation, not a transient false result on
+	// every healthy pass. Persist failures too, even if the probe deadline expired.
+	defer func() {
+		statusCtx, statusCancel := context.WithTimeout(parentCtx, 5*time.Second)
+		defer statusCancel()
+		reconcileErr = errors.Join(reconcileErr, r.saveStableEndpoint(statusCtx, instance))
+	}()
 	target, err := r.instanceNodeIP(ctx, instance, primary)
 	if err != nil {
 		return err
@@ -184,7 +196,7 @@ func (r *KuraInstanceReconciler) reconcileStableEndpoint(ctx context.Context, in
 		return err
 	}
 	state.Ready = record != nil && record.Target == target && record.AWSRegion == state.AWSRegion && record.HealthCheckID == state.HealthCheckID
-	return r.saveStableEndpoint(ctx, instance)
+	return nil
 }
 
 // Every removal path (retirement, flag rollback, rename and CR deletion) uses
