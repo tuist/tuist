@@ -78,6 +78,7 @@ func main() {
 		tartTarballPath              string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
+		hostSensorsBinaryPath        string
 		logShipperBinaryPath         string
 		logShipURL                   string
 		logShipEnv                   string
@@ -154,6 +155,13 @@ func main() {
 			"Empty disables the host-metrics step. Paired with "+
 			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
 			"to a public interface, which the bootstrap step actively refuses.")
+	flag.StringVar(&hostSensorsBinaryPath, "host-sensors-binary-path",
+		envOrDefault("CAPI_HOST_SENSORS_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 tuist-host-sensors binary baked into this "+
+			"image (/opt/host-sensors/tuist-host-sensors-darwin-arm64 by default). "+
+			"Writes the host's temperatures, fan speeds, power and thermal pressure "+
+			"for node_exporter's textfile collector every 30 seconds. Empty, or no "+
+			"--node-exporter-binary-path to serve the readings, removes the job.")
 	flag.StringVar(&logShipperBinaryPath, "log-shipper-binary-path",
 		envOrDefault("CAPI_LOG_SHIPPER_BINARY_PATH", ""),
 		"Local path of the darwin/arm64 tuist-log-shipper binary baked into this "+
@@ -425,6 +433,15 @@ func main() {
 		}
 		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
 	}
+	var hostSensorsBinary []byte
+	if hostSensorsBinaryPath != "" {
+		hostSensorsBinary, err = os.ReadFile(hostSensorsBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read host sensors binary", "path", hostSensorsBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded host sensors binary", "path", hostSensorsBinaryPath, "bytes", len(hostSensorsBinary), "sha", sha256Hex(hostSensorsBinary))
+	}
 	var logShipperBinary []byte
 	if logShipperBinaryPath != "" {
 		logShipperBinary, err = os.ReadFile(logShipperBinaryPath)
@@ -458,6 +475,7 @@ func main() {
 		TartTarball:        tartTarball,
 		TailscaleBinaries:  tailscaleBinaries,
 		NodeExporterBinary: nodeExporterBinary,
+		HostSensorsBinary:  hostSensorsBinary,
 		LogShipperBinary:   logShipperBinary,
 		LogShipURL:         logShipURL,
 		LogShipEnv:         logShipEnv,

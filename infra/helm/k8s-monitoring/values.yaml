@@ -1540,9 +1540,15 @@ k8s-monitoring:
         prometheus.relabel "tuist_macos_node_exporter" {
           rule {
             source_labels = ["__name__"]
-            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes"
+            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes|node_textfile_mtime_seconds|node_textfile_scrape_error|macos_sensor_temperature_celsius|macos_fan_(speed|target|max)_rpm|macos_system_power_watts|macos_thermal_pressure_level"
             action = "keep"
           }
+          // macos_* is written by infra/macos-host-sensors and served by
+          // node_exporter's textfile collector: temperatures, fan speeds, power
+          // and thermal pressure, which node_exporter itself cannot read on a
+          // healthy Apple silicon host. node_textfile_mtime_seconds is how old
+          // the sample is, so a stopped sensors job shows as an aging file
+          // rather than as missing series.
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud

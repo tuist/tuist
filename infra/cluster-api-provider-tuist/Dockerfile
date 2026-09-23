@@ -113,6 +113,22 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tuist-log-shipper-darwin-arm64 ./cmd/tuist-log-shipper
 
 
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS host-sensors-builder
+
+WORKDIR /src
+COPY infra/macos-host-sensors ./
+
+# CGO off like every other host binary here: the sensor frameworks are called
+# through purego, which is what lets this cross-build from Linux at all.
+# node_exporter's own Apple silicon collector needs cgo and the Apple SDK,
+# which is why the fleet takes that one as an upstream release instead.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" \
+    -o /out/tuist-host-sensors-darwin-arm64 ./cmd/tuist-host-sensors
+
+
 FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS tart-fetcher
 
 # Pin Tart at image build time. The asset URL pattern is stable:
@@ -194,6 +210,7 @@ COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
 COPY --from=tailscale-builder /out/tailscale-darwin-arm64.tar.gz /opt/tailscale/tailscale-darwin-arm64.tar.gz
 COPY --from=node-exporter-fetcher /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
 COPY --from=log-shipper-builder /out/tuist-log-shipper-darwin-arm64 /opt/log-shipper/tuist-log-shipper-darwin-arm64
+COPY --from=host-sensors-builder /out/tuist-host-sensors-darwin-arm64 /opt/host-sensors/tuist-host-sensors-darwin-arm64
 
 USER nonroot:nonroot
 
