@@ -250,11 +250,11 @@ source it reported 45 sensors, including the SoC die sensors, and its author mea
 
 The x86 nodes run Linux and join the staging cluster, so the cluster's node-exporter
 DaemonSet covers them. The edge node joined at its tailnet address, which the pod
-network cannot reach, and read `up 0` until
-[#13546](https://github.com/tuist/tuist/pull/13546) pointed its scrape at its egress
+network cannot reach, so it reads `up 0` until
+[#13545](https://github.com/tuist/tuist/pull/13545) points its scrape at its egress
 Service; that change also keeps the `hwmon` CPU package, core and NVMe temperatures.
-The switches report CPU, memory, chassis and transceiver temperature through the
-Omada controller, [#13545](https://github.com/tuist/tuist/pull/13545).
+The same PR has the switches report CPU, memory, chassis and transceiver temperature
+through the Omada controller.
 
 ### What each one is for
 
