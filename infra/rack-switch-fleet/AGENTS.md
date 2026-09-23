@@ -721,16 +721,23 @@ files no longer match it:
   gets its site address and the edge node as router, anything else the
   provisioning range, and both get the controller's tailnet address in option
   138. That option is what makes a factory switch zero touch.
+- With `management.edge.netboot`, x86-64 UEFI firmware on the provisioning
+  range also gets `bootx64.efi` from the provisioning address, where the rack
+  boot server (`rackLinuxFleet.boot` in the tuist chart) serves the installs
+  the operator publishes, and the path translates the provisioning range onto
+  the node's uplinks, since a netbooting installer can route through either.
+  See [`infra/rack-nodes`](../rack-nodes/AGENTS.md).
 
 The pod uses host networking, with NET_ADMIN (and NET_RAW and
 NET_BIND_SERVICE for dnsmasq) rather than privileged. Its image
 (`edge/Dockerfile`, built by `rack-edge-image.yml`) carries only dnsmasq,
-iproute2 and nftables.
+iproute2 and nftables, plus what the boot server runs from the same image:
+busybox's httpd, curl, bsdtar and Ubuntu's signed network GRUB.
 
 A new edge node is declared in `rackLinuxFleet.hosts` of the tuist chart's
 values for the rack's environment, with the `edge` role, whose
 `tuist.dev/rack-edge=<site>` label and taint keep everything but the rack-edge
-pod off it (the node exporter and the log collector tolerate it and use host
+and boot server pods off it (the node exporter and the log collector tolerate it and use host
 networking too). Then it is installed from a stick and needs nothing else:
 
 ```
