@@ -10,6 +10,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
 
   setup :set_mimic_from_context
 
@@ -28,6 +29,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "sync_stable_endpoint/3" do
+    setup do
+      stub(StableEndpoint, :observe, fn _region, _name, _instance -> :ok end)
+      :ok
+    end
+
     test "disabled rollout leaves instances without stable fields untouched" do
       stub(Tuist.Environment, :kura_stable_hostname_enabled?, fn -> false end)
       server = %Server{account: %Account{name: "acme"}, region: "eu-west", provisioner_node_ref: "instance"}

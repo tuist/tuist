@@ -6,10 +6,12 @@ defmodule Tuist.Kura.StableEndpointTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.Kura
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.StableEndpoint
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.KuraFixtures
@@ -104,6 +106,31 @@ defmodule Tuist.Kura.StableEndpointTest do
 
     stub(Environment, :kura_stable_hostname_handout_enabled?, fn -> false end)
     assert Accounts.kura_cache_endpoint_urls(account) == [server.url, "https://registered.example.com"]
+  end
+
+  test "a reader without the reconciler's local cache still hands out the stable endpoint" do
+    account = AccountsFixtures.user_fixture().account
+    {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+    observe(server, account)
+
+    Cachex.del(:tuist, "kura_stable_endpoint-#{server.region}-#{server.provisioner_node_ref}")
+
+    assert StableEndpoint.resolve(account, [server.url]) == ["https://#{account.name}.cache.tuist.dev"]
+  end
+
+  test "archival clears stable readiness before a cold return" do
+    account = AccountsFixtures.user_fixture().account
+    server = KuraFixtures.active_server_fixture(account, region: "eu-west")
+    observe(server, account)
+    server = Repo.reload!(server)
+    assert StableEndpoint.ready?(server, StableEndpoint.host(account))
+
+    {:ok, draining} = Kura.begin_drain(server)
+    {:ok, archived} = Kura.archive_server(draining)
+
+    assert archived.stable_endpoint == nil
+    refute StableEndpoint.ready?(Repo.reload!(archived), StableEndpoint.host(account))
   end
 
   test "demotion leaves intent unchanged and drain withdraws while rendering" do

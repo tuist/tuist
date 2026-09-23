@@ -1,14 +1,13 @@
 defmodule Tuist.Kura.StableEndpoint do
   @moduledoc """
   Managed cache hostname intent and readiness. Rendering and hand-out are
-  independent switches. Readiness is an expiring projection of controller
-  observations; endpoint requests never call Kubernetes or AWS.
+  independent switches. Readiness is a shared, freshness-bounded projection of
+  controller observations; endpoint requests never call Kubernetes or AWS.
   """
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.Environment
-  alias Tuist.KeyValueStore
   alias Tuist.Kura.PlacerRegions
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
@@ -96,14 +95,16 @@ defmodule Tuist.Kura.StableEndpoint do
         status["host"] == spec["stableHost"] and
         status["observedGeneration"] == get_in(instance, ["metadata", "generation"])
 
-    KeyValueStore.put(key(region, name), %{host: status["host"], checked_at: status["lastCheckedAt"], ready: ready},
-      ttl: to_timeout(second: @freshness_seconds)
-    )
+    projection = %{"host" => status["host"], "checked_at" => status["lastCheckedAt"], "ready" => ready}
+
+    Server
+    |> where([s], s.region == ^region and s.provisioner_node_ref == ^name)
+    |> where([s], s.status in [:provisioning, :replicating, :active, :failed, :drain_pending])
+    |> Repo.update_all(set: [stable_endpoint: projection])
   end
 
-  def ready?(%Server{} = server, expected_host) do
-    with %{ready: true, host: ^expected_host, checked_at: checked_at} <-
-           KeyValueStore.get(key(server.region, server.provisioner_node_ref)),
+  def ready?(%Server{stable_endpoint: projection}, expected_host) do
+    with %{"ready" => true, "host" => ^expected_host, "checked_at" => checked_at} <- projection,
          true <- is_binary(checked_at),
          {:ok, checked, _} <- DateTime.from_iso8601(checked_at),
          age when age >= 0 and age <= @freshness_seconds <- DateTime.diff(DateTime.utc_now(), checked) do
@@ -153,6 +154,4 @@ defmodule Tuist.Kura.StableEndpoint do
       regional_urls
     end
   end
-
-  defp key(region, name), do: [:kura_stable_endpoint, region, name]
 end

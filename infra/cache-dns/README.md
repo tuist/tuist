@@ -87,11 +87,13 @@ and fails open if every record is unhealthy. A five-minute, leader-only sweep
 removes this cluster's unreferenced checks after both provider records and
 persisted instance state release them, including orphans from interrupted creates.
 
-Readiness is cached in the existing ephemeral key-value store for at most three
-minutes and retains the controller's timestamp. Re-reading frozen status does
-not renew it. A cache restart or a stale observation restores regional endpoint
-responses. No account data or database columns are added; DNS and readiness
-state are documented in `server/data-export.md`.
+Readiness is projected into PostgreSQL `kura_servers.stable_endpoint`, shared
+between the reconciler and all web replicas without requiring Redis. It retains
+the controller's timestamp and is usable for at most three minutes. Re-reading
+frozen status does not renew it; absent or stale evidence restores regional
+responses. Archival and cold return clear it. The additive nullable column needs
+no backfill: the next reconciliation populates it. DNS and readiness state are
+documented in `server/data-export.md`.
 
 ## Rollback
 
