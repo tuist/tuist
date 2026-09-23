@@ -25,6 +25,7 @@ type fakeTailnet struct {
 	devices []tailnet.Device
 	deleted []string
 	renamed map[string]string
+	minted  []string
 }
 
 func (f *fakeTailnet) Devices(context.Context) ([]tailnet.Device, error) {

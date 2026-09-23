@@ -6,15 +6,16 @@ import (
 )
 
 // RackLinuxHostSpec is one x86 Linux machine we own, in a rack we operate. The
-// host joins the tailnet by itself from its install stick, so it is found by
-// its name and tags rather than dialled at an address.
+// host joins the tailnet by itself from its install, netbooted or from a
+// stick, so it is found by its name and tags rather than dialled at an
+// address.
 type RackLinuxHostSpec struct {
 	// Pool is the claim marker and the environment boundary: a
 	// RackLinuxMachine claims a free host whose pool equals its adoptPool.
 	// +optional
 	Pool string `json:"pool,omitempty"`
 
-	// Role decides the disk layout the install stick lays down and which
+	// Role decides the disk layout the install lays down and which
 	// MachineDeployment claims the host.
 	// +kubebuilder:validation:Enum=edge;services;storage
 	// +optional
@@ -32,6 +33,15 @@ type RackLinuxHostSpec struct {
 	// Tailnet is the identity the host joins the tailnet as.
 	// +optional
 	Tailnet RackLinuxHostTailnet `json:"tailnet,omitempty"`
+
+	// BootMAC is the MAC address of the NIC the host netboots from, on the rack's
+	// management segment. The operator publishes an install for it while the
+	// host is not on the tailnet, and when the tuist.dev/reinstall annotation
+	// requests one. An edge host runs the netboot server, so it is installed
+	// from a stick instead.
+	// +kubebuilder:validation:Pattern=`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`
+	// +optional
+	BootMAC string `json:"bootMAC,omitempty"`
 }
 
 // RackLinuxHostTailnet is the identity a host's install key joins it as.
@@ -58,8 +68,38 @@ type RackLinuxHostStatus struct {
 	// +optional
 	Tailnet *RackLinuxHostTailnetStatus `json:"tailnet,omitempty"`
 
+	// Install is the install published for the host to netboot, until a new
+	// tailnet device shows it has run.
+	// +optional
+	Install *RackLinuxHostInstallStatus `json:"install,omitempty"`
+
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
+}
+
+// RackLinuxHostInstallStatus is one published install.
+type RackLinuxHostInstallStatus struct {
+	// KeyID is the ID of the single-use join key the install carries.
+	KeyID string `json:"keyID"`
+
+	// BootMAC is the MAC address the install is published for.
+	BootMAC string `json:"bootMAC"`
+
+	// PreviousDeviceID is the host's tailnet device when the install was
+	// published; a different device is the install having run.
+	// +optional
+	PreviousDeviceID string `json:"previousDeviceID,omitempty"`
+
+	OfferedAt metav1.Time `json:"offeredAt"`
+
+	// ExpiresAt is when the join key expires; an install still needed then is
+	// published again with a new key.
+	ExpiresAt metav1.Time `json:"expiresAt"`
+
+	// TriggeredAt is when the operator set the running host to netboot once
+	// and rebooted it, for a requested reinstall.
+	// +optional
+	TriggeredAt *metav1.Time `json:"triggeredAt,omitempty"`
 }
 
 // RackLinuxHostTailnetStatus is one tailnet device.
@@ -100,6 +140,7 @@ type RackLinuxHostTailnetStatus struct {
 // +kubebuilder:printcolumn:name="ClaimedBy",type=string,JSONPath=".status.claimedBy"
 // +kubebuilder:printcolumn:name="Site",type=string,priority=1,JSONPath=".spec.location.site"
 // +kubebuilder:printcolumn:name="Device",type=string,priority=1,JSONPath=".status.tailnet.deviceID"
+// +kubebuilder:printcolumn:name="Install",type=string,priority=1,JSONPath=".status.install.keyID"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // RackLinuxHost is one x86 Linux machine in a rack we operate.

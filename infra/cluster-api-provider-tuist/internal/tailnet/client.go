@@ -148,6 +148,33 @@ func (c *Client) RenameDevice(ctx context.Context, nodeID, name string) error {
 	return nil
 }
 
+// AuthKey is a join key the API minted.
+type AuthKey struct {
+	ID      string `json:"id"`
+	Key     string `json:"key"`
+	Expires string `json:"expires"`
+}
+
+// CreateAuthKey mints a single-use, pre-authorized, persistent join key
+// carrying tags.
+func (c *Client) CreateAuthKey(ctx context.Context, tags []string, expiry time.Duration, description string) (AuthKey, error) {
+	body := map[string]any{
+		"capabilities": map[string]any{"devices": map[string]any{"create": map[string]any{
+			"reusable": false, "ephemeral": false, "preauthorized": true, "tags": tags,
+		}}},
+		"expirySeconds": int(expiry.Seconds()),
+		"description":   description,
+	}
+	var out AuthKey
+	if err := c.do(ctx, http.MethodPost, "/api/v2/tailnet/"+url.PathEscape(c.tailnet())+"/keys", body, &out); err != nil {
+		return AuthKey{}, fmt.Errorf("mint a join key tagged %s: %w", strings.Join(tags, ","), err)
+	}
+	if out.ID == "" || out.Key == "" {
+		return AuthKey{}, fmt.Errorf("the key the API minted has no id or key")
+	}
+	return out, nil
+}
+
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
 	token, err := c.accessToken(ctx)
 	if err != nil {
