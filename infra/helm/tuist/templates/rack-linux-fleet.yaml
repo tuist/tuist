@@ -44,6 +44,9 @@ spec:
   tailnet:
     tags:
       {{- toYaml $host.tailnetTags | nindent 6 }}
+  {{- with $host.bootMAC }}
+  bootMAC: {{ lower . | quote }}
+  {{- end }}
 {{- end }}
 {{- range $role := keys $roles | sortAlpha }}
 {{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
@@ -87,9 +90,14 @@ metadata:
     app.kubernetes.io/component: rack-linux-fleet
     tuist.dev/fleet: {{ $deploymentName }}
     cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+    tuist.dev/rack-pool: {{ printf "%s-%s" $poolPrefix $role }}
 spec:
   clusterName: {{ $clusterName }}
-  replicas: {{ get $roles $role }}
+  # The operator scales it up as the pool's hosts come onto the tailnet, so a
+  # host declared before it is installed does not hold up a deploy; the chart
+  # keeps whatever it scaled to.
+  {{- $live := lookup "cluster.x-k8s.io/v1beta1" "MachineDeployment" $.Release.Namespace $deploymentName }}
+  replicas: {{ if $live }}{{ $live.spec.replicas | default 0 }}{{ else }}0{{ end }}
   # A host is re-joined by deleting its Machine; the replacement claims the
   # same box.
   strategy:
@@ -140,9 +148,9 @@ spec:
 ---
 # The Tailscale OAuth client (Auth Keys and Devices Core, scoped to the rack
 # tags). The operator uses it to find each host's device, remove the device a
-# reinstall replaced, and name the new one after the host;
-# rack:write-install-usb mints each stick's single-use join key from the same
-# 1Password item.
+# reinstall replaced, name the new one after the host, and mint each netboot
+# install's single-use join key; rack:write-install-usb mints each stick's from
+# the same 1Password item.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -165,5 +173,105 @@ spec:
     - secretKey: client-secret
       remoteRef:
         key: "{{ .Values.rackLinuxFleet.tailscale.externalSecret.item }}/client-secret"
+{{- end }}
+{{- if .Values.rackLinuxFleet.boot.enabled }}
+{{- $boot := .Values.rackLinuxFleet.boot }}
+{{- $bootSite := required "rackLinuxFleet.boot runs on the site's edge node; set rackLinuxFleet.site or boot.site" (coalesce $boot.site .Values.rackLinuxFleet.site) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fleetName }}-boot
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-boot
+data:
+  rack-boot.sh: |
+    {{- .Files.Get "files/rack-boot.sh" | nindent 4 }}
+---
+# The rack's boot server, on its edge node: TFTP and HTTP on the provisioning
+# address, serving the installs the operator publishes to the <fleet>-boot
+# Secret (files/rack-boot.sh). The edge node's DHCP points netbooting firmware
+# here (management.edge.netboot in the site definition).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $fleetName }}-boot
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-boot
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: rack-boot
+      tuist.dev/rack-edge: {{ $bootSite }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: rack-boot
+        tuist.dev/rack-edge: {{ $bootSite }}
+      annotations:
+        checksum/script: {{ .Files.Get "files/rack-boot.sh" | sha256sum }}
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      nodeSelector:
+        tuist.dev/rack-edge: {{ $bootSite }}
+      tolerations:
+        - key: tuist.dev/rack-edge
+          operator: Equal
+          value: {{ $bootSite }}
+          effect: NoSchedule
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: boot
+          image: "{{ $boot.image.repository }}:{{ required "rackLinuxFleet.boot.image.tag is required" $boot.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          command: [sh, /opt/rack-boot/rack-boot.sh]
+          env:
+            - name: BOOT_ADDRESS
+              value: {{ required "rackLinuxFleet.boot.address is the site's provisioning address" $boot.address | quote }}
+            - name: HTTP_PORT
+              value: {{ $boot.httpPort | quote }}
+            - name: ISO_URL
+              value: {{ required "rackLinuxFleet.boot.iso.url is required" $boot.iso.url | quote }}
+            - name: ISO_SHA256
+              value: {{ required "rackLinuxFleet.boot.iso.sha256 is required" $boot.iso.sha256 | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              # TFTP's port 69.
+              add: [NET_BIND_SERVICE]
+          resources:
+            {{- toYaml $boot.resources | nindent 12 }}
+          volumeMounts:
+            - name: script
+              mountPath: /opt/rack-boot
+              readOnly: true
+            - name: seeds
+              mountPath: /etc/rack-boot/seeds
+              readOnly: true
+            - name: state
+              mountPath: /var/lib/tuist-rack-boot
+      volumes:
+        - name: script
+          configMap:
+            name: {{ $fleetName }}-boot
+        # Written by the operator; absent until it publishes a first install.
+        - name: seeds
+          secret:
+            secretName: {{ $fleetName }}-boot
+            optional: true
+        # On the node, so a restarted pod does not download the ISO again.
+        - name: state
+          hostPath:
+            path: /var/lib/tuist-rack-boot
+            type: DirectoryOrCreate
 {{- end }}
 {{- end }}

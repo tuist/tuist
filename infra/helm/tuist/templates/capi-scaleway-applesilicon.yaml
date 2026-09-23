@@ -85,6 +85,11 @@ rules:
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
+  # The RackLinuxHost controller scales a rack pool's MachineDeployment up as
+  # the pool's hosts come onto the tailnet.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machinedeployments]
+    verbs: [patch]
   # The SASC reconciler marks the parent Cluster's
   # ControlPlaneInitialized condition True (externally-managed
   # control plane: Mac minis join an existing Hetzner cluster, so
@@ -369,6 +374,13 @@ spec:
             - --secrets-namespace={{ .Release.Namespace }}
             {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
             - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
+            {{- end }}
+            {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.boot.enabled }}
+            - --rack-linux-fleet-name={{ include "tuist.rackLinuxFleetName" . }}
+            - --rack-linux-install-server-url=http://{{ .Values.rackLinuxFleet.boot.address }}:{{ .Values.rackLinuxFleet.boot.httpPort }}
+            {{- range .Values.rackLinuxFleet.authorizedKeys }}
+            - {{ printf "--rack-linux-authorized-key=%s" . | quote }}
+            {{- end }}
             {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}
