@@ -23,6 +23,8 @@ kind: RackLinuxHost
 metadata:
   name: {{ $hostName }}
   namespace: {{ $.Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: rack-linux-fleet
@@ -76,6 +78,10 @@ kind: MachineDeployment
 metadata:
   name: {{ $deploymentName }}
   namespace: {{ $.Release.Namespace }}
+  # A chart revision without the rack (a rollback, another branch's deploy)
+  # leaves its nodes joined.
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: rack-linux-fleet
