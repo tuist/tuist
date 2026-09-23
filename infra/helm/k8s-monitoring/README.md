@@ -112,6 +112,8 @@ All of them reach it at the receiver Service's **tailnet** hostname, set by the 
 
 A rack's Linux hosts (the edge node today, the services and storage nodes as they join) register at their tailnet address, so the node-exporter the DaemonSet runs there is at a `100.64.0.0/10` address no Pod can route to. `hostMetrics.linuxHosts.extraDiscoveryRules` rewrites such a target to `rack-linux-<node>.tailscale-operator.svc.cluster.local:9100`, the egress Service the CAPI provider keeps for each rack Linux host, so the host stays in `integrations/node_exporter` with the same labels and allow-list as every other node. That Service has to carry port 9100, and the tailnet ACL has to let the env's operator tag reach the host's tag on it; without both the target reads `up 0`, which is what it read before. The allow-list keeps `node_hwmon_temp_celsius` (with `node_hwmon_sensor_label` to name the inputs) and `node_thermal_zone_temp`, which is where the hosts' CPU and NVMe temperatures come from.
 
+A rack lives in staging while it is at home, and the destination drops almost every `node_*` metric outside production. So both host scrapes mark rack hardware `rack_host="true"` (tailnet-addressed Linux hosts, and minis whose egress Service belongs to the rack fleet), and the destination keeps a marked host's `node_*` metrics in every environment. Other non-production nodes are filtered as before.
+
 The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
 
 ## What gets deployed

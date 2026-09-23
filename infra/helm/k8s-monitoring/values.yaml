@@ -177,6 +177,21 @@ k8s-monitoring:
           replacement = "keep"
           action = "replace"
         }
+        // Rack hardware is the one exception that is not derived from alerts.
+        // A rack lives in staging while it is at home, and its hosts are real
+        // machines whose CPU, memory, disks and temperatures are the point of
+        // monitoring them, not a deploy to validate. Both host scrapes mark a
+        // rack host rack_host="true" (tailnet-addressed Linux hosts, and minis
+        // in the rack fleet), so its host metrics survive here as they do in
+        // production. It is a handful of hosts.
+        write_relabel_config {
+          source_labels = ["rack_host", "__name__"]
+          separator = ";"
+          regex = "true;node_.*"
+          target_label = "__tmp_nonprod_keep"
+          replacement = "keep"
+          action = "replace"
+        }
         // The PN VLAN alert compares node_load1 against VLAN transmit metrics.
         // Keeping only its liveness anchor makes healthy non-production Macs
         // appear to have no VLAN. Retain one series per VLAN, not every NIC.
@@ -663,6 +678,9 @@ k8s-monitoring:
       # Only Linux nodes run this DaemonSet. Every other node with an address
       # in that range is a macOS tart-kubelet node, which has no node-exporter
       # Pod to match.
+      #
+      # The same match marks the host rack_host="true", which is what keeps its
+      # host metrics through the destination's non-production filter.
       extraDiscoveryRules: |
         rule {
           source_labels = ["__meta_kubernetes_pod_ip", "__meta_kubernetes_pod_node_name"]
@@ -670,6 +688,12 @@ k8s-monitoring:
           regex = "100[.](6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])[.][0-9]+[.][0-9]+;(.+)"
           target_label = "__address__"
           replacement = "rack-linux-$2.tailscale-operator.svc.cluster.local:9100"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_ip"]
+          regex = "100[.](6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])[.][0-9]+[.][0-9]+"
+          target_label = "rack_host"
+          replacement = "true"
         }
 
   # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
@@ -1481,6 +1505,15 @@ k8s-monitoring:
           rule {
             source_labels = ["__meta_kubernetes_service_name"]
             target_label = "instance"
+          }
+          // A mini in a rack we own (the CAPI provider labels its egress
+          // Service with the rack fleet's name). rack_host is what keeps its
+          // host metrics through the destination's non-production filter.
+          rule {
+            source_labels = ["__meta_kubernetes_service_label_tuist_dev_fleet"]
+            regex = ".+-rack-fleet"
+            target_label = "rack_host"
+            replacement = "true"
           }
         }
 
