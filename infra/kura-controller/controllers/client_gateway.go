@@ -38,6 +38,26 @@ func clientHost(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Spec.PrivateHost
 }
 
+// clientHosts is shared by every client-plane renderer. No host may disappear
+// from TLS or routing while its retained alias is still published in DNS.
+func clientHosts(instance *kurav1alpha1.KuraInstance) []string {
+	canonical := clientHost(instance)
+	if canonical == "" {
+		return nil
+	}
+	hosts := []string{canonical}
+	aliases := append([]string{}, instance.Spec.ClientHostAliases...)
+	sort.Strings(aliases)
+	seen := map[string]bool{canonical: true}
+	for _, host := range aliases {
+		if host != "" && !seen[host] {
+			hosts = append(hosts, host)
+			seen[host] = true
+		}
+	}
+	return hosts
+}
+
 func clientIngressAnnotations(instance *kurav1alpha1.KuraInstance, annotations map[string]string) map[string]string {
 	if instance.Spec.PublicHostNetwork {
 		annotations["external-dns.alpha.kubernetes.io/ingress-hostname-source"] = "annotation-only"

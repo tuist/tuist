@@ -18,6 +18,10 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 - Primary resource: `KuraInstance`
 - Controller output: Kubernetes workload resources for one account-region Kura deployment. The customer plane is fronted by a shared regional ingress (deployed via Helm), not a per-account gateway.
 
+## Account renames
+
+`clientHostAliases` contains historical client names still within their 90-day window alongside the current public/private host. The server removes expired names; reconcile must remove their DNS, HTTP/gRPC and certificate entries, including pruning stale DNS aliases when no healthy gateway target is known. Render the same host set into DNS, HTTP/gRPC ingress and certificate names; a shared wildcard is eligible only if it covers every name. This field never enters the StatefulSet template, peer TLS identity or volume configuration. Preserve private CIDR restrictions and operator-set `OnDelete`. See [account renames](../../kura/docs/account-renames.md).
+
 ## Deployment Topology
 
 - **Cache traffic (HTTPS)**: each `KuraInstance` with `spec.publicHost` set gets an nginx Ingress on `spec.ingressClassName` (managed regions default to dedicated shared regional Kura ingress controllers). ingress-nginx terminates TLS and streams uploads/downloads to the instance's internal ClusterIP Service on the runtime's plain HTTP port (`4000`). The backend Service is not a Hetzner `LoadBalancer`.
@@ -80,6 +84,12 @@ Runner instances share the managed StatefulSet rollout, preferred co-location, d
 Runner sizing uses the existing account disk policy and plan memory/CPU profiles. Legacy unpinned claims adopt the account budget during enrollment, capped at 50Gi. After a smaller StatefulSet template is observed, unscheduled Pending pods with larger disk requests are recreated with resource-version preconditions; scheduled pods and PVCs remain, and operator OnDelete/partition pauses are respected. A missing StatefulSet and conflicted/already-gone pod deletions are benign races. Missing or duplicate Kura template containers fail closed without pod deletion; only successful deletes emit replacement logs. Keep the private runner extended memory-ceiling request disabled until its hosts advertise that resource. See the resource-sizing section in [private-runner-rollouts.md](private-runner-rollouts.md).
 
 ## Stable cache DNS
+
+Stable HTTP/gRPC routes and per-instance certificate names include retained
+regional aliases as well as the stable hostname. Regional aliases share the
+regional TLS selection; stable TLS remains independent so pending issuance does
+not replace a working regional wildcard. Regional DNS continues to use only
+the canonical regional host and its aliases; stable DNS has its own writer.
 
 The stable chart tests render the actual canary and production overlays with
 distinct DNS owners and separate ESO credentials. Certificate readiness tests

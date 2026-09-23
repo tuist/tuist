@@ -29,3 +29,4 @@ This context owns business logic and data related to accounts, users, organizati
   normal collision retries; explicit reserved handles remain invalid. Add custom
   endpoints only after stable hand-out succeeds, so absent managed instances
   still trigger provisioning and the existing client-specific fallback.
+- Account handles are reserved for the account lifetime, including retired names. The database initializes and protects `kura_tenant_id`; do not cast or update it from account attributes. `Accounts.update_account/2` gates Kura account renames until compatible runtimes are deployed. See `../kura/AGENTS.md`.

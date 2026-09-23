@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Path
@@ -7,7 +8,6 @@ import TuistBuildCommand
 import TuistEnvironment
 import TuistGenerateCommand
 import TuistInitCommand
-import TuistProcess
 import TuistSupport
 import TuistTestCommand
 import TuistTesting

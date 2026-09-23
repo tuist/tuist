@@ -69,6 +69,7 @@ pub struct MetricsInner {
     action_cache_cascade_removed: Counter,
     reapi_chunking_events: Family<ReapiChunkingEventLabels, Counter>,
     reapi_chunking_bytes: Family<ReapiChunkingBytesLabels, Counter>,
+    reapi_inline_fallbacks: Counter,
     // Cumulative segment fsyncs (group-commit durability + rotation). Compared
     // against kura_artifact_writes_total, its rate shows how hard concurrent
     // writes batch their durability fsyncs (≪ 1 fsync per write under load).
@@ -595,6 +596,7 @@ impl Metrics {
         let action_cache_cascade_removed = Counter::default();
         let reapi_chunking_events = Family::<ReapiChunkingEventLabels, Counter>::default();
         let reapi_chunking_bytes = Family::<ReapiChunkingBytesLabels, Counter>::default();
+        let reapi_inline_fallbacks = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_size_bytes =
@@ -988,6 +990,11 @@ impl Metrics {
             "kura_reapi_chunking_events_total",
             "Content-defined chunking events by operation and bounded outcome",
             reapi_chunking_events.clone(),
+        );
+        registry.register(
+            "kura_reapi_inline_fallbacks_total",
+            "Optional output files left un-inlined because response materialization admission was refused",
+            reapi_inline_fallbacks.clone(),
         );
         registry.register(
             "kura_reapi_chunking_bytes_total",
@@ -1879,6 +1886,7 @@ impl Metrics {
                 action_cache_cascade_removed,
                 reapi_chunking_events,
                 reapi_chunking_bytes,
+                reapi_inline_fallbacks,
                 artifact_read_bytes,
                 artifact_write_bytes,
                 artifact_write_size_bytes,
@@ -2383,6 +2391,10 @@ impl Metrics {
                 outcome: outcome.to_owned(),
             })
             .inc();
+    }
+
+    pub fn record_reapi_inline_fallback(&self) {
+        self.reapi_inline_fallbacks.inc();
     }
 
     pub fn record_reapi_chunking_bytes(&self, kind: &str, bytes: u64) {

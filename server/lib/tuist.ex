@@ -83,6 +83,7 @@ defmodule Tuist do
       Kura.SelfHostedClient,
       Kura.SelfHostedClients,
       Kura.Mesh,
+      Kura.Identity,
       Kura.Registrations,
       Kura.RegisteredEndpoint,
       Gradle,

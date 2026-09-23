@@ -6,6 +6,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.EgressLimits
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
@@ -17,6 +18,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   setup do
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
 
+    stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
+    stub(Identity, :endpoint_migration_paused?, fn _account -> false end)
+    stub(Identity, :endpoint_handle, &Identity.tenant_id/1)
+    stub(Identity, :client_handles, fn account -> [String.downcase(account.name)] end)
     # The manifest resolves the account's egress override from the database, the
     # same way it resolves its disk claim. These tests render manifests for
     # unpersisted accounts, so the unoverridden answer is stubbed here and the
@@ -1739,6 +1744,90 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "rollout/2" do
+    test "a paused missing instance is created only if it has never published a URL" do
+      stub(Identity, :endpoint_migration_paused?, fn _account -> true end)
+      stub(Client, :get_kura_instance, fn "kura", "kura-original-eu-west-1", [] -> {:error, :not_found} end)
+
+      inputs = %{
+        image_tag: "new",
+        account: %{name: "latest", kura_tenant_id: "original"},
+        server: %Server{url: "https://middle-eu-west-1.kura.tuist.dev"},
+        region: eu_region()
+      }
+
+      stub(Client, :apply, fn _, _ -> flunk("cannot reconstruct published endpoints from a missing instance") end)
+      assert {:error, :endpoint_migration_paused} = KubernetesController.rollout("kura-original-eu-west-1", inputs)
+
+      expect(Client, :apply, fn manifest, [] ->
+        assert manifest["spec"]["publicHost"] == "original-eu-west-1.kura.tuist.dev"
+        refute Map.has_key?(manifest["spec"], "clientHostAliases")
+        {:ok, manifest}
+      end)
+
+      assert :ok = KubernetesController.rollout("kura-original-eu-west-1", %{inputs | server: %Server{}})
+    end
+
+    test "paused migration preserves deployed public, gRPC, private hosts and aliases during image updates" do
+      stub(Identity, :endpoint_migration_paused?, fn _account -> true end)
+
+      # These may be intermediate names, not the immutable tenant or latest name.
+      endpoints = %{
+        "publicHost" => "middle-eu-west-1.kura.tuist.dev",
+        "grpcPublicHost" => "grpc-middle.kura.tuist.dev",
+        "privateHost" => "middle.kura.internal",
+        "clientHostAliases" => ["original-eu-west-1.kura.tuist.dev"]
+      }
+
+      expect(Client, :get_kura_instance, fn "kura", "kura-original-eu-west-1", [] ->
+        {:ok, %{"spec" => Map.put(endpoints, "image", "ghcr.io/tuist/kura:old")}}
+      end)
+
+      expect(Client, :apply, fn manifest, [] ->
+        assert Map.take(manifest["spec"], Map.keys(endpoints)) == endpoints
+        assert manifest["spec"]["image"] == "ghcr.io/tuist/kura:new"
+        assert manifest["spec"]["tenantID"] == "original"
+        {:ok, manifest}
+      end)
+
+      assert :ok =
+               KubernetesController.rollout("kura-original-eu-west-1", %{
+                 image_tag: "new",
+                 account: %{name: "latest", kura_tenant_id: "original"},
+                 server: %Server{},
+                 region: eu_region()
+               })
+    end
+
+    test "paused migration preserves absent endpoint fields and fails closed on observation errors" do
+      stub(Identity, :endpoint_migration_paused?, fn _account -> true end)
+
+      inputs = %{
+        image_tag: "new",
+        account: %{name: "latest", kura_tenant_id: "original"},
+        server: %Server{},
+        region: eu_region()
+      }
+
+      expect(Client, :get_kura_instance, fn "kura", "kura-original-eu-west-1", [] ->
+        {:ok, %{"spec" => %{"publicHost" => "original-eu-west-1.kura.tuist.dev"}}}
+      end)
+
+      expect(Client, :apply, fn manifest, [] ->
+        refute Map.has_key?(manifest["spec"], "clientHostAliases")
+        refute Map.has_key?(manifest["spec"], "grpcPublicHost")
+        refute Map.has_key?(manifest["spec"], "privateHost")
+        {:ok, manifest}
+      end)
+
+      assert :ok = KubernetesController.rollout("kura-original-eu-west-1", inputs)
+
+      for result <- [{:error, :timeout}, {:ok, %{}}] do
+        expect(Client, :get_kura_instance, fn "kura", "kura-original-eu-west-1", [] -> result end)
+        reject(&Client.apply/2)
+        assert {:error, _} = KubernetesController.rollout("kura-original-eu-west-1", inputs)
+      end
+    end
+
     test "applies the KuraInstance without waiting for controller readiness" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

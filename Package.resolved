@@ -1,5 +1,5 @@
 {
-  "originHash" : "1910b516bdaf59b2c3db327a56e0a8ef48dfd6bb6f66f636e28ec9cb3f261f03",
+  "originHash" : "8ef7eaf829a8c9379da3077bd61e2c29bb8d33aebf6c943cc56951cc727a0547",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -104,7 +104,7 @@
       "identity" : "apple.swift-log",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-log.git",
+      "originalLocation" : "https://github.com/apple/swift-log",
       "state" : {
         "version" : "1.13.2"
       }
@@ -202,7 +202,7 @@
       "identity" : "apple.swift-system",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-system",
+      "originalLocation" : "https://github.com/apple/swift-system.git",
       "state" : {
         "version" : "1.8.1"
       }
@@ -623,7 +623,7 @@
       "identity" : "swiftlang.swift-syntax",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/swiftlang/swift-syntax",
+      "originalLocation" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "version" : "603.0.2"
       }
@@ -663,6 +663,14 @@
       }
     },
     {
+      "identity" : "tuist.Command",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.14.11"
+      }
+    },
+    {
       "identity" : "tuist.FileSystem",
       "kind" : "registry",
       "location" : "",
@@ -690,7 +698,7 @@
       "identity" : "tuist.Path",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/tuist/path",
+      "originalLocation" : "https://github.com/tuist/Path",
       "state" : {
         "version" : "0.3.8"
       }

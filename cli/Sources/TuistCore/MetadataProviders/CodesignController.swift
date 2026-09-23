@@ -1,7 +1,7 @@
+import Command
 import Foundation
 import Mockable
 import Path
-import TuistProcess
 
 /// Utility to interact with the `codesign` CLI.
 @Mockable

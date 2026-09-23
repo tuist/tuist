@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -67,8 +68,8 @@ func stableAdvertising(instance *kurav1alpha1.KuraInstance) bool {
 }
 
 func stableClientHosts(instance *kurav1alpha1.KuraInstance) []string {
-	hosts := []string{clientHost(instance)}
-	if instance.Spec.Private {
+	hosts := clientHosts(instance)
+	if instance.Spec.Private || len(hosts) == 0 {
 		return hosts
 	}
 	host := instance.Spec.StableHost
@@ -76,7 +77,7 @@ func stableClientHosts(instance *kurav1alpha1.KuraInstance) []string {
 	if state := instance.Status.StableEndpoint; state != nil {
 		host = state.Host
 	}
-	if host != "" && host != hosts[0] {
+	if host != "" && !slices.Contains(hosts, host) {
 		hosts = append(hosts, host)
 	}
 	return hosts

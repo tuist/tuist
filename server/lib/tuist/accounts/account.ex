@@ -46,6 +46,7 @@ defmodule Tuist.Accounts.Account do
 
   schema "accounts" do
     field :name, :string
+    field :kura_tenant_id, :string, read_after_writes: true
     field :billing_email, :string
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
@@ -234,5 +235,7 @@ defmodule Tuist.Accounts.Account do
     |> validate_length(:name, min: 1, max: 32)
     |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
     |> unique_constraint(:name, name: "index_accounts_on_name")
+    |> unique_constraint(:name, name: "accounts_name_reserved", message: "is reserved by another account")
+    |> unique_constraint(:name, name: "accounts_kura_tenant_id_index", message: "is reserved by another account")
   end
 end

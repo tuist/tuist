@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -330,12 +331,16 @@ func TestStableFinalizerCannotRemoveAdvertisedInstance(t *testing.T) {
 func TestStableTLSKeepsRegionalWildcardWhileIssuanceIsPending(t *testing.T) {
 	ctx := context.Background()
 	r, instance, _, _, _, _ := stableFixture(t)
+	instance.Spec.ClientHostAliases = []string{"previous.kura.tuist.dev"}
 	r.PublicTLSSecretName = "shared-wildcard"
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: r.PublicTLSSecretName, Namespace: instance.Namespace}, Data: map[string][]byte{corev1.TLSCertKey: wildcardLeafPEM(t, "*.kura.tuist.dev")}}
 	if err := r.Create(ctx, secret); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reconcileGRPCIngress(ctx, instance, nil, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
@@ -348,13 +353,31 @@ func TestStableTLSKeepsRegionalWildcardWhileIssuanceIsPending(t *testing.T) {
 	if len(ingress.Spec.TLS) != 2 || ingress.Spec.TLS[0].SecretName != r.PublicTLSSecretName || ingress.Spec.TLS[1].SecretName != publicTLSSecretName(instance) {
 		t.Fatalf("regional TLS disrupted during stable issuance: %+v", ingress.Spec.TLS)
 	}
+	if !slices.Equal(ingress.Spec.TLS[0].Hosts, []string{instance.Spec.PublicHost, "previous.kura.tuist.dev"}) {
+		t.Fatalf("regional alias lost TLS coverage: %+v", ingress.Spec.TLS)
+	}
+	want := []string{instance.Spec.PublicHost, "previous.kura.tuist.dev", instance.Spec.StableHost}
+	for _, name := range []string{instance.Name, grpcServiceName(instance)} {
+		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, ingress); err != nil {
+			t.Fatal(err)
+		}
+		var hosts []string
+		for _, rule := range ingress.Spec.Rules {
+			hosts = append(hosts, rule.Host)
+		}
+		if !slices.Equal(hosts, want) {
+			t.Fatalf("%s lost regional alias or stable routing: %v", name, hosts)
+		}
+	}
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	if err := r.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
 		t.Fatal(err)
 	}
 	names, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
-	if len(names) != 2 {
-		t.Fatalf("certificate must cover both names: %v", names)
+	for _, host := range want {
+		if !slices.Contains(names, host) {
+			t.Fatalf("certificate must cover regional, alias, and stable names: %v", names)
+		}
 	}
 }

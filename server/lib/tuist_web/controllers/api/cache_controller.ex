@@ -10,6 +10,7 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Kura
+  alias Tuist.Kura.Identity
   alias Tuist.Storage
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas
@@ -181,11 +182,11 @@ defmodule TuistWeb.API.CacheController do
   defp authorized_account_handle(nil, _conn), do: nil
 
   defp authorized_account_handle(account_handle, conn) do
-    account = Accounts.get_account_by_handle(account_handle)
+    account = Identity.account_for_handle(account_handle)
     subject = Authentication.authenticated_subject(conn)
 
     if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
-      account_handle
+      account.name
     end
   end
 

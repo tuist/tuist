@@ -89,6 +89,13 @@ spec:
                   type: boolean
                 stableAWSRegion:
                   type: string
+                clientHostAliases:
+                  description: Retained client hostnames for account renames; DNS, ingress and TLS only.
+                  type: array
+                  items:
+                    type: string
+                    maxLength: 253
+                    pattern: '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'
                 publicHost:
                   type: string
                   maxLength: 253

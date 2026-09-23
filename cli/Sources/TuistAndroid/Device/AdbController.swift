@@ -33,8 +33,8 @@ public protocol AdbControlling: Sendable {
     func launchApp(packageName: String, device: AndroidDevice) async throws
 }
 
-#if canImport(TuistProcess)
-    import TuistProcess
+#if canImport(Command)
+    import Command
 
     public struct AdbController: AdbControlling {
         private let fileSystem: FileSysteming

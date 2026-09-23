@@ -1,3 +1,4 @@
+import Command
 import CryptoKit
 import FileSystem
 import FileSystemTesting
@@ -7,7 +8,6 @@ import Path
 import Testing
 import TuistAndroid
 import TuistCore
-import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting

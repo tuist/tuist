@@ -21,7 +21,7 @@ public struct TrackableCommandInfo {
     let subcommand: String?
     let commandArguments: [String]
     let durationInMs: Int
-    let status: TuistCore.CommandEvent.Status
+    let status: CommandEvent.Status
     let graph: Graph?
     let graphBinaryBuildDuration: TimeInterval?
     let binaryCacheItems: [AbsolutePath: [String: CacheItem]]
@@ -144,7 +144,7 @@ public class TrackableCommand {
 
     private func uploadCommandEvent(
         timer: any ClockTimer,
-        status: TuistCore.CommandEvent.Status,
+        status: CommandEvent.Status,
         runId: String,
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
@@ -272,7 +272,7 @@ public class TrackableCommand {
     }
 
     private func uploadCommandEvent(
-        _ commandEvent: TuistCore.CommandEvent,
+        _ commandEvent: CommandEvent,
         fullHandle: String,
         serverURL: URL,
         isAnalyticsRequired: Bool
