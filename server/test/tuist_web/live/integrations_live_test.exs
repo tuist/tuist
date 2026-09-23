@@ -393,14 +393,10 @@ defmodule TuistWeb.IntegrationsLiveTest do
   } do
     _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
 
-    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
-      {:ok, [%{id: 123, full_name: "test-org/test-repo"}]}
-    end)
+    stub(VCS, :get_github_app_installation_repositories, fn _installation -> {:error, :unauthorized} end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
     render_async(lv)
-
-    stub(VCS, :get_github_app_installation_repositories, fn _installation -> {:error, :unauthorized} end)
 
     render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
     render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
@@ -408,6 +404,60 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
     assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
     assert Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo") == []
+  end
+
+  test "reuses the repositories loaded at mount when creating a connection", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+    calls = :counters.new(1, [])
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
+      :counters.add(calls, 1, 1)
+      {:ok, [%{id: 123, full_name: "test-org/test-repo"}]}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
+    render_hook(lv, "create-connection", %{})
+
+    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert project_id == project.id
+    assert :counters.get(calls, 1) == 1
+  end
+
+  test "fetches the repositories again when the load at mount failed", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+    calls = :counters.new(1, [])
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
+      :counters.add(calls, 1, 1)
+
+      if :counters.get(calls, 1) == 1,
+        do: {:error, :timeout},
+        else: {:ok, [%{id: 123, full_name: "test-org/test-repo"}]}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
+    render_hook(lv, "create-connection", %{})
+
+    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert project_id == project.id
   end
 
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do

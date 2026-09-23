@@ -294,7 +294,7 @@ defmodule TuistWeb.IntegrationsLive do
     project = get_selected_project(assigns)
 
     with %{} = installation <- assigns.github_app_installation,
-         %{} = repository <- find_installation_repository(installation, repository_full_handle),
+         %{} = repository <- find_installation_repository(assigns, installation, repository_full_handle),
          {:ok, _connection} <-
            Projects.create_vcs_connection(%{
              project_id: if(project, do: project.id),
@@ -365,14 +365,25 @@ defmodule TuistWeb.IntegrationsLive do
   # The dropdown only lists repositories the installation can access, but
   # the event payload is client-controlled, so the selection is checked
   # against the installation's repositories on the server before linking.
-  defp find_installation_repository(_installation, repository_full_handle) when not is_binary(repository_full_handle),
-    do: nil
+  # The list loaded at mount is reused; it is fetched again only if that
+  # load hasn't succeeded.
+  defp find_installation_repository(_assigns, _installation, repository_full_handle)
+       when not is_binary(repository_full_handle), do: nil
 
-  defp find_installation_repository(installation, repository_full_handle) do
-    case VCS.get_github_app_installation_repositories(installation) do
-      {:ok, repositories} -> Enum.find(repositories, &(&1.full_name == repository_full_handle))
-      _ -> nil
-    end
+  defp find_installation_repository(assigns, installation, repository_full_handle) do
+    repositories =
+      case assigns.github_repositories do
+        %{ok?: true, result: repositories} ->
+          repositories
+
+        _ ->
+          case VCS.get_github_app_installation_repositories(installation) do
+            {:ok, repositories} -> repositories
+            _ -> []
+          end
+      end
+
+    Enum.find(repositories, &(&1.full_name == repository_full_handle))
   end
 
   defp get_available_projects(%{selected_account: selected_account, vcs_connections: vcs_connections}) do

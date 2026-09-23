@@ -65,16 +65,14 @@ defmodule TuistWeb.API.OIDCController do
          }},
       bad_request: {"Unsupported CI provider or missing repository claim", "application/json", Error},
       unauthorized: {"Invalid or expired OIDC token", "application/json", Error},
-      forbidden:
-        {"No projects linked to the repository, or the repository is linked from multiple accounts", "application/json",
-         Error}
+      forbidden: {"No projects linked to the repository", "application/json", Error}
     }
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
     with {:ok, claims} <- OIDC.claims(token),
          {:ok, projects} <- find_projects_by_repository(claims.repository),
-         {:ok, account} <- single_account(projects),
+         {:ok, account} <- single_account(projects, claims.repository),
          {:ok, access_token} <- generate_token(account, projects) do
       conn
       |> put_status(:ok)
@@ -147,7 +145,7 @@ defmodule TuistWeb.API.OIDCController do
   end
 
   defp find_projects_by_repository(repository) do
-    case Projects.projects_by_vcs_repository_full_handle(repository, preload: [:account, :vcs_connection]) do
+    case Projects.projects_by_vcs_repository_full_handle(repository, preload: [:account]) do
       [] -> {:error, :no_projects}
       projects -> {:ok, projects}
     end
@@ -157,14 +155,10 @@ defmodule TuistWeb.API.OIDCController do
   # token's account to own the project. If the repository is linked from
   # several accounts, no single token can serve every linked project, so
   # refuse the exchange instead of picking an account by row order.
-  defp single_account([%{account: account} | _] = projects) do
+  defp single_account(projects, repository) do
     case projects |> Enum.map(& &1.account) |> Enum.uniq_by(& &1.id) do
-      [_] ->
-        {:ok, account}
-
-      accounts ->
-        repository = hd(projects).vcs_connection.repository_full_handle
-        {:error, :ambiguous_repository, repository, accounts |> Enum.map(& &1.name) |> Enum.sort()}
+      [account] -> {:ok, account}
+      accounts -> {:error, :ambiguous_repository, repository, accounts |> Enum.map(& &1.name) |> Enum.sort()}
     end
   end
 
