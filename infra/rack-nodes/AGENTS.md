@@ -74,6 +74,10 @@ something is booted first; pick the i226-LM's network entry from the boot menu
 kubectl annotate racklinuxhost ber1-svc tuist.dev/reinstall=true
 ```
 
+People annotate through the kubectl gateway's `tuist-fleet-unwedge` role
+(`infra/helm/pomerium`), standing in staging and on a write elevation in
+production.
+
 The operator publishes the install, waits two minutes for the boot server to
 have it, then sets `BootNext` to the host's PXE entry for its `bootMAC` over SSH
 and reboots it. It does this once: a host that comes back on its old install
