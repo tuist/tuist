@@ -584,15 +584,24 @@ defmodule Tuist.GitHistory do
   The blob of each of `paths` at a commit, keyed by path, from the commit's
   listing; a path the listing lacks is absent.
   """
+  @blob_paths_chunk 900
+
   def blobs_at(_repository_id, _sha, []), do: %{}
 
   def blobs_at(repository_id, sha, paths) do
-    from(f in CommitFile,
-      where: f.repository_id == ^repository_id and f.sha == ^sha and f.path in ^paths,
-      group_by: f.path,
-      select: {f.path, fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)}
-    )
-    |> ClickHouseRepo.all()
+    # One HTTP form field per bound path, and ClickHouse refuses a request
+    # over `http_max_fields` (1000 by default).
+    paths
+    |> Enum.chunk_every(@blob_paths_chunk)
+    |> Enum.flat_map(fn chunk ->
+      ClickHouseRepo.all(
+        from(f in CommitFile,
+          where: f.repository_id == ^repository_id and f.sha == ^sha and f.path in ^chunk,
+          group_by: f.path,
+          select: {f.path, fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)}
+        )
+      )
+    end)
     |> Map.new()
   end
 end

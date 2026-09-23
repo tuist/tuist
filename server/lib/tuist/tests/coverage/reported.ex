@@ -43,6 +43,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.GitHistory
+  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
@@ -58,6 +59,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   # run ids are chunked first and each chunk is kept small enough that the ids
   # it is crossed with still have room. See `Coverage.id_chunks/2`.
   @run_id_chunk 200
+
+  @cache_ttl to_timeout(minute: 5)
 
   # How many of a scheme's nearest ancestor runs a skipped target's candidates
   # are looked for in. The nearest one practically always lists it: a target
@@ -166,6 +169,26 @@ defmodule Tuist.Tests.Coverage.Reported do
     files |> result(kind, skipped, carried_tests, gap_files, shas) |> Map.put(:carried_lines, carried_lines)
   end
 
+  # What the pages read (`merged_files/4`, `file/4`) is the reported coverage
+  # the commit's published version settled, cached against that version: on a
+  # suite of thousands a compute costs about a second and a page reads it more
+  # than once. The settings that change the answer without a new version are
+  # part of the key.
+  defp settled(project, sha, opts) do
+    case Commits.summary(project.id, sha) do
+      %{version: version} ->
+        excluded = Keyword.get_lazy(opts, :excluded, fn -> ExcludedPaths.pattern_for_project(project) end)
+        settings = :erlang.phash2({excluded, GitHistory.settings(project).tracked_file_globs})
+
+        KeyValueStore.get_or_update([:coverage_reported, project.id, sha, version, settings], [ttl: @cache_ttl], fn ->
+          compute(project, sha, Keyword.put(opts, :excluded, excluded))
+        end)
+
+      nil ->
+        compute(project, sha, opts)
+    end
+  end
+
   @doc """
   The commit's files with their reported line totals, by path, as
   `Tuist.Tests.Coverage.Commits.merged_files/3` lists the measured ones: what
@@ -175,7 +198,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   from there.
   """
   def merged_files(%Project{} = project, sha, measured, opts \\ []) do
-    case compute(project, sha, opts) do
+    case settled(project, sha, opts) do
       %{kind: "reported", files: files} ->
         by_path = Map.new(measured, &{&1.path, &1})
 
@@ -200,7 +223,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   is not part of it.
   """
   def file(%Project{} = project, sha, path, opts \\ []) do
-    case compute(project, sha, opts) do
+    case settled(project, sha, opts) do
       %{kind: "reported", files: %{^path => file}} = reported ->
         %{
           carried_lines: reported.carried_lines |> Map.get(path, MapSet.new()) |> Enum.sort(),
@@ -443,15 +466,20 @@ defmodule Tuist.Tests.Coverage.Reported do
     files = source_files(context.project.id, chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
     validity = validity_cache(context, source_runs)
 
-    chosen
-    |> Enum.reduce({[], %{}, %{}}, fn {scope_id, %{run_id: run_id, rows: test_rows}}, acc ->
-      test = tests[scope_id]
-      all_rows = test_rows ++ Map.get(suites, {run_id, Evidence.suite_scope_id(test.module_name, test.suite_name)}, [])
-      source = Map.put(source_runs[run_id], :run_id, run_id)
+    candidates =
+      Enum.map(chosen, fn {scope_id, %{run_id: run_id, rows: test_rows}} ->
+        test = tests[scope_id]
+        all_rows = test_rows ++ Map.get(suites, {run_id, Evidence.suite_scope_id(test.module_name, test.suite_name)}, [])
+        {test, Map.put(source_runs[run_id], :run_id, run_id), all_rows, Map.get(files, run_id, %{})}
+      end)
 
-      if MapSet.member?(passed, {test.test_case_id, run_id}) and
-           applies?(context, validity, source, all_rows, Map.get(files, run_id, %{})) do
-        keep(acc, context, [test], all_rows, source, Map.get(files, run_id, %{}))
+    context = prefetch_blobs(context, Enum.map(candidates, fn {_test, source, rows, files} -> {source, rows, files} end))
+
+    candidates
+    |> Enum.reduce({[], %{}, %{}}, fn {test, source, all_rows, source_files}, acc ->
+      if MapSet.member?(passed, {test.test_case_id, source.run_id}) and
+           applies?(context, validity, source, all_rows, source_files) do
+        keep(acc, context, [test], all_rows, source, source_files)
       else
         acc
       end
@@ -517,6 +545,14 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     failed = failed_targets(project_id, chosen)
     files = source_files(project_id, chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
+
+    context =
+      prefetch_blobs(
+        context,
+        Enum.map(chosen, fn {_module, %{run_id: run_id, rows: rows}} ->
+          {Map.put(source_runs[run_id], :run_id, run_id), rows, Map.get(files, run_id, %{})}
+        end)
+      )
 
     Enum.reduce(chosen, acc, fn {module, %{run_id: run_id, rows: target_rows}}, acc ->
       source = Map.put(source_runs[run_id], :run_id, run_id)
@@ -730,13 +766,14 @@ defmodule Tuist.Tests.Coverage.Reported do
       end
   end
 
-  defp same_blobs?(context, source, paths, source_files) do
+  defp same_blobs?(context, %{sha: source_sha}, paths, source_files) do
     now = blobs_now(context, paths)
 
     then_blobs =
-      case Enum.reject(paths, &match?(%{git_blob_id: <<_, _::binary>>}, Map.get(source_files, &1))) do
-        [] -> %{}
-        missing -> GitHistory.blobs_at(context.repository_id, source.sha, missing)
+      case {Enum.reject(paths, &match?(%{git_blob_id: <<_, _::binary>>}, Map.get(source_files, &1))), context} do
+        {[], _context} -> %{}
+        {_missing, %{then_blobs: %{^source_sha => cached}}} -> cached
+        {missing, _context} -> GitHistory.blobs_at(context.repository_id, source_sha, missing)
       end
 
     Enum.all?(paths, fn path ->
@@ -756,6 +793,38 @@ defmodule Tuist.Tests.Coverage.Reported do
     context.blobs
     |> Map.take(known)
     |> Map.merge(GitHistory.blobs_at(context.repository_id, context.sha, unknown))
+  end
+
+  # Every blob the checks of a set of candidates will read, fetched once: at
+  # the commit for every path their evidence touches (a path the listing lacks
+  # is recorded as unknown, so it is not asked again), and at each source
+  # commit for the paths its run reported no blob for. Asked per candidate it
+  # was a round trip per skipped test, seconds on a suite of thousands.
+  defp prefetch_blobs(context, entries) do
+    paths = entries |> Enum.flat_map(fn {_source, rows, _files} -> Enum.map(rows, & &1.path) end) |> Enum.uniq()
+    unknown = Enum.reject(paths, &Map.has_key?(context.blobs, &1))
+
+    blobs =
+      unknown
+      |> Map.new(&{&1, nil})
+      |> Map.merge(GitHistory.blobs_at(context.repository_id, context.sha, unknown))
+      |> Map.merge(context.blobs)
+
+    then_blobs =
+      entries
+      |> Enum.group_by(fn {source, _rows, _files} -> source.sha end)
+      |> Map.new(fn {sha, group} ->
+        missing =
+          group
+          |> Enum.flat_map(fn {_source, rows, files} ->
+            rows |> Enum.map(& &1.path) |> Enum.reject(&match?(%{git_blob_id: <<_, _::binary>>}, Map.get(files, &1)))
+          end)
+          |> Enum.uniq()
+
+        {sha, GitHistory.blobs_at(context.repository_id, sha, missing)}
+      end)
+
+    context |> Map.put(:blobs, blobs) |> Map.put(:then_blobs, Map.merge(Map.get(context, :then_blobs, %{}), then_blobs))
   end
 
   defp add_carried_lines(files, _context, _run_ids, carried_lines, _sources) when carried_lines == %{}, do: files

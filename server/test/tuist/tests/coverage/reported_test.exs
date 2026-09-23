@@ -489,6 +489,37 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "partial", covered_lines: 2, carried_tests_count: 0} = Reported.compute(project, "head")
   end
 
+  test "the pages read what the commit's published version settled, until it is folded again", %{
+    project: project,
+    account: account
+  } do
+    {:ok, project} = Projects.update_project(project, %{tracked_file_globs: ["Package.resolved"]})
+    base_run(project, account)
+    head_run(project, account, head_files())
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
+    Tuist.GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
+    Tuist.GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
+    Commits.recompute(project, "head")
+
+    measured = Commits.merged_files(project.id, "head")
+
+    carried = fn ->
+      project |> Reported.merged_files("head", measured) |> Enum.find(&(&1.path == "Sources/Text.swift"))
+    end
+
+    assert %{covered_lines: 3} = carried.()
+
+    # The tracked file changes at the commit: the published version still
+    # says what it said, and a fold settles the new answer.
+    Tuist.GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
+    assert %{covered_lines: 3} = carried.()
+
+    Commits.recompute(project, "head")
+    assert %{covered_lines: 0} = carried.()
+  end
+
   test "a changed tracked file carries nothing", %{project: project, account: account} do
     {:ok, project} = Projects.update_project(project, %{tracked_file_globs: ["Package.resolved"]})
     base_run(project, account)
