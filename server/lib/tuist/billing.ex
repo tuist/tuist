@@ -1102,7 +1102,45 @@ defmodule Tuist.Billing do
         |> Repo.update!()
     end
 
+    hold_unswitched_pro_subscription(account, plan, subscription)
+
     :ok
+  end
+
+  # Checkout fixes a subscription's line items when the page opens, not when
+  # the customer pays. One opened before the global gate went on and paid
+  # after it arrives carrying the hit Price, for an account nothing holds:
+  # the account would report the meters to a subscription that only bills
+  # hits, and be charged for neither. Holding it keeps it on the pricing its
+  # subscription carries until the switch moves it.
+  #
+  # Only the Pro hit Price bills, so only it triggers a hold; Air and open
+  # source carry a usage Price of their own and pay nothing on it. And only an
+  # account the global gate reaches is held. One with a gate of its own has
+  # been decided already, and a switched account must not be put back by a
+  # webhook that arrives late still listing its old items. A gate that cannot
+  # be written fails the webhook, so Stripe retries it.
+  defp hold_unswitched_pro_subscription(account, "pro", subscription) do
+    if subscription.status in @holdable_subscription_statuses and carries_pro_usage_price?(subscription) and
+         FeatureFlags.usage_based_pricing_enabled?(account) and not usage_based_pricing_gated?(account) do
+      {:ok, false} = FunWithFlags.disable(:usage_based_pricing, for_actor: account)
+    end
+  end
+
+  defp hold_unswitched_pro_subscription(_account, _plan, _subscription), do: nil
+
+  defp carries_pro_usage_price?(subscription) do
+    pro_usage = (Tuist.Environment.stripe_prices() || %{}) |> get_in(["pro", "usage"]) |> List.wrap()
+    Enum.any?(subscription.items.data, &(&1.price.id in pro_usage))
+  end
+
+  defp usage_based_pricing_gated?(account) do
+    target = FunWithFlags.Actor.id(account)
+
+    case FunWithFlags.get_flag(:usage_based_pricing) do
+      %FunWithFlags.Flag{gates: gates} -> Enum.any?(gates, &match?(%FunWithFlags.Gate{type: :actor, for: ^target}, &1))
+      _ -> false
+    end
   end
 
   # A payload that carries no such timestamp clears the column rather than

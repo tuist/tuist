@@ -1235,8 +1235,92 @@ defmodule Tuist.BillingTest do
                Billing.release_usage_based_pricing_holds()
     end
 
+    test "holds a Pro subscription that arrives on the hit Price for an account the global gate reaches",
+         %{account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing -> nil end)
+
+      account_id = account.id
+      expect(FunWithFlags, :disable, fn :usage_based_pricing, [for_actor: %{id: ^account_id}] -> {:ok, false} end)
+
+      :ok = Billing.on_subscription_change(pro_subscription_event("sub_opened_before_flip", ["pro.usage"]))
+    end
+
+    test "leaves a Pro subscription alone once it carries the meters", %{account: account} do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing -> nil end)
+      reject(&FunWithFlags.disable/2)
+
+      :ok =
+        Billing.on_subscription_change(
+          pro_subscription_event("sub_on_meters", ["meter.egress", "meter.requests", "meter.tests"])
+        )
+
+      assert %{plan: :pro} = Billing.get_current_active_subscription(account)
+    end
+
+    test "never re-holds an account that already has a gate of its own, however late the webhook", %{
+      account: account
+    } do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing ->
+        %FunWithFlags.Flag{
+          name: :usage_based_pricing,
+          gates: [%FunWithFlags.Gate{type: :actor, for: "account:#{account.id}", enabled: true}]
+        }
+      end)
+
+      reject(&FunWithFlags.disable/2)
+
+      :ok = Billing.on_subscription_change(pro_subscription_event("sub_switched_late_event", ["pro.usage"]))
+    end
+
+    test "leaves an Air subscription alone, whose usage Price bills nothing", %{account: account} do
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "air" => %{"usage" => ["air.usage"], "flat_monthly" => ["air.flat.monthly"]},
+          "pro" => %{"usage" => ["pro.usage"], "flat_monthly" => ["pro.flat.monthly"]}
+        }
+      end)
+
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> true end)
+      stub(FunWithFlags, :get_flag, fn :usage_based_pricing -> nil end)
+      reject(&FunWithFlags.disable/2)
+
+      :ok =
+        Billing.on_subscription_change(%{
+          id: "sub_air_renewal",
+          status: "active",
+          customer: "customer_id",
+          default_payment_method: nil,
+          items: %{data: [%{price: %{id: "air.usage"}}, %{price: %{id: "air.flat.monthly"}}]},
+          trial_end: nil
+        })
+
+      assert %{plan: :air} = Billing.get_current_active_subscription(account)
+    end
+
+    test "leaves an account the global gate does not reach alone" do
+      stub(FeatureFlags, :usage_based_pricing_enabled?, fn _account -> false end)
+      reject(&FunWithFlags.disable/2)
+
+      :ok = Billing.on_subscription_change(pro_subscription_event("sub_before_flip", ["pro.usage"]))
+    end
+
     test "the switch is refused for an account with no subscription", %{account: account} do
       assert Billing.switch_to_usage_based_pricing(account) == {:error, :no_subscription}
+    end
+
+    defp pro_subscription_event(id, usage_price_ids) do
+      %{
+        id: id,
+        status: "active",
+        customer: "customer_id",
+        default_payment_method: nil,
+        items: %{data: Enum.map(usage_price_ids ++ ["pro.flat.monthly"], &%{price: %{id: &1}})},
+        trial_end: nil
+      }
     end
   end
 
