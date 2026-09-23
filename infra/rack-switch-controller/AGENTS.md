@@ -70,11 +70,10 @@ written by `rack:fleet publish`.
 
 ## The API, and the gates
 
-Everything outside `internal/omada/unmeasured.go` was measured on controller
-6.3.0.45 and a real switch; `internal/omada/omadatest` is a fake that answers
-the same way, refusals included. Each step beyond hostname, descriptions and
-spanning-tree mode is behind a flag (`gates` in the chart), switched on one at
-a time:
+Every call was measured on controller 6.3.0.45 and a real switch;
+`internal/omada/omadatest` is a fake that answers the same way, refusals
+included. Each step beyond hostname, descriptions and spanning-tree mode is
+behind a flag (`gates` in the chart); all are on by default:
 
 - `--enable-management-addressing`, on by default: the static address, mask
   and gateway (the site's edge node, which is the path to the controller) of
@@ -83,10 +82,12 @@ a time:
   keeps its controller connection across the change. Its VLAN is reported,
   never moved. Verified end to end on all three BER1 switches.
 - `--enable-vlans`: creates the site networks `config.vlans` lists (never
-  deletes one; a site network is shared by every switch in the site) and gives
-  a port a VLAN override when its native or tagged set differs from what its
-  profile gives it. The `All` profile carries every site network tagged
-  although its `tagNetworkIds` is empty. Measured.
+  deletes one; a site network is shared by every switch in the site) and writes
+  every port's VLAN membership: "Allow All" for a port carrying every site
+  network, a custom list otherwise. Every port, because a port the API reports
+  as following its profile can still hold an old custom list on the switch
+  (measured on ber1-tor-b), and the API cannot return an override's content.
+  Verified end to end.
 - `--enable-lags`: creates LACP groups through the first member's port
   endpoint, with the spec's `name` (the renderer defaults it to `lag<id>`),
   which the members then carry as their description; the SX3832's
@@ -94,13 +95,14 @@ a time:
   deleted and created again. A group the spec does not have is reported and
   left, since `portList` does not say which LAG a port is in. LAG members are
   skipped by every other port step, as the controller refuses changes to them.
-  Measured.
-- `--enable-port-spanning-tree`: a port override with `spanningTreeEnable`
-  where the spec disagrees with the port's profile. Measured. With both this and
-  VLANs on, an override the spec does not need is returned to its profile.
-- `--enable-site-services`: the site-wide LLDP and SNMP settings. Unmeasured
-  field names; SNMP is only ever turned off, since the spec carries no
-  community or user to turn it on with.
+  Verified end to end.
+- `--enable-port-spanning-tree`: every port's `spanningTreeEnable`, for the
+  same reason as VLAN membership: an override written for its VLANs alone would
+  keep an earlier spanning-tree setting. Verified end to end.
+- `--enable-site-services`: the site-wide LLDP (nested as `{"lldp":
+  {"enable": ...}}`) and SNMP (`snmpV1V2CEnable`, `snmpV3Enable`). Measured;
+  SNMP is only ever turned off, since the spec carries no community or user to
+  turn it on with.
 
 The controller refuses a port or LAG name that is empty or has parentheses in
 it; the CRD admits only `[A-Za-z0-9 ._-]`, up to 32, as the renderer does. A

@@ -55,13 +55,13 @@ func (f *engineFlags) register(fs *flag.FlagSet, siteFlag string) {
 		"Address the controller tells adopted switches to connect back to: its tailnet IP")
 	fs.StringVar(&f.credentialsDir, "credentials-dir", "/etc/rack-switch-controller",
 		"Directory holding client-id, client-secret, device-username, device-password, and optionally factory-username and factory-password")
-	fs.BoolVar(&f.gates.VLANs, "enable-vlans", false, "Create site networks and write port VLAN membership")
-	fs.BoolVar(&f.gates.LAGs, "enable-lags", false, "Create link aggregation groups")
-	fs.BoolVar(&f.gates.PortSpanningTree, "enable-port-spanning-tree", false, "Write per-port spanning tree")
+	fs.BoolVar(&f.gates.VLANs, "enable-vlans", true, "Create site networks and write port VLAN membership")
+	fs.BoolVar(&f.gates.LAGs, "enable-lags", true, "Create link aggregation groups")
+	fs.BoolVar(&f.gates.PortSpanningTree, "enable-port-spanning-tree", true, "Write per-port spanning tree")
 	fs.BoolVar(&f.gates.ManagementAddressing, "enable-management-addressing", true,
 		"Write the management interface's static address, mask and gateway")
-	fs.BoolVar(&f.gates.SiteServices, "enable-site-services", false,
-		"Write the site's LLDP and SNMP settings (unmeasured API shape)")
+	fs.BoolVar(&f.gates.SiteServices, "enable-site-services", true,
+		"Write the site's LLDP and SNMP settings")
 }
 
 func (f *engineFlags) engine(siteFlag string) (*converge.Engine, func() (converge.Credentials, error), error) {

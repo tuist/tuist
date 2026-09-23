@@ -122,7 +122,7 @@ func New() *Server {
 		TokenLifetime: 7200,
 		ssh:           map[string]any{"sshEnable": false, "sshServerPort": float64(22), "layer3Access": false},
 		account:       omada.Login{Username: "admin", Password: "wizard-password"},
-		lldp:          map[string]any{"enable": false},
+		lldp:          map[string]any{"lldp": map[string]any{"enable": false}},
 		snmp:          map[string]any{"snmpV1Enable": false, "snmpV2Enable": true, "location": "", "contact": ""},
 		networks:      []omada.LANNetwork{{ID: DefaultNetworkID, Name: "Default", VLAN: 1, Purpose: 1, Application: 1}},
 		profiles: []omada.LANProfile{

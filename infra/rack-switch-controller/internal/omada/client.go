@@ -1,10 +1,8 @@
 // Package omada is a client for the TP-Link Omada SDN controller's Open API,
 // limited to what the rack switch controller reads and writes.
 //
-// Every call outside unmeasured.go was exercised against controller 6.3.0.45
-// and a real switch, and mirrors infra/rack-switch-fleet/omada.sh where that
-// makes the same call. unmeasured.go holds calls whose shapes have not met
-// hardware.
+// Every call was exercised against controller 6.3.0.45 and a real switch, and
+// mirrors infra/rack-switch-fleet/omada.sh where that makes the same call.
 package omada
 
 import (

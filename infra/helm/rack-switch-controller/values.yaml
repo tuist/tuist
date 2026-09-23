@@ -23,15 +23,15 @@ omada:
 # How often each switch is read again, which is how drift is noticed.
 resyncInterval: 10m
 
-# Steps switched on one at a time. The management address is verified end to
-# end on all three BER1 switches; VLANs, LAGs and port spanning tree are
-# measured through the API and wait their turn; site services are unmeasured.
+# Each step can be switched off. Every one was measured on BER1's switches: the
+# management address, VLANs, LAGs and per-port spanning tree end to end, the
+# site services through the controller.
 gates:
   managementAddressing: true
-  vlans: false
-  lags: false
-  portSpanningTree: false
-  siteServices: false
+  vlans: true
+  lags: true
+  portSpanningTree: true
+  siteServices: true
 
 credentials:
   secretStoreRef:

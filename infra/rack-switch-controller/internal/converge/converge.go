@@ -83,9 +83,8 @@ type observed struct {
 	hostname       string
 	ports          []omada.Port
 	networks       []omada.LANNetwork
-	profiles       []omada.LANProfile
 	switchNetworks []omada.SwitchNetwork
-	lldp           map[string]any
+	lldp           bool
 	snmp           map[string]any
 }
 
@@ -106,11 +105,6 @@ func (e *Engine) observe(ctx context.Context, siteID, mac string, cfg *v1alpha1.
 			return nil, err
 		}
 	}
-	if e.Gates.VLANs || e.Gates.PortSpanningTree {
-		if s.profiles, err = e.Omada.LANProfiles(ctx, siteID); err != nil {
-			return nil, err
-		}
-	}
 	if e.Gates.ManagementAddressing {
 		if s.switchNetworks, err = e.Omada.SwitchNetworks(ctx, siteID, mac); err != nil {
 			return nil, err
@@ -118,7 +112,7 @@ func (e *Engine) observe(ctx context.Context, siteID, mac string, cfg *v1alpha1.
 	}
 	if e.Gates.SiteServices {
 		if cfg.LLDP != nil {
-			if s.lldp, err = e.Omada.LLDP(ctx, siteID); err != nil {
+			if s.lldp, err = e.Omada.LLDPEnabled(ctx, siteID); err != nil {
 				return nil, err
 			}
 		}
@@ -198,19 +192,16 @@ func (e *Engine) differences(rs *v1alpha1.RackSwitch, s *observed) []string {
 			}
 			override, _ := e.portOverride(cfg, p, s)
 			need := override.VLANs != nil || override.SpanningTree != nil
-			switch {
-			case need && !p.ProfileOverrideEnable:
+			if need && !p.ProfileOverrideEnable {
 				drift = append(drift, fmt.Sprintf("port %d follows its profile, and the spec needs an override", p.Port))
-			case !need && p.ProfileOverrideEnable && e.ownsOverrides():
-				drift = append(drift, fmt.Sprintf("port %d overrides its profile, and the spec needs no override", p.Port))
 			}
 		}
 	}
 
 	if e.Gates.SiteServices {
 		if cfg.LLDP != nil {
-			if have, _ := s.lldp[omada.LLDPEnableField].(bool); have != *cfg.LLDP {
-				drift = append(drift, fmt.Sprintf("LLDP is %s, want %s", onOff(have), onOff(*cfg.LLDP)))
+			if s.lldp != *cfg.LLDP {
+				drift = append(drift, fmt.Sprintf("LLDP is %s, want %s", onOff(s.lldp), onOff(*cfg.LLDP)))
 			}
 		}
 		if cfg.SNMP != nil {
@@ -224,12 +215,6 @@ func (e *Engine) differences(rs *v1alpha1.RackSwitch, s *observed) []string {
 		}
 	}
 	return drift
-}
-
-// ownsOverrides is whether every setting a port override carries is managed,
-// so an override the spec does not ask for is the controller's to remove.
-func (e *Engine) ownsOverrides() bool {
-	return e.Gates.VLANs && e.Gates.PortSpanningTree
 }
 
 type writer struct {
@@ -362,17 +347,11 @@ func (w *writer) portOverrides() error {
 		if err != nil {
 			return err
 		}
-		switch {
-		case override.VLANs != nil || override.SpanningTree != nil:
+		if override.VLANs != nil || override.SpanningTree != nil {
 			if err := w.e.Omada.OverridePort(w.ctx, w.siteID, w.mac, p, name, override); err != nil {
 				return err
 			}
 			w.record(Change{Subject: fmt.Sprintf("port %d", p.Port), To: w.describeOverride(override), Note: "written; the API cannot read it back"})
-		case p.ProfileOverrideEnable && w.e.ownsOverrides():
-			if err := w.e.Omada.FollowProfile(w.ctx, w.siteID, w.mac, p, name); err != nil {
-				return err
-			}
-			w.record(Change{Subject: fmt.Sprintf("port %d", p.Port), To: fmt.Sprintf("follows its profile %q", p.ProfileName)})
 		}
 	}
 	return nil
@@ -380,7 +359,10 @@ func (w *writer) portOverrides() error {
 
 func (w *writer) describeOverride(o omada.PortOverride) string {
 	var parts []string
-	if o.VLANs != nil {
+	switch {
+	case o.VLANs != nil && o.VLANs.AllNetworks:
+		parts = append(parts, fmt.Sprintf("native %s, every network tagged", vlanOfNetwork(w.state.networks, o.VLANs.NativeNetworkID)))
+	case o.VLANs != nil:
 		parts = append(parts, fmt.Sprintf("native %s, tagged [%s]",
 			vlanOfNetwork(w.state.networks, o.VLANs.NativeNetworkID),
 			strings.Join(mapStrings(o.VLANs.TaggedNetworkIDs, func(id string) string { return vlanOfNetwork(w.state.networks, id) }), ", ")))
@@ -391,13 +373,12 @@ func (w *writer) describeOverride(o omada.PortOverride) string {
 	return strings.Join(parts, "; ")
 }
 
-// portOverride is what a port has to carry in place of its profile for the
-// gated steps: VLAN membership when the profile's differs from the spec's,
-// and spanning tree when the spec sets it and the profile disagrees.
+// portOverride is what a port carries in place of its profile for the gated
+// steps: its VLAN membership and its spanning-tree setting, each written for
+// every port whose gate is on.
 func (e *Engine) portOverride(cfg *v1alpha1.SwitchConfig, p omada.Port, s *observed) (omada.PortOverride, error) {
 	var o omada.PortOverride
 	pc := portConfig(cfg, p.Port)
-	profile := profileByID(s.profiles, p.ProfileID)
 
 	if e.Gates.VLANs {
 		nativeVLAN := managementVLAN(cfg)
@@ -423,43 +404,36 @@ func (e *Engine) portOverride(cfg *v1alpha1.SwitchConfig, p omada.Port, s *obser
 			taggedIDs = append(taggedIDs, n.ID)
 		}
 		sort.Strings(taggedIDs)
-		haveNative, haveTagged := profileMembership(profile, s.networks)
-		switch {
-		case missing != nil:
+		if missing != nil {
 			o.VLANs = &omada.PortVLANs{}
 			return o, missing
-		case native.ID != haveNative || !slices.Equal(taggedIDs, haveTagged):
-			o.VLANs = &omada.PortVLANs{NativeNetworkID: native.ID, TaggedNetworkIDs: taggedIDs}
 		}
-	}
-
-	if e.Gates.PortSpanningTree && pc != nil && pc.SpanningTree != nil {
-		if profile == nil || profile.SpanningTreeEnable != *pc.SpanningTree {
-			enabled := *pc.SpanningTree
-			o.SpanningTree = &enabled
-		}
-	}
-	return o, nil
-}
-
-// profileMembership is the VLAN membership a profile gives a port. "All"
-// carries every site network tagged, whatever its tagNetworkIds says.
-func profileMembership(profile *omada.LANProfile, networks []omada.LANNetwork) (string, []string) {
-	if profile == nil {
-		return "", nil
-	}
-	var tagged []string
-	if profile.Name == omada.ProfileAll {
-		for _, n := range networks {
-			if n.ID != profile.NativeNetworkID {
-				tagged = append(tagged, n.ID)
+		// Every port's membership is written, not only where it differs from the
+		// profile's: a port returned to its profile keeps a custom VLAN override
+		// on the switch while the API reports it as following the profile
+		// (measured on ber1-tor-b port 20), so the API cannot tell which ports
+		// carry one. A port carrying every site network gets "Allow All".
+		var others []string
+		for _, n := range s.networks {
+			if n.ID != native.ID {
+				others = append(others, n.ID)
 			}
 		}
-	} else {
-		tagged = append(tagged, profile.TagNetworkIDs...)
+		sort.Strings(others)
+		o.VLANs = &omada.PortVLANs{NativeNetworkID: native.ID, TaggedNetworkIDs: taggedIDs, AllNetworks: slices.Equal(taggedIDs, others)}
 	}
-	sort.Strings(tagged)
-	return profile.NativeNetworkID, tagged
+
+	if e.Gates.PortSpanningTree {
+		// Written for every port, like VLAN membership: the API cannot say what an
+		// override holds, and one written for its VLANs alone would keep whatever
+		// spanning-tree setting an earlier override gave the port.
+		enabled := true
+		if pc != nil && pc.SpanningTree != nil {
+			enabled = *pc.SpanningTree
+		}
+		o.SpanningTree = &enabled
+	}
+	return o, nil
 }
 
 // management gives the management interface the spec's static address, mask
@@ -482,17 +456,15 @@ func (w *writer) management() error {
 	return nil
 }
 
-// siteServices writes the site-wide LLDP and SNMP settings. Unmeasured: see
-// omada/unmeasured.go.
+// siteServices writes the site-wide LLDP and SNMP settings; see
+// omada/services.go for their shapes.
 func (w *writer) siteServices() error {
 	if want := w.cfg.LLDP; want != nil {
-		if have, _ := w.state.lldp[omada.LLDPEnableField].(bool); have != *want {
-			setting := copyMap(w.state.lldp)
-			setting[omada.LLDPEnableField] = *want
-			if err := w.e.Omada.SetLLDP(w.ctx, w.siteID, setting); err != nil {
+		if w.state.lldp != *want {
+			if err := w.e.Omada.SetLLDP(w.ctx, w.siteID, *want); err != nil {
 				return err
 			}
-			w.record(Change{Subject: "LLDP", From: onOff(have), To: onOff(*want), Note: "site-wide"})
+			w.record(Change{Subject: "LLDP", From: onOff(w.state.lldp), To: onOff(*want), Note: "site-wide"})
 		}
 	}
 	if want := w.cfg.SNMP; want != nil && !*want {
@@ -639,15 +611,6 @@ func vlanOfNetwork(networks []omada.LANNetwork, id string) string {
 		}
 	}
 	return id
-}
-
-func profileByID(profiles []omada.LANProfile, id string) *omada.LANProfile {
-	for i := range profiles {
-		if profiles[i].ID == id {
-			return &profiles[i]
-		}
-	}
-	return nil
 }
 
 func enabledSNMPFields(setting map[string]any) []string {

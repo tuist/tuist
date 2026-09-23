@@ -55,9 +55,12 @@ func DefaultLoopback(stp int) Loopback {
 }
 
 // PortVLANs is the VLAN membership a port carries in place of its profile's.
+// AllNetworks carries every site network tagged, written as the controller's
+// "Allow All" rather than as a list, so networks added later are carried too.
 type PortVLANs struct {
 	NativeNetworkID  string
 	TaggedNetworkIDs []string
+	AllNetworks      bool
 }
 
 // PortOverride is what a port carries in place of its profile's. A nil field
@@ -126,20 +129,17 @@ func (c *Client) OverridePort(ctx context.Context, siteID, mac string, port Port
 		}
 		body["profileVlanOverrideEnable"] = true
 		body["nativeNetworkId"] = v.NativeNetworkID
-		body["networkTagsSetting"] = 2
-		body["tagNetworkIds"] = tagged
-		body["untagNetworkIds"] = []string{}
+		if v.AllNetworks {
+			body["networkTagsSetting"] = 0
+		} else {
+			body["networkTagsSetting"] = 2
+			body["tagNetworkIds"] = tagged
+			body["untagNetworkIds"] = []string{}
+		}
 	}
 	if override.SpanningTree != nil {
 		body["spanningTreeEnable"] = *override.SpanningTree
 	}
-	return c.call(ctx, http.MethodPatch, portPath(siteID, mac, port.Port), body, nil)
-}
-
-// FollowProfile returns a port to its profile. profileVlanOverrideEnable is
-// left out: the controller refuses it false on a port whose profile is "All".
-func (c *Client) FollowProfile(ctx context.Context, siteID, mac string, port Port, name string) error {
-	body := map[string]any{"name": name, "profileId": port.ProfileID, "profileOverrideEnable": false}
 	return c.call(ctx, http.MethodPatch, portPath(siteID, mac, port.Port), body, nil)
 }
 

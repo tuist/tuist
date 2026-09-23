@@ -170,7 +170,7 @@ func TestConvergeNeedsAConfig(t *testing.T) {
 	}
 }
 
-func TestVLANsCreateNetworksAndOverrideOnlyPortsThatDiffer(t *testing.T) {
+func TestVLANsCreateNetworksAndWriteEveryPortsMembership(t *testing.T) {
 	fake, engine := newEngine(t, converge.Gates{VLANs: true})
 	connectedTor(fake, 4)
 	rs := torB(4, func(cfg *v1alpha1.SwitchConfig) {
@@ -200,8 +200,15 @@ func TestVLANsCreateNetworksAndOverrideOnlyPortsThatDiffer(t *testing.T) {
 	}
 
 	sw := fake.Switch(torMAC)
-	if _, overridden := sw.Overrides[1]; overridden {
-		t.Fatal("port 1 carries every site network, which its All profile already gives it")
+	// Port 1 carries every site network: written as Allow All, since a port the API
+	// reports as following its profile can still hold an old custom list.
+	wantPort1 := map[string]any{
+		"name": "Port1", "profileId": omadatest.ProfileAllID, "profileOverrideEnable": true,
+		"profileVlanOverrideEnable": true, "nativeNetworkId": omadatest.DefaultNetworkID,
+		"networkTagsSetting": float64(0),
+	}
+	if !reflect.DeepEqual(sw.Overrides[1], wantPort1) {
+		t.Fatalf("port 1 override = %v", sw.Overrides[1])
 	}
 	wantPort2 := map[string]any{
 		"name": "Port2", "profileId": omadatest.ProfileAllID, "profileOverrideEnable": true,
@@ -339,7 +346,7 @@ func TestALAGTheSpecDoesNotHaveIsReportedAndLeftAlone(t *testing.T) {
 	}
 }
 
-func TestPortSpanningTreeOverridesOnlyWhereTheProfileDisagrees(t *testing.T) {
+func TestPortSpanningTreeIsWrittenForEveryPort(t *testing.T) {
 	fake, engine := newEngine(t, converge.Gates{PortSpanningTree: true})
 	connectedTor(fake, 6)
 	rs := torB(6, func(cfg *v1alpha1.SwitchConfig) {
@@ -364,19 +371,25 @@ func TestPortSpanningTreeOverridesOnlyWhereTheProfileDisagrees(t *testing.T) {
 	if !reflect.DeepEqual(sw.Overrides[5], want) {
 		t.Fatalf("port 5 override = %v", sw.Overrides[5])
 	}
-	if _, overridden := sw.Overrides[6]; overridden {
-		t.Fatal("port 6 wants what its profile already gives it")
+	// Port 6 wants what its profile gives it, and is written anyway: an
+	// override the port already holds could say otherwise.
+	if sw.Overrides[6]["profileOverrideEnable"] != true || sw.Overrides[6]["spanningTreeEnable"] != true {
+		t.Fatalf("port 6 override = %v", sw.Overrides[6])
 	}
 }
 
-func TestAnOverrideTheSpecDoesNotNeedIsRemovedOnlyWhenEveryOverrideIsManaged(t *testing.T) {
+func TestWithAPerPortGateEveryPortIsWrittenInFull(t *testing.T) {
+	// A port that already holds an override: the API cannot say what it holds,
+	// so each per-port setting whose gate is on is written for every port.
+	allowAll := map[string]any{"profileVlanOverrideEnable": true, "nativeNetworkId": omadatest.DefaultNetworkID, "networkTagsSetting": float64(0)}
+	stp := map[string]any{"spanningTreeEnable": true}
 	for _, tc := range []struct {
-		gates   converge.Gates
-		removed bool
+		gates converge.Gates
+		want  []map[string]any
 	}{
-		{converge.Gates{VLANs: true}, false},
-		{converge.Gates{PortSpanningTree: true}, false},
-		{converge.Gates{VLANs: true, PortSpanningTree: true}, true},
+		{converge.Gates{VLANs: true}, []map[string]any{allowAll}},
+		{converge.Gates{PortSpanningTree: true}, []map[string]any{stp}},
+		{converge.Gates{VLANs: true, PortSpanningTree: true}, []map[string]any{allowAll, stp}},
 	} {
 		t.Run(fmt.Sprintf("%+v", tc.gates), func(t *testing.T) {
 			fake, engine := newEngine(t, tc.gates)
@@ -392,13 +405,12 @@ func TestAnOverrideTheSpecDoesNotNeedIsRemovedOnlyWhenEveryOverrideIsManaged(t *
 					back = w.Body
 				}
 			}
-			if !tc.removed {
-				if back != nil {
-					t.Fatalf("port 1 was written: %v", back)
+			want := map[string]any{"name": "Port1", "profileId": omadatest.ProfileAllID, "profileOverrideEnable": true}
+			for _, part := range tc.want {
+				for k, v := range part {
+					want[k] = v
 				}
-				return
 			}
-			want := map[string]any{"name": "Port1", "profileId": omadatest.ProfileAllID, "profileOverrideEnable": false}
 			if !reflect.DeepEqual(back, want) {
 				t.Fatalf("port 1 body = %v", back)
 			}
@@ -511,7 +523,7 @@ func TestSiteServices(t *testing.T) {
 	if len(report.Drift) != 0 {
 		t.Fatalf("drift = %q", report.Drift)
 	}
-	if lldp := fake.LLDP(); lldp["enable"] != true {
+	if lldp, _ := fake.LLDP()["lldp"].(map[string]any); lldp["enable"] != true {
 		t.Fatalf("lldp = %v", lldp)
 	}
 	snmp := fake.SNMP()

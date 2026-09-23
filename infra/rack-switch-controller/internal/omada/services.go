@@ -1,9 +1,10 @@
 package omada
 
-// Calls in this file follow the controller's API document and have not met
-// hardware: the paths exist on 6.3.0.45, the field names are unconfirmed.
-// Each is read-modify-write of the object the controller returns, so a field
-// this file does not name is sent back as it was read.
+// The site-wide services, measured on 6.3.0.45: LLDP is nested as
+// {"lldp": {"enable": ...}}, and SNMP is switched by snmpV1V2CEnable and
+// snmpV3Enable beside its location and contact. SNMP is read-modify-write of
+// the object the controller returns, so a field this file does not name is
+// sent back as it was read.
 
 import (
 	"context"
@@ -11,19 +12,21 @@ import (
 	"strings"
 )
 
-// LLDPEnableField is the field of the site's LLDP setting that switches it.
-const LLDPEnableField = "enable"
-
-// LLDP is the site's LLDP setting.
-func (c *Client) LLDP(ctx context.Context, siteID string) (map[string]any, error) {
-	var setting map[string]any
+// LLDPEnabled is whether the site runs LLDP.
+func (c *Client) LLDPEnabled(ctx context.Context, siteID string) (bool, error) {
+	var setting struct {
+		LLDP struct {
+			Enable bool `json:"enable"`
+		} `json:"lldp"`
+	}
 	err := c.call(ctx, http.MethodGet, sitePath(siteID, "/lldp"), nil, &setting)
-	return setting, err
+	return setting.LLDP.Enable, err
 }
 
-// SetLLDP writes the site's LLDP setting.
-func (c *Client) SetLLDP(ctx context.Context, siteID string, setting map[string]any) error {
-	return c.call(ctx, http.MethodPatch, sitePath(siteID, "/lldp"), setting, nil)
+// SetLLDP turns the site's LLDP on or off.
+func (c *Client) SetLLDP(ctx context.Context, siteID string, enabled bool) error {
+	body := map[string]any{"lldp": map[string]any{"enable": enabled}}
+	return c.call(ctx, http.MethodPatch, sitePath(siteID, "/lldp"), body, nil)
 }
 
 // SNMP is the site's SNMP service setting.
