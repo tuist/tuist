@@ -301,12 +301,13 @@
     gap: var(--noora-spacing-4);
     text-align: right;
 
-    /* The record reads left to right, since it is copied out character by
-       character, and wraps rather than running past the column. */
-    & [data-part="read-only-value"] {
+    /* The record reads left to right, label over value, since it is copied
+       out character by character, and wraps rather than running past the
+       column. */
+    & [data-part="domain-record"] {
       text-align: left;
 
-      & > code {
+      & [data-part="read-only-value"] > code {
         overflow-wrap: anywhere;
         white-space: normal;
       }
