@@ -11,11 +11,10 @@
 #   mise run rack:write-install-usb --host <name> --output <iso>
 #
 # Run it with no disk and no --output to list the external disks attached.
-# Writing asks for confirmation, then for sudo. Pull the stick once the install
-# finishes: the rack's nodes boot USB first, so a stick left in reinstalls the
-# node on its next reboot. Until then the stick is a credential: a lost one is
-# revoked by deleting its key (the ID is printed below) in the Tailscale admin
-# console.
+# Writing asks for confirmation, then for sudo. A stick installs a machine once:
+# booted again, it hands over to the system it installed. Until the install has
+# used it, the stick is a credential: a lost one is revoked by deleting its key
+# (the ID is printed below) in the Tailscale admin console.
 #
 # See infra/rack-nodes/AGENTS.md.
 
@@ -146,7 +145,7 @@ cat <<EOF
 
 Done. Boot $host from this stick and leave it: it installs itself, reboots,
 joins the tailnet with key $key_id, and the cluster's operator joins it as a
-node. Pull the stick once the install finishes. Watch it with:
+node. Pull the stick once the node is up. Watch it with:
 
   kubectl get racklinuxhost $host -w
   kubectl get racklinuxmachine -o wide

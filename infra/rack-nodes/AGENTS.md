@@ -51,9 +51,13 @@ ID; an install that answers SSH without it was not built from this stick.
 device with the rack's tags. A stick that is lost before use is dealt with by
 deleting its key, whose ID the task prints, in the Tailscale admin console.
 
-**Pull the stick once the install finishes.** The MS-01s boot USB first, so a
-stick left in reinstalls the node on its next reboot, and its key is spent by
-then.
+**A stick installs a machine once.** Its early-commands look for an install that
+carries the stick's key ID and, finding one, set `BootNext` to it (with the
+installed system's own `efibootmgr`) and reboot into it rather than wiping it.
+The MS-01s boot USB first, so this is what turns the reboot at the end of the
+install into the new system's first boot. Pull the stick once the node is up:
+left in, it costs every reboot a pass through the installer. Reinstalling takes
+a new stick.
 
 ## Reinstalling
 

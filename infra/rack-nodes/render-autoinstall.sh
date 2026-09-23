@@ -90,6 +90,21 @@ $authorized_keys  storage:
     - ethtool
   updates: security
   shutdown: reboot
+  early-commands:
+    - |
+      mkdir -p /run/tuist-prev
+      for part in \$(lsblk -rpno NAME,FSTYPE | awk '\$2 == "ext4" {print \$1}'); do
+        mount -o ro "\$part" /run/tuist-prev 2>/dev/null || continue
+        if grep -qx 'tailnet_key=$tailnet_key_id' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null; then
+          for fs in dev proc sys; do mount --rbind "/\$fs" "/run/tuist-prev/\$fs"; done
+          entry=\$(chroot /run/tuist-prev efibootmgr | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} [Uu]buntu.*/\1/p' | head -n 1)
+          [ -n "\$entry" ] && chroot /run/tuist-prev efibootmgr -q -n "\$entry"
+          echo "tuist: this stick already installed $node; booting the installed system" >/dev/console
+          umount -R /run/tuist-prev
+          reboot -f
+        fi
+        umount /run/tuist-prev
+      done
   late-commands:
     - curtin in-target --target=/target -- systemctl enable ssh
     - |

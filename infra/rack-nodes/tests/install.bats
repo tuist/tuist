@@ -123,3 +123,17 @@ render() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"does not hold a tailnet auth key"* ]]
 }
+
+@test "a stick that already installed the machine boots it rather than wiping it" {
+  run render
+  [ "$status" -eq 0 ]
+  guard="$(yq -r '.autoinstall.early-commands[0]' "$BATS_TEST_TMPDIR/seed/user-data")"
+  [[ "$guard" == *"grep -qx 'tailnet_key=kTEST1CNTRL' /run/tuist-prev/etc/tuist-rack-node"* ]]
+  [[ "$guard" == *'efibootmgr -q -n "$entry"'* ]]
+  [[ "$guard" == *"reboot -f"* ]]
+  printf '%s\n' "$guard" >"$BATS_TEST_TMPDIR/guard.sh"
+  sh -n "$BATS_TEST_TMPDIR/guard.sh"
+  pattern="$(sed -n "s/.*sed -n '\(.*\)' | head -n 1).*/\1/p" "$BATS_TEST_TMPDIR/guard.sh")"
+  entry="$(printf 'BootCurrent: 0000\nBoot0000* Ubuntu\tHD(1,GPT,x)/File(\\EFI\\ubuntu\\shimx64.efi)\nBoot0001* UEFI: PXE IPv4\n' | sed -n "$pattern")"
+  [ "$entry" = 0000 ]
+}
