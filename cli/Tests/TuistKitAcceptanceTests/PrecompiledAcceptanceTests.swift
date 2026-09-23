@@ -1,10 +1,10 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Path
 import Testing
 import TuistBuildCommand
 import TuistGenerateCommand
-import TuistProcess
 import TuistSupport
 import TuistTesting
 

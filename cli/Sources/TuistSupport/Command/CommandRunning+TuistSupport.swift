@@ -1,7 +1,7 @@
+import Command
 import Foundation
 import Path
 import TuistEnvironment
-import TuistProcess
 
 public struct CommandOutput: Sendable {
     public var standardOutput: String

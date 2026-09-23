@@ -1,9 +1,9 @@
+import Command
 import Foundation
 import SwifterPMCore
 import Synchronization
 import TSCUtility
 import TuistCore
-import TuistProcess
 import TuistTesting
 import XcodeGraph
 import XCTest

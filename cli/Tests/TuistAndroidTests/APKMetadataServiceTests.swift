@@ -1,4 +1,5 @@
 #if os(macOS)
+    import Command
     import FileSystem
     import FileSystemTesting
     import Foundation
@@ -6,7 +7,6 @@
     import Path
     import Testing
     import TuistAndroid
-    import TuistProcess
 
     struct APKMetadataServiceTests {
         private let subject: APKMetadataService
@@ -159,7 +159,7 @@
                 .willProduce { args, _, _ in
                     let output = args.contains("zipinfo") ? zipInfoOutput : aapt2Output
                     return AsyncThrowingStream { continuation in
-                        continuation.yield(ProcessEvent.standardOutput(Array(output.utf8)))
+                        continuation.yield(CommandEvent.standardOutput(Array(output.utf8)))
                         continuation.finish()
                     }
                 }

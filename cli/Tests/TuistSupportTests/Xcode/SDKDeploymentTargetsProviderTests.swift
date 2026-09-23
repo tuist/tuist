@@ -1,10 +1,10 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
 import Path
 import Testing
-import TuistProcess
 @testable import TuistSupport
 
 struct SDKDeploymentTargetsProviderTests {

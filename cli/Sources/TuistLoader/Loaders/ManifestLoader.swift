@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -7,7 +8,6 @@ import TuistCore
 import TuistEnvironment
 import TuistGit
 import TuistLogging
-import TuistProcess
 import TuistSupport
 import XcodeGraph
 

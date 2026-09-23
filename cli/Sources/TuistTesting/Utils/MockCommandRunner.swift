@@ -1,6 +1,6 @@
+import Command
 import Foundation
 import Path
-import TuistProcess
 
 public final class MockCommandRunner: CommandRunning, @unchecked Sendable {
     public var env: [String: String] = [:]
@@ -66,7 +66,7 @@ public final class MockCommandRunner: CommandRunning, @unchecked Sendable {
         arguments: [String],
         environment: [String: String],
         workingDirectory: Path.AbsolutePath?
-    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+    ) -> AsyncThrowingStream<CommandEvent, any Error> {
         AsyncThrowingStream { continuation in
             let command = arguments.joined(separator: " ")
             lock.lock()

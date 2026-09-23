@@ -1,3 +1,4 @@
+import Command
 import Foundation
 import Mockable
 import Testing
@@ -5,7 +6,6 @@ import TuistConfig
 import TuistConfigLoader
 import TuistEnvironmentTesting
 import TuistNooraTesting
-import TuistProcess
 import TuistServer
 import TuistTesting
 

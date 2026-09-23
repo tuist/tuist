@@ -1,32 +1,32 @@
+import Command
 import FileSystem
 import Foundation
 import Path
 import Testing
-import TuistProcess
 import TuistTestSupport
 
 @testable import Rosalind
 
 private struct TestCommandRunner: CommandRunning {
-    let handler: @Sendable ([String]) -> AsyncThrowingStream<ProcessEvent, any Error>
+    let handler: @Sendable ([String]) -> AsyncThrowingStream<CommandEvent, any Error>
 
     func run(
         arguments: [String],
         environment _: [String: String],
         workingDirectory _: Path.AbsolutePath?
-    ) -> AsyncThrowingStream<ProcessEvent, any Error> {
+    ) -> AsyncThrowingStream<CommandEvent, any Error> {
         handler(arguments)
     }
 }
 
-private func commandOutput(_ output: String) -> AsyncThrowingStream<ProcessEvent, any Error> {
+private func commandOutput(_ output: String) -> AsyncThrowingStream<CommandEvent, any Error> {
     AsyncThrowingStream { continuation in
-        continuation.yield(ProcessEvent.standardOutput(Array(output.utf8)))
+        continuation.yield(CommandEvent.standardOutput(Array(output.utf8)))
         continuation.finish()
     }
 }
 
-private func commandFailure(_ error: any Error) -> AsyncThrowingStream<ProcessEvent, any Error> {
+private func commandFailure(_ error: any Error) -> AsyncThrowingStream<CommandEvent, any Error> {
     AsyncThrowingStream { continuation in
         continuation.finish(throwing: error)
     }

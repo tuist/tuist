@@ -1,6 +1,6 @@
+import Command
 import Foundation
 import Testing
-import TuistProcess
 
 public struct Simulator: CustomStringConvertible {
     @TaskLocal public static var testing: Simulator?

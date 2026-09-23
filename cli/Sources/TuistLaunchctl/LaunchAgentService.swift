@@ -1,10 +1,10 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistEnvironment
 import TuistLogging
-import TuistProcess
 
 public enum LaunchAgentServiceError: Equatable, LocalizedError {
     case failedToLoadLaunchAgent(String)

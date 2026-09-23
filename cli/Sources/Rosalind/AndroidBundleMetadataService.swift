@@ -1,8 +1,8 @@
+import Command
 @preconcurrency import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistProcess
 import ZIPFoundation
 
 enum AndroidBundleMetadataServiceError: LocalizedError {

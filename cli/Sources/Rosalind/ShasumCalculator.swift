@@ -1,9 +1,9 @@
+import Command
 import Crypto
 @preconcurrency import FileSystem
 import Foundation
 import Mockable
 import Path
-import TuistProcess
 
 @Mockable
 protocol ShasumCalculating: Sendable {

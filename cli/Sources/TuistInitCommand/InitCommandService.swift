@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Noora
@@ -7,7 +8,6 @@ import TuistAuthCommand
 import TuistBazelCommand
 import TuistConstants
 import TuistEnvironment
-import TuistProcess
 import TuistServer
 
 public enum InitCommandServiceError: LocalizedError {

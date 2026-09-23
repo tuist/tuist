@@ -1,9 +1,9 @@
+import Command
 import CryptoKit
 import FileSystem
 import Foundation
 import Path
 import TSCBasic
-import TuistProcess
 import TuistSupport
 import XcodeGraph
 
