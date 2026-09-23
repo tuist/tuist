@@ -1,7 +1,7 @@
 # Spec 95 staging validation — 2026-09-22
 
-Status: inert staging rollout and regional regression checks passed; stable DNS
-validation is blocked on AWS access.
+Status: inert staging rollout and regional regression checks passed. AWS bootstrap
+completed on September 23; staging provider/certificate rollout is in progress.
 This is not evidence that Route53 steering or the stable hostname works yet.
 
 ## Revisions and rollout boundaries
@@ -27,8 +27,8 @@ This is not evidence that Route53 steering or the stable hostname works yet.
 The dedicated staging organization is `kura-spec95-e2e` (account 49), with project
 `probe` (46). A project-restricted account token with cache write scopes expires
 24 hours after creation. It is held only in a local file with mode `0600`; the
-probe passes it to curl through stdin and to grpcurl through the subprocess
-environment, never through command arguments or evidence logs.
+current Go probe sends it in the HTTP Authorization header and to grpcurl through
+the subprocess environment, never through command arguments or evidence logs.
 
 Public placements were created through the server's normal admission APIs, with
 `eu-west` primary and `ca-east` secondary. Both have keep-warm enabled while the
@@ -42,15 +42,17 @@ runner cache. All three instances reached Kubernetes phase `Ready`.
 
 Local JSONL evidence is in `/tmp/spec95-staging-e2e/`. Do not copy the `token`
 file into a report or artifact. The reproducible harness is
-[`staging_probe.py`](staging_probe.py), using [`reapi-smoke.proto`](reapi-smoke.proto).
+[`cmd/staging-probe`](../kura-controller/cmd/staging-probe/main.go), using its
+embedded [`reapi-smoke.proto`](../kura-controller/cmd/staging-probe/reapi-smoke.proto).
 
 ## Completed baseline checks
 
 Controller validation was repeated on the newer staging integration revision:
 `go test -race ./...` passed in `infra/kura-controller`, including the Helm
-rendering tests with `TUIST_TEST_HELM` set. The probe's Python syntax and protobuf
+rendering tests with `TUIST_TEST_HELM` set. The original probe's syntax and protobuf
 schema also validated, and its staging-only hostname guard rejected a production
-hostname before making a request.
+hostname before making a request. That probe was subsequently replaced with Go
+to use the repository's existing infrastructure toolchain.
 
 Each round trip uploads a random 64 KiB artifact through the HTTP Gradle cache
 route and through REAPI `BatchUpdateBlobs`, then verifies the exact returned
@@ -93,15 +95,30 @@ remaining DNS source assertions need that read permission through the normal
 cluster access path; no workload identity or admin kubeconfig was used to bypass
 the denial.
 
-## Blocker and remaining work
+## AWS bootstrap and Go probe — September 23
 
-`cache.tuist.dev` has no delegated nameservers. The local AWS CLI has no configured
-credentials, and the two existing AWS access-key items in 1Password both failed
-STS identity checks. Working access to the dedicated DNS account is required to
-create the zone and three scoped runtime identities, following [bootstrap](README.md#bootstrap-operator-step-not-performed-by-local-validation).
-Secret values must stay in the CLI credential store or 1Password.
+The initial AWS access blocker was resolved through a temporary CLI login to
+account `881372579491`, profile `tuist-dns`. The reviewed `tuist-cache-dns`
+CloudFormation change set created exactly one zone and three managed policies;
+the stack reached `CREATE_COMPLETE` at 09:13 UTC.
 
-After access is available:
+- Hosted zone: `Z046862130S1WUMPV7Z3P` (`cache.tuist.dev`).
+- Cloudflare delegation: four unproxied NS records, TTL 300, using AWS's exact
+  nameservers. Public resolution through 1.1.1.1 and a direct authoritative SOA
+  query both succeeded.
+- Separate IAM users: `tuist-staging-cache-dns-{writer,solver,controller}`. Each
+  has only its corresponding stack policy; keys were written directly to the
+  `cache-dns-{writer,solver,controller}` items in the `tuist-k8s-staging` vault.
+  Bootstrap credentials are not delivered to Kubernetes.
+- Plumbing rollout: [35842020182](https://github.com/tuist/tuist/actions/runs/35842020182),
+  chart revision `f2ce45200f3`, preserving the validated images. Both hostname
+  flags remain off; the allowlist contains only `kura-spec95-e2e`.
+- At 09:20 UTC, writer and solver ExternalSecrets were `SecretSynced`, and the
+  Route53 external-dns deployment was 1/1 ready with successful provider reads.
+- The replacement Go probe passed authenticated Paris-to-Montreal HTTP and gRPC
+  replication through normal DNS at 09:19 UTC (`go-cross-region-baseline.jsonl`).
+
+## Remaining work
 
 1. Provision/delegate the zone, synchronize separate writer/solver/controller
    credentials, and issue the wildcard certificate. Arrange read access to the
