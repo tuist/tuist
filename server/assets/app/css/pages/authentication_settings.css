@@ -296,25 +296,20 @@
   & [data-part="domain-verification"] {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    /* Settles on the trailing edge, with the controls it belongs to. */
+    align-items: flex-end;
     gap: var(--noora-spacing-4);
+    text-align: right;
 
-    /* Sits on the trailing edge with the control it describes rather than
-       spanning the column it shares with it. Wider than the control, because
-       what goes here is a record to copy rather than a value to type. */
-    align-self: flex-end;
-    width: 480px;
-    max-width: 100%;
+    /* The record reads left to right, since it is copied out character by
+       character, and wraps rather than running past the column. */
+    & [data-part="read-only-value"] {
+      text-align: left;
 
-    /* A verified domain leaves only its badge, which lines up with the
-       control instead of starting a column of its own. */
-    &:not(:has([data-part="domain-record"])) {
-      width: 320px;
-    }
-
-    & [data-part="read-only-value"] > code {
-      overflow-wrap: anywhere;
-      white-space: normal;
+      & > code {
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }
     }
 
     & > [data-part="domain-verification-status"] {
