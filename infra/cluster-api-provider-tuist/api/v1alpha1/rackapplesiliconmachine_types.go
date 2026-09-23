@@ -134,6 +134,63 @@ type RackAppleSiliconMachineStatus struct {
 	// Conditions are CAPI-style condition entries (Provisioned, Bootstrapped).
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
+
+	// OSUpdate is the progress of the latest in-place macOS update requested
+	// with the tuist.dev/os-update annotation.
+	// +optional
+	OSUpdate *OSUpdateStatus `json:"osUpdate,omitempty"`
+}
+
+// OSUpdateStatus tracks one in-place macOS update of a rack host.
+type OSUpdateStatus struct {
+	// Target is the requested macOS version, e.g. "26.7".
+	// +optional
+	Target string `json:"target,omitempty"`
+
+	// Label is the softwareupdate label resolved for Target.
+	// +optional
+	Label string `json:"label,omitempty"`
+
+	// FromVersion is the macOS version the host ran when the update started.
+	// +optional
+	FromVersion string `json:"fromVersion,omitempty"`
+
+	// Phase is one of Preparing, Downloading, Draining, Installing, Converging,
+	// Succeeded or Failed.
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// Reason is a machine-readable cause when Phase is Failed.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+
+	// Message describes what the update is doing or why it stopped.
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// +optional
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
+
+	// +optional
+	PhaseStartedAt *metav1.Time `json:"phaseStartedAt,omitempty"`
+
+	// +optional
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+
+	// BootTimeBefore is the host's boot time (Unix seconds) read just before the
+	// install, so the reboot is detected by the boot time moving.
+	// +optional
+	BootTimeBefore int64 `json:"bootTimeBefore,omitempty"`
+
+	// Cordoned records that the update cordoned the Node, so it only uncordons
+	// a Node it cordoned itself.
+	// +optional
+	Cordoned bool `json:"cordoned,omitempty"`
+
+	// RemediationSuspended records that the update set skip-remediation on the
+	// owning Machine, so it only removes an annotation it added itself.
+	// +optional
+	RemediationSuspended bool `json:"remediationSuspended,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -143,6 +200,8 @@ type RackAppleSiliconMachineStatus struct {
 // +kubebuilder:printcolumn:name="RackHost",type=string,JSONPath=".status.rackHost"
 // +kubebuilder:printcolumn:name="ProviderID",type=string,JSONPath=".spec.providerID"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
+// +kubebuilder:printcolumn:name="OSUpdate",type=string,priority=1,JSONPath=".status.osUpdate.phase"
+// +kubebuilder:printcolumn:name="OSTarget",type=string,priority=1,JSONPath=".status.osUpdate.target"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // RackAppleSiliconMachine is one Mac mini we own, joined as a cluster Node.

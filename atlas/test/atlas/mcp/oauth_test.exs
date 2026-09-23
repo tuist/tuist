@@ -122,6 +122,39 @@ defmodule Atlas.MCP.OAuthTest do
     assert activity.actor_id == user.id
   end
 
+  test "transient token refresh failures preserve the connection and can recover without reauthorization", %{
+    user: user,
+    server: server
+  } do
+    session =
+      insert_session!(user, server, %{
+        access_token: "expired-token",
+        refresh_token: "refresh-token",
+        expires_at: DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
+      })
+
+    for failure <- [
+          {:ok, %Req.Response{status: 429, body: "rate limited"}},
+          {:ok, %Req.Response{status: 503, body: "unavailable"}},
+          {:error, %Req.TransportError{reason: :timeout}}
+        ] do
+      expect(Req, :post, fn _ -> failure end)
+      assert {:error, :refresh_unavailable} = MCP.access_token_for(user, server)
+      persisted = Repo.get!(OAuthSession, session.id)
+      assert persisted.status == "authorized"
+      assert persisted.refresh_token == "refresh-token"
+      assert persisted.access_token == "expired-token"
+      refute Repo.get_by(Activity, action: "mcp_oauth_session.authorization_required", target_id: session.id)
+    end
+
+    expect(Req, :post, fn request ->
+      assert request.options.form["refresh_token"] == "refresh-token"
+      {:ok, %Req.Response{status: 200, body: %{"access_token" => "recovered", "expires_in" => 3600}}}
+    end)
+
+    assert {:ok, "recovered"} = MCP.access_token_for(user, server)
+  end
+
   test "uses a shared OAuth session for other users when configured", %{user: owner, server: server} do
     other_user = insert_user!("mcp-shared-other@example.com")
     server = %{server | shared_oauth: true}

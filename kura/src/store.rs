@@ -180,6 +180,15 @@ pub struct Store {
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
     multipart_uploads: Arc<AtomicUsize>,
+    /// In-memory approximate count of durable entries in the analytics
+    /// outbox column family. Hydrated once at [`Self::open`] by scanning
+    /// the CF; every subsequent [`Self::append_analytics_outbox_entry`]
+    /// increments and every [`Self::delete_analytics_outbox_entries`]
+    /// decrements. Kept precise as long as callers only mutate the CF
+    /// through those two methods, which the producer and forwarder do.
+    /// Used by the producer's depth-cap admission so it does not have
+    /// to scan the CF on every event.
+    analytics_outbox_entries: AtomicUsize,
     multipart_admission_waiters: AtomicUsize,
     multipart_admission_turn: Mutex<()>,
     multipart_slots_changed: Arc<Notify>,
@@ -402,6 +411,15 @@ const MAX_PENDING_PROMOTIONS: usize = 262_144;
 /// queue ahead of one. Reserving a slice rather than raising the ceiling keeps
 /// the queue's total memory bound unchanged.
 const VOUCHED_PROMOTION_RESERVE: usize = 65_536;
+
+/// Snapshot returned by [`Store::analytics_outbox_stats`]. `entries` is
+/// the precise in-memory counter and `bytes` is RocksDB's live-data-size
+/// estimate for the analytics outbox column family.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct AnalyticsOutboxStats {
+    pub entries: usize,
+    pub bytes: u64,
+}
 
 pub struct StoreSnapshot {
     pub multipart_uploads: usize,
@@ -1321,6 +1339,7 @@ impl Store {
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
             multipart_uploads: Arc::new(AtomicUsize::new(0)),
+            analytics_outbox_entries: AtomicUsize::new(0),
             multipart_admission_waiters: AtomicUsize::new(0),
             multipart_admission_turn: Mutex::new(()),
             multipart_slots_changed: Arc::new(Notify::new()),
@@ -1385,6 +1404,13 @@ impl Store {
         store.rederive_active_segment_max_version()?;
         store.init_backfill_index_state()?;
         store.sweep_legacy_outbox()?;
+        // Hydrate the analytics outbox entry counter once at open. From
+        // here on every append/delete keeps it precise; the producer
+        // admission check reads this counter instead of scanning the CF.
+        let analytics_outbox_entries = store.count_cf_entries(ROCKSDB_CF_ANALYTICS_OUTBOX)?;
+        store
+            .analytics_outbox_entries
+            .store(analytics_outbox_entries, Ordering::Release);
         let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
         store
             .multipart_uploads
@@ -6377,11 +6403,36 @@ impl Store {
         self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
     }
 
-    /// Depth of the analytics outbox in entries. Zero for the life of the
-    /// release that declared the column family; goes non-zero once a
-    /// producer routes cache analytics through it.
+    /// Depth of the analytics outbox in entries. Reads the in-memory
+    /// counter that is hydrated at [`Self::open`] and maintained by
+    /// [`Self::append_analytics_outbox_entry`] and
+    /// [`Self::delete_analytics_outbox_entries`]. Result is always `Ok`
+    /// so the signature can stay the same as when the count required a
+    /// scan; the `Result` shape is preserved for callers.
     pub fn analytics_outbox_entry_count(&self) -> Result<usize, String> {
-        self.count_cf_entries(ROCKSDB_CF_ANALYTICS_OUTBOX)
+        Ok(self.analytics_outbox_entries.load(Ordering::Acquire))
+    }
+
+    /// Approximate depth signal for the producer's admission check.
+    /// `entries` is precise (the in-memory counter). `bytes` is the
+    /// RocksDB estimate for live data in the column family, which lags
+    /// behind flushes and compactions but is O(1) to read and never
+    /// blocks the drain. The producer treats both as soft ceilings and
+    /// drops new batches once either is exceeded, matching the
+    /// dual-cap pattern the Sentry SDK, OpenTelemetry BatchSpan
+    /// exporter, and Vector's disk buffers use for telemetry outboxes.
+    pub fn analytics_outbox_stats(&self) -> AnalyticsOutboxStats {
+        let entries = self.analytics_outbox_entries.load(Ordering::Acquire);
+        let bytes = self
+            .db
+            .property_int_value_cf(
+                self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX),
+                "rocksdb.estimate-live-data-size",
+            )
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+        AnalyticsOutboxStats { entries, bytes }
     }
 
     /// Append one encoded outbox entry, durably.
@@ -6392,15 +6443,14 @@ impl Store {
     /// inside the encoded payload before this method sees it) can share
     /// the same wall-clock read.
     ///
-    /// The follow-up outbox module wraps this with a producer-facing
-    /// helper that owns admission (memory pressure, cap enforcement).
     /// This method is deliberately unopinionated about admission so the
     /// forwarder can also use it, for example when moving a decoded
-    /// entry back to the live prefix after a version-skew fix.
+    /// entry back to the live prefix after a version-skew fix. The
+    /// producer's admission (depth caps, byte caps, memory pressure)
+    /// lives in [`crate::analytics`].
     ///
-    /// Marked `dead_code`-allowed because no production caller exists in
-    /// this PR; the follow-up wires it up.
-    #[allow(dead_code)]
+    /// Bumps the in-memory entry counter on success. A failed write
+    /// leaves the counter untouched.
     pub async fn append_analytics_outbox_entry(
         &self,
         pipeline: crate::analytics_outbox::Pipeline,
@@ -6416,7 +6466,9 @@ impl Store {
             "analytics outbox append",
             ApplyDurability::Sync,
         )
-        .await
+        .await?;
+        self.analytics_outbox_entries.fetch_add(1, Ordering::AcqRel);
+        Ok(())
     }
 
     /// Read the oldest entries for one pipeline, bounded by count and
@@ -6530,12 +6582,17 @@ impl Store {
     /// Runs through the off-runtime write path for the same reason
     /// [`Self::append_analytics_outbox_entry`] does.
     ///
-    /// Marked `dead_code`-allowed for the same reason.
-    #[allow(dead_code)]
+    /// Decrements the in-memory entry counter by `keys.len()` on
+    /// success. Because the caller is expected to pass keys that
+    /// actually existed (from a prior read of the CF), the counter
+    /// stays consistent with the CF; a stray delete of a non-existent
+    /// key would drift the counter one below reality until the next
+    /// process restart re-hydrates it from a scan.
     pub async fn delete_analytics_outbox_entries(&self, keys: &[Vec<u8>]) -> Result<(), String> {
         if keys.is_empty() {
             return Ok(());
         }
+        let count = keys.len();
         let mut batch = WriteBatch::default();
         for key in keys {
             batch.delete_cf(self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX), key);
@@ -6545,7 +6602,24 @@ impl Store {
             "analytics outbox delete",
             ApplyDurability::Sync,
         )
-        .await
+        .await?;
+        // fetch_update-style saturating subtract: a delete never wraps
+        // the counter around, even if the caller passes keys that
+        // predate the last open.
+        let mut current = self.analytics_outbox_entries.load(Ordering::Acquire);
+        loop {
+            let next = current.saturating_sub(count);
+            match self.analytics_outbox_entries.compare_exchange_weak(
+                current,
+                next,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(observed) => current = observed,
+            }
+        }
+        Ok(())
     }
 
     pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {

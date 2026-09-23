@@ -138,6 +138,14 @@
             <.folder />
           </:header_icon>
           <.line_divider />
+          <.alert
+            :if={Phoenix.Flash.get(@flash, :error)}
+            id="add-connection-error"
+            status="error"
+            type="secondary"
+            size="small"
+            title={Phoenix.Flash.get(@flash, :error)}
+          />
           <div data-part="create-connection">
             <.dropdown
               id="project-dropdown"

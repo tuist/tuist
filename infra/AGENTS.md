@@ -27,8 +27,19 @@ Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO
 
 README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 
+Kura zero-Ready availability alert artifacts and their scoped notification
+routes live in `helm/k8s-monitoring/kura-availability-*.json`. They are
+provisioned separately from Helm and reflect the enabled live rule. Its separate
+`Cache availability` evaluation group must use a 60-second interval. Merge the
+three policy routes into the current Grafana tree, preserving existing staging
+exceptions first; never PUT the route array as a whole-tree replacement. The Bash/jq
+regression script uses promtool and amtool to check query behavior and production-only IRM routing.
+
 ### `helm/platform/` — platform bootstrap chart
 cert-manager + external-dns + ESO + metrics-server + ingress-nginx controllers, installed once per workload cluster. Kura customer endpoints default to dedicated shared regional Kura ingress controllers rather than the main web ingress dataplane. Enterprise/high-volume exceptions are reconciled dynamically by the Kura controller from `KuraGateway` CRs, not hard-coded as customer-specific platform chart aliases. Provider-specific LB annotations live in per-provider and cluster overlays (e.g., `values-hetzner.yaml`, `values-tuist.yaml`).
+
+### `helm/omada/` — Omada SDN Controller wrapper (evaluation)
+Wraps mbentley's Omada controller chart. Stood up to answer whether the controller can take over switch management from `rack-switch-fleet`'s SSH driver: TP-Link's own feature list says a controller-managed switch supports everything that directory renders, and under the controller SSH goes read-only, which would delete its write path. Measured 2026-09-22: on 6.3 the Open API can write everything that directory renders (5.15 could not set RSTP or a LAG on a standalone switch, so the image tag is pinned), though spanning-tree state is write-only and still verified over SSH. What adoption does to an already-configured switch is the open question. Deployed to staging, where the rack belongs while it is at home, by `.github/workflows/omada-deployment.yml`, and exposed only on the tailnet; switches reach it through the rack's edge node (`rack-switch-fleet/edge-path.sh`) and are pointed at it with `controller inform-url`, since L2 discovery does not cross into the cluster. See [`omada/README.md`](helm/omada/README.md) and [`rack-switch-fleet/omada-assessment.md`](rack-switch-fleet/omada-assessment.md).
 
 ### `helm/tailscale-operator/` — Tailscale Kubernetes operator wrapper
 Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides three tailnet paths used today: a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and per-Service ingress nodes via `tailscale.com/expose: "true"` (a Service gets its own tailnet name, used by `tuist-ops`). Human kubectl access to workload clusters does NOT flow through the operator's API-server proxy anymore — see `helm/pomerium/` below.
