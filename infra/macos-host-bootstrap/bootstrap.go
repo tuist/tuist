@@ -3041,6 +3041,17 @@ func RunCommand(ctx context.Context, client *ssh.Client, cmd string) error {
 // once and never mutated, so concurrent reconciles can share the same
 // backing slice safely.
 func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader) error {
+	return runCommand(ctx, client, cmd, stdin, nil)
+}
+
+// RunCommandOutput is RunCommandWithStdin returning the command's stdout.
+func RunCommandOutput(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader) (string, error) {
+	var stdout bytes.Buffer
+	err := runCommand(ctx, client, cmd, stdin, &stdout)
+	return stdout.String(), err
+}
+
+func runCommand(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader, stdout io.Writer) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -3049,6 +3060,9 @@ func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, st
 
 	if stdin != nil {
 		session.Stdin = stdin
+	}
+	if stdout != nil {
+		session.Stdout = stdout
 	}
 
 	var stderr bytes.Buffer

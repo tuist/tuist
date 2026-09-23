@@ -622,106 +622,57 @@ defaults read /Library/Preferences/com.apple.SoftwareUpdate
 softwareupdate --history | grep -i -E 'xprotect|gatekeeper'
 ```
 
-### Running a wave
+### Updating a rack host
 
-One host at a time: take it out of service, install, let it come back, put it
-back. **Never delete the Machine to update a host.** That revokes its kubelet
-identity and drops its Node, so an update becomes a full re-bootstrap.
-`spec.unclaimable` is not the tool either: it stops the next claim without
-evicting the current one.
-
-**Measured on the prototype** (26.6 to 26.7, 2026-09-23, M1 on a home LAN): the
-2.9 GB download took about 8 minutes with the host up and serving, and the
-install and reboot took the host offline for 2 minutes 33 seconds. An in-family
-patch is therefore a much smaller event than it looks: the offline window is
-minutes, not the half hour the decision assumed. Size the next one from the
-download, which is what varies. macOS 27 is 11.2 GB on the same host, roughly
-four times the bytes, and a wedged install has no bound at all.
-
-**First, confirm the host has two ways in.** The guard ships
-`<ssh_allowed>` with the tailnet range and the operator's egress and nothing
-else, so the tailnet is a single path in. A rack host's tailnet device is
-ephemeral until `rackFleet.sshIngressAllowCIDRs` and the persistent-device flag
-have reached it, and an ephemeral device is deleted 30 to 60 minutes after it
-goes offline. A clean in-family patch stays well inside that, so the device
-survives it: the measured window above is minutes. The second path is for the
-cases with no such bound, an install that wedges or a box that does not come
-back, where losing the device turns a retry into a console visit.
+An in-family update (a `_minor` in Apple's terms, such as 26.6 to 26.7) is one
+annotation on the host's machine:
 
 ```bash
-pfctl -a com.apple/tuist.sshguard -t ssh_allowed -T show
+kubectl annotate rasm <machine> tuist.dev/os-update=26.7
+kubectl get rasm -o wide          # OSUpdate and OSTarget columns
+kubectl get rasm <machine> -o jsonpath='{.status.osUpdate}'
 ```
 
-The subnet router's address has to be in that table before the wave starts. It
-is rendered there from the values, so the durable fix is a host that has taken a
-drift push, not a hand-edited anchor. The anchor file is the source of truth and
-`dev.tuist.pfctl-sshguard` reloads it at boot, so an edit that is not in the
-values is undone by the next bootstrap.
+The controller moves `status.osUpdate.phase` through:
 
-**A host parked at `replicas: 0` has neither of those.** The update policy and
-the guard both ship through the drift loop, so an unclaimed host still runs
-whatever it was last given: it is the least safe host in the fleet to update,
-not the safest. Claim it first, let it converge, then wave it.
+| Phase | What happens |
+|---|---|
+| `Preparing` | Checks the host is bootstrapped, reads its version, resolves the `softwareupdate` label for the target |
+| `Downloading` | Downloads the update while the Node keeps taking work |
+| `Draining` | Cordons the Node and waits for every pod on it to finish. The runners controller retires idle warm runners on a cordoned Node, so what is left are pods running jobs, which are never evicted |
+| `Installing` | Sets `cluster.x-k8s.io/skip-remediation` on the CAPI Machine, installs, and waits for the host to restart on the target version. The drift loop does not dial the host in this phase |
+| `Converging` | Pushes the whole host config again, because the installer resets files it owns such as `/etc/pf.conf`. Waits for the push, a Ready Node and the auto-login console session |
+| `Succeeded` | Uncordons, removes `skip-remediation`, clears the annotation |
 
-**Drain and suppress.**
+Update one host, let it run real jobs, then do the next. Nothing sequences a
+rack.
 
-```bash
-kubectl cordon <node>
-kubectl get pods -A --field-selector spec.nodeName=<node>   # let running builds finish
-kubectl annotate machine <machine> cluster.x-k8s.io/skip-remediation=""
-kubectl annotate rasm <machine> cluster.x-k8s.io/paused=true
-```
+**Refused without touching the host**, with the annotation cleared: a target in
+another release family (that is an erase), a downgrade, a version Software
+Update does not offer, and a host that is not bootstrapped or holds a terminal
+drift failure. A host already on the target succeeds at once.
 
-Both annotations are load-bearing and stop different things, on different
-objects. `skip-remediation` is read by the MachineHealthCheck. Its 1800s `Ready`
-timeout comfortably clears a measured in-family patch, so this is insurance
-rather than a certainty: what it covers is the install that stalls or the box
-that does not come back, where remediation would delete the Machine part-way
-through and cost a full re-bootstrap on top of a bad update. `paused` is read by
-this controller and
-stops the drift loop dialling a rebooting box, which would otherwise burn the
-update-retry budget and drive the CR terminal-Failed for reasons that have
-nothing to do with its config.
+**Cancel** by removing the annotation during `Preparing`, `Downloading` or
+`Draining`; the Node is uncordoned. Once `Installing` starts, the update runs to
+the end.
 
-**Install an explicit label. Never `-r`, `--all` or `--recommended`.** Apple
-marks the next major release Recommended alongside the in-family patch: a host
-on 26.6 is offered `macOS Tahoe 26.7-25G229` and `macOS 27-26A428`, both
-`Recommended: YES`. Installing recommended updates therefore moves release
-family, which is a DFU decision and not a wave.
+**Failures** are `phase: Failed` with a `reason` and a Warning event. Every
+failure removes `skip-remediation`. What happens to the Node depends on whether
+the host changed:
 
-```bash
-softwareupdate --list
-softwareupdate --install 'macOS Tahoe 26.7-25G229' --restart --user <sshUser> --stdinpass
-```
+| Reason | Node |
+|---|---|
+| `DownloadFailed`, `DownloadTimedOut`, `DownloadLost` | Never cordoned |
+| `InstallFailed` (exited before restarting) | Uncordoned: the host is unchanged |
+| `InstallTimedOut`, `VersionMismatch`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human; a NotReady Node goes back to the MachineHealthCheck |
 
-Apple silicon authorises the install against a volume owner, so `--user` and
-`--stdinpass` are both required. The fleet service account qualifies because of
-the one GUI login in the MDM validation checklist: that login is what grants the
-account its secure token and escrows the bootstrap token. Check rather than
-assume, since a host that skipped it fails at the authorisation step after the
-download:
+Reading the outcome on the host: the jobs log to `/var/tmp/tuist-os-update/`.
+Nothing in the cluster reports a host's macOS version outside
+`status.osUpdate`, because `tart-kubelet` leaves `NodeInfo.OSImage` empty.
 
-```bash
-sysadminctl -secureTokenStatus <sshUser>
-diskutil apfs listUsers /
-```
-
-**Give the password to stdin, never to a command line.** `--stdinpass` exists
-for this: a password in an argument is visible in the host's process table to
-every local user for the length of the install, and is captured by anything
-logging the command.
-
-**Reverse it in order**: remove `paused`, remove `skip-remediation`,
-`kubectl uncordon`. Confirm the host is Ready and taking work before starting
-the next one.
-
-Confirm the version landed over SSH, because nothing in the cluster reports it:
-`tart-kubelet` leaves `NodeInfo.OSImage` empty, so `kubectl get nodes -o wide`
-shows no OS for these hosts and a wave cannot be verified from the cluster.
-
-```bash
-sw_vers -productVersion
-```
+A host's version only changes this way while its Machine holds it. An unclaimed
+host has neither the update policy nor the values-rendered SSH guard entries,
+so claim it and let it converge before updating it.
 
 ## Module layout
 
@@ -739,6 +690,7 @@ infra/cluster-api-provider-tuist/
 │   ├── macos/
 │   │   ├── scalewayapplesiliconmachine_controller.go
 │   │   ├── rackapplesiliconmachine_controller.go  # rack-owned minis
+│   │   ├── rack_os_update.go        # tuist.dev/os-update: in-place macOS updates
 │   │   ├── rackhost_controller.go   # physical inventory: power, orphan claims
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
