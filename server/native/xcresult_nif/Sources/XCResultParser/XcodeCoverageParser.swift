@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -17,14 +18,14 @@ public protocol XcodeCoverageParsing: Sendable {
 
 public struct XcodeCoverageParser: XcodeCoverageParsing {
     private let fileSystem: FileSysteming
-    private let execute: XCResultToolExecuting
+    private let commandRunner: CommandRunning
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        execute: @escaping XCResultToolExecuting = executeXCResultTool
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.fileSystem = fileSystem
-        self.execute = execute
+        self.commandRunner = commandRunner
     }
 
     public func coveredFilePaths(resultBundlePath: AbsolutePath) async throws -> [String]? {
@@ -112,12 +113,13 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
             do {
                 // Spawned directly rather than through a shell: the bundle path is user-controlled
                 // and goes through as one argument, so no quoting is involved.
-                let output = try await execute(["/usr/bin/xcrun", "xccov"] + arguments + [bundlePath.pathString])
-                if !output.succeeded {
-                    if Self.reportsNoCoverage(output.standardError) { return nil }
-                    throw XCResultParserError.failedToParseOutput(bundle)
-                }
-                return Data(output.standardOutput.utf8)
+                return try await commandRunner
+                    .run(arguments: ["/usr/bin/xcrun", "xccov"] + arguments + [bundlePath.pathString])
+                    .reduce(into: Data()) { data, event in
+                        if case let .standardOutput(bytes) = event { data.append(contentsOf: bytes) }
+                    }
+            } catch let CommandError.terminated(_, stderr, _) where Self.reportsNoCoverage(stderr) {
+                return nil
             }
         }
     }
