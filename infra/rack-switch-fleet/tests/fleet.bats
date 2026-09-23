@@ -1491,6 +1491,38 @@ cmd_line() { grep -n -m1 -- "^CMD $2" "$1/log" | cut -d: -f1; }
     [ "$output" = "0" ]
 }
 
+@test "an unsaved change to a line the render does not own still blocks apply" {
+    # The login is not the render's, so it is not drift, but a rollback returns
+    # it to the saved one all the same.
+    apply_fixtures
+    running="$BATS_TEST_TMPDIR/running.cfg"
+    saved="$BATS_TEST_TMPDIR/saved.cfg"
+    { cat "$drifted"; echo "user name admin privilege admin secret 5 EXAMPLEHASHNOTREAL-new"; } > "$running"
+    { cat "$drifted"; echo "user name admin privilege admin secret 5 EXAMPLEHASHNOTREAL-old"; } > "$saved"
+    bin="$BATS_TEST_TMPDIR/ap7"
+    apply_stub "$bin"
+    run_apply "$bin" "$running" "$rendered" "$saved"
+    [ "$status" -eq 11 ]
+    [[ "$output" == *"unsaved changes"* ]]
+    run grep -c '^CMD reboot-schedule' "$bin/log"
+    [ "$output" = "0" ]
+    run grep -c '^CMD lldp$' "$bin/log"
+    [ "$output" = "0" ]
+}
+
+@test "pager noise and padding are not an unsaved change" {
+    # The two reads come off the same switch, so only terminal noise can tell
+    # them apart when nothing is unsaved.
+    apply_fixtures
+    padded="$BATS_TEST_TMPDIR/padded.cfg"
+    { printf '!ignored banner\n#\n'; sed 's/^\(hostname .*\)$/\1   /' "$drifted"; printf '#\n#\n'; } > "$padded"
+    bin="$BATS_TEST_TMPDIR/ap8"
+    apply_stub "$bin"
+    run_apply "$bin" "$drifted" "$rendered" "$padded"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"applied, verified against the rendered configuration, and saved"* ]]
+}
+
 @test "publish writes to the namespace the site belongs to, not whatever is current" {
     apply_fixtures
     bin="$BATS_TEST_TMPDIR/publish1"

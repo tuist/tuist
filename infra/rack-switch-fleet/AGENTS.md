@@ -655,9 +655,12 @@ five minutes, with nobody at a console.
 
 Rolling back means returning to the saved configuration, so `apply` refuses a
 switch whose running configuration differs from its startup configuration: the
-rollback would throw those unsaved changes away along with its own. It costs no
-extra connection, since the startup configuration is read in the session that
-applies.
+rollback would throw those unsaved changes away along with its own. That
+comparison covers every line, including the ones the render does not own and
+`diff` ignores, such as `user name` and `system-time ntp`: a rollback restores
+those too, so an unsaved credential change is as much at risk as a managed
+line. Only terminal noise is normalised away. It costs no extra connection,
+since the startup configuration is read in the session that applies.
 
 Measured on `ber1-tor-b` on 2026-09-22 before it was built: an unsaved change
 was discarded when the timer fired, three minutes to the second after arming,

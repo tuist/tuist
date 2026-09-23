@@ -373,6 +373,21 @@ fleet_diff() {
   return $status
 }
 
+# Whether two configurations read off one switch are the same, every persistent
+# line included. fleet_diff leaves out the lines the render does not own, which
+# is right against a render and wrong for running against startup: returning to
+# startup restores the login and the NTP servers too, so an unsaved change to
+# either is lost exactly like a managed one. Only terminal noise is dropped.
+fleet_same_config() {
+  local first="$1" second="$2" a b status=0
+  a="$(mktemp)"; b="$(mktemp)"
+  tr -d '\000' < "$first"  | awk -v mode=normalize -v unmanaged= -f "$FLEET_AWK" > "$a"
+  tr -d '\000' < "$second" | awk -v mode=normalize -v unmanaged= -f "$FLEET_AWK" > "$b"
+  cmp -s "$a" "$b" || status=1
+  rm -f "$a" "$b"
+  return $status
+}
+
 # What the site's controller does to a model it adopts, measured; see the file's
 # header. A model with no file has not been measured.
 fleet_controller_baseline() { echo "$FLEET_ROOT/controller-baselines/$1.tsv"; }

@@ -301,11 +301,12 @@ cmd_apply() {
     trap 'switch_close; exit 130' INT TERM
     switch_open "$address" "$user" "$key" || exit 10
     # Rolling back returns the switch to its saved configuration, so anything
-    # unsaved on it would be thrown away along with the change.
+    # unsaved on it would be thrown away along with the change, including the
+    # lines the render does not own, such as the login.
     switch_run "$STARTUP_CONFIG" || exit 10
     printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
     fleet_strip_transcript "$STARTUP_CONFIG" < "$raw" > "$startup"
-    fleet_diff "$live" "$startup" "running/$name" "startup/$name" >/dev/null || exit 11
+    fleet_same_config "$live" "$startup" || exit 11
     switch_run "configure" || exit 10
     switch_run_confirm "reboot-schedule in $ROLLBACK_MINUTES" "Y" 30 || exit 16
     switch_run "end" || exit 12
@@ -330,7 +331,9 @@ cmd_apply() {
     0)  echo "$name: applied, verified against the rendered configuration, and saved";;
     10) echo "error: $name: nothing was changed" >&2;;
     11) echo "error: $name has unsaved changes. Rolling back returns it to its saved configuration," >&2
-        echo "       which would discard them. Save or discard them first; nothing was changed." >&2;;
+        echo "       which would discard them. Save or discard them first; nothing was changed." >&2
+        echo "       Lines the render does not own, such as the login, count: a rollback restores" >&2
+        echo "       them too, and rack:fleet diff does not show them." >&2;;
     16) echo "error: $name: the rollback timer could not be confirmed, so nothing was changed." >&2
         echo "       If it was armed after all, $rollback, unchanged." >&2;;
     12) echo "error: the change did not complete. $rollback." >&2;;
