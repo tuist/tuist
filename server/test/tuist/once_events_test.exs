@@ -15,6 +15,7 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.TestSuiteStarted
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.AckStore
+  alias Tuist.OnceEvents.Analytics
   alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.RunEventService
   alias Tuist.OnceEvents.TestCaseRun
@@ -191,6 +192,25 @@ defmodule Tuist.OnceEventsTest do
     assert OnceEvents.count_cache_events(reloaded, opts) == 1
   end
 
+  test "a run in flight is reported as in progress rather than failed", %{run: run} do
+    status = fn ->
+      {[invocation], _meta} =
+        Analytics.list_invocations(run.project_id, %{page: 1, page_size: 10}, [])
+
+      invocation.status
+    end
+
+    # Started, nothing reported yet. Before the fix this was "failure",
+    # which also counted it in the failed roll-ups on the listings.
+    assert status.() == "in_progress"
+
+    project(run, %RunEvent{payload: {:run_finalizing, %Once.Events.V1.RunFinalizing{}}})
+    assert status.() == "in_progress"
+
+    project(run, %RunCompleted{result: :RUN_RESULT_SUCCEEDED, wall_ms: 10})
+    assert status.() == "success"
+  end
+
   test "a replayed test suite start does not inflate the run's suite count", %{run: run} do
     started = %TestSuiteStarted{target_execution_id: "mise", suite_id: "unit", planned_case_count: 3}
 
@@ -308,6 +328,8 @@ defmodule Tuist.OnceEventsTest do
       RunEventService.get_argv_hash_key(%{request | project_id: "another/project"}, stream)
     end
   end
+
+  defp project(run, %RunEvent{} = event), do: Projector.project(event, run.project_id, run.run_id)
 
   defp project(run, payload) do
     kind =
