@@ -786,7 +786,32 @@ enum WorkspaceRestorer {
         let markerData = try await fileSystem.readFile(at: markerPath.absolutePath)
         let recorded = String(decoding: markerData, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return recorded == expectedRevision
+        guard recorded == expectedRevision else {
+            return false
+        }
+        return try await gitHEADMatches(source, expectedRevision: expectedRevision)
+    }
+
+    /// The marker above records the revision this slot was written for, but nothing
+    /// stops a process that reaches the slot through the mutable `checkouts/<identity>`
+    /// symlink from moving its actual working tree to a different revision without
+    /// touching the marker — chiefly native SwiftPM's own in-place `git checkout` when
+    /// it updates what it believes is its own disposable working copy (see
+    /// `PackageResolver.detachNativeCheckoutSymlinks`, which now prevents that
+    /// specific case going forward). Cross-checking git's own HEAD catches that class
+    /// of corruption instead of trusting the marker alone. A source with no `.git`
+    /// (registry-style archives extracted without one) has no independent state to
+    /// check against, so the marker is the only signal there.
+    private static func gitHEADMatches(_ source: URL, expectedRevision: String) async throws -> Bool {
+        guard try await fileSystem.exists(source.appendingPathComponent(".git").absolutePath) else {
+            return true
+        }
+        guard let head = try? await SystemProcess.output(
+            "/usr/bin/git", ["-C", source.path, "rev-parse", "HEAD"]
+        ) else {
+            return false
+        }
+        return head.trimmingCharacters(in: .whitespacesAndNewlines) == expectedRevision
     }
 
     private static func submodulesAreMaterialized(in source: URL) async throws -> Bool {

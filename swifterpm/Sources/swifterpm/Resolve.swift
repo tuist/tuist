@@ -97,14 +97,26 @@ enum PackageResolver {
         forwardOutput: Bool
     ) async throws -> ResolvedPins {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
+        let effectiveScratchDir = scratchDir ?? packageDir.appendingPathComponent(".build")
         // `swift package resolve` also reads pins from
         // `<scratch>/workspace-state.json` when Package.resolved is missing,
         // so a stale workspace state silently pins the resolve at whatever
         // the previous install had checked out — the exact scenario `update`
         // exists to escape. Clear both together and let SwiftPM rewrite each
         // from the fresh solver output.
-        let workspaceStatePath = (scratchDir ?? packageDir.appendingPathComponent(".build"))
-            .appendingPathComponent("workspace-state.json")
+        let workspaceStatePath = effectiveScratchDir.appendingPathComponent("workspace-state.json")
+        // `checkouts/<identity>` may still be a whole-directory symlink a previous
+        // restore pointed at one revision's slot in our own persistent source cache
+        // (`WorkspaceRestorer.restoreSourcePins`). Native SwiftPM doesn't know that:
+        // when the graph now needs a different revision, it updates what looks like
+        // its own disposable working copy with an in-place `git checkout`, mutating
+        // that cache slot through the link. The slot is then silently wrong for the
+        // revision its directory name and freshness marker still claim, and a later
+        // resolve back to that revision reuses it as if nothing happened. Removing the
+        // symlink first forces SwiftPM to materialize its own working copy — from its
+        // own repository cache, so this is a local checkout, not a network refetch —
+        // instead of writing into ours.
+        try await detachNativeCheckoutSymlinks(scratchDir: effectiveScratchDir)
         let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
                 ? try await snapshotResolvedFile(at: resolvedPath) : nil
@@ -152,6 +164,20 @@ enum PackageResolver {
                 try? await restoreResolvedFile(workspaceStateSnapshot, at: workspaceStatePath)
             }
             throw error
+        }
+    }
+
+    /// Removes any `checkouts/<identity>` entry that is a symlink, so the native
+    /// `swift package resolve`/`update` subprocess about to run materializes its own
+    /// working copy instead of checking out a new revision through a link into our
+    /// persistent, per-revision source cache. See the call site for why that link is
+    /// unsafe to hand to a process that doesn't know it's shared.
+    private static func detachNativeCheckoutSymlinks(scratchDir: URL) async throws {
+        let checkouts = scratchDir.appendingPathComponent("checkouts")
+        guard try await fileSystem.exists(checkouts.absolutePath) else { return }
+        for entry in try await fileSystem.contentsOfDirectory(at: checkouts)
+        where fileSystem.isSymlink(entry) {
+            try await fileSystem.removePath(entry)
         }
     }
 

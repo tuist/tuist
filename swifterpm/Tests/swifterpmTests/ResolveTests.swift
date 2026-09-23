@@ -359,6 +359,72 @@ struct ResolveTests {
         }
     }
 
+    @Test
+    func resolvingBackToAnOlderVersionRestoresThatVersionsOwnBinaryArtifact() async throws {
+        // `.build/checkouts/<identity>` is a whole-directory symlink into our own
+        // persistent, per-revision source cache (`WorkspaceRestorer.restoreSourcePins`).
+        // Bumping the pin to a new revision runs native `swift package resolve`, which
+        // doesn't know that directory is shared: it treats the existing checkout as its
+        // own disposable working copy and updates it with an in-place `git checkout`
+        // through the symlink, silently overwriting the OLD revision's cache slot with
+        // the NEW revision's tree. That slot's freshness marker isn't part of the
+        // git-tracked content, so it keeps claiming the old revision. Resolving back to
+        // that revision later then reused the poisoned slot as-is: the binary artifact
+        // restored (and ultimately vended into the generated project) silently stayed
+        // the newer version's, with no checksum mismatch and no error. Reported as
+        // https://github.com/tuist/tuist/issues/13457 via an Intercom SDK downgrade.
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeBinaryAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "1.0.0"
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+
+            _ = try await SwifterPM().resolve(request)
+            #expect(
+                try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency") == "v1"
+            )
+
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+            try await writeBinaryAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "2.0.0"
+            )
+            let bumped = try await SwifterPM().resolve(request)
+            #expect(bumped.pins.first?.version == "2.0.0")
+            #expect(
+                try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency") == "v2"
+            )
+
+            try await writeBinaryAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "1.0.0"
+            )
+            let reverted = try await SwifterPM().resolve(request)
+            #expect(reverted.pins.first?.version == "1.0.0")
+            #expect(
+                try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency") == "v1"
+            )
+        }
+    }
+
     enum SourceAvailability: CaseIterable, Sendable {
         case cached, staleCheckout, coldLocalRepository, editedLocalRepository
     }
@@ -802,6 +868,173 @@ struct ResolveTests {
             "git", ["commit", "-m", "bump to \(tag)"], workingDirectory: dependency
         )
         try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
+    }
+
+    private func writeBinaryDependencyPackageManifest(
+        at packageDir: URL,
+        targetName: String = "Framework",
+        marker: String
+    ) async throws {
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "Dependency",
+                products: [
+                    .library(name: "\(targetName)", targets: ["\(targetName)"]),
+                ],
+                targets: [
+                    .binaryTarget(name: "\(targetName)", path: "\(targetName).zip"),
+                ]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await writeXCFrameworkZip(
+            at: packageDir.appendingPathComponent("\(targetName).zip"),
+            targetName: targetName,
+            marker: marker
+        )
+    }
+
+    private func writeBinaryAppPackageManifest(
+        at packageDir: URL,
+        dependencyURL: String,
+        exactVersion: String,
+        productName: String = "Framework"
+    ) async throws {
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "App",
+                products: [
+                    .library(name: "App", targets: ["App"]),
+                ],
+                dependencies: [
+                    .package(url: "\(dependencyURL)", exact: "\(exactVersion)"),
+                ],
+                targets: [
+                    .target(name: "App", dependencies: [
+                        .product(name: "\(productName)", package: "Dependency"),
+                    ]),
+                ]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite(
+            "public struct App {}\n",
+            to: packageDir.appendingPathComponent("Sources/App/App.swift")
+        )
+    }
+
+    private func addCommitAndTagWithBinaryArtifact(
+        at dependency: URL,
+        tag: String,
+        targetName: String = "Framework",
+        marker: String
+    ) async throws {
+        try await writeXCFrameworkZip(
+            at: dependency.appendingPathComponent("\(targetName).zip"),
+            targetName: targetName,
+            marker: marker
+        )
+        try await SystemProcess.run("git", ["add", "\(targetName).zip"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["commit", "-m", "bump to \(tag)"], workingDirectory: dependency
+        )
+        try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
+    }
+
+    private func writeXCFrameworkZip(at zipPath: URL, targetName: String, marker: String) async throws {
+        let archiveRoot = zipPath.deletingLastPathComponent()
+            .appendingPathComponent(".xcframework-build-\(UUID().uuidString)")
+        let framework = archiveRoot.appendingPathComponent("\(targetName).xcframework")
+        try await fileSystem.makeDirectory(
+            at: framework.absolutePath, options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+              <key>AvailableLibraries</key>
+              <array>
+                <dict>
+                  <key>LibraryIdentifier</key>
+                  <string>macos-arm64</string>
+                  <key>LibraryPath</key>
+                  <string>\(targetName).framework</string>
+                  <key>SupportedArchitectures</key>
+                  <array>
+                    <string>arm64</string>
+                  </array>
+                  <key>SupportedPlatform</key>
+                  <string>macos</string>
+                </dict>
+              </array>
+              <key>Marker</key>
+              <string>\(marker)</string>
+            </dict>
+            </plist>
+            """,
+            to: framework.appendingPathComponent("Info.plist")
+        )
+        if try await fileSystem.exists(zipPath.absolutePath) {
+            try await fileSystem.remove(zipPath.absolutePath)
+        }
+        try await SystemProcess.run(
+            "/usr/bin/zip",
+            ["-qry", zipPath.path, "\(targetName).xcframework"],
+            workingDirectory: archiveRoot
+        )
+        try await fileSystem.remove(archiveRoot.absolutePath)
+    }
+
+    private func restoredBinaryArtifactMarker(
+        scratch: URL,
+        identity: String,
+        targetName: String = "Framework"
+    ) async throws -> String {
+        let infoPlist = scratch
+            .appendingPathComponent("artifacts")
+            .appendingPathComponent(identity)
+            .appendingPathComponent(targetName)
+            .appendingPathComponent("\(targetName).xcframework")
+            .appendingPathComponent("Info.plist")
+        let contents = String(
+            decoding: try await fileSystem.readFile(at: infoPlist.absolutePath), as: UTF8.self
+        )
+        guard let markerStart = contents.range(of: "<key>Marker</key>\n  <string>") else {
+            throw ToolError.message("\(infoPlist.path) has no Marker key")
+        }
+        let remainder = contents[markerStart.upperBound...]
+        guard let markerEnd = remainder.range(of: "</string>") else {
+            throw ToolError.message("\(infoPlist.path) has a malformed Marker value")
+        }
+        return String(remainder[..<markerEnd.lowerBound])
+    }
+
+    private func initGitBinaryDependency(
+        at dependency: URL, tags: [String], targetName: String = "Framework"
+    ) async throws {
+        try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["add", "Package.swift", "\(targetName).zip"], workingDirectory: dependency)
+        try await SystemProcess.run("git", ["commit", "-m", "Initial"], workingDirectory: dependency)
+        for tag in tags {
+            try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
+        }
     }
 
     private func initGitDependency(at dependency: URL, tags: [String]) async throws {
