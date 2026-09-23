@@ -27,8 +27,13 @@ public struct LaunchAgentJob: Equatable, Sendable {
     /// not yet left the domain.
     public let processIdentifier: Int32?
 
-    public init(processIdentifier: Int32?) {
+    /// How long launchd gives the process to exit after SIGTERM before it sends
+    /// SIGKILL, which bounds how long the label outlives a bootout.
+    public let exitTimeout: Duration?
+
+    public init(processIdentifier: Int32?, exitTimeout: Duration? = nil) {
         self.processIdentifier = processIdentifier
+        self.exitTimeout = exitTimeout
     }
 }
 
@@ -143,7 +148,10 @@ public struct LaunchctlController: LaunchctlControlling {
                 ]
             )
             .concatenatedString(including: [.standardOutput])
-            return LaunchAgentJob(processIdentifier: Self.processIdentifier(in: output))
+            return LaunchAgentJob(
+                processIdentifier: Self.processIdentifier(in: output),
+                exitTimeout: Self.exitTimeout(in: output)
+            )
         } catch let error as CommandError {
             guard case let .terminated(code, stderr, _) = error else { throw error }
             guard Self.describesAMissingService(code: code, stderr: stderr)
@@ -167,10 +175,20 @@ public struct LaunchctlController: LaunchctlControlling {
     /// label it holds with no process behind it, which is a state the callers have
     /// to keep apart from a running job rather than round to one.
     private static func processIdentifier(in output: String) -> Int32? {
+        firstValue(of: "pid", in: output).flatMap { Int32($0) }
+    }
+
+    /// The job's `exit timeout`, in seconds in the report.
+    private static func exitTimeout(in output: String) -> Duration? {
+        firstValue(of: "exit timeout", in: output).flatMap { Int64($0) }.map { .seconds($0) }
+    }
+
+    private static func firstValue(of key: String, in output: String) -> String? {
+        let prefix = "\(key) = "
         for line in output.split(separator: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard trimmed.hasPrefix("pid = ") else { continue }
-            return Int32(trimmed.dropFirst("pid = ".count).trimmingCharacters(in: .whitespaces))
+            guard trimmed.hasPrefix(prefix) else { continue }
+            return trimmed.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
         }
         return nil
     }
