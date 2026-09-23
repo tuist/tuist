@@ -9,10 +9,11 @@ defmodule TuistWeb.OverviewLive do
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if Project.once_project?(project) do
-      # Once projects have their own dashboard shape; the shared overview
-      # assigns are all Xcode/Gradle/Bazel-flavored, so route straight there
-      # instead of trying to render a mismatched overview.
-      {:ok, push_navigate(socket, to: ~p"/#{account.name}/#{project.name}/once")}
+      # Once has no overview of its own yet; the shared overview assigns are
+      # all Xcode/Gradle/Bazel flavored. Send them to Builds, which is the
+      # path the sidebar highlights, rather than to a route no sidebar item
+      # matches.
+      {:ok, push_navigate(socket, to: ~p"/#{account.name}/#{project.name}/once/builds")}
     else
       socket =
         socket
