@@ -90,6 +90,12 @@
 //                            single-use key minted from the
 //                            TAILSCALE_RACK_NODES OAuth client,
 //                            whose tags must own this tag.
+//   tag:tuist-rack-node      A rack's other Linux nodes (services,
+//                            storage). They join from a netboot
+//                            install with a single-use key the
+//                            operator mints from the same OAuth
+//                            client, whose tag:tuist-rack-edge
+//                            owns this tag.
 
 {
 	// Human access groups for the Kubernetes API server proxy.
@@ -128,6 +134,7 @@
 		"tag:tuist-macmini-canary":    ["autogroup:admin"],
 		"tag:tuist-macmini-production":["autogroup:admin"],
 		"tag:tuist-rack-edge":         ["autogroup:admin"],
+		"tag:tuist-rack-node":         ["autogroup:admin", "tag:tuist-rack-edge"],
 	},
 
 	"grants": [
@@ -358,7 +365,7 @@
 		// converged (RackLinuxMachine), through the macmini-egress ProxyGroup.
 		{
 			"src": ["tag:tuist-k8s-staging"],
-			"dst": ["tag:tuist-rack-edge"],
+			"dst": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
 			"ip":  ["tcp:22"],
 		},
 
@@ -618,7 +625,7 @@
 	"tests": [
 		{
 			"src": "tag:tuist-k8s-staging",
-			"accept": ["tag:tuist-rack-edge:22"],
+			"accept": ["tag:tuist-rack-edge:22", "tag:tuist-rack-node:22"],
 		},
 		{
 			"src": "tag:tuist-k8s-staging",

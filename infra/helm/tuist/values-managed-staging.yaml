@@ -860,10 +860,27 @@ rackLinuxFleet:
         tuist.dev/rack-edge: ber1
       nodeTaints:
         - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
+    services:
+      nodeLabels:
+        tuist.dev/rack-services: ber1
+      nodeTaints:
+        - {key: tuist.dev/rack-services, value: ber1, effect: NoSchedule}
   hosts:
     - name: ber1-edge
       role: edge
       tailnetTags: [tag:tuist-rack-edge]
+    # Netboots from the boot server on ber1-edge; tag:tuist-rack-node is owned by
+    # tag:tuist-rack-edge, the tag the OAuth client mints keys with.
+    - name: ber1-svc
+      role: services
+      tailnetTags: [tag:tuist-rack-node]
+  authorizedKeys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
+  boot:
+    enabled: true
+    address: 192.168.50.1
+    image:
+      tag: sha-4dc9531aa8b3
 
 macosFleet:
   enabled: true
