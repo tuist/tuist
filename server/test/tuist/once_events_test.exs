@@ -163,6 +163,34 @@ defmodule Tuist.OnceEventsTest do
     assert reloaded.cache_action_read_count == 1
   end
 
+  test "a content object is listed once however many actions share its target", %{run: run} do
+    # One target, three declared actions, one transfer of one object.
+    for index <- 0..2 do
+      project(run, %ActionCompleted{
+        target_execution_id: "mise",
+        capability: "build",
+        action_index: index,
+        identifier: "compiler-#{index}",
+        result: :TARGET_RESULT_SUCCEEDED
+      })
+    end
+
+    project(run, %CacheDownload{
+      target_execution_id: "mise",
+      content: %ContentRef{digest: "abc123", size_bytes: 4096},
+      bytes_transferred: 4096,
+      duration_ms: 12
+    })
+
+    reloaded = OnceEvents.get_run(run.project_id, run.run_id)
+    opts = [view: "content-objects", search: "", outcome: nil]
+
+    # The page and the count have to describe the same rows, otherwise
+    # pagination puts objects beyond reach.
+    assert length(OnceEvents.list_cache_events(reloaded, opts)) == 1
+    assert OnceEvents.count_cache_events(reloaded, opts) == 1
+  end
+
   test "a replayed test suite start does not inflate the run's suite count", %{run: run} do
     started = %TestSuiteStarted{target_execution_id: "mise", suite_id: "unit", planned_case_count: 3}
 
