@@ -28,8 +28,8 @@ enum CacheProxyCommandServiceError: Equatable, LocalizedError {
 }
 
 /// Launches the per-machine Rust cache proxy (`tuist-cas-proxy`). Resolves the
-/// kura REAPI endpoint, then hands off via `execv` so launchd manages the proxy
-/// process directly — there is no idle Swift parent to forward signals through.
+/// kura REAPI endpoint, then replaces this process with the proxy so launchd
+/// manages it directly. There is no idle Swift parent to forward signals through.
 struct CacheProxyCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
@@ -89,11 +89,81 @@ struct CacheProxyCommandService {
             "Launching cache proxy at \(proxyPath.pathString) for endpoint \(endpoint?.absoluteString ?? "(none yet)")"
         )
 
-        let arguments: [UnsafeMutablePointer<CChar>?] = [strdup(proxyPath.pathString), nil]
-        execv(proxyPath.pathString, arguments)
-        // execv only returns on failure.
-        throw CacheProxyCommandServiceError.execFailed(String(cString: strerror(errno)))
+        try Self.exec(executable: proxyPath.pathString)
     }
+
+    /// Replaces this process with `executable`, which starts with nothing blocked
+    /// and every signal at its default action.
+    ///
+    /// A plain `execv` carries over the calling thread's signal mask and every
+    /// ignored signal. This runs on a Swift concurrency thread, which blocks
+    /// SIGTERM, so the proxy would ignore the SIGTERM `launchctl bootout` sends
+    /// and leave only when launchd kills it at the job's exit timeout. Until then
+    /// its label is still in the domain, and `tuist setup cache` cannot bootstrap
+    /// the agent that replaces it.
+    static func exec(executable: String) throws -> Never {
+        #if canImport(Darwin)
+            let result = spawnWithDefaultSignals(
+                executable: executable,
+                arguments: [],
+                flags: POSIX_SPAWN_SETEXEC,
+                processIdentifier: nil
+            )
+        #else
+            var unblocked = sigset_t()
+            sigemptyset(&unblocked)
+            pthread_sigmask(SIG_SETMASK, &unblocked, nil)
+            for signal in Int32(1) ..< 32 where signal != SIGKILL && signal != SIGSTOP {
+                Glibc.signal(signal, SIG_DFL)
+            }
+            let arguments: [UnsafeMutablePointer<CChar>?] = [strdup(executable), nil]
+            execv(executable, arguments)
+            let result = errno
+        #endif
+        throw CacheProxyCommandServiceError.execFailed(String(cString: strerror(result)))
+    }
+
+    #if canImport(Darwin)
+        /// Starts `executable` as a child process with the signal state `exec` gives the proxy.
+        static func spawn(executable: String, arguments: [String]) throws -> pid_t {
+            var processIdentifier: pid_t = 0
+            let result = spawnWithDefaultSignals(
+                executable: executable,
+                arguments: arguments,
+                flags: 0,
+                processIdentifier: &processIdentifier
+            )
+            guard result == 0 else {
+                throw CacheProxyCommandServiceError.execFailed(String(cString: strerror(result)))
+            }
+            return processIdentifier
+        }
+
+        private static func spawnWithDefaultSignals(
+            executable: String,
+            arguments: [String],
+            flags: Int32,
+            processIdentifier: UnsafeMutablePointer<pid_t>?
+        ) -> Int32 {
+            var attributes: posix_spawnattr_t?
+            posix_spawnattr_init(&attributes)
+            defer { posix_spawnattr_destroy(&attributes) }
+
+            var unblocked = sigset_t()
+            sigemptyset(&unblocked)
+            posix_spawnattr_setsigmask(&attributes, &unblocked)
+            var defaulted = sigset_t()
+            sigfillset(&defaulted)
+            sigdelset(&defaulted, SIGKILL)
+            sigdelset(&defaulted, SIGSTOP)
+            posix_spawnattr_setsigdefault(&attributes, &defaulted)
+            posix_spawnattr_setflags(&attributes, Int16(flags | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF))
+
+            let cArguments = ([executable] + arguments).map { strdup($0) }
+            defer { cArguments.forEach { free($0) } }
+            return posix_spawn(processIdentifier, executable, nil, &attributes, cArguments + [nil], environ)
+        }
+    #endif
 
     /// The endpoint to start the proxy against, or `nil` when the account has none serving yet.
     ///

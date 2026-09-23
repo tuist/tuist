@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Path
+import Synchronization
 import Testing
 import TuistEnvironment
 import TuistEnvironmentTesting
@@ -33,6 +34,19 @@ private final class AnswerSequence<Answer: Sendable>: @unchecked Sendable {
             defer { index += 1 }
             return answers[min(index, answers.count - 1)]
         }
+    }
+}
+
+/// When each bootstrap happened, relative to the start of the test.
+private final class BootstrapTimes: Sendable {
+    private let times = Mutex<[Duration]>([])
+
+    var first: Duration? {
+        times.withLock { $0.first }
+    }
+
+    func record(_ time: Duration) {
+        times.withLock { $0.append(time) }
     }
 }
 
@@ -610,6 +624,62 @@ struct LaunchAgentServiceTests {
         verify(launchctlController)
             .bootstrap(plistPath: .any, domain: .any)
             .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupLaunchAgent_waitsOutTheOutgoingJobsExitTimeoutBeforeBootstrapping() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        // A process that ignores SIGTERM keeps its label until launchd kills it
+        // at the exit timeout, which here is past the service's own timeout.
+        let clock = ContinuousClock()
+        let start = clock.now
+        let outgoingJob = LaunchAgentJob(processIdentifier: 4242, exitTimeout: .milliseconds(200))
+        resetLaunchctlController()
+        given(launchctlController)
+            .job(label: .value("tuist.test"))
+            .willProduce { _ in start.duration(to: clock.now) < .milliseconds(750) ? outgoingJob : nil }
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willReturn()
+        let bootstrapTimes = BootstrapTimes()
+        given(launchctlController)
+            .bootstrap(plistPath: .any, domain: .any)
+            .willProduce { _, _ in bootstrapTimes.record(start.duration(to: clock.now)) }
+
+        try await subject.setupLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist",
+            programArguments: ["test-start"]
+        )
+
+        let bootstrappedAt = try #require(bootstrapTimes.first)
+        #expect(
+            bootstrappedAt >= .milliseconds(750),
+            "bootstrapped after \(bootstrappedAt), while the outgoing job still held the label"
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func teardownLaunchAgent_returnsOnlyOnceTheBootedOutAgentHasLeftTheDomain() async throws {
+        resetLaunchctlController()
+        let answers = AnswerSequence<LaunchAgentJob?>(
+            answers: [LaunchAgentJob(processIdentifier: 4242), LaunchAgentJob(processIdentifier: 4242), nil]
+        )
+        given(launchctlController)
+            .job(label: .value("tuist.test"))
+            .willProduce { _ in answers.next() }
+        given(launchctlController)
+            .bootout(label: .value("tuist.test"))
+            .willReturn()
+
+        try await subject.teardownLaunchAgent(
+            label: "tuist.test",
+            plistFileName: "tuist.test.plist"
+        )
+
+        #expect(answers.consumed == 3)
     }
 
     @Test func restartLaunchAgent_kickstartsLoadedAgent() async throws {
