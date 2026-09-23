@@ -1191,6 +1191,10 @@ mini_referencing() {
 # A switch that answers, reports the name it is told to, and shows the running
 # config it is given. Everything comes through the environment so the heredoc
 # interpolates nothing.
+#
+# `show users` lists "tid name" pairs, comma separated: FAKE_USERS_1 in the
+# first session and FAKE_USERS_2 in the second. By default session one is the
+# only line, and in session two it is still there, leaked, below session two.
 recover_stub() {
     local dir="$1"
     mkdir -p "$dir"
@@ -1200,6 +1204,8 @@ exit 0
 STUB
     cat > "$dir/ssh" <<'STUB'
 #!/usr/bin/env bash
+session=$(( $(cat "$FAKE_LOG.sessions" 2>/dev/null || echo 0) + 1 ))
+echo "$session" > "$FAKE_LOG.sessions"
 echo "SESSION $*" >> "$FAKE_LOG"
 sleep 0.2
 printf 'sw>'
@@ -1216,7 +1222,13 @@ while IFS= read -r line; do
         logout) exit 0;;
         "show system-info") printf ' System Name          - %s\r\n' "$FAKE_NAME";;
         "show running-config") printf '%s\r\n' "$FAKE_RUNNING";;
-        "show users") printf 'tid\tvty\tname\tsock\ttype\r\n4\t---\ttSsh00\t7\tSSH\r\n5\t---\ttSsh01\t9\tSSH\r\n';;
+        "show users")
+            if [ "$session" -eq 1 ]; then rows="${FAKE_USERS_1-4 tSsh00}"; else rows="${FAKE_USERS_2-4 tSsh00,5 tSsh01}"; fi
+            printf 'tid\tvty\tname\tsock\ttype\r\n'
+            IFS=, read -ra listed <<<"$rows"
+            for row in "${listed[@]}"; do
+                printf '%s\t---\t%s\t7\tSSH\r\n' "${row% *}" "${row#* }"
+            done;;
     esac
     printf '\r\nsw#'
 done
@@ -1298,6 +1310,45 @@ run_recover() {
     run bash -c "grep -n 'CMD copy running-config\\|CMD clear line' '$bin/log' | cut -d: -f1 | paste -sd' ' -"
     set -- $output
     [ "$1" -lt "$2" ]
+}
+
+@test "recover leaves alone an operator who connected between its two sessions" {
+    # Session one is tSsh00 on line 4. Someone else's tSsh01 on line 5 now sits
+    # directly below session two, where the leaked line used to be looked for.
+    bin="$BATS_TEST_TMPDIR/rc6"
+    recover_stub "$bin"
+    export FAKE_USERS_2="4 tSsh00,5 tSsh01,6 tSsh02"
+    run_recover "$bin" ber1-tor-b "  ip address 192.168.0.12 255.255.255.0"
+    [ "$status" -eq 0 ]
+    run grep -c 'CMD clear line 5' "$bin/log"
+    [ "$output" = "0" ]
+    run grep -c 'CMD clear line 4' "$bin/log"
+    [ "$output" = "1" ]
+}
+
+@test "recover clears nothing when session one's line has gone and its tid was reused" {
+    # Line 4 is somebody else's tSsh01 now, not session one's tSsh00.
+    bin="$BATS_TEST_TMPDIR/rc7"
+    recover_stub "$bin"
+    export FAKE_USERS_2="4 tSsh01,6 tSsh02"
+    run_recover "$bin" ber1-tor-b "  ip address 192.168.0.12 255.255.255.0"
+    [ "$status" -eq 0 ]
+    recovered="$output"
+    run grep -c 'CMD clear line' "$bin/log"
+    [ "$output" = "0" ]
+    [[ "$recovered" == *"mise run rack:fleet sessions ber1-tor-b <tid>"* ]]
+}
+
+@test "recover clears nothing when it could not tell which line session one held" {
+    bin="$BATS_TEST_TMPDIR/rc8"
+    recover_stub "$bin"
+    export FAKE_USERS_1=""
+    run_recover "$bin" ber1-tor-b "  ip address 192.168.0.12 255.255.255.0"
+    [ "$status" -eq 0 ]
+    recovered="$output"
+    run grep -c 'CMD clear line' "$bin/log"
+    [ "$output" = "0" ]
+    [[ "$recovered" == *"mise run rack:fleet sessions ber1-tor-b <tid>"* ]]
 }
 
 # --- apply is a confirmed commit ----------------------------------------------
@@ -2606,22 +2657,40 @@ STUB
     [ "$output" = "02" ]
 }
 
-@test "recover's leaked line is the task directly below the session that follows it" {
+@test "a connection's own line is the newest task, by tid and name" {
+    users="$(printf 'tid\tvty\tname\tsock\ttype\n4\t---\ttSsh00\t7\tSSH\n5\t---\ttSsh02\t9\tSSH\n')"
+    run fleet_sh "printf '%s' '$users' | fleet_own_line"
+    [ "$output" = "5 tSsh02" ]
+}
+
+@test "recover's leaked line is the one session one saw as its own, while it is still listed" {
     users="$(printf 'tid\tvty\tname\tsock\ttype\n4\t---\ttSsh05\t7\tSSH\n6\t---\ttSsh06\t9\tSSH\n')"
-    run fleet_sh "printf '%s' '$users' | fleet_predecessor_line"
+    run fleet_sh "printf '%s' '$users' | fleet_leaked_line 4 tSsh05"
     [ "$output" = "4" ]
 }
 
-@test "a line that is not the direct predecessor is left alone" {
-    # It could be an operator's own SSH or web session. Clearing whatever else is
-    # listed would reach it; matching the one task number session one had does not.
-    users="$(printf 'tid\tvty\tname\tsock\ttype\n4\t---\ttSsh00\t7\tSSH\n5\t---\ttSsh02\t9\tSSH\n')"
-    run fleet_sh "printf '%s' '$users' | fleet_predecessor_line"
+@test "a line opened between the two sessions is never taken for the leaked one" {
+    # It could be an operator's own SSH session, and it sits directly below the
+    # session that follows, which is where a task-number guess would look.
+    users="$(printf 'tid\tvty\tname\tsock\ttype\n5\t---\ttSsh01\t7\tSSH\n6\t---\ttSsh02\t9\tSSH\n')"
+    run fleet_sh "printf '%s' '$users' | fleet_leaked_line 4 tSsh00"
     [ -z "$output" ]
 }
 
-@test "with only its own line listed, there is nothing to clear" {
+@test "a reused tid under another name is left alone" {
+    users="$(printf 'tid\tvty\tname\tsock\ttype\n4\t---\ttSsh01\t7\tSSH\n6\t---\ttSsh02\t9\tSSH\n')"
+    run fleet_sh "printf '%s' '$users' | fleet_leaked_line 4 tSsh00"
+    [ -z "$output" ]
+}
+
+@test "the connection asking is never the one cleared" {
     users="$(printf 'tid\tvty\tname\tsock\ttype\n5\t---\ttSsh03\t8\tSSH\n')"
-    run fleet_sh "printf '%s' '$users' | fleet_predecessor_line"
+    run fleet_sh "printf '%s' '$users' | fleet_leaked_line 5 tSsh03"
+    [ -z "$output" ]
+}
+
+@test "with no identity from session one, there is nothing to clear" {
+    users="$(printf 'tid\tvty\tname\tsock\ttype\n4\t---\ttSsh00\t7\tSSH\n5\t---\ttSsh01\t9\tSSH\n')"
+    run fleet_sh "printf '%s' '$users' | fleet_leaked_line '' ''"
     [ -z "$output" ]
 }

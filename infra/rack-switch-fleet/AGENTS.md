@@ -161,6 +161,12 @@ Kept below as the procedure for the next switch that moves.
 Two things the real run showed. `recover`'s first session always leaks a
 terminal line, because changing the address ends the session before a logout can
 reach the switch; it now clears that line itself, in the session that saves.
+The first session reads `show users` while it is open and records its own line,
+the newest task, by tid and name; the second clears a line only if exactly that
+tid and name are still listed. Anyone who connected in between sits directly
+below the second session, which is why the line is never picked by position.
+When the identity was not captured or nothing matches it, nothing is cleared
+and recover prints how to free the line with `sessions`.
 And a save written by the switch from its running configuration puts the
 firmware's `#` padding back, while one pushed by `replace` does not, so the
 committed backup flips between the two forms. Only padding changes; the diff

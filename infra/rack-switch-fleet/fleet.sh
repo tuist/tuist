@@ -837,10 +837,16 @@ cmd_recover() {
   # was changed, and carrying on from there would save whatever is already on
   # the switch, which is the state recovery exists to correct.
   echo "session 1: setting the address, which will drop this session"
-  local setup=0
+  local setup=0 identity
+  identity="$(mktemp)"
   (
     trap switch_close EXIT
     switch_open "$from" "$user" "$key" || exit 10
+    # This session cannot log out, so its line leaks. The line it sees as its
+    # own now is how session two tells that line apart from anyone else's.
+    if switch_run "show users" 20; then
+      printf '%s' "$SWITCH_OUTPUT" | fleet_own_line > "$identity"
+    fi
     switch_run "configure" 30 || exit 11
     switch_run "interface vlan $vlan" 30 || exit 12
     # Its failure is the session dropping as the address moves, which is the
@@ -848,6 +854,9 @@ cmd_recover() {
     # two, so the driver's timeout message would only read as a false alarm.
     switch_run "ip address $address $netmask" 20 2>/dev/null || echo "session dropped as the address moved, as expected"
   ) || setup=$?
+  local own_tid="" own_name=""
+  read -r own_tid own_name < "$identity" || true
+  rm -f "$identity"
   case "$setup" in
     0)  ;;
     10) echo "error: could not open a session to $name at $from; nothing was changed" >&2; return 1;;
@@ -884,12 +893,27 @@ cmd_recover() {
     switch_run "copy running-config startup-config" 60 || exit 13
     # Session one could not log out, because changing the address is what ended
     # it, so its line is still held and counts against the five concurrent
-    # clients. Saved already, so none of this is fatal.
-    if switch_run "show users" 20; then
-      leaked="$(printf '%s' "$SWITCH_OUTPUT" | fleet_predecessor_line)"
-      if [ -n "$leaked" ] && switch_run "clear line $leaked" 20; then
-        echo "cleared line $leaked, which session one left behind"
+    # clients. Saved already, so none of this is fatal. Only the exact line
+    # session one saw as its own is cleared; anything less certain is left to
+    # the operator, since the alternative is ending somebody else's session.
+    local leaked="" reason=""
+    if [ -z "$own_tid" ]; then
+      reason="it could not be identified while session one was open"
+    elif ! switch_run "show users" 20; then
+      reason="the switch did not list its lines"
+    else
+      leaked="$(printf '%s' "$SWITCH_OUTPUT" | fleet_leaked_line "$own_tid" "$own_name")"
+      if [ -z "$leaked" ]; then
+        reason="line $own_tid is no longer listed as $own_name"
+      elif switch_run "clear line $leaked" 20; then
+        echo "cleared line $leaked ($own_name), which session one left behind"
+      else
+        reason="the switch refused to clear line $leaked"
       fi
+    fi
+    if [ -n "$reason" ]; then
+      echo "session one's line was not cleared: $reason. If it leaked, free it with:"
+      echo "  mise run rack:fleet sessions $name <tid>"
     fi
   ) || status=$?
   case "$status" in

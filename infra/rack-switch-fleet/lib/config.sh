@@ -566,18 +566,38 @@ fleet_current_connection() {
   tr -d '\000\r' | grep -oE 'tSsh[0-9]+' | sed 's/tSsh//' | sort -n | tail -1
 }
 
-# The line the connection before this one left behind, if it is still there.
+# This connection's own line, as "tid name", from `show users` output: the
+# newest task, for the reason above.
+fleet_own_line() {
+  tr -d '\000\r' | awk '
+    $3 ~ /^tSsh[0-9]+$/ { n = substr($3, 5) + 0; if (!seen || n > newest) { newest = n; own = $1 " " $3 }; seen = 1 }
+    END { if (seen) print own }'
+}
+
+# The tid to clear for a line an earlier connection recorded as its own, if
+# exactly that tid and name are still listed.
 #
 # `recover` changes a switch's address from inside a session, which kills that
 # session's TCP connection before any logout can reach the switch, and this
-# firmware never reclaims a line it was not told to close. So recover leaks
-# exactly one line every time, and it is always the task numbered one below the
-# session that follows it. Matching on that, rather than clearing whatever else
-# is listed, keeps an operator's own SSH or web session out of reach.
-fleet_predecessor_line() {
-  tr -d '\000\r' | awk '
-    $3 ~ /^tSsh[0-9]+$/ { n = substr($3, 5) + 0; tid[n] = $1; if (n > newest) newest = n; seen = 1 }
-    END { if (seen && ((newest - 1) in tid)) print tid[newest - 1] }'
+# firmware never reclaims a line it was not told to close. So recover's first
+# session leaks its line every time. It is identified by what that session saw
+# as its own while it was open, never by position: anyone who connects between
+# the two sessions sits directly below the second one, and a task number guess
+# would clear them. The name is part of the match because a tid is reused once
+# its line is freed and a task name never is, and the connection asking is
+# never matched, so a switch that restarted its numbering cannot make a session
+# clear itself.
+fleet_leaked_line() {
+  local tid="$1" name="$2"
+  [ -n "$tid" ] && [ -n "$name" ] || return 0
+  tr -d '\000\r' | awk -v tid="$tid" -v name="$name" '
+    $3 ~ /^tSsh[0-9]+$/ {
+      n = substr($3, 5) + 0
+      if (!seen || n > newest) newest = n
+      seen = 1
+      if ($1 == tid && $3 == name) { found = 1; found_n = n }
+    }
+    END { if (found && found_n != newest) print tid }'
 }
 
 # A switch behind the edge node is reached through it (management.edge). Fills
