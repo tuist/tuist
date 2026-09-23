@@ -1,9 +1,9 @@
-# Spec 95 staging validation — 2026-09-22
+# Spec 95 staging validation — 2026-09-22–23
 
 Status: staging DNS, TLS, cache protocols, demotion, failure ordering, and real
-client checks have passed. The first full withdrawal drain completed. Testing
-found two hand-out races: the PostgreSQL projection fix passed staging restart
-checks, and a controller observation fix awaits rollout. GitHub CI awaits permission to store
+client checks have passed. Both full withdrawal drains completed. Testing
+found two hand-out races; both fixes are deployed, and the final local client
+soak passed. GitHub CI awaits permission to store
 the temporary fixture token as an Actions secret.
 
 ## Revisions and rollout boundaries
@@ -178,6 +178,14 @@ StatefulSet were gone; pods entered their normal termination grace period.
 Montreal's authenticated round trips continued without interruption. Evidence:
 `paris-final-drain-roundtrip.jsonl` and `paris-teardown-watch.jsonl`.
 
+After teardown, Bazel again reported a remote cache hit with the originally
+generated `.bazelrc.tuist` checksum unchanged. The same long-running CAS proxy
+served another clean Xcode rebuild using a new empty local CAS directory,
+again yielding **138/138 hits**. Its latest endpoint transition was still the
+automatic recovery to the stable hostname; it was not restarted for this test.
+Evidence: `bazel-after-paris-hit.log`, `xcode-after-paris-build.log`, and
+`cas-endpoint-evidence.json`.
+
 ## Shared health checks and failover
 
 A second fixture, `kura-spec95-health` (account 50), advertised from both boxes
@@ -202,6 +210,26 @@ Normal destruction of account 50's test instances began after the drill. Both
 public finalizers observed withdrawal at **10:05:20 UTC** and must retain
 rendering until **11:07:20 UTC**. Their shared checks must remain referenced
 until every remaining provider record and retained instance releases them.
+
+Both routes still returned HTTP 200 at 11:07:02 UTC. The controller deleted both
+CRs at **11:07:29 UTC**, nine seconds after the full drain deadline. Account 50
+was then deleted through `Accounts.delete_account!`, after confirming both public
+CRs were gone and their server rows had left the live lifecycle. This also
+removed its automatically provisioned private runner cache. Its empty,
+ownerless account-level peer Service was then removed explicitly after verifying
+its account selector and absence of live pods or endpoints. The final resource
+inventory contained no resources for account 50 or the retired main Paris
+instance. Release RPC also confirmed Paris was archived with its PostgreSQL
+readiness projection cleared. The main fixture and its Montreal advertisement
+remain available for the pending GitHub CI run.
+
+At 11:00 UTC both TCP checks still existed even though only the main fixture's
+Montreal A/TXT records remained: the draining CRs protected the shared checks.
+After final release, the Paris check was collected; the 11:13 UTC inventory
+contained only Montreal's original check, still on port 443 and referenced by
+the surviving account. Evidence: `records-after-paris-retirement.json`,
+`health-before-final-release.json`, `health-after-final-release.json`,
+`health-final-release-watch.jsonl`, and `health-fixture-cleanup.log`.
 
 Evidence: `health-*.json`, `health-*.txt`, and `health-survivor-ready.jsonl`.
 
@@ -277,9 +305,31 @@ steady passes publish only completed observations. Failed probes and provider
 reads still persist false readiness; a separate five-second status-write
 context allows recording a provider deadline failure. The regression failed
 before the fix. The full controller suite, including Helm rendering, then passed
-with `go test -race ./...`. This controller fix still awaits staging rollout.
+with `go test -race ./...`; `go vet ./...` also passed.
 Evidence: `readiness-watch-before-fix.jsonl`, `gradle-fixed-soak.log`, and the
 local `spec95-controller-readiness-{red,green}.log` files.
+
+Controller revision `2857be3434e27ee306087a3baf16fd9bcc94ad10` then deployed in
+[run 35851387377](https://github.com/tuist/tuist/actions/runs/35851387377).
+The first attempt stopped before application rollout because the observability
+job received a 1Password 502. Retrying failed jobs reused the built images and
+succeeded. Both controller and web deployments reached 2/2 updated ready
+replicas by 11:12 UTC. Both web replicas read shared ready state, and thirty
+consecutive API requests returned only the stable hostname. The final local run
+of the CI harness passed: a unique remote upload followed by all **twelve
+fresh-process remote hits**, with local caching disabled and output bytes
+verified. All thirteen API checks returned exactly the stable hostname. The
+eleven-minute controller watch recorded **43 ready observations and zero false
+observations**, from 11:12:38 to 11:23:27 UTC.
+Evidence: `gradle-final-soak.log`, `gradle-final-ci/`, and
+`readiness-watch-after-fix.jsonl`.
+
+The main drain/rollout soak completed **150 authenticated round trips** from
+09:46 to 11:09 UTC with no failures: 300 HTTP requests and 300 REAPI calls, with
+the exact uploaded bytes verified. A separate survivor soak passed another
+**30 round trips** from 11:08 to 11:24 UTC through the final controller deployment,
+also without failures. Expected TLS rejections from the retired Paris
+IP after its deadline are recorded separately and are not survivor failures.
 
 The prepared CI mode is `linux-runners-staging-smoke.yml` with both
 `gradle_cache` and `stable_cache_dns` enabled, project `kura-spec95-e2e/probe`,
@@ -292,16 +342,21 @@ is pending, and no secret has been uploaded.
 
 ## Remaining work
 
-1. Complete the fresh-process client soak against the shared-readiness fix.
-2. Observe the complete drain and finalizer/health-check cleanup at the deadlines
-   above, with survivor traffic and persisted client configuration retained.
-3. Run the prepared GitHub CI soak if credential transfer is approved.
-4. Direct DNSEndpoint source inspection still needs namespace-scoped get/list
-   access. Long-term steering telemetry and an actual gateway-outage drill remain
-   distinct from the spot comparisons and isolated health-check failure above.
+1. Run the prepared GitHub CI soak if credential transfer is approved. The same
+   harness passed locally; this does not substitute for a GitHub runner origin.
+2. Direct DNSEndpoint source inspection still needs namespace-scoped get/list
+   access; the normal staging identity still reports `no` for that permission.
+3. Before broader rollout, validate longer-term steering telemetry and an actual
+   shared-gateway outage. These remain distinct from the regional spot comparisons
+   and isolated health-check failure above.
 
-The fixture remains available for continuation. When validation ends, revoke the
-token, clear keep-warm, and remove only this account's test placements through the
+The main fixture remains available for the pending CI run, with Montreal and its
+private runner cache active. Account 50 and the main fixture's Paris resources
+are gone. All temporary fault settings are restored: the AWS writer is 1/1,
+the controller's temporary inline IAM deny is absent, and the surviving health
+check uses port 443. The wildcard certificate remains Ready. The isolated CAS
+proxy, Bazel server, and completed local probes have been stopped. When validation
+ends, revoke the token, clear keep-warm, and remove only this account's test placements through the
 normal lifecycle. If stable advertising has been enabled, complete withdrawal and
 the drain before removing provider credentials or DNS resources. Do not strip
 finalizers to force cleanup.
