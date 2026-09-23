@@ -149,6 +149,13 @@ func (in *KuraInstanceStatus) DeepCopy() *KuraInstanceStatus {
 
 func (in *KuraInstanceCPUAutosize) DeepCopyInto(out *KuraInstanceCPUAutosize) {
 	*out = *in
+	if in.SamplesMilli != nil {
+		out.SamplesMilli = make([]int32, len(in.SamplesMilli))
+		copy(out.SamplesMilli, in.SamplesMilli)
+	}
+	if in.SampledAt != nil {
+		out.SampledAt = in.SampledAt.DeepCopy()
+	}
 	if in.BucketStartedAt != nil {
 		out.BucketStartedAt = in.BucketStartedAt.DeepCopy()
 	}
