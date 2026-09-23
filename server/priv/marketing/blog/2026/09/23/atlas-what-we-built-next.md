@@ -1,5 +1,5 @@
 ---
-title: "How we built an AI-powered operations platform at Tuist"
+title: "How we built an AI-first operations platform at Tuist"
 category: "vision"
 tags: ["vision", "operations", "ai", "agents", "tooling"]
 excerpt: "Since introducing Atlas, we have expanded it across sales, engineering, and finance, turning more of the signals around Tuist into work we can act on."
