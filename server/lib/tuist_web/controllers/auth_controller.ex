@@ -7,6 +7,7 @@ defmodule TuistWeb.AuthController do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.User
   alias Tuist.OAuth.Google
   alias Tuist.OAuth2.SSOClient
   alias TuistWeb.Authentication
@@ -243,23 +244,35 @@ defmodule TuistWeb.AuthController do
                 sso_organization
               )
 
-            if new_sso_user_allowed?(auth.provider, sso_organization, auth.info.email, invitation) do
-              oauth_data = %{
-                "provider" => to_string(auth.provider),
-                "uid" => to_string(auth.uid),
-                "email" => auth.info.email,
-                "provider_organization_id" => provider_organization_id,
-                "oauth_return_url" => oauth_return_url,
-                "invitation_token" => invitation_token_for_signup(invitation, sso_organization, auth.info.email)
-              }
+            cond do
+              new_sso_user_allowed?(auth.provider, sso_organization, auth.info.email, invitation) ->
+                oauth_data = %{
+                  "provider" => to_string(auth.provider),
+                  "uid" => to_string(auth.uid),
+                  "email" => auth.info.email,
+                  "provider_organization_id" => provider_organization_id,
+                  "oauth_return_url" => oauth_return_url,
+                  "invitation_token" => invitation_token_for_signup(invitation, sso_organization, auth.info.email)
+                }
 
-              conn
-              |> delete_session(:oauth_return_to)
-              |> put_session(:pending_oauth_signup, oauth_data)
-              |> redirect(to: ~p"/users/choose-username")
-              |> halt()
-            else
-              raise_sso_unauthorized(new_sso_user_rejection_reason(sso_organization, auth.info.email))
+                conn
+                |> delete_session(:oauth_return_to)
+                |> put_session(:pending_oauth_signup, oauth_data)
+                |> redirect(to: ~p"/users/choose-username")
+                |> halt()
+
+              signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
+                confirm_sso_link(
+                  conn,
+                  signed_in_user,
+                  auth,
+                  sso_organization,
+                  provider_organization_id,
+                  oauth_return_url
+                )
+
+              true ->
+                raise_sso_unauthorized(new_sso_user_rejection_reason(sso_organization, auth.info.email))
             end
 
           {:ok, existing_user} ->
@@ -309,6 +322,9 @@ defmodule TuistWeb.AuthController do
           oauth_return_url
         )
 
+      signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
+        confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, oauth_return_url)
+
       invitation ->
         prior_return_to =
           oauth_return_url || get_session(conn, :user_return_to)
@@ -321,6 +337,9 @@ defmodule TuistWeb.AuthController do
         )
         |> redirect(to: ~p"/auth/invitations/#{invitation.token}")
         |> halt()
+
+      Accounts.belongs_to_organization?(existing_user, sso_organization) ->
+        log_in_to_link_sso(conn, auth.provider, sso_organization)
 
       true ->
         log(
@@ -361,16 +380,68 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  # Custom providers let an admin configure arbitrary profile endpoints. We
-  # only link an existing account when membership already establishes trust or
-  # when the organization has opted into enrollment through a verified domain.
+  # Custom providers let an admin configure arbitrary profile endpoints, and a
+  # linked identity signs in to the whole account, so a reported email only
+  # identifies an account on a verified domain. Compatibility mode keeps
+  # linking members.
   defp can_link_existing_user?(_user, provider, _organization) when provider not in [:okta, :oauth2], do: true
   defp can_link_existing_user?(_user, _provider, nil), do: false
 
-  defp can_link_existing_user?(user, _provider, %Organization{} = organization) do
+  defp can_link_existing_user?(user, _provider, %Organization{sso_legacy_email_domain_fallback: true} = organization) do
     Accounts.belongs_to_organization?(user, organization) ||
       Accounts.sso_identity_linking_allowed?(organization, user.email)
   end
+
+  defp can_link_existing_user?(user, _provider, %Organization{} = organization) do
+    Accounts.sso_identity_linking_allowed?(organization, user.email)
+  end
+
+  # Being signed in proves ownership of the account whatever email the provider
+  # reports. Linking still waits for confirmation, since a provider that signs
+  # anyone in could otherwise attach itself through a link the user opened.
+  defp signed_in_sso_link_user(conn, provider, %Organization{} = organization) when provider in [:okta, :oauth2] do
+    with %User{} = user <- conn.assigns[:current_user],
+         true <-
+           Accounts.belongs_to_organization?(user, organization) or
+             not is_nil(pending_invitation_for(user, organization)) do
+      user
+    else
+      _ -> nil
+    end
+  end
+
+  defp signed_in_sso_link_user(_conn, _provider, _organization), do: nil
+
+  defp confirm_sso_link(conn, user, auth, organization, provider_organization_id, oauth_return_url) do
+    conn
+    |> delete_session(:oauth_return_to)
+    |> put_session(:pending_sso_link, %{
+      "user_id" => user.id,
+      "organization_id" => organization.id,
+      "provider" => to_string(auth.provider),
+      "uid" => to_string(auth.uid),
+      "provider_organization_id" => provider_organization_id,
+      "email" => auth.info.email,
+      "return_to" => oauth_return_url,
+      "issued_at" => System.system_time(:second)
+    })
+    |> redirect(to: ~p"/auth/sso/link")
+    |> halt()
+  end
+
+  defp log_in_to_link_sso(conn, provider, organization) do
+    conn
+    |> put_session(:user_return_to, sso_request_path(provider, organization))
+    |> put_flash(
+      :info,
+      dgettext("dashboard_auth", "Log in to your Tuist account to link it to your organization's single sign-on.")
+    )
+    |> redirect(to: ~p"/users/log_in")
+    |> halt()
+  end
+
+  defp sso_request_path(:okta, organization), do: ~p"/users/auth/okta?organization_id=#{organization.id}"
+  defp sso_request_path(:oauth2, organization), do: ~p"/users/auth/oauth2?organization_id=#{organization.id}"
 
   defp pending_invitation_for(_user, nil), do: nil
 
@@ -766,7 +837,7 @@ defmodule TuistWeb.AuthController do
   defp sso_unauthorized_message(:login_domain_verification_required) do
     dgettext(
       "dashboard",
-      "Your organization must verify a login email domain that matches your email before new users can sign in. Ask an organization admin to review the single sign-on domain settings."
+      "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
     )
   end
 

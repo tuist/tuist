@@ -165,6 +165,9 @@ defmodule TuistWeb.AuthControllerTest do
           creator: existing_user,
           sso_provider: :okta,
           sso_organization_id: "dev-123456",
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate()
         )
@@ -288,6 +291,9 @@ defmodule TuistWeb.AuthControllerTest do
           creator: existing_user,
           sso_provider: :oauth2,
           sso_organization_id: "https://auth.example.com",
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
           oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
@@ -748,7 +754,7 @@ defmodule TuistWeb.AuthControllerTest do
                  |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
                end)
 
-      assert body =~ "must verify a login email domain"
+      assert body =~ "verified a login email domain that matches your email"
       assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(invitee_email)
     end
 
@@ -1023,6 +1029,9 @@ defmodule TuistWeb.AuthControllerTest do
           creator: attacker,
           sso_provider: :oauth2,
           sso_organization_id: "https://idp-b.example.com",
+          sso_login_domain: "customer-b.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
           oauth2_authorize_url: "https://idp-b.example.com/oauth2/authorize",
@@ -1044,7 +1053,7 @@ defmodule TuistWeb.AuthControllerTest do
       # for `(:oauth2, "shared-sub", "https://idp-b.example.com")` returns
       # :not_found — so we fall through to the email-based path and link
       # the attacker to THEIR OWN existing user (which they're allowed to,
-      # since they're a member of the attacker org).
+      # since their email is on the attacker org's verified domain).
       conn =
         conn
         |> init_test_session(%{
@@ -1106,6 +1115,143 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
       end
     end
+  end
+
+  describe "linking an existing account through a custom provider" do
+    test "does not link a member by email while the login domain is unverified", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "member@customer.example")
+      organization = custom_provider_organization(creator: member)
+      stub_sso_userinfo("unverified-member", member.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) == "/users/log_in"
+      assert get_session(conn, :user_return_to) == "/users/auth/oauth2?organization_id=#{organization.id}"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Log in to your Tuist account"
+      refute get_session(conn, :user_token)
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "unverified-member", "https://login.vendor.example")
+    end
+
+    test "does not link a member whose email is outside the verified domain", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "contractor@elsewhere.example")
+
+      organization =
+        custom_provider_organization(
+          creator: member,
+          sso_login_domain: "customer.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
+        )
+
+      stub_sso_userinfo("off-domain-member", member.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) == "/users/log_in"
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "off-domain-member", "https://login.vendor.example")
+    end
+
+    test "keeps linking members by email in compatibility mode", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "legacy-member@customer.example")
+
+      organization =
+        custom_provider_organization(creator: member, sso_legacy_email_domain_fallback: true)
+
+      stub_sso_userinfo("legacy-member", member.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) =~ "/#{member.account.name}"
+
+      assert {:ok, identity} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "legacy-member", "https://login.vendor.example")
+
+      assert identity.user_id == member.id
+    end
+
+    test "asks a signed-in member to confirm linking an identity with a different email", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "personal@mail.example")
+      organization = custom_provider_organization(creator: member)
+      stub_sso_userinfo("work-identity", "person@customer.example")
+
+      conn =
+        sso_callback(conn, organization, %{
+          user_token: Tuist.Accounts.generate_user_session_token(member),
+          oauth_return_to: "/#{member.account.name}/projects"
+        })
+
+      assert redirected_to(conn) == "/auth/sso/link"
+
+      assert %{
+               "user_id" => user_id,
+               "organization_id" => organization_id,
+               "provider" => "oauth2",
+               "uid" => "work-identity",
+               "provider_organization_id" => "https://login.vendor.example",
+               "email" => "person@customer.example",
+               "return_to" => return_to
+             } = get_session(conn, :pending_sso_link)
+
+      assert user_id == member.id
+      assert organization_id == organization.id
+      assert return_to == "/#{member.account.name}/projects"
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "work-identity", "https://login.vendor.example")
+    end
+
+    test "does not offer a signed-in user who does not belong to the organization a link", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      outsider = AccountsFixtures.user_fixture(email: "outsider@mail.example")
+      organization = custom_provider_organization(creator: owner)
+      stub_sso_userinfo("outsider-identity", outsider.email)
+
+      assert_error_sent 401, fn ->
+        sso_callback(conn, organization, %{user_token: Tuist.Accounts.generate_user_session_token(outsider)})
+      end
+    end
+  end
+
+  defp custom_provider_organization(attrs) do
+    AccountsFixtures.organization_fixture(
+      Keyword.merge(
+        [
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        ],
+        attrs
+      )
+    )
+  end
+
+  defp stub_sso_userinfo(sub, email) do
+    expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+      {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+    end)
+
+    expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+      {:ok, %{"sub" => sub, "email" => email, "name" => "Person"}}
+    end)
+  end
+
+  defp sso_callback(conn, organization, session \\ %{}) do
+    conn
+    |> init_test_session(
+      Map.merge(
+        %{sso_organization_id: organization.id, sso_state: "expected-state", sso_route_provider: :oauth2},
+        session
+      )
+    )
+    |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
   end
 
   describe "callback/2 with OAuth" do
