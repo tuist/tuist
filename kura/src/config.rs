@@ -99,6 +99,9 @@ const KURA_ANALYTICS_REQUEST_TIMEOUT_MS: &str = "KURA_ANALYTICS_REQUEST_TIMEOUT_
 const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
+const KURA_ANALYTICS_OUTBOX_MAX_ENTRIES: &str = "KURA_ANALYTICS_OUTBOX_MAX_ENTRIES";
+const KURA_ANALYTICS_OUTBOX_MAX_BYTES: &str = "KURA_ANALYTICS_OUTBOX_MAX_BYTES";
+const KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES: &str = "KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES";
 
 /// Dual-cap defaults for the durable analytics outbox. Entries is the
 /// secondary bound (protects RocksDB metadata cost); bytes is the
@@ -1533,6 +1536,66 @@ impl Config {
                 "{KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS} must be greater than 0"
             ));
         }
+        let analytics_outbox_max_entries = optional_parsed_value(
+            &mut lookup,
+            KURA_ANALYTICS_OUTBOX_MAX_ENTRIES,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ANALYTICS_OUTBOX_MAX_ENTRIES} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_ANALYTICS_OUTBOX_MAX_ENTRIES);
+        if analytics_outbox_max_entries == 0 {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_OUTBOX_MAX_ENTRIES} must be greater than 0"
+            ));
+        }
+        let analytics_outbox_max_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_ANALYTICS_OUTBOX_MAX_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_ANALYTICS_OUTBOX_MAX_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_ANALYTICS_OUTBOX_MAX_BYTES);
+        if analytics_outbox_max_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_OUTBOX_MAX_BYTES} must be greater than 0"
+            ));
+        }
+        let analytics_outbox_max_batch_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_ANALYTICS_OUTBOX_MAX_BATCH_BYTES);
+        if analytics_outbox_max_batch_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES} must be greater than 0"
+            ));
+        }
+        // A per-batch ceiling larger than the total byte cap would let
+        // a single append overshoot the disk budget: the byte-cap check
+        // runs before the append and can pass on an empty outbox, then
+        // land a batch that alone exceeds the cap. Codex flagged the
+        // scenario `MAX_BYTES=100_000` + `MAX_BATCH_BYTES=1_048_576`
+        // producing a ~10× overshoot. Fail fast at config time rather
+        // than silently accept, per `feedback_fail_fast_on_invalid_config`.
+        if (analytics_outbox_max_batch_bytes as u64) > analytics_outbox_max_bytes {
+            invalid.push(format!(
+                "{KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES} ({analytics_outbox_max_batch_bytes}) must be less than or equal to {KURA_ANALYTICS_OUTBOX_MAX_BYTES} ({analytics_outbox_max_bytes})"
+            ));
+        }
         let analytics = match (analytics_server_url, analytics_signing_key) {
             (None, None) => None,
             (Some(server_url), Some(signing_key)) => match reqwest::Url::parse(&server_url) {
@@ -1545,17 +1608,15 @@ impl Config {
                     request_timeout_ms: analytics_request_timeout_ms,
                     circuit_breaker_failure_threshold: analytics_circuit_breaker_failure_threshold,
                     circuit_breaker_open_ms: analytics_circuit_breaker_open_ms,
-                    // Outbox caps derived from Codex's dual-cap
-                    // recommendation. Bytes is the primary bound,
-                    // entries is the secondary bound, and the
-                    // per-batch ceiling keeps one unusually large
-                    // batch from consuming the whole budget. Frozen
-                    // as constants for this release; a follow-up
-                    // exposes them through env vars once we see real
-                    // traffic land in the outbox.
-                    outbox_max_entries: DEFAULT_ANALYTICS_OUTBOX_MAX_ENTRIES,
-                    outbox_max_bytes: DEFAULT_ANALYTICS_OUTBOX_MAX_BYTES,
-                    outbox_max_batch_bytes: DEFAULT_ANALYTICS_OUTBOX_MAX_BATCH_BYTES,
+                    // Dual-cap admission bounds. Bytes is the primary
+                    // bound (protects the data volume), entries is the
+                    // secondary bound (protects RocksDB metadata cost),
+                    // and the per-batch ceiling keeps one unusually
+                    // large batch from consuming the whole budget or
+                    // looping against HTTP 413.
+                    outbox_max_entries: analytics_outbox_max_entries,
+                    outbox_max_bytes: analytics_outbox_max_bytes,
+                    outbox_max_batch_bytes: analytics_outbox_max_batch_bytes,
                 }),
                 Err(error) => {
                     invalid.push(format!(
@@ -3390,6 +3451,9 @@ mod tests {
             (KURA_ANALYTICS_REQUEST_TIMEOUT_MS, "3000"),
             (KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD, "3"),
             (KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS, "45000"),
+            (KURA_ANALYTICS_OUTBOX_MAX_ENTRIES, "50000"),
+            (KURA_ANALYTICS_OUTBOX_MAX_BYTES, "134217728"),
+            (KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES, "262144"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -3410,15 +3474,33 @@ mod tests {
                 request_timeout_ms: 3_000,
                 circuit_breaker_failure_threshold: 3,
                 circuit_breaker_open_ms: 45_000,
-                outbox_max_entries: DEFAULT_ANALYTICS_OUTBOX_MAX_ENTRIES,
-                outbox_max_bytes: DEFAULT_ANALYTICS_OUTBOX_MAX_BYTES,
-                outbox_max_batch_bytes: DEFAULT_ANALYTICS_OUTBOX_MAX_BATCH_BYTES,
+                outbox_max_entries: 50_000,
+                outbox_max_bytes: 128 * 1024 * 1024,
+                outbox_max_batch_bytes: 256 * 1024,
             })
         );
         assert_eq!(config.rocksdb_block_cache_bytes, 32 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_manager_bytes, 48 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_size_bytes, 8 * 1024 * 1024);
         assert_eq!(config.rocksdb_max_write_buffer_number, 6);
+    }
+
+    #[test]
+    fn from_lookup_rejects_outbox_batch_ceiling_above_the_byte_cap() {
+        // Codex adversarial review: an operator who shrinks the byte cap
+        // without touching the per-batch ceiling could otherwise land a
+        // single batch that alone overshoots the disk budget by an order
+        // of magnitude (the byte-cap check runs before the append and
+        // can pass on an empty outbox). Fail fast at config parse time.
+        let error = config_from(&[
+            (KURA_ANALYTICS_SERVER_URL, "https://tuist.dev/"),
+            (KURA_ANALYTICS_SIGNING_KEY, "secret-key"),
+            (KURA_ANALYTICS_OUTBOX_MAX_BYTES, "100000"),
+            (KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES, "1048576"),
+        ])
+        .expect_err("per-batch ceiling above byte cap must fail configuration");
+        assert!(error.contains(KURA_ANALYTICS_OUTBOX_MAX_BATCH_BYTES));
+        assert!(error.contains(KURA_ANALYTICS_OUTBOX_MAX_BYTES));
     }
 
     #[test]
