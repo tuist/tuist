@@ -51,8 +51,12 @@ defmodule TuistWeb.OnceOverviewLiveTest do
 
     assert has_element?(view, "#once-overview")
 
-    # The same three cards the other build systems land on.
-    assert has_element?(view, "[data-part=analytics-card]")
+    # Renders under the same container and parts as the Xcode overview, so
+    # `overview.css` styles it rather than an approximation of it.
+    assert has_element?(view, "#once-overview.overview")
+    assert has_element?(view, "[data-part=analytics]")
+    assert has_element?(view, "[data-part=cache-effectiveness-card-chart-section]")
+    assert has_element?(view, "[data-part=effectiveness-chart]")
     assert has_element?(view, "#once-cache-hit-rate")
     assert has_element?(view, "#once-average-build-time")
     assert has_element?(view, "#once-average-test-run-time")
