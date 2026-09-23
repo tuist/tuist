@@ -106,3 +106,8 @@ Health-check incarnations use a random caller-reference suffix: Route53 retains
 references after deletion and rejects reusing them for days. Adopt both legacy
 and suffixed checks by box identity, keep the same reference across ambiguous
 create retries, and rotate it only after a definite AlreadyExists response.
+
+`cmd/staging-soak` is restricted to the spec95 staging fixture. It keeps one
+HTTP/1.1 transport and one HTTP/2 REAPI transport alive, records connection reuse
+and addresses, and compares system/authoritative DNS with three fresh verified
+TLS `/ready` probes per box each minute. No production host option is exposed.

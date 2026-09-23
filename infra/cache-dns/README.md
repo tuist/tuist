@@ -249,3 +249,29 @@ Health-check creation uses a fresh caller reference after collection. Route53
 retains deleted references for several days, so a cold return cannot recreate
 one using only its deterministic box identity. Existing legacy checks remain
 adoptable; uncertain create retries retain their reference to avoid duplicates.
+
+### Bounded staging outage and steering harness
+
+`go run ./cmd/staging-soak --origin <location> --token-file <private-file>` (from
+`infra/kura-controller`) keeps HTTP/1.1 and HTTP/2 REAPI transports alive for one
+hour against **only** `kura-spec95-e2e-staging.cache.tuist.dev`. It seeds a small
+fixture on both boxes, checks downloaded bytes every two seconds, and records
+connection reuse and remote addresses. Requests use ordinary system DNS, not a
+forced failover address; TLS verification remains enabled.
+
+`--latency-only` needs no token and compares system and authoritative DNS with
+three fresh TCP/TLS `/up` requests per box every minute, matching the CLI's probe
+path. It excludes regional DNS lookup time and is a controlled client-side
+measurement, not historical native-client telemetry. The authenticated mode also
+records a `/ready` latency series. Bound runs with `--duration` (maximum two hours).
+Keep the fixture IP list current; do not generalize the harness to production.
+
+Before a gateway drill, inventory every Ingress and KuraInstance on its ingress
+class and every DNS record referencing its health check. A fixture-only gateway
+can be temporarily unscheduled; leave shared gateways serving unrelated accounts
+alone. Save its template, arrange a bounded restoration watchdog, shorten only
+the affected pod's shutdown grace to break existing connections, and restore
+only the injected selector. Require a Ready survivor and healthy DNS records
+before starting. Record actual health/DNS transitions and unchanged-process
+recovery, then verify gateway readiness and restored health. Never treat a
+health-check configuration fault as proof of actual gateway recovery.

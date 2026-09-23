@@ -30,3 +30,7 @@ Use `runner_label=ubuntu-latest` for an external public-endpoint CI soak. The
 staging self-hosted runner policy denies public Kura node IPs as Cilium
 `remote-node` destinations when the private endpoint override is removed;
 do not weaken that policy to make this public-client check pass.
+
+`../kura-controller/cmd/staging-soak` adds bounded persistent-connection and
+DNS/latency evidence for the fixed staging fixture. Distinguish its fresh
+TCP/TLS readiness timings from historical native-client `/up` telemetry.
