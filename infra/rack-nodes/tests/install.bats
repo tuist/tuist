@@ -24,9 +24,13 @@ esac
 EOF
   cat >"$BIN/curl" <<'EOF'
 #!/usr/bin/env bash
-{ echo "ARGS $*"; echo "STDIN $(cat)"; } >>"$CURL_LOG"
+stdin="$CURL_LOG.stdin"
+cat >"$stdin"
+{ echo "ARGS $*"; echo "STDIN $(cat "$stdin")"; } >>"$CURL_LOG"
 case "$*" in
-  *oauth/token*) echo '{"access_token":"tok-1"}' ;;
+  *oauth/token*)
+    [ "$(tail -c 1 "$stdin" | od -An -c | tr -d ' ')" != '\n' ] || exit 22
+    echo '{"access_token":"tok-1"}' ;;
   *tailnet/-/keys*) echo '{"id":"kTEST1CNTRL","key":"tskey-auth-kTEST1CNTRL-abc"}' ;;
   *) exit 22 ;;
 esac

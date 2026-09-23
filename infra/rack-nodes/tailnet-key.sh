@@ -11,7 +11,7 @@ mint_tailnet_key() {
   local client_id token body response
 
   client_id="$(op read "op://$vault/$item/client-id")" || return 1
-  token="$(op read "op://$vault/$item/client-secret" |
+  token="$(op read "op://$vault/$item/client-secret" | tr -d '\r\n' |
     curl -fsS -X POST "$api/oauth/token" \
       --data-urlencode "client_id=$client_id" \
       --data-urlencode "client_secret@-" | jq -r '.access_token // empty')"
