@@ -10,8 +10,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// osUpdateDir holds the detached download and install jobs. It survives the reboot that ends an install.
-const osUpdateDir = "/var/tmp/tuist-os-update"
+// osUpdateDir holds the detached jobs' logs and exit codes. A macOS install resets /private/var/tmp; /Users/Shared survives it.
+const osUpdateDir = "/Users/Shared/tuist-os-update"
 
 const (
 	OSUpdateJobDownload = "download"

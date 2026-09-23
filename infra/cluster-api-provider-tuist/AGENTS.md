@@ -675,7 +675,7 @@ the host changed:
 | `InstallFailed` (exited before restarting) | Uncordoned: the host is unchanged |
 | `InstallTimedOut`, `VersionMismatch`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human; a NotReady Node goes back to the MachineHealthCheck |
 
-Reading the outcome on the host: the jobs log to `/var/tmp/tuist-os-update/`.
+Reading the outcome on the host: the jobs log to `/Users/Shared/tuist-os-update/`, which survives the install. `/private/var/tmp` does not.
 Nothing in the cluster reports a host's macOS version outside
 `status.osUpdate`, because `tart-kubelet` leaves `NodeInfo.OSImage` empty.
 
