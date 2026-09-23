@@ -22,6 +22,7 @@ defmodule Tuist.Kura.IdentityTest do
 
   test "renaming migrates client endpoints while preserving workload, peer and storage identity" do
     account = AccountsFixtures.organization_fixture().account
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: account)
     tenant = account.name
     region = Regions.get("eu-west")
     {:ok, ref} = KubernetesController.provision(account, region, %Server{})
@@ -64,6 +65,7 @@ defmodule Tuist.Kura.IdentityTest do
 
   test "redirects wait for activated URLs and every alias points directly to the latest name" do
     account = AccountsFixtures.organization_fixture().account
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: account)
     server = KuraFixtures.active_server_fixture(account, region: "eu-west")
     original_url = Provisioner.public_url(account, server)
     server = server |> Ecto.Changeset.change(url: original_url) |> Repo.update!()
@@ -119,6 +121,7 @@ defmodule Tuist.Kura.IdentityTest do
 
   test "client URLs expire at 90 days without changing identity, analytics or name ownership" do
     original = AccountsFixtures.organization_fixture(name: "original-#{System.unique_integer([:positive])}").account
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: original)
     server = KuraFixtures.active_server_fixture(original, region: "eu-west")
     {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
     canonical = Provisioner.public_url(account, server)
@@ -178,6 +181,75 @@ defmodule Tuist.Kura.IdentityTest do
     assert original.name in Identity.client_handles(restored)
     {:ok, _} = Accounts.update_account(restored, %{name: "final-#{original.id}"})
     assert DateTime.after?(client_url_deadline(original.name), earlier_deadline)
+  end
+
+  test "endpoint migration defaults off for already-renamed accounts independently of the rename gate" do
+    original = AccountsFixtures.organization_fixture().account
+    refute Identity.endpoint_migration_paused?(original)
+    server = KuraFixtures.active_server_fixture(original, region: "eu-west")
+    region = Regions.get(server.region)
+    ref = server.provisioner_node_ref
+    original_url = Provisioner.public_url(original, server)
+    server = server |> Ecto.Changeset.change(url: original_url) |> Repo.update!()
+    before = KubernetesController.manifest(ref, "0.52.1", original, region, server)
+    before_revision = KubernetesController.manifest_revision(%{server | account: original}, region)
+    {:ok, renamed} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    server = %{server | account: renamed}
+    FunWithFlags.enable(:kura_account_rename, for_actor: renamed)
+
+    other = AccountsFixtures.organization_fixture().account
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: other)
+
+    for environment <- [:test, :can, :prod] do
+      stub(Environment, :env, fn -> environment end)
+      refute Identity.endpoint_migration_enabled?(renamed)
+      assert KubernetesController.manifest(ref, "0.52.1", renamed, region, server) == before
+      assert KubernetesController.manifest_revision(server, region) == before_revision
+      assert Provisioner.public_url(renamed, server) == original_url
+      assert Identity.endpoint_redirects(renamed) == %{}
+    end
+
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: renamed)
+    migrated = KubernetesController.manifest(ref, "0.52.1", renamed, region, server)
+    assert migrated["spec"]["clientHostAliases"] == [URI.parse(original_url).host]
+    refute KubernetesController.manifest_revision(server, region) == before_revision
+    new_url = Provisioner.public_url(renamed, server)
+    refute new_url == original_url
+    assert Identity.endpoint_redirects(renamed) == %{}
+    server = server |> Ecto.Changeset.change(url: new_url) |> Repo.update!()
+    assert Identity.endpoint_redirects(renamed) == %{URI.parse(original_url).host => new_url}
+
+    FunWithFlags.disable(:kura_account_endpoint_migration, for_actor: renamed)
+    stub(Time, :utc_now, fn -> client_url_deadline(original.name) end)
+    assert Identity.client_handles(renamed) == [renamed.name]
+    assert KubernetesController.manifest_revision(server, region) == before_revision
+    assert Provisioner.public_url(renamed, server) == new_url
+    assert Provisioner.grpc_public_url(renamed, server) == String.replace_prefix(new_url, "https://", "grpcs://")
+    assert Identity.endpoint_redirects(renamed) == %{}
+    assert Identity.handles(renamed) == Enum.sort([original.name, renamed.name])
+
+    {:ok, restored} = Accounts.update_account(renamed, %{name: original.name})
+    assert Identity.endpoint_migration_paused?(restored)
+    assert Provisioner.public_url(restored, server) == new_url
+    assert Identity.endpoint_redirects(restored) == %{}
+  end
+
+  test "opt-in after rename-back reconciles frozen routes even when every alias has expired" do
+    original = AccountsFixtures.organization_fixture().account
+    server = KuraFixtures.active_server_fixture(original, region: "eu-west")
+    {:ok, middle} = Accounts.update_account(original, %{name: "middle-#{original.id}"})
+    {:ok, restored} = Accounts.update_account(middle, %{name: original.name})
+    server = %{server | account: restored}
+    region = Regions.get(server.region)
+    stub(Time, :utc_now, fn -> client_url_deadline(middle.name) end)
+    assert Identity.client_handles(restored) == [original.name]
+    paused_revision = KubernetesController.manifest_revision(server, region)
+
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: restored)
+    refute KubernetesController.manifest_revision(server, region) == paused_revision
+    manifest = KubernetesController.manifest(server.provisioner_node_ref, "0.52.1", restored, region, server)
+    assert manifest["spec"]["publicHost"] == URI.parse(Provisioner.public_url(restored, server)).host
+    refute Map.has_key?(manifest["spec"], "clientHostAliases")
   end
 
   test "new and existing accounts cannot claim an alias before or after URL expiry" do

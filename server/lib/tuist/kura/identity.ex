@@ -52,9 +52,30 @@ defmodule Tuist.Kura.Identity do
     [account.name | aliases] |> Enum.map(&String.downcase/1) |> Enum.uniq() |> Enum.sort()
   end
 
+  def endpoint_migration_enabled?(%Account{} = account) do
+    FunWithFlags.enabled?(:kura_account_endpoint_migration, for: account)
+  end
+
+  def endpoint_migration_enabled?(_account), do: false
+
+  def endpoint_handle(account) do
+    if endpoint_migration_enabled?(account), do: account.name, else: tenant_id(account)
+  end
+
+  def endpoint_migration_paused?(%Account{} = account) do
+    not endpoint_migration_enabled?(account) and
+      (String.downcase(account.name) != tenant_id(account) or handles(account) != [tenant_id(account)])
+  end
+
+  def endpoint_migration_paused?(_account), do: false
+
   # Only an endpoint that passed activation's DNS + HTTPS probe is a redirect
   # target. While provisioning the new name, old URLs continue serving in place.
   def endpoint_redirects(account) do
+    if endpoint_migration_enabled?(account), do: ready_endpoint_redirects(account), else: %{}
+  end
+
+  defp ready_endpoint_redirects(account) do
     aliases = client_handles(account) -- [String.downcase(account.name)]
 
     for server <- Repo.all(from(s in Server, where: s.account_id == ^account.id and s.status == :active)),

@@ -162,16 +162,29 @@ defmodule Tuist.Kura.Provisioner do
   end
 
   @doc "Calls `public_url/3` on the region's provisioner."
-  def public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id}) do
+  def public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.public_url(account.name, region, ref)
+      if Identity.endpoint_migration_paused?(account) and is_binary(server.url) do
+        server.url
+      else
+        region.provisioner.public_url(Identity.endpoint_handle(account), region, ref)
+      end
     end
   end
 
   @doc "Calls `grpc_public_url/3` on the region's provisioner."
-  def grpc_public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id}) do
+  def grpc_public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.grpc_public_url(account.name, region, ref)
+      handle =
+        if Identity.endpoint_migration_paused?(account) do
+          Enum.find(Identity.handles(account), Identity.tenant_id(account), fn handle ->
+            region.provisioner.public_url(handle, region, ref) == server.url
+          end)
+        else
+          Identity.endpoint_handle(account)
+        end
+
+      region.provisioner.grpc_public_url(handle, region, ref)
     end
   end
 

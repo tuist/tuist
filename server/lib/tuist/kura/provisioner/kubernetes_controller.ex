@@ -29,6 +29,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # below, so a change to any of them moves the base.
   @manifest_revision "2026-09-09-eu-west-region-rename-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
+  @client_endpoint_fields ~w(publicHost privateHost grpcPublicHost clientHostAliases)
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
   # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. The ceiling upload
@@ -70,12 +71,37 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     entitlements = manifest_entitlements(account, region)
     external_peers = self_hosted_peers(account, region, entitlements)
 
-    case apply_manifests(
-           [render_manifest(name, image_tag, account, region, server, external_peers, entitlements)],
-           region
-         ) do
-      :ok -> :ok
-      {:error, reason} -> {:error, reason}
+    manifest = render_manifest(name, image_tag, account, region, server, external_peers, entitlements)
+
+    with {:ok, manifest} <- preserve_paused_endpoints(manifest, account, server, region) do
+      apply_manifests([manifest], region)
+    end
+  end
+
+  # An image/resource update must not migrate hosts as a side effect. Preserve
+  # the actual CR, including intermediate names and aliases from an earlier
+  # opt-in, instead of guessing its endpoints from the immutable tenant.
+  defp preserve_paused_endpoints(manifest, account, server, region) do
+    if Identity.endpoint_migration_paused?(account) and owns_public_endpoints?(server) do
+      case client_get_kura_instance(@namespace, manifest["metadata"]["name"], region) do
+        {:ok, %{"spec" => spec}} when is_map(spec) ->
+          endpoints = Map.take(spec, @client_endpoint_fields)
+          {:ok, update_in(manifest["spec"], &Map.merge(Map.drop(&1, @client_endpoint_fields), endpoints))}
+
+        {:error, :not_found} when is_nil(server.url) ->
+          {:ok, manifest}
+
+        {:error, :not_found} ->
+          {:error, :endpoint_migration_paused}
+
+        {:error, reason} ->
+          {:error, reason}
+
+        {:ok, _} ->
+          {:error, :missing_instance_spec}
+      end
+    else
+      {:ok, manifest}
     end
   end
 
@@ -354,6 +380,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp render_manifest(name, image_tag, account, region, server, external_peers, entitlements) do
     account_handle = Identity.tenant_id(account)
+    endpoint_handle = Identity.endpoint_handle(account)
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
     claim = storage_claim(account, region, server)
     egress = effective_egress(account, region, entitlements)
@@ -386,9 +413,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # Only the steady-state (`:none`) server publishes the account's
           # customer endpoints. Warm handoffs remain disabled in production
           # until the peer endpoint has a stable account-region owner.
-          "publicHost" => if(owns_public_endpoints?(server), do: public_host(account.name, region)),
-          "privateHost" => if(owns_public_endpoints?(server), do: private_host(account.name, region)),
-          "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account.name, region)),
+          "publicHost" => if(owns_public_endpoints?(server), do: public_host(endpoint_handle, region)),
+          "privateHost" => if(owns_public_endpoints?(server), do: private_host(endpoint_handle, region)),
+          "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(endpoint_handle, region)),
           "clientHostAliases" => if(owns_public_endpoints?(server), do: client_host_aliases(account, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
@@ -425,6 +452,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp client_host_aliases(account, region) do
+    if Identity.endpoint_migration_enabled?(account), do: enabled_client_host_aliases(account, region)
+  end
+
+  defp enabled_client_host_aliases(account, region) do
     hosts =
       account
       |> Identity.client_handles()
@@ -440,9 +471,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp endpoint_identity_revision(account) do
+    if Identity.endpoint_migration_enabled?(account), do: enabled_endpoint_identity_revision(account), else: ""
+  end
+
+  defp enabled_endpoint_identity_revision(account) do
     handles = Identity.client_handles(account)
 
-    if handles == [Identity.tenant_id(account)] and String.downcase(account.name) == Identity.tenant_id(account) do
+    if Identity.handles(account) == [Identity.tenant_id(account)] do
       ""
     else
       digest =
