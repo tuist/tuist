@@ -195,6 +195,7 @@ mise run rack:fleet publish <device> [--context <ctx>]  # what preflight saw, in
 mise run rack:fleet diff [device]           # live switch against the render
 mise run rack:fleet apply <device> --dry-run
 mise run rack:fleet apply <device>          # rolls itself back unless it verifies
+mise run rack:fleet resolve <device>        # lift the hold a pending rollback left, once it is over
 mise run rack:fleet save <device>           # save running, once it matches the render
 mise run rack:fleet backup [device]         # startup config into the repo
 mise run rack:fleet drift                   # every switch; non-zero on drift
@@ -661,6 +662,29 @@ comparison covers every line, including the ones the render does not own and
 those too, so an unsaved credential change is as much at risk as a managed
 line. Only terminal noise is normalised away. It costs no extra connection,
 since the startup configuration is read in the session that applies.
+
+A run that ends with the timer armed and not confirmed cancelled holds the
+rack. That covers a command the switch rejected, a result that did not verify,
+an interrupt, and a cancel that failed after the switch already matched the
+render. The last is the one the apply ordering cannot catch: the switch passes
+it while minutes from rebooting, so without the hold the other ToR could be
+changed as this one goes down. The one-change-at-a-time lock (a directory
+under `FLEET_LOCK_DIR`, `/tmp` by default) is released as usual, but the run
+leaves `rack-fleet-<site>.rollback` beside it, naming the switch, when the
+timer was armed and when it fires. Every command that takes the lock (`apply`,
+`save`, `replace`, `recover`) refuses while it is there and says why.
+
+`mise run rack:fleet resolve <device>` is the only thing that lifts it. It
+refuses without connecting until the timer's deadline plus five minutes for the
+switch to boot, because before then a switch running its saved configuration
+does not show it rebooted: the change saved by hand reads the same with the
+reboot still to come. After that it opens one session, and lifts the hold only
+if the switch answers and its running configuration equals its startup
+configuration, every line. If it still differs, the timer was probably
+cancelled after all and the change is running unsaved; `preflight` shows where
+it stands, and removing the record by hand is the deliberate way out once the
+state is one you accept. No later run lifts it on its own, since none can tell
+a rollback that finished from one still to come.
 
 Measured on `ber1-tor-b` on 2026-09-22 before it was built: an unsaved change
 was discarded when the timer fired, three minutes to the second after arming,

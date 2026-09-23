@@ -19,6 +19,9 @@ STARTUP_CONFIG="show startup-config"
 # Long enough to apply and verify, short enough that a change which cut off the
 # management path is undone before anyone has to go and find a console cable.
 ROLLBACK_MINUTES=5
+# How long after its timer fires a switch is given to come back before its
+# rollback can be declared over; wait_for_reboot allows the same.
+ROLLBACK_BOOT_MARGIN=300
 
 site_file() { fleet_site_file "$SITE"; }
 
@@ -294,8 +297,8 @@ cmd_apply() {
   # one that does not verify, is undone by the switch itself: it comes back on
   # its saved configuration. The timer is cancelled only once the running
   # configuration matches the render, and only then is it saved.
-  local startup after raw status=0
-  startup="$(mktemp)"; after="$(mktemp)"; raw="$(mktemp)"
+  local startup after raw armed status=0
+  startup="$(mktemp)"; after="$(mktemp)"; raw="$(mktemp)"; armed="$(mktemp)"
   (
     trap switch_close EXIT
     trap 'switch_close; exit 130' INT TERM
@@ -309,6 +312,9 @@ cmd_apply() {
     fleet_same_config "$live" "$startup" || exit 11
     switch_run "configure" || exit 10
     switch_run_confirm "reboot-schedule in $ROLLBACK_MINUTES" "Y" 30 || exit 16
+    # From here until the cancel is confirmed a rollback is pending, and the
+    # rack is held however this ends.
+    date +%s > "$armed"
     switch_run "end" || exit 12
     while IFS= read -r command; do
       (( VERBOSE )) && echo "  $address > $command" >&2
@@ -322,9 +328,15 @@ cmd_apply() {
     switch_run "configure" || exit 14
     switch_run_confirm "reboot-schedule cancel" "Y" 30 || exit 14
     switch_run "end" || exit 14
+    : > "$armed"
     switch_run "copy running-config startup-config" || exit 15
   ) || status=$?
-  rm -f "$desired" "$live" "$additions" "$removals" "$commands" "$startup" "$after" "$raw"
+  local fires=""
+  if [ -s "$armed" ]; then
+    rollback_hold "$name" "$(cat "$armed")"
+    fires="$(rollback_field fires)"
+  fi
+  rm -f "$desired" "$live" "$additions" "$removals" "$commands" "$startup" "$after" "$raw" "$armed"
 
   local rollback="$name reboots on its saved configuration within $ROLLBACK_MINUTES minutes of the start"
   case "$status" in
@@ -340,11 +352,15 @@ cmd_apply() {
     13) echo "error: $name does not match the render after applying, so nothing was saved." >&2
         echo "       $rollback." >&2;;
     14) echo "error: $name matched the render but the rollback timer could not be cancelled." >&2
-        echo "       $rollback, dropping the change; apply again once it is back." >&2;;
+        echo "       $rollback, dropping the change; apply again once it is resolved." >&2;;
     15) echo "error: $name matches the render and the timer is cancelled, but saving failed." >&2
         echo "       The running configuration is right and unsaved; apply again to save it." >&2;;
     *)  echo "error: $name: interrupted; if the timer was armed, $rollback." >&2;;
   esac
+  if [ -n "$fires" ]; then
+    echo "       Nothing else in $SITE is changed until it is back. From $(local_time $(( fires + ROLLBACK_BOOT_MARGIN )))," >&2
+    echo "       confirm that with: mise run rack:fleet resolve $name" >&2
+  fi
   return $status
 }
 
@@ -413,10 +429,14 @@ cmd_backup() {
 # This still only coordinates runs on one machine: two laptops, or a laptop and
 # a CI job, are not serialised by it. A Lease is the answer to that, and it
 # needs something in the cluster to hold one.
+#
+# A rollback that may still be pending holds the rack past the run that left it;
+# see rollback_hold below. Every acquisition refuses while that hold is there,
+# except the one `resolve` takes to lift it.
 FLEET_LOCK=""
 
 fleet_lock() {
-  local reason="$1" dir owner pid
+  local reason="$1" during_hold="${2:-}" dir owner pid
   dir="${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$SITE.lock"
 
   # `mkdir` and nothing else. Reclaiming a stale lock automatically means
@@ -430,6 +450,13 @@ fleet_lock() {
     printf '%s %s\n' "$$" "$reason" > "$dir/owner"
     FLEET_LOCK="$dir"
     trap fleet_unlock EXIT
+    # Read under the lock, because the run that leaves a hold writes it before
+    # letting go.
+    if [ -z "$during_hold" ] && [ -f "$(rollback_record)" ]; then
+      rollback_report >&2
+      fleet_unlock
+      return 1
+    fi
     return 0
   fi
 
@@ -451,6 +478,107 @@ fleet_unlock() {
   [ -n "$FLEET_LOCK" ] || return 0
   rm -rf "$FLEET_LOCK"
   FLEET_LOCK=""
+}
+
+# The hold a pending rollback puts on the rack.
+#
+# A reboot timer that was armed and not confirmed cancelled leaves the switch
+# minutes from rebooting, and a switch whose running configuration already
+# matches the render passes the apply ordering. Releasing the lock at that point
+# would let the next ToR be changed while this one goes down, which is exactly
+# the "never both ToRs at once" the lock exists for. So the run that leaves a
+# rollback pending records it, beside the lock and while still holding it, and
+# the rack stays held until `resolve` has seen the switch back on its saved
+# configuration. Nothing lifts it on its own: a later run cannot tell a rollback
+# that finished from one still to come.
+rollback_record() { echo "${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$SITE.rollback"; }
+rollback_field()  { awk -v key="$1" '$1 == key { print $2 }' "$(rollback_record)"; }
+
+# An epoch as local time: BSD date takes it with -r, GNU date with -d @.
+local_time() { date -r "$1" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -d "@$1" '+%Y-%m-%d %H:%M:%S'; }
+
+rollback_hold() {
+  local name="$1" armed="$2" address
+  address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
+  printf 'device %s\naddress %s\narmed %s\nfires %s\n' \
+    "$name" "$address" "$armed" "$(( armed + ROLLBACK_MINUTES * 60 ))" > "$(rollback_record)"
+}
+
+rollback_report() {
+  local device address armed fires
+  device="$(rollback_field device)"
+  address="$(rollback_field address)"
+  armed="$(rollback_field armed)"
+  fires="$(rollback_field fires)"
+  echo "error: $device may still be rolling back. Its reboot timer was armed at $(local_time "$armed")"
+  echo "       and never confirmed cancelled, so it reboots on its saved configuration by"
+  echo "       $(local_time "$fires"). Nothing else in $SITE is changed until that is over."
+  echo "       Once $device ($address) is back, from $(local_time $(( fires + ROLLBACK_BOOT_MARGIN ))), confirm it with:"
+  echo "         mise run rack:fleet resolve $device"
+}
+
+# Lift the hold, once the switch shows its rollback is over.
+#
+# Not before the timer's deadline plus a boot margin, and without spending a
+# connection to find that out: until then a switch running its saved
+# configuration does not show that it rebooted, because the change saved by
+# hand reads the same with the reboot still to come. After that, one session:
+# the switch has to answer, and its running configuration has to be its startup
+# configuration, every line, which is what a switch that rolled back looks like.
+cmd_resolve() {
+  local name="${1:-}"
+  [ -n "$name" ] || { echo "usage: rack:fleet resolve <device>" >&2; return 2; }
+  fleet_lock "resolve $name" during-hold || return 1
+  local record held fires ready
+  record="$(rollback_record)"
+  if [ ! -f "$record" ]; then
+    echo "$SITE is not held: no rollback is pending"
+    return 0
+  fi
+  held="$(rollback_field device)"
+  if [ "$held" != "$name" ]; then
+    echo "error: $SITE is held for $held, not $name" >&2
+    return 1
+  fi
+  fires="$(rollback_field fires)"
+  ready=$(( fires + ROLLBACK_BOOT_MARGIN ))
+  if (( $(date +%s) < ready )); then
+    echo "error: $name's timer fires by $(local_time "$fires") and it may take until $(local_time "$ready")" >&2
+    echo "       to come back. Before then, running its saved configuration does not show that it" >&2
+    echo "       rebooted, so resolve it after $(local_time "$ready")." >&2
+    return 1
+  fi
+
+  local address user key running startup raw status=0
+  address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
+  user="$(jq -r '.credentials.username' "$(site_file)")"
+  key="$(jq -r '.credentials.ssh_key' "$(site_file)")"
+  running="$(mktemp)"; startup="$(mktemp)"; raw="$(mktemp)"
+  (
+    trap switch_close EXIT
+    trap 'switch_close; exit 130' INT TERM
+    switch_open "$address" "$user" "$key" || exit 10
+    switch_run "$RUNNING_CONFIG" || exit 10
+    printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
+    fleet_strip_transcript "$RUNNING_CONFIG" < "$raw" > "$running"
+    switch_run "$STARTUP_CONFIG" || exit 10
+    printf '%s\n' "$SWITCH_OUTPUT" > "$raw"
+    fleet_strip_transcript "$STARTUP_CONFIG" < "$raw" > "$startup"
+    fleet_same_config "$running" "$startup" || exit 11
+  ) || status=$?
+  rm -f "$running" "$startup" "$raw"
+  case "$status" in
+    0)  rm -f "$record"
+        echo "$name is running its saved configuration, so its rollback is over and $SITE is no longer held."
+        echo "See where that left it with: mise run rack:fleet preflight $name";;
+    11) echo "error: $name's running configuration still differs from its saved one, although its" >&2
+        echo "       timer should have fired by now. It may have been cancelled after all, leaving the" >&2
+        echo "       change running unsaved. See where it stands with:" >&2
+        echo "         mise run rack:fleet preflight $name" >&2
+        echo "       and once it is in a state you accept, lift the hold by hand: rm $record" >&2;;
+    *)  echo "error: could not read $name at $address, so $SITE stays held" >&2;;
+  esac
+  return "$status"
 }
 
 # Serving TFTP needs root, because TFTP is always requested on port 69, and
@@ -1182,7 +1310,7 @@ main() {
     esac
   done
   local command="${1:-}"
-  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
+  [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
   fleet_load_jumps "$(site_file)"
@@ -1191,6 +1319,7 @@ main() {
     render)     cmd_render "$@";;
     diff)       cmd_diff "$@";;
     apply)      refuse_adopted "$@" && cmd_apply "$@";;
+    resolve)    cmd_resolve "$@";;
     backup)     cmd_backup "$@";;
     save)       refuse_adopted "$@" && cmd_save "$@";;
     sessions)   cmd_sessions "$@";;
