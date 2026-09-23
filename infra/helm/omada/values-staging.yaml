@@ -1,0 +1,38 @@
+# Staging: the controller for the rack fleet while the rack is at home. A
+# switch can be adopted by only one controller at a time, so there is one
+# controller, not one per environment; when the rack moves to the data center
+# it moves to the production cluster with it, the same values under that
+# cluster's tag.
+#
+# REACHABILITY. Nothing about the controller is public. The Tailscale operator
+# gives the Service its own tailnet device (`omada`), and the switches reach it
+# through the rack's edge node, which translates their traffic onto its own
+# tailnet address (infra/rack-switch-fleet/edge-path.sh). A switch is pointed
+# at it with `controller inform-url` and the controller's tailnet IP, since
+# switches have no resolver for MagicDNS names; L2 discovery does not cross
+# into the cluster.
+#
+# CREDENTIALS. The admin account and the Open API client are created in the
+# controller's own first-boot wizard, so no ExternalSecret can seed them. Once
+# made they live in 1Password, and the fleet tooling reads the API client from
+# there with `op`, as it reads the switches' passwords.
+omada-controller-helm:
+  service:
+    annotations:
+      tailscale.com/expose: "true"
+      tailscale.com/hostname: "omada"
+      # The staging operator's OAuth client may only mint this env's tag.
+      tailscale.com/tags: "tag:tuist-k8s-staging"
+
+  persistence:
+    data:
+      size: 5Gi
+
+  # Three switches and no PoE fleet, so the small footprint is honest rather
+  # than optimistic.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
