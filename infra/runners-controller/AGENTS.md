@@ -1279,7 +1279,9 @@ Linux-only. The agent image includes ext4/loop tooling, with no Ceph dependency.
 See [host setup and rollout](cache-volumes.md).
 RunnerPool `cacheVolumeRoot`/`cacheVolumeURL` enable UID-scoped host mounts in
 runner and DinD, guarded by Kata and the storage-readiness node label. Incoming
-mount propagation must work through Kata; keep disabled until staging proves it.
+mount propagation must work through Kata. Staging has verified native GitHub and
+ordinary Docker jobs; keep production disabled until the remaining provider and
+operational gates in the rollout guide pass.
 Mount revision changes use the existing bounded idle rollout. No account-wide
 cache root or infrastructure credential crosses into workflow containers.
 

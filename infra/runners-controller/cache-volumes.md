@@ -6,7 +6,8 @@ images, and generation-checked publication. No Ceph cluster, credentials, RBD
 images or network block devices are required. Custom key/path volumes remain
 Linux-only; the existing automatic macOS repository cache is unchanged.
 
-The feature is disabled by default pending the deployed Kata/provider smoke gates.
+The feature is disabled by default. Staging is enabled for the validation below;
+production remains disabled pending the remaining provider and operational gates.
 
 ## Workflow
 
@@ -202,4 +203,39 @@ Rollback: disable new volume-using jobs, allow teardown/publication to settle,
 then remove the agents and readiness labels. Never unmount the backing filesystem
 under live jobs. Do not roll back to the RBD agent against local-image journals.
 The new schema columns are additive; rollback after cleanup can drop them, but
-would lose publication metadata. No live fleet was changed by local validation.
+would lose publication metadata.
+
+### Staging evidence (September 23, 2026)
+
+The [staging deployment](https://github.com/tuist/tuist/actions/runs/35879898316)
+uses a separately provisioned 200 GB preallocated XFS filesystem on the staging
+OVH Linux host. Its systemd mount and provisioning idempotency were checked; a host
+reboot has not been tested. Production is unchanged.
+
+Real GitHub native and ordinary Docker jobs passed
+[cold attachment](https://github.com/tuist/runners-benchmark/actions/runs/35882826464),
+[warm restoration](https://github.com/tuist/runners-benchmark/actions/runs/35883138500),
+and [remote restoration after agent restart](https://github.com/tuist/runners-benchmark/actions/runs/35884140819).
+The last test moved aside only the two disposable local smoke masters after all
+active uses settled, forcing downloads from the real object store. It does not
+simulate losing a physical host.
+
+[Failed jobs](https://github.com/tuist/runners-benchmark/actions/runs/35883293984)
+wrote different contents and intentionally failed; their uses were discarded.
+[Active jobs](https://github.com/tuist/runners-benchmark/actions/runs/35883427020)
+retained private contents after clearing, while
+[new jobs](https://github.com/tuist/runners-benchmark/actions/runs/35883588085)
+started empty. Old-generation writes were discarded. The clear test invoked the
+shared account-scoped service for two allowlisted smoke volumes, not the public
+authenticated HTTP endpoint.
+
+[Cancellation](https://github.com/tuist/runners-benchmark/actions/runs/35884472438)
+discarded both jobs' private writes, and
+[subsequent jobs](https://github.com/tuist/runners-benchmark/actions/runs/35884844710)
+verified the last successful contents were unchanged.
+
+The first live run exposed the verified-job webhook race and the Kata SubPath
+teardown deadlock described above. Both were fixed and rerun. Passing Buildkite
+and GitLab workload evidence, public distribution releases, host reboot/loss,
+capacity exhaustion, upload outage injection, and representative workload
+benchmarks remain required before production enablement.
