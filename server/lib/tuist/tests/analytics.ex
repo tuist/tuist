@@ -5,6 +5,7 @@ defmodule Tuist.Tests.Analytics do
   import Ecto.Query
 
   alias Postgrex.Interval
+  alias Tuist.Builds.Build
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.Tests
@@ -952,9 +953,11 @@ defmodule Tuist.Tests.Analytics do
   - total_tests: Number of test cases reported by the run
   - skipped_tests: Number of those test cases reported as skipped
   - ran_tests: Number of those test cases that ran
-  - cache_hit_rate: Module cache hit rate as a string (e.g., "50 %")
   - ran_test_modules: Number of test modules that ran
   - skipped_test_modules: Number of test modules skipped by selective testing
+  - has_selective_testing_data: Whether selective testing ran for the test run
+  - module_cache_hit_rate: Module cache hit rate as a string (e.g., "50 %"), or nil without module cache data
+  - xcode_cache_hit_rate: Xcode cache hit rate of the test run's build as a string, or nil without Xcode cache data
   """
   def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
@@ -986,55 +989,109 @@ defmodule Tuist.Tests.Analytics do
       |> ClickHouseRepo.all()
       |> Map.new()
 
-    event_data =
-      ClickHouseRepo.all(
-        from(e in Event,
-          where: e.project_id == ^project_id and e.test_run_id in ^test_run_ids,
-          select: %{
-            test_run_id: e.test_run_id,
-            cacheable_targets_count: e.cacheable_targets_count,
-            local_cache_hits_count: e.local_cache_hits_count,
-            remote_cache_hits_count: e.remote_cache_hits_count,
-            local_test_hits_count: e.local_test_hits_count,
-            remote_test_hits_count: e.remote_test_hits_count
-          }
-        )
+    events_by_test_run_id =
+      from(e in Event,
+        where: e.project_id == ^project_id and e.test_run_id in ^test_run_ids,
+        select: %{
+          test_run_id: e.test_run_id,
+          cacheable_targets_count: e.cacheable_targets_count,
+          local_cache_hits_count: e.local_cache_hits_count,
+          remote_cache_hits_count: e.remote_cache_hits_count,
+          test_targets_count: e.test_targets_count,
+          local_test_hits_count: e.local_test_hits_count,
+          remote_test_hits_count: e.remote_test_hits_count
+        }
       )
+      |> ClickHouseRepo.all()
+      |> Map.new(&{&1.test_run_id, &1})
 
-    event_data_map = Map.new(event_data, &{&1.test_run_id, &1})
+    build_run_ids = test_runs |> Enum.map(& &1.build_run_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    module_cache_events_by_build_run_id = module_cache_events_by_build_run_id(project_id, build_run_ids)
+    builds_by_id = xcode_cache_counts_by_build_id(project_id, build_run_ids, test_runs)
 
-    test_run_ids
-    |> Enum.uniq()
-    |> Enum.map(fn test_run_id ->
-      test_case_count = Map.get(test_case_counts, test_run_id, %{total_count: 0, skipped_count: 0})
-      event_info = Map.get(event_data_map, test_run_id, %{})
+    test_runs
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.map(fn test_run ->
+      test_case_count = Map.get(test_case_counts, test_run.id, %{total_count: 0, skipped_count: 0})
+      event = Map.get(events_by_test_run_id, test_run.id, %{})
 
-      cacheable_targets = Map.get(event_info, :cacheable_targets_count, 0)
-      local_cache_hits = Map.get(event_info, :local_cache_hits_count, 0)
-      remote_cache_hits = Map.get(event_info, :remote_cache_hits_count, 0)
-      total_cache_hits = local_cache_hits + remote_cache_hits
-
-      cache_hit_rate =
-        if cacheable_targets == 0 do
-          "0 %"
-        else
-          "#{(total_cache_hits / cacheable_targets * 100) |> Float.floor() |> round()} %"
-        end
-
-      local_test_hits = Map.get(event_info, :local_test_hits_count, 0)
-      remote_test_hits = Map.get(event_info, :remote_test_hits_count, 0)
+      module_cache_event =
+        if Map.get(event, :cacheable_targets_count, 0) > 0,
+          do: event,
+          else: Map.get(module_cache_events_by_build_run_id, test_run.build_run_id)
 
       %{
-        test_run_id: test_run_id,
+        test_run_id: test_run.id,
         total_tests: test_case_count.total_count,
         skipped_tests: test_case_count.skipped_count,
         ran_tests: test_case_count.total_count - test_case_count.skipped_count,
-        cache_hit_rate: cache_hit_rate,
-        ran_test_modules: Map.get(ran_test_module_counts, test_run_id, 0),
-        skipped_test_modules: local_test_hits + remote_test_hits
+        ran_test_modules: Map.get(ran_test_module_counts, test_run.id, 0),
+        skipped_test_modules: Map.get(event, :local_test_hits_count, 0) + Map.get(event, :remote_test_hits_count, 0),
+        has_selective_testing_data: Map.get(event, :test_targets_count, 0) > 0,
+        module_cache_hit_rate: module_cache_hit_rate(module_cache_event),
+        xcode_cache_hit_rate: xcode_cache_hit_rate(Map.get(builds_by_id, test_run.build_run_id))
       }
     end)
   end
+
+  # A test run that reused a separate build reports its module cache lookups on
+  # the build's command event. Among events sharing the build run ID, prefer the
+  # one without a test run, then the earliest, like the test run page does.
+  defp module_cache_events_by_build_run_id(_project_id, []), do: %{}
+
+  defp module_cache_events_by_build_run_id(project_id, build_run_ids) do
+    from(e in Event,
+      where: e.project_id == ^project_id and e.build_run_id in ^build_run_ids and e.cacheable_targets_count > 0,
+      order_by: [desc: is_nil(e.test_run_id), asc: e.ran_at, asc: e.created_at],
+      select: %{
+        build_run_id: e.build_run_id,
+        cacheable_targets_count: e.cacheable_targets_count,
+        local_cache_hits_count: e.local_cache_hits_count,
+        remote_cache_hits_count: e.remote_cache_hits_count
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.build_run_id)
+    |> Map.new(&{&1.build_run_id, &1})
+  end
+
+  # Build runs are rewritten when processing finishes, so read each column from
+  # the latest version of the row. The builds that tests run against are
+  # uploaded before them, which bounds the partitions the lookup reads.
+  defp xcode_cache_counts_by_build_id(_project_id, [], _test_runs), do: %{}
+
+  defp xcode_cache_counts_by_build_id(project_id, build_run_ids, test_runs) do
+    inserted_at_floor =
+      test_runs
+      |> Enum.map(& &1.ran_at)
+      |> Enum.min(NaiveDateTime)
+      |> NaiveDateTime.add(-7, :day)
+
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id in ^build_run_ids and b.inserted_at >= ^inserted_at_floor,
+      group_by: b.id,
+      select: %{
+        id: b.id,
+        cacheable_tasks_count: fragment("argMax(?, ?)", b.cacheable_tasks_count, b.updated_at),
+        cacheable_task_local_hits_count: fragment("argMax(?, ?)", b.cacheable_task_local_hits_count, b.updated_at),
+        cacheable_task_remote_hits_count: fragment("argMax(?, ?)", b.cacheable_task_remote_hits_count, b.updated_at)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  defp module_cache_hit_rate(%{cacheable_targets_count: total} = event) when total > 0,
+    do: hit_rate_text(event.local_cache_hits_count + event.remote_cache_hits_count, total)
+
+  defp module_cache_hit_rate(_event), do: nil
+
+  defp xcode_cache_hit_rate(%{cacheable_tasks_count: total} = build) when total > 0,
+    do: hit_rate_text(build.cacheable_task_local_hits_count + build.cacheable_task_remote_hits_count, total)
+
+  defp xcode_cache_hit_rate(_build), do: nil
+
+  defp hit_rate_text(hits, total), do: "#{(hits / total * 100) |> Float.floor() |> round()} %"
 
   @doc """
   Gets test case run analytics for a project over a time period.

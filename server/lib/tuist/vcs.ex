@@ -847,27 +847,41 @@ defmodule Tuist.VCS do
          test_run_url: test_run_url,
          project: project
        }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
-    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+    metrics_map = project.id |> TestsAnalytics.test_runs_metrics(test_runs) |> Map.new(&{&1.test_run_id, &1})
+    runs = Enum.map(test_runs, &{&1, Map.fetch!(metrics_map, &1.id)})
+    any_run? = fn field -> Enum.any?(runs, fn {_test_run, metrics} -> Map.fetch!(metrics, field) end) end
+    selective_testing? = any_run?.(:has_selective_testing_data)
 
-    rows =
-      Enum.map_join(test_runs, "", fn test_run ->
-        test_run_metrics = Map.get(metrics_map, test_run.id)
+    columns =
+      Enum.filter(
+        [
+          {"Scheme", true,
+           fn {test_run, _metrics} ->
+             scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+             "[#{scheme}](#{test_run_url.(%{project: project, test_run: test_run})})"
+           end},
+          {"Status", true, fn {test_run, _metrics} -> get_test_run_status_text(test_run) end},
+          {"Module cache hit rate", any_run?.(:module_cache_hit_rate),
+           fn {_test_run, metrics} -> metrics.module_cache_hit_rate || "-" end},
+          {"Xcode cache hit rate", any_run?.(:xcode_cache_hit_rate),
+           fn {_test_run, metrics} -> metrics.xcode_cache_hit_rate || "-" end},
+          {"Test modules", true, fn {_test_run, metrics} -> metrics.skipped_test_modules + metrics.ran_test_modules end},
+          {"Skipped", selective_testing?,
+           fn {_test_run, metrics} -> selective_testing_count(metrics, metrics.skipped_test_modules) end},
+          {"Ran", selective_testing?,
+           fn {_test_run, metrics} -> selective_testing_count(metrics, metrics.ran_test_modules) end},
+          {"Commit", true, fn {test_run, _metrics} -> commit_link(test_run.git_commit_sha, git_remote_url_origin) end}
+        ],
+        fn {_header, shown?, _cell} -> shown? end
+      )
 
-        test_url = test_run_url.(%{project: project, test_run: test_run})
-        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-
-        cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
-        skipped_test_modules = if test_run_metrics, do: test_run_metrics.skipped_test_modules, else: 0
-        ran_test_modules = if test_run_metrics, do: test_run_metrics.ran_test_modules, else: 0
-
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{skipped_test_modules + ran_test_modules} | #{skipped_test_modules} | #{ran_test_modules} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
-      end)
-
-    "| Scheme | Status | Module cache hit rate | Test modules | Skipped | Ran | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
-      rows
+    "| #{Enum.map_join(columns, " | ", fn {header, _, _} -> header end)} |\n" <>
+      "|#{Enum.map_join(columns, "|", fn _ -> ":-:" end)}|\n" <>
+      Enum.map_join(runs, "", fn run -> "| #{Enum.map_join(columns, " | ", fn {_, _, cell} -> cell.(run) end)} |\n" end)
   end
+
+  defp selective_testing_count(%{has_selective_testing_data: true}, count), do: count
+  defp selective_testing_count(_metrics, _count), do: "-"
 
   defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
 
