@@ -24,21 +24,28 @@ defmodule TuistWeb.OnceRunsLive do
   @page_size 20
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    {resource, resource_kind, kind_filter, base_path, show_analytics?} =
+    {resource, table_title, resource_kind, kind_filter, base_path, show_analytics?} =
       case socket.assigns[:live_action] do
         :tests ->
-          {dgettext("dashboard_projects", "Test Runs"), :tests, "test", "once/test-runs", true}
+          {dgettext("dashboard_projects", "Test Runs"), dgettext("dashboard_projects", "Test Runs"), :tests, "test",
+           "once/test-runs", true}
 
         :build_runs ->
-          {dgettext("dashboard_projects", "Build Runs"), :builds, "build", "once/build-runs", false}
+          {dgettext("dashboard_projects", "Build Runs"), dgettext("dashboard_projects", "Build Runs"), :builds, "build",
+           "once/build-runs", false}
 
         _ ->
-          {dgettext("dashboard_projects", "Builds"), :builds, "build", "once/builds", true}
+          # The Builds page is an overview whose table lists the latest runs,
+          # so the card is titled the way the Xcode and Gradle builds pages
+          # title theirs rather than repeating the page name.
+          {dgettext("dashboard_projects", "Builds"), dgettext("dashboard_builds", "Recent Builds"), :builds, "build",
+           "once/builds", true}
       end
 
     socket =
       socket
       |> assign(:once_resource, resource)
+      |> assign(:once_table_title, table_title)
       |> assign(:once_resource_kind, resource_kind)
       |> assign(:once_base_path, base_path)
       |> assign(:once_kind_filter, kind_filter)
@@ -196,7 +203,7 @@ defmodule TuistWeb.OnceRunsLive do
   def render(assigns) do
     ~H"""
     <div id="bazel-invocations" class="bazel-invocations">
-      <div :if={@once_show_analytics} data-part="filters">
+      <div data-part="filters">
         <.date_picker
           id="once-invocations-date-range-picker"
           name="analytics-date-range"
@@ -487,7 +494,7 @@ defmodule TuistWeb.OnceRunsLive do
       </.card>
 
       <.card
-        title={@once_resource}
+        title={@once_table_title}
         icon="subtask"
         data-part="bazel-invocations-card"
       >
@@ -760,7 +767,7 @@ defmodule TuistWeb.OnceRunsLive do
 
   defp configuration_insights_chart_options(analytics) do
     %{
-      grid: %{right: "2%", left: 120, height: "100%", top: "0%"},
+      grid: %{width: "98%", left: "50", height: "100%", top: "0%"},
       xAxis: %{
         boundaryGap: false,
         type: "value",
@@ -770,15 +777,11 @@ defmodule TuistWeb.OnceRunsLive do
         }
       },
       yAxis: %{
+        offset: 40,
         splitNumber: 4,
         type: "category",
         splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-        axisLabel: %{
-          color: "var:noora-surface-label-secondary",
-          hideOverlap: false,
-          overflow: "truncate",
-          width: 100
-        },
+        axisLabel: %{color: "var:noora-surface-label-secondary"},
         data: Enum.map(analytics, & &1.category)
       },
       legend: %{show: false},
