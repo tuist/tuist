@@ -1,10 +1,5 @@
 # runners-controller
 
-The offline [scheduling simulation](scheduling-simulation.md) compares current
-dispatch with the shadow policy on controlled workloads. It never operates the
-fleet. See [simulation boundary](internal/simulation/AGENTS.md) before changing
-its assumptions or interpreting results.
-
 Kubernetes controller for `RunnerPool` CRDs. Runs in the workload
 cluster, reconciles Pods + per-Pod `ServiceAccount`s that the Tuist
 server's dispatch endpoint authenticates via the TokenReview API.
