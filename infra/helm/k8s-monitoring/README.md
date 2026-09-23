@@ -98,18 +98,19 @@ http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/tra
 
 Server pod metrics are discovered automatically: the server Deployment carries `prometheus.io/scrape: "true"` and `prometheus.io/port: "9091"`, and `annotationAutodiscovery` picks those up without any static scrape-target config.
 
-### The macOS fleet pushes logs to `alloy-receiver:3100`
+### The macOS fleet and rack edge nodes push logs to `alloy-receiver:3100`
 
-The same receiver serves a `loki.source.api` on 3100 for everything running on a Mac mini, because none of it can be tailed from the cluster:
+The same receiver serves a `loki.source.api` on 3100 for everything running on a Mac mini or a rack's edge node, because none of it can be tailed from the cluster:
 
 - The **Tart guests** (xcresult processor) — Alloy cannot read a VM's filesystem, and `kubectl logs` cannot resolve their tailnet-only kubelet hostnames.
 - The **Mac mini hosts themselves** — a Pod scheduled to a macOS Node *is* a Tart VM, so a DaemonSet-shaped collector lands inside a guest and never sees `/var/log/tart-kubelet.log`. The host runs [`infra/macos-log-shipper`](../../macos-log-shipper) instead, installed by the CAPI provider's bootstrap alongside `node_exporter`. Query it as `{job="tuist-macos-tart-kubelet"}`.
+- The **rack edge node** (the `rack-edge` DaemonSet in `omada`, see [`infra/rack-switch-fleet`](../../rack-switch-fleet/AGENTS.md)) — the Cilium agent never runs there, so `alloy-logs` would have no route to cluster Services or DNS. `alloy-rack-edge` runs on the node's host network instead, reads `/var/log/pods` itself and labels lines from the file path. Query it like any pod: `{namespace="omada", container="dhcp"}`. Enabled per env where an edge node is joined (staging today).
 
-Both reach it at the receiver Service's **tailnet** hostname, set by the `tailscale.com/expose` annotations in each env's `values-{staging,canary,production}.yaml`, not at the in-cluster address Linux workloads use. Pushing here rather than to Grafana Cloud keeps the ingest credential in one place: Alloy forwards with the token it already holds, so no Mac mini carries one and the tailnet ACL is the access control.
+All of them reach it at the receiver Service's **tailnet** hostname, set by the `tailscale.com/expose` annotations in each env's `values-{staging,canary,production}.yaml`, not at the in-cluster address Linux workloads use. Pushing here rather than to Grafana Cloud keeps the ingest credential in one place: Alloy forwards with the token it already holds, so no Mac mini or edge node carries one and the tailnet ACL is the access control. The receiver stamps each line with the time it arrives.
 
 ## What gets deployed
 
-Six Alloy instances, split by role (managed by the upstream `alloy-operator`):
+Seven Alloy instances, split by role (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
 - `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
@@ -120,6 +121,9 @@ Six Alloy instances, split by role (managed by the upstream `alloy-operator`):
 - `alloy-control-plane` — one host-networked Pod per control-plane node,
   scraping the local Kubernetes and etcd endpoints without exposing etcd
   outside the machine
+- `alloy-rack-edge` — one host-networked Pod per rack edge node, pushing
+  that node's pod logs to `alloy-receiver` over the tailnet. Off unless
+  the env enables it
 
 The management cluster runs only `alloy-metrics` and `alloy-control-plane`.
 It also runs a Hetzner load-balancer exporter and configures kube-state-metrics
@@ -381,6 +385,7 @@ instead.
 - `alloy-control-plane` — one host-networked pod on each control-plane node, with read-only access to the Kubernetes `/metrics` endpoint. etcd metrics remain on the host loopback interface.
 - `alloy-logs` — node-local hostPath to `/var/log/pods` (pod logs) and `/var/log/journal` (host journald: `containerd` / `kubelet` / kernel). No extra Kubernetes API access; a compromised pod can still only read logs from the single node it runs on.
 - `alloy-singleton` — cluster-wide `get/list/watch` on events.
+- `alloy-rack-edge` — node-local read-only hostPath to `/var/log` and a hostPath for its read positions. No Kubernetes API access and no Grafana Cloud credential.
 - `alloy-receiver` — none beyond standard pod execution.
 - `kube-state-metrics` — cluster-wide read on most core/apps/batch objects (standard for KSM).
 - `node-exporter` — hostPID, `/proc` / `/sys` hostPath (standard for node_exporter).

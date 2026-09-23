@@ -214,6 +214,11 @@ trap 'kc -n kube-system delete secret "bootstrap-token-$token_id" --ignore-not-f
 
 # The configuration carries the token, so it reaches the edge node on stdin and
 # is removed once kubeadm has read it.
+#
+# The kubelet hands host-network pods that use the node's resolver
+# (dnsPolicy: Default) systemd-resolved's stub, which answers tailnet names,
+# rather than kubeadm's choice of resolved's upstream servers, which do not.
+# The node's log collector pushes to the Alloy receiver by its tailnet name.
 cat <<CONFIG | on_edge "sudo -n mkdir -p /etc/kubernetes && sudo -n install -m 600 /dev/stdin /etc/kubernetes/rack-edge-join.yaml"
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: JoinConfiguration
@@ -232,6 +237,8 @@ nodeRegistration:
   kubeletExtraArgs:
     - name: node-ip
       value: "$tailnet_ip"
+    - name: resolv-conf
+      value: /etc/resolv.conf
     - name: node-labels
       value: "tuist.dev/rack-edge=$rack,node.cluster.x-k8s.io/instance-type=rack,cilium.io/no-schedule=true"
 CONFIG
