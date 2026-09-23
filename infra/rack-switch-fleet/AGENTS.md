@@ -743,15 +743,29 @@ tunnel and cut the node off. Then kubeadm's join, with a one-hour bootstrap
 token it deletes afterwards, the node's tailnet address as its InternalIP, the
 labels `tuist.dev/rack-edge=<site>`, `node.cluster.x-k8s.io/instance-type=rack`
 and `cilium.io/no-schedule=true`, and the taint `tuist.dev/rack-edge=<site>`,
-so only the rack-edge pod lands there (and the node exporter, which tolerates
-everything and uses host networking too). The kubelet gets a local CNI
-configuration in `10.254.254.0/24`, used by nothing, so it reports Ready.
-`--leave` deletes the node and resets kubeadm.
+so only the rack-edge pod lands there (and the node exporter and the log
+collector, which tolerate it and use host networking too). The kubelet gets a
+local CNI configuration in `10.254.254.0/24`, used by nothing, so it reports
+Ready, and hands host-network pods on the node's resolver systemd-resolved's
+stub (`/etc/resolv.conf`), which answers tailnet names. `--leave` deletes the
+node and resets kubeadm.
 
 **Reading the pod's logs.** The API server cannot reach the kubelet at a tailnet
 address, the same as for the Mac minis, so `kubectl logs` and `exec` time out
-for this node. On the node: `sudo crictl -r unix:///run/containerd/containerd.sock
-logs <container>`.
+for this node. The pod's logs are in Loki like any other pod's:
+
+```
+{cluster="tuist-staging", namespace="omada", container="dhcp"}
+{cluster="tuist-staging", namespace="omada", container="path-reapply"}
+```
+
+They get there through `alloy-rack-edge` in
+[`infra/helm/k8s-monitoring`](../helm/k8s-monitoring), an Alloy collector on
+the node's host network that reads `/var/log/pods` and pushes to the cluster's
+Alloy receiver at its tailnet name. Each line carries the time the receiver got
+it, so lines the collector catches up on after an outage are stamped late;
+dnsmasq's own time is at the start of each line. On the node itself:
+`sudo crictl -r unix:///run/containerd/containerd.sock logs <container>`.
 
 ### Auto Install on the edge node
 
