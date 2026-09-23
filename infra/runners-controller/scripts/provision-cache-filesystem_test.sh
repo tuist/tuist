@@ -2,12 +2,13 @@
 set -euo pipefail
 [[ $EUID == 0 ]] || { echo 'Run inside the Linux filesystem test container.' >&2; exit 1; }
 script=$(realpath "$(dirname "$0")/provision-cache-filesystem.sh")
-scratch=$(mktemp -d)
+scratch=$(mktemp -d /tmp/tuist-cache-provision-XXXXXX)
 export PROVISION_TEST_ROOT="$scratch"
 unit="tuist-cache-provision-test-$$.mount"
 export PROVISION_TEST_UNIT="$unit"
 trap 'rm -rf "$scratch"; rm -f "/etc/systemd/system/$unit"' EXIT
 mkdir -p "$scratch/bin" /etc/systemd/system
+touch "$scratch/calls"
 cat > "$scratch/bin/tool" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -49,11 +50,11 @@ reject 'insufficient reservation space'
 [[ ! -e "$root.img" ]]
 unset PROVISION_TEST_AVAILABLE
 
-run
+run || { cat "$scratch/output"; exit 1; }
 [[ $(cat "$root.img") == filesystem ]]
 [[ $(grep -c '^mkfs.xfs ' "$scratch/calls") == 1 ]]
 grep -q 'X-fstrim.notrim' "/etc/systemd/system/$unit"
-run
+run || { cat "$scratch/output"; exit 1; }
 [[ $(grep -c '^mkfs.xfs ' "$scratch/calls") == 1 ]]
 [[ $(grep -c '^fallocate ' "$scratch/calls") == 1 ]]
 
