@@ -32,8 +32,8 @@ routes live in `helm/k8s-monitoring/kura-availability-*.json`. They are
 provisioned separately from Helm and reflect the enabled live rule. Its separate
 `Cache availability` evaluation group must use a 60-second interval. Merge the
 three policy routes into the current Grafana tree, preserving existing staging
-exceptions first; never PUT the route array as a whole-tree replacement. The regression script
-uses promtool and amtool to check query behavior and production-only IRM routing.
+exceptions first; never PUT the route array as a whole-tree replacement. The Bash/jq
+regression script uses promtool and amtool to check query behavior and production-only IRM routing.
 
 ### `helm/platform/` — platform bootstrap chart
 cert-manager + external-dns + ESO + metrics-server + ingress-nginx controllers, installed once per workload cluster. Kura customer endpoints default to dedicated shared regional Kura ingress controllers rather than the main web ingress dataplane. Enterprise/high-volume exceptions are reconciled dynamically by the Kura controller from `KuraGateway` CRs, not hard-coded as customer-specific platform chart aliases. Provider-specific LB annotations live in per-provider and cluster overlays (e.g., `values-hetzner.yaml`, `values-tuist.yaml`).

@@ -3697,8 +3697,8 @@ For future reprovisioning or rollback:
 4. To roll back, pause this rule first, then remove only these three scoped
    routes from the current policy. Do not restore a stale whole-tree backup.
 
-Run `python3 infra/helm/k8s-monitoring/test-kura-availability-alert.py` with
-`promtool` and `amtool` on PATH (or set `AMTOOL` to the latter's path). The
+Run `bash infra/helm/k8s-monitoring/test-kura-availability-alert.sh` with
+`jq`, `promtool` and `amtool` on PATH (or set `AMTOOL` to the latter's path). The
 script tests the exact query and pending period plus ten routing cases using
 Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 
@@ -3733,7 +3733,7 @@ readiness gate and follow the [node-local recovery runbook](../../kura-controlle
 Test the exact provisioning expression and pending period with:
 
 ```sh
-python3 infra/helm/k8s-monitoring/test-kura-availability-alert.py
+bash infra/helm/k8s-monitoring/test-kura-availability-alert.sh
 ```
 
 The fixtures cover healthy and degraded replicas, complete outage, recovery,

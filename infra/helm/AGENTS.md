@@ -25,9 +25,9 @@ This node covers Helm assets under `infra/helm/`.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
-- `k8s-monitoring/kura-availability-alert-rules.json` is a paused provisioning
-  artifact, not a live Helm-installed rule. Its zero-ready-replica expression
-  is exercised directly by `test-kura-availability-alert.py` using promtool.
+- `k8s-monitoring/kura-availability-alert-rules.json` reflects the enabled rule,
+  provisioned separately from Helm. Its zero-ready-replica expression and routing
+  are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
   Keep unavailable service separate from the 30-minute redundancy warning.
 - Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
 - When filtering metrics, preserve every side of absence-based alerts. The
