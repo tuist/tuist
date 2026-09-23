@@ -7,6 +7,7 @@ defmodule Tuist.Tests.AnalyticsTest do
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestModuleRun
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -304,6 +305,29 @@ defmodule Tuist.Tests.AnalyticsTest do
         }
       ])
 
+      module_run = fn test_run_id, name ->
+        %{
+          id: UUIDv7.generate(),
+          name: name,
+          test_run_id: test_run_id,
+          project_id: project.id,
+          status: 0,
+          is_flaky: false,
+          duration: 100,
+          test_suite_count: 1,
+          test_case_count: 1,
+          avg_test_case_duration: 100,
+          inserted_at: ~N[2024-04-30 11:00:00.000000]
+        }
+      end
+
+      # TestE ran on two shards, so it is reported twice.
+      IngestRepo.insert_all(TestModuleRun, [
+        module_run.(test_run_one.id, "TestB"),
+        module_run.(test_run_two.id, "TestE"),
+        module_run.(test_run_two.id, "TestE")
+      ])
+
       # Create command events linked to test runs
       _command_event_one =
         CommandEventsFixtures.command_event_fixture(
@@ -351,16 +375,16 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert result_one.skipped_tests == 0
       assert result_one.ran_tests == 1
       assert result_one.cache_hit_rate == "66 %"
-      assert result_one.test_targets == 2
-      assert result_one.skipped_test_targets == 1
+      assert result_one.ran_test_modules == 1
+      assert result_one.skipped_test_modules == 1
 
       assert result_two.test_run_id == test_run_two.id
       assert result_two.total_tests == 3
       assert result_two.skipped_tests == 1
       assert result_two.ran_tests == 2
       assert result_two.cache_hit_rate == "50 %"
-      assert result_two.test_targets == 3
-      assert result_two.skipped_test_targets == 2
+      assert result_two.ran_test_modules == 1
+      assert result_two.skipped_test_modules == 2
     end
 
     test "handles test runs without command events" do
@@ -414,8 +438,51 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert result.skipped_tests == 0
       assert result.ran_tests == 1
       assert result.cache_hit_rate == "0 %"
-      assert result.test_targets == 0
-      assert result.skipped_test_targets == 0
+      assert result.ran_test_modules == 0
+      assert result.skipped_test_modules == 0
+    end
+
+    test "returns metrics for test runs where selective testing skipped every test module" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          is_flaky: false,
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_run_id: test_run.id,
+        test_targets: ["TestA", "TestB"],
+        local_test_target_hits: ["TestA"],
+        remote_test_target_hits: ["TestB"],
+        created_at: ~N[2024-04-30 10:00:00.000000]
+      )
+
+      # When
+      got = Analytics.test_runs_metrics(project.id, [test_run])
+
+      # Then
+      assert [result] = got
+      assert result.test_run_id == test_run.id
+      assert result.total_tests == 0
+      assert result.ran_test_modules == 0
+      assert result.skipped_test_modules == 2
     end
   end
 

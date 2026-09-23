@@ -858,22 +858,16 @@ defmodule Tuist.VCS do
         scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
 
         cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
-        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
-        skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
-        ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
+        skipped_test_modules = if test_run_metrics, do: test_run_metrics.skipped_test_modules, else: 0
+        ran_test_modules = if test_run_metrics, do: test_run_metrics.ran_test_modules, else: 0
 
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{selective_testing_text(test_run_metrics)} | #{total_tests} | #{skipped_tests} | #{ran_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{skipped_test_modules + ran_test_modules} | #{skipped_test_modules} | #{ran_test_modules} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
       end)
 
-    "| Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
+    "| Scheme | Status | Module cache hit rate | Test modules | Skipped | Ran | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
       rows
   end
-
-  defp selective_testing_text(%{test_targets: test_targets, skipped_test_targets: skipped_test_targets})
-       when test_targets > 0, do: "#{skipped_test_targets} / #{test_targets}"
-
-  defp selective_testing_text(_test_run_metrics), do: "-"
 
   defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
 

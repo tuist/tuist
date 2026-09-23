@@ -16,6 +16,7 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseRunActiveDailyStat
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
+  alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.XcodeCoverage
   alias Tuist.Tests.XcodeCoverageRun
 
@@ -951,9 +952,9 @@ defmodule Tuist.Tests.Analytics do
   - total_tests: Number of test cases reported by the run
   - skipped_tests: Number of those test cases reported as skipped
   - ran_tests: Number of those test cases that ran
-  - cache_hit_rate: Cache hit rate as a string (e.g., "50 %")
-  - test_targets: Number of test targets considered by selective testing
-  - skipped_test_targets: Number of test targets skipped by selective testing
+  - cache_hit_rate: Module cache hit rate as a string (e.g., "50 %")
+  - ran_test_modules: Number of test modules that ran
+  - skipped_test_modules: Number of test modules skipped by selective testing
   """
   def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
@@ -963,17 +964,27 @@ defmodule Tuist.Tests.Analytics do
     # It is ReplacingMergeTree, so re-inserts can duplicate rows per id;
     # `count(DISTINCT id)` gets the right count without paying for FINAL.
     test_case_counts =
-      ClickHouseRepo.all(
-        from(t in TestCaseRunByTestRun,
-          where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
-          group_by: t.test_run_id,
-          select: %{
-            test_run_id: t.test_run_id,
-            total_count: fragment("count(DISTINCT ?)", t.id),
-            skipped_count: fragment("uniqExactIf(?, ? = 'skipped')", t.id, t.status)
-          }
-        )
+      from(t in TestCaseRunByTestRun,
+        where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
+        group_by: t.test_run_id,
+        select: %{
+          test_run_id: t.test_run_id,
+          total_count: fragment("count(DISTINCT ?)", t.id),
+          skipped_count: fragment("uniqExactIf(?, ? = 'skipped')", t.id, t.status)
+        }
       )
+      |> ClickHouseRepo.all()
+      |> Map.new(&{&1.test_run_id, &1})
+
+    # Sharded runs report the same module once per shard, so count distinct names.
+    ran_test_module_counts =
+      from(m in TestModuleRun,
+        where: m.test_run_id in ^test_run_ids,
+        group_by: m.test_run_id,
+        select: {m.test_run_id, fragment("uniqExact(?)", m.name)}
+      )
+      |> ClickHouseRepo.all()
+      |> Map.new()
 
     event_data =
       ClickHouseRepo.all(
@@ -984,7 +995,6 @@ defmodule Tuist.Tests.Analytics do
             cacheable_targets_count: e.cacheable_targets_count,
             local_cache_hits_count: e.local_cache_hits_count,
             remote_cache_hits_count: e.remote_cache_hits_count,
-            test_targets_count: e.test_targets_count,
             local_test_hits_count: e.local_test_hits_count,
             remote_test_hits_count: e.remote_test_hits_count
           }
@@ -993,9 +1003,10 @@ defmodule Tuist.Tests.Analytics do
 
     event_data_map = Map.new(event_data, &{&1.test_run_id, &1})
 
-    Enum.map(test_case_counts, fn test_case_count ->
-      test_run_id = test_case_count.test_run_id
-      total_count = test_case_count.total_count
+    test_run_ids
+    |> Enum.uniq()
+    |> Enum.map(fn test_run_id ->
+      test_case_count = Map.get(test_case_counts, test_run_id, %{total_count: 0, skipped_count: 0})
       event_info = Map.get(event_data_map, test_run_id, %{})
 
       cacheable_targets = Map.get(event_info, :cacheable_targets_count, 0)
@@ -1015,12 +1026,12 @@ defmodule Tuist.Tests.Analytics do
 
       %{
         test_run_id: test_run_id,
-        total_tests: total_count,
+        total_tests: test_case_count.total_count,
         skipped_tests: test_case_count.skipped_count,
-        ran_tests: total_count - test_case_count.skipped_count,
+        ran_tests: test_case_count.total_count - test_case_count.skipped_count,
         cache_hit_rate: cache_hit_rate,
-        test_targets: Map.get(event_info, :test_targets_count, 0),
-        skipped_test_targets: local_test_hits + remote_test_hits
+        ran_test_modules: Map.get(ran_test_module_counts, test_run_id, 0),
+        skipped_test_modules: local_test_hits + remote_test_hits
       }
     end)
   end
