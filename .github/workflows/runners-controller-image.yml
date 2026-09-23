@@ -61,14 +61,25 @@ jobs:
       - name: Test
         working-directory: infra/runners-controller
         run: go test ./...
-      - name: Exercise local cache images on Linux
-        run: infra/runners-controller/scripts/test-cache-filesystem.sh
       - name: Vet
         working-directory: infra/runners-controller
         run: go vet ./...
 
+  test-filesystems:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    # The agent runs on the host kernel, not Kata's minimal guest kernel.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/runners-controller/go.mod
+          cache-dependency-path: infra/runners-controller/go.sum
+      - name: Exercise local cache images on Linux
+        run: infra/runners-controller/scripts/test-cache-filesystem.sh
+
   build:
-    needs: test
+    needs: [test, test-filesystems]
     if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
