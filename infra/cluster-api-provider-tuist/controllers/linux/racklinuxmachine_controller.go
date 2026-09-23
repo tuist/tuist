@@ -253,6 +253,9 @@ func (r *RackLinuxMachineReconciler) observeNode(machine *infrav1.RackLinuxMachi
 // the next check.
 func (r *RackLinuxMachineReconciler) convergeDue(machine *infrav1.RackLinuxMachine, host *infrav1.RackLinuxHost, node *corev1.Node, desired string) (bool, time.Duration) {
 	now := time.Now()
+	if machine.Status.TailnetDeviceID != host.Status.Tailnet.DeviceID {
+		return true, 0
+	}
 	if machine.Status.ConvergeFailures > 0 && machine.Status.LastConvergeAttemptTime != nil {
 		backoff := convergeBackoff(machine.Status.ConvergeFailures)
 		if elapsed := now.Sub(machine.Status.LastConvergeAttemptTime.Time); elapsed < backoff {
@@ -260,8 +263,7 @@ func (r *RackLinuxMachineReconciler) convergeDue(machine *infrav1.RackLinuxMachi
 		}
 		return true, 0
 	}
-	if machine.Status.TailnetDeviceID != host.Status.Tailnet.DeviceID || machine.Status.HostConfigHash != desired ||
-		machine.Status.LastConvergeTime == nil {
+	if machine.Status.HostConfigHash != desired || machine.Status.LastConvergeTime == nil {
 		return true, 0
 	}
 	since := now.Sub(machine.Status.LastConvergeTime.Time)
@@ -373,6 +375,18 @@ func (r *RackLinuxMachineReconciler) converge(
 	now := metav1.Now()
 	machine.Status.LastConvergeAttemptTime = &now
 	machine.Status.Phase = "Converging"
+	if previous := machine.Status.TailnetDeviceID; previous != host.Status.Tailnet.DeviceID {
+		machine.Status.TailnetDeviceID = host.Status.Tailnet.DeviceID
+		machine.Status.ConvergeFailures = 0
+		if previous != "" {
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "HostReinstalled",
+				"%s is on tailnet device %s, not %s: it was reinstalled, so its SSH host key is pinned afresh",
+				host.Name, host.Status.Tailnet.DeviceID, previous)
+			if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, rackLinuxPinKey(host.Name, previous)); err != nil {
+				logger.Error(err, "delete the previous install's host key pin", "host", host.Name)
+			}
+		}
+	}
 
 	if err := r.checkCiliumExcludesRackNodes(ctx); err != nil {
 		return err
@@ -383,14 +397,6 @@ func (r *RackLinuxMachineReconciler) converge(
 		return err
 	}
 	pinKey := rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
-	if previous := machine.Status.TailnetDeviceID; previous != "" && previous != host.Status.Tailnet.DeviceID {
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "HostReinstalled",
-			"%s is on tailnet device %s, not %s: it was reinstalled, so its SSH host key is pinned afresh",
-			host.Name, host.Status.Tailnet.DeviceID, previous)
-		if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, rackLinuxPinKey(host.Name, previous)); err != nil {
-			return fmt.Errorf("delete the previous install's host key pin: %w", err)
-		}
-	}
 	known := ""
 	if creds, err := r.CredentialsManager.GetMachineBootstrap(ctx, pinKey); err != nil {
 		return fmt.Errorf("read the host key pin: %w", err)
@@ -454,7 +460,6 @@ func (r *RackLinuxMachineReconciler) converge(
 	}
 	logger.Info("converged rack host", "host", host.Name, "summary", summary)
 
-	machine.Status.TailnetDeviceID = host.Status.Tailnet.DeviceID
 	machine.Status.HostConfigHash = desired
 	machine.Status.LastConvergeTime = &now
 	machine.Status.ConvergeFailures = 0

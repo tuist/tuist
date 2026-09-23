@@ -389,3 +389,42 @@ func TestConvergeBackoff(t *testing.T) {
 		}
 	}
 }
+
+func failingMachine(device string, failures int32, lastAttempt time.Duration) *infrav1.RackLinuxMachine {
+	m := edgeMachine()
+	m.Status.RackLinuxHost = "ber1-edge"
+	m.Status.TailnetDeviceID = device
+	m.Status.ConvergeFailures = failures
+	at := metav1.NewTime(time.Now().Add(-lastAttempt))
+	m.Status.LastConvergeAttemptTime = &at
+	return m
+}
+
+func TestRackLinuxMachineConvergesANewDeviceWithoutWaitingOutTheBackoff(t *testing.T) {
+	host := claimedEdgeHost("dev-2")
+	host.Status.ClaimedBy = "edge-0"
+	objs := append(rackClusterObjects(true), host, failingMachine("dev-1", 7, time.Minute))
+	h := newRackMachineHarness(t, "v1.34.8", objs...)
+
+	m := h.reconcile(t)
+
+	if len(h.runner.runs) != 1 {
+		t.Fatalf("ran %d scripts; a reinstalled host must not wait out the old device's backoff", len(h.runner.runs))
+	}
+	if m.Status.ConvergeFailures != 0 || m.Status.TailnetDeviceID != "dev-2" {
+		t.Fatalf("status %+v", m.Status)
+	}
+}
+
+func TestRackLinuxMachineBacksOffOnTheSameDevice(t *testing.T) {
+	host := claimedEdgeHost("dev-1")
+	host.Status.ClaimedBy = "edge-0"
+	objs := append(rackClusterObjects(true), host, failingMachine("dev-1", 3, time.Minute))
+	h := newRackMachineHarness(t, "v1.34.8", objs...)
+
+	h.reconcile(t)
+
+	if len(h.runner.runs) != 0 {
+		t.Fatalf("ran %d scripts inside the backoff", len(h.runner.runs))
+	}
+}
