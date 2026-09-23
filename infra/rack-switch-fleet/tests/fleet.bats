@@ -19,6 +19,18 @@ setup_file() {
     # used to build its own input.
     export BODY="$BATS_FILE_TMPDIR/body.txt"
     sed -n '/#show running-config$/,$p' "$TRANSCRIPT" | sed '1d;$d' > "$BODY"
+
+    # The site definition is the real rack's, so a test that gets past a guard
+    # it meant to trip talks to a real switch, and a switch allows only a few
+    # connections per boot. Every command that leaves this machine fails here
+    # unless the test puts its own stub ahead of these on PATH.
+    local guard="$BATS_FILE_TMPDIR/no-network"
+    mkdir -p "$guard"
+    for tool in ssh scp curl kubectl op nc telnet tftp; do
+        printf '#!/bin/sh\necho "test reached the real %s: $*" >&2\nexit 97\n' "$tool" > "$guard/$tool"
+        chmod +x "$guard/$tool"
+    done
+    export PATH="$guard:$PATH"
 }
 
 setup() {
@@ -1718,7 +1730,10 @@ STUB
 }
 
 @test "inform needs the controller's tailnet address, since a switch cannot resolve its name" {
-    run "$FLEET_ROOT/omada.sh" inform ber1-mgmt
+    copy="$BATS_TEST_TMPDIR/fleet-copy"
+    cp -R "$FLEET_ROOT" "$copy"
+    jq 'del(.management.controller.address)' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
+    run "$copy/omada.sh" inform ber1-mgmt
     [ "$status" -eq 2 ]
     [[ "$output" == *"management.controller.address"* ]]
 }
@@ -2050,11 +2065,12 @@ STUB
 @test "zero touch names the controller in option 138 once its address is known" {
     bin="$BATS_TEST_TMPDIR/via6"
     ztp_via_stub "$bin"
-    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
-        "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
-    [[ "$output" != *"dhcp-option=138"* ]]
     copy="$BATS_TEST_TMPDIR/fleet-copy"
     cp -R "$FLEET_ROOT" "$copy"
+    jq 'del(.management.controller.address)' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
+        "$copy/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
+    [[ "$output" != *"dhcp-option=138"* ]]
     jq '.management.controller.address = "100.101.102.103"' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
     run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
         "$copy/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run

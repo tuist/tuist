@@ -22,6 +22,7 @@
     },
     "controller": {
       "url": "https://omada.taild6d7bb.ts.net:8043",
+      "address": "100.84.132.92",
       "site": "Default",
       "credential_item": "omada staging open api"
     }

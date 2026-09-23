@@ -604,24 +604,27 @@ has got.
 
 The goal: the switches, and in time the edge node, managed from the cluster the
 rack belongs to, which is staging while BER1 is at home and production once it
-is in the data center. Where that stands on 2026-09-22:
+is in the data center. Where that stands on 2026-09-23:
 
 - **Built and exercised.** `RackSwitch` objects rendered from the site
   definition; `rack:ztp --via` serving zero-touch provisioning from `ber1-edge`,
   run end to end on `ber1-mgmt`; `rack:edge-path` giving the switches behind the
   edge node a path into the tailnet, installed on `ber1-edge` (ber1-mgmt carries
   the route and is reached through the edge node by every fleet command).
-- **Built, waiting on a merge.** `omada-deployment.yml` puts the controller in
-  staging, exposed on the tailnet as `omada`; the Rack Switches workflow puts the
-  CRD and the objects in `tuist-staging`. Neither can run by hand: an engineer
-  cannot create a namespace or a CRD in staging.
-- **Waiting on a person, once each.** Pasting `infra/tailscale/acls.json` into
-  the admin console (it adds `tag:tuist-rack-edge`); opening the login URL
-  `rack:edge-path` prints, to join `ber1-edge` to the tailnet; the controller's
-  first-boot wizard and its Open API client, stored in 1Password as "omada
-  staging open api" with `client_id` and `client_secret` fields.
-- **Then, with no one.** Record the controller's tailnet IP as
-  `management.controller.address`, `rack:omada inform ber1-mgmt`,
+- **Running in staging.** The controller, deployed by `omada-deployment.yml` and
+  on the tailnet as `omada` at `100.84.132.92`, recorded as
+  `management.controller.address`; the `RackSwitch` CRD beside it. `ber1-edge`
+  is on the tailnet as `tag:tuist-rack-edge` and reaches the controller's device
+  ports.
+- **Waiting on a merge.** The Rack Switches workflow applies the objects to
+  `tuist-staging` once this directory is on `main`. Applying them by hand, and
+  `rack:fleet publish` patching their status, need write access to the kind,
+  which the built-in `edit` role does not give; `tuist-edit-rackswitches-write`
+  in `infra/helm/pomerium/templates/access-tiers.yaml` does.
+- **Waiting on a person, once.** The controller's first-boot wizard and its Open
+  API client, stored in 1Password as "omada staging open api" with `client_id`
+  and `client_secret` fields.
+- **Then, with no one.** `rack:omada inform ber1-mgmt`,
   `rack:omada adopt ber1-mgmt`, and the adoption questions in the assessment
   get answered: what adoption does to a configured switch, and whether it honours
   a write the API accepts.
