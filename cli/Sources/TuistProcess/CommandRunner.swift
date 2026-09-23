@@ -41,21 +41,26 @@ public enum ProcessEvent: Sendable {
 
 public typealias CommandEvent = ProcessEvent
 
-public enum CommandError: Error, Equatable, Sendable, CustomStringConvertible {
+public enum CommandError: Error, Equatable, Sendable, CustomStringConvertible, LocalizedError {
     case executableNotFound(String)
     case terminated(Int32, stderr: String, command: [String])
+    case signalled(Int32, command: [String])
 
     public var description: String {
         switch self {
         case let .executableNotFound(executable):
-            return "Executable not found: \(executable)"
+            return "Couldn't locate the executable '\(executable)' in the environment."
         case let .terminated(exitCode, stderr, command):
             let commandDescription = command.joined(separator: " ")
-            return stderr.isEmpty
-                ? "Command terminated with exit code \(exitCode): \(commandDescription)"
-                : "Command terminated with exit code \(exitCode): \(commandDescription)\n\(stderr)"
+            let trimmedStandardError = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let description = "The command '\(commandDescription)' terminated with the code \(exitCode)"
+            return trimmedStandardError.isEmpty ? description : "\(description):\n\(trimmedStandardError)"
+        case let .signalled(signal, command):
+            return "The command '\(command.joined(separator: " "))' terminated after receiving a signal with code \(signal)"
         }
     }
+
+    public var errorDescription: String? { description }
 }
 
 private actor StandardErrorCollector {
@@ -150,7 +155,24 @@ extension AsyncThrowingStream where Element == ProcessEvent {
 }
 
 public struct CommandRunner: CommandRunning {
-    public init() {}
+    private let processLimiter: AsyncResourceLimiter
+
+    public init() {
+        processLimiter = Self.sharedProcessLimiter
+    }
+
+    init(maximumConcurrentProcesses: Int) {
+        processLimiter = AsyncResourceLimiter(limit: maximumConcurrentProcesses)
+    }
+
+    static let reservedFileDescriptors = 32
+    static let fileDescriptorsPerProcess = 6
+    static let maximumConcurrentProcesses = 256
+    static let fallbackMaximumConcurrentProcesses = 16
+    private static let gracefulShutdownDuration: Duration = .seconds(5)
+    private static let sharedProcessLimiter = AsyncResourceLimiter(
+        limitProvider: { systemMaximumConcurrentProcesses() }
+    )
 
     public func run(
         arguments: [String],
@@ -160,54 +182,70 @@ public struct CommandRunner: CommandRunning {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    guard let executableName = arguments.first else {
-                        throw CommandError.executableNotFound("")
-                    }
-
-                    let executable: Executable = executableName.contains("/")
-                        ? .path(FilePath(executableName))
-                        : .name(executableName)
-                    let subprocessEnvironment = Dictionary(
-                        uniqueKeysWithValues: environment.map { (Environment.Key(rawValue: $0.key)!, $0.value) }
-                    )
-                    let configuration = Configuration(
-                        executable: executable,
-                        arguments: Arguments(Array(arguments.dropFirst())),
-                        environment: .custom(subprocessEnvironment),
-                        workingDirectory: workingDirectory.map { FilePath($0.pathString) }
-                    )
-                    let standardError = StandardErrorCollector()
-                    let result = try await Subprocess.run(configuration) { _, _, output, error in
-                        try await withThrowingTaskGroup(of: Void.self) { group in
-                            group.addTask {
-                                for try await buffer in output {
-                                    continuation.yield(.standardOutput(buffer.withUnsafeBytes(Array.init)))
-                                }
-                            }
-                            group.addTask {
-                                for try await buffer in error {
-                                    let bytes = buffer.withUnsafeBytes(Array.init)
-                                    await standardError.append(bytes)
-                                    continuation.yield(.standardError(bytes))
-                                }
-                            }
-                            try await group.waitForAll()
+                    try await processLimiter.withPermit {
+                        guard let executableName = arguments.first else {
+                            throw CommandError.executableNotFound("")
                         }
-                    }
 
-                    guard result.terminationStatus.isSuccess else {
-                        let exitCode: Int32
-                        switch result.terminationStatus {
-                        case let .exited(code): exitCode = code
-                        #if !os(Windows)
-                            case let .signaled(signal): exitCode = signal
-                        #endif
-                        }
-                        throw CommandError.terminated(
-                            exitCode,
-                            stderr: await standardError.collectedValue(),
-                            command: arguments
+                        let executable: Executable = executableName.contains("/")
+                            ? .path(FilePath(executableName))
+                            : .name(executableName)
+                        let subprocessEnvironment = Dictionary(
+                            uniqueKeysWithValues: environment.map { (Environment.Key(rawValue: $0.key)!, $0.value) }
                         )
+                        var platformOptions = PlatformOptions()
+                        platformOptions.teardownSequence = [
+                            .gracefulShutDown(allowedDurationToNextStep: Self.gracefulShutdownDuration),
+                        ]
+                        let configuration = Configuration(
+                            executable: executable,
+                            arguments: Arguments(Array(arguments.dropFirst())),
+                            environment: .custom(subprocessEnvironment),
+                            workingDirectory: workingDirectory.map { FilePath($0.pathString) },
+                            platformOptions: platformOptions
+                        )
+                        let standardOutputPipe = try FileDescriptor.pipe()
+                        let standardErrorPipe = try FileDescriptor.pipe()
+                        let standardOutput = FileHandle(fileDescriptor: standardOutputPipe.readEnd.rawValue, closeOnDealloc: true)
+                        let standardError = FileHandle(fileDescriptor: standardErrorPipe.readEnd.rawValue, closeOnDealloc: true)
+                        let standardErrorCollector = StandardErrorCollector()
+                        let result = try await Subprocess.run(
+                            configuration,
+                            input: .standardInput,
+                            output: .fileDescriptor(standardOutputPipe.writeEnd, closeAfterSpawningProcess: true),
+                            error: .fileDescriptor(standardErrorPipe.writeEnd, closeAfterSpawningProcess: true)
+                        ) { _ in
+                            try await withThrowingTaskGroup(of: Void.self) { group in
+                                group.addTask {
+                                    for try await data in standardOutput.byteStream() {
+                                        continuation.yield(.standardOutput(Array(data)))
+                                    }
+                                }
+                                group.addTask {
+                                    for try await data in standardError.byteStream() {
+                                        let bytes = Array(data)
+                                        await standardErrorCollector.append(bytes)
+                                        continuation.yield(.standardError(bytes))
+                                    }
+                                }
+                                try await group.waitForAll()
+                            }
+                        }
+
+                        guard result.terminationStatus.isSuccess else {
+                            switch result.terminationStatus {
+                            case let .exited(exitCode):
+                                throw CommandError.terminated(
+                                    exitCode,
+                                    stderr: await standardErrorCollector.collectedValue(),
+                                    command: arguments
+                                )
+                            #if !os(Windows)
+                                case let .signaled(signal):
+                                    throw CommandError.signalled(signal, command: arguments)
+                            #endif
+                            }
+                        }
                     }
                     continuation.finish()
                 } catch {
