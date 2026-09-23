@@ -1,7 +1,8 @@
 # Community notifications
 
 `workflows/community-notifications.yml` posts newly opened issues and pull
-requests in `tuist/tuist` to a Slack channel through an incoming webhook.
+requests in `tuist/tuist` to `#support` in the Tuist Company Slack workspace
+through the existing GitHub Notifications app's incoming webhook.
 Draft PRs are included. Edits, pushes, comments, reopening, and marking a PR ready
 do not send another notification. This is an intake feed; GitHub remains the
 place to assign, review, and close work. It does not backfill existing items.
@@ -25,8 +26,8 @@ instead of treating an unknown membership as a community author.
 
 ## Activation
 
-1. Choose a Slack channel (suggested: `#community-triage`). Create an incoming
-   webhook for that channel using a Slack app with incoming webhooks enabled.
+1. Create an incoming webhook for `#support` (`C0BSD8790F5`) in Tuist Company
+   (`T061C1JGAHH`) using the existing GitHub Notifications app (`A0B2Z862NA1`).
    The webhook determines the destination and the app's display identity.
 2. Store the webhook URL in the repository Actions secret
    `COMMUNITY_SLACK_WEBHOOK_URL`. Do not commit it or put it in an issue/PR.
