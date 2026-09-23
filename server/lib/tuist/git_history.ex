@@ -280,12 +280,14 @@ defmodule Tuist.GitHistory do
   @doc """
   Records the newest commit seen on a branch, advancing the branch's ref to
   it (`advance_ref/5`): the default branch as the root of the repository's
-  first-parent tree, any other branch as forking from it.
+  first-parent tree, any other branch as forking from it. The head is the
+  checkout's commit, and a re-run of an older commit's job checks out that
+  commit, so a head the branch already holds leaves it where it is.
   """
   def record_branch_head(repository_id, branch, sha, default_branch)
       when is_binary(branch) and branch != "" and is_binary(sha) and sha != "" do
     parent = if branch == default_branch or default_branch in [nil, ""], do: nil, else: default_branch
-    advance_ref(repository_id, branch, parent, sha)
+    advance_ref(repository_id, branch, parent, sha, only_forward: true)
   end
 
   def record_branch_head(_repository_id, _branch, _sha, _default_branch), do: :ok

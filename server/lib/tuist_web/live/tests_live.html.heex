@@ -184,7 +184,7 @@
         phx_value_widget="coverage"
         selected={@analytics_selected_widget == "coverage"}
         trend_value={if @coverage_analytics.ok?, do: @coverage_analytics.result.trend}
-        trend_label={@analytics_trend_label}
+        trend_label={dgettext("dashboard_tests", "over the period")}
         empty={@coverage_analytics.ok? && is_nil(@coverage_analytics.result.latest)}
         empty_label={dgettext("dashboard_tests", "No coverage yet")}
       />

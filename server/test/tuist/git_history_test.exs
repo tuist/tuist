@@ -150,6 +150,15 @@ defmodule Tuist.GitHistoryTest do
       assert Enum.map(GitHistory.ref_commits(main.id), &elem(&1, 0)) == ["m", "d", "c", "b", "a"]
       assert GitHistory.ref(repository, "feature") == nil
     end
+
+    test "stay put when an older commit's job is re-run", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_branch_head(repository, "main", "d", "main")
+      GitHistory.record_branch_head(repository, "main", "c", "main")
+
+      assert GitHistory.branch_head(repository, "main") == "d"
+      assert {_ref_id, 4} = GitHistory.position(repository, "d")
+    end
   end
 
   describe "refs" do
