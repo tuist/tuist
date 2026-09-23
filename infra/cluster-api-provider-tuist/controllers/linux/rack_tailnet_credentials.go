@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -63,4 +64,12 @@ func (s *SecretTailnetAPI) RenameDevice(ctx context.Context, nodeID, name string
 		return err
 	}
 	return c.RenameDevice(ctx, nodeID, name)
+}
+
+func (s *SecretTailnetAPI) CreateAuthKey(ctx context.Context, tags []string, expiry time.Duration, description string) (tailnet.AuthKey, error) {
+	c, err := s.current(ctx)
+	if err != nil {
+		return tailnet.AuthKey{}, err
+	}
+	return c.CreateAuthKey(ctx, tags, expiry, description)
 }

@@ -285,6 +285,18 @@ func main() {
 	flag.StringVar(&rackLinuxTailscaleSecretName, "rack-linux-tailscale-secret-name", "",
 		"Secret in the operator namespace holding the Tailscale OAuth client (client-id, client-secret) "+
 			"the RackLinuxHost controller finds hosts on the tailnet with. Empty leaves rack Linux hosts unreachable.")
+	var rackLinuxFleetName, rackLinuxInstallServerURL string
+	var rackLinuxAuthorizedKeys []string
+	flag.StringVar(&rackLinuxFleetName, "rack-linux-fleet-name", "",
+		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
+	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
+		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	flag.Func("rack-linux-authorized-key",
+		"An SSH public key every netbooted install authorizes beside the fleet key. Repeatable.",
+		func(v string) error {
+			rackLinuxAuthorizedKeys = append(rackLinuxAuthorizedKeys, v)
+			return nil
+		})
 	var rackHostQuarantineRetryAfter time.Duration
 	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
 		"How long a RackHost stays out of the claim pool after bootstrap exhaustion. "+
@@ -656,11 +668,19 @@ func main() {
 	if rackLinuxTailscaleSecretName != "" {
 		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
 	}
+	var rackInstall *linux.RackInstall
+	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
+		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
+	}
 	if err := (&linux.RackLinuxHostReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("racklinuxhost-controller"),
-		Tailnet:  rackTailnet,
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		Recorder:           mgr.GetEventRecorderFor("racklinuxhost-controller"),
+		Tailnet:            rackTailnet,
+		Install:            rackInstall,
+		CredentialsManager: credsManager,
+		EgressNamespace:    egressNamespace,
+		EgressProxyGroup:   egressProxyGroup,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxHostReconciler")
 		os.Exit(1)

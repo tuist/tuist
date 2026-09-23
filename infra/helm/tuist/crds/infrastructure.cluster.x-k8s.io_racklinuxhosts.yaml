@@ -44,6 +44,10 @@ spec:
           name: Device
           priority: 1
           type: string
+        - jsonPath: .status.install.keyID
+          name: Install
+          priority: 1
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -72,9 +76,19 @@ spec:
             spec:
               description: |-
                 RackLinuxHostSpec is one x86 Linux machine we own, in a rack we operate. The
-                host joins the tailnet by itself from its install stick, so it is found by
-                its name and tags rather than dialled at an address.
+                host joins the tailnet by itself from its install, netbooted or from a
+                stick, so it is found by its name and tags rather than dialled at an
+                address.
               properties:
+                bootMAC:
+                  description: |-
+                    BootMAC is the MAC address of the NIC the host netboots from, on the rack's
+                    management segment. The operator publishes an install for it while the
+                    host is not on the tailnet, and when the tuist.dev/reinstall annotation
+                    requests one. An edge host runs the netboot server, so it is installed
+                    from a stick instead.
+                  pattern: ^([0-9a-f]{2}:){5}[0-9a-f]{2}$
+                  type: string
                 location:
                   description: Location is where the box is. `site` composes the providerID.
                   properties:
@@ -102,7 +116,7 @@ spec:
                   type: string
                 role:
                   description: |-
-                    Role decides the disk layout the install stick lays down and which
+                    Role decides the disk layout the install lays down and which
                     MachineDeployment claims the host.
                   enum:
                     - edge
@@ -182,6 +196,43 @@ spec:
                       - type
                     type: object
                   type: array
+                install:
+                  description: |-
+                    Install is the install published for the host to netboot, until a new
+                    tailnet device shows it has run.
+                  properties:
+                    bootMAC:
+                      description: BootMAC is the MAC address the install is published for.
+                      type: string
+                    expiresAt:
+                      description: |-
+                        ExpiresAt is when the join key expires; an install still needed then is
+                        published again with a new key.
+                      format: date-time
+                      type: string
+                    keyID:
+                      description: KeyID is the ID of the single-use join key the install carries.
+                      type: string
+                    offeredAt:
+                      format: date-time
+                      type: string
+                    previousDeviceID:
+                      description: |-
+                        PreviousDeviceID is the host's tailnet device when the install was
+                        published; a different device is the install having run.
+                      type: string
+                    triggeredAt:
+                      description: |-
+                        TriggeredAt is when the operator set the running host to netboot once
+                        and rebooted it, for a requested reinstall.
+                      format: date-time
+                      type: string
+                  required:
+                    - bootMAC
+                    - expiresAt
+                    - keyID
+                    - offeredAt
+                  type: object
                 tailnet:
                   description: |-
                     Tailnet is the host's current tailnet device. Every install registers a

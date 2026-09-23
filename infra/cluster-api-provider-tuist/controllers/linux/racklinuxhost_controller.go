@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/tailnet"
 )
 
@@ -34,12 +35,15 @@ type TailnetAPI interface {
 	Devices(ctx context.Context) ([]tailnet.Device, error)
 	DeleteDevice(ctx context.Context, nodeID string) error
 	RenameDevice(ctx context.Context, nodeID, name string) error
+	CreateAuthKey(ctx context.Context, tags []string, expiry time.Duration, description string) (tailnet.AuthKey, error)
 }
 
 // RackLinuxHostReconciler keeps each host's tailnet device current: it finds
 // the device the host joined as, removes the devices earlier installs of the
-// same box left behind, and names the current one after the host. It also
-// releases a claim whose machine is gone. It never claims or joins a host.
+// same box left behind, and names the current one after the host. It publishes
+// installs for hosts to netboot (racklinuxhost_install.go), scales a pool's
+// MachineDeployment up as its hosts come onto the tailnet, and releases a claim
+// whose machine is gone. It never claims or joins a host.
 type RackLinuxHostReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
@@ -48,6 +52,27 @@ type RackLinuxHostReconciler struct {
 	// Tailnet is nil when no Tailscale credential is configured; hosts then
 	// report TailnetJoined False and no machine can reach them.
 	Tailnet TailnetAPI
+
+	// Install is nil when the operator publishes no installs.
+	Install            *RackInstall
+	CredentialsManager *credentials.Manager
+	EgressNamespace    string
+	EgressProxyGroup   string
+
+	// RunScript and Now are overridden in tests.
+	RunScript RunRackScript
+	Now       func() time.Time
+}
+
+func (r *RackLinuxHostReconciler) now() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
+}
+
+func (r *RackLinuxHostReconciler) egress() rackEgress {
+	return rackEgress{Namespace: r.EgressNamespace, ProxyGroup: r.EgressProxyGroup}
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxhosts,verbs=get;list;watch;create;update;patch;delete
@@ -78,7 +103,21 @@ func (r *RackLinuxHostReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err := r.releaseIfOrphaned(ctx, host); err != nil {
 		return ctrl.Result{}, err
 	}
-	return ctrl.Result{RequeueAfter: r.observeTailnet(ctx, host)}, nil
+	requeue, listed := r.observeTailnet(ctx, host)
+	if !listed {
+		return ctrl.Result{RequeueAfter: requeue}, nil
+	}
+	after, err := r.reconcileInstall(ctx, host)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if after > 0 && after < requeue {
+		requeue = after
+	}
+	if err := r.scaleUpPool(ctx, host); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: requeue}, nil
 }
 
 func (r *RackLinuxHostReconciler) releaseIfOrphaned(ctx context.Context, host *infrav1.RackLinuxHost) error {
@@ -100,38 +139,39 @@ func (r *RackLinuxHostReconciler) releaseIfOrphaned(ctx context.Context, host *i
 	return nil
 }
 
-// observeTailnet records the host's device and returns when to look again.
+// observeTailnet records the host's device and returns when to look again,
+// and whether it could list the tailnet's devices.
 //
 // A device is the host's when its OS hostname is the host's name and it
 // carries every tag the host names. The newest connected one is current, else
 // the newest. The others are removed only while the current one is connected
 // and they are not: one box runs one install, so they are registrations of
 // installs that box no longer holds.
-func (r *RackLinuxHostReconciler) observeTailnet(ctx context.Context, host *infrav1.RackLinuxHost) time.Duration {
+func (r *RackLinuxHostReconciler) observeTailnet(ctx context.Context, host *infrav1.RackLinuxHost) (time.Duration, bool) {
 	logger := log.FromContext(ctx)
 	if r.Tailnet == nil {
 		conditions.MarkFalse(host, TailnetJoinedCondition, "NoTailnetCredential", clusterv1.ConditionSeverityError,
 			"the operator has no Tailscale OAuth client, so it cannot find hosts on the tailnet")
-		return 10 * time.Minute
+		return 10 * time.Minute, false
 	}
 	if len(host.Spec.Tailnet.Tags) == 0 {
 		conditions.MarkFalse(host, TailnetJoinedCondition, "NoTailnetTags", clusterv1.ConditionSeverityError,
 			"spec.tailnet.tags is empty; a device is only this host when it carries the host's tags")
-		return 10 * time.Minute
+		return 10 * time.Minute, false
 	}
 
 	devices, err := r.Tailnet.Devices(ctx)
 	if err != nil {
 		conditions.MarkFalse(host, TailnetJoinedCondition, "TailnetAPIError", clusterv1.ConditionSeverityWarning, "%v", err)
-		return time.Minute
+		return time.Minute, false
 	}
 	matches := hostDevices(devices, host)
 	if len(matches) == 0 {
 		host.Status.Tailnet = nil
 		conditions.MarkFalse(host, TailnetJoinedCondition, "NotOnTailnet", clusterv1.ConditionSeverityInfo,
-			"no tailnet device named %s carries %s; install the host from a stick written by rack:write-install-usb",
+			"no tailnet device named %s carries %s; set its bootMAC so it installs itself when it netboots, or install it from a stick written by rack:write-install-usb",
 			host.Name, strings.Join(host.Spec.Tailnet.Tags, ","))
-		return time.Minute
+		return time.Minute, true
 	}
 
 	current := matches[0]
@@ -207,7 +247,7 @@ func (r *RackLinuxHostReconciler) observeTailnet(ctx context.Context, host *infr
 	default:
 		conditions.MarkTrue(host, TailnetJoinedCondition)
 	}
-	return rackLinuxHostPollInterval
+	return rackLinuxHostPollInterval, true
 }
 
 // hostDevices are the devices that claim to be host, newest first.

@@ -202,7 +202,7 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 	}
 	conditions.MarkTrue(machine, RackTailnetReadyCondition)
 
-	if err := r.reconcileEgress(ctx, host); err != nil {
+	if err := r.egress().ensure(ctx, r.Client, host); err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
 	}
 
@@ -413,7 +413,7 @@ func (r *RackLinuxMachineReconciler) converge(
 	}()
 
 	user := firstNonEmpty(host.Spec.SSHUser, "tuist")
-	target := r.dialTarget(host)
+	target := r.egress().dialTarget(host)
 	run := r.RunScript
 	if run == nil {
 		run = runRackScriptOverSSH
@@ -616,7 +616,7 @@ func (r *RackLinuxMachineReconciler) reconcileDelete(ctx context.Context, machin
 			if err := r.deleteNode(ctx, host); err != nil {
 				return ctrl.Result{}, err
 			}
-			if err := r.deleteEgress(ctx, host.Name); err != nil {
+			if err := r.egress().remove(ctx, r.Client, host.Name); err != nil {
 				return ctrl.Result{}, err
 			}
 			for _, device := range []string{machine.Status.TailnetDeviceID, tailnetDeviceID(host)} {
@@ -660,7 +660,7 @@ func (r *RackLinuxMachineReconciler) leave(ctx context.Context, machine *infrav1
 		if run == nil {
 			run = runRackScriptOverSSH
 		}
-		_, err = run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), r.dialTarget(host), key, rackLeaveScript, rackLeaveTimeout, bootstrap.NewHostKeyState(known))
+		_, err = run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), r.egress().dialTarget(host), key, rackLeaveScript, rackLeaveTimeout, bootstrap.NewHostKeyState(known))
 	}
 	if err != nil {
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "LeaveFailed",
@@ -685,6 +685,10 @@ func (r *RackLinuxMachineReconciler) deleteNode(ctx context.Context, host *infra
 	return nil
 }
 
+func (r *RackLinuxMachineReconciler) egress() rackEgress {
+	return rackEgress{Namespace: r.EgressNamespace, ProxyGroup: r.EgressProxyGroup}
+}
+
 func rackLinuxProviderID(host *infrav1.RackLinuxHost) string {
 	return fmt.Sprintf("rack-linux://%s/%s", host.Spec.Location.Site, host.Name)
 }
@@ -700,61 +704,6 @@ func tailnetDeviceID(host *infrav1.RackLinuxHost) string {
 		return ""
 	}
 	return host.Status.Tailnet.DeviceID
-}
-
-func rackLinuxEgressName(hostName string) string {
-	return "rack-linux-" + hostName
-}
-
-func (r *RackLinuxMachineReconciler) egressEnabled() bool {
-	return r.EgressNamespace != "" && r.EgressProxyGroup != ""
-}
-
-// dialTarget is the egress Service fronting the host's tailnet address, since
-// a Pod has no route to the tailnet.
-func (r *RackLinuxMachineReconciler) dialTarget(host *infrav1.RackLinuxHost) string {
-	if !r.egressEnabled() {
-		return host.Status.Tailnet.Address
-	}
-	return fmt.Sprintf("%s.%s.svc.cluster.local", rackLinuxEgressName(host.Name), r.EgressNamespace)
-}
-
-func (r *RackLinuxMachineReconciler) reconcileEgress(ctx context.Context, host *infrav1.RackLinuxHost) error {
-	if !r.egressEnabled() {
-		return nil
-	}
-	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: rackLinuxEgressName(host.Name), Namespace: r.EgressNamespace}}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
-		if svc.Labels == nil {
-			svc.Labels = map[string]string{}
-		}
-		svc.Labels["app.kubernetes.io/managed-by"] = "capi-scaleway-applesilicon"
-		svc.Labels["app.kubernetes.io/component"] = "rack-linux-host-egress"
-		svc.Labels["tuist.dev/rack-linux-host"] = host.Name
-		if svc.Annotations == nil {
-			svc.Annotations = map[string]string{}
-		}
-		svc.Annotations["tailscale.com/tailnet-ip"] = host.Status.Tailnet.Address
-		svc.Annotations["tailscale.com/proxy-group"] = r.EgressProxyGroup
-		svc.Spec.Type = corev1.ServiceTypeExternalName
-		if svc.Spec.ExternalName == "" {
-			svc.Spec.ExternalName = "placeholder." + r.EgressNamespace + ".svc.cluster.local"
-		}
-		svc.Spec.Ports = []corev1.ServicePort{{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP}}
-		return nil
-	})
-	return err
-}
-
-func (r *RackLinuxMachineReconciler) deleteEgress(ctx context.Context, hostName string) error {
-	if !r.egressEnabled() {
-		return nil
-	}
-	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: rackLinuxEgressName(hostName), Namespace: r.EgressNamespace}}
-	if err := r.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("delete egress Service %s: %w", svc.Name, err)
-	}
-	return nil
 }
 
 func (r *RackLinuxMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
