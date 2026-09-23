@@ -16,6 +16,7 @@ defmodule AtlasWeb.AccountLive do
   alias Atlas.Accounts.DealStage
   alias Atlas.Accounts.Outcome
   alias Atlas.Accounts.OutcomeProposal
+  alias Atlas.Accounts.POCs
   alias Atlas.Audit
   alias Atlas.Letters
   alias Atlas.LLMs
@@ -2026,6 +2027,37 @@ defmodule AtlasWeb.AccountLive do
             id="account-feature-interests-empty"
             title={gettext("No feature interest recorded")}
             subtitle={gettext("Record requests from timeline events to see them here.")}
+          />
+        </.card_section>
+      </.card>
+
+      <.card title={gettext("Evaluations")} icon="checkup_list" data-part="account-pocs-card">
+        <:actions>
+          <.button
+            id="view-pocs-button"
+            label={gettext("View all")}
+            variant="secondary"
+            size="small"
+            navigate={~p"/commercial/sales/pocs"}
+          />
+        </:actions>
+        <.card_section data-part="account-pocs-section">
+          <div :if={@pocs != []} id="account-pocs" data-part="account-pocs-list">
+            <.link
+              :for={poc <- @pocs}
+              id={"account-poc-#{poc.id}"}
+              navigate={~p"/commercial/sales/pocs/#{poc.id}"}
+              data-part="account-poc"
+            >
+              <span data-part="account-poc-title">{poc.title}</span>
+              <span data-part="account-poc-status">{Phoenix.Naming.humanize(poc.status)}</span>
+            </.link>
+          </div>
+          <.account_empty_state
+            :if={@pocs == []}
+            id="account-pocs-empty"
+            title={gettext("No evaluations yet")}
+            subtitle={gettext("Evaluations for this account will appear here.")}
           />
         </.card_section>
       </.card>
@@ -4154,6 +4186,7 @@ defmodule AtlasWeb.AccountLive do
     |> assign(:account, account)
     |> assign(:ready_to_sign_tax_certificate_requests, ready_to_sign_tax_certificate_requests(account))
     |> assign(:feature_interests, Accounts.list_feature_interests_for_account(account))
+    |> assign(:pocs, POCs.list_pocs(account_id: account.id))
     |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
     |> clear_feature_interest_modal()
     |> clear_feature_interest_notes_modal()
