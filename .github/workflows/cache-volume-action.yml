@@ -33,8 +33,10 @@ jobs:
         with:
           install_args: "--locked git-cliff jq"
           cache: "false"
-      - run: python3 -m unittest discover -s .github/actions/cache-volume -p '*_test.py' -v
-      - run: python3 -m unittest discover -s ci/cache-volume -p '*_test.py' -v
+      - run: bash .github/actions/cache-volume/action_test.sh
+      - run: bash ci/cache-volume/integrations_test.sh
+      - run: bash ci/cache-volume/publish_test.sh
+      - run: bash ci/cache-volume/release_check_test.sh
       - name: Install test client
         run: |
           mkdir "$RUNNER_TEMP/action-test-bin"
@@ -133,9 +135,9 @@ jobs:
         env:
           VERSION: v${{ steps.check.outputs.cache-volume-next-version-number }}
         run: |
-          python3 ci/cache-volume/publish.py packages/cache-volume-action distributions/github "$VERSION" "$GITHUB_SHA"
-          python3 ci/cache-volume/publish.py packages/cache-volume-buildkite distributions/buildkite "$VERSION" "$GITHUB_SHA"
-          python3 ci/cache-volume/publish.py packages/cache-volume-gitlab distributions/gitlab "$VERSION" "$GITHUB_SHA"
+          bash ci/cache-volume/publish.sh packages/cache-volume-action distributions/github "$VERSION" "$GITHUB_SHA"
+          bash ci/cache-volume/publish.sh packages/cache-volume-buildkite distributions/buildkite "$VERSION" "$GITHUB_SHA"
+          bash ci/cache-volume/publish.sh packages/cache-volume-gitlab distributions/gitlab "$VERSION" "$GITHUB_SHA"
       - name: Record coordinated release
         if: steps.check.outputs.cache-volume-should-release == 'true'
         uses: softprops/action-gh-release@v2
