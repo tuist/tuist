@@ -4965,16 +4965,17 @@ and were cleared on 2026-08-19:
   CRDs, so the CRD and its CR outlived the controller that reconciled
   them, and the CR's finalizer had to be cleared by hand because nothing
   was left to process it.
-- 1 `tailscale-operator` subnet-router Pod, which is churn rather than a
-  stuck Pod: the operator replaces it every few minutes, so no single
-  instance survives the pending period.
+- 1 `tailscale-operator` subnet-router Pod. This was written off as churn
+  because no single instance survived the pending period, but it was
+  stuck: the staging Connector could not schedule at all from 2026-06-18
+  to 2026-09-23, and every tailscale-operator deploy replaced the Pending
+  Pod with a new one. *Tailscale proxy has no ready replica* below now
+  covers it.
 
-Staging is clean enough to alert on today. The scope stays at production
-because that is what the deployed rule uses, and the two should not drift;
-widening it is a deliberate follow-up rather than an oversight. Before
-doing so, confirm the subnet-router churn still never persists past 30
-minutes, because one instance did sit unschedulable for 18 consecutive
-hours in the 48 hours before the cleanup.
+The scope stays at production because that is what the deployed rule
+uses, and the two should not drift; widening it is a deliberate follow-up
+rather than an oversight. Before doing so, run the expression over
+staging for 48 hours and confirm it is empty.
 
 Validate any change to this query against live data before saving it. The
 staging noise above was invisible in review and only showed up by running
@@ -5003,6 +5004,110 @@ taint mistake surfaces the same morning instead of six weeks later. This
 is a warning rather than a page because it fires on any production
 workload in any namespace: the Pod that motivated it was critical, but
 most Pods that briefly cannot schedule are not.
+
+### Tailscale proxy has no ready replica
+
+Rule uid `efz3meilw8xkwb`, folder `Alerts`, group `Infrastructure`.
+
+Every StatefulSet in the `tailscale-operator` namespace is a proxy the
+Tailscale operator runs: the Connector subnet router
+(`ts-tuist-cluster-subnet-router-*`), the `macmini-egress` ProxyGroup
+that alloy-metrics scrapes the Mac minis through, and one
+`ts-<namespace>-<service>-*` proxy per Service exposed to the tailnet
+(the Postgres pooler, ClickHouse, the Alloy receiver, tuist-ops). A proxy
+with no ready replica means that tailnet path is down.
+
+The staging subnet router sat `Pending` from 2026-06-18 until
+[#13502](https://github.com/tuist/tuist/pull/13502) on 2026-09-23.
+[#11256](https://github.com/tuist/tuist/pull/11256) pinned it to the
+`kura-scw-fr-par` pool through its ProxyClass, and that pool's node
+carries a `tuist.dev/runner-cache=true:NoSchedule` taint the ProxyClass
+did not tolerate. Nothing paged for three months.
+
+```promql
+sum by (cluster, proxy) (
+  label_replace(
+    label_replace(
+      kube_statefulset_status_replicas_ready{namespace="tailscale-operator"},
+      "proxy", "$1", "statefulset", "(.+)"
+    ),
+    "proxy", "$1", "statefulset", "ts-(.+)-[a-z0-9]{5}"
+  )
+)
+and on (cluster, proxy)
+sum by (cluster, proxy) (
+  label_replace(
+    label_replace(
+      kube_statefulset_replicas{namespace="tailscale-operator"},
+      "proxy", "$1", "statefulset", "(.+)"
+    ),
+    "proxy", "$1", "statefulset", "ts-(.+)-[a-z0-9]{5}"
+  )
+) > 0
+```
+
+- Threshold: `A < 1`
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK, and the same for the execution-error state
+- Summary: `Tailscale proxy {{ $labels.proxy }} has had no ready replica for 30 minutes in {{ $labels.cluster }}`
+
+The query returns the ready count for every proxy, so a healthy proxy is
+a `Normal` instance rather than an empty result. The healthy baseline on
+2026-09-23 was 21 series across the three clusters.
+
+**The rule keys on the proxy, not the StatefulSet.** The Connector,
+ProxyClass and ProxyGroup are Helm `post-upgrade` hooks with
+`before-hook-creation`, so every `helm upgrade` of the tailscale-operator
+release deletes and recreates them, and the operator gives the new
+Connector StatefulSet a new generated suffix
+(`ts-tuist-cluster-subnet-router-qzwq6`). Staging's router was recreated
+up to 25 times a day in September. A rule keyed on the StatefulSet or the
+Pod gets a new label set on each redeploy, which restarts its pending
+period, and that is how the stuck router passed as churn under *Pod
+cannot be scheduled*. The inner `label_replace` copies `statefulset` into
+`proxy`. The outer one strips `ts-` and the suffix where the name has
+them, so a ProxyGroup such as `macmini-egress`, whose StatefulSet is
+named after it, keeps its own name. The `sum` then folds an old and a new
+StatefulSet that coexist during a redeploy into one series.
+
+A redeploy leaves the new StatefulSet at zero ready for the minute or two
+its Pod takes to start, which the pending period absorbs. The old
+StatefulSet can also vanish a scrape before the new one appears, dropping
+the series for one evaluation. Grafana keeps a pending instance through
+that until `missing_series_evals_to_resolve` (default 2) consecutive
+evaluations miss it. At one-minute resolution over 2026-06-19 to
+2026-09-23, the staging router's series missed at most one minute in any
+day.
+
+The `kube_statefulset_replicas > 0` leg keeps a proxy deliberately
+scaled to zero from firing. A proxy whose StatefulSet is gone entirely,
+such as a failed post-upgrade hook that deleted the Connector and never
+recreated it, produces no series and reads as healthy here.
+
+No metric change is needed. Both gauges are in the kube-state-metrics
+default allow list and in the non-production keep list in
+[`values.yaml`](./values.yaml), and carry `namespace` and `statefulset`
+in all three clusters. The operator's `tailscale.com/parent-resource`
+StatefulSet label would be a cleaner key, but `kube_statefulset_labels`
+exports no allow-listed label for it, and the name already identifies the
+proxy.
+
+Replayed over 2026-06-01 to 2026-09-23 in all three clusters, requiring
+30 consecutive minutes at zero ready, it fires only for the staging
+subnet router: intermittently on 2026-06-16 and 2026-06-17, before
+#11256 merged, then continuously from 2026-06-18 16:30 UTC until the
+router became ready at 2026-09-23 07:10 UTC, apart from one ready hour on
+2026-06-22. Production and canary never match. A replay that only takes
+the maximum over the window also flags a proxy whose series first appears
+at zero ready, as the canary pg-pooler proxy's did on 2026-08-18 when it
+was ready two minutes later. That is an artifact of the replay; the rule
+needs 30 minutes of evaluations.
+
+It is a warning, like *Pod cannot be scheduled*, and carries no
+notification settings: staging and canary route to
+`#notifications-non-prod` through the `cluster` matcher in the policy
+tree, and production to `#notifications`.
 
 ### Kubernetes request latency
 
