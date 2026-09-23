@@ -374,7 +374,9 @@ public struct XCActivityLogParser: Sendable {
 
             guard let op = operation else { continue }
 
-            let isMiss = step.notes?.contains { $0.title == "cache key query miss" } ?? false
+            // Swift query steps say `cache key query miss`. Xcode 27's clang query
+            // steps say `cache miss`, and `cache hit` when the remote serves the key.
+            let isMiss = step.notes?.contains { $0.title == "cache key query miss" || $0.title == "cache miss" } ?? false
             var status = keyStatuses[key] ?? (taskType: taskType, hasQuery: false, hasMaterialize: false, hasUpload: false, isMiss: false)
             status.taskType = taskType
             if op == "query" { status.hasQuery = true }
@@ -538,17 +540,22 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Regex Helpers
 
+    // Swift titles wrap the key in a JSON array (`query key ["0~…"]`). Xcode 27's
+    // clang titles carry it bare (`Clang caching query key 0~…`).
     private func extractCacheKey(from title: String) -> String? {
         if title.contains("query key") || title.contains("materialize key") {
             return extractWithPattern("\\[\"([^\"]+)\"\\]", from: title)
+                ?? extractWithPattern("(?:query|materialize) key (0~[A-Za-z0-9+/_=-]+)", from: title)
         } else if title.contains("upload key") {
             return extractWithPattern("upload key ([^\\s]+)", from: title)
         }
         return nil
     }
 
+    // Xcode 27's clang compile steps name their key in `replayed cache hit: 0~…`
+    // or `cache miss: 0~…` rather than the Swift `local cache … for key:` notes.
     private func extractCacheKeyFromNote(_ noteTitle: String) -> String? {
-        let pattern = "(?i)(?:local cache found for key:|local cache miss for key:)\\s+(0~[A-Za-z0-9+/_=-]+)"
+        let pattern = "(?i)(?:local cache found for key:|local cache miss for key:|replayed cache hit:|^cache miss:)\\s+(0~[A-Za-z0-9+/_=-]+)"
         return extractWithPattern(pattern, from: noteTitle)
     }
 
