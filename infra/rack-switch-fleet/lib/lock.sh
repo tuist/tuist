@@ -1,7 +1,10 @@
 # shellcheck shell=bash
 # The rack lock and the hold a pending rollback puts on it. Sourced by fleet.sh
 # and omada.sh, since every change to a rack's switches goes through one lock,
-# whichever path makes it. Expects SITE to name the rack.
+# whichever path makes it. Named for RACK, the rack the site definition
+# describes, so two definitions of one rack share it; SITE when that is unset.
+
+fleet_rack() { echo "${RACK:-$SITE}"; }
 
 # How long after its timer fires a switch is given to come back before its
 # rollback can be declared over; fleet.sh's wait_for_reboot allows the same.
@@ -32,7 +35,7 @@ FLEET_LOCK=""
 
 fleet_lock() {
   local reason="$1" during_hold="${2:-}" dir owner pid
-  dir="${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$SITE.lock"
+  dir="${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$(fleet_rack).lock"
 
   # `mkdir` and nothing else. Reclaiming a stale lock automatically means
   # removing a directory this process did not create, and two runs that both
@@ -57,7 +60,7 @@ fleet_lock() {
 
   owner="$(cat "$dir/owner" 2>/dev/null || echo unknown)"
   pid="${owner%% *}"
-  echo "error: another change is in flight on $SITE: $owner" >&2
+  echo "error: another change is in flight on $(fleet_rack): $owner" >&2
   if [ "$owner" != unknown ] && ! kill -0 "$pid" 2>/dev/null; then
     echo "       Process $pid is gone, so this is probably a run that was killed. Nothing" >&2
     echo "       clears it automatically, because a second run doing that races the first." >&2
@@ -86,7 +89,7 @@ fleet_unlock() {
 # the rack stays held until `resolve` has seen the switch back on its saved
 # configuration. Nothing lifts it on its own: a later run cannot tell a rollback
 # that finished from one still to come.
-rollback_record() { echo "${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$SITE.rollback"; }
+rollback_record() { echo "${FLEET_LOCK_DIR:-/tmp}/rack-fleet-$(fleet_rack).rollback"; }
 rollback_field()  { awk -v key="$1" '$1 == key { print $2 }' "$(rollback_record)"; }
 
 # An epoch as local time: BSD date takes it with -r, GNU date with -d @.
@@ -100,7 +103,7 @@ rollback_report() {
   fires="$(rollback_field fires)"
   echo "error: $device may still be rolling back. Its reboot timer was armed at $(local_time "$armed")"
   echo "       and never confirmed cancelled, so it reboots on its saved configuration by"
-  echo "       $(local_time "$fires"). Nothing else in $SITE is changed until that is over."
+  echo "       $(local_time "$fires"). Nothing else in $(fleet_rack) is changed until that is over."
   echo "       Once $device ($address) is back, from $(local_time $(( fires + ROLLBACK_BOOT_MARGIN ))), confirm it with:"
   echo "         mise run rack:fleet resolve $device"
 }

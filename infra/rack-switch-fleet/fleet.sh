@@ -13,7 +13,7 @@ source "$FLEET_ROOT/lib/config.sh"
 source "$FLEET_ROOT/lib/session.sh"
 source "$FLEET_ROOT/lib/lock.sh"
 
-SITE="ber1"
+SITE="${RACK_SITE:-ber1}"
 VERBOSE=0
 RUNNING_CONFIG="show running-config"
 STARTUP_CONFIG="show startup-config"
@@ -365,7 +365,7 @@ cmd_apply() {
     *)  echo "error: $name: interrupted; if the timer was armed, $rollback." >&2;;
   esac
   if [ -n "$fires" ]; then
-    echo "       Nothing else in $SITE is changed until it is back. From $(local_time $(( fires + ROLLBACK_BOOT_MARGIN )))," >&2
+    echo "       Nothing else in $(fleet_rack) is changed until it is back. From $(local_time $(( fires + ROLLBACK_BOOT_MARGIN )))," >&2
     echo "       confirm that with: mise run rack:fleet resolve $name" >&2
   fi
   return $status
@@ -443,12 +443,12 @@ cmd_resolve() {
   local record held fires ready
   record="$(rollback_record)"
   if [ ! -f "$record" ]; then
-    echo "$SITE is not held: no rollback is pending"
+    echo "$(fleet_rack) is not held: no rollback is pending"
     return 0
   fi
   held="$(rollback_field device)"
   if [ "$held" != "$name" ]; then
-    echo "error: $SITE is held for $held, not $name" >&2
+    echo "error: $(fleet_rack) is held for $held, not $name" >&2
     return 1
   fi
   fires="$(rollback_field fires)"
@@ -480,14 +480,14 @@ cmd_resolve() {
   rm -f "$running" "$startup" "$raw"
   case "$status" in
     0)  rm -f "$record"
-        echo "$name is running its saved configuration, so its rollback is over and $SITE is no longer held."
+        echo "$name is running its saved configuration, so its rollback is over and $(fleet_rack) is no longer held."
         echo "See where that left it with: mise run rack:fleet preflight $name";;
     11) echo "error: $name's running configuration still differs from its saved one, although its" >&2
         echo "       timer should have fired by now. It may have been cancelled after all, leaving the" >&2
         echo "       change running unsaved. See where it stands with:" >&2
         echo "         mise run rack:fleet preflight $name" >&2
         echo "       and once it is in a state you accept, lift the hold by hand: rm $record" >&2;;
-    *)  echo "error: could not read $name at $address, so $SITE stays held" >&2;;
+    *)  echo "error: could not read $name at $address, so $(fleet_rack) stays held" >&2;;
   esac
   return "$status"
 }
@@ -1248,6 +1248,7 @@ main() {
   [ -n "$command" ] || { echo "usage: mise run rack:fleet <render|preflight|publish|diff|apply|resolve|save|replace|backup|drift|ports|locate|recover|sessions|probe-tftp>" >&2; return 2; }
   shift
   [ -f "$(site_file)" ] || { echo "error: no site definition at $(site_file)" >&2; return 2; }
+  RACK="$(jq -r '.site // empty' "$(site_file)")"
   fleet_load_jumps "$(site_file)"
   fleet_load_logins "$(site_file)"
   case "$command" in

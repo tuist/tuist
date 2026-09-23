@@ -1,0 +1,38 @@
+# What Omada Controller 6.3.0.45 does to an SX3832 it adopts, measured on
+# ber1-tor-b on 2026-09-23: its render against the first backup after adoption.
+# An upgrade of the controller means measuring again.
+#
+# kind<TAB>context<TAB>command, the last two extended regular expressions
+# matched against a whole line of the configuration read as (context, command)
+# pairs; global lines have an empty context.
+#
+# owns  the render states it, the controller overrides it on adoption, and the
+#       Open API has nothing that sets it back
+# adds  the controller puts it on the switch
+owns		no ip http server
+owns		no controller cloud-based privacy-policy
+owns	vlan 1	name "System-VLAN"
+adds		ip http server
+adds	vlan 1	name "Default"
+adds		contact-info ""
+adds		no system-time ntp
+adds		sdm prefer omada
+adds		no protocol-vlan template [0-9]+
+adds		no dot1x handshake
+adds		ip ssh block-l3
+adds		no voice vlan oui [0-9A-F:]+
+adds		ipv6 routing
+adds		profile ip id [0-9]+ ip 0\.0\.0\.0/0
+adds		profile ipv6 id [0-9]+ ipv6 ::/0
+adds		profile network id [0-9]+ vid [0-9]+ ip [0-9./]+
+adds		access-list mode blacklist
+adds		port-channel load-balance src-dst-ip
+adds		loopback-detection
+adds		no boot autoinstall auto-save
+adds		no boot autoinstall auto-reboot
+adds		auto-voip
+adds		cloud-firmware upgrade auto-check
+adds	interface vlan 1	ipv6 address auto-global
+adds	interface vlan 1	ipv6 dnsDynamic
+adds	interface ten-gigabitEthernet 1/0/[0-9]+	lldp med-status
+adds	interface ten-gigabitEthernet 1/0/[0-9]+	description "Port[0-9]+"

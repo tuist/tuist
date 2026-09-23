@@ -36,6 +36,12 @@ setup_file() {
 setup() {
     source "$FLEET_ROOT/lib/config.sh"
     SITE_FILE="$(fleet_site_file ber1)"
+    # The SSH write paths are for switches the controller has not adopted, and the
+    # rack's ToRs now are. The tools under test run against the site with its ToRs
+    # standalone, as before they were adopted, unless a test names another site.
+    jq '(.devices[] | select(.role == "tor")) |= del(.adopted)' "$SITE_FILE" \
+        > "$FLEET_ROOT/sites/ber1-standalone.json"
+    export RACK_SITE=ber1-standalone
 }
 
 # A copy of the site with ber1-mgmt's MAC removed, for the paths that handle a
@@ -47,12 +53,20 @@ site_without_mgmt_mac() {
 }
 
 teardown() {
-    rm -f "$FLEET_ROOT/sites/ber1-nomac.json" "$FLEET_ROOT/sites/ber1-adopted-tor.json"
+    rm -f "$FLEET_ROOT/sites/ber1-nomac.json" "$FLEET_ROOT/sites/ber1-standalone.json"
 }
 
 # A subshell does not inherit the sourced library, so pipelines under `run` get
 # it back this way.
 fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
+
+# The transcripts and the export in fixtures/ were taken off ber1-tor-b before the
+# site routed the tailnet through its edge node, so they are compared with a
+# render of the site without one.
+render_as_captured() {
+    jq 'del(.management.edge)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
+    fleet_render "$BATS_TEST_TMPDIR/captured-site.json" "$1"
+}
 
 # --- terminal noise ----------------------------------------------------------
 
@@ -103,7 +117,7 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
 
 @test "the rendered configuration matches the live switch" {
     desired="$BATS_TEST_TMPDIR/desired.cfg"
-    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    render_as_captured ber1-tor-b > "$desired"
     run fleet_diff "$desired" "$BODY" rendered live
     [ "$status" -eq 0 ]
     [ "${#output}" -eq 0 ]
@@ -166,7 +180,7 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
     cp -R "$FLEET_ROOT" "$copy"
     jq '.["tl-sg3452"].verified = false' "$FLEET_ROOT/models.json" > "$copy/models.json"
     jq '(.devices[] | select(.name == "ber1-mgmt")) |= del(.adopted)' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
-    run env FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" "$copy/fleet.sh" apply ber1-mgmt --dry-run
+    run env RACK_SITE=ber1 FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" "$copy/fleet.sh" apply ber1-mgmt --dry-run
     [ "$status" -ne 0 ]
     [[ "$output" == *"never been read"* ]]
 }
@@ -196,7 +210,7 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
 
 @test "applying a configuration the switch already has plans nothing" {
     desired="$BATS_TEST_TMPDIR/desired.cfg"
-    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    render_as_captured ber1-tor-b > "$desired"
     run fleet_plan_additions "$desired" "$BODY"
     [ "${#output}" -eq 0 ]
 }
@@ -288,7 +302,7 @@ STUB
     [ "$status" -eq 0 ]
 
     desired="$BATS_TEST_TMPDIR/desired.cfg"
-    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    render_as_captured ber1-tor-b > "$desired"
     run fleet_diff "$desired" "$BATS_TEST_TMPDIR/live" rendered live
     [ "$status" -eq 0 ]
     [ "${#output}" -eq 0 ]
@@ -636,7 +650,7 @@ export_fixture() { echo "$FLEET_ROOT/tests/fixtures/ber1-tor-b-tftp-export.cfg";
 
 @test "the exported file and the render describe the same configuration" {
     desired="$BATS_TEST_TMPDIR/desired.cfg"
-    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    render_as_captured ber1-tor-b > "$desired"
     run fleet_diff "$desired" "$(export_fixture)" rendered exported
     [ "$status" -eq 0 ]
     [ "${#output}" -eq 0 ]
@@ -795,7 +809,7 @@ STUB
     # a real change, so the diff is not empty
     site="$BATS_TEST_TMPDIR/sites/ber1.json"
     mkdir -p "$BATS_TEST_TMPDIR/sites"
-    jq '.services.lldp = false' "$SITE_FILE" > "$site"
+    jq '.services.lldp = false' "$FLEET_ROOT/sites/ber1-standalone.json" > "$site"
 
     run env PATH="$stub:$PATH" TFTP_ROOT="$root" FAKE_TFTP="$root" \
         FAKE_CURRENT="$current" FAKE_PUSHED="$pushed" FLEET_ROOT="$FLEET_ROOT" \
@@ -1771,11 +1785,13 @@ run_resolve() {
     [ "$route" -lt "$cloud" ]
 }
 
-@test "a switch that is not behind the edge carries no such route" {
-    for device in ber1-tor-a ber1-tor-b; do
+@test "every switch routes the tailnet through the edge node, since the controller is there" {
+    # The ToRs share the management segment with the edge node rather than
+    # hanging off it, and reach the controller the same way.
+    for device in ber1-tor-a ber1-tor-b ber1-mgmt; do
         run fleet_render "$SITE_FILE" "$device"
         [ "$status" -eq 0 ]
-        [[ "$output" != *"ip route"* ]]
+        [[ "$output" == *"ip route 100.64.0.0 255.192.0.0 192.168.0.10"* ]]
     done
 }
 
@@ -1914,9 +1930,10 @@ ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
 }
 
 @test "an adopted switch of a model nobody has measured under the controller is refused before connecting" {
-    jq '(.devices[] | select(.name == "ber1-tor-b")) += {adopted: true}' "$SITE_FILE" \
-        > "$FLEET_ROOT/sites/ber1-adopted-tor.json"
-    run "$FLEET_ROOT/fleet.sh" --site ber1-adopted-tor diff ber1-tor-b
+    copy="$BATS_TEST_TMPDIR/fleet-copy"
+    cp -R "$FLEET_ROOT" "$copy"
+    rm "$copy/controller-baselines/sx3832.tsv"
+    run env RACK_SITE=ber1 "$copy/fleet.sh" diff ber1-tor-b
     [ "$status" -eq 2 ]
     [[ "$output" == *"what the controller does to a sx3832 has not been measured"* ]]
     [[ "$output" != *"test reached the real"* ]]
@@ -1925,8 +1942,10 @@ ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
 @test "the switches the controller has adopted are the ones that log in with its device account" {
     declare -gA SWITCH_LOGIN_ITEMS=()
     fleet_load_logins "$SITE_FILE"
-    [ "${#SWITCH_LOGIN_ITEMS[@]}" -eq 1 ]
-    [ "${SWITCH_LOGIN_ITEMS[192.168.0.13]}" = "ber1 switch device account" ]
+    [ "${#SWITCH_LOGIN_ITEMS[@]}" -eq 3 ]
+    for address in 192.168.0.11 192.168.0.12 192.168.0.13; do
+        [ "${SWITCH_LOGIN_ITEMS[$address]}" = "ber1 switch device account" ]
+    done
     [ "$SWITCH_VAULT" = "$(jq -r '.credentials.vault' "$SITE_FILE")" ]
 }
 
@@ -1964,7 +1983,7 @@ STUB
     [[ "$output" == *"default route"* ]]
 }
 
-@test "the edge path translates only the switches behind it, and advertises nothing" {
+@test "the edge path translates every switch, host-routes only those behind it, and advertises nothing" {
     bin="$BATS_TEST_TMPDIR/edge2"
     edge_stub "$bin"
     run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp87s0 --dry-run
@@ -1972,8 +1991,9 @@ STUB
     [[ "$output" == *"ip addr replace 192.168.0.10/32 dev enp87s0"* ]]
     [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
     [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp87s0"* ]]
-    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.13,192.168.50.0/24 } masquerade'* ]]
-    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade'* ]]
+    [[ "$output" != *"ip route replace 192.168.0.11"* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
     [[ "$output" != *"advertise-routes"* ]]
     [[ "$output" == *"dry run, nothing changed"* ]]
 }
@@ -2272,7 +2292,7 @@ Tq3!nW8e#Yb5Lc2V'
     omada_stub "$bin"
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" "$FLEET_ROOT/omada.sh" apply ber1-tor-b
     [ "$status" -eq 1 ]
-    [[ "$output" == *"ber1-tor-b is not adopted in ber1; a standalone switch changes with rack:fleet apply"* ]]
+    [[ "$output" == *"ber1-tor-b is not adopted; a standalone switch changes with rack:fleet apply"* ]]
     [ ! -e "$bin/log.writes" ]
 }
 
@@ -2303,7 +2323,7 @@ Tq3!nW8e#Yb5Lc2V'
     copy="$BATS_TEST_TMPDIR/fleet-copy"
     cp -R "$FLEET_ROOT" "$copy"
     jq 'del(.management.controller.address)' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
-    run "$copy/omada.sh" inform ber1-mgmt
+    run env RACK_SITE=ber1 "$copy/omada.sh" inform ber1-mgmt
     [ "$status" -eq 2 ]
     [[ "$output" == *"management.controller.address"* ]]
 }
@@ -2638,11 +2658,11 @@ STUB
     copy="$BATS_TEST_TMPDIR/fleet-copy"
     cp -R "$FLEET_ROOT" "$copy"
     jq 'del(.management.controller.address)' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
-    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
+    run env RACK_SITE=ber1 PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
         "$copy/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
     [[ "$output" != *"dhcp-option=138"* ]]
     jq '.management.controller.address = "100.101.102.103"' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
-    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
+    run env RACK_SITE=ber1 PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" \
         "$copy/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-option=138,100.101.102.103"* ]]

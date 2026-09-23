@@ -291,19 +291,17 @@ fleet_render() {
   printf '%s\n#\n' "$snmp"
   printf '%s\n#\n' "$http"
   printf '%s\n#\n' "$lldp"
-  # A switch behind the edge node sends the edge's routes through it. The switch
-  # prints static routes here, between lldp and the controller lines, and the
-  # diff is order-sensitive.
-  if [ "$(jq -r '.behind_edge // false' <<<"$device")" = "true" ]; then
-    local edge_address route
-    edge_address="$(jq -r '.management.edge.address // empty' "$site_file")"
-    if [ -z "$edge_address" ]; then
-      echo "error: $name is behind_edge but the site has no management.edge.address" >&2
-      return 1
-    fi
+  # Every switch sends the edge's routes through the edge node, because the
+  # controller is on the tailnet and the edge node is the way there, whether a
+  # switch reaches its address on the management segment or on the port it hangs
+  # off. The switch prints static routes here, between lldp and the controller
+  # lines, and the diff is order-sensitive.
+  local edge_address route
+  edge_address="$(jq -r '.management.edge.address // empty' "$site_file")"
+  if [ -n "$edge_address" ]; then
     while read -r route; do
       printf 'ip route %s %s %s\n' "${route%/*}" "$(fleet_prefix_mask "${route#*/}")" "$edge_address"
-    done < <(jq -r '.management.edge.routes[]' "$site_file")
+    done < <(jq -r '.management.edge.routes // [] | .[]' "$site_file")
     printf '#\n'
   fi
   if [ "$cloud" = "false" ]; then

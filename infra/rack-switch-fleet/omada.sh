@@ -44,6 +44,7 @@ done
 
 site_file="$(fleet_site_file "$SITE")"
 [ -f "$site_file" ] || { echo "error: no site definition at $site_file" >&2; exit 2; }
+RACK="$(jq -r '.site // empty' "$site_file")"
 url="$(jq -r '.management.controller.url // empty' "$site_file")"
 site_name="$(jq -r '.management.controller.site // "Default"' "$site_file")"
 api_item="$(jq -r '.management.controller.credential_item // empty' "$site_file")"
@@ -345,7 +346,7 @@ case "$command" in
     name="${1:-}"
     [ -n "$name" ] || { echo "usage: rack:omada apply <device>" >&2; exit 2; }
     if [ "$(device_field adopted "$name")" != true ]; then
-      echo "error: $name is not adopted in $SITE; a standalone switch changes with rack:fleet apply" >&2
+      echo "error: $name is not adopted; a standalone switch changes with rack:fleet apply" >&2
       exit 1
     fi
     mac="$(controller_mac "$(device_field mac "$name")")"

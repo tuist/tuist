@@ -13,7 +13,7 @@ spec:
   applyOrder: 2
   applyNote: Carries the WAN optic and the router uplink, so a bad change takes the site off the internet and takes the path used to fix it with it. Changed only after the same change has been applied to ber1-tor-b and the rack is still up.
   credentialItem: ber1-tor-a switch admin
-  configRevision: cd41335d6cf22751
+  configRevision: 5002614db64d2fe1
   ports:
     - port: 24
       purpose: wan

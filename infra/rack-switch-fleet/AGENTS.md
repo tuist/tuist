@@ -627,8 +627,14 @@ is in the data center. Where that stands on 2026-09-23:
   `infra/helm/pomerium/templates/access-tiers.yaml`, since the built-in `edit`
   role covers no custom resources. `ber1-edge` on the tailnet as
   `tag:tuist-rack-edge`.
-- **Adopted.** `ber1-mgmt`, on 2026-09-23, once `ber1-edge` clamped the MSS of
-  what it forwards into the tailnet. Adoption replaces a switch's login with the
+- **Adopted: all three switches**, on 2026-09-23. `ber1-mgmt` first, once
+  `ber1-edge` clamped the MSS of what it forwards into the tailnet; then
+  `ber1-tor-b` and `ber1-tor-a`, once every switch carried the route to the
+  tailnet through the edge node (the ToRs reach its address on the house
+  network) and the edge node translated all three. The SX3832 took the same
+  treatment from the controller as the SG3452; its baseline is
+  `controller-baselines/sx3832.tsv`, measured on `ber1-tor-b` and confirmed on
+  `ber1-tor-a`. Adoption replaces a switch's login with the
   site's device account, one account for every switch in the site, and applies
   the site's SSH setting, which starts off. `rack:omada controller` sets both
   from the site definition: SSH on, and the device account from the 1Password
@@ -642,9 +648,6 @@ is in the data center. Where that stands on 2026-09-23:
   spanning-tree mode and port descriptions from its render and keeps them
   across a reboot, and with the controller's own lines left out it matches its
   render; see "Switches the controller has adopted".
-- **Open.** The SX3832 under the controller: adopting a ToR is what measures
-  its baseline, and the ToRs carry the rack. Until one is adopted they stay
-  standalone and change with `rack:fleet apply`.
 - **Not started.** The reconciler that watches `RackSwitch` objects and drives
   the controller; joining `ber1-edge` to staging as a node, which would let
   `rack:ztp` and the edge path run as workloads; and a factory-reset run of
@@ -1005,7 +1008,8 @@ controller, and three things change for it.
   controller owns against the switch less what it adds, so anything else still
   shows, a change made in the controller's UI included. A model with no baseline
   has not been measured under the controller, and an adopted device of that
-  model is refused before its connection is spent. Only the TL-SG3452 has one.
+  model is refused before its connection is spent. The TL-SG3452 and the SX3832
+  have one.
 - **It logs in with the controller's device account**, from the 1Password item
   `management.controller.device_account_item` names, instead of the fleet key,
   which adoption removes.

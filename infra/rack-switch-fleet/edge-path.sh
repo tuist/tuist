@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #
 # The path from the switches' management addresses to the tailnet, through the
-# rack's edge node. Switches marked `behind_edge` in the site definition reach
-# the Omada controller, which lives in a cluster on the tailnet, by a static
-# route to the tailnet's range via the edge node's address on their segment;
-# the edge node forwards that traffic into tailscale0, translated to its own
-# tailnet address.
+# rack's edge node. Every switch in the site reaches the Omada controller, which
+# lives in a cluster on the tailnet, by a static route to the tailnet's range
+# via the edge node's address; the edge node forwards that traffic into
+# tailscale0, translated to its own tailnet address. A switch marked
+# `behind_edge` hangs off one of the edge node's own ports, so it also gets a
+# host route there; the others share the management segment with the edge node.
 #
 # Translation rather than an advertised route, and a /32 on the switch side
 # rather than the prefix, for the reason infra/tailscale/acls.json gives: at
@@ -56,8 +57,9 @@ if [ -z "$edge" ] || [ -z "$edge_address" ]; then
   echo "error: $SITE has no management.edge with ssh and address" >&2
   exit 2
 fi
-mapfile -t switches < <(jq -r '.devices[] | select(.behind_edge) | .mgmt_address' "$site_file")
-(( ${#switches[@]} )) || { echo "error: no device in $SITE is behind_edge" >&2; exit 2; }
+mapfile -t switches < <(jq -r '.devices[] | .mgmt_address' "$site_file")
+mapfile -t behind < <(jq -r '.devices[] | select(.behind_edge) | .mgmt_address' "$site_file")
+(( ${#switches[@]} )) || { echo "error: $SITE has no devices" >&2; exit 2; }
 tag="tag:tuist-rack-edge"
 hostname="${edge#*@}"
 
@@ -94,7 +96,7 @@ set -e
 ip link set $interface up
 ip addr replace $edge_address/32 dev $interface
 ${provisioning:+ip addr replace $provisioning dev $interface
-}$(for s in "${switches[@]}"; do echo "ip route replace $s/32 dev $interface src $edge_address"; done)
+}$(for s in "${behind[@]}"; do echo "ip route replace $s/32 dev $interface src $edge_address"; done)
 sysctl -qw net.ipv4.ip_forward=1
 nft -f - <<'NFT'
 table ip tuist_mgmt_path

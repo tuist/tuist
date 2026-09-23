@@ -13,7 +13,7 @@ spec:
   applyOrder: 1
   applyNote: No WAN path lands here, so a bad change costs one half of the rack's redundancy rather than the site's connectivity. Always the first switch changed, and the only one used to try a change out.
   credentialItem: ber1-tor-b switch admin
-  configRevision: c53a5e5b73c90071
+  configRevision: 5ef04ee11ceedbe0
   ports:
     - port: 25
       purpose: data
