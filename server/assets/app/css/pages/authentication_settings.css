@@ -299,12 +299,18 @@
     align-items: flex-start;
     gap: var(--noora-spacing-4);
 
-    /* Tracks the control it describes rather than spanning the column it
-       shares with it. The record values wrap instead of running past that
-       width, since they are copied out by hand. */
+    /* Sits on the trailing edge with the control it describes rather than
+       spanning the column it shares with it. Wider than the control, because
+       what goes here is a record to copy rather than a value to type. */
     align-self: flex-end;
-    width: 320px;
+    width: 480px;
     max-width: 100%;
+
+    /* A verified domain leaves only its badge, which lines up with the
+       control instead of starting a column of its own. */
+    &:not(:has([data-part="domain-record"])) {
+      width: 320px;
+    }
 
     & [data-part="read-only-value"] > code {
       overflow-wrap: anywhere;
