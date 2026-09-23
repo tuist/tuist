@@ -1,10 +1,15 @@
-name: Omada Controller Deployment
+name: Rack Fleet Controller Deployment
 
 # The Omada SDN controller for the rack fleet (infra/helm/omada). One
 # controller, because a switch can be adopted by only one; it lives in the
 # staging cluster while the rack is at home and moves to production with the
 # rack. Its admin account and Open API client come from the controller's own
 # first-boot wizard, so nothing here seeds credentials.
+#
+# It also applies the RackSwitch CRD to the same cluster. server-deployment.yml
+# carries that CRD to every cluster it deploys, but merges only deploy canary
+# and production; staging gets a server deploy only when someone dispatches
+# one, and the rack's objects need their CRD where the rack is.
 
 on:
   push:
@@ -12,6 +17,7 @@ on:
       - main
     paths:
       - infra/helm/omada/**
+      - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - .github/workflows/omada-deployment.yml
   workflow_dispatch:
     inputs:
@@ -67,6 +73,11 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Apply the RackSwitch CRD
+        run: |
+          set -euo pipefail
+          kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev
       - name: Fetch the wrapped chart
         run: helm dependency build "$HELM_CHART_PATH"
       - name: helm upgrade --install
