@@ -672,6 +672,21 @@ defmodule TuistWeb.Coverage.Components do
         "The coverage pipeline of its newest commit has not signalled completion yet, so more runs may still land and its gates wait."
       )
 
+  @doc "What the status of the commit a page describes means, for its title."
+  def head_status_title(%{complete: true}),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "This commit's coverage pipeline signalled it finished, so its figure is final and its gates are decided."
+      )
+
+  def head_status_title(_commit),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "This commit's coverage pipeline has not signalled completion yet, so more runs may still land and its gates wait."
+      )
+
   def ref_status_color(%{complete: true}), do: "success"
   def ref_status_color(_ref), do: "information"
 

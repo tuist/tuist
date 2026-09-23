@@ -313,8 +313,9 @@
     }
   }
 
-  /* A cell with a title explains itself on hover. */
-  & [data-part="cell"][title] {
+  /* A cell or status with a title explains itself on hover. */
+  & [data-part="cell"][title],
+  & [data-part="status"][title] {
     cursor: help;
   }
 

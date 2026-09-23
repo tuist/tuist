@@ -135,6 +135,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       refute has_element?(lv, "#widget-files-without-data")
       refute has_element?(lv, "#coverage-no-baseline")
       assert has_element?(lv, "#coverage-incomplete")
+      assert has_element?(lv, "[data-part='status'][title*='has not signalled completion']")
 
       # Where coverage moved is a highlight on the overview; the full lists
       # live in their own tabs.
