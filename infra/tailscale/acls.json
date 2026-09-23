@@ -86,8 +86,10 @@
 //                            Omada controller on the tailnet,
 //                            translated to its own address
 //                            (infra/helm/rack-edge).
-//                            Joined by an admin opening the login
-//                            URL, not by a key: one box, once.
+//                            Joins from its install stick with a
+//                            single-use key minted from the
+//                            TAILSCALE_RACK_NODES OAuth client,
+//                            whose tags must own this tag.
 
 {
 	// Human access groups for the Kubernetes API server proxy.
@@ -351,6 +353,15 @@
 			"ip":  ["tcp:22"],
 		},
 
+		// Staging cluster → the BER1 rack's Linux nodes, on SSH only: the
+		// operator joins each one over its own tailnet address and keeps it
+		// converged (RackLinuxMachine), through the macmini-egress ProxyGroup.
+		{
+			"src": ["tag:tuist-k8s-staging"],
+			"dst": ["tag:tuist-rack-edge"],
+			"ip":  ["tcp:22"],
+		},
+
 		// The BER1 switches → the Omada controller in the staging cluster, on
 		// its device ports only. The switches are not on the tailnet: their
 		// traffic reaches it through the rack's edge node, translated to the
@@ -595,6 +606,10 @@
 	// accept the intended traffic. Add cross-env deny assertions
 	// when the catch-all is removed.
 	"tests": [
+		{
+			"src": "tag:tuist-k8s-staging",
+			"accept": ["tag:tuist-rack-edge:22"],
+		},
 		{
 			"src": "tag:tuist-k8s-staging",
 			"accept": [
