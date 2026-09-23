@@ -405,6 +405,9 @@ subjects:
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
+#   * rackapplesiliconmachines + rackhosts update/patch: set the one-shot
+#     tuist.dev/os-update and tuist.dev/power-action annotations. Not /status:
+#     a rack host's quarantine clears by expiring.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -423,6 +426,9 @@ rules:
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["scalewayapplesiliconmachinetemplates"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["rackapplesiliconmachines", "rackhosts"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]

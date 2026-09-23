@@ -633,6 +633,9 @@ kubectl get rasm -o wide          # OSUpdate and OSTarget columns
 kubectl get rasm <machine> -o jsonpath='{.status.osUpdate}'
 ```
 
+Setting it needs `tuist-fleet-unwedge`, which staging grants standing and canary
+and production grant under a `tuist-<env>-write` elevation.
+
 The controller moves `status.osUpdate.phase` through:
 
 | Phase | What happens |
