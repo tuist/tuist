@@ -850,7 +850,6 @@ defmodule Tuist.VCS do
     metrics_map = project.id |> TestsAnalytics.test_runs_metrics(test_runs) |> Map.new(&{&1.test_run_id, &1})
     runs = Enum.map(test_runs, &{&1, Map.fetch!(metrics_map, &1.id)})
     any_run? = fn field -> Enum.any?(runs, fn {_test_run, metrics} -> Map.fetch!(metrics, field) end) end
-    selective_testing? = any_run?.(:has_selective_testing_data)
 
     columns =
       Enum.filter(
@@ -865,11 +864,7 @@ defmodule Tuist.VCS do
            fn {_test_run, metrics} -> metrics.module_cache_hit_rate || "-" end},
           {"Xcode cache hit rate", any_run?.(:xcode_cache_hit_rate),
            fn {_test_run, metrics} -> metrics.xcode_cache_hit_rate || "-" end},
-          {"Test modules", true, fn {_test_run, metrics} -> metrics.skipped_test_modules + metrics.ran_test_modules end},
-          {"Skipped", selective_testing?,
-           fn {_test_run, metrics} -> selective_testing_count(metrics, metrics.skipped_test_modules) end},
-          {"Ran", selective_testing?,
-           fn {_test_run, metrics} -> selective_testing_count(metrics, metrics.ran_test_modules) end},
+          {"Test modules", true, fn {_test_run, metrics} -> test_modules_text(metrics) end},
           {"Commit", true, fn {test_run, _metrics} -> commit_link(test_run.git_commit_sha, git_remote_url_origin) end}
         ],
         fn {_header, shown?, _cell} -> shown? end
@@ -880,8 +875,10 @@ defmodule Tuist.VCS do
       Enum.map_join(runs, "", fn run -> "| #{Enum.map_join(columns, " | ", fn {_, _, cell} -> cell.(run) end)} |\n" end)
   end
 
-  defp selective_testing_count(%{has_selective_testing_data: true}, count), do: count
-  defp selective_testing_count(_metrics, _count), do: "-"
+  defp test_modules_text(%{has_selective_testing_data: true} = metrics),
+    do: "#{metrics.ran_test_modules}/#{metrics.ran_test_modules + metrics.skipped_test_modules}"
+
+  defp test_modules_text(metrics), do: metrics.ran_test_modules
 
   defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
 
