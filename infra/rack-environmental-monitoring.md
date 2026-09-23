@@ -8,8 +8,9 @@
 >   replaced has exactly **one** Universal I/O port and therefore one probe.
 > - The Mac mini draws air in **and** exhausts it through the **bottom foot**. A flush
 >   stack is a recirculation question, not an intake-clearance question.
-> - The macOS fleet reports **no temperature at all** today, for three independent
->   reasons, and would still report none if the collector were enabled.
+> - The macOS fleet reports **no temperature at all** today, and would still report
+>   none with the collector enabled and the latest release: an upstream bug returns
+>   before any sensor is read on a healthy Apple Silicon machine.
 > - ASHRAE's own limit for non-tape IT equipment is **no more than 5 °C in any
 >   15-minute period**. The rate-of-change alert is not a taste judgement.
 
@@ -233,17 +234,27 @@ Each of these would suppress the data on its own, and all three are live:
    [`helm/k8s-monitoring/values.yaml`](helm/k8s-monitoring/values.yaml) keeps a fixed
    metric list with no `node_thermal_` entry.
 
-**The cheap fix is two lines and does not need a version bump.** Add `--collector.thermal`
-to the bootstrap's flag list and `node_thermal_.*` to the keep regex. That gets the
-throttle ratios fleet-wide on the pinned 1.8.2. Actual per-machine die temperature
-needs 1.11.0 or later, which is a separate fleet-wide change and should wait until
-the ratios have shown whether the temperature is worth having.
+**Fixing all three would still report nothing, because of a fourth.** Measured on
+2026-09-23 on an Apple Silicon Mac: the darwin thermal collector asks macOS for the
+CPU power status first and returns before reading a single sensor when there is none
+recorded, and "No CPU power status has been recorded" is the normal state of a
+healthy machine (`pmset -g therm` says so). Both 1.8.2 and the latest release,
+1.12.1, fail that way and emit zero series. Apple Silicon does not implement that
+power-status API at all, so the throttle ratios never exist on this fleet either.
+The fix is upstream and unmerged,
+[prometheus/node_exporter#3767](https://github.com/prometheus/node_exporter/pull/3767)
+(issue [#2906](https://github.com/prometheus/node_exporter/issues/2906)); built from
+source it reported 45 sensors, including the SoC die sensors, and its author measured
+52 on an M5 Pro. **Mac temperatures wait for that release**, then take a version bump,
+`--collector.thermal` in the bootstrap, and the metric in the keep regex.
 
-The four x86 nodes run Linux, where node_exporter's `hwmon` collector reports package
-temperature with no extra hardware. Whether they are scraped at all is an open
-question: the Alloy discovery is Mac-only, keyed on the `tuist.dev/macmini-egress`
-label. If they are wired up later they are a second, independent in-rack temperature
-for free.
+The x86 nodes run Linux and join the staging cluster, so the cluster's node-exporter
+DaemonSet covers them. The edge node joined at its tailnet address, which the pod
+network cannot reach, and read `up 0` until
+[#13546](https://github.com/tuist/tuist/pull/13546) pointed its scrape at its egress
+Service; that change also keeps the `hwmon` CPU package, core and NVMe temperatures.
+The switches report CPU, memory, chassis and transceiver temperature through the
+Omada controller, [#13545](https://github.com/tuist/tuist/pull/13545).
 
 ### What each one is for
 
@@ -285,9 +296,9 @@ to be worse than, and the entire question is comparative.
    recirculates a machine's own exhaust into its own intake.
 6. Rear, mid-height.
 
-**Per machine.** `node_thermal_cpu_speed_limit_ratio` and
-`node_thermal_cpu_scheduler_limit_ratio`, with `--collector.thermal` enabled for the
-bench, plus wall-clock for a fixed build repeated throughout.
+**Per machine.** SoC die temperatures (`PMU tdie*`), from node_exporter built with
+#3767 and run by hand on the bench, plus wall-clock for a fixed build repeated
+throughout.
 
 **Load.** The real runner workload at full concurrency, one build per machine on
 repeat. A synthetic all-core loop understates the GPU and ANE share and is not what
@@ -308,7 +319,7 @@ a threshold, it is a number.
 
 **Write down**, for the steady state and the fault case, in both geometries: the six
 temperatures, the three deltas (`top` minus `inlet`, gap minus `inlet`, rear minus
-`inlet`), the throttle ratios per machine, and the fixed-build wall clock.
+`inlet`), the hottest die sensor per machine, and the fixed-build wall clock.
 
 **What the result decides.** If the flush stack costs build time or pushes any machine
 into sustained derating, the fix is a vented plate between mounts (MyElectronics
@@ -568,11 +579,10 @@ line item.
 
 **In:** three probes on one G4 PDU; three `environment` node entries and one hardware
 entry in the BER1 site definition; one SNMP scrape in the staging Alloy; one egress
-Service and one ACL grant; five Grafana Cloud rules; two lines enabling the host
-throttle ratios; the bench test definition above.
+Service and one ACL grant; five Grafana Cloud rules; the bench test definition above.
 
-**Out:** standalone environmental sensors; the node_exporter 1.11 bump that would add
-real per-machine temperature; per-outlet power metering, which the Managed PDU has and
+**Out:** standalone environmental sensors; Mac mini die temperature, which waits on
+upstream #3767; per-outlet power metering, which the Managed PDU has and
 which belongs with the power driver; water leak, door and smoke sensors on the probes'
 six spare dry contacts; anything about rack 2.
 
@@ -593,12 +603,10 @@ six spare dry contacts; anything about rack 2.
    documentation allows a protocol in `spec.ports` and shows UDP examples. Verify once
    against the deployed operator before relying on it; if it does not, the PDU's REST
    API over HTTPS is the TCP fallback and needs something to turn JSON into metrics.
-5. **Are the four x86 nodes scraped at all?** If they are, `node_hwmon_temp_celsius`
-   is a free second in-rack temperature.
-6. **NTT's setpoints, alerting and per-rack measurement.** The four questions above.
-7. **Does the MyElectronics 1.25U mount publish any airflow data?** None found in the
+5. **NTT's setpoints, alerting and per-rack measurement.** The four questions above.
+6. **Does the MyElectronics 1.25U mount publish any airflow data?** None found in the
    vendor catalogue, and the fact sheet the facility asked for still does not exist.
-8. **Does a flush stack actually recirculate?** The intake and the exhaust share the
+7. **Does a flush stack actually recirculate?** The intake and the exhaust share the
    bottom foot, which makes it plausible rather than proven. This is what the bench test
    is for, and every threshold here is provisional until it answers.
 
