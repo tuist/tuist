@@ -1,8 +1,46 @@
 # Tuist for Elixir
 
-Package skeleton for the future Tuist integration with Mix and ExUnit.
-Build instrumentation, test reporting, uploading, and dashboard integration are
-not implemented yet.
+This package provides `mix tuist.login`, which authenticates with Tuist and saves
+the session in the same credential file used by the Tuist command line tool and
+Gradle plugin. Build instrumentation and test reporting are planned separately.
+
+## Configure the server
+
+You can share the Tuist server address with your team in `mix.exs`:
+
+```elixir
+def project do
+  [
+    app: :my_app,
+    tuist: [url: "https://tuist.example.com"]
+  ]
+end
+```
+
+`TUIST_URL` overrides that address, as it does in the Tuist command line tool.
+You can also pass `--url` when `TUIST_URL` is unset. The default is
+`https://tuist.dev`. [URL](https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL)
+means Uniform Resource Locator.
+
+## Log in
+
+```sh
+mix tuist.login
+mix tuist.login --email person@example.com --password secret
+mix tuist.login --url https://tuist.example.com
+```
+
+Without credentials, the task opens a browser and waits for authorization. If
+you provide only `--email` or `--password`, it prompts for the missing value.
+On a continuous integration provider, it exchanges an
+[OpenID Connect](https://openid.net/developers/how-connect-works/) identity token
+from GitHub Actions, CircleCI, or Bitrise, matching the Tuist command line flow.
+
+Credentials are saved under the Tuist configuration directory. The task writes
+them atomically with access restricted to the current user. Refreshes take a
+lock at the Tuist command line tool's lock path and reread the file before
+exchanging the refresh token, so parallel processes do not refresh the same
+token twice.
 
 ## Development
 
@@ -21,7 +59,7 @@ mix docs --warnings-as-errors
 `mix format` applies its fixes; `mix format --check-formatted` enforces them in
 automated checks. [Mimic](https://hexdocs.pm/mimic) is available for test mocks.
 Register modules with `Mimic.copy/1` in `test/test_helper.exs` as tests are added.
-The skeleton intentionally contains no implementation modules or test cases.
+The package currently has focused authentication and locking tests.
 
 ## Automated checks and releases
 
