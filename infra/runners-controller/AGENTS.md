@@ -1287,3 +1287,8 @@ cache root or infrastructure credential crosses into workflow containers.
   documented in [cache-volume-integrations.md](cache-volume-integrations.md).
   Do not enable provider allocation by removing the GitHub filter alone; require
   verified provider/instance identity and publication policy first.
+
+The real cache-filesystem CI job runs on `ubuntu-latest`, outside Kata's minimal
+kernel, because the node agent is a host workload. Keep it a required image-build
+dependency. Manual branch image builds publish only commit tags; `latest` is
+reserved for main.

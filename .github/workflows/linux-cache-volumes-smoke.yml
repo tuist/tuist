@@ -8,61 +8,98 @@ on:
         type: string
         default: tuist-staging-linux
       cache_key:
-        description: Same key for a default-branch cold run followed by a warm run
+        description: Unique smoke key; reuse across seed and verification runs
         type: string
-        default: volume-smoke-v2
-      expect_warm:
-        description: Require a published snapshot (wait for prior job teardown)
-        type: boolean
-        default: false
+        default: volume-smoke-v3
+      phase:
+        description: Seed, verify, intentional failure, hold for cancellation/clearing, or require a cold volume
+        type: choice
+        options: [seed, verify, fail, hold, expect-empty]
+        default: seed
+      expected_value:
+        description: Sentinel expected on a warm attachment
+        type: string
+        default: retained
+      write_value:
+        description: Sentinel written by this job (empty preserves existing contents)
+        type: string
+        default: retained
+      hold_seconds:
+        description: Time to keep the volume mounted for isolation and lifecycle tests
+        type: number
+        default: 0
+      action_ref:
+        description: Reviewed commit of tuist/tuist containing the action
+        type: string
+        default: 07f5e5ac8403a676bf1d7f2e35ee8f1c7c7a7a97
 
 permissions:
   contents: read
 
 jobs:
-  native:
+  smoke:
+    name: ${{ matrix.mode }} / ${{ inputs.phase }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: native
+            container: null
+          - mode: container
+            container: ubuntu:22.04
     runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: 10
+    container: ${{ matrix.container }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: tuist/tuist
+          ref: ${{ inputs.action_ref }}
+          sparse-checkout: .github/actions/cache-volume
       - uses: ./.github/actions/cache-volume
         id: cache
         with:
-          key: ${{ inputs.cache_key }}-native
+          key: ${{ inputs.cache_key }}-${{ matrix.mode }}
           path: .volume-smoke
-      - name: Verify native snapshot
-        env:
-          EXPECT_WARM: ${{ inputs.expect_warm }}
-          CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
-        run: |
-          set -euo pipefail
-          test -L .volume-smoke
-          if [ "$EXPECT_WARM" = true ]; then
-            test "$CACHE_HIT" = true
-            test "$(cat .volume-smoke/smoke)" = retained
-          fi
-          printf retained > .volume-smoke/smoke
-  container:
-    runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: 10
-    container: ubuntu:22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/cache-volume
-        id: cache
-        with:
-          key: ${{ inputs.cache_key }}-container
-          path: .volume-smoke
-      - name: Verify container snapshot
+      - name: Verify real mounted volume
         shell: bash
         env:
-          EXPECT_WARM: ${{ inputs.expect_warm }}
+          PHASE: ${{ inputs.phase }}
           CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+          EXPECTED_VALUE: ${{ inputs.expected_value }}
+          WRITE_VALUE: ${{ inputs.write_value }}
+          HOLD_SECONDS: ${{ inputs.hold_seconds }}
         run: |
           set -euo pipefail
           test -L .volume-smoke
-          if [ "$EXPECT_WARM" = true ]; then
-            test "$CACHE_HIT" = true
-            test "$(cat .volume-smoke/smoke)" = retained
+          target=$(readlink -f .volume-smoke)
+          test -f "$(dirname "$target")/.tuist-volume"
+          printf 'Mounted filesystem: '
+          stat -f -c '%T' "$target"
+          df -h "$target"
+          case "$PHASE" in
+            seed|expect-empty)
+              test "$CACHE_HIT" = false
+              test ! -e .volume-smoke/sentinel
+              ;;
+            verify|fail|hold)
+              test "$CACHE_HIT" = true
+              test "$(cat .volume-smoke/sentinel)" = "$EXPECTED_VALUE"
+              ;;
+          esac
+          if [ -n "$WRITE_VALUE" ]; then
+            printf '%s' "$WRITE_VALUE" > .volume-smoke/sentinel
+            mkdir -p .volume-smoke/nested
+            printf 'nested payload' > .volume-smoke/nested/file
+            ln -sfn nested/file .volume-smoke/link
           fi
-          printf retained > .volume-smoke/smoke
+          if [ "$PHASE" = verify ]; then
+            test "$(cat .volume-smoke/link)" = 'nested payload'
+          fi
+          sync
+          [[ "$HOLD_SECONDS" =~ ^[0-9]+$ ]] && [ "$HOLD_SECONDS" -le 600 ]
+          sleep "$HOLD_SECONDS"
+          if [ -n "$WRITE_VALUE" ]; then
+            test "$(cat .volume-smoke/sentinel)" = "$WRITE_VALUE"
+          fi
+          test "$PHASE" != fail

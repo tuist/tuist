@@ -59,3 +59,8 @@ This node covers Helm assets under `infra/helm/`.
   node agent uses local loop-mounted images and the existing macOS object-storage
   infrastructure; no Ceph Secret or pool values remain. Keep disabled until the
   deployed Kata smoke gate passes. See `../runners-controller/cache-volumes.md`.
+- Staging custom-volume smoke validation uses the preallocated XFS mount at
+  `/var/lib/kubelet/tuist-runner-cache` on its Linux runner's data partition;
+  the root partition is too small for the default 200 GB backing file. Keep
+  its agent image pinned to a tested commit and retain the mount while any
+  private branches are live. Production remains disabled.
