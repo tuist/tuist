@@ -1,0 +1,233 @@
+package linux
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/cluster-api/util/patch"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/tailnet"
+)
+
+// TailnetJoinedCondition reports whether the host's device is on the tailnet.
+const TailnetJoinedCondition clusterv1.ConditionType = "TailnetJoined"
+
+const rackLinuxHostPollInterval = 2 * time.Minute
+
+// TailnetAPI is the subset of the Tailscale API the host controller uses.
+type TailnetAPI interface {
+	Devices(ctx context.Context) ([]tailnet.Device, error)
+	DeleteDevice(ctx context.Context, nodeID string) error
+	RenameDevice(ctx context.Context, nodeID, name string) error
+}
+
+// RackLinuxHostReconciler keeps each host's tailnet device current: it finds
+// the device the host joined as, removes the devices earlier installs of the
+// same box left behind, and names the current one after the host. It also
+// releases a claim whose machine is gone. It never claims or joins a host.
+type RackLinuxHostReconciler struct {
+	client.Client
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
+
+	// Tailnet is nil when no Tailscale credential is configured; hosts then
+	// report TailnetJoined False and no machine can reach them.
+	Tailnet TailnetAPI
+}
+
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxhosts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxhosts/status,verbs=get;update;patch
+
+func (r *RackLinuxHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+	host := &infrav1.RackLinuxHost{}
+	if getErr := r.Get(ctx, req.NamespacedName, host); getErr != nil {
+		if apierrors.IsNotFound(getErr) {
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, getErr
+	}
+	if !host.DeletionTimestamp.IsZero() {
+		return ctrl.Result{}, nil
+	}
+
+	patchHelper, helperErr := patch.NewHelper(host, r.Client)
+	if helperErr != nil {
+		return ctrl.Result{}, helperErr
+	}
+	defer func() {
+		if patchErr := patchHelper.Patch(ctx, host); patchErr != nil && err == nil {
+			err = patchErr
+		}
+	}()
+
+	if err := r.releaseIfOrphaned(ctx, host); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: r.observeTailnet(ctx, host)}, nil
+}
+
+func (r *RackLinuxHostReconciler) releaseIfOrphaned(ctx context.Context, host *infrav1.RackLinuxHost) error {
+	if host.Status.ClaimedBy == "" {
+		return nil
+	}
+	machine := &infrav1.RackLinuxMachine{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: host.Namespace, Name: host.Status.ClaimedBy}, machine)
+	switch {
+	case err == nil:
+		return nil
+	case !apierrors.IsNotFound(err):
+		return err
+	}
+	r.Recorder.Eventf(host, corev1.EventTypeWarning, "ClaimReleased",
+		"Released the claim held by %s: no such RackLinuxMachine", host.Status.ClaimedBy)
+	host.Status.ClaimedBy = ""
+	host.Status.ClaimedAt = nil
+	return nil
+}
+
+// observeTailnet records the host's device and returns when to look again.
+//
+// A device is the host's when its OS hostname is the host's name and it
+// carries every tag the host names. Every install registers a new device, so
+// the newest is current. An older one is removed only while the newest is
+// connected and the older one is not, which is a reinstall: the box that held
+// the older device has been wiped and can never bring it back.
+func (r *RackLinuxHostReconciler) observeTailnet(ctx context.Context, host *infrav1.RackLinuxHost) time.Duration {
+	logger := log.FromContext(ctx)
+	if r.Tailnet == nil {
+		conditions.MarkFalse(host, TailnetJoinedCondition, "NoTailnetCredential", clusterv1.ConditionSeverityError,
+			"the operator has no Tailscale OAuth client, so it cannot find hosts on the tailnet")
+		return 10 * time.Minute
+	}
+	if len(host.Spec.Tailnet.Tags) == 0 {
+		conditions.MarkFalse(host, TailnetJoinedCondition, "NoTailnetTags", clusterv1.ConditionSeverityError,
+			"spec.tailnet.tags is empty; a device is only this host when it carries the host's tags")
+		return 10 * time.Minute
+	}
+
+	devices, err := r.Tailnet.Devices(ctx)
+	if err != nil {
+		conditions.MarkFalse(host, TailnetJoinedCondition, "TailnetAPIError", clusterv1.ConditionSeverityWarning, "%v", err)
+		return time.Minute
+	}
+	matches := hostDevices(devices, host)
+	if len(matches) == 0 {
+		host.Status.Tailnet = nil
+		conditions.MarkFalse(host, TailnetJoinedCondition, "NotOnTailnet", clusterv1.ConditionSeverityInfo,
+			"no tailnet device named %s carries %s; install the host from a stick written by rack:write-install-usb",
+			host.Name, strings.Join(host.Spec.Tailnet.Tags, ","))
+		return time.Minute
+	}
+
+	current := matches[0]
+	var remaining []tailnet.Device
+	for _, d := range matches[1:] {
+		if !current.ConnectedToControl || d.ConnectedToControl {
+			remaining = append(remaining, d)
+			continue
+		}
+		if err := r.Tailnet.DeleteDevice(ctx, d.NodeID); err != nil {
+			r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReplacedDeviceNotRemoved",
+				"Could not remove %s (%s), the device an earlier install left: %v", d.Name, d.NodeID, err)
+			remaining = append(remaining, d)
+			continue
+		}
+		r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReplacedDeviceRemoved",
+			"Removed %s (%s, %s), the device an earlier install left; the host is now %s",
+			d.Name, d.NodeID, d.IPv4(), current.NodeID)
+		logger.Info("removed a rack host's replaced tailnet device", "host", host.Name, "device", d.NodeID)
+	}
+
+	if len(remaining) == 0 && current.ConnectedToControl && current.ShortName() != host.Name {
+		if err := r.Tailnet.RenameDevice(ctx, current.NodeID, host.Name); err != nil {
+			r.Recorder.Eventf(host, corev1.EventTypeWarning, "DeviceNotRenamed",
+				"Could not rename %s to %s: %v", current.Name, host.Name, err)
+		} else {
+			r.Recorder.Eventf(host, corev1.EventTypeNormal, "DeviceRenamed", "Renamed %s to %s", current.Name, host.Name)
+			if _, domain, ok := strings.Cut(current.Name, "."); ok {
+				current.Name = host.Name + "." + domain
+			} else {
+				current.Name = host.Name
+			}
+		}
+	}
+
+	status := &infrav1.RackLinuxHostTailnetStatus{
+		DeviceID:  current.NodeID,
+		Name:      current.Name,
+		Address:   current.IPv4(),
+		Connected: current.ConnectedToControl,
+	}
+	if t := current.CreatedAt(); !t.IsZero() {
+		status.Created = &metav1.Time{Time: t}
+	}
+	if t := current.LastSeenAt(); !t.IsZero() {
+		status.LastSeen = &metav1.Time{Time: t}
+	}
+	host.Status.Tailnet = status
+
+	switch {
+	case len(remaining) > 0:
+		ids := make([]string, 0, len(remaining))
+		for _, d := range remaining {
+			ids = append(ids, d.NodeID)
+		}
+		conditions.MarkFalse(host, TailnetJoinedCondition, "DuplicateDevices", clusterv1.ConditionSeverityWarning,
+			"%s is current, and %d other device(s) also claim to be this host: %s", current.NodeID, len(remaining), strings.Join(ids, ", "))
+	case status.Address == "":
+		conditions.MarkFalse(host, TailnetJoinedCondition, "NoTailnetAddress", clusterv1.ConditionSeverityWarning,
+			"device %s has no IPv4 address", current.NodeID)
+	case !current.ConnectedToControl:
+		conditions.MarkFalse(host, TailnetJoinedCondition, "Disconnected", clusterv1.ConditionSeverityWarning,
+			"device %s is not connected to the tailnet", current.NodeID)
+	default:
+		conditions.MarkTrue(host, TailnetJoinedCondition)
+	}
+	return rackLinuxHostPollInterval
+}
+
+// hostDevices are the devices that claim to be host, newest first.
+func hostDevices(devices []tailnet.Device, host *infrav1.RackLinuxHost) []tailnet.Device {
+	var out []tailnet.Device
+	for _, d := range devices {
+		if strings.EqualFold(d.Hostname, host.Name) && d.HasTags(host.Spec.Tailnet.Tags) {
+			out = append(out, d)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		ti, tj := out[i].CreatedAt(), out[j].CreatedAt()
+		if !ti.Equal(tj) {
+			return ti.After(tj)
+		}
+		return out[i].NodeID > out[j].NodeID
+	})
+	return out
+}
+
+func (r *RackLinuxHostReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&infrav1.RackLinuxHost{}).
+		Complete(r)
+}
+
+func describeTailnet(host *infrav1.RackLinuxHost) string {
+	if host.Status.Tailnet == nil {
+		return "not on the tailnet"
+	}
+	return fmt.Sprintf("%s at %s", host.Status.Tailnet.Name, host.Status.Tailnet.Address)
+}
