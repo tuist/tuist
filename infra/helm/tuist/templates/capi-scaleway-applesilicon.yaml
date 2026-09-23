@@ -52,6 +52,9 @@ rules:
       - rackapplesiliconmachines
       - rackapplesiliconmachinetemplates
       - rackhosts
+      - racklinuxhosts
+      - racklinuxmachines
+      - racklinuxmachinetemplates
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
@@ -74,6 +77,9 @@ rules:
       # with Update rather than a merge patch so the apiserver's
       # resourceVersion check makes the claim atomic.
       - rackhosts/status
+      - racklinuxhosts/status
+      - racklinuxmachines/status
+      - racklinuxmachines/finalizers
       - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
@@ -172,6 +178,12 @@ rules:
     # read on the single ConfigMap by name.
     resources: [configmaps]
     resourceNames: [cluster-info]
+    verbs: [get]
+  - apiGroups: ["apps"]
+    # The rack Linux kind refuses to join a node while the Cilium agent would
+    # schedule onto it.
+    resources: [daemonsets]
+    resourceNames: [cilium]
     verbs: [get]
 {{- if .Values.macosFleet.tailscaleEgress.enabled }}
 ---
@@ -355,6 +367,9 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --secrets-namespace={{ .Release.Namespace }}
+            {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
+            - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
+            {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}
             {{- end }}

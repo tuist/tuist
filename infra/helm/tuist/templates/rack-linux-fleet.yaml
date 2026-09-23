@@ -1,0 +1,163 @@
+{{- if and .Values.capi.enabled .Values.rackLinuxFleet.enabled }}
+{{- $fleetName := include "tuist.rackLinuxFleetName" . }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+{{- $poolPrefix := required "rackLinuxFleet.pool is required; it prefixes each role's claim pool and is the environment boundary between racks" .Values.rackLinuxFleet.pool }}
+{{- /*
+Rack-owned Linux machines: one RackLinuxHost per box, rendered from
+`rackLinuxFleet.hosts`, and one MachineDeployment per role claiming from the
+pool `<pool>-<role>`. A role's labels and taints come from
+`rackLinuxFleet.roles.<role>` and reach the Node at its first registration.
+*/ -}}
+{{- $roles := dict }}
+{{- range $host := .Values.rackLinuxFleet.hosts }}
+{{- $hostName := required "each rackLinuxFleet.hosts entry needs a name" $host.name }}
+{{- $role := required (printf "rackLinuxFleet.hosts[%s].role is required" $hostName) $host.role }}
+{{- $_ := set $roles $role (add1 (get $roles $role | default 0)) }}
+{{- if empty $host.tailnetTags }}
+{{- fail (printf "rackLinuxFleet.hosts[%s].tailnetTags is required: a device is only this host when it carries them" $hostName) }}
+{{- end }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackLinuxHost
+metadata:
+  name: {{ $hostName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+    tuist.dev/rack-pool: {{ printf "%s-%s" $poolPrefix $role }}
+spec:
+  pool: {{ printf "%s-%s" $poolPrefix $role }}
+  role: {{ $role }}
+  sshUser: {{ $host.sshUser | default $.Values.rackLinuxFleet.sshUser | default "tuist" }}
+  location:
+    site: {{ required (printf "rackLinuxFleet.hosts[%s].site is required; it composes the providerID" $hostName) (coalesce $host.site $.Values.rackLinuxFleet.site) | quote }}
+    {{- with $host.rack }}
+    rack: {{ . | quote }}
+    {{- end }}
+    {{- with $host.positionU }}
+    positionU: {{ . }}
+    {{- end }}
+  tailnet:
+    tags:
+      {{- toYaml $host.tailnetTags | nindent 6 }}
+{{- end }}
+{{- range $role := keys $roles | sortAlpha }}
+{{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
+{{- $machineSpec := dict "adoptPool" (printf "%s-%s" $poolPrefix $role) "fleetName" $fleetName }}
+{{- with $roleConfig.nodeLabels }}
+{{- $_ := set $machineSpec "nodeLabels" . }}
+{{- end }}
+{{- with $roleConfig.nodeTaints }}
+{{- $_ := set $machineSpec "nodeTaints" . }}
+{{- end }}
+{{- $deploymentName := printf "%s-%s" $fleetName $role }}
+{{- $templateName := printf "%s-%s" $deploymentName (toYaml $machineSpec | sha256sum | trunc 8) }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: RackLinuxMachineTemplate
+metadata:
+  name: {{ $templateName }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+    tuist.dev/fleet: {{ $deploymentName }}
+spec:
+  template:
+    spec:
+      {{- toYaml $machineSpec | nindent 6 }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $deploymentName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+    tuist.dev/fleet: {{ $deploymentName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  replicas: {{ get $roles $role }}
+  # A host is re-joined by deleting its Machine; the replacement claims the
+  # same box.
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $deploymentName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $deploymentName }}
+    spec:
+      clusterName: {{ $clusterName }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: RackLinuxMachineTemplate
+        name: {{ $templateName }}
+{{- end }}
+{{- if .Values.rackLinuxFleet.sshExternalSecret.enabled }}
+---
+# The rack's fleet key. The install stick authorizes its public half, and the
+# operator logs in with the private half. Never minted in-cluster.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $fleetName }}-ssh
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: {{ $fleetName }}-ssh
+    creationPolicy: Owner
+  data:
+    - secretKey: id_ed25519
+      remoteRef:
+        key: "{{ required "rackLinuxFleet.sshExternalSecret.item is required when sshExternalSecret.enabled" .Values.rackLinuxFleet.sshExternalSecret.item }}/private-key"
+{{- end }}
+{{- if .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
+---
+# The Tailscale OAuth client (Auth Keys and Devices Core, scoped to the rack
+# tags). The operator uses it to find each host's device, remove the device a
+# reinstall replaced, and name the new one after the host;
+# rack:write-install-usb mints each stick's single-use join key from the same
+# 1Password item.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $fleetName }}-tailscale
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: {{ $fleetName }}-tailscale
+    creationPolicy: Owner
+  data:
+    - secretKey: client-id
+      remoteRef:
+        key: "{{ required "rackLinuxFleet.tailscale.externalSecret.item is required when enabled" .Values.rackLinuxFleet.tailscale.externalSecret.item }}/client-id"
+    - secretKey: client-secret
+      remoteRef:
+        key: "{{ .Values.rackLinuxFleet.tailscale.externalSecret.item }}/client-secret"
+{{- end }}
+{{- end }}

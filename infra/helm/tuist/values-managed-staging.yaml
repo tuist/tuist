@@ -843,6 +843,28 @@ rackFleet:
     enabled: true
     item: BER1_FLEET_SSH
 
+rackLinuxFleet:
+  enabled: true
+  pool: ber1-staging
+  site: ber1
+  sshExternalSecret:
+    enabled: true
+    item: BER1_FLEET_SSH
+  tailscale:
+    externalSecret:
+      enabled: true
+      item: TAILSCALE_RACK_NODES
+  roles:
+    edge:
+      nodeLabels:
+        tuist.dev/rack-edge: ber1
+      nodeTaints:
+        - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
+  hosts:
+    - name: ber1-edge
+      role: edge
+      tailnetTags: [tag:tuist-rack-edge]
+
 macosFleet:
   enabled: true
   replicas: 1
