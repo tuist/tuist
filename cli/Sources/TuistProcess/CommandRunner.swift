@@ -169,7 +169,7 @@ public struct CommandRunner: CommandRunning {
     static let fileDescriptorsPerProcess = 6
     static let maximumConcurrentProcesses = 256
     static let fallbackMaximumConcurrentProcesses = 16
-    private static let gracefulShutdownDuration: Duration = .seconds(5)
+    private static let gracefulShutdownDuration: Duration = .milliseconds(100)
     private static let sharedProcessLimiter = AsyncResourceLimiter(
         limitProvider: { systemMaximumConcurrentProcesses() }
     )
@@ -205,7 +205,14 @@ public struct CommandRunner: CommandRunning {
                             platformOptions: platformOptions
                         )
                         let standardOutputPipe = try FileDescriptor.pipe()
-                        let standardErrorPipe = try FileDescriptor.pipe()
+                        let standardErrorPipe: (readEnd: FileDescriptor, writeEnd: FileDescriptor)
+                        do {
+                            standardErrorPipe = try FileDescriptor.pipe()
+                        } catch {
+                            try? standardOutputPipe.readEnd.close()
+                            try? standardOutputPipe.writeEnd.close()
+                            throw error
+                        }
                         let standardOutput = FileHandle(fileDescriptor: standardOutputPipe.readEnd.rawValue, closeOnDealloc: true)
                         let standardError = FileHandle(fileDescriptor: standardErrorPipe.readEnd.rawValue, closeOnDealloc: true)
                         let standardErrorCollector = StandardErrorCollector()

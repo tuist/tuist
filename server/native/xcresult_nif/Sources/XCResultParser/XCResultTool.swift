@@ -35,8 +35,8 @@ public func executeXCResultTool(_ arguments: [String]) async throws -> XCResultT
     let result = try await Subprocess.run(
         executable,
         arguments: Arguments(Array(arguments.dropFirst())),
-        output: .string(limit: 10 * 1024 * 1024),
-        error: .string(limit: 10 * 1024 * 1024)
+        output: .string(limit: .max),
+        error: .string(limit: .max)
     )
     return XCResultToolOutput(
         standardOutput: result.standardOutput ?? "",
@@ -45,6 +45,26 @@ public func executeXCResultTool(_ arguments: [String]) async throws -> XCResultT
     )
 }
 
-public enum XCResultToolError: Error {
+public enum XCResultToolError: Error, LocalizedError {
     case missingExecutable
+    case terminated(command: [String], standardError: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .missingExecutable:
+            return "The command is missing an executable name."
+        case let .terminated(command, standardError):
+            let description = "The command '\(command.joined(separator: " "))' terminated unsuccessfully"
+            let trimmedStandardError = standardError.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedStandardError.isEmpty ? description : "\(description):\n\(trimmedStandardError)"
+        }
+    }
+}
+
+extension XCResultToolOutput {
+    func requireSuccess(for command: [String]) throws {
+        guard succeeded else {
+            throw XCResultToolError.terminated(command: command, standardError: standardError)
+        }
+    }
 }

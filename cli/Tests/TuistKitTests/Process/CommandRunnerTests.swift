@@ -58,7 +58,7 @@ import Testing
         let marker = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: marker) }
-        let command = "trap 'printf terminated > \(marker.path)' TERM; while :; do sleep 1; done"
+        let command = "trap 'printf terminated > \(marker.path)' TERM; while :; do :; done"
         let task = Task {
             try await CommandRunner().run(arguments: ["/bin/sh", "-c", command]).awaitCompletion()
         }
@@ -71,5 +71,20 @@ import Testing
             try await Task.sleep(for: .milliseconds(50))
         }
         #expect(FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    @Test func releasesProcessPermitAfterCancellation() async throws {
+        let runner = CommandRunner(maximumConcurrentProcesses: 1)
+        let task = Task {
+            try await runner.run(arguments: ["/bin/sh", "-c", "sleep 10"]).awaitCompletion()
+        }
+
+        try await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+        _ = try? await task.value
+
+        let start = Date()
+        try await runner.run(arguments: ["/bin/sh", "-c", "true"]).awaitCompletion()
+        #expect(Date().timeIntervalSince(start) < 0.5)
     }
 }

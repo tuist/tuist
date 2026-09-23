@@ -128,13 +128,14 @@ public struct XCResultParser: Sendable {
             .runInTemporaryDirectory(prefix: "xcresult-test-results") { temporaryDirectory in
                 let tempFile = temporaryDirectory.appending(component: "test-results.json")
 
-                _ = try await execute([
+                let output = try await execute([
                         "/bin/sh", "-c",
                         // `exec` replaces the shell with the tool so cancellation, which signals
                         // only the direct child, reaches xcresulttool instead of orphaning it.
                         "exec /usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
                     ]
                 )
+                try output.requireSuccess(for: ["xcresulttool", "get", "test-results", "tests"])
 
                 let outputString = try await fileSystem.readTextFile(at: tempFile)
                 let jsonString = extractJSON(from: outputString)
@@ -739,13 +740,16 @@ public struct XCResultParser: Sendable {
         try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-action-log") { temporaryDirectory in
             let tempFile = temporaryDirectory.appending(component: "action-log.json")
 
-            _ = try await execute([
+            let output = try await execute([
                     "/bin/sh", "-c",
                     // `exec` replaces the shell with the tool so cancellation, which signals
                     // only the direct child, reaches xcresulttool instead of orphaning it.
                     "exec /usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
                 ]
             )
+            if !output.succeeded, !output.standardError.contains("No action log available") {
+                try output.requireSuccess(for: ["xcresulttool", "get", "log", "--type", "action"])
+            }
 
             let logData = try await fileSystem.readFile(at: tempFile)
             // An aborted or test-less xcresult has no action log: `xcresulttool

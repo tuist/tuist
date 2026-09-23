@@ -568,6 +568,31 @@ struct XCResultParserTests {
         task.cancel()
         try await waitFor("the child to be terminated") { !processExists(marker) }
     }
+
+    @Test
+    func executeXCResultToolCapturesOutputLargerThanTenMegabytes() async throws {
+        let output = try await executeXCResultTool([
+            "/bin/sh", "-c", "yes x | head -c 10485761",
+        ])
+
+        #expect(output.succeeded)
+        let expectedOutputSize = 10 * 1024 * 1024 + 1
+        #expect(output.standardOutput.utf8.count == expectedOutputSize)
+    }
+
+    @Test
+    func failedXCResultToolOutputThrowsWhenSuccessIsRequired() {
+        let output = XCResultToolOutput(standardOutput: "", standardError: "tool failed", succeeded: false)
+
+        do {
+            try output.requireSuccess(for: ["xcresulttool", "get", "log"])
+            Issue.record("Expected the command to fail.")
+        } catch let error as XCResultToolError {
+            #expect(error.localizedDescription.contains("tool failed"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
 }
 
 private func runToCompletion(_ executable: String, _ arguments: [String]) -> Int32 {
