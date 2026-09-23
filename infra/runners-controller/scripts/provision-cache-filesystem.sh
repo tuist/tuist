@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
-# Run explicitly on a Linux runner host before enabling cache volumes.
+# Run on the host directly or through the chart's opt-in provisioning init container.
 set -euo pipefail
 root=${1:-/var/lib/tuist-runner-cache}
 size_gb=${2:-200}
 [[ $EUID == 0 ]] || { echo 'Run as root on the runner host.' >&2; exit 1; }
 [[ "$root" =~ ^/[a-zA-Z0-9/_-]+$ && "$root" != / && "$size_gb" =~ ^[0-9]+$ && "$size_gb" -ge 64 ]] || exit 2
-for tool in fallocate mkfs.xfs findmnt systemd-escape systemctl; do command -v "$tool" >/dev/null; done
+for tool in fallocate mkfs.xfs findmnt systemd-escape systemctl flock realpath stat losetup; do command -v "$tool" >/dev/null; done
+[[ "$(realpath -m "$root")" == "$root" ]] || { echo 'Cache path must be canonical, without symlinks.' >&2; exit 1; }
 image="${root}.img"
 unit=$(systemd-escape --path --suffix=mount "$root")
 [[ ! -L "$image" ]] || { echo "Refusing a symlink backing file." >&2; exit 1; }
+exec 9>"${image}.lock"
+flock -x 9
+if findmnt --mountpoint "$root" >/dev/null; then
+  source=$(findmnt -n -o SOURCE --mountpoint "$root")
+  [[ -f "$image" && "$(losetup --noheadings --output NAME -j "$image")" == "$source" ]] || {
+    echo 'Existing mount does not belong to this cache backing file.' >&2; exit 1;
+  }
+fi
+if [[ -f "$image" ]]; then
+  [[ "$(stat -c %s "$image")" == "$((size_gb * 1000000000))" ]] || {
+    echo 'Existing backing file size differs; automatic resizing is not supported.' >&2; exit 1;
+  }
+fi
 if ! [[ -f "$image" ]]; then
   [[ ! -e "$image" && ! -L "$image" && ! -e "$image.new" ]] || { echo 'Existing storage requires inspection.' >&2; exit 1; }
   mkdir -p "$root"

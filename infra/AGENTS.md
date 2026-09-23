@@ -276,6 +276,7 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 
 - Linux runner cache volumes use a dedicated privileged local-image agent
   and private per-job reflink clones. They reuse macOS HEAD/object storage.
-  The chart is off by default; provisioning
-  a bounded reflink filesystem and validating Kata mount propagation are rollout gates. See
+  The chart is off by default for self-hosting; managed production enables an
+  idempotent provisioning init container for the bounded reflink filesystem.
+  Host preparation and agent readiness precede runner admission. See
   [workflow setup and rollout](runners-controller/cache-volumes.md).

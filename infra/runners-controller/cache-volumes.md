@@ -6,8 +6,9 @@ images, and generation-checked publication. No Ceph cluster, credentials, RBD
 images or network block devices are required. Custom key/path volumes remain
 Linux-only; the existing automatic macOS repository cache is unchanged.
 
-The feature is disabled by default. Staging is enabled for the validation below;
-production remains disabled pending public integration releases and operational gates.
+The feature is disabled by default for self-hosted installs. Staging is enabled
+for the validation below. The managed production overlay enables it through the
+normal merge-and-deploy pipeline, including host filesystem provisioning.
 
 ## Workflow
 
@@ -91,8 +92,17 @@ Formatting disables discard and the persistent mount opts out of periodic
 [fstrim](https://www.man7.org/linux/man-pages/man8/fstrim.8.html), preserving the
 outer file reservation. Do not manually trim or hole-punch that backing file.
 It never reformats or resizes an existing image. A dedicated block device with
-XFS is also supported. This is an explicit host setup step, not a formatter in
-the DaemonSet or a destructive change to the fleet's existing root partitions.
+XFS is also supported with automatic provisioning disabled.
+
+Managed production sets `cacheVolumes.provisioning.enabled=true`. A privileged
+init container runs this same script in the host mount namespace before the
+agent starts, covering both current and replacement hosts. It requires the XFS
+tools already installed by fleet bootstrap, checks free space, and installs the
+persistent systemd mount without restarting kubelet or repartitioning disks.
+Retries retain existing contents and reject size mismatches, foreign mounts,
+symlinks, and nonempty unprovisioned paths. Failure leaves the agent unready;
+the host cannot advertise volume readiness. Disabling provisioning never deletes
+the backing file or unmounts existing storage.
 
 ## Trust, publication and recovery
 
@@ -176,10 +186,10 @@ orphaned images and still enforce teardown fences. See
 1. Apply the additive publication-metadata migration and deploy the server.
    Build the controller, node-agent and Linux runner images. Upgrade the RunnerPool
    CRD explicitly when needed; Helm does not update CRDs automatically.
-2. On an explicitly selected staging host, install XFS/e2fsprogs/util-linux and
-   run `sudo scripts/provision-cache-filesystem.sh`. Validate its persistent mount
-   before enabling the fleet. The agent probes reflinks and refuses the host root
-   or kubelet filesystem.
+2. Managed production provisions the bounded filesystem through the opt-in init
+   container. For manual/self-hosted setup, install XFS/e2fsprogs/util-linux and
+   run `sudo scripts/provision-cache-filesystem.sh`. The agent probes reflinks and
+   refuses the host root or kubelet filesystem. A failed host stays unready.
 3. Enable `runnersFleetLinux.cacheVolumes` with an explicit agent image tag,
    `hostPath`, `maxSlots`, `volumeGB`, and `minFreeGB`. There is no storage secret.
    Existing object-storage configuration is reused through server-issued URLs.
@@ -188,9 +198,14 @@ orphaned images and still enforce teardown fences. See
    mounts propagate through Kata/virtiofs/DinD. Exercise all three CI providers,
    concurrent writes, untrusted and failed jobs, clearing during a job, agent
    restart, host loss, upload outage and filesystem exhaustion.
-5. Measure representative cold/warm workload duration and attach/upload cost
-   before enabling production. Local filesystem tests establish semantics, not
-   deployed fleet performance.
+5. Track representative cold/warm workload duration and attach/upload cost.
+   Local filesystem tests establish semantics, not deployed fleet performance.
+
+The normal controller release publishes its cache-volume agent with the same
+semantic version and checks both registry images before creating the release tag.
+Production inherits that version from `runnersController.image.tag`; an explicit
+`cacheVolumes.image.tag` remains available for staging and self-hosted deployments.
+No separate production kubectl elevation is part of the merge/deploy path.
 
 `scripts/test-cache-filesystem.sh` runs the real Linux storage test in an isolated
 privileged Docker container with its own disposable XFS image. It covers creating
@@ -266,4 +281,6 @@ identity snapshots decline attachment, and a failed refresh clears earlier autho
 The first live run exposed the verified-job webhook race and the Kata SubPath
 teardown deadlock described above. Both were fixed and rerun. Public distribution releases, host reboot/loss,
 capacity exhaustion, upload outage injection, and representative workload
-benchmarks remain required before production enablement.
+benchmarks remain outstanding operational validation. Production enablement was
+explicitly requested after these provider smokes; it does not imply those
+additional checks have passed.

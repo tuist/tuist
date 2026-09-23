@@ -54,12 +54,17 @@ This node covers Helm assets under `infra/helm/`.
 
 - Private gateway-backed Kura pods carry `tuist.dev/host-network-gateway=true`. `tuist/templates/kura-gateway-network-policy.yaml` allows TCP 4000 from Cilium host/remote-node identities, including cross-host proxying; Kubernetes namespace/ipBlock selectors do not cover this hop. Keep it gated by `kuraController.privateGateway.enabled` with the gateway read permission so self-hosted installs do not require Cilium.
 
-- Linux cache volumes require a pre-provisioned bounded reflink filesystem. The
+- Linux cache volumes require a bounded reflink filesystem. The
   node agent uses local loop-mounted images and the existing macOS object-storage
-  infrastructure; no Ceph Secret or pool values remain. Keep disabled until the
-  deployed Kata smoke gate passes. See `../runners-controller/cache-volumes.md`.
+  infrastructure; no Ceph Secret or pool values remain. Managed production opts
+  into idempotent host provisioning through a privileged init container; other
+  installs can supply a pre-provisioned filesystem. The init container enters the
+  host mount namespace and installs the persistent systemd mount before agent
+  readiness. It never reformats existing images or replaces another mount.
+  See `../runners-controller/cache-volumes.md`.
 - Staging custom-volume smoke validation uses the preallocated XFS mount at
   `/var/lib/kubelet/tuist-runner-cache` on its Linux runner's data partition;
   the root partition is too small for the default 200 GB backing file. Keep
   its agent image pinned to a tested commit and retain the mount while any
-  private branches are live. Production remains disabled.
+  private branches are live. Production enables provisioning and resolves the
+  agent image from the matching controller release through normal deployment.

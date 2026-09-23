@@ -1,6 +1,8 @@
 {{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") }}
 {{- $namespace := .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $volumes := .Values.runnersFleetLinux.cacheVolumes }}
+{{- $imageTag := required "cacheVolumes.image.tag or runnersController.image.tag is required" ($volumes.image.tag | default .Values.runnersController.image.tag) }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -86,6 +88,29 @@ spec:
         app.kubernetes.io/component: runner-cache-volumes
     spec:
       serviceAccountName: {{ $name }}
+      {{- if $volumes.provisioning.enabled }}
+      hostPID: true
+      initContainers:
+        - name: provision-filesystem
+          image: "{{ $volumes.image.repository }}:{{ $imageTag }}"
+          command: [/bin/bash, -ceu]
+          args:
+            - |
+              nsenter --target 1 --mount --root --wd -- /bin/bash -s -- \
+                "$CACHE_ROOT" "$CACHE_SIZE_GB" < /usr/local/bin/provision-cache-filesystem
+          env:
+            - name: CACHE_ROOT
+              value: {{ $volumes.hostPath | quote }}
+            - name: CACHE_SIZE_GB
+              value: {{ $volumes.provisioning.sizeGB | quote }}
+          securityContext:
+            runAsUser: 0
+            privileged: true
+            readOnlyRootFilesystem: true
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {memory: 128Mi}
+      {{- end }}
       nodeSelector:
         kubernetes.io/os: linux
         node.cluster.x-k8s.io/pool: {{ include "tuist.runnersFleetLinuxName" . | quote }}
@@ -96,7 +121,7 @@ spec:
           operator: Exists
       containers:
         - name: agent
-          image: "{{ .Values.runnersFleetLinux.cacheVolumes.image.repository }}:{{ required "cacheVolumes.image.tag is required" .Values.runnersFleetLinux.cacheVolumes.image.tag }}"
+          image: "{{ $volumes.image.repository }}:{{ $imageTag }}"
           command: [/usr/local/bin/cache-volumes]
           args:
             - --namespace={{ $namespace }}
@@ -151,7 +176,7 @@ spec:
         - name: cache
           hostPath:
             path: {{ .Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}
-            type: Directory
+            type: {{ ternary "DirectoryOrCreate" "Directory" $volumes.provisioning.enabled }}
         # Only the device ID is read; this file identifies the root filesystem.
         - name: host-root-device
           hostPath:

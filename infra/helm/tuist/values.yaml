@@ -2455,9 +2455,12 @@ runnersFleetLinux:
     maxSlots: 100
     minFreeGB: 40 # Includes room for a private image and its publication archive.
     volumeGB: 20
+    provisioning:
+      enabled: false
+      sizeGB: 200
     image:
       repository: ghcr.io/tuist/tuist-runner-cache-volumes
-      tag: "" # Required when enabled; use a published cache-volumes image tag.
+      tag: "" # Defaults to the matching runnersController.image.tag release.
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and

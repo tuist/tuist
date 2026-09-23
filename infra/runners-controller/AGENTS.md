@@ -1275,9 +1275,17 @@ RunnerPool `cacheVolumeRoot`/`cacheVolumeURL` enable UID-scoped host mounts in
 runner and DinD, guarded by Kata and the storage-readiness node label. Incoming
 mount propagation must work through Kata. Staging has verified GitHub native and
 ordinary Docker jobs, Buildkite native commands, and GitLab shell jobs. Keep
-production disabled until the remaining operational gates in the rollout guide pass.
+the remaining operational validation limits explicit in the rollout guide.
 Mount revision changes use the existing bounded idle rollout. No account-wide
 cache root or infrastructure credential crosses into workflow containers.
+
+Managed production enables custom volumes on normal deployment. The agent image
+ships the bounded filesystem provisioning script, invoked by an opt-in privileged
+init container in the host mount namespace. Existing/replacement nodes converge
+before the agent can advertise readiness. Provisioning reserves 200 GB, retains
+40 GB host headroom, and refuses nonempty paths, foreign mounts, symlinks, and
+size changes. Controller and agent share a release version; neither release tag
+is published until both images exist.
 
 - Cache volume action distribution and implemented Buildkite/GitLab adapters are
   documented in [cache-volume-integrations.md](cache-volume-integrations.md).

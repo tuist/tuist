@@ -4,6 +4,11 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+The runners-controller release publishes both the controller and cache-volume
+agent under the same version. Its release tag requires both images to exist;
+managed production selects that agent version and provisions host cache storage
+through Helm, without a separate human kubectl elevation.
+
 ## Community notifications
 
 `workflows/community-notifications.yml` sends new community issues and PRs to

@@ -31,6 +31,7 @@ FROM debian:bookworm-slim AS cache-volumes
 RUN apt-get update && apt-get install -y --no-install-recommends coreutils util-linux e2fsprogs ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /out/cache-volumes /usr/local/bin/cache-volumes
+COPY infra/runners-controller/scripts/provision-cache-filesystem.sh /usr/local/bin/provision-cache-filesystem
 ENTRYPOINT ["/usr/local/bin/cache-volumes"]
 
 FROM gcr.io/distroless/static-debian12:nonroot
