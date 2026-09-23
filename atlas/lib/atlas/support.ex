@@ -684,7 +684,7 @@ defmodule Atlas.Support do
       cc_emails: participant_emails(email.cc),
       body: email.text_body || "(No readable email body.)",
       occurred_at: email.occurred_at,
-      metadata: %{"attachments" => attachment_metadata(email.attachments)}
+      metadata: %{"attachments" => attachment_metadata(email.attachments), "subject" => email.subject}
     })
     |> Repo.insert!()
   end

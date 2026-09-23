@@ -182,6 +182,24 @@ rules:
     resources: ["runnerpools"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
 ---
+# RackSwitch objects: a rack's switches as the cluster sees them
+# (infra/rack-switch-fleet). Spec is rendered from the site definition and
+# applied from git; status is what `rack:fleet publish` observed, patched from an
+# operator's machine that can reach the switches, hence `rackswitches/status`.
+# Scoped to this kind, like runnerpools above, so other `tuist.dev` kinds do not
+# inherit write access from the edit tier.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-rackswitches-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["tuist.dev"]
+    resources: ["rackswitches", "rackswitches/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
 # CNPG analog of `tuist-edit-kura-write`, and deliberately narrower. The
 # CloudNativePG clusters (`tuist-tuist-pg`, `tuist-ops-pg`, and their per-env
 # equivalents) were invisible to every tier until now: `postgresql.cnpg.io` was

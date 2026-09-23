@@ -121,6 +121,102 @@ defmodule Atlas.TuistOverviewTest do
       assert cache.total == 500
     end
 
+    test "averages the daily distinct counts for active users instead of summing them" do
+      ch_query = fn sql, opts ->
+        if String.contains?(sql, "uniqExact(user_id)") do
+          rows =
+            if String.starts_with?(opts[:params]["start_ts"], "2026-09-") do
+              # Two of the 30 days in the window report a count; the rest are
+              # padded with zeroes before averaging.
+              [%{"day" => "2026-09-10", "c" => 600}, %{"day" => "2026-09-11", "c" => 900}]
+            else
+              [%{"day" => "2026-08-10", "c" => 310}]
+            end
+
+          {:ok, %{"rows" => rows}}
+        else
+          {:ok, %{"rows" => []}}
+        end
+      end
+
+      pg_query = fn _sql, _opts ->
+        {:ok,
+         %{
+           "rows" => [
+             %{"total_now" => 0, "total_before_previous" => 0, "total_before_current" => 0, "daily_new" => []}
+           ]
+         }}
+      end
+
+      measurements =
+        TuistOverview.measure(@range,
+          configured?: fn -> true end,
+          pg_query: pg_query,
+          ch_query: ch_query
+        )
+
+      assert {:ok, active_users} = measurements.active_users
+      # 1500 across 30 days, not the 1500 a sum would report.
+      assert active_users.current_value == 50
+      assert active_users.previous_value == round(310 / 30)
+      assert length(active_users.series) == 30
+
+      assert Enum.find_value(active_users.series, fn {d, v} -> if d == ~D[2026-09-11], do: v end) == 900
+      assert Enum.find_value(active_users.series, fn {d, v} -> if d == ~D[2026-09-12], do: v end) == 0
+    end
+
+    test "smooths active users into a seven-day trailing mean that starts at the first plotted day" do
+      # One count per window, so every trailing mean is that count spread over
+      # the seven days it stays inside the window.
+      ch_query = fn sql, opts ->
+        if String.contains?(sql, "uniqExact(user_id)") do
+          rows =
+            if String.starts_with?(opts[:params]["start_ts"], "2026-09-") do
+              [%{"day" => "2026-09-10", "c" => 700}]
+            else
+              [%{"day" => "2026-08-31", "c" => 70}]
+            end
+
+          {:ok, %{"rows" => rows}}
+        else
+          {:ok, %{"rows" => []}}
+        end
+      end
+
+      pg_query = fn _sql, _opts ->
+        {:ok,
+         %{
+           "rows" => [
+             %{"total_now" => 0, "total_before_previous" => 0, "total_before_current" => 0, "daily_new" => []}
+           ]
+         }}
+      end
+
+      measurements =
+        TuistOverview.measure(@range,
+          configured?: fn -> true end,
+          pg_query: pg_query,
+          ch_query: ch_query
+        )
+
+      assert {:ok, %{trend: trend}} = measurements.active_users
+      # Defined for the whole window, not just from the seventh day on.
+      assert length(trend) == 30
+      assert trend |> List.first() |> elem(0) == ~D[2026-09-01]
+
+      trend_on = fn date -> Enum.find_value(trend, fn {d, v} -> if d == date, do: v end) end
+
+      # Sep 1 still sees Aug 31's 70 in its trailing week, which only the
+      # previous window can supply.
+      assert trend_on.(~D[2026-09-01]) == 10
+      # Aug 31 falls out of the window after seven days.
+      assert trend_on.(~D[2026-09-07]) == 0
+      # Sep 10's 700 spreads over the seven days it remains in the window.
+      assert trend_on.(~D[2026-09-10]) == 100
+      assert trend_on.(~D[2026-09-16]) == 100
+      assert trend_on.(~D[2026-09-17]) == 0
+    end
+
     test "in dev, returns deterministic sample data when the Tuist server is not configured" do
       previous_env = Application.get_env(:atlas, :env)
       Application.put_env(:atlas, :env, :dev)

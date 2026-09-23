@@ -3272,6 +3272,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		existingVolumeClaimTemplates := sts.Spec.VolumeClaimTemplates
+		tolerations := nodeLocalTolerations(instance, sts)
 		fastProbes := templateUsesFastProbes(sts, instance)
 		if err := controllerutil.SetControllerReference(instance, sts, r.Scheme); err != nil {
 			return err
@@ -3287,6 +3288,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		}
 		gatewayGRPC := templateServesGatewayGRPC(&sts.Spec.Template, instance)
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC, fastProbes)
+		sts.Spec.Template.Spec.Tolerations = tolerations
 		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
 		if len(existingVolumeClaimTemplates) > 0 {
 			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
@@ -3320,6 +3322,22 @@ func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Co
 	if instance.Annotations[unreadyPodsReplacedForImageAnnotation] == instance.Spec.Image {
 		return nil
 	}
+	sts := &appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType ||
+		(sts.Spec.UpdateStrategy.RollingUpdate != nil && sts.Spec.UpdateStrategy.RollingUpdate.Partition != nil && *sts.Spec.UpdateStrategy.RollingUpdate.Partition > 0) {
+		return nil
+	}
+	// Do not bypass an incident pause or replace pods from an old template
+	// while the informer has not observed the desired image yet.
+	if podKuraImage(&corev1.Pod{Spec: sts.Spec.Template.Spec}) != instance.Spec.Image {
+		return nil
+	}
 
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
@@ -3331,7 +3349,7 @@ func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Co
 		if pod.DeletionTimestamp != nil || podReady(pod) || podKuraImage(pod) == instance.Spec.Image {
 			continue
 		}
-		if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+		if err := r.Delete(ctx, pod, client.Preconditions{UID: &pod.UID, ResourceVersion: &pod.ResourceVersion}); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 		log.FromContext(ctx).Info(

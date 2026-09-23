@@ -99,6 +99,16 @@ const KURA_ANALYTICS_REQUEST_TIMEOUT_MS: &str = "KURA_ANALYTICS_REQUEST_TIMEOUT_
 const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
+
+/// Dual-cap defaults for the durable analytics outbox. Entries is the
+/// secondary bound (protects RocksDB metadata cost); bytes is the
+/// primary bound (protects the data volume). The per-batch ceiling
+/// bounds the encoded size of any single append, keeping one
+/// unusually large batch from consuming the whole budget or looping
+/// against HTTP 413.
+const DEFAULT_ANALYTICS_OUTBOX_MAX_ENTRIES: usize = 200_000;
+const DEFAULT_ANALYTICS_OUTBOX_MAX_BYTES: u64 = 256 * 1024 * 1024;
+const DEFAULT_ANALYTICS_OUTBOX_MAX_BATCH_BYTES: usize = 512 * 1024;
 const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
 const KURA_AUTH_TUIST_URL: &str = "KURA_AUTH_TUIST_URL";
 const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
@@ -326,6 +336,24 @@ pub struct AnalyticsConfig {
     pub request_timeout_ms: u64,
     pub circuit_breaker_failure_threshold: usize,
     pub circuit_breaker_open_ms: u64,
+    /// Depth cap on the durable outbox column family, in entries.
+    /// Once the in-memory counter reaches this value the producer
+    /// drops new batches with a `outbox_full_entries` shed counter
+    /// rather than blocking the cache hot path. Secondary bound: the
+    /// primary bound is [`Self::outbox_max_bytes`]. Both caps are
+    /// dropped from Sentry / OpenTelemetry / Vector's dual-cap
+    /// telemetry-outbox pattern.
+    pub outbox_max_entries: usize,
+    /// Byte cap on the durable outbox column family, read from
+    /// RocksDB's `estimate-live-data-size` property. Primary bound
+    /// on disk usage. The producer drops new batches with a
+    /// `outbox_full_bytes` shed counter above this ceiling.
+    pub outbox_max_bytes: u64,
+    /// Per-batch encoded-size ceiling. Refuses batches that would
+    /// exceed the server's accepted body limit before they land on
+    /// disk, so one unusually large batch cannot consume the whole
+    /// outbox budget or retry forever against HTTP 413.
+    pub outbox_max_batch_bytes: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1517,6 +1545,17 @@ impl Config {
                     request_timeout_ms: analytics_request_timeout_ms,
                     circuit_breaker_failure_threshold: analytics_circuit_breaker_failure_threshold,
                     circuit_breaker_open_ms: analytics_circuit_breaker_open_ms,
+                    // Outbox caps derived from Codex's dual-cap
+                    // recommendation. Bytes is the primary bound,
+                    // entries is the secondary bound, and the
+                    // per-batch ceiling keeps one unusually large
+                    // batch from consuming the whole budget. Frozen
+                    // as constants for this release; a follow-up
+                    // exposes them through env vars once we see real
+                    // traffic land in the outbox.
+                    outbox_max_entries: DEFAULT_ANALYTICS_OUTBOX_MAX_ENTRIES,
+                    outbox_max_bytes: DEFAULT_ANALYTICS_OUTBOX_MAX_BYTES,
+                    outbox_max_batch_bytes: DEFAULT_ANALYTICS_OUTBOX_MAX_BATCH_BYTES,
                 }),
                 Err(error) => {
                     invalid.push(format!(
@@ -3371,6 +3410,9 @@ mod tests {
                 request_timeout_ms: 3_000,
                 circuit_breaker_failure_threshold: 3,
                 circuit_breaker_open_ms: 45_000,
+                outbox_max_entries: DEFAULT_ANALYTICS_OUTBOX_MAX_ENTRIES,
+                outbox_max_bytes: DEFAULT_ANALYTICS_OUTBOX_MAX_BYTES,
+                outbox_max_batch_bytes: DEFAULT_ANALYTICS_OUTBOX_MAX_BATCH_BYTES,
             })
         );
         assert_eq!(config.rocksdb_block_cache_bytes, 32 * 1024 * 1024);

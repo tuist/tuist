@@ -358,7 +358,10 @@ vector:
 # and configures per-environment resources and backups.
 clickhouse:
   enabled: true
-  replicaCount: 2
+  # Must stay 1: the pods do not replicate (no Keeper, plain MergeTree
+  # tables) and the headless Service spreads reads and writes across
+  # them, so a second pod splits the data. The template enforces this.
+  replicaCount: 1
   image:
     repository: clickhouse/clickhouse-server
     tag: "26.1.2.11"

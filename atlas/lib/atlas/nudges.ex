@@ -196,14 +196,23 @@ defmodule Atlas.Nudges do
   end
 
   @doc """
-  Picks a contact to draft to under the v1 policy: first contact on the
-  account with a non-empty email. Returns `nil` when none qualifies; the
-  caller decides whether to skip.
+  Picks a contact to draft the nudge email to. Excludes contacts without a
+  reachable email (missing, bounced, or opted out) and ranks the survivors
+  so a decision maker beats the flagged-primary contact, which in turn
+  beats a plain contact; ties break on the earliest insertion. Returns
+  `nil` when no contact qualifies.
   """
   def select_contact_for(%Account{id: account_id}) do
     Contact
-    |> where([c], c.account_id == ^account_id and not is_nil(c.email) and c.email != "")
-    |> order_by([c], asc: c.inserted_at)
+    |> where([c], c.account_id == ^account_id)
+    |> where([c], not is_nil(c.email) and c.email != "")
+    |> where([c], is_nil(c.bounced_at))
+    |> where([c], is_nil(c.opted_out_at))
+    |> order_by([c],
+      desc: c.is_decision_maker,
+      desc: c.is_primary,
+      asc: c.inserted_at
+    )
     |> limit(1)
     |> Repo.one()
   end

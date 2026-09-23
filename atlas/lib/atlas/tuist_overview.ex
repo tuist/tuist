@@ -11,7 +11,12 @@ defmodule Atlas.TuistOverview do
   Users / organizations / projects are all-time cumulative counts (their value
   grows over time), so their series is a per-day snapshot. Jobs and cache
   operations are event streams, so their series is a per-day count within the
-  window.
+  window. Active users is a distinct count: its series is the number of users
+  who ran something on each day, and its headline is the average of those days
+  rather than a sum, which for a distinct count would double-count anyone
+  active on more than one day. It also carries a `trend` series: a seven-day
+  trailing mean of the daily counts, which cancels the weekday/weekend cycle so
+  the direction of travel is readable.
 
   When the Tuist server is not reachable (dev, tests without a projected SA
   token) `measure/2` falls back to illustrative sample series in dev so the
@@ -26,7 +31,8 @@ defmodule Atlas.TuistOverview do
 
   @cumulative_metrics [:users, :organizations, :projects]
   @event_metrics [:jobs, :cache_operations]
-  @all_metrics @cumulative_metrics ++ @event_metrics
+  @distinct_metrics [:active_users]
+  @all_metrics @cumulative_metrics ++ @event_metrics ++ @distinct_metrics
 
   @presets [
     %{id: "last-7-days", label: "Last 7 days", days: 7},
@@ -36,6 +42,11 @@ defmodule Atlas.TuistOverview do
   ]
 
   @default_preset "last-30-days"
+
+  # Active users swings by a factor of five between weekdays and weekends, which
+  # buries the underlying direction. A trailing mean over exactly one week
+  # cancels that cycle, because every point averages the same seven weekdays.
+  @trend_window_days 7
 
   # Dev-only base counts. The series is generated deterministically around
   # these so the chart is stable across reloads.
@@ -223,6 +234,10 @@ defmodule Atlas.TuistOverview do
     cache_operations_measure(current, previous, pg_query, ch_query)
   end
 
+  defp measure_metric(:active_users, current, previous, _pg_query, ch_query) do
+    active_users_measure(current, previous, ch_query)
+  end
+
   defp cumulative_table(:users), do: "users"
   defp cumulative_table(:organizations), do: "organizations"
   defp cumulative_table(:projects), do: "projects"
@@ -347,6 +362,73 @@ defmodule Atlas.TuistOverview do
          series: fill_series(combined_series, start_date, end_date)
        }}
     end
+  end
+
+  # Unlike the event metrics, the window headline can't be a sum of the daily
+  # values: a user active on ten days would be counted ten times. A window-wide
+  # `uniqExact` would be exact, but it can't aggregate in order the way the
+  # per-day grouping can (`ran_at` is in the sort key, `toDate(ran_at)` buckets
+  # stream), and it times out against the read-only proxy even over a single
+  # week. So the daily series is the source of truth and the headline is its
+  # average.
+  defp active_users_measure({start_date, end_date}, {previous_start, previous_end}, ch_query) do
+    with {:ok, _sum, previous_series} <- active_users_query(previous_start, previous_end, ch_query),
+         {:ok, _sum, current_series} <- active_users_query(start_date, end_date, ch_query) do
+      series = fill_series(current_series, start_date, end_date)
+      previous_filled = fill_series(previous_series, previous_start, previous_end)
+      current_value = average_daily(series)
+      previous_value = average_daily(previous_filled)
+
+      {:ok,
+       %{
+         total: current_value,
+         current_value: current_value,
+         previous_value: previous_value,
+         delta_pct: delta_pct(current_value, previous_value),
+         series: series,
+         trend: trailing_mean_series(previous_filled, series, @trend_window_days)
+       }}
+    end
+  end
+
+  # `user_id` is nullable — CI runs carry no user — and the `uniq*` family
+  # skips nulls, so those rows drop out of the count without an extra
+  # predicate that would only add a scan-time filter.
+  defp active_users_query(start_date, end_date, ch_query) do
+    sql = """
+    SELECT toDate(ran_at) AS day, uniqExact(user_id) AS c
+    FROM command_events_by_ran_at
+    WHERE ran_at >= {start_ts:DateTime} AND ran_at < {end_ts:DateTime}
+    GROUP BY day
+    ORDER BY day
+    """
+
+    run_event_query(sql, start_date, end_date, ch_query)
+  end
+
+  # The window before the current one is already fetched for the delta, so the
+  # mean is defined from the very first point of the chart rather than starting
+  # six days in. Nothing here looks ahead of the point it is plotted on.
+  defp trailing_mean_series(previous_series, current_series, window) do
+    combined = previous_series ++ current_series
+    offset = length(previous_series)
+
+    combined
+    |> Enum.with_index()
+    |> Enum.drop(offset)
+    |> Enum.map(fn {{day, _value}, index} ->
+      {day,
+       combined
+       |> Enum.slice(max(index - window + 1, 0)..index)
+       |> average_daily()}
+    end)
+  end
+
+  defp average_daily([]), do: 0
+
+  defp average_daily(series) do
+    sum = Enum.reduce(series, 0, fn {_day, value}, acc -> acc + value end)
+    round(sum / length(series))
   end
 
   # `command_events_by_ran_at` is the ran_at-ordered materialized view of
@@ -482,8 +564,26 @@ defmodule Atlas.TuistOverview do
   defp to_integer(_value), do: 0
 
   # Deterministic sample series so dev renders with real-looking numbers.
-  # Cumulative metrics grow monotonically toward the base total; event
-  # metrics vary weekly with a weekend dip.
+  # Cumulative metrics grow monotonically toward the base total; event metrics
+  # and active users vary weekly with a weekend dip.
+  defp sample_measure(:active_users, start_date, end_date) do
+    days = date_range_days(start_date, end_date)
+    series = sample_active_users_series(start_date, days)
+    previous_series = sample_active_users_series(Date.add(start_date, -days), days)
+    current_value = average_daily(series)
+    previous_value = average_daily(previous_series)
+
+    {:ok,
+     %{
+       total: current_value,
+       current_value: current_value,
+       previous_value: previous_value,
+       delta_pct: delta_pct(current_value, previous_value),
+       series: series,
+       trend: trailing_mean_series(previous_series, series, @trend_window_days)
+     }}
+  end
+
   defp sample_measure(metric, start_date, end_date) do
     base = Map.fetch!(@dev_base_totals, metric)
     days = date_range_days(start_date, end_date)
@@ -508,6 +608,24 @@ defmodule Atlas.TuistOverview do
        delta_pct: delta_pct(current_value, previous_value),
        series: series
      }}
+  end
+
+  # Compounds at roughly the rate the real series has been growing, so the dev
+  # chart shows a slope the smoothed line can be checked against on the short
+  # presets without running away on the twelve-month one.
+  @sample_active_users_daily_growth 1.0037
+
+  defp sample_active_users_series(start_date, days) do
+    for i <- 0..(days - 1) do
+      day = Date.add(start_date, i)
+      elapsed = Date.diff(day, ~D[2026-01-01])
+      base = if Date.day_of_week(day) in [6, 7], do: 130, else: 700
+      growth = :math.pow(@sample_active_users_daily_growth, elapsed)
+      # `Integer.mod/2` rather than `rem/2`: the jitter has to stay positive for
+      # days before the anchor, or a range far enough back — where the growth
+      # factor has decayed the base to nothing — samples a negative headcount.
+      {day, max(round(base * growth) + Integer.mod(elapsed, 17), 0)}
+    end
   end
 
   defp sample_cumulative_series(base, days, start_date) do

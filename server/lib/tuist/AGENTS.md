@@ -54,7 +54,6 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Related Context (Downlinks)
 
-- Runner shadow-scheduler snapshot: `server/lib/tuist/runners/shadow/AGENTS.md`.
 
 - Accounts: `server/lib/tuist/accounts/AGENTS.md`
 - Alerts: `server/lib/tuist/alerts/AGENTS.md`

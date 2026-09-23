@@ -80,7 +80,32 @@ defmodule Atlas.NudgesTest do
   end
 
   describe "select_contact_for/1" do
-    test "picks the first contact with a non-empty email, sorted by insert time" do
+    test "prefers a decision maker over primary and plain contacts" do
+      account = insert_account!()
+      _plain = insert_contact!(account, %{email: "plain@example.com", full_name: "A"})
+      _primary = insert_contact!(account, %{email: "primary@example.com", full_name: "B", is_primary: true})
+
+      decision_maker =
+        insert_contact!(account, %{
+          email: "boss@example.com",
+          full_name: "C",
+          is_decision_maker: true
+        })
+
+      assert %Contact{id: id, email: "boss@example.com"} = Nudges.select_contact_for(account)
+      assert id == decision_maker.id
+    end
+
+    test "prefers a primary contact when no decision maker exists" do
+      account = insert_account!()
+      _plain = insert_contact!(account, %{email: "plain@example.com", full_name: "A"})
+      primary = insert_contact!(account, %{email: "primary@example.com", full_name: "B", is_primary: true})
+
+      assert %Contact{id: id, email: "primary@example.com"} = Nudges.select_contact_for(account)
+      assert id == primary.id
+    end
+
+    test "falls back to insert order when no priority flag is set" do
       account = insert_account!()
       picked = insert_contact!(account, %{email: "picked@example.com", full_name: "A"})
       _second = insert_contact!(account, %{email: "second@example.com", full_name: "B"})
@@ -89,7 +114,31 @@ defmodule Atlas.NudgesTest do
       assert id == picked.id
     end
 
-    test "returns nil when the account has no contacts with an email" do
+    test "excludes bounced and opted-out contacts even when they carry priority flags" do
+      account = insert_account!()
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      insert_contact!(account, %{
+        email: "bounced@example.com",
+        full_name: "A",
+        is_decision_maker: true,
+        bounced_at: now
+      })
+
+      insert_contact!(account, %{
+        email: "opted-out@example.com",
+        full_name: "B",
+        is_primary: true,
+        opted_out_at: now
+      })
+
+      good = insert_contact!(account, %{email: "good@example.com", full_name: "C"})
+
+      assert %Contact{id: id, email: "good@example.com"} = Nudges.select_contact_for(account)
+      assert id == good.id
+    end
+
+    test "returns nil when the account has no reachable contact" do
       account = insert_account!()
       assert nil == Nudges.select_contact_for(account)
     end
@@ -168,15 +217,29 @@ defmodule Atlas.NudgesTest do
   end
 
   defp insert_contact!(account, attrs \\ %{}) do
+    {priority_attrs, base_attrs} =
+      Map.split(attrs, [:is_primary, :is_decision_maker, :bounced_at, :opted_out_at])
+
     defaults = %{
       full_name: "Contact #{System.unique_integer([:positive])}",
       email: "contact-#{System.unique_integer([:positive])}@example.com",
       account_id: account.id
     }
 
-    %Contact{}
-    |> Contact.changeset(Map.merge(defaults, attrs))
-    |> Repo.insert!()
+    contact =
+      %Contact{}
+      |> Contact.changeset(Map.merge(defaults, base_attrs))
+      |> Repo.insert!()
+
+    case priority_attrs do
+      empty when map_size(empty) == 0 ->
+        contact
+
+      changes ->
+        contact
+        |> Ecto.Changeset.change(changes)
+        |> Repo.update!()
+    end
   end
 
   defp insert_user!(attrs \\ %{}) do

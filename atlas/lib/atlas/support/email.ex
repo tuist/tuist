@@ -55,9 +55,9 @@ defmodule Atlas.Support.Email do
   defp maybe_cc(email, addresses), do: cc(email, recipients(addresses))
   defp maybe_header(email, _name, nil), do: email
   defp maybe_header(email, name, value), do: header(email, name, value)
-  defp reply_subject(nil), do: "Re: Tuist support"
+  def reply_subject(nil), do: "Re: Tuist support"
 
-  defp reply_subject(subject) when is_binary(subject) do
+  def reply_subject(subject) when is_binary(subject) do
     if String.starts_with?(String.downcase(subject), "re:"), do: subject, else: "Re: #{subject}"
   end
 

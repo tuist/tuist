@@ -1,0 +1,138 @@
+# RackSwitch: a rack's switches as objects, so their state is visible next to
+# the RackHosts behind them rather than only in someone's terminal.
+#
+# Hand-written and living in `crds/` for the same reasons as
+# tuist.dev_runnerpools.yaml: helm applies crds/ before any CR the chart
+# renders, and does NOT touch crds/ on upgrade, so a schema change has to be
+# applied out of band. That is acceptable while the schema moves rarely.
+#
+# There is deliberately NO controller. Two properties of this hardware decide
+# that, and both were measured rather than assumed:
+#
+#   * a switch stops accepting SSH after about seven connections per boot and
+#     does not recycle the slots. An observation loop on a timer would exhaust
+#     one inside a day and then be unable to reach it, while the switch kept
+#     forwarding and looked healthy.
+#   * the cluster's own nodes sit behind these switches, so a controller
+#     reconciling ber1-tor-a would be reconciling its own route to it.
+#
+# So spec is rendered from infra/rack-switch-fleet/sites/<site>.json, which stays
+# the source of truth, and status is written by `mise run rack:fleet publish`
+# when an operator runs it. Changes stay manual and tied to a configRevision.
+# See infra/rack-switch-fleet/AGENTS.md.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: rackswitches.tuist.dev
+spec:
+  group: tuist.dev
+  scope: Namespaced
+  names:
+    kind: RackSwitch
+    listKind: RackSwitchList
+    plural: rackswitches
+    singular: rackswitch
+    shortNames:
+      - rsw
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - jsonPath: .spec.site
+          name: Site
+          type: string
+        - jsonPath: .spec.role
+          name: Role
+          type: string
+        - jsonPath: .spec.managementAddress
+          name: Address
+          type: string
+        - jsonPath: .spec.applyOrder
+          name: Order
+          type: integer
+        - jsonPath: .status.drift
+          name: Drift
+          type: string
+        - jsonPath: .status.reachable
+          name: Reachable
+          type: boolean
+        - jsonPath: .status.lastVerified
+          name: Verified
+          type: date
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [site, role, model, managementAddress, applyOrder, configRevision]
+              properties:
+                site:
+                  type: string
+                  description: The rack this switch belongs to.
+                role:
+                  type: string
+                  description: tor or mgmt. Decides blast radius, and therefore apply order.
+                model:
+                  type: string
+                  description: Key into infra/rack-switch-fleet/models.json.
+                managementAddress:
+                  type: string
+                applyOrder:
+                  type: integer
+                  description: >-
+                    Ascending, and strictly one switch at a time. The lowest has the
+                    smallest blast radius and is the only one a change is tried on.
+                applyNote:
+                  type: string
+                  description: Why this switch sits where it does in the order, in prose.
+                credentialItem:
+                  type: string
+                  description: >-
+                    The 1Password item holding the local admin login. Named, not
+                    inlined: the credential never belongs in an object or in git.
+                configRevision:
+                  type: string
+                  description: >-
+                    Digest of the configuration rendered from the site definition.
+                    Status is reported against this, so an observation can never be
+                    read as applying to a revision it did not see.
+                ports:
+                  type: array
+                  description: What is plugged into each port, as far as the site definition knows.
+                  items:
+                    type: object
+                    properties:
+                      port:
+                        type: integer
+                      purpose:
+                        type: string
+                      peer:
+                        type: string
+                      detail:
+                        type: string
+            status:
+              type: object
+              properties:
+                observedRevision:
+                  type: string
+                  description: The configRevision this status was produced against.
+                drift:
+                  type: string
+                  enum: [unknown, none, drifted]
+                reachable:
+                  type: boolean
+                lastVerified:
+                  type: string
+                  format: date-time
+                connectionsUsedSinceBoot:
+                  type: integer
+                  description: >-
+                    How many SSH connections this boot has spent, of roughly seven
+                    before the daemon stops accepting. Visible because it is a
+                    consumable, and running out looks like a healthy switch.
+                message:
+                  type: string
