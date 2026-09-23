@@ -4,10 +4,9 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
-`server-deployment.yml` runs `infra/cache-dns/wait-for-certificate.sh` after
-Helm when stable DNS is enabled. Keep this gate before environment promotion:
-canary and production share the ACME name set and must finish initial issuance
-serially. It requires both wildcard names and Ready at the current generation.
+Stable cache certificate readiness is an operator bootstrap check documented in
+`infra/cache-dns/README.md`, not a gate on routine server deployments. The Kura
+controller verifies TLS before advertising stable endpoints.
 
 ## Community notifications
 

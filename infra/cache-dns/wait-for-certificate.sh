@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Operator check for initial rollout or certificate hostname changes.
+# Select the intended cluster in kubeconfig before running this script.
 settings=$(helm get values "${HELM_RELEASE_NAME:?}" -n "${NAMESPACE:?}" --all -o json |
     jq -c '.kuraController | {enabled: (.enabled and .stableDNS.enabled), namespace, certificate: .publicWildcardCertificate.secretName}')
 if ! jq -e '.enabled == true' <<< "$settings" >/dev/null; then
-    echo 'Stable cache DNS is disabled; skipping its certificate gate.'
+    echo 'Stable cache DNS is disabled; skipping its certificate check.'
     exit 0
 fi
 
@@ -26,5 +28,5 @@ for attempt in $(seq 1 60); do
     sleep 10
 done
 
-echo 'ERROR: stable cache certificate is not Ready; stop the environment promotion.' >&2
+echo 'ERROR: stable cache certificate is not Ready; resolve issuance before continuing the rollout.' >&2
 exit 1

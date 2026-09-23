@@ -15,14 +15,27 @@ no keys are committed. The canary and production IAM identities and vault items
 were prepared on September 23; Kubernetes resources are applied by the normal
 merge deployment, not by the credential bootstrap.
 
-The deployment cascade applies canary first, waits for its controller-managed
-wildcard Certificate to cover both `*.kura.tuist.dev` and `*.cache.tuist.dev`
-with a Ready condition at the current generation, then runs acceptance tests
-before production. The same certificate gate runs after the production Helm
-upgrade. This serializes initial ACME issuance across environments; a stale
-Ready condition from the old certificate cannot advance the cascade. A gate
-failure stops promotion but does not roll back the already completed Helm
-upgrade automatically.
+Certificate readiness is a one-time operator rollout check, not a gate on
+routine server deployments. Before the initial merge rollout, use the bootstrap
+steps below to prepare the wildcard certificate in canary and then production,
+finishing issuance in each environment before starting the next because they
+share the ACME name set. With the intended cluster selected in the current
+kubeconfig, run:
+
+```bash
+# Canary; for production select its cluster and use NAMESPACE=tuist.
+HELM_RELEASE_NAME=tuist NAMESPACE=tuist-canary \
+  bash infra/cache-dns/wait-for-certificate.sh
+```
+
+The check requires both `*.kura.tuist.dev` and `*.cache.tuist.dev` and a Ready
+condition at the current generation. If it fails, resolve issuance before
+continuing the initial rollout. Repeat it when changing certificate hostnames;
+cert-manager handles routine renewals. The normal deployment cascade applies
+canary, runs acceptance tests, and then applies production without waiting for
+this certificate. The controller independently verifies HTTPS with the stable
+hostname before advertising any endpoint, so pending issuance keeps accounts
+on their regional URLs.
 
 Both canary and production enable the infrastructure and hand-out environment
 switches. Canary requires no account flag. In production, an absent or disabled

@@ -14,9 +14,11 @@ records; cert-manager writes ACME TXT challenges. Do not combine their credentia
 Managed canary enables stable advertising and hand-out on merge. Production
 prepares the same infrastructure but requires the `kura_stable_hostname`
 FunWithFlags account/global opt-in; absent is off. Keep that gate on both intent
-and hand-out. `wait-for-certificate.sh` blocks environment promotion until the
-shared certificate includes both DNS zones and is Ready at its current
-generation, preventing overlapping initial ACME issuance in the cascade.
+and hand-out. Operators use `wait-for-certificate.sh` during initial bootstrap
+and hostname changes to verify both wildcard names and Ready at the current
+generation. Complete initial issuance serially before the merge rollout;
+routine deployments do not wait for certificates. The controller's TLS probe
+remains the runtime advertising safeguard.
 
 `probes/cmd/staging-probe` validates readiness and authenticated HTTP/REAPI blob round trips
 against staging hosts only. It keeps TLS verification enabled when pinning a box
