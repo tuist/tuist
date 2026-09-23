@@ -1,8 +1,10 @@
 # Spec 95 staging validation — 2026-09-22
 
-Status: inert staging rollout and regional regression checks passed. AWS bootstrap
-completed on September 23; staging provider/certificate rollout is in progress.
-This is not evidence that Route53 steering or the stable hostname works yet.
+Status: staging DNS, TLS, cache protocols, demotion, failure ordering, and real
+client checks have passed. The full withdrawal drain is still running. Testing
+found a cross-replica hand-out bug; the PostgreSQL projection fix is validated
+locally and awaits staging rollout. GitHub CI also awaits permission to store
+the temporary fixture token as an Actions secret.
 
 ## Revisions and rollout boundaries
 
@@ -17,7 +19,7 @@ This is not evidence that Route53 steering or the stable hostname works yet.
   to `sha-db5e8ea4c0ee`. The workflow completed successfully. The migration hook
   reported both databases already up to date. Server and controller each reached
   2/2 ready, updated replicas on image tag `sha-56966885e6aa`.
-  Stable DNS, advertising, and hand-out remain disabled.
+  Stable DNS, advertising, and hand-out were disabled for that September 22 run.
 - The earlier run 35764868105 failed at checkout because its commit input was
   abbreviated. It performed no deployment.
 - No canary or production deployment was dispatched.
@@ -112,29 +114,145 @@ the stack reached `CREATE_COMPLETE` at 09:13 UTC.
   Bootstrap credentials are not delivered to Kubernetes.
 - Plumbing rollout: [35842020182](https://github.com/tuist/tuist/actions/runs/35842020182),
   chart revision `f2ce45200f3`, preserving the validated images. Both hostname
-  flags remain off; the allowlist contains only `kura-spec95-e2e`.
+  flags were off for this plumbing deployment, with only `kura-spec95-e2e` allowed.
 - At 09:20 UTC, writer and solver ExternalSecrets were `SecretSynced`, and the
   Route53 external-dns deployment was 1/1 ready with successful provider reads.
 - The replacement Go probe passed authenticated Paris-to-Montreal HTTP and gRPC
   replication through normal DNS at 09:19 UTC (`go-cross-region-baseline.jsonl`).
 
+The plumbing deployment succeeded. All three ExternalSecrets synchronized and
+the shared wildcard certificate became Ready at approximately 09:23 UTC, covering
+both `*.kura.tuist.dev` and `*.cache.tuist.dev`. Advertising was then enabled for
+the fixture while hand-out remained disabled.
+
+## Stable routing, demotion, and withdrawal — September 23
+
+- Authenticated HTTP and REAPI round trips passed through stable SNI pinned to
+  both public boxes. Both controller stable endpoint observations became ready.
+- Queries to the Route53 authoritative nameserver from the actual Paris and
+  Montreal gateway pods selected their respective local box. Local `/ready`
+  requests over verified TLS took approximately 14 ms and 11 ms respectively.
+  These are spot comparisons, not a long-term client probe telemetry study.
+- At 09:27 UTC, primary placement moved to Montreal with Paris retained as a
+  secondary. The normal placement API received a 65/35 evidence payload; this
+  test consumes that decision and does not exercise the upstream traffic
+  classifier. Provider A/TXT records were byte-identical before and after the
+  demotion, and 24 concurrent authenticated round trips passed.
+- With the AWS writer scaled to zero, Paris retirement removed its advertising
+  intent while its provider record remained. The withdrawal clock stayed unset,
+  phase remained Ready, and authenticated HTTP/REAPI traffic passed.
+- A temporary explicit deny of `ListResourceRecordSets` on the controller's
+  test-zone policy was verified using its own credential and controller logs.
+  After the writer resumed and removed Paris's record, failed provider reads
+  still left the clock unset and Paris serving both protocols. The deny was
+  removed; IAM propagation and controller retry backoff delayed recovery.
+- Successful provider observation started the drain at **09:48:22 UTC**. A
+  rolling controller restart preserved that exact timestamp. Deleting only the
+  retiring fixture CR at **09:49:42 UTC** left its finalizer and routing intact.
+  Its teardown deadline is **10:50:22 UTC**, with the full 3720 seconds unchanged.
+
+The first two fault-script attempts had inconclusive checkpoints: one checked
+logs before a denial appeared; another allowed too little recovery time after
+removing the deny. Their cleanup restored permissions and the writer. The
+successful state observations above were recorded independently afterward.
+
+An earlier laptop-origin soak recorded TCP connect timeouts to Paris at 09:41:53
+and 09:42:03 UTC. The gateway served the controller's readiness request at
+09:41:51 and subsequent authenticated requests at 09:42:37; routing remained
+configured. The cause is not established, so this is not counted as an
+uninterrupted soak. A new evidence series began around 09:46 UTC and retains
+failures rather than silently retrying them away.
+
+Evidence: `records-{before,after}-demotion.json`, `demotion-*.jsonl`,
+`writer-stalled-*`, `provider-denied-*`, `controller-read.stderr`,
+`provider-read-failure.log`, `withdrawal-observed-instance.json`,
+`after-controller-restart.json`, `deletion-during-drain.json`,
+`drain-survivor-soak.jsonl`, and `drain-paris-rendering.jsonl`.
+
+## Shared health checks and failover
+
+A second fixture, `kura-spec95-health` (account 50), advertised from both boxes
+and reused the existing two health-check IDs. Before injection, an account-wide
+inventory confirmed exactly one hosted zone, two TCP checks, no calculated
+check dependencies, and only these two test accounts referencing either check.
+Automatic approval initially rejected the drill over possible shared impact;
+the complete reference inventory and runtime scope guards established that no
+other account would be affected, and the guarded drill was then approved.
+
+Temporarily changing the Paris check's probe port from 443 to closed port 1
+caused real TCP failures and switched authoritative queries from Paris to
+Montreal by **10:00:42 UTC**. The surviving stable endpoint returned HTTP 200.
+With both checks probing the closed port, authoritative DNS still returned an
+address at **10:02:40 UTC** instead of NXDOMAIN. Both checks were restored to
+port 443. The gateways themselves stayed running: this tests failed TCP probes
+and DNS steering, not a shared-gateway process outage or recovery of existing
+client connections to a dead gateway.
+
+Normal destruction of account 50's test instances began after the drill. Both
+public finalizers observed withdrawal at **10:05:20 UTC** and must retain
+rendering until **11:07:20 UTC**. Their shared checks must remain referenced
+until every remaining provider record and retained instance releases them.
+
+Evidence: `health-*.json`, `health-*.txt`, and `health-survivor-ready.jsonl`.
+
+## Real clients and the cross-replica defect
+
+Using the existing CLI `4.211.0-canary.7`, isolated temporary fixtures, and the
+project-restricted token:
+
+- Bazel 9.2.0 built an artifact, then restored it from the remote cache after
+  clearing local outputs. After hand-out enablement, `tuist bazel setup` wrote
+  `grpcs://kura-spec95-e2e-staging.cache.tuist.dev`; the same clean rebuild
+  reported **one remote cache hit** through that name.
+- The current Gradle plugin source with the repository's Gradle 9.2.1 wrapper
+  compiled a Java fixture, then reported `compileJava FROM-CACHE` with the local
+  build cache disabled. An initial Gradle 8.12.1 attempt failed to compile the
+  plugin's test sources; using the pinned wrapper resolved that tool mismatch.
+- Xcode 27.0 generated and built the existing compilation-cache acceptance
+  fixture against a separate CAS proxy socket. The cold build reported 0/138
+  hits. After draining uploads, cleaning products, and selecting a new empty
+  local CAS directory, the rebuild reported **138/138 hits (100%)**. Build/run
+  report uploads were refused because the token grants cache access only; this
+  does not validate the analytics upload path.
+
+The local preflight for the prepared CI soak then exposed inconsistent API
+hand-out. Eight requests alternated between the stable and regional URL.
+Reading the two web replicas showed a ready projection on one and `nil` on the
+other. `KeyValueStore` uses local Cachex by default, and staging has no Redis;
+the singleton reconciliation job therefore could not publish readiness to every
+web replica. This was a real implementation defect despite working cache traffic.
+
+The fix adds a nullable `kura_servers.stable_endpoint` JSONB projection, read
+alongside the existing server query. It preserves the controller timestamp,
+three-minute freshness, and generation check at observation; lifecycle resets
+clear it. No request reads Kubernetes or AWS. The additive migration requires
+no backfill and is compatible with the old server image during rolling deploys.
+The regression failed before the fix, then the focused regression/provisioner
+run passed **11 tests**. The complete affected suites subsequently passed
+**206 tests**, excluding only the existing, separately reproduced `us-east`
+disk-budget assertion. Credo reported no issues. The migration safety check
+reported no warning for the new migration (existing historical migration
+warnings remain). Staging revalidation is still pending.
+
+The prepared CI mode is `linux-runners-staging-smoke.yml` with both
+`gradle_cache` and `stable_cache_dns` enabled, project `kura-spec95-e2e/probe`,
+and staging URL. It unsets the private runner endpoint, requires the exact public
+stable API answer, and checks a unique remote upload followed by twelve remote
+hits in fresh Gradle processes. ShellCheck and actionlint passed, with only the
+pre-existing custom runner label excluded from actionlint. Automatic approval
+blocked transferring the scoped token to an Actions secret; explicit permission
+is pending, and no secret has been uploaded.
+
 ## Remaining work
 
-1. Provision/delegate the zone, synchronize separate writer/solver/controller
-   credentials, and issue the wildcard certificate. Arrange read access to the
-   test fixture's DNSEndpoint sources for inspection.
-2. Enable advertising only for `kura-spec95-e2e`; keep hand-out disabled. Verify
-   direct stable SNI, both regional latency records, ownership, health checks,
-   readiness observations, and authenticated HTTP/gRPC traffic on both boxes.
-3. Compare DNS steering from both regions with client probe choices. Prove that
-   primary demotion leaves records unchanged while traffic continues.
-4. Exercise withdrawal, stalled writer, failed provider reads, controller restart,
-   and deletion. Keep the full 3720-second post-observed-withdrawal drain. Verify
-   surviving DNS/routing continuously and teardown only after the barrier.
-5. Exercise health-check failover with an isolated test target or a coordinated
-   shared-gateway drill; the existing gateways serve other staging accounts.
-6. Enable hand-out for the test account, then validate real client configuration,
-   persisted Bazel endpoints, CAS proxy recovery, and staging CI soak.
+1. Deploy the shared-readiness fix and verify identical hand-out across both web
+   replicas, including through a restart and the client soak.
+2. Observe the complete drain and finalizer/health-check cleanup at the deadlines
+   above, with survivor traffic and persisted client configuration retained.
+3. Run the prepared GitHub CI soak if credential transfer is approved.
+4. Direct DNSEndpoint source inspection still needs namespace-scoped get/list
+   access. Long-term steering telemetry and an actual gateway-outage drill remain
+   distinct from the spot comparisons and isolated health-check failure above.
 
 The fixture remains available for continuation. When validation ends, revoke the
 token, clear keep-warm, and remove only this account's test placements through the

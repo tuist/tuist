@@ -56,5 +56,6 @@ This node covers Helm assets under `infra/helm/`.
 
 - Stable cache DNS is disabled by default: platform `cacheDNS` owns the CRD-only AWS external-dns and Route53 ACME solver; `kuraController.stableDNS` supplies read/health-check credentials separately. Cloudflare excludes `cache.tuist.dev`. Preserve independent owners and Secrets, and see `../cache-dns/README.md` before enabling.
   Staging enables the provider plumbing and shared cache wildcard for spec 95
-  validation. Advertising and hand-out remain separately gated, with the server
-  allowlist restricted to `kura-spec95-e2e`.
+  validation. This staging validation branch enables advertising and hand-out
+  only for `kura-spec95-e2e` and the temporary `kura-spec95-health` fixture;
+  preserve these explicit gates when deploying during their drain checks.
