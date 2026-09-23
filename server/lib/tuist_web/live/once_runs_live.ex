@@ -507,6 +507,7 @@ defmodule TuistWeb.OnceRunsLive do
             <.table
               id="once-invocations-table"
               rows={@invocations}
+              row_key={fn run -> run.invocation_id end}
               row_navigate={
                 fn invocation ->
                   invocation_detail_path(assigns, invocation.invocation_id)
