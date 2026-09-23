@@ -7,6 +7,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Comparison
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -85,6 +86,34 @@ defmodule TuistWeb.CoverageDetailLiveTest do
         )
 
       %{pr: pr}
+    end
+
+    test "reads the comparison on the connected render only, and not again on a tab switch", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      test_pid = self()
+
+      stub(Comparison, :compare, fn project, head ->
+        send(test_pid, :compared)
+        Mimic.call_original(Comparison, :compare, [project, head])
+      end)
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/pull-requests/12"
+
+      html = conn |> get(path) |> html_response(200)
+      assert html =~ ~s(data-part="loading")
+      refute_received :compared
+
+      {:ok, lv, _html} = live(conn, path)
+      assert_received :compared
+      refute_received :compared
+      assert has_element?(lv, "#widget-coverage", "50.0%")
+
+      render_patch(lv, path <> "?tab=files")
+      render_patch(lv, path <> "?tab=targets")
+      refute_receive :compared
     end
 
     test "shows a pull request's comparison, patch coverage and gaps", %{

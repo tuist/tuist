@@ -62,9 +62,29 @@ defmodule TuistWeb.CoverageDetailLive do
       |> assign(:current_params, query)
       |> assign(:coverage_preset, preset)
       |> assign(:coverage_period, period)
-      |> assign_subject(params, query)
+      |> assign_subject_once(params, query)
 
-    {:noreply, socket |> assign_tab(query) |> assign_file(query["coverage-file"])}
+    # The static render resolves the subject, so a missing one is still a 404,
+    # and leaves the rest to the connected one: reading the head against its
+    # baseline can take seconds on a large suite, and doing it on both passes
+    # doubled every first view.
+    if connected?(socket) do
+      {:noreply, socket |> assign(:loading, false) |> assign_tab(query) |> assign_file(query["coverage-file"])}
+    else
+      {:noreply, socket |> assign(:loading, true) |> assign(:tab, tab(socket, query["tab"]))}
+    end
+  end
+
+  # A patch that changes neither the subject nor what selects its head (a tab,
+  # a page, a file) keeps the subject it already has.
+  defp assign_subject_once(socket, params, query) do
+    key = {socket.assigns.live_action, params, query["commit"], socket.assigns.coverage_period}
+
+    if socket.assigns[:subject_key] == key do
+      socket
+    else
+      socket |> assign_subject(params, query) |> assign(:subject_key, key)
+    end
   end
 
   # The file the page was asked to open: its coverage at the head commit (the
@@ -110,7 +130,8 @@ defmodule TuistWeb.CoverageDetailLive do
   def handle_info({:test_created, _test_run}, socket) do
     {:noreply,
      socket
-     |> assign_subject(socket.assigns.params, socket.assigns.current_params)
+     |> assign(:subject_key, nil)
+     |> assign_subject_once(socket.assigns.params, socket.assigns.current_params)
      |> assign_tab(socket.assigns.current_params)}
   end
 
@@ -208,17 +229,26 @@ defmodule TuistWeb.CoverageDetailLive do
   defp tab(_socket, _value), do: "overview"
 
   # Every tab reads the head commit against its baseline, which is also what
-  # the gates were decided on.
+  # the gates were decided on. It is read again only when the head, or what
+  # its commit's coverage says (a new version), changes: not on every tab.
   defp assign_comparison(%{assigns: %{selected_project: project, subject: subject}} = socket) do
-    head = Comparison.from_commit(project, subject.sha)
-    comparison = Comparison.compare(project, head)
+    summary = Commits.summary(project.id, subject.sha)
+    key = {subject.sha, summary && summary.version}
 
-    socket
-    |> assign(:head, head)
-    |> assign(:comparison, comparison)
-    |> assign(:summary, Commits.summary(project.id, subject.sha))
-    |> assign(:gates, Gates.settings(project))
-    |> assign(:gate_verdict, if(project.coverage_gates_enabled, do: Gates.evaluate(project, comparison)))
+    if socket.assigns[:comparison_key] == key do
+      assign(socket, :summary, summary)
+    else
+      head = Comparison.from_commit(project, subject.sha)
+      comparison = Comparison.compare(project, head)
+
+      socket
+      |> assign(:comparison_key, key)
+      |> assign(:head, head)
+      |> assign(:comparison, comparison)
+      |> assign(:summary, summary)
+      |> assign(:gates, Gates.settings(project))
+      |> assign(:gate_verdict, if(project.coverage_gates_enabled, do: Gates.evaluate(project, comparison)))
+    end
   end
 
   defp assign_overview(%{assigns: %{comparison: comparison, subject: subject} = assigns} = socket) do
