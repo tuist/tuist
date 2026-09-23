@@ -103,10 +103,10 @@ func (r *RackLinuxHostReconciler) releaseIfOrphaned(ctx context.Context, host *i
 // observeTailnet records the host's device and returns when to look again.
 //
 // A device is the host's when its OS hostname is the host's name and it
-// carries every tag the host names. Every install registers a new device, so
-// the newest is current. An older one is removed only while the newest is
-// connected and the older one is not, which is a reinstall: the box that held
-// the older device has been wiped and can never bring it back.
+// carries every tag the host names. The newest connected one is current, else
+// the newest. The others are removed only while the current one is connected
+// and they are not: one box runs one install, so they are registrations of
+// installs that box no longer holds.
 func (r *RackLinuxHostReconciler) observeTailnet(ctx context.Context, host *infrav1.RackLinuxHost) time.Duration {
 	logger := log.FromContext(ctx)
 	if r.Tailnet == nil {
@@ -135,8 +135,17 @@ func (r *RackLinuxHostReconciler) observeTailnet(ctx context.Context, host *infr
 	}
 
 	current := matches[0]
+	for _, d := range matches {
+		if d.ConnectedToControl {
+			current = d
+			break
+		}
+	}
 	var remaining []tailnet.Device
-	for _, d := range matches[1:] {
+	for _, d := range matches {
+		if d.NodeID == current.NodeID {
+			continue
+		}
 		if !current.ConnectedToControl || d.ConnectedToControl {
 			remaining = append(remaining, d)
 			continue
