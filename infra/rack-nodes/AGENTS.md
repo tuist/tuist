@@ -19,6 +19,12 @@ operator joins it as a node and keeps it converged.
   finds the host on the tailnet and joins it. See "Rack-owned Linux hosts" in
   its AGENTS.md.
 
+**Install a new host before the deploy that declares it, or within the hour
+after.** The tuist chart deploys with `helm --atomic --wait`, which waits for the
+role's MachineDeployment, and its Machine is only Running once the host has
+joined. A host on the tailnet with no `RackLinuxHost` yet simply waits; the
+operator joins it within minutes of the deploy.
+
 ## Writing a stick
 
 ```
