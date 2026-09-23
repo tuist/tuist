@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rack-switch-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rack-switch-controller.labels" . | nindent 4 }}
+spec:
+  # One writer. Leader election keeps it one across a rollout.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rack-switch-controller
+  template:
+    metadata:
+      labels:
+        {{- include "rack-switch-controller.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: rack-switch-controller
+      securityContext:
+        runAsNonRoot: true
+        # distroless's nonroot, numeric so the kubelet can check it.
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --namespace={{ include "rack-switch-controller.watchNamespace" . }}
+            - --omada-url={{ .Values.omada.url }}
+            - --omada-site={{ required "omada.site is required" .Values.omada.site }}
+            - --controller-address={{ required "omada.controllerAddress is required: the Omada controller's tailnet IP" .Values.omada.controllerAddress }}
+            - --credentials-dir=/etc/rack-switch-controller
+            - --resync-interval={{ .Values.resyncInterval }}
+            - --enable-vlans={{ .Values.gates.vlans }}
+            - --enable-lags={{ .Values.gates.lags }}
+            - --enable-port-spanning-tree={{ .Values.gates.portSpanningTree }}
+            - --enable-management-addressing={{ .Values.gates.managementAddressing }}
+            - --enable-site-services={{ .Values.gates.siteServices }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: credentials
+              mountPath: /etc/rack-switch-controller
+              readOnly: true
+      # One directory, one file per value, whichever Secret it comes from:
+      # the layout `rack-switch-controller apply --credentials-dir` reads too.
+      volumes:
+        - name: credentials
+          projected:
+            sources:
+              - secret:
+                  name: rack-switch-controller-omada-api
+                  items:
+                    - key: client-id
+                      path: client-id
+                    - key: client-secret
+                      path: client-secret
+              - secret:
+                  name: rack-switch-controller-device-account
+                  items:
+                    - key: username
+                      path: device-username
+                    - key: password
+                      path: device-password
+              {{- with .Values.credentials.factoryLoginSecret }}
+              - secret:
+                  name: {{ . }}
+                  items:
+                    - key: username
+                      path: factory-username
+                    - key: password
+                      path: factory-password
+              {{- end }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  {{- range .Values.rackNodeLabels }}
+                  - key: {{ .key }}
+                    operator: NotIn
+                    values:
+                      {{- toYaml .values | nindent 22 }}
+                  {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

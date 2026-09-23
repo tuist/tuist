@@ -450,8 +450,10 @@ machine.
 
 A switch is a `RackSwitch` in the `tuist.dev` group, so its state is visible next
 to the `RackHost`s behind it rather than only in somebody's terminal. The CRD is
-`infra/helm/tuist/crds/tuist.dev_rackswitches.yaml`, hand-written and in `crds/`
-for the same reasons as `RunnerPool`. Helm only installs that directory on first
+`infra/helm/tuist/crds/tuist.dev_rackswitches.yaml`, generated from the Go types
+in `infra/rack-switch-controller/api/v1alpha1` by
+`mise run rack-switch-controller:generate`, and in `crds/` for the same reasons
+as `RunnerPool`. Helm only installs that directory on first
 install, so `server-deployment.yml` applies it on every deploy, and the Rack
 Switches workflow applies it too before its objects.
 
@@ -472,7 +474,11 @@ the cluster `--context` names (never whatever context happens to be current), wh
 preflight and records drift, reachability, when it was verified and how many of
 the boot's connections have been spent. It is reported against the
 `configRevision` it was measured with, so a status can never be read as applying
-to a revision it did not see.
+to a revision it did not see. A switch whose object says `managedBy: controller`
+is adopted and converged by the rack switch controller, which writes its status
+instead; see [`rack-switch-controller/AGENTS.md`](../rack-switch-controller/AGENTS.md).
+The renderer does not emit `mac`, `managedBy` or `config` yet, so every object
+is standalone until it does.
 
 ### Why this cannot be managed the way a datacentre switch would be
 
@@ -680,6 +686,13 @@ is in the data center. Where that stands on 2026-09-23:
   site address and the controller's, it appeared pending, adoption with the
   factory login and one API pass brought it to its render. See "Zero touch
   through the controller, measured" in the assessment.
+- **The reconciler.** [`infra/rack-switch-controller`](../rack-switch-controller/AGENTS.md)
+  watches `RackSwitch` objects and drives the controller: it adopts a pending
+  switch whose MAC an object names, writes the management address and the
+  rest of the render through the Open API, and reports status. Deployed by
+  `omada-deployment.yml`. All three objects now say `managedBy: controller`.
+- **Not started.** Joining `ber1-edge` to staging as a node, which would let
+  the edge path and its DHCP run as workloads.
 
 ## Apply is a confirmed commit
 

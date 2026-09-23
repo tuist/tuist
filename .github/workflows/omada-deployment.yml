@@ -1,15 +1,27 @@
 name: Rack Fleet Controller Deployment
 
-# The Omada SDN controller for the rack fleet (infra/helm/omada). One
-# controller, because a switch can be adopted by only one; it lives in the
-# staging cluster while the rack is at home and moves to production with the
-# rack. Its admin account and Open API client come from the controller's own
-# first-boot wizard, so nothing here seeds credentials.
+# The Omada SDN controller for the rack fleet (infra/helm/omada), and the rack
+# switch controller that drives it (infra/helm/rack-switch-controller). One
+# Omada controller, because a switch can be adopted by only one; both live in
+# the staging cluster while the rack is at home and move to production with
+# the rack. The Omada admin account and Open API client come from its own
+# first-boot wizard, so nothing here seeds them; the rack switch controller
+# reads the API client and the site's device account from 1Password through
+# ExternalSecrets.
 #
 # It also applies the RackSwitch CRD to the same cluster. server-deployment.yml
 # carries that CRD to every cluster it deploys, but merges only deploy canary
 # and production; staging gets a server deploy only when someone dispatches
 # one, and the rack's objects need their CRD where the rack is.
+#
+# THE RACK SWITCH CONTROLLER'S IMAGE. rack-switch-controller-image.yml builds
+# `sha-<12 sha>` only for a push that changes the image's inputs, so the image
+# to deploy is the one of the newest commit at or before DEPLOY_SHA that
+# touched them. A merge that changes both the controller and its chart starts
+# this workflow and the image build together, so the deploy waits for that
+# tag to appear in the registry before installing it. A workflow_run trigger
+# on the image build would cover only merges that build an image, and a chart
+# or CRD change alone would never deploy.
 
 on:
   push:
@@ -17,8 +29,11 @@ on:
       - main
     paths:
       - infra/helm/omada/**
+      - infra/helm/rack-switch-controller/**
+      - infra/rack-switch-controller/**
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - .github/workflows/omada-deployment.yml
+      - .github/workflows/rack-switch-controller-image.yml
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -27,6 +42,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: omada-deploy-staging
@@ -37,6 +53,9 @@ env:
   HELM_CHART_PATH: infra/helm/omada
   HELM_RELEASE_NAME: omada
   NAMESPACE: omada
+  CONTROLLER_CHART_PATH: infra/helm/rack-switch-controller
+  CONTROLLER_RELEASE_NAME: rack-switch-controller
+  CONTROLLER_IMAGE: ghcr.io/tuist/rack-switch-controller
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
 
 jobs:
@@ -44,7 +63,7 @@ jobs:
     name: Deploy staging
     if: github.repository == 'tuist/tuist'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     environment:
       name: server-k8s-staging
     env:
@@ -54,6 +73,10 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
+          # History without file contents, for the git log that finds the
+          # controller's image commit.
+          fetch-depth: 0
+          filter: blob:none
       - uses: ./.github/actions/mise
         with:
           install_args: "--locked helm kubectl"
@@ -87,18 +110,63 @@ jobs:
             -f "$HELM_CHART_PATH/values.yaml" \
             -f "$HELM_CHART_PATH/values-staging.yaml" \
             --atomic --timeout 10m --wait
+      - name: Resolve the rack switch controller's image
+        id: image
+        run: |
+          set -euo pipefail
+          commit="$(git log -1 --format=%H "$DEPLOY_SHA" -- \
+            infra/rack-switch-controller .github/workflows/rack-switch-controller-image.yml)"
+          if [ -z "$commit" ]; then
+            echo "::error::no commit at or before $DEPLOY_SHA changes the rack switch controller's image"
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-${commit::12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait for the image
+        env:
+          TAG: ${{ steps.image.outputs.tag }}
+          COMMIT: ${{ steps.image.outputs.commit }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if docker buildx imagetools inspect "$CONTROLLER_IMAGE:$TAG" >/dev/null 2>&1; then
+              echo "$CONTROLLER_IMAGE:$TAG is published"
+              exit 0
+            fi
+            echo "waiting for $CONTROLLER_IMAGE:$TAG ($attempt/60)"
+            sleep 15
+          done
+          echo "::error::$CONTROLLER_IMAGE:$TAG did not appear within 15 minutes; see the Rack Switch Controller Image run for $COMMIT"
+          exit 1
+      - name: helm upgrade --install the rack switch controller
+        env:
+          TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          helm upgrade --install "$CONTROLLER_RELEASE_NAME" "$CONTROLLER_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            -f "$CONTROLLER_CHART_PATH/values.yaml" \
+            -f "$CONTROLLER_CHART_PATH/values-staging.yaml" \
+            --set image.tag="$TAG" \
+            --atomic --timeout 5m --wait
       - name: Diagnostics on failure
         if: failure()
         run: |
           set +e
           echo "::group::helm history"
           helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          helm history "$CONTROLLER_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
           echo "::endgroup::"
           echo "::group::workload resources"
-          kubectl -n "$NAMESPACE" get statefulset,svc,pvc,pods -o wide || true
+          kubectl -n "$NAMESPACE" get statefulset,deployment,svc,pvc,pods,externalsecret -o wide || true
           echo "::endgroup::"
           echo "::group::logs"
           kubectl -n "$NAMESPACE" logs statefulset/"$HELM_RELEASE_NAME-omada-controller" --tail=200 || true
+          kubectl -n "$NAMESPACE" logs deployment/"$CONTROLLER_RELEASE_NAME" --tail=200 || true
           echo "::endgroup::"
           echo "::group::events"
           kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true

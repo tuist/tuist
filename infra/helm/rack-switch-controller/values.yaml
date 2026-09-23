@@ -1,0 +1,67 @@
+# Defaults shared by every environment. Which rack, which Omada site and which
+# 1Password items live in values-<env>.yaml.
+
+image:
+  repository: ghcr.io/tuist/rack-switch-controller
+  # The image workflow publishes sha-<12 sha> and latest on every push to
+  # main. omada-deployment.yml sets the sha tag of the build it deploys.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# The namespace whose RackSwitch objects the controller reconciles: the
+# rack's, `kubernetes.namespace` in its site definition.
+watchNamespace: ""
+
+omada:
+  url: https://omada-omada-controller.omada.svc:8043
+  # The Omada site the switches are adopted into.
+  site: ""
+  # The address the Omada controller tells adopted switches to connect back
+  # to: its tailnet IP, since a switch has no resolver for MagicDNS names.
+  controllerAddress: ""
+
+# How often each switch is read again, which is how drift is noticed.
+resyncInterval: 10m
+
+# Steps switched on one at a time. The management address is verified end to
+# end on all three BER1 switches; VLANs, LAGs and port spanning tree are
+# measured through the API and wait their turn; site services are unmeasured.
+gates:
+  managementAddressing: true
+  vlans: false
+  lags: false
+  portSpanningTree: false
+  siteServices: false
+
+credentials:
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  refreshInterval: 1h
+  # 1Password items, in the vault the store reads. The Open API client, with
+  # client-id and client-secret fields.
+  omadaApiItem: ""
+  # The site's device account, with username and password fields.
+  deviceAccountItem: ""
+  # A Secret in the release namespace with username and password keys: the
+  # login a factory-reset switch has. Empty means admin/admin.
+  factoryLoginSecret: ""
+
+# Labels of the nodes that sit behind the rack's switches. The pod never
+# schedules onto a node carrying any of these values: it would be
+# reconciling its own path to the Omada controller. A rack node of another
+# kind joining the cluster (the edge node, say) adds its label here.
+rackNodeLabels:
+  - key: kubernetes.io/os
+    values: [darwin]
+  - key: tuist.dev/runtime
+    values: [tart]
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+tolerations: []
