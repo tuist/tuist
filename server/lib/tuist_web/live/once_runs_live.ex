@@ -526,12 +526,19 @@ defmodule TuistWeb.OnceRunsLive do
                 sort_order={@invocations_sort_by == "status" && @invocations_sort_order}
               >
                 <.status_badge_cell
-                  label={
-                    if invocation.status == "success",
-                      do: dgettext("dashboard_projects", "Succeeded"),
-                      else: dgettext("dashboard_projects", "Failed")
-                  }
-                  status={if invocation.status == "success", do: "success", else: "error"}
+                  :if={invocation.status == "success"}
+                  label={dgettext("dashboard_projects", "Succeeded")}
+                  status="success"
+                />
+                <.status_badge_cell
+                  :if={invocation.status == "failure"}
+                  label={dgettext("dashboard_projects", "Failed")}
+                  status="error"
+                />
+                <.status_badge_cell
+                  :if={invocation.status not in ["success", "failure"]}
+                  label={dgettext("dashboard_projects", "Running")}
+                  status="in_progress"
                 />
               </:col>
               <:col

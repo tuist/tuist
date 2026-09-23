@@ -291,7 +291,7 @@ defmodule Tuist.OnceEvents.Analytics do
       invocation_id: run.run_id,
       command: display_command(run),
       target_patterns: [],
-      status: if(finalized_success?(run), do: "success", else: "failure"),
+      status: run_status(run),
       duration_ms: run.wall_ms || 0,
       finished_at: run.finalized_at || run.started_at,
       is_ci: false,
@@ -303,8 +303,14 @@ defmodule Tuist.OnceEvents.Analytics do
     }
   end
 
-  defp finalized_success?(%{finalization: "finalized", exit_status: 0}), do: true
-  defp finalized_success?(_), do: false
+  # Only a finalized run has a verdict. Reporting everything else as a
+  # failure meant a build was listed as failed while it was still running,
+  # and counted as one in the failure roll-ups. `lost` is terminal: the
+  # client stopped reporting and the run will never finalize.
+  defp run_status(%{finalization: "finalized", exit_status: 0}), do: "success"
+  defp run_status(%{finalization: "finalized"}), do: "failure"
+  defp run_status(%{finalization: "lost"}), do: "failure"
+  defp run_status(_run), do: "in_progress"
 
   defp display_command(run) do
     cond do
