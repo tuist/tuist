@@ -77,15 +77,11 @@ func (e *scriptExitError) Error() string { return e.err.Error() }
 
 func (e *scriptExitError) Unwrap() error { return e.err }
 
-// RackLinuxMachineReconciler joins rack Linux hosts to the cluster and keeps
-// them converged. It claims a RackLinuxHost from its pool, dials it over the
-// tailnet, and runs one converge script: the first run on a host with no
-// kubelet identity mints a one-hour bootstrap token so the kubelet gets a
-// system:node certificate of its own, and every later run re-applies the same
-// configuration, restarting only what changed or died. It converges again
-// when the desired configuration changes (an operator image, a control plane
-// upgrade, a new tailnet address), when the host is reinstalled, when its Node
-// has been NotReady for a while, and on ConvergeInterval regardless.
+// RackLinuxMachineReconciler claims a RackLinuxHost, dials it over the tailnet
+// and runs the converge script on it: on the first run with a one-hour
+// bootstrap token so the kubelet gets its own system:node certificate, and
+// afterwards whenever the rendered configuration or the host's tailnet device
+// changes, while its Node is NotReady, and on ConvergeInterval.
 type RackLinuxMachineReconciler struct {
 	client.Client
 	APIReader          client.Reader
@@ -97,10 +93,8 @@ type RackLinuxMachineReconciler struct {
 	// server from kube-public/cluster-info.
 	APIServerURL string
 
-	// KubernetesMinor is the minor the kubelet configuration is rendered
-	// for. The kubelet follows the control plane's patch release within it,
-	// and a control plane on another minor holds converges until the operator
-	// renders for that minor.
+	// KubernetesMinor is the minor the kubelet configuration is rendered for;
+	// a control plane on another minor holds converges.
 	KubernetesMinor string
 
 	// ControlPlaneVersion returns the API server's gitVersion.
@@ -593,11 +587,9 @@ func (r *RackLinuxMachineReconciler) claimHost(ctx context.Context, machine *inf
 	return host, ctrl.Result{}, nil
 }
 
-// reconcileDelete lets go of the host: a bounded, best-effort leave that stops
-// the kubelet and drops its identity, then the Node, the egress Service, the
-// host key pin and the claim. The leave keeps a released host from
-// re-registering its Node on its own; an unreachable host keeps its kubelet
-// until it is reinstalled.
+// reconcileDelete stops the host's kubelet and drops its identity (bounded,
+// best effort), then deletes the Node, the egress Service and the host key pin
+// and releases the claim. An unreachable host keeps its kubelet.
 func (r *RackLinuxMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.RackLinuxMachine) (ctrl.Result, error) {
 	machine.Status.Phase = "Deleting"
 	name := machine.Status.RackLinuxHost

@@ -160,12 +160,10 @@ func rackConfigHash(o rackConvergeOptions) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// renderRackConvergeScript renders the one script that joins a rack Linux host
-// and keeps it converged. It runs as root, rewrites only the files whose
-// content differs, restarts a daemon when its configuration changed, when it
-// is not running, or when the host has not yet finished a converge of this
-// configuration, and installs exactly the kubelet release the options name
-// without ever downgrading one.
+// renderRackConvergeScript renders the script that joins a rack Linux host and
+// keeps it converged. It rewrites only files whose content differs, restarts a
+// daemon whose configuration changed or that is not running, and never
+// downgrades the kubelet.
 func renderRackConvergeScript(o rackConvergeOptions) string {
 	return renderRackConvergeScriptWithHash(o, rackConfigHash(o))
 }
