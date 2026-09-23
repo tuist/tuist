@@ -1031,14 +1031,17 @@ arbitrary line into its negation is the same class of guess.
 A device marked `adopted` in the site definition belongs to the site's Omada
 controller, and three things change for it.
 
-- **It is changed through the controller.** `rack:omada apply <device>` writes
-  what the Open API can set from the device's render: the hostname, the
-  spanning-tree mode and the port descriptions, a port the render does not
-  describe getting the controller's own `Port<n>`. The hostname and descriptions
-  are read first and written only where they differ; the API cannot read
-  spanning tree back, so that is written every time and checked over SSH. It
-  takes the rack lock like any other change, and waits out a pending rollback
-  on a ToR. The
+- **It is changed through the controller.** In the cluster that is the
+  reconciler, [`infra/rack-switch-controller`](../rack-switch-controller/AGENTS.md),
+  which writes the object's `spec.config` through the Open API when its
+  revision moves: management address and gateway, hostname, port descriptions,
+  spanning-tree mode, VLANs, lags, every port's VLAN membership and spanning
+  tree, and the site's services; and it adopts a pending switch whose MAC an
+  object names. From a laptop, `rack:omada apply <device>` writes the hostname,
+  spanning-tree mode and descriptions, taking the rack lock and waiting out a
+  pending rollback on a ToR; the reconciler's own one-shot `apply` does the
+  whole of it for one object. Whatever the API cannot read back is checked
+  over SSH with `rack:fleet diff`. The
   SSH write paths, `apply`, `save`, `replace` and `recover`, refuse the device:
   the controller owns its configuration, and TP-Link documents SSH in controller
   mode as show commands only.
