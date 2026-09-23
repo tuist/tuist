@@ -111,6 +111,9 @@ spec:
                   manages.
                 properties:
                   gateway:
+                    description: |-
+                      The management interface's gateway: the site's edge node, which is also
+                      the path to the Omada controller.
                     type: string
                   hostname:
                     type: string
@@ -138,6 +141,8 @@ spec:
                   managementPrefixLength:
                     type: integer
                   managementVlan:
+                    description: The VLAN of the management interface, which carries
+                      spec.managementAddress.
                     type: integer
                   ports:
                     description: Every port the model has.
@@ -169,21 +174,6 @@ spec:
                           type: array
                       required:
                       - port
-                      type: object
-                    type: array
-                  routes:
-                    items:
-                      description: Route is a static route on the switch's management
-                        interface.
-                      properties:
-                        destination:
-                          description: Destination prefix in CIDR notation.
-                          type: string
-                        nextHop:
-                          type: string
-                      required:
-                      - destination
-                      - nextHop
                       type: object
                     type: array
                   snmp:

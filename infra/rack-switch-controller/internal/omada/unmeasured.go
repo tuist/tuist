@@ -7,8 +7,6 @@ package omada
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -54,29 +52,4 @@ func SNMPEnableFields(setting map[string]any) []string {
 		}
 	}
 	return fields
-}
-
-// SwitchNetworks is the switch's per-network interface list, one entry per
-// site network it carries, with its address on that network.
-func (c *Client) SwitchNetworks(ctx context.Context, siteID, mac string) ([]map[string]any, error) {
-	var raw json.RawMessage
-	if err := c.call(ctx, http.MethodGet, switchPath(siteID, mac, "/networks"), nil, &raw); err != nil {
-		return nil, err
-	}
-	var entries []map[string]any
-	if err := json.Unmarshal(raw, &entries); err == nil {
-		return entries, nil
-	}
-	var paged struct {
-		Data []map[string]any `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &paged); err != nil {
-		return nil, fmt.Errorf("GET switch networks: unrecognised result: %w", err)
-	}
-	return paged.Data, nil
-}
-
-// SetSwitchNetwork writes the switch's interface on one site network.
-func (c *Client) SetSwitchNetwork(ctx context.Context, siteID, mac, networkID string, entry map[string]any) error {
-	return c.call(ctx, http.MethodPost, switchPath(siteID, mac, "/networks/"+networkID), entry, nil)
 }

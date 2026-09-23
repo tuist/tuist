@@ -48,9 +48,7 @@ spec:
     hostname: ber1-tor-b
     managementVlan: 1
     managementPrefixLength: 24
-    gateway: 192.168.0.1
-    routes:
-      - {destination: 100.64.0.0/10, nextHop: 192.168.0.10}
+    gateway: 192.168.0.10
     spanningTree: rstp
     lldp: true
     snmp: false

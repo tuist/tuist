@@ -61,10 +61,29 @@ type Switch struct {
 	// The last override body written to each port.
 	Overrides map[int]map[string]any
 	LAGs      map[int][]int
-	// The switch's per-network interfaces.
+	// The switch's interfaces, as GET switches/{mac}/networks returns them.
 	Networks []map[string]any
 
 	queue []State
+}
+
+// ManagementInterface is a management interface as the controller returned it
+// on the SG3452 and SX3832: mode 0 static, 1 DHCP.
+func ManagementInterface(mode int, address, netmask, gateway string) map[string]any {
+	return map[string]any{
+		"id":    "switch-net-default",
+		"vlan":  float64(1),
+		"mvlan": true,
+		"name":  "Default",
+		"ip": map[string]any{
+			"mode": float64(mode), "ip": address, "netmask": netmask, "gateway": gateway,
+			"fallback": true, "fallbackIp": "192.168.0.1", "fallbackMask": "255.255.255.0",
+		},
+		"ipv6Enable": false,
+		"ipv6":       map[string]any{},
+		"mode":       float64(0),
+		"status":     float64(1),
+	}
 }
 
 // Request is one Open API call, with its path under /openapi/v1/{omadacId}
@@ -411,20 +430,28 @@ func (s *Server) route(method, path string, body map[string]any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return sw.Networks, nil
+		return paged(sw.Networks), nil
 	}
 	if m := routeSwNet.FindStringSubmatch(path); m != nil && method == http.MethodPost {
 		sw, err := s.adopted(m[1], m[2])
 		if err != nil {
 			return nil, err
 		}
+		ip, _ := body["ip"].(map[string]any)
+		for _, field := range []string{"mode", "ip", "netmask", "gateway", "fallback", "fallbackIp", "fallbackMask"} {
+			if _, present := ip[field]; !present {
+				return nil, fail(generalError, "Invalid request parameters.")
+			}
+		}
 		for i, entry := range sw.Networks {
-			if entry["networkId"] == m[3] {
-				sw.Networks[i] = copyMap(body)
+			if entry["id"] == m[3] {
+				written := copyMap(body)
+				written["status"] = entry["status"]
+				sw.Networks[i] = written
 				return nil, nil
 			}
 		}
-		return nil, fail(generalError, "no such network on the switch")
+		return nil, fail(generalError, "General error.")
 	}
 
 	m := routeSite.FindStringSubmatch(path)

@@ -63,13 +63,6 @@ type PortAssignment struct {
 	Detail string `json:"detail,omitempty"`
 }
 
-// Route is a static route on the switch's management interface.
-type Route struct {
-	// Destination prefix in CIDR notation.
-	Destination string `json:"destination"`
-	NextHop     string `json:"nextHop"`
-}
-
 // VLAN is a network the switch carries beyond management.
 type VLAN struct {
 	// +kubebuilder:validation:Minimum=1
@@ -111,14 +104,15 @@ type PortConfig struct {
 type SwitchConfig struct {
 	// +optional
 	Hostname string `json:"hostname,omitempty"`
+	// The VLAN of the management interface, which carries spec.managementAddress.
 	// +optional
 	ManagementVLAN int `json:"managementVlan,omitempty"`
 	// +optional
 	ManagementPrefixLength int `json:"managementPrefixLength,omitempty"`
+	// The management interface's gateway: the site's edge node, which is also
+	// the path to the Omada controller.
 	// +optional
 	Gateway string `json:"gateway,omitempty"`
-	// +optional
-	Routes []Route `json:"routes,omitempty"`
 	// +optional
 	SpanningTree SpanningTreeMode `json:"spanningTree,omitempty"`
 	// Site-wide in the controller: every switch of a site has to agree.

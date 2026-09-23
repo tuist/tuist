@@ -391,34 +391,32 @@ func TestAnOverrideTheSpecDoesNotNeedIsRemovedOnlyWhenEveryOverrideIsManaged(t *
 	}
 }
 
-func TestManagementAddressing(t *testing.T) {
+func managedTor(configure func(*v1alpha1.SwitchConfig)) *v1alpha1.RackSwitch {
+	return torB(2, func(cfg *v1alpha1.SwitchConfig) {
+		cfg.ManagementVLAN = 1
+		cfg.ManagementPrefixLength = 24
+		cfg.Gateway = "192.168.0.10"
+		if configure != nil {
+			configure(cfg)
+		}
+	})
+}
+
+func TestAZeroTouchSwitchGetsItsStaticAddressFirst(t *testing.T) {
 	fake, engine := newEngine(t, converge.Gates{ManagementAddressing: true})
 	connectedTor(fake, 2)
 	fake.Update(torMAC, func(sw *omadatest.Switch) {
-		sw.Networks = []map[string]any{{
-			"networkId": omadatest.DefaultNetworkID, "vlan": float64(1), "mvlan": true,
-			"ip": "192.168.0.82", "netmask": "255.255.0.0", "gateway": "192.168.0.1",
-		}}
+		sw.Networks = []map[string]any{omadatest.ManagementInterface(omada.IPModeDHCP, "192.168.0.82", "255.255.255.0", "192.168.0.1")}
 	})
-	rs := torB(2, func(cfg *v1alpha1.SwitchConfig) {
-		cfg.ManagementVLAN = 1
-		cfg.ManagementPrefixLength = 24
-		cfg.Gateway = "192.168.0.1"
-	})
+	rs := managedTor(nil)
 	ctx := context.Background()
 
 	report, err := engine.Converge(ctx, omadatest.SiteID, rs, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{
-		"management interface ip is 192.168.0.82, want 192.168.0.12",
-		"management interface netmask is 255.255.0.0, want 255.255.255.0",
-	}
-	for _, w := range want {
-		if !contains(report.Drift, w) {
-			t.Fatalf("drift = %q, want %q", report.Drift, w)
-		}
+	if report.Drift[0] != "management address is dhcp (192.168.0.82), want 192.168.0.12 255.255.255.0 gateway 192.168.0.10" {
+		t.Fatalf("drift = %q", report.Drift)
 	}
 
 	report, err = engine.Converge(ctx, omadatest.SiteID, rs, true)
@@ -428,9 +426,58 @@ func TestManagementAddressing(t *testing.T) {
 	if len(report.Drift) != 0 {
 		t.Fatalf("drift after apply = %q", report.Drift)
 	}
-	entry := fake.Switch(torMAC).Networks[0]
-	if entry["ip"] != "192.168.0.12" || entry["netmask"] != "255.255.255.0" || entry["mvlan"] != true {
-		t.Fatalf("entry = %v", entry)
+	writes := fake.Writes()
+	if got := writePaths(writes)[0]; got != "POST /networks/switch-net-default" {
+		t.Fatalf("first write = %s, want the management address", got)
+	}
+	body := writes[0].Body
+	wantIP := map[string]any{
+		"mode": float64(0), "ip": "192.168.0.12", "netmask": "255.255.255.0", "gateway": "192.168.0.10",
+		"fallback": false, "fallbackIp": "192.168.0.1", "fallbackMask": "255.255.255.0",
+	}
+	if !reflect.DeepEqual(body["ip"], wantIP) {
+		t.Fatalf("ip = %v", body["ip"])
+	}
+	if _, sent := body["status"]; sent {
+		t.Fatal("the write carried the interface's status")
+	}
+	if body["name"] != "Default" || body["mvlan"] != true || body["ipv6Enable"] != false {
+		t.Fatalf("the rest of the interface did not go back as read: %v", body)
+	}
+	if report.Changes[0].String() != "management address: dhcp (192.168.0.82) -> 192.168.0.12 255.255.255.0 gateway 192.168.0.10" {
+		t.Fatalf("change = %s", report.Changes[0])
+	}
+
+	fake.ResetRequests()
+	if _, err := engine.Converge(ctx, omadatest.SiteID, rs, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range fake.Writes() {
+		if strings.Contains(w.Path, "/networks/") {
+			t.Fatal("an address that matches was written again")
+		}
+	}
+}
+
+func TestTheManagementVLANIsReportedNotMoved(t *testing.T) {
+	fake, engine := newEngine(t, converge.Gates{ManagementAddressing: true})
+	connectedTor(fake, 2)
+	fake.Update(torMAC, func(sw *omadatest.Switch) {
+		sw.Networks = []map[string]any{omadatest.ManagementInterface(omada.IPModeStatic, "192.168.0.12", "255.255.255.0", "192.168.0.10")}
+	})
+	rs := managedTor(func(cfg *v1alpha1.SwitchConfig) { cfg.ManagementVLAN = 10 })
+
+	report, err := engine.Converge(context.Background(), omadatest.SiteID, rs, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(report.Drift, "the management interface is on VLAN 1, want 10") {
+		t.Fatalf("drift = %q", report.Drift)
+	}
+	for _, w := range fake.Writes() {
+		if strings.Contains(w.Path, "/networks/") {
+			t.Fatalf("wrote %s", w.Path)
+		}
 	}
 }
 

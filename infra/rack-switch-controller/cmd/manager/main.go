@@ -58,8 +58,8 @@ func (f *engineFlags) register(fs *flag.FlagSet, siteFlag string) {
 	fs.BoolVar(&f.gates.VLANs, "enable-vlans", false, "Create site networks and write port VLAN membership")
 	fs.BoolVar(&f.gates.LAGs, "enable-lags", false, "Create link aggregation groups")
 	fs.BoolVar(&f.gates.PortSpanningTree, "enable-port-spanning-tree", false, "Write per-port spanning tree")
-	fs.BoolVar(&f.gates.ManagementAddressing, "enable-management-addressing", false,
-		"Write the management interface's address (unmeasured API shape)")
+	fs.BoolVar(&f.gates.ManagementAddressing, "enable-management-addressing", true,
+		"Write the management interface's static address, mask and gateway")
 	fs.BoolVar(&f.gates.SiteServices, "enable-site-services", false,
 		"Write the site's LLDP and SNMP settings (unmeasured API shape)")
 }

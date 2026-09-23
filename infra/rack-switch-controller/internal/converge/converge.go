@@ -27,13 +27,13 @@ type Report struct {
 }
 
 // Converge compares a connected switch with its spec. With apply it writes,
-// in order: the hostname, each port's description, the spanning-tree mode,
-// and then each step whose gate is on (site networks, link aggregation, port
-// overrides, the management interface, site services). What the API can read
-// back is written only where it differs; what it cannot (spanning-tree mode,
-// a port override's content) is written on every apply. It then reads the
-// switch again, so the drift it reports is what the controller holds after
-// the writes.
+// in order: the management address (gated), the hostname, each port's
+// description, the spanning-tree mode, and then each other step whose gate is
+// on (site networks, link aggregation, port overrides, site services). What
+// the API can read back is written only where it differs; what it cannot
+// (spanning-tree mode, a port override's content) is written on every apply.
+// It then reads the switch again, so the drift it reports is what the
+// controller holds after the writes.
 func (e *Engine) Converge(ctx context.Context, siteID string, rs *v1alpha1.RackSwitch, apply bool) (Report, error) {
 	cfg := rs.Spec.Config
 	if cfg == nil {
@@ -49,7 +49,11 @@ func (e *Engine) Converge(ctx context.Context, siteID string, rs *v1alpha1.RackS
 	}
 
 	w := &writer{e: e, ctx: ctx, siteID: siteID, mac: mac, rs: rs, cfg: cfg, state: state}
-	steps := []func() error{w.hostname, w.portDescriptions, w.spanningTree}
+	var steps []func() error
+	if e.Gates.ManagementAddressing {
+		steps = append(steps, w.management)
+	}
+	steps = append(steps, w.hostname, w.portDescriptions, w.spanningTree)
 	if e.Gates.VLANs {
 		steps = append(steps, w.networks)
 	}
@@ -58,9 +62,6 @@ func (e *Engine) Converge(ctx context.Context, siteID string, rs *v1alpha1.RackS
 	}
 	if e.Gates.VLANs || e.Gates.PortSpanningTree {
 		steps = append(steps, w.portOverrides)
-	}
-	if e.Gates.ManagementAddressing {
-		steps = append(steps, w.management)
 	}
 	if e.Gates.SiteServices {
 		steps = append(steps, w.siteServices)
@@ -83,7 +84,7 @@ type observed struct {
 	ports          []omada.Port
 	networks       []omada.LANNetwork
 	profiles       []omada.LANProfile
-	switchNetworks []map[string]any
+	switchNetworks []omada.SwitchNetwork
 	lldp           map[string]any
 	snmp           map[string]any
 }
@@ -100,7 +101,7 @@ func (e *Engine) observe(ctx context.Context, siteID, mac string, cfg *v1alpha1.
 		return nil, err
 	}
 	sort.Slice(s.ports, func(i, j int) bool { return s.ports[i].Port < s.ports[j].Port })
-	if e.Gates.VLANs || e.Gates.ManagementAddressing {
+	if e.Gates.VLANs {
 		if s.networks, err = e.Omada.LANNetworks(ctx, siteID); err != nil {
 			return nil, err
 		}
@@ -135,6 +136,10 @@ func (e *Engine) observe(ctx context.Context, siteID, mac string, cfg *v1alpha1.
 func (e *Engine) differences(rs *v1alpha1.RackSwitch, s *observed) []string {
 	cfg := rs.Spec.Config
 	var drift []string
+
+	if e.Gates.ManagementAddressing {
+		drift = append(drift, managementDifferences(rs, s)...)
+	}
 
 	if cfg.Hostname != "" && s.hostname != cfg.Hostname {
 		drift = append(drift, fmt.Sprintf("hostname is %q, want %q", s.hostname, cfg.Hostname))
@@ -200,10 +205,6 @@ func (e *Engine) differences(rs *v1alpha1.RackSwitch, s *observed) []string {
 				drift = append(drift, fmt.Sprintf("port %d overrides its profile, and the spec needs no override", p.Port))
 			}
 		}
-	}
-
-	if e.Gates.ManagementAddressing {
-		drift = append(drift, managementDifferences(rs, s)...)
 	}
 
 	if e.Gates.SiteServices {
@@ -461,21 +462,23 @@ func profileMembership(profile *omada.LANProfile, networks []omada.LANNetwork) (
 	return profile.NativeNetworkID, tagged
 }
 
-// management points the switch's interface on the management VLAN at the
-// spec's address. Unmeasured: see omada/unmeasured.go.
+// management gives the management interface the spec's static address, mask
+// and gateway where it differs. A factory switch adopted through zero touch
+// comes up on DHCP, so this is its first write. Its VLAN is not written.
 func (w *writer) management() error {
-	entry, networkID, err := managementEntry(w.rs, w.state)
+	network, err := managementInterface(w.state)
 	if err != nil {
 		return err
 	}
-	want := desiredManagement(w.rs, entry)
-	if len(managementDifferences(w.rs, w.state)) == 0 {
+	have := network.IP()
+	want := desiredManagementIP(w.rs, have)
+	if sameAddress(have, want) {
 		return nil
 	}
-	if err := w.e.Omada.SetSwitchNetwork(w.ctx, w.siteID, w.mac, networkID, want); err != nil {
+	if err := w.e.Omada.SetInterfaceIP(w.ctx, w.siteID, w.mac, network, want); err != nil {
 		return err
 	}
-	w.record(Change{Subject: "management interface", From: fmt.Sprint(entry["ip"]), To: w.rs.Spec.ManagementAddress})
+	w.record(Change{Subject: "management address", From: describeIP(have), To: describeIP(want)})
 	return nil
 }
 
@@ -514,57 +517,55 @@ func managementVLAN(cfg *v1alpha1.SwitchConfig) int {
 	return 1
 }
 
-// managementEntry is the switch's interface on the management VLAN, and the
-// network id it is written back under.
-func managementEntry(rs *v1alpha1.RackSwitch, s *observed) (map[string]any, string, error) {
-	vlan := managementVLAN(rs.Spec.Config)
-	for _, entry := range s.switchNetworks {
-		if number(entry["vlan"]) != vlan {
-			continue
+// managementInterface is the switch's interface carrying mvlan.
+func managementInterface(s *observed) (omada.SwitchNetwork, error) {
+	for _, network := range s.switchNetworks {
+		if network.Management() {
+			return network, nil
 		}
-		id, _ := entry["networkId"].(string)
-		if id == "" {
-			if n := networkForVLAN(s.networks, vlan); n != nil {
-				id = n.ID
-			}
-		}
-		if id == "" {
-			return nil, "", fmt.Errorf("the switch's interface on VLAN %d carries no network id", vlan)
-		}
-		return entry, id, nil
 	}
-	return nil, "", fmt.Errorf("the switch has no interface on VLAN %d", vlan)
+	return nil, errors.New("the switch reports no management interface")
 }
 
-func desiredManagement(rs *v1alpha1.RackSwitch, entry map[string]any) map[string]any {
+// desiredManagementIP is the static block the spec asks for. A prefix length
+// or gateway the spec leaves unset keeps what the switch has.
+func desiredManagementIP(rs *v1alpha1.RackSwitch, have omada.ManagementIP) omada.ManagementIP {
 	cfg := rs.Spec.Config
-	want := copyMap(entry)
-	want["mvlan"] = true
-	want["ip"] = rs.Spec.ManagementAddress
-	if _, ok := entry["netmask"]; ok && cfg.ManagementPrefixLength > 0 {
-		want["netmask"] = netmask(cfg.ManagementPrefixLength)
+	mask := have.Netmask
+	if cfg.ManagementPrefixLength > 0 {
+		mask = netmask(cfg.ManagementPrefixLength)
 	}
-	if _, ok := entry["gateway"]; ok && cfg.Gateway != "" {
-		want["gateway"] = cfg.Gateway
+	gateway := have.Gateway
+	if cfg.Gateway != "" {
+		gateway = cfg.Gateway
 	}
-	return want
+	return omada.StaticIP(rs.Spec.ManagementAddress, mask, gateway)
+}
+
+func sameAddress(a, b omada.ManagementIP) bool {
+	return a.Mode == b.Mode && a.IP == b.IP && a.Netmask == b.Netmask && a.Gateway == b.Gateway
+}
+
+// describeIP reads the way the switch prints it.
+func describeIP(ip omada.ManagementIP) string {
+	if ip.Mode == omada.IPModeDHCP {
+		return fmt.Sprintf("dhcp (%s)", ip.IP)
+	}
+	return fmt.Sprintf("%s %s gateway %s", ip.IP, ip.Netmask, ip.Gateway)
 }
 
 func managementDifferences(rs *v1alpha1.RackSwitch, s *observed) []string {
-	entry, _, err := managementEntry(rs, s)
+	network, err := managementInterface(s)
 	if err != nil {
 		return []string{err.Error()}
 	}
 	var drift []string
-	want := desiredManagement(rs, entry)
-	for _, key := range []string{"mvlan", "ip", "netmask", "gateway"} {
-		w, wanted := want[key]
-		if !wanted {
-			continue
-		}
-		if have := entry[key]; fmt.Sprint(have) != fmt.Sprint(w) {
-			drift = append(drift, fmt.Sprintf("management interface %s is %v, want %v", key, have, w))
-		}
+	if want := rs.Spec.Config.ManagementVLAN; want != 0 && network.VLAN() != want {
+		drift = append(drift, fmt.Sprintf("the management interface is on VLAN %d, want %d", network.VLAN(), want))
+	}
+	have := network.IP()
+	if want := desiredManagementIP(rs, have); !sameAddress(have, want) {
+		drift = append(drift, fmt.Sprintf("management address is %s, want %s", describeIP(have), describeIP(want)))
 	}
 	return drift
 }

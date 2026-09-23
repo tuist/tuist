@@ -79,6 +79,7 @@ func newHarness(t *testing.T, objects ...client.Object) *harness {
 			}),
 			Site:              omadatest.SiteName,
 			ControllerAddress: controllerAddress,
+			Gates:             converge.Gates{ManagementAddressing: true},
 		},
 		Credentials:    func() (converge.Credentials, error) { return creds, nil },
 		ResyncInterval: resync,
@@ -168,7 +169,17 @@ func rackSwitch(name, mac string, order int, managedBy v1alpha1.ManagedBy) *v1al
 func (h *harness) connected(name, mac string) {
 	ports := omadatest.Ports(8)
 	ports[7].Name = "isl"
-	h.omada.AddSwitch(omadatest.Switch{MAC: mac, State: omadatest.Connected, Hostname: name, Ports: ports})
+	h.omada.AddSwitch(omadatest.Switch{MAC: mac, State: omadatest.Connected, Hostname: name, Ports: ports, Networks: staticInterface()})
+}
+
+// staticInterface is a management interface already at rackSwitch's address.
+func staticInterface() []map[string]any {
+	return []map[string]any{omadatest.ManagementInterface(omada.IPModeStatic, "192.168.0.12", "255.255.255.0", "192.168.0.10")}
+}
+
+// dhcpInterface is a factory switch's management interface: DHCP.
+func dhcpInterface() []map[string]any {
+	return []map[string]any{omadatest.ManagementInterface(omada.IPModeDHCP, "192.168.0.82", "255.255.255.0", "192.168.0.1")}
 }
 
 func condition(rs *v1alpha1.RackSwitch, conditionType string) metav1.Condition {
@@ -201,7 +212,7 @@ func TestAStandaloneSwitchIsLeftAlone(t *testing.T) {
 
 func TestAPendingSwitchIsAdoptedWithTheDeviceAccount(t *testing.T) {
 	h := newHarness(t, rackSwitch("ber1-tor-b", torBMAC, 1, v1alpha1.ManagedByController))
-	h.omada.AddSwitch(omadatest.Switch{MAC: torBMAC, State: omadatest.Pending, Ports: omadatest.Ports(8), Logins: []omada.Login{deviceAccount}})
+	h.omada.AddSwitch(omadatest.Switch{MAC: torBMAC, State: omadatest.Pending, Ports: omadatest.Ports(8), Networks: dhcpInterface(), Logins: []omada.Login{deviceAccount}})
 
 	result := h.reconcile("ber1-tor-b")
 	if result.RequeueAfter != adoptionPollInterval {
@@ -230,11 +241,15 @@ func TestAPendingSwitchIsAdoptedWithTheDeviceAccount(t *testing.T) {
 	if h.omada.Switch(torBMAC).Hostname != "ber1-tor-b" {
 		t.Fatal("the pass that saw the switch adopted did not converge it")
 	}
+	writes := h.switchWrites(torBMAC)
+	if len(writes) == 0 || writes[0] != "POST /networks/switch-net-default" {
+		t.Fatalf("writes = %v, want the management address first", writes)
+	}
 }
 
 func TestAdoptionFallsBackToTheFactoryLogin(t *testing.T) {
 	h := newHarness(t, rackSwitch("ber1-tor-b", torBMAC, 1, v1alpha1.ManagedByController))
-	h.omada.AddSwitch(omadatest.Switch{MAC: torBMAC, State: omadatest.Pending, Ports: omadatest.Ports(8), Logins: []omada.Login{converge.DefaultFactoryLogin}})
+	h.omada.AddSwitch(omadatest.Switch{MAC: torBMAC, State: omadatest.Pending, Ports: omadatest.Ports(8), Networks: dhcpInterface(), Logins: []omada.Login{converge.DefaultFactoryLogin}})
 
 	for i := 0; i < 8 && !h.get("ber1-tor-b").Status.Adopted; i++ {
 		h.reconcile("ber1-tor-b")
@@ -315,7 +330,7 @@ func TestApplyOrderHoldsAHigherSwitchUntilTheLowerOneIsReady(t *testing.T) {
 	)
 	h.connected("ber1-tor-b", torBMAC)
 	h.connected("ber1-tor-a", torAMAC)
-	h.omada.AddSwitch(omadatest.Switch{MAC: mgmtMAC, State: omadatest.Pending, Ports: omadatest.Ports(8), Logins: []omada.Login{deviceAccount}})
+	h.omada.AddSwitch(omadatest.Switch{MAC: mgmtMAC, State: omadatest.Pending, Ports: omadatest.Ports(8), Networks: dhcpInterface(), Logins: []omada.Login{deviceAccount}})
 	h.omada.Update(torAMAC, func(sw *omadatest.Switch) { sw.Hostname = "D4-D6-DF-06-FD-3B" })
 
 	result := h.reconcile("ber1-tor-a")

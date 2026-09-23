@@ -29,6 +29,9 @@ spec:
   managedBy: controller
   config:
     hostname: ber1-tor-b
+    managementVlan: 1
+    managementPrefixLength: 24
+    gateway: 192.168.0.10
     spanningTree: rstp
     ports:
       - {port: 1}
@@ -119,7 +122,10 @@ func TestApplyRefusesAStandaloneSwitch(t *testing.T) {
 func TestApplyRunsAgainstAConnectedSwitchFromTheCommandLine(t *testing.T) {
 	fake := omadatest.New()
 	defer fake.Close()
-	fake.AddSwitch(omadatest.Switch{MAC: "d4:d6:df:03:d8:b2", State: omadatest.Connected, Hostname: "ber1-tor-b", Ports: omadatest.Ports(2)})
+	fake.AddSwitch(omadatest.Switch{
+		MAC: "d4:d6:df:03:d8:b2", State: omadatest.Connected, Hostname: "ber1-tor-b", Ports: omadatest.Ports(2),
+		Networks: []map[string]any{omadatest.ManagementInterface(omada.IPModeDHCP, "192.168.0.82", "255.255.255.0", "192.168.0.1")},
+	})
 	path := filepath.Join(writeFiles(t, map[string]string{"rsw.yaml": object}), "rsw.yaml")
 
 	var stdout, stderr bytes.Buffer
@@ -130,8 +136,13 @@ func TestApplyRunsAgainstAConnectedSwitchFromTheCommandLine(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "port 2: Port2 -> isl ber1-tor-a") {
-		t.Fatalf("stdout = %s", stdout.String())
+	for _, want := range []string{
+		"management address: dhcp (192.168.0.82) -> 192.168.0.12 255.255.255.0 gateway 192.168.0.10",
+		"port 2: Port2 -> isl ber1-tor-a",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("stdout = %s, want %q", stdout.String(), want)
+		}
 	}
 }
 

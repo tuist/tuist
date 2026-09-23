@@ -229,16 +229,20 @@ type page[T any] struct {
 	Data      []T `json:"data"`
 }
 
-// list reads every page of a paged result.
+// list reads every page of a paged result, 100 rows at a time.
 func list[T any](ctx context.Context, c *Client, path string) ([]T, error) {
+	return listPages[T](ctx, c, path, pageSize)
+}
+
+func listPages[T any](ctx context.Context, c *Client, path string, size int) ([]T, error) {
 	var all []T
 	for n := 1; ; n++ {
 		var p page[T]
-		if err := c.call(ctx, http.MethodGet, fmt.Sprintf("%s?page=%d&pageSize=%d", path, n, pageSize), nil, &p); err != nil {
+		if err := c.call(ctx, http.MethodGet, fmt.Sprintf("%s?page=%d&pageSize=%d", path, n, size), nil, &p); err != nil {
 			return nil, err
 		}
 		all = append(all, p.Data...)
-		if len(p.Data) < pageSize || (p.TotalRows > 0 && len(all) >= p.TotalRows) {
+		if len(p.Data) < size || (p.TotalRows > 0 && len(all) >= p.TotalRows) {
 			return all, nil
 		}
 	}

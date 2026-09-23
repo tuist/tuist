@@ -13,8 +13,9 @@ import (
 	"github.com/tuist/tuist/infra/rack-switch-controller/internal/omada"
 )
 
-// Gates switch on the steps whose API shapes have not been verified on a
-// switch's running configuration yet. Each defaults off.
+// Gates switch steps on one at a time, as each is verified on a switch's
+// running configuration. The command's flags default the management address
+// on and the rest off.
 type Gates struct {
 	VLANs                bool
 	LAGs                 bool
