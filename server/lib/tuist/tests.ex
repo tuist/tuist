@@ -4472,12 +4472,30 @@ defmodule Tuist.Tests do
     {project_ids, test_case_ids, commit_shas}
   end
 
+  # Chunk size for the flaky-run failure/repetition lookups. A flaky test-run
+  # detail page can pull together thousands of related run ids (current run's
+  # repetitions plus cross-run flaky occurrences), and `in ^run_ids` expands to
+  # one scalar query parameter per id — each of which ecto_ch sent as its own
+  # HTTP form field. Past ~1000 ids that overflowed ClickHouse's HTML form
+  # parser ("Too many form fields") and 500'd the page. Binding the ids as a
+  # single `Array(UUID)` parameter via a fragment collapses that to one field
+  # per chunk instead of one per id; chunking keeps each chunk's encoded array
+  # value below ClickHouse's per-parameter size limit.
+  @flaky_run_lookup_batch_size 2_000
+
   defp get_failures_for_runs([]), do: []
 
   defp get_failures_for_runs(run_ids) do
-    query =
+    run_ids
+    |> Enum.uniq()
+    |> Enum.chunk_every(@flaky_run_lookup_batch_size)
+    |> Enum.flat_map(&fetch_failures_for_runs_chunk/1)
+  end
+
+  defp fetch_failures_for_runs_chunk(ids_chunk) do
+    ClickHouseRepo.all(
       from(f in TestCaseFailure,
-        where: f.test_case_run_id in ^run_ids,
+        where: fragment("? IN (?)", f.test_case_run_id, type(^ids_chunk, {:array, Ecto.UUID})),
         select: %{
           test_case_run_id: f.test_case_run_id,
           message: f.message,
@@ -4485,17 +4503,24 @@ defmodule Tuist.Tests do
           line_number: f.line_number,
           issue_type: f.issue_type
         }
-      )
-
-    ClickHouseRepo.all(query)
+      ),
+      multipart: true
+    )
   end
 
   defp get_repetitions_for_runs([]), do: []
 
   defp get_repetitions_for_runs(run_ids) do
-    query =
+    run_ids
+    |> Enum.uniq()
+    |> Enum.chunk_every(@flaky_run_lookup_batch_size)
+    |> Enum.flat_map(&fetch_repetitions_for_runs_chunk/1)
+  end
+
+  defp fetch_repetitions_for_runs_chunk(ids_chunk) do
+    ClickHouseRepo.all(
       from(r in TestCaseRunRepetition,
-        where: r.test_case_run_id in ^run_ids,
+        where: fragment("? IN (?)", r.test_case_run_id, type(^ids_chunk, {:array, Ecto.UUID})),
         select: %{
           test_case_run_id: r.test_case_run_id,
           repetition_number: r.repetition_number,
@@ -4504,9 +4529,9 @@ defmodule Tuist.Tests do
           duration: r.duration,
           source: r.source
         }
-      )
-
-    ClickHouseRepo.all(query)
+      ),
+      multipart: true
+    )
   end
 
   @doc """
