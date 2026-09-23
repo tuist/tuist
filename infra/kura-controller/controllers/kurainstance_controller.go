@@ -549,7 +549,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	if err := r.reconcileStableEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {
 		// A DNS control-plane outage must not block repairs to the cache workload.
-		// Readiness was cleared before publication; the periodic pass retries it.
+		// The failed observation clears readiness; the periodic pass retries it.
 		logger.Error(err, "reconcile stable DNS advertisement")
 	}
 	if err := r.observePrivateEndpoint(ctx, instance, primaryPod, pods, samples); err != nil {

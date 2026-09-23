@@ -35,11 +35,63 @@ func (f *fakeStableDNS) Record(context.Context, string, string) (*StableDNSRecor
 type fakeStableProbe struct {
 	err          error
 	host, target string
+	during       func()
 }
 
 func (p *fakeStableProbe) Probe(_ context.Context, host, target string) error {
 	p.host, p.target = host, target
+	if p.during != nil {
+		p.during()
+	}
 	return p.err
+}
+
+func TestStableReadinessPublishesCompletedObservations(t *testing.T) {
+	ctx := context.Background()
+	r, instance, pods, samples, dns, probe := stableFixture(t)
+	dns.record = &StableDNSRecord{Target: "203.0.113.20", AWSRegion: "eu-west-3", HealthCheckID: "health-box"}
+	if err := r.reconcileStableEndpoint(ctx, instance, pods[0].Name, pods, samples); err != nil {
+		t.Fatal(err)
+	}
+	checkedAt := instance.Status.StableEndpoint.LastCheckedAt
+	probe.during = func() {
+		observed := &kurav1alpha1.KuraInstance{}
+		if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, observed); err != nil {
+			t.Fatal(err)
+		}
+		if !observed.Status.StableEndpoint.Ready || observed.Status.StableEndpoint.LastCheckedAt != checkedAt {
+			t.Fatal("published an incomplete readiness observation while probing a serving endpoint")
+		}
+	}
+	if err := r.reconcileStableEndpoint(ctx, instance, pods[0].Name, pods, samples); err != nil {
+		t.Fatal(err)
+	}
+	checkedAt = instance.Status.StableEndpoint.LastCheckedAt
+	probe.err = errors.New("gateway unavailable")
+	if err := r.reconcileStableEndpoint(ctx, instance, pods[0].Name, pods, samples); err != nil {
+		t.Fatal(err)
+	}
+	observed := &kurav1alpha1.KuraInstance{}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, observed); err != nil {
+		t.Fatal(err)
+	}
+	if observed.Status.StableEndpoint.Ready {
+		t.Fatal("completed gateway failure did not clear readiness")
+	}
+	probe.during, probe.err = nil, nil
+	if err := r.reconcileStableEndpoint(ctx, instance, pods[0].Name, pods, samples); err != nil {
+		t.Fatal(err)
+	}
+	dns.err = context.DeadlineExceeded
+	if err := r.reconcileStableEndpoint(ctx, instance, pods[0].Name, pods, samples); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("lost provider error: %v", err)
+	}
+	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, observed); err != nil {
+		t.Fatal(err)
+	}
+	if observed.Status.StableEndpoint.Ready {
+		t.Fatal("completed provider failure did not clear readiness")
+	}
 }
 
 func stableFixture(t *testing.T) (*KuraInstanceReconciler, *kurav1alpha1.KuraInstance, []corev1.Pod, map[string]runtimeStatus, *fakeStableDNS, *fakeStableProbe) {

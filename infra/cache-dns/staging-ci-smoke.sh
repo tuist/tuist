@@ -41,8 +41,11 @@ check_endpoint() {
         curl --fail --silent --show-error --max-time 30 -H @- \
             -H 'x-tuist-cli-version: x.y.z' \
             "$TUIST_URL/api/cache/endpoints?account_handle=kura-spec95-e2e" > endpoint.json
-    jq -e '.provisioning == false and .endpoints == ["https://kura-spec95-e2e-staging.cache.tuist.dev"]' endpoint.json >/dev/null
     printf '%s endpoint=%s\n' "$(date -u +%FT%TZ)" "$(cat endpoint.json)" >> endpoints.log
+    if ! jq -e '.provisioning == false and .endpoints == ["https://kura-spec95-e2e-staging.cache.tuist.dev"]' endpoint.json >/dev/null; then
+        echo 'ERROR: endpoint hand-out changed; see endpoint.json and endpoints.log'
+        exit 1
+    fi
 }
 
 check_endpoint
