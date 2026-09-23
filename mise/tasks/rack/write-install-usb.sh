@@ -59,8 +59,8 @@ if [ -n "$disk" ]; then
     exit 1
   fi
 fi
-if ! openssl passwd -6 "" >/dev/null 2>&1; then
-  echo "error: need an openssl with SHA-512 crypt support (brew install openssl)" >&2
+if ! command -v go >/dev/null; then
+  echo "error: go renders the seed (brew install go)" >&2
   exit 1
 fi
 
@@ -112,7 +112,7 @@ if ! op item get "$console_item" --vault "$vault" >/dev/null 2>&1; then
     --generate-password=letters,digits,24 --tags=rack,node \
     "username=$(jq -r '.sshUser' <<<"$host_json")" >/dev/null
 fi
-password_hash="$(op read "op://$vault/$console_item/password" | openssl passwd -6 -stdin)"
+( umask 077; op read "op://$vault/$console_item/password" >"$workdir/console-password" )
 
 tags="$(jq -c '.tailnetTags' <<<"$host_json")"
 minted="$(mint_tailnet_key "$vault" "$tailscale_item" "$tags" "$key_hours" "$host")"
@@ -121,7 +121,7 @@ key_id="${minted%%$'\t'*}"
 unset minted
 echo "minted tailnet key $key_id: single-use, tagged $tags, expires in ${key_hours}h"
 
-render_autoinstall "$workdir/seed" "$host_json" "$password_hash" "$workdir/authorized_keys" "$workdir/tailnet-key" "$key_id"
+render_autoinstall "$workdir/seed" "$host_json" "$workdir/console-password" "$workdir/authorized_keys" "$workdir/tailnet-key" "$key_id"
 
 release=24.04
 iso="$(ensure_ubuntu_iso "$release")"

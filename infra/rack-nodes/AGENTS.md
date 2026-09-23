@@ -56,7 +56,7 @@ minute or two. The chain a netbooting host goes through:
    host controller withdraws the install, so the key stops being served, and
    removes the annotation.
 
-The boot server sees Secure Boot's chain signed end to end: Microsoft's
+The chain is signed end to end, so it boots with Secure Boot on: Microsoft's
 signature on the shim, Canonical's on GRUB and the kernel.
 
 The installer can get its default route from its provisioning lease, through
@@ -111,8 +111,8 @@ mise run rack:write-install-usb --host ber1-edge --output ber1-edge.iso
 ```
 
 It needs `op` signed in (it reads the vault `tuist-k8s-<env>`), `xorriso`, and
-an `openssl` with SHA-512 crypt (Homebrew's). The Ubuntu 24.04 ISO is fetched
-once, checked against Ubuntu's SHA256SUMS, and cached in
+`go`, which renders the seed with the operator's renderer. The Ubuntu 24.04 ISO
+is fetched once, checked against Ubuntu's SHA256SUMS, and cached in
 `~/Library/Caches/tuist-rack`. The console password comes from the 1Password
 item `<host> console` (created on first use), and the writer's own key is
 authorized beside the fleet key.

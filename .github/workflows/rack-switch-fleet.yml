@@ -26,6 +26,9 @@ on:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
       - infra/rack-nodes/**
+      - infra/cluster-api-provider-tuist/internal/rackinstall/**
+      - infra/cluster-api-provider-tuist/cmd/rack-seed/**
+      - infra/helm/tuist/files/rack-boot.sh
       - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/omada/**
@@ -38,6 +41,9 @@ on:
       - infra/rack-switch-fleet/**
       - infra/rack-switch-prep/**
       - infra/rack-nodes/**
+      - infra/cluster-api-provider-tuist/internal/rackinstall/**
+      - infra/cluster-api-provider-tuist/cmd/rack-seed/**
+      - infra/helm/tuist/files/rack-boot.sh
       - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/omada/**
@@ -85,7 +91,13 @@ jobs:
       - name: Test the console bring-up
         run: mise run rack:prep-test
 
-      - name: Test the rack node install stick
+      # The stick renders its seed with the operator's Go renderer.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/cluster-api-provider-tuist/go.mod
+          cache-dependency-path: infra/cluster-api-provider-tuist/go.sum
+
+      - name: Test the rack node installs
         run: mise run rack:nodes-test
 
       # The Omada wrapper is an evaluation and is not deployed by any workflow,

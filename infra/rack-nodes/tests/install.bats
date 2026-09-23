@@ -41,10 +41,11 @@ EOF
   HOST_JSON='{"name":"ber1-edge","role":"edge","sshUser":"tuist","tailnetTags":["tag:tuist-rack-edge"],"vault":"tuist-k8s-staging","sshItem":"BER1_FLEET_SSH","tailscaleItem":"TAILSCALE_RACK_NODES"}'
   printf 'ssh-ed25519 AAAAFLEET fleet\nssh-ed25519 AAAAHUMAN human\n' >"$BATS_TEST_TMPDIR/keys"
   printf 'tskey-auth-kTEST1CNTRL-abc\n' >"$BATS_TEST_TMPDIR/tailnet-key"
+  printf 'console-password\n' >"$BATS_TEST_TMPDIR/password"
 }
 
 render() {
-  render_autoinstall "$BATS_TEST_TMPDIR/seed" "${1:-$HOST_JSON}" '$6$salt$hash' "$BATS_TEST_TMPDIR/keys" "$BATS_TEST_TMPDIR/tailnet-key" kTEST1CNTRL
+  render_autoinstall "$BATS_TEST_TMPDIR/seed" "${1:-$HOST_JSON}" "$BATS_TEST_TMPDIR/password" "$BATS_TEST_TMPDIR/keys" "$BATS_TEST_TMPDIR/tailnet-key" kTEST1CNTRL
 }
 
 @test "the host comes from the env's chart values" {
@@ -125,7 +126,7 @@ render() {
   printf 'tskey-client-oops\n' >"$BATS_TEST_TMPDIR/tailnet-key"
   run render
   [ "$status" -eq 1 ]
-  [[ "$output" == *"does not hold a tailnet auth key"* ]]
+  [[ "$output" == *"the tailnet key is not an auth key"* ]]
 }
 
 @test "a stick that already installed the machine boots it rather than wiping it" {
@@ -149,4 +150,14 @@ render() {
   [ "$(yq -r '.autoinstall.network.ethernets | keys | join(",")' "$seed")" = uplinks ]
   [ "$(yq -r '.autoinstall.network.ethernets.uplinks.match.driver' "$seed")" = i40e ]
   [ "$(yq -r '.autoinstall.network.ethernets.uplinks.dhcp4' "$seed")" = true ]
+}
+
+@test "the console password reaches the seed only as a SHA-512 crypt hash" {
+  run render
+  [ "$status" -eq 0 ]
+  seed="$BATS_TEST_TMPDIR/seed/user-data"
+  [[ "$(yq -r '.autoinstall.identity.password' "$seed")" == '$6$'* ]]
+  if grep -q console-password "$seed"; then false; fi
+  [ "$(cat "$BATS_TEST_TMPDIR/seed/meta-data")" = "$(printf 'instance-id: ber1-edge-ktest1cntrl\nlocal-hostname: ber1-edge')" ]
+  [ -f "$BATS_TEST_TMPDIR/seed/vendor-data" ]
 }
