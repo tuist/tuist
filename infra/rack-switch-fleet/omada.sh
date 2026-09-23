@@ -8,6 +8,8 @@
 #   mise run rack:omada devices            # what the controller sees, adopted or pending
 #   mise run rack:omada inform <device>    # point a switch at the controller
 #   mise run rack:omada adopt <device>     # adopt it with its own login from 1Password
+#   mise run rack:omada apply <device>     # write its render through the Open API
+#   mise run rack:omada api <METHOD> <path> # a raw Open API call, {siteId} filled in
 #
 # The controller is management.controller in the site definition. Its Open API
 # client comes from the controller's first-boot wizard and lives in 1Password;
@@ -332,8 +334,84 @@ case "$command" in
     exit 1
     ;;
 
+  apply)
+    # The render, written through the Open API for what it can set: the
+    # hostname, spanning-tree mode and port descriptions. Measured on ber1-mgmt:
+    # the switch takes all three and keeps them across a reboot. What the API
+    # cannot set is either the controller's (controller-baselines/) or not yet
+    # handled, and `rack:fleet diff` shows it either way.
+    name="${1:-}"
+    [ -n "$name" ] || { echo "usage: rack:omada apply <device>" >&2; exit 2; }
+    if [ "$(device_field adopted "$name")" != true ]; then
+      echo "error: $name is not adopted in $SITE; a standalone switch changes with rack:fleet apply" >&2
+      exit 1
+    fi
+    mac="$(controller_mac "$(device_field mac "$name")")"
+    model="$(device_field model "$name")"
+    # The controller numbers ports 1 to n across the switch, which is the render's
+    # port number only on a model with one port group starting at 1.
+    if ! jq -e --arg m "$model" '.[$m].port_groups | length == 1 and .[0].first == 1' "$FLEET_ROOT/models.json" >/dev/null; then
+      echo "error: $model's ports do not map onto the controller's numbering one to one" >&2
+      exit 1
+    fi
+    pairs="$(mktemp)"
+    fleet_render "$site_file" "$name" | fleet_context > "$pairs"
+    hostname="$(awk -F'\t' '$1 == "" && $2 ~ /^hostname "/ { sub(/^hostname "/, "", $2); sub(/"$/, "", $2); print $2 }' "$pairs")"
+    case "$(awk -F'\t' '$1 == "" && $2 ~ /^spanning-tree mode / { print $2 }' "$pairs")" in
+      "spanning-tree mode stp") stp=1;;
+      "spanning-tree mode rstp") stp=2;;
+      "spanning-tree mode mstp") stp=3;;
+      *) echo "error: the render for $name names no spanning-tree mode this knows" >&2; rm -f "$pairs"; exit 1;;
+    esac
+    descriptions="$(awk -F'\t' '$1 ~ /^interface [A-Za-z-]+ 1\/0\/[0-9]+$/ && $2 ~ /^description "/ {
+      port = $1; sub(/.*\//, "", port); text = $2; sub(/^description "/, "", text); sub(/"$/, "", text)
+      print port "\t" text }' "$pairs")"
+    rm -f "$pairs"
+
+    connect
+    current="$(api GET "/sites/$SITE_ID/switches/$mac/general-config" | jq -r '.result.name // empty')" || exit 1
+    if [ "$current" != "$hostname" ]; then
+      jq -cn --arg n "$hostname" '{name: $n}' | api PATCH "/sites/$SITE_ID/switches/$mac/general-config" >/dev/null || exit 1
+      echo "hostname: $current -> $hostname"
+    fi
+    # A port the render describes carries that description; any other carries
+    # the controller's own "Port<n>".
+    api GET "/sites/$SITE_ID/switches/$mac" | jq -r '.result.portList[] | [.port, .name, .profileId] | @tsv' |
+      while IFS=$'\t' read -r port have profile; do
+        want="$(awk -F'\t' -v p="$port" '$1 == p { print $2 }' <<<"$descriptions")"
+        want="${want:-Port$port}"
+        [ "$have" = "$want" ] && continue
+        jq -cn --arg n "$want" --arg p "$profile" '{name: $n, profileId: $p}' |
+          api PATCH "/sites/$SITE_ID/switches/$mac/ports/$port" >/dev/null || exit 1
+        echo "port $port: $have -> $want"
+      done
+    # The render sets none of spanning tree's timers, so they are the firmware's
+    # defaults; loop detection is on, as the controller itself sets it. The API
+    # cannot read any of this back, so it is written every time.
+    jq -cn --argjson s "$stp" '{loopbackDetectEnable: true, stp: $s, priority: 32768, helloTime: 2,
+                               maxAge: 20, forwardDelay: 15, txHoldCount: 5}' |
+      api PUT "/sites/$SITE_ID/switches/$mac/config/loopback" >/dev/null || exit 1
+    echo "spanning tree: mode $(awk -v s="$stp" 'BEGIN { split("stp rstp mstp", m); print m[s] }'), written (the API cannot read it back)"
+    echo "verify with: mise run rack:fleet diff $name"
+    ;;
+
+  api)
+    # A raw Open API call for what no command covers yet, under
+    # /openapi/v1/{omadacId}, with {siteId} replaced by the site's. A body, if
+    # any, comes on stdin. It prints what the controller answers, secrets
+    # included, so it is for reading switch settings, not accounts.
+    method="${1:-}"
+    path="${2:-}"
+    if [ -z "$method" ] || [ -z "$path" ]; then
+      echo "usage: rack:omada api <GET|POST|PUT|PATCH|DELETE> <path> [< body.json]" >&2
+      exit 2
+    fi
+    connect
+    api "$method" "${path//\{siteId\}/$SITE_ID}" | jq .
+    ;;
+
   *)
-    echo "usage: mise run rack:omada <controller|devices|inform|adopt> [device]" >&2
+    echo "usage: mise run rack:omada <controller|devices|inform|adopt|apply|api> [device]" >&2
     exit 2
     ;;
 esac

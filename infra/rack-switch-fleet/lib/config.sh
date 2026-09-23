@@ -373,6 +373,39 @@ fleet_diff() {
   return $status
 }
 
+# What the site's controller does to a model it adopts, measured; see the file's
+# header. A model with no file has not been measured.
+fleet_controller_baseline() { echo "$FLEET_ROOT/controller-baselines/$1.tsv"; }
+
+# (context, command) pairs from stdin, less those a baseline rule of `kind`
+# matches.
+fleet_without_controller() {
+  local kind="$1" baseline="$2"
+  awk -F'\t' -v kind="$kind" '
+    NR == FNR { if ($1 == kind) { n++; context[n] = $2; command[n] = $3 } next }
+    {
+      for (i = 1; i <= n; i++)
+        if ($1 ~ ("^" context[i] "$") && $2 ~ ("^" command[i] "$")) next
+      print
+    }
+  ' "$baseline" -
+}
+
+# fleet_diff for a switch the controller has adopted: the render less what the
+# controller owns, against the switch less what it adds. Compared as sorted
+# (context, command) pairs, since the controller's lines have no place in the
+# render's order.
+fleet_diff_adopted() {
+  local desired="$1" actual="$2" label_desired="$3" label_actual="$4" baseline="$5" a b
+  a="$(mktemp)"; b="$(mktemp)"
+  fleet_context < "$desired" | fleet_without_controller owns "$baseline" | sort -u > "$a"
+  fleet_context < "$actual" | fleet_without_controller adds "$baseline" | sort -u > "$b"
+  diff -u --label "$label_desired" --label "$label_actual" "$a" "$b"
+  local status=$?
+  rm -f "$a" "$b"
+  return $status
+}
+
 
 # The render plus whatever the switch holds that the render does not own. See
 # lib/merge.awk: pushing a render that omits the admin login deletes it.

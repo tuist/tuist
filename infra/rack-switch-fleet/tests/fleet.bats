@@ -47,7 +47,7 @@ site_without_mgmt_mac() {
 }
 
 teardown() {
-    rm -f "$FLEET_ROOT/sites/ber1-nomac.json"
+    rm -f "$FLEET_ROOT/sites/ber1-nomac.json" "$FLEET_ROOT/sites/ber1-adopted-tor.json"
 }
 
 # A subshell does not inherit the sourced library, so pipelines under `run` get
@@ -165,6 +165,7 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
     copy="$BATS_TEST_TMPDIR/fleet-copy"
     cp -R "$FLEET_ROOT" "$copy"
     jq '.["tl-sg3452"].verified = false' "$FLEET_ROOT/models.json" > "$copy/models.json"
+    jq '(.devices[] | select(.name == "ber1-mgmt")) |= del(.adopted)' "$FLEET_ROOT/sites/ber1.json" > "$copy/sites/ber1.json"
     run env FLEET_LOCK_DIR="$BATS_TEST_TMPDIR" "$copy/fleet.sh" apply ber1-mgmt --dry-run
     [ "$status" -ne 0 ]
     [[ "$output" == *"never been read"* ]]
@@ -1626,6 +1627,62 @@ STUB
     [ ! -e "$(dirname "$(cat "$args.askpass")")" ]
 }
 
+# ber1-mgmt as backed up once adopted and brought to its render with
+# `rack:omada apply`, on 2026-09-23.
+ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
+
+@test "an adopted switch at its render, less the controller's own lines, is clean" {
+    rendered="$BATS_TEST_TMPDIR/rendered.cfg"
+    fleet_render "$SITE_FILE" ber1-mgmt > "$rendered"
+    run fleet_diff "$rendered" "$ADOPTED_FIXTURE" rendered live
+    [ "$status" -ne 0 ]
+    run fleet_diff_adopted "$rendered" "$ADOPTED_FIXTURE" rendered live "$(fleet_controller_baseline tl-sg3452)"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}
+
+@test "a change the controller did not make is drift on an adopted switch" {
+    rendered="$BATS_TEST_TMPDIR/rendered.cfg"
+    changed="$BATS_TEST_TMPDIR/changed.cfg"
+    fleet_render "$SITE_FILE" ber1-mgmt > "$rendered"
+    sed 's/^spanning-tree mode rstp$/spanning-tree mode stp/; s/^  description "Port52"$/  description "someone"/' \
+        "$ADOPTED_FIXTURE" > "$changed"
+    run fleet_diff_adopted "$rendered" "$changed" rendered live "$(fleet_controller_baseline tl-sg3452)"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *$'-\tspanning-tree mode rstp'* ]]
+    [[ "$output" == *$'+\tspanning-tree mode stp'* ]]
+    [[ "$output" == *$'+interface gigabitEthernet 1/0/52\tdescription "someone"'* ]]
+}
+
+@test "a description the render sets is drift until the switch carries it, whatever the controller named the port" {
+    rendered="$BATS_TEST_TMPDIR/rendered.cfg"
+    awk '{ print } $0 == "interface gigabitEthernet 1/0/1" { print "  description \"uplink\"" }' \
+        <(fleet_render "$SITE_FILE" ber1-mgmt) > "$rendered"
+    run fleet_diff_adopted "$rendered" "$ADOPTED_FIXTURE" rendered live "$(fleet_controller_baseline tl-sg3452)"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *$'-interface gigabitEthernet 1/0/1\tdescription "uplink"'* ]]
+    [[ "$output" != *'"Port1"'* ]]
+}
+
+@test "no SSH write path runs against a switch the controller has adopted" {
+    for command in apply save replace recover; do
+        run "$FLEET_ROOT/fleet.sh" "$command" ber1-mgmt --dry-run
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"ber1-mgmt is adopted by the site's controller"* ]]
+        [[ "$output" == *"rack:omada apply ber1-mgmt"* ]]
+        [[ "$output" != *"test reached the real"* ]]
+    done
+}
+
+@test "an adopted switch of a model nobody has measured under the controller is refused before connecting" {
+    jq '(.devices[] | select(.name == "ber1-tor-b")) += {adopted: true}' "$SITE_FILE" \
+        > "$FLEET_ROOT/sites/ber1-adopted-tor.json"
+    run "$FLEET_ROOT/fleet.sh" --site ber1-adopted-tor diff ber1-tor-b
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"what the controller does to a sx3832 has not been measured"* ]]
+    [[ "$output" != *"test reached the real"* ]]
+}
+
 @test "the switches the controller has adopted are the ones that log in with its device account" {
     declare -gA SWITCH_LOGIN_ITEMS=()
     fleet_load_logins "$SITE_FILE"
@@ -1721,6 +1778,10 @@ ssh_off='{"errorCode":0,"result":{"sshEnable":false,"sshServerPort":22,"layer3Ac
 ssh="${FAKE_SSH:-$ssh_off}"
 wizard_account='{"errorCode":0,"result":{"username":"admin","password":"WizardSet1!"}}'
 account="${FAKE_ACCOUNT:-$wizard_account}"
+mac_named='{"errorCode":0,"result":{"name":"A8-29-48-FE-B4-BE"}}'
+switch_general="${FAKE_SWITCH_GENERAL:-$mac_named}"
+two_ports='{"errorCode":0,"result":{"portList":[{"port":1,"name":"Port1","profileId":"P"},{"port":52,"name":"api-write-test","profileId":"P"}]}}'
+switch="${FAKE_SWITCH:-$two_ports}"
 echo "$method $url" >> "$FAKE_LOG"
 case "$url" in
     */api/info) echo '{"result":{"omadacId":"OMC"}}';;
@@ -1742,6 +1803,12 @@ case "$url" in
     */sites/S1/ssh)
         if [ "$method" = GET ]; then echo "$ssh"
         else printf '%s' "$body" > "$FAKE_LOG.ssh"; echo '{"errorCode":0}'; fi;;
+    */switches/A8-29-48-FE-B4-BE/general-config)
+        if [ "$method" = GET ]; then echo "$switch_general"
+        else printf '%s %s %s\n' "$method" "${url#*/sites/S1/}" "$body" >> "$FAKE_LOG.writes"; echo '{"errorCode":0}'; fi;;
+    */switches/A8-29-48-FE-B4-BE/ports/*|*/switches/A8-29-48-FE-B4-BE/config/loopback)
+        printf '%s %s %s\n' "$method" "${url#*/sites/S1/}" "$body" >> "$FAKE_LOG.writes"; echo '{"errorCode":0}';;
+    */switches/A8-29-48-FE-B4-BE) echo "$switch";;
     */sites/S1/device-account)
         if [ "$method" = GET ]; then echo "$account"
         else printf '%s' "$body" > "$FAKE_LOG.account-put"; echo '{"errorCode":0}'; fi;;
@@ -1927,6 +1994,33 @@ Tq3!nW8e#Yb5Lc2V'
     [ "$output" = "1" ]
     run jq -r '"\(.username) \(.password)"' "$bin/log.account-put"
     [ "$output" = 'tuist Tq3!nW8e#Yb5Lc2V' ]
+}
+
+@test "an adopted switch's render goes through the Open API, and only what differs is written" {
+    bin="$BATS_TEST_TMPDIR/omada14"
+    omada_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" "$FLEET_ROOT/omada.sh" apply ber1-mgmt
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"hostname: A8-29-48-FE-B4-BE -> ber1-mgmt"* ]]
+    [[ "$output" == *"port 52: api-write-test -> Port52"* ]]
+    [[ "$output" != *"port 1:"* ]]
+    run grep -c '' "$bin/log.writes"
+    [ "$output" = "3" ]
+    run grep -F 'PATCH switches/A8-29-48-FE-B4-BE/general-config {"name":"ber1-mgmt"}' "$bin/log.writes"
+    [ "$status" -eq 0 ]
+    run grep -F 'PATCH switches/A8-29-48-FE-B4-BE/ports/52 {"name":"Port52","profileId":"P"}' "$bin/log.writes"
+    [ "$status" -eq 0 ]
+    run bash -c "grep '^PUT switches/A8-29-48-FE-B4-BE/config/loopback ' '$bin/log.writes' | cut -d' ' -f3- | jq -c '{stp, loopbackDetectEnable}'"
+    [ "$output" = '{"stp":2,"loopbackDetectEnable":true}' ]
+}
+
+@test "the Open API path is only for a switch the controller has adopted" {
+    bin="$BATS_TEST_TMPDIR/omada15"
+    omada_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" "$FLEET_ROOT/omada.sh" apply ber1-tor-b
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ber1-tor-b is not adopted in ber1; a standalone switch changes with rack:fleet apply"* ]]
+    [ ! -e "$bin/log.writes" ]
 }
 
 @test "a failure left over from an earlier attempt does not end a new adoption" {

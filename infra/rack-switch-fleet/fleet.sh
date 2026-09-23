@@ -95,14 +95,57 @@ cmd_render() {
   return 0
 }
 
+device_adopted() {
+  [ "$(jq -r --arg n "$1" '.devices[] | select(.name == $n) | .adopted // false' "$(site_file)")" = true ]
+}
+
+# An adopted switch is compared against its render with what the controller
+# owns and adds left out, which needs that measured for its model. One that has
+# not been is refused before its SSH connection is spent.
+require_baseline() {
+  local name="$1" model
+  device_adopted "$name" || return 0
+  model="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .model' "$(site_file)")"
+  [ -f "$(fleet_controller_baseline "$model")" ] && return 0
+  echo "error: $name is adopted, and what the controller does to a $model has not been measured;" >&2
+  echo "       record it in controller-baselines/$model.tsv first" >&2
+  return 1
+}
+
+fleet_compare() {
+  local name="$1" desired="$2" actual="$3" label_desired="$4" label_actual="$5" model
+  if ! device_adopted "$name"; then
+    fleet_diff "$desired" "$actual" "$label_desired" "$label_actual"
+    return
+  fi
+  model="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .model' "$(site_file)")"
+  fleet_diff_adopted "$desired" "$actual" "$label_desired" "$label_actual" "$(fleet_controller_baseline "$model")"
+}
+
+# The controller owns an adopted switch's configuration, and TP-Link documents
+# SSH in controller mode as show commands only, so no SSH write path runs
+# against one; its changes go through `rack:omada apply`.
+refuse_adopted() {
+  local arg
+  for arg in "$@"; do
+    [ "${arg#-}" = "$arg" ] || continue
+    if device_adopted "$arg"; then
+      echo "error: $arg is adopted by the site's controller, which owns its configuration;" >&2
+      echo "       change it with: mise run rack:omada apply $arg" >&2
+      return 1
+    fi
+  done
+}
+
 # Non-zero when the switch does not match its render.
 device_is_clean() {
   local name="$1" desired live
+  require_baseline "$name" || exit 2
   desired="$(mktemp)"; live="$(mktemp)"
   fleet_render "$(site_file)" "$name" > "$desired"
   read_live_config "$name" "$RUNNING_CONFIG" "$live"
   local status=0
-  fleet_diff "$desired" "$live" "rendered/$name" "live/$name" > "$2" || status=1
+  fleet_compare "$name" "$desired" "$live" "rendered/$name" "live/$name" > "$2" || status=1
   rm -f "$desired" "$live"
   return $status
 }
@@ -506,6 +549,7 @@ cmd_ports() {
 cmd_preflight() {
   local name="${1:-}"
   [ -n "$name" ] || { echo "usage: rack:fleet preflight <device>" >&2; return 2; }
+  require_baseline "$name" || return 2
   local address user key users running startup desired status=0
   address="$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .mgmt_address' "$(site_file)")"
   [ -n "$address" ] || { echo "error: $name is not in $SITE" >&2; return 1; }
@@ -543,7 +587,7 @@ cmd_preflight() {
   fleet_strip_transcript "$RUNNING_CONFIG" < "$running" > "$body"
   fleet_render "$(site_file)" "$name" > "$desired"
   echo ""
-  if fleet_diff "$desired" "$body" "rendered/$name" "live/$name"; then
+  if fleet_compare "$name" "$desired" "$body" "rendered/$name" "live/$name"; then
     echo "$name: matches the rendered configuration"
   else
     status=1
@@ -1143,16 +1187,16 @@ main() {
   case "$command" in
     render)     cmd_render "$@";;
     diff)       cmd_diff "$@";;
-    apply)      cmd_apply "$@";;
+    apply)      refuse_adopted "$@" && cmd_apply "$@";;
     backup)     cmd_backup "$@";;
-    save)       cmd_save "$@";;
+    save)       refuse_adopted "$@" && cmd_save "$@";;
     sessions)   cmd_sessions "$@";;
     preflight)  cmd_preflight "$@";;
     publish)    cmd_publish "$@";;
     ports)      cmd_ports "$@";;
     locate)     cmd_locate "$@";;
-    recover)    cmd_recover "$@";;
-    replace)    cmd_replace "$@";;
+    recover)    refuse_adopted "$@" && cmd_recover "$@";;
+    replace)    refuse_adopted "$@" && cmd_replace "$@";;
     drift)      cmd_drift "$@";;
     probe-tftp) cmd_probe_tftp "$@";;
     *) echo "unknown command: $command" >&2; return 2;;

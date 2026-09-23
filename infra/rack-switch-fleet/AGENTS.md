@@ -206,7 +206,7 @@ mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
 mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credentials]  # zero touch
 mise run rack:edge-path --interface <iface> # route the switches behind the edge node into the tailnet
-mise run rack:omada devices|inform|adopt [device]  # the Omada controller's side
+mise run rack:omada controller|devices|inform|adopt|apply|api [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
 ```
 
@@ -631,11 +631,13 @@ is in the data center. Where that stands on 2026-09-23:
   askpass program reading a file only the operator can open, removed when the
   session closes; every other switch still uses the fleet key. What adoption
   kept and changed of the configuration is in "Adoption, measured on ber1-mgmt"
-  in the assessment; `rack:fleet diff ber1-mgmt` now shows the controller's
-  defaults as drift.
-- **Open.** Whether the switch honours a write the API accepts, and what the
-  render should say for an adopted switch, whose hostname, NTP and web server
-  the controller now owns. No ToR is adopted until then.
+  in the assessment. Through `rack:omada apply` it takes the hostname,
+  spanning-tree mode and port descriptions from its render and keeps them
+  across a reboot, and with the controller's own lines left out it matches its
+  render; see "Switches the controller has adopted".
+- **Open.** The SX3832 under the controller: adopting a ToR is what measures
+  its baseline, and the ToRs carry the rack. Until one is adopted they stay
+  standalone and change with `rack:fleet apply`.
 - **Not started.** The reconciler that watches `RackSwitch` objects and drives
   the controller; joining `ber1-edge` to staging as a node, which would let
   `rack:ztp` and the edge path run as workloads; and a factory-reset run of
@@ -942,6 +944,36 @@ arbitrary line into its negation is the same class of guess.
   version numbers, so "newest" is the wrong instinct and flashing across lines
   bricks the switch.
 
+## Switches the controller has adopted
+
+A device marked `adopted` in the site definition belongs to the site's Omada
+controller, and three things change for it.
+
+- **It is changed through the controller.** `rack:omada apply <device>` writes
+  what the Open API can set from the device's render: the hostname, the
+  spanning-tree mode and the port descriptions, a port the render does not
+  describe getting the controller's own `Port<n>`. The hostname and descriptions
+  are read first and written only where they differ; the API cannot read
+  spanning tree back, so that is written every time and checked over SSH. The
+  SSH write paths, `apply`, `save`, `replace` and `recover`, refuse the device:
+  the controller owns its configuration, and TP-Link documents SSH in controller
+  mode as show commands only.
+- **Drift leaves out what the controller does.** Adoption overrides a few
+  rendered lines and adds a set of its own; `controller-baselines/<model>.tsv`
+  records both, measured, as `owns` and `adds` rules over (context, command)
+  pairs. `diff`, `preflight` and `publish` compare the render less what the
+  controller owns against the switch less what it adds, so anything else still
+  shows, a change made in the controller's UI included. A model with no baseline
+  has not been measured under the controller, and an adopted device of that
+  model is refused before its connection is spent. Only the TL-SG3452 has one.
+- **It logs in with the controller's device account**, from the 1Password item
+  `management.controller.device_account_item` names, instead of the fleet key,
+  which adoption removes.
+
+There is no confirmed commit on this path. A reboot of an adopted switch keeps
+what the controller wrote, measured on `ber1-mgmt`, so `reboot-schedule` cannot
+undo a change; going back means changing the render back and applying again.
+
 ## Why not the Omada SDN controller
 
 **The original reasoning does not hold on either count.** See
@@ -960,5 +992,6 @@ LAGs were writable only for stacks, so the version matters and the chart pins
 it. Spanning-tree state is write-only through the API, which keeps SSH as the
 verifier.
 
-What is not answered is what adoption does to a configured switch. The
-assessment carries the prototype that would settle it, on `ber1-mgmt`.
+What adoption does to a configured switch is now measured, on `ber1-mgmt`; see
+"Adoption, measured on ber1-mgmt" in the assessment and "Switches the
+controller has adopted" above.

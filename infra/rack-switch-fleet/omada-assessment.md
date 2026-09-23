@@ -159,8 +159,20 @@ Steps 1 to 3 ran on 2026-09-23, against the staging controller (6.3.0.45) and
   `PortN` description and `lldp med-status`. The diff is the commit that
   replaced `backups/ber1/ber1-mgmt.cfg` with the adopted configuration; the
   standalone one is the version before it.
-- **Not yet known:** whether the switch honours a write the API accepts, and
-  what a scheduled reboot reloads.
+- **Writes through the Open API are honoured and kept** (steps 4 to 6). The
+  hostname (`PATCH switches/{mac}/general-config`), a port description
+  (`PATCH switches/{mac}/ports/{port}`, which needs the port's `profileId`) and
+  the spanning-tree mode (`PUT switches/{mac}/config/loopback`, which replaces
+  the whole block: mode, priority and timers) were written, and the first two
+  read back through the API. Then the switch was rebooted through the
+  controller, came back adopted about three minutes later, and its running
+  configuration over SSH carried all three and nothing else changed.
+  `rack:omada apply` does this from the render.
+- **A reboot keeps what the controller wrote.** So the confirmed commit this
+  directory built on `reboot-schedule` does not carry over: under the
+  controller, going back is writing the previous values again.
+- **Not yet known:** what the SX3832 does under the controller. Its baseline is
+  unmeasured until a ToR is adopted.
 
 The login was the finding that shaped the design. Every SSH path in this
 directory, including the spanning-tree read-back the reconciler sketch keeps,
@@ -170,10 +182,10 @@ site's device account is now set deliberately, from the 1Password item
 before anything is adopted; fleet sessions to a switch marked `adopted` log in
 with that account's password instead of the key.
 
-## What the reconciler looks like, if adoption holds
+## What the reconciler looks like
 
-Not built, and not worth building before the prototype answers what adoption
-does. Sketched so the prototype is run with the right questions in mind.
+Not built. Adoption holds on the TL-SG3452, measured above, and
+`rack:omada apply` is the shell form of its write half for one switch at a time.
 
 - **It lives in the rack's cluster**, staging while the rack is at home, as one
   replica holding a `Lease` per site, which replaces the laptop-local lock.
@@ -195,10 +207,10 @@ does. Sketched so the prototype is run with the right questions in mind.
 - **Its credentials** (the API client and the switch logins) come from
   1Password through an ExternalSecret into its namespace, as everything else
   in the cluster does; nothing in the repository carries them.
-- **Its rollback** is the controller's reboot schedule set a few minutes out
-  before a change and deleted once the read-back matches, the same shape as
-  `apply`'s confirmed commit, if the prototype shows a controller-managed switch
-  reloads its last saved configuration when it fires.
+- **Its rollback** writes the previous values back. A reboot of an adopted
+  switch keeps what the controller wrote, so the reboot-schedule shape of
+  `apply`'s confirmed commit does not carry over. What protects a change that
+  cuts off the controller's own path to a switch is still open.
 - **It is Go**, like `infra/cluster-api-provider-tuist`, because a long-running
   watch-and-converge loop is what controller-runtime is for and a shell loop is
   not.
