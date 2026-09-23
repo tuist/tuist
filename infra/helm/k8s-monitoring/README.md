@@ -108,6 +108,12 @@ The same receiver serves a `loki.source.api` on 3100 for everything running on a
 
 All of them reach it at the receiver Service's **tailnet** hostname, set by the `tailscale.com/expose` annotations in each env's `values-{staging,canary,production}.yaml`, not at the in-cluster address Linux workloads use. Pushing here rather than to Grafana Cloud keeps the ingest credential in one place: Alloy forwards with the token it already holds, so no Mac mini or edge node carries one and the tailnet ACL is the access control. The receiver stamps each line with the time it arrives.
 
+### Rack Linux hosts are scraped through their egress Service
+
+A rack's Linux hosts (the edge node today, the services and storage nodes as they join) register at their tailnet address, so the node-exporter the DaemonSet runs there is at a `100.64.0.0/10` address no Pod can route to. `hostMetrics.linuxHosts.extraDiscoveryRules` rewrites such a target to `rack-linux-<node>.tailscale-operator.svc.cluster.local:9100`, the egress Service the CAPI provider keeps for each rack Linux host, so the host stays in `integrations/node_exporter` with the same labels and allow-list as every other node. That Service has to carry port 9100, and the tailnet ACL has to let the env's operator tag reach the host's tag on it; without both the target reads `up 0`, which is what it read before. The allow-list keeps `node_hwmon_temp_celsius` (with `node_hwmon_sensor_label` to name the inputs) and `node_thermal_zone_temp`, which is where the hosts' CPU and NVMe temperatures come from.
+
+The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
+
 ## What gets deployed
 
 Seven Alloy instances, split by role (managed by the upstream `alloy-operator`):
