@@ -88,13 +88,15 @@ jobs:
           {
             echo "tags<<EOF"
             echo "${IMAGE}:sha-${GIT_SHA}"
-            echo "${IMAGE}:latest"
+            if [ "$GITHUB_REF" = refs/heads/main ]; then echo "${IMAGE}:latest"; fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
           {
             echo "cache_tags<<EOF"
             echo "${{ env.REGISTRY }}/tuist/tuist-runner-cache-volumes:sha-${GIT_SHA}"
-            echo "${{ env.REGISTRY }}/tuist/tuist-runner-cache-volumes:latest"
+            if [ "$GITHUB_REF" = refs/heads/main ]; then
+              echo "${{ env.REGISTRY }}/tuist/tuist-runner-cache-volumes:latest"
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
