@@ -244,3 +244,8 @@ No step in this list is executed by the local checks.
 - Enable hand-out. Test single-entry bypass in Xcode/module/Gradle, Bazel setup
   persistence and credential refresh, CAS proxy re-resolution, and mixed
   managed/self-hosted/custom endpoints. Soak staging CI before canary/production.
+
+Health-check creation uses a fresh caller reference after collection. Route53
+retains deleted references for several days, so a cold return cannot recreate
+one using only its deterministic box identity. Existing legacy checks remain
+adoptable; uncertain create retries retain their reference to avoid duplicates.

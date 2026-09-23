@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -26,12 +28,14 @@ type route53API interface {
 }
 
 type Route53StableDNS struct {
-	api         route53API
-	zone, owner string
-	recordMu    sync.Mutex
-	recordTTL   time.Duration
-	recordsAt   time.Time
-	records     map[string]*StableDNSRecord
+	api              route53API
+	zone, owner      string
+	healthMu         sync.Mutex
+	healthReferences map[string]string
+	recordMu         sync.Mutex
+	recordTTL        time.Duration
+	recordsAt        time.Time
+	records          map[string]*StableDNSRecord
 }
 
 func NewRoute53StableDNS(ctx context.Context, zone, owner string) (*Route53StableDNS, error) {
@@ -67,16 +71,37 @@ func (p *Route53StableDNS) healthChecks(ctx context.Context) ([]r53types.HealthC
 }
 
 func (p *Route53StableDNS) EnsureHealthCheck(ctx context.Context, target string) (string, error) {
+	p.healthMu.Lock()
+	defer p.healthMu.Unlock()
 	hash := sha256.Sum256([]byte(target + ":443"))
-	reference := p.healthPrefix() + fmt.Sprintf("%x", hash[:12])
+	prefix := p.healthPrefix() + fmt.Sprintf("%x", hash[:12])
 	checks, err := p.healthChecks(ctx)
 	if err != nil {
 		return "", err
 	}
 	for _, check := range checks {
-		if aws.ToString(check.CallerReference) == reference {
+		ref := aws.ToString(check.CallerReference)
+		if ref == prefix || strings.HasPrefix(ref, prefix+"-") {
+			cfg := check.HealthCheckConfig
+			if cfg == nil || aws.ToString(cfg.IPAddress) != target || aws.ToInt32(cfg.Port) != 443 || cfg.Type != r53types.HealthCheckTypeTcp {
+				return "", fmt.Errorf("owned health check %s has unexpected configuration", aws.ToString(check.Id))
+			}
 			return aws.ToString(check.Id), nil
 		}
+	}
+	// AWS retains deleted caller references for days. A new incarnation needs
+	// a nonce, but ambiguous create retries must retain the same reference.
+	if p.healthReferences == nil {
+		p.healthReferences = map[string]string{}
+	}
+	reference := p.healthReferences[target]
+	if reference == "" {
+		var nonce [8]byte
+		if _, err := rand.Read(nonce[:]); err != nil {
+			return "", err
+		}
+		reference = prefix + fmt.Sprintf("-%x", nonce)
+		p.healthReferences[target] = reference
 	}
 	output, err := p.api.CreateHealthCheck(ctx, &route53.CreateHealthCheckInput{
 		CallerReference: aws.String(reference), HealthCheckConfig: &r53types.HealthCheckConfig{
@@ -85,6 +110,10 @@ func (p *Route53StableDNS) EnsureHealthCheck(ctx context.Context, target string)
 		},
 	})
 	if err != nil {
+		var conflict *r53types.HealthCheckAlreadyExists
+		if errors.As(err, &conflict) {
+			delete(p.healthReferences, target)
+		}
 		return "", err
 	}
 	return aws.ToString(output.HealthCheck.Id), nil
