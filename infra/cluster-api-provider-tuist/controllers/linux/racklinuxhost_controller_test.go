@@ -174,3 +174,17 @@ func TestRackLinuxHostReleasesAClaimWhoseMachineIsGone(t *testing.T) {
 		t.Fatalf("claim %q not released", host.Status.ClaimedBy)
 	}
 }
+
+func TestRackLinuxHostPrefersTheConnectedDevice(t *testing.T) {
+	api := &fakeTailnet{devices: []tailnet.Device{
+		edgeDevice("live", "ber1-edge", "2026-09-21T10:00:00Z", true, "100.124.227.31"),
+		edgeDevice("aborted", "ber1-edge-1", "2026-09-23T18:00:00Z", false, "100.64.0.7"),
+	}}
+	host := reconcileHost(t, api, edgeHost())
+	if host.Status.Tailnet == nil || host.Status.Tailnet.DeviceID != "live" {
+		t.Fatalf("tailnet status %+v, want the connected device", host.Status.Tailnet)
+	}
+	if len(api.deleted) != 1 || api.deleted[0] != "aborted" || len(api.renamed) != 0 {
+		t.Fatalf("deleted %v renamed %v", api.deleted, api.renamed)
+	}
+}
