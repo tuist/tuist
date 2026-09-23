@@ -83,7 +83,7 @@ defmodule AtlasWeb.POCLive.Form do
           <p>Capture the POC scope. Structured fields populate the public brief.</p>
         </div>
       </div>
-      <.card icon="target" title="Details">
+      <.card icon="checkup_list" title="Details">
         <.card_section>
           <.form for={@form} id="poc-form-form" phx-change="validate" phx-submit="save">
             <.text_input

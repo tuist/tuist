@@ -263,14 +263,14 @@ defmodule AtlasWeb.POCLive.Show do
         </div>
       </div>
 
-      <.card :if={@public_url} icon="link" title="Public brief">
+      <.card :if={@public_url} icon="link_icon" title="Public brief">
         <.card_section>
           <p>Share this signed URL with the customer:</p>
           <p><a href={@public_url} target="_blank" rel="noopener noreferrer">{@public_url}</a></p>
         </.card_section>
       </.card>
 
-      <.card :if={@access_requests != []} icon="user_check" title="Access requests">
+      <.card :if={@access_requests != []} icon="users" title="Access requests">
         <.card_section>
           <p>
             Approve or deny customers requesting to open the public brief. Slack buttons post the same actions to the operator channel when it is configured.
@@ -310,7 +310,7 @@ defmodule AtlasWeb.POCLive.Show do
         </.card_section>
       </.card>
 
-      <.card icon="target" title="Overview">
+      <.card icon="checkup_list" title="Overview">
         <.card_section>
           <p><strong>Status:</strong> {humanize(@poc.status)}</p>
           <p><strong>Hosting:</strong> {humanize(@poc.hosting)}</p>
@@ -320,7 +320,7 @@ defmodule AtlasWeb.POCLive.Show do
         </.card_section>
       </.card>
 
-      <.card icon="clipboard" title="Context">
+      <.card icon="file_text" title="Context">
         <.card_section>
           <.form
             for={@context_form}
@@ -397,7 +397,7 @@ defmodule AtlasWeb.POCLive.Show do
         </.card_section>
       </.card>
 
-      <.card icon="list" title="Scope">
+      <.card icon="list_tree" title="Scope">
         <.card_section>
           <ul :if={@poc.scope_features != []}>
             <li :for={scope <- @poc.scope_features}>
@@ -429,7 +429,7 @@ defmodule AtlasWeb.POCLive.Show do
         </.card_section>
       </.card>
 
-      <.card icon="calendar" title="Timeline">
+      <.card icon="calendar_week" title="Timeline">
         <.card_section>
           <ul :if={@poc.timeline_entries != []}>
             <li :for={entry <- @poc.timeline_entries}>

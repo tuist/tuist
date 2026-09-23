@@ -40,10 +40,10 @@ defmodule AtlasWeb.POCLive.Index do
           </.button>
         </div>
       </div>
-      <.card icon="target" title="POCs">
+      <.card icon="checkup_list" title="POCs">
         <.card_section>
           <div :if={@pocs == []} data-part="empty-state">
-            <div data-part="empty-icon"><.icon name="target" /></div>
+            <div data-part="empty-icon"><.icon name="checkup_list" /></div>
             <h2>No POCs yet</h2>
             <p>Create a POC to capture scope, context, and the public brief link.</p>
           </div>
@@ -57,7 +57,7 @@ defmodule AtlasWeb.POCLive.Index do
               <.text_and_description_cell
                 label={poc.title}
                 description={account_label(poc)}
-                icon="target"
+                icon="checkup_list"
               />
             </:col>
             <:col :let={poc} label="Hosting">

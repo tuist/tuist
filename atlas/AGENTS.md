@@ -31,6 +31,11 @@ Do not add README entries for internal operational details such as env var names
   }
   ```
 
+## Proof-of-concept dashboard
+
+- The sales evaluation list, form, and detail pages live under `lib/atlas_web/live/poc_live/`. Their rendering tests live under `test/atlas_web/live/poc_live/` and cover empty/populated lists, create/edit forms, and unpublished/published details with access requests.
+- Card and cell icon names must exist in `noora/lib/noora/icons/` (replace filename hyphens with underscores). Unsupported names raise during rendering; include conditional sections when verifying these pages.
+
 ## Project guidelines
 
 - When opening GitHub pull requests, use a semantic commit style title, for example `feat(accounts): reconcile Stripe invoices`.
