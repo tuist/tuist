@@ -82,8 +82,6 @@ Organizations configured before login email domains were introduced retain their
 
 This compatibility mode avoids interrupting existing users and onboarding flows, but it continues trusting any email address reported by the configured provider. Administrators should add and verify a login email domain to restrict enrollment and identity linking to addresses controlled by their organization.
 
-Compatibility mode discovers an organization by deriving candidate provider identifiers from the email domain, so the general login page finds it only when the provider identifier is named after that domain. An Okta domain of `example.okta.com` is discovered for `example.com`; `acme.okta.com`, `example.okta-emea.com`, and email domains outside `.com` are not. Members of an organization that is not discovered cannot reach their provider from the general login page, and single sign-on enforcement is not applied to sign-ups from the domain. Verifying the login email domain makes discovery and enforcement independent of the provider identifier.
-
 Where Tuist can infer the domain from the organization's members, **Login email domain** is already filled in and needs only the text record and **Verify domain**. Confirm the value before verifying and change it if the organization uses a different employee email domain.
 
 Verifying a login domain or changing the provider or provider organization identifier permanently disables compatibility mode. Verify the login email domain before changing the provider configuration, particularly when single sign-on enforcement is enabled.
@@ -228,8 +226,6 @@ The email address of your Tuist account is not on the organization's verified lo
 ### Tuist cannot find an organization for an email address {#tuist-cannot-find-an-organization-for-an-email-address}
 
 Confirm that the user entered the expected employee email address and that its domain exactly matches the verified login email domain. Existing members may also be discovered through their current organization membership.
-
-An organization still in compatibility mode is discovered only when its provider identifier is derived from the employee email domain, so a user who is not yet a member reaches this state whenever the two differ. Verify the login email domain to resolve it.
 
 ### Domain verification remains pending {#domain-verification-remains-pending}
 
