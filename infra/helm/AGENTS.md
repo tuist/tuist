@@ -55,3 +55,6 @@ This node covers Helm assets under `infra/helm/`.
 - Private gateway-backed Kura pods carry `tuist.dev/host-network-gateway=true`. `tuist/templates/kura-gateway-network-policy.yaml` allows TCP 4000 from Cilium host/remote-node identities, including cross-host proxying; Kubernetes namespace/ipBlock selectors do not cover this hop. Keep it gated by `kuraController.privateGateway.enabled` with the gateway read permission so self-hosted installs do not require Cilium.
 
 - Stable cache DNS is disabled by default: platform `cacheDNS` owns the CRD-only AWS external-dns and Route53 ACME solver; `kuraController.stableDNS` supplies read/health-check credentials separately. Cloudflare excludes `cache.tuist.dev`. Preserve independent owners and Secrets, and see `../cache-dns/README.md` before enabling.
+  Staging enables the provider plumbing and shared cache wildcard for spec 95
+  validation. Advertising and hand-out remain separately gated, with the server
+  allowlist restricted to `kura-spec95-e2e`.
