@@ -10,9 +10,11 @@ defmodule Tuist.Billing.AirUsageNotification do
   schema "air_usage_notifications" do
     belongs_to :account, Account
     belongs_to :user, User
+
     field :metric, Ecto.Enum,
       values: [:remote_cache_hits, :runner_minutes, :cache_egress_megabytes, :cache_requests],
       default: :remote_cache_hits
+
     field :period_start, :utc_datetime
     field :threshold, :integer
     field :usage, :integer
