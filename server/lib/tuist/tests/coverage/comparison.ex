@@ -532,6 +532,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
       covered_lines: covered,
       executable_lines: length(in_hunks),
       coverage: Coverage.percentage(covered, length(in_hunks)),
+      changed_ranges: hunks,
       uncovered_ranges: Coverage.uncovered_ranges(in_hunks)
     }
   end

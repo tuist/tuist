@@ -128,6 +128,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert has_element?(lv, "#widget-coverage", "50.0%")
       assert has_element?(lv, "#widget-change", "-50.0%")
       assert has_element?(lv, "#widget-patch", "0.0%")
+      assert has_element?(lv, "#widget-patch", "0 of 4 changed lines ran")
       assert has_element?(lv, "#widget-gaps", "2")
       # A pull request has a diff, so it is judged on it rather than read as a whole.
       refute has_element?(lv, "#widget-covered-lines")
@@ -178,7 +179,51 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       files = lv |> element("#coverage-files-table") |> render()
       assert files =~ "A.swift"
       assert files =~ "New.swift"
+      assert files =~ "0 of 2 ran"
       refute files =~ "B.swift"
+    end
+
+    test "opens a changed file from the patch with the lines the diff changed", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/pull-requests/12"
+      {:ok, lv, _html} = live(conn, path)
+
+      assert has_element?(lv, "#coverage-patch-table a[href$='?coverage-file=Sources%2FA.swift']")
+
+      {:ok, lv, _html} = live(conn, path <> "?coverage-file=Sources%2FA.swift")
+      assert has_element?(lv, "#coverage-file-changed-lines", "3–4: 0 of 2 executable lines ran")
+    end
+
+    test "tells a file the diff changed apart from one only the runs moved", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      pr_run(
+        project,
+        organization,
+        [file("Sources/A.swift", [1, 1, 1, 1]), file("Sources/B.swift", [1, 0])],
+        %{
+          git_commit_sha: "c",
+          pull_request_number: 13,
+          changed_files: [
+            %{
+              path: "Sources/A.swift",
+              status: "modified",
+              git_blob_id: "blob-Sources/A.swift",
+              hunks: [%{start: 1, end: 1}]
+            }
+          ]
+        }
+      )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage/pull-requests/13?tab=files")
+
+      assert lv |> element("#coverage-files-table tr", "B.swift") |> render() =~ "No changed code"
     end
 
     test "lists the pull request's commits in their own tab", %{

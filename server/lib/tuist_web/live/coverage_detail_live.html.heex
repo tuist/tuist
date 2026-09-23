@@ -242,16 +242,12 @@
             }
             value={
               case @comparison.patch do
-                %{status: :available, executable_lines: 0} ->
-                  dgettext("dashboard_tests", "No changed lines")
-
-                %{status: :available} = patch ->
-                  "#{patch.coverage}%"
-
-                _ ->
-                  dgettext("dashboard_tests", "Unavailable")
+                %{status: :available, executable_lines: 0} -> "—"
+                %{status: :available} = patch -> "#{patch.coverage}%"
+                _ -> dgettext("dashboard_tests", "Unavailable")
               end
             }
+            caption={patch_caption(@comparison.patch)}
           />
           <.widget
             :if={diff?(@comparison)}
@@ -438,6 +434,18 @@
               end}
             </dd>
           </div>
+          <div :if={@coverage_patch_file && Map.has_key?(@coverage_patch_file, :changed_ranges)}>
+            <dt>{dgettext("dashboard_tests", "Changed lines")}</dt>
+            <dd id="coverage-file-changed-lines">
+              {dgettext(
+                "dashboard_tests",
+                "%{ranges}: %{covered} of %{executable} executable lines ran",
+                ranges: line_ranges_label(@coverage_patch_file.changed_ranges),
+                covered: format_number(@coverage_patch_file.covered_lines),
+                executable: format_number(@coverage_patch_file.executable_lines)
+              )}
+            </dd>
+          </div>
           <div :if={Map.get(@coverage_file, :carried_lines, []) != []}>
             <dt>{dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}</dt>
             <dd id="coverage-file-carried-lines">
@@ -566,7 +574,11 @@
       data-part="patch-card"
     >
       <.card_section :if={@patch_rows != []} data-part="patch-section">
-        <.table id="coverage-patch-table" rows={@patch_rows}>
+        <.table
+          id="coverage-patch-table"
+          rows={@patch_rows}
+          row_navigate={fn file -> file_href(assigns, file.path) end}
+        >
           <:col :let={file} label={dgettext("dashboard_tests", "File")}>
             <.text_and_description_cell
               label={Path.basename(file.path)}
@@ -776,13 +788,20 @@
                   description={parent_dir(file.path)}
                 />
               </:col>
-              <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
+              <:col :let={file} label={dgettext("dashboard_tests", "File coverage")}>
                 <.coverage_change_cell
                   coverage={file.coverage}
                   delta={file.delta}
                   placeholder={dgettext("dashboard_tests", "Removed")}
                   new={is_nil(file.baseline_coverage)}
                 />
+              </:col>
+              <:col
+                :let={file}
+                :if={@comparison.patch.status == :available}
+                label={dgettext("dashboard_tests", "Changed lines")}
+              >
+                <.text_cell label={changed_lines_label(Map.get(@patch_files, file.path))} />
               </:col>
             </.table>
             <.pagination_group

@@ -246,8 +246,20 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
                {1, 5, 20.0}
 
       assert [
-               %{path: "Sources/New.swift", covered_lines: 0, executable_lines: 3, uncovered_ranges: [{1, 3}]},
-               %{path: "Sources/Add.swift", covered_lines: 1, executable_lines: 2, uncovered_ranges: [{6, 6}]}
+               %{
+                 path: "Sources/New.swift",
+                 covered_lines: 0,
+                 executable_lines: 3,
+                 changed_ranges: [{1, 3}],
+                 uncovered_ranges: [{1, 3}]
+               },
+               %{
+                 path: "Sources/Add.swift",
+                 covered_lines: 1,
+                 executable_lines: 2,
+                 changed_ranges: [{5, 6}],
+                 uncovered_ranges: [{6, 6}]
+               }
              ] = comparison.patch.files
 
       assert comparison.patch.skipped == [%{path: "README.md", reason: :not_instrumented}]

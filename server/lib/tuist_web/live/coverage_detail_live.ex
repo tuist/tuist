@@ -91,7 +91,7 @@ defmodule TuistWeb.CoverageDetailLive do
   # reported one when the commit's skipped tests were all carried forward)
   # and the tests behind it, across the commit's runs.
   defp assign_file(socket, path) when path in [nil, ""],
-    do: socket |> assign(:coverage_file, nil) |> assign(:coverage_file_tests, nil)
+    do: socket |> assign(:coverage_file, nil) |> assign(:coverage_file_tests, nil) |> assign(:coverage_patch_file, nil)
 
   defp assign_file(%{assigns: %{selected_project: project, subject: subject}} = socket, path) do
     file = Commits.file_detail(project.id, subject.sha, path)
@@ -103,6 +103,7 @@ defmodule TuistWeb.CoverageDetailLive do
     socket
     |> assign(:coverage_file, file)
     |> assign(:coverage_file_tests, tests)
+    |> assign(:coverage_patch_file, Map.get(patch_files(socket.assigns.comparison), path))
   end
 
   @doc false
@@ -334,6 +335,7 @@ defmodule TuistWeb.CoverageDetailLive do
       comparison.files |> Enum.slice((page - 1) * @page_size, @page_size) |> Enum.map(&Map.put(&1, :id, &1.path))
     )
     |> assign(:files_meta, %{current_page: min(page, total_pages), total_pages: total_pages})
+    |> assign(:patch_files, patch_files(comparison))
     |> assign_unmeasured_page(project, subject.sha, query)
   end
 
@@ -354,6 +356,11 @@ defmodule TuistWeb.CoverageDetailLive do
     |> Commits.unmeasured_files(sha, limit: limit, offset: offset)
     |> Enum.map(&%{id: "unmeasured-" <> &1, path: &1})
   end
+
+  defp patch_files(%{patch: %{status: :available, files: files, skipped: skipped}}),
+    do: skipped |> Map.new(&{&1.path, &1}) |> Map.merge(Map.new(files, &{&1.path, &1}))
+
+  defp patch_files(_comparison), do: %{}
 
   defp patch_rows(%{status: :available, files: files}), do: Enum.map(files, &Map.put(&1, :id, "patch-" <> &1.path))
   defp patch_rows(_patch), do: []
@@ -392,6 +399,33 @@ defmodule TuistWeb.CoverageDetailLive do
 
   def change_description(_subject, _project, _comparison),
     do: dgettext("dashboard_tests", "Difference of the total against the baseline commit.")
+
+  @doc "The line under the patch figure: how many of the changed executable lines ran."
+  def patch_caption(%{status: :available, executable_lines: 0}),
+    do: dgettext("dashboard_tests", "No changed line is executable")
+
+  def patch_caption(%{status: :available} = patch),
+    do:
+      dgettext("dashboard_tests", "%{covered} of %{executable} changed lines ran",
+        covered: format_number(patch.covered_lines),
+        executable: format_number(patch.executable_lines)
+      )
+
+  def patch_caption(_patch), do: nil
+
+  @doc """
+  A file's changed lines in the Files tab. A file whose diff changed no
+  code moved because of what the runs executed, not because of the diff.
+  """
+  def changed_lines_label(nil), do: dgettext("dashboard_tests", "No changed code")
+  def changed_lines_label(%{reason: reason}), do: skipped_reason_label(reason)
+
+  def changed_lines_label(file),
+    do:
+      dgettext("dashboard_tests", "%{covered} of %{executable} ran",
+        covered: format_number(file.covered_lines),
+        executable: format_number(file.executable_lines)
+      )
 
   @doc """
   Whether the head has a diff to be judged on. Changed files come from the
