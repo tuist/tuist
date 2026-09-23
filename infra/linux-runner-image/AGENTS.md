@@ -263,5 +263,8 @@ own pod UID subtree. See [behavior and rollout](../runners-controller/cache-volu
 Buildkite uses the plugin in [ci/cache-volume](../../ci/cache-volume/AGENTS.md).
 Persist pod-local volume routing to the staged environment before starting the
 agent, then re-export it in the global environment hook after sanitization.
+Pass an explicit job-local `--plugins-path` when starting Buildkite: the
+standalone binary has no packaged configuration supplying that directory, and
+plugin preparation fails before pre-command hooks without it.
 GitLab forwards the same three routing variables through RunnerSettings.
 Neither path receives node-agent or object-storage credentials or decides publication.

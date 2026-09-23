@@ -63,3 +63,34 @@ test "$(wc -l < "${BUILDKITE_ENV_PATH}" | tr -d ' ')" = 1
 env -i PATH="$PATH" TUIST_RUNNER_JOB_ENV="${BUILDKITE_JOB_ENV_PATH}" TUIST_RUNNER_STATE_DIR="${fixtures}/state" \
   bash -ec 'source buildkite-hooks/environment; test "$EXISTING_BUILD_SETTING" = preserved; test "$TUIST_CACHE_VOLUME_URL" = "http://runner-cache-volumes:8090"; test "$TUIST_CACHE_VOLUME_POD" = "pod-test"; test "$TUIST_CACHE_VOLUME_UID" = "uid-test"'
 echo "ok: Buildkite restores cache-volume routing after environment sanitization"
+
+# Run the production launch command with an agent stub. The standalone binary
+# has no packaged config to supply a plugin checkout directory.
+awk '/^  exec \/usr\/local\/bin\/buildkite-agent start/ {
+       copying = 1
+       sub("/usr/local/bin/buildkite-agent", "\"${BUILDKITE_AGENT_TEST_BINARY}\"")
+     }
+     copying { print }
+     copying && /--disconnect-after-job$/ { exit }' run-job.sh > "${fixtures}/launch-buildkite.sh"
+export BUILDKITE_AGENT_TEST_BINARY="${fixtures}/buildkite-agent"
+export TUIST_RUNNER_STATE_DIR="${fixtures}/state"
+cat > "${BUILDKITE_AGENT_TEST_BINARY}" <<'AGENT'
+#!/usr/bin/env bash
+set -euo pipefail
+plugins_path=
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = --plugins-path ]; then
+    plugins_path=$2
+    shift
+  fi
+  shift
+done
+test -n "$plugins_path"
+test "$plugins_path" = "${TUIST_RUNNER_STATE_DIR}/plugins"
+mkdir -p "$plugins_path"
+touch "$plugins_path/checkout-probe"
+AGENT
+chmod +x "${BUILDKITE_AGENT_TEST_BINARY}"
+bash -eu "${fixtures}/launch-buildkite.sh"
+test -f "${TUIST_RUNNER_STATE_DIR}/plugins/checkout-probe"
+echo "ok: Buildkite receives a writable job-local plugin checkout directory"

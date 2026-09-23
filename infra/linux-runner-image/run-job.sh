@@ -89,6 +89,7 @@ if [ -s "${BUILDKITE_ENV_PATH}" ]; then
   exec /usr/local/bin/buildkite-agent start \
     --name "$(hostname)" \
     --hooks-path /usr/local/share/tuist/buildkite-hooks \
+    --plugins-path "${TUIST_RUNNER_STATE_DIR}/plugins" \
     --build-path "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}" \
     --enable-job-log-tmpfile \
     --job-log-path "${TUIST_RUNNER_STATE_DIR}" \
