@@ -72,8 +72,9 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
       render_async(live_view, @render_async_timeout)
 
       assert has_element?(live_view, "#widget-code-coverage", "75.0%")
-      # The Code Coverage page's chart, leading to it.
+      # The Code Coverage page's chart, with the latest figure, leading to it.
       assert has_element?(live_view, "[data-part='coverage'] #overview-coverage-chart")
+      assert has_element?(live_view, "[data-part='coverage'] .tuist-legend", "75.0%")
 
       assert has_element?(
                live_view,

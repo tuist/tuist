@@ -645,11 +645,21 @@
     </:actions>
     <.card_section :if={!@coverage_trend.ok?}>
       <div data-part="coverage-chart">
+        <div data-part="legends">
+          <.skeleton_legend />
+        </div>
         <.skeleton_chart />
       </div>
     </.card_section>
     <.card_section :if={@coverage_trend.ok? && @coverage_trend.result != []}>
       <div data-part="coverage-chart">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_tests", "Code coverage")}
+            value={"#{List.last(@coverage_trend.result).coverage}%"}
+            style="primary"
+          />
+        </div>
         <TuistWeb.Coverage.Components.coverage_trend_chart
           id="overview-coverage-chart"
           points={@coverage_trend.result}
