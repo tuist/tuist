@@ -594,6 +594,11 @@ struct XCResultParserTests {
 
         #expect(output.succeeded)
         #expect(output.standardOutput == "xcresult")
+
+        let failedOutput = try await executeXCResultTool(["/bin/sh", "-c", "printf failure >&2; exit 3"])
+
+        #expect(!failedOutput.succeeded)
+        #expect(failedOutput.standardError == "failure")
     }
 
     @Test
