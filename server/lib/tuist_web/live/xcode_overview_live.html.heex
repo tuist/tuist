@@ -591,15 +591,6 @@
     data-part="coverage"
   >
     <:actions>
-      <.button
-        variant="secondary"
-        label={dgettext("dashboard_projects", "View more")}
-        size="medium"
-        navigate={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage" <>
-            if(@coverage_query == "", do: "", else: "?" <> @coverage_query)
-        }
-      />
       <.date_picker
         id="coverage-date-range-picker"
         name="coverage-date-range"
@@ -651,8 +642,21 @@
         <.skeleton_chart />
       </div>
     </.card_section>
-    <.card_section :if={@coverage_trend.ok? && @coverage_trend.result != []}>
+    <.card_section
+      :if={@coverage_trend.ok? && @coverage_trend.result != []}
+      data-part="coverage-card-section"
+    >
       <div data-part="coverage-chart">
+        <.button
+          data-part="view-more"
+          label={dgettext("dashboard_projects", "View more")}
+          size="small"
+          variant="secondary"
+          navigate={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage" <>
+              if(@coverage_query == "", do: "", else: "?" <> @coverage_query)
+          }
+        />
         <div data-part="legends">
           <.legend
             title={dgettext("dashboard_tests", "Code coverage")}
@@ -664,7 +668,6 @@
           id="overview-coverage-chart"
           points={@coverage_trend.result}
         />
-        <span data-part="label">{@selected_project.default_branch}</span>
       </div>
     </.card_section>
     <TuistWeb.Coverage.Components.coverage_empty
