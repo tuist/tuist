@@ -32,6 +32,17 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
 kuraController:
+  stableDNS:
+    enabled: true
+    hostedZoneId: Z046862130S1WUMPV7Z3P
+    ownerId: tuist-staging-cache
+    externalSecret:
+      enabled: true
+      item: cache-dns-controller
+  publicWildcardCertificate:
+    dnsNames:
+      - "*.kura.tuist.dev"
+      - "*.cache.tuist.dev"
   privateGateway:
     enabled: true
   telemetry:
@@ -120,6 +131,12 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: stag
+    - name: TUIST_KURA_STABLE_HOSTNAME_ENABLED
+      value: "false"
+    - name: TUIST_KURA_STABLE_HOSTNAME_HANDOUT_ENABLED
+      value: "false"
+    - name: TUIST_KURA_STABLE_HOSTNAME_ACCOUNTS
+      value: kura-spec95-e2e
     # Full registry URL advertised at /.well-known/registry.json. The
     # staging registry ingress serves /swift directly (no Worker), so it can
     # advertise the canonical prefix already.
