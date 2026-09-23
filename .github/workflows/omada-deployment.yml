@@ -14,14 +14,18 @@ name: Rack Fleet Controller Deployment
 # and production; staging gets a server deploy only when someone dispatches
 # one, and the rack's objects need their CRD where the rack is.
 #
-# THE RACK SWITCH CONTROLLER'S IMAGE. rack-switch-controller-image.yml builds
-# `sha-<12 sha>` only for a push that changes the image's inputs, so the image
+# And it installs the rack-edge DaemonSet (infra/helm/rack-edge), which runs the
+# switches' path into the tailnet and their DHCP on the rack's edge node, a node
+# of this cluster that rack:edge-join adds.
+#
+# THE IMAGES. rack-switch-controller-image.yml and rack-edge-image.yml build
+# `sha-<12 sha>` only for a push that changes their image's inputs, so the image
 # to deploy is the one of the newest commit at or before DEPLOY_SHA that
-# touched them. A merge that changes both the controller and its chart starts
-# this workflow and the image build together, so the deploy waits for that
-# tag to appear in the registry before installing it. A workflow_run trigger
-# on the image build would cover only merges that build an image, and a chart
-# or CRD change alone would never deploy.
+# touched them. A merge that changes both an image and its chart starts this
+# workflow and the image build together, so the deploy waits for that tag to
+# appear in the registry before installing it. A workflow_run trigger on an
+# image build would cover only merges that build an image, and a chart or CRD
+# change alone would never deploy.
 
 on:
   push:
@@ -32,8 +36,11 @@ on:
       - infra/helm/rack-switch-controller/**
       - infra/rack-switch-controller/**
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - infra/helm/rack-edge/**
+      - infra/rack-switch-fleet/edge/**
       - .github/workflows/omada-deployment.yml
       - .github/workflows/rack-switch-controller-image.yml
+      - .github/workflows/rack-edge-image.yml
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -56,6 +63,9 @@ env:
   CONTROLLER_CHART_PATH: infra/helm/rack-switch-controller
   CONTROLLER_RELEASE_NAME: rack-switch-controller
   CONTROLLER_IMAGE: ghcr.io/tuist/rack-switch-controller
+  EDGE_CHART_PATH: infra/helm/rack-edge
+  EDGE_RELEASE_NAME: rack-edge
+  EDGE_IMAGE: ghcr.io/tuist/rack-edge
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
 
 jobs:
@@ -74,7 +84,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
           persist-credentials: false
           # History without file contents, for the git log that finds the
-          # controller's image commit.
+          # images' commits.
           fetch-depth: 0
           filter: blob:none
       - uses: ./.github/actions/mise
@@ -110,47 +120,71 @@ jobs:
             -f "$HELM_CHART_PATH/values.yaml" \
             -f "$HELM_CHART_PATH/values-staging.yaml" \
             --atomic --timeout 10m --wait
-      - name: Resolve the rack switch controller's image
+      - name: Resolve the images
         id: image
         run: |
           set -euo pipefail
-          commit="$(git log -1 --format=%H "$DEPLOY_SHA" -- \
-            infra/rack-switch-controller .github/workflows/rack-switch-controller-image.yml)"
-          if [ -z "$commit" ]; then
-            echo "::error::no commit at or before $DEPLOY_SHA changes the rack switch controller's image"
-            exit 1
-          fi
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
-          echo "tag=sha-${commit::12}" >> "$GITHUB_OUTPUT"
+          resolve() {
+            local name="$1"; shift
+            local commit
+            commit="$(git log -1 --format=%H "$DEPLOY_SHA" -- "$@")"
+            if [ -z "$commit" ]; then
+              echo "::error::no commit at or before $DEPLOY_SHA changes the $name image"
+              exit 1
+            fi
+            echo "${name}_commit=$commit" >> "$GITHUB_OUTPUT"
+            echo "${name}_tag=sha-${commit::12}" >> "$GITHUB_OUTPUT"
+          }
+          resolve controller infra/rack-switch-controller .github/workflows/rack-switch-controller-image.yml
+          resolve edge infra/rack-switch-fleet/edge .github/workflows/rack-edge-image.yml
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Wait for the image
+      - name: Wait for the images
         env:
-          TAG: ${{ steps.image.outputs.tag }}
-          COMMIT: ${{ steps.image.outputs.commit }}
+          CONTROLLER_TAG: ${{ steps.image.outputs.controller_tag }}
+          CONTROLLER_COMMIT: ${{ steps.image.outputs.controller_commit }}
+          EDGE_TAG: ${{ steps.image.outputs.edge_tag }}
+          EDGE_COMMIT: ${{ steps.image.outputs.edge_commit }}
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 60); do
-            if docker buildx imagetools inspect "$CONTROLLER_IMAGE:$TAG" >/dev/null 2>&1; then
-              echo "$CONTROLLER_IMAGE:$TAG is published"
-              exit 0
-            fi
-            echo "waiting for $CONTROLLER_IMAGE:$TAG ($attempt/60)"
-            sleep 15
-          done
-          echo "::error::$CONTROLLER_IMAGE:$TAG did not appear within 15 minutes; see the Rack Switch Controller Image run for $COMMIT"
-          exit 1
+          wait_for() {
+            local image="$1" commit="$2" workflow="$3"
+            for attempt in $(seq 1 60); do
+              if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+                echo "$image is published"
+                return 0
+              fi
+              echo "waiting for $image ($attempt/60)"
+              sleep 15
+            done
+            echo "::error::$image did not appear within 15 minutes; see the $workflow run for $commit"
+            exit 1
+          }
+          wait_for "$CONTROLLER_IMAGE:$CONTROLLER_TAG" "$CONTROLLER_COMMIT" "Rack Switch Controller Image"
+          wait_for "$EDGE_IMAGE:$EDGE_TAG" "$EDGE_COMMIT" "Rack Edge Image"
       - name: helm upgrade --install the rack switch controller
         env:
-          TAG: ${{ steps.image.outputs.tag }}
+          TAG: ${{ steps.image.outputs.controller_tag }}
         run: |
           helm upgrade --install "$CONTROLLER_RELEASE_NAME" "$CONTROLLER_CHART_PATH" \
             --namespace "$NAMESPACE" \
             -f "$CONTROLLER_CHART_PATH/values.yaml" \
             -f "$CONTROLLER_CHART_PATH/values-staging.yaml" \
+            --set image.tag="$TAG" \
+            --atomic --timeout 5m --wait
+      # Last, and waited on: a DaemonSet whose pod does not come up on the edge
+      # node means the switches' path or their DHCP is down.
+      - name: helm upgrade --install the rack edge
+        env:
+          TAG: ${{ steps.image.outputs.edge_tag }}
+        run: |
+          helm upgrade --install "$EDGE_RELEASE_NAME" "$EDGE_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            -f "$EDGE_CHART_PATH/values.yaml" \
+            -f "$EDGE_CHART_PATH/values-staging.yaml" \
             --set image.tag="$TAG" \
             --atomic --timeout 5m --wait
       - name: Diagnostics on failure
@@ -160,9 +194,10 @@ jobs:
           echo "::group::helm history"
           helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
           helm history "$CONTROLLER_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          helm history "$EDGE_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
           echo "::endgroup::"
           echo "::group::workload resources"
-          kubectl -n "$NAMESPACE" get statefulset,deployment,svc,pvc,pods,externalsecret -o wide || true
+          kubectl -n "$NAMESPACE" get statefulset,deployment,daemonset,svc,pvc,pods,externalsecret -o wide || true
           echo "::endgroup::"
           echo "::group::logs"
           kubectl -n "$NAMESPACE" logs statefulset/"$HELM_RELEASE_NAME-omada-controller" --tail=200 || true

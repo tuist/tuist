@@ -94,7 +94,7 @@ the ToRs.
 
 1. **The controller** is deployed to staging by `omada-deployment.yml` and
    exposed on the tailnet as `omada`; `ber1-mgmt` reaches it through
-   `ber1-edge` (`rack:edge-path`, and the route in its render). Its wizard and
+   `ber1-edge` (its rack-edge pod, and the route in its render). Its wizard and
    Open API client are the one-time manual step; record its tailnet IP as
    `management.controller.address`.
 2. **The standalone configuration to return to** is in git history:
@@ -131,8 +131,9 @@ Steps 1 to 3 ran on 2026-09-23, against the staging controller (6.3.0.45) and
   carries 1280. The controller's full-size segments never arrived, so the switch
   saw only the last segment of each reply, gave up after five seconds, and the
   controller reported the adoption as failed. Discovery on UDP 29810 and the Open
-  API were unaffected, being small. `rack:edge-path` now clamps the MSS of what
-  `ber1-edge` forwards into `tailscale0`, and adoption succeeded on the next try.
+  API were unaffected, being small. `ber1-edge` now clamps the MSS of what it
+  forwards into `tailscale0` (`lib/edge.sh`), and adoption succeeded on the next
+  try.
 - **The controller must advertise its tailnet address** as the device
   management host, which starts unset. `rack:omada controller`, and `adopt`
   before it adopts, set it from `management.controller.address`.
@@ -220,7 +221,8 @@ read back over SSH, then undone.
 ## Zero touch through the controller, measured
 
 A factory reset of `ber1-mgmt` on 2026-09-23 (`POST devices/{mac}/forget`, which
-resets a switch and reboots it), with `tuist-rack-dhcp.service` on `ber1-edge`:
+resets a switch and reboots it), with DHCP served on `ber1-edge` by a systemd
+unit that the rack-edge pod has since replaced, with the same configuration:
 
 1. The factory switch asked for DHCP and for option 138 among its options, got
    its site address from its reservation, with the edge node as router and the

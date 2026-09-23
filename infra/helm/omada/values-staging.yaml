@@ -7,7 +7,7 @@
 # REACHABILITY. Nothing about the controller is public. The Tailscale operator
 # gives the Service its own tailnet device (`omada`), and the switches reach it
 # through the rack's edge node, which translates their traffic onto its own
-# tailnet address (infra/rack-switch-fleet/edge-path.sh). A switch is pointed
+# tailnet address (infra/helm/rack-edge). A switch is pointed
 # at it with `controller inform-url` and the controller's tailnet IP, since
 # switches have no resolver for MagicDNS names; L2 discovery does not cross
 # into the cluster.

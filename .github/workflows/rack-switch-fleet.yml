@@ -27,6 +27,7 @@ on:
       - infra/rack-switch-prep/**
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/omada/**
+      - infra/helm/rack-edge/sites/**
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   pull_request:
@@ -36,6 +37,7 @@ on:
       - infra/rack-switch-prep/**
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/omada/**
+      - infra/helm/rack-edge/sites/**
       - mise/tasks/rack/**
       - .github/workflows/rack-switch-fleet.yml
   merge_group: {}
@@ -95,7 +97,7 @@ jobs:
           set -euo pipefail
           command -v shellcheck >/dev/null || (sudo apt-get update && sudo apt-get install -y shellcheck)
           # From inside the directory, so the sourced libraries resolve.
-          (cd infra/rack-switch-fleet && shellcheck -x fleet.sh ztp.sh edge-path.sh omada.sh lib/*.sh)
+          (cd infra/rack-switch-fleet && shellcheck -x fleet.sh ztp.sh edge-join.sh omada.sh lib/*.sh)
           shellcheck mise/tasks/rack/*.sh
 
       # A hash in git history cannot be removed without rewriting it, and every

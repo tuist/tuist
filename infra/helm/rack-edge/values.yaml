@@ -1,0 +1,23 @@
+# Defaults shared by every environment. Which rack lives in values-<env>.yaml.
+
+image:
+  repository: ghcr.io/tuist/rack-edge
+  # The image workflow publishes sha-<12 sha> and latest on every push to
+  # main. omada-deployment.yml sets the sha tag of the build it deploys.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# The site whose edge node this runs on: its files under sites/<site>/, and
+# the tuist.dev/rack-edge=<site> label and taint rack:edge-join gives the node.
+site: ""
+
+# Seconds between re-applying the management path, which puts back an address,
+# route or nft table something else removed.
+reapplySeconds: 300
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi

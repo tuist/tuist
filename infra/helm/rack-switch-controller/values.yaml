@@ -49,13 +49,16 @@ credentials:
 
 # Labels of the nodes that sit behind the rack's switches. The pod never
 # schedules onto a node carrying any of these values: it would be
-# reconciling its own path to the Omada controller. A rack node of another
-# kind joining the cluster (the edge node, say) adds its label here.
+# reconciling its own path to the Omada controller. The edge node
+# (rack:edge-join) is instance type rack; a rack node of another kind joining
+# the cluster adds its label here.
 rackNodeLabels:
   - key: kubernetes.io/os
     values: [darwin]
   - key: tuist.dev/runtime
     values: [tart]
+  - key: node.cluster.x-k8s.io/instance-type
+    values: [rack]
 
 resources:
   requests:

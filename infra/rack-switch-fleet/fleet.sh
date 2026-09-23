@@ -12,6 +12,7 @@ FLEET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$FLEET_ROOT/lib/config.sh"
 source "$FLEET_ROOT/lib/session.sh"
 source "$FLEET_ROOT/lib/lock.sh"
+source "$FLEET_ROOT/lib/edge.sh"
 
 SITE="${RACK_SITE:-ber1}"
 VERBOSE=0
@@ -88,12 +89,39 @@ cmd_render() {
     fi
   done
   rm -f "$rendered" "$object"
+  render_edge "$check" || stale=1
   if (( stale )); then
     echo "the rendered configs no longer match the site definition; run 'mise run rack:fleet render'" >&2
     return 1
   fi
   (( check )) && echo "rendered configs are up to date with the site definition"
   return 0
+}
+
+# The edge node's files for the rack-edge chart, from the same site definition.
+render_edge() {
+  local check="$1" dir file rendered status=0
+  dir="$(fleet_edge_dir "$(site_file)")"
+  [ -n "$dir" ] || return 0
+  rendered="$(mktemp)"
+  mkdir -p "$dir"
+  for file in mgmt-path.sh dnsmasq.conf; do
+    case "$file" in
+      mgmt-path.sh) fleet_edge_path "$(site_file)" > "$rendered";;
+      dnsmasq.conf) fleet_edge_dhcp "$(site_file)" > "$rendered";;
+    esac
+    if (( check )); then
+      if ! diff -q "$rendered" "$dir/$file" >/dev/null 2>&1; then
+        echo "stale: ${dir#"$FLEET_ROOT"/}/$file" >&2
+        status=1
+      fi
+    else
+      cp "$rendered" "$dir/$file"
+      echo "rendered ${dir#"$FLEET_ROOT"/}/$file"
+    fi
+  done
+  rm -f "$rendered"
+  return "$status"
 }
 
 device_adopted() {

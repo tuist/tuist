@@ -93,11 +93,12 @@ fi
 if [ -n "$via" ]; then
   default_interfaces="$(on_server "ip route show default | awk '{print \$5}'" 2>/dev/null || true)"
   on_server "ip link show dev $interface" >/dev/null 2>&1 || { echo "error: $server has no interface $interface" >&2; exit 1; }
-  # rack:edge-path runs DHCP for the controller path on the edge node's switch
-  # port, and two DHCP servers on one segment answer the same switch.
-  if on_server 'systemctl is-active --quiet tuist-rack-dhcp.service' 2>/dev/null; then
-    echo "error: $server already serves DHCP there (tuist-rack-dhcp.service, the controller path)." >&2
-    echo "       Auto Install needs it stopped while this serves: sudo systemctl stop tuist-rack-dhcp" >&2
+  # The rack-edge pod serves DHCP for the controller path on the edge node's
+  # switch port, and two DHCP servers on one segment answer the same switch.
+  if [ -n "$(on_server "ss -Hlun 'sport = :67'" 2>/dev/null || true)" ]; then
+    echo "error: $server already serves DHCP (the rack-edge pod, for the controller path)." >&2
+    echo "       Auto Install needs it off the node while this serves: see" >&2
+    echo "       infra/rack-switch-fleet/AGENTS.md, \"Auto Install on the edge node\"." >&2
     exit 1
   fi
   # The edge node's port can carry more than one address; the one to serve
@@ -109,7 +110,7 @@ if [ -n "$via" ]; then
   else
     server_ip="$(head -1 <<<"$addresses")"
   fi
-  address_hint="mise run rack:edge-path --interface $interface (it gives the port the site's provisioning address)"
+  address_hint="sudo ip addr add ${provisioning:-192.168.50.1/24} dev $interface on $server (the rack-edge pod adds it, and it stays when the pod is taken off the node)"
 else
   default_interfaces="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' || true)"
   ifconfig "$interface" >/dev/null 2>&1 || { echo "error: no interface $interface" >&2; exit 1; }

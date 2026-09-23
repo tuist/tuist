@@ -85,7 +85,7 @@
 //                            switches' management traffic to the
 //                            Omada controller on the tailnet,
 //                            translated to its own address
-//                            (infra/rack-switch-fleet/edge-path.sh).
+//                            (infra/helm/rack-edge).
 //                            Joined by an admin opening the login
 //                            URL, not by a key: one box, once.
 

@@ -40,7 +40,7 @@ enforces.
 Nothing about it is public. The Tailscale operator gives its Service a tailnet
 device, `omada`, and the switches reach that through the rack's edge node, which
 translates their traffic onto its own tailnet address
-(`mise run rack:edge-path`, see
+(the rack-edge DaemonSet, see
 [`rack-switch-fleet/AGENTS.md`](../../rack-switch-fleet/AGENTS.md)). L2
 discovery does not cross into the cluster, so a switch is told where the
 controller is with `controller inform-url` and the controller's tailnet IP

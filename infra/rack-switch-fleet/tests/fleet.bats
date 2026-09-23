@@ -2015,39 +2015,41 @@ ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
     [ "$output" = "192.168.0.13 tuist@ber1-edge" ]
 }
 
-# An edge node answering over the ssh stub like ber1-edge: two uplinks carrying
-# default routes, and the port ber1-mgmt hangs off.
-edge_stub() {
+# --- the edge node's files for the rack-edge chart ---------------------------
+
+# The rendered management path run under sh, the way the pod runs it, against an
+# `ip` shaped like ber1-edge's (two uplinks carrying default routes) and an nft
+# that keeps what it loads. FAKE_DEFAULT_DEV adds a default route on another
+# device; FAKE_FORWARD is what /proc/sys/net/ipv4/ip_forward reads.
+edge_run_stub() {
     local dir="$1"
     mkdir -p "$dir"
-    cat > "$dir/ssh" <<'STUB'
-#!/usr/bin/env bash
-while [ $# -gt 0 ]; do
-    case "$1" in -o) shift 2;; -*) shift;; *) break;; esac
-done
-shift
-case "$*" in
-    true) exit 0;;
-    "ip route show default | awk '{print \$5}'") printf 'enp2s0f0np0\nenp2s0f1np1\n';;
-    "ip link show dev enp87s0") echo "3: enp87s0: <UP>";;
-    *) exit 1;;
-esac
+    cat > "$dir/ip" <<'STUB'
+#!/bin/sh
+if [ "$*" = "route show default" ]; then
+    echo "default via 192.168.0.1 dev enp2s0f0np0 proto dhcp src 192.168.0.157 metric 100"
+    echo "default via 192.168.0.1 dev enp2s0f1np1 proto dhcp src 192.168.0.158 metric 100"
+    [ -n "$FAKE_DEFAULT_DEV" ] && echo "default via 192.168.0.1 dev $FAKE_DEFAULT_DEV proto dhcp metric 50"
+    exit 0
+fi
+echo "ip $*" >> "$FAKE_LOG"
 STUB
-    chmod +x "$dir/ssh"
-}
-
-@test "the edge path refuses the edge node's uplink" {
-    bin="$BATS_TEST_TMPDIR/edge1"
-    edge_stub "$bin"
-    run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp2s0f1np1 --dry-run
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"default route"* ]]
+    cat > "$dir/nft" <<'STUB'
+#!/bin/sh
+echo "nft $*" >> "$FAKE_LOG"
+cat >> "$FAKE_LOG"
+STUB
+    cat > "$dir/cat" <<'STUB'
+#!/bin/sh
+if [ "$1" = /proc/sys/net/ipv4/ip_forward ]; then echo "${FAKE_FORWARD:-1}"; else exec /bin/cat "$@"; fi
+STUB
+    chmod +x "$dir/ip" "$dir/nft" "$dir/cat"
+    : > "$dir/log"
 }
 
 @test "the edge path translates every switch, host-routes only those behind it, and advertises nothing" {
-    bin="$BATS_TEST_TMPDIR/edge2"
-    edge_stub "$bin"
-    run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp87s0 --dry-run
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
     [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
@@ -2056,17 +2058,161 @@ STUB
     [[ "$output" != *"ip route replace 192.168.0.11"* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
     [[ "$output" != *"advertise-routes"* ]]
-    [[ "$output" == *"dry run, nothing changed"* ]]
 }
 
-@test "the edge path says so when the edge node cannot be reached" {
-    bin="$BATS_TEST_TMPDIR/edge3"
-    mkdir -p "$bin"
-    printf '#!/usr/bin/env bash\nexit 255\n' > "$bin/ssh"
-    chmod +x "$bin/ssh"
-    run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp87s0 --dry-run
+@test "the rendered edge path runs under sh and loads both tables in one go" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-run"
+    edge_run_stub "$bin"
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" sh "$bin/mgmt-path.sh"
+    [ "$status" -eq 0 ]
+    run cat "$bin/log"
+    [[ "${lines[0]}" == "ip link set enp87s0 up" ]]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
+    [ "$(grep -c '^nft -f -$' "$bin/log")" -eq 1 ]
+    [[ "$output" == *"delete table ip tuist_mgmt_path"* ]]
+    [[ "$output" == *"delete table netdev tuist_rack_dhcp"* ]]
+}
+
+@test "the rendered edge path refuses a port that carries the node's default route" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-uplink"
+    edge_run_stub "$bin"
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0 sh "$bin/mgmt-path.sh"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"cannot reach tuist@ber1-edge"* ]]
+    [[ "$output" == *"enp87s0 carries this node's default route"* ]]
+    [ ! -s "$bin/log" ]
+    # a route on a VLAN of the port is not the port itself
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0.10 sh "$bin/mgmt-path.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "the rendered edge path will not run with forwarding off" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-forward"
+    edge_run_stub "$bin"
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_FORWARD=0 sh "$bin/mgmt-path.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ip_forward is off"* ]]
+    [ ! -s "$bin/log" ]
+}
+
+@test "a site whose edge node names no switch port renders no edge files" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    jq 'del(.management.edge.interface)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/noport.json"
+    run fleet_edge_dir "$BATS_TEST_TMPDIR/noport.json"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    run fleet_edge_dir "$SITE_FILE"
+    [[ "$output" == */helm/rack-edge/sites/ber1 ]]
+}
+
+@test "an edge port name that could smuggle a command is refused at render" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    jq '.management.edge.interface = "enp87s0;true"' "$SITE_FILE" > "$BATS_TEST_TMPDIR/smuggle.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/smuggle.json"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"is not an interface name"* ]]
+    run fleet_edge_dhcp "$BATS_TEST_TMPDIR/smuggle.json"
+    [ "$status" -ne 0 ]
+}
+
+@test "render --check notices an edge file that no longer matches the site" {
+    chart="$BATS_TEST_TMPDIR/chart"
+    mkdir -p "$chart/sites"
+    cp -R "$FLEET_ROOT/../helm/rack-edge/sites/ber1" "$chart/sites/"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -eq 0 ]
+    echo "dhcp-host=aa:bb:cc:dd:ee:ff,192.168.0.99,stray,infinite" >> "$chart/sites/ber1/dnsmasq.conf"
+    run env RACK_SITE=ber1 FLEET_EDGE_CHART="$chart" "$FLEET_ROOT/fleet.sh" render --check
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"stale: "*"/sites/ber1/dnsmasq.conf"* ]]
+}
+
+# --- rack:edge-join ------------------------------------------------------------
+
+# An edge node over ssh like ber1-edge, on the tailnet, and a cluster whose
+# Cilium agent stays off rack nodes unless FAKE_CILIUM_EVERYWHERE says otherwise.
+# FAKE_DEFAULT_DEV adds a default route on another device.
+edge_join_stub() {
+    local dir="$1"
+    mkdir -p "$dir"
+    cat > "$dir/ssh" <<'STUB'
+#!/usr/bin/env bash
+while [ $# -gt 0 ]; do
+    case "$1" in -o) shift 2;; -*) shift;; *) break;; esac
+done
+shift
+echo "SSH $*" >> "$FAKE_LOG"
+case "$*" in
+    true) exit 0;;
+    "ip link show dev enp87s0") echo "3: enp87s0: <UP>";;
+    "ip route show default")
+        echo "default via 192.168.0.1 dev enp2s0f0np0 proto dhcp metric 100"
+        [ -n "$FAKE_DEFAULT_DEV" ] && echo "default via 192.168.0.1 dev $FAKE_DEFAULT_DEV proto dhcp metric 50"
+        exit 0;;
+    "command -v tailscale") echo /usr/bin/tailscale;;
+    "tailscale status --json 2>/dev/null") echo '{"BackendState":"Running"}';;
+    "tailscale ip -4") echo 100.124.227.31;;
+    *) exit 1;;
+esac
+STUB
+    cat > "$dir/kubectl" <<'STUB'
+#!/usr/bin/env bash
+echo "KUBECTL $*" >> "$FAKE_LOG"
+case "$*" in
+    *"get daemonset cilium -o json")
+        if [ -n "$FAKE_CILIUM_EVERYWHERE" ]; then echo '{"spec":{"template":{"spec":{}}}}'; else
+        echo '{"spec":{"template":{"spec":{"affinity":{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"cilium.io/no-schedule","operator":"NotIn","values":["true"]}]}]}}}}}}}'; fi;;
+    *"get daemonset hcloud-csi-node -o json") exit 1;;
+    *"get node ber1-edge -o jsonpath="*) echo True;;
+    *) exit 1;;
+esac
+STUB
+    chmod +x "$dir/ssh" "$dir/kubectl"
+    : > "$dir/log"
+}
+
+@test "edge-join needs the cluster named" {
+    run "$FLEET_ROOT/edge-join.sh"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--context names the cluster"* ]]
+}
+
+@test "edge-join refuses a switch port that carries the edge node's default route" {
+    bin="$BATS_TEST_TMPDIR/join-uplink"
+    edge_join_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0 RACK_SITE=ber1 \
+        "$FLEET_ROOT/edge-join.sh" --context staging --dry-run
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"enp87s0 carries ber1-edge's default route"* ]]
+    run grep -c '^KUBECTL' "$bin/log"
+    [ "$output" -eq 0 ]
+}
+
+@test "edge-join refuses a cluster whose Cilium agent would schedule onto the edge node" {
+    bin="$BATS_TEST_TMPDIR/join-cilium"
+    edge_join_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_CILIUM_EVERYWHERE=1 RACK_SITE=ber1 \
+        "$FLEET_ROOT/edge-join.sh" --context staging --dry-run
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Cilium agent in staging would schedule onto ber1-edge"* ]]
+    run grep -c 'kubeadm' "$bin/log"
+    [ "$output" -eq 0 ]
+}
+
+@test "edge-join leaves a node that is already Ready alone" {
+    bin="$BATS_TEST_TMPDIR/join-ready"
+    edge_join_stub "$bin"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" RACK_SITE=ber1 \
+        "$FLEET_ROOT/edge-join.sh" --context staging
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ber1-edge is already a Ready node of staging"* ]]
+    run grep -c 'bootstrap' "$bin/log"
+    [ "$output" -eq 0 ]
 }
 
 # --- the Omada controller's Open API -----------------------------------------
@@ -2639,9 +2785,9 @@ STUB
 #!/usr/bin/env bash
 if [ "$1" = "-f" ]; then echo "NFT load $(tr -s ' \n' ' ' < "$2")" >> "$FAKE_LOG"; else echo "NFT $*" >> "$FAKE_LOG"; fi
 STUB
-    # tuist-rack-dhcp.service is stopped unless FAKE_DHCP_ACTIVE says otherwise.
-    printf '#!/bin/sh\n[ -n "$FAKE_DHCP_ACTIVE" ]\n' > "$dir/systemctl"
-    chmod +x "$dir/ssh" "$dir/ip" "$dir/nft" "$dir/systemctl"
+    # Nothing listens on port 67 unless FAKE_DHCP_ACTIVE says the rack-edge pod does.
+    printf '#!/bin/sh\n[ -n "$FAKE_DHCP_ACTIVE" ] && echo "UNCONN 0 0 0.0.0.0%%enp89s0:67 0.0.0.0:*"\nexit 0\n' > "$dir/ss"
+    chmod +x "$dir/ssh" "$dir/ip" "$dir/nft" "$dir/ss"
     : > "$dir/log"
 }
 
@@ -2656,27 +2802,28 @@ STUB
     [ "$output" -ge 1 ]
 }
 
-@test "--via will not serve beside the edge node's own DHCP for the controller path" {
+@test "--via will not serve beside the rack-edge pod's DHCP for the controller path" {
     bin="$BATS_TEST_TMPDIR/via-dhcp"
     ztp_via_stub "$bin"
     run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" FAKE_DHCP_ACTIVE=1 \
         "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
     [ "$status" -ne 0 ]
-    [[ "$output" == *"already serves DHCP there (tuist-rack-dhcp.service"* ]]
+    [[ "$output" == *"already serves DHCP (the rack-edge pod"* ]]
 }
 
 @test "the edge node hands the switches behind it their site address and their controller" {
-    bin="$BATS_TEST_TMPDIR/edge-dhcp"
-    edge_stub "$bin"
-    run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp87s0 --dry-run
-    [ "$status" -eq 0 ]
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_path "$SITE_FILE"
     [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
+    # replies to a known switch go to its MAC, since the SG3452 ignores broadcast ones
+    [[ "$output" == *"udp sport 67 udp dport 68 @th,288,48 0xa82948feb4be ether daddr set a8:29:48:fe:b4:be"* ]]
+    run fleet_edge_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"interface=enp87s0"* ]]
     [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
     [[ "$output" == *"dhcp-option=tag:known,option:router,192.168.0.10"* ]]
     [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150,255.255.255.0,1h"* ]]
     [[ "$output" == *"dhcp-option=138,$(jq -r '.management.controller.address' "$SITE_FILE")"* ]]
-    # replies to a known switch go to its MAC, since the SG3452 ignores broadcast ones
-    [[ "$output" == *"udp sport 67 udp dport 68 @th,288,48 0xa82948feb4be ether daddr set a8:29:48:fe:b4:be"* ]]
     # and the ToRs, which share the management segment, are not served here
     [[ "$output" != *"dhcp-host=d4:d6:df"* ]]
 }

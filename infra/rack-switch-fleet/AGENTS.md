@@ -60,14 +60,14 @@ cluster" below for the steps and who does each.
 
 ### Group B: zero touch, on the bench, with a switch nobody depends on
 
-For a switch the controller will adopt this group is superseded: `rack:edge-path`
-now also runs `tuist-rack-dhcp.service` on the edge node's switch port, which
-gives each known switch behind the edge its site address, the edge node as
-router and the controller's address in option 138, and a factory switch then
-appears in the controller by itself (measured; see "Zero touch through the
-controller, measured" in omada-assessment.md). What follows is the Auto Install
-path for a standalone switch, and `rack:ztp` refuses to serve while that service
-runs (`sudo systemctl stop tuist-rack-dhcp` first).
+For a switch the controller will adopt this group is superseded: the rack-edge
+pod serves DHCP on the edge node's switch port, which gives each known switch
+behind the edge its site address, the edge node as router and the controller's
+address in option 138, and a factory switch then appears in the controller by
+itself (measured; see "Zero touch through the controller, measured" in
+omada-assessment.md). What follows is the Auto Install path for a standalone
+switch, and `rack:ztp` refuses to serve while that pod runs (see "Auto Install
+on the edge node").
 
 `ber1-mgmt` cabled to `ber1-edge`'s i226-LM port (`enp89s0`), which is where its
 management link goes in the real rack anyway, with nothing else on that segment.
@@ -75,7 +75,6 @@ Serving from the edge node rather than a laptop is also how it would work in a
 data center. This never touches the ToRs.
 
 ```
-mise run rack:edge-path --interface enp89s0   # gives the port the site's provisioning address
 mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --dry-run
 mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --create-credentials
 ```
@@ -83,10 +82,10 @@ mise run rack:ztp ber1-mgmt --via tuist@<ber1-edge> --interface enp89s0 --create
 `ber1-mgmt` had no 1Password item, since it was never prepped;
 `--create-credentials` makes one with a generated password, as prep-switch does.
 
-The provisioning address is `management.edge.provisioning` in the site, and
-`rack:edge-path` installs it as part of the edge node's boot-time unit. ber1-edge
-needs `dnsmasq-base` (installed 2026-09-22), and only the password read here
-asks for anything (Touch ID); sudo there is passwordless. From a laptop instead,
+The provisioning address is `management.edge.provisioning` in the site, and the
+rack-edge pod puts it on the switch port. `rack:ztp --via` needs dnsmasq on the
+edge node itself (`dnsmasq-base`), and only the password read here asks for
+anything (Touch ID); sudo there is passwordless. From a laptop instead,
 use the USB Ethernet adapter and drop `--via`:
 `sudo ifconfig en7 inet 192.168.50.1 netmask 255.255.255.0 up`, then
 `--interface en7`.
@@ -221,7 +220,7 @@ mise run rack:fleet ports [device]          # what is plugged into each port
 mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
 mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credentials]  # zero touch
-mise run rack:edge-path --interface <iface> # the switches' path to the tailnet, and DHCP naming the controller
+mise run rack:edge-join --context <ctx>     # the edge node into the rack's cluster, for the rack-edge pod
 mise run rack:omada controller|devices|inform|adopt|apply|api [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
 ```
@@ -640,15 +639,15 @@ has got.
 
 ## The rack in the staging cluster
 
-The goal: the switches, and in time the edge node, managed from the cluster the
-rack belongs to, which is staging while BER1 is at home and production once it
+The goal: the switches and the edge node managed from the cluster the rack
+belongs to, which is staging while BER1 is at home and production once it
 is in the data center. Where that stands on 2026-09-23:
 
 - **Built and exercised.** `RackSwitch` objects rendered from the site
   definition; `rack:ztp --via` serving zero-touch provisioning from `ber1-edge`,
-  run end to end on `ber1-mgmt`; `rack:edge-path` giving the switches behind the
-  edge node a path into the tailnet, installed on `ber1-edge` (ber1-mgmt carries
-  the route and is reached through the edge node by every fleet command).
+  run end to end on `ber1-mgmt`; the switches behind the edge node given a path
+  into the tailnet by `ber1-edge` (ber1-mgmt carries the route and is reached
+  through the edge node by every fleet command).
 - **Running in staging.** The controller, deployed by `omada-deployment.yml` and
   on the tailnet as `omada` at `100.84.132.92`, recorded as
   `management.controller.address`, with its site `ber1` and an Open API client
@@ -682,17 +681,90 @@ is in the data center. Where that stands on 2026-09-23:
   across a reboot, and with the controller's own lines left out it matches its
   render; see "Switches the controller has adopted".
 - **Zero touch, measured.** `ber1-mgmt` was factory reset through the controller
-  and came back by itself: `tuist-rack-dhcp.service` on `ber1-edge` gave it its
-  site address and the controller's, it appeared pending, adoption with the
-  factory login and one API pass brought it to its render. See "Zero touch
-  through the controller, measured" in the assessment.
+  and came back by itself: DHCP on `ber1-edge` (measured before it moved into
+  the rack-edge pod, with the configuration the pod runs) gave it its site
+  address and the controller's, it appeared pending, adoption with the factory
+  login and one API pass brought it to its render. See "Zero touch through the
+  controller, measured" in the assessment.
 - **The reconciler.** [`infra/rack-switch-controller`](../rack-switch-controller/AGENTS.md)
   watches `RackSwitch` objects and drives the controller: it adopts a pending
   switch whose MAC an object names, writes the management address and the
   rest of the render through the Open API, and reports status. Deployed by
   `omada-deployment.yml`. All three objects now say `managedBy: controller`.
-- **Not started.** Joining `ber1-edge` to staging as a node, which would let
-  the edge path and its DHCP run as workloads.
+- **The edge node is a node.** `ber1-edge` joined staging on 2026-09-23
+  (`rack:edge-join`), and the switches' path and their DHCP run there as the
+  rack-edge DaemonSet rather than as systemd units; see "The edge node" below.
+  A reboot of `ber1-edge` with no units left brought the path and DHCP back
+  from the pod within half a minute of boot.
+
+## The edge node
+
+The rack's edge node is a node of the rack's cluster that runs one pod: the
+rack-edge DaemonSet ([`infra/helm/rack-edge`](../helm/rack-edge)), deployed with
+the Omada controller by `omada-deployment.yml`. The pod runs what
+`rack:fleet render` writes into `infra/helm/rack-edge/sites/<site>/` from the
+site definition (`lib/edge.sh`), and `render --check` in CI fails when those
+files no longer match it:
+
+- `mgmt-path.sh`, the switches' path to the tailnet: the edge address on the
+  switch port (`management.edge.interface`) without its prefix route, the
+  provisioning address, a host route to each switch marked `behind_edge`, and
+  two nft tables. One translates every switch's management address, and the
+  provisioning range, into tailscale0 and clamps the MSS of what it forwards;
+  the other addresses DHCP replies to each known switch's MAC. It runs at pod
+  start and again every five minutes, and refuses a port that carries the
+  node's default route. What it installs stays in the kernel when the pod goes,
+  so a rollout never cuts the switches off.
+- `dnsmasq.conf`, DHCP on the switch port: each known switch behind the edge
+  gets its site address and the edge node as router, anything else the
+  provisioning range, and both get the controller's tailnet address in option
+  138. That option is what makes a factory switch zero touch.
+
+The pod uses host networking, with NET_ADMIN (and NET_RAW and
+NET_BIND_SERVICE for dnsmasq) rather than privileged. Its image
+(`edge/Dockerfile`, built by `rack-edge-image.yml`) carries only dnsmasq,
+iproute2 and nftables.
+
+A new edge node, once Ubuntu is installed and the site definition names it
+(`management.edge.ssh`, `.interface`, `.address`):
+
+```
+mise run rack:edge-join --context <kube context> --dry-run
+mise run rack:edge-join --context <kube context>
+```
+
+It installs Tailscale when it is missing and says how to join the tailnet,
+which is the one step that needs a person. It refuses until the cluster's
+Cilium agent stays off nodes labelled `cilium.io/no-schedule=true`: the edge
+node's own networks sit inside the pod CIDR (staging gave `192.168.0.0/24`,
+the house network, to a runner node), and an agent would route them into the
+tunnel and cut the node off. Then kubeadm's join, with a one-hour bootstrap
+token it deletes afterwards, the node's tailnet address as its InternalIP, the
+labels `tuist.dev/rack-edge=<site>`, `node.cluster.x-k8s.io/instance-type=rack`
+and `cilium.io/no-schedule=true`, and the taint `tuist.dev/rack-edge=<site>`,
+so only the rack-edge pod lands there (and the node exporter, which tolerates
+everything and uses host networking too). The kubelet gets a local CNI
+configuration in `10.254.254.0/24`, used by nothing, so it reports Ready.
+`--leave` deletes the node and resets kubeadm.
+
+**Reading the pod's logs.** The API server cannot reach the kubelet at a tailnet
+address, the same as for the Mac minis, so `kubectl logs` and `exec` time out
+for this node. On the node: `sudo crictl -r unix:///run/containerd/containerd.sock
+logs <container>`.
+
+### Auto Install on the edge node
+
+`rack:ztp --via` refuses to serve while anything holds port 67 on the edge
+node, which is the rack-edge pod. To serve Auto Install from there, take the
+pod off the node and put it back afterwards:
+
+```
+kubectl label node ber1-edge tuist.dev/rack-edge-
+mise run rack:ztp ber1-mgmt --via tuist@ber1-edge --interface enp87s0
+kubectl label node ber1-edge tuist.dev/rack-edge=ber1
+```
+
+The provisioning address stays on the port while the pod is away.
 
 ## Apply is a confirmed commit
 
