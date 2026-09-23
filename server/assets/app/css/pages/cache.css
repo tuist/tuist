@@ -95,10 +95,53 @@
   & > [data-part="oidc-scope-rules-card"] {
     gap: var(--noora-spacing-7);
 
-    & .noora-modal [data-part="body"] {
+    & [data-part="alert-form"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-7);
+      padding-bottom: var(--noora-spacing-9);
+
+      & [data-part="schedule-row"] {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+
+        & [data-part="schedule-label"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & .noora-text-input {
+          width: 250px;
+        }
+      }
+    }
+
+    & .noora-modal {
+      & [data-part="content"] {
+        max-width: 500px;
+      }
+
+      & [data-part="content"] > [data-part="body"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-8);
+        min-width: 420px;
+      }
+
+      & [data-part="alert-description"] {
+        padding: var(--noora-spacing-9) var(--noora-spacing-0);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & #account-oidc-scope-rules [data-part="cell"][data-type="button"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-end;
     }
   }
 

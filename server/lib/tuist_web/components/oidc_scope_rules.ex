@@ -44,13 +44,6 @@ defmodule TuistWeb.Components.OIDCScopeRules do
               <.modal
                 id={"#{@id}-#{slug(scope)}-modal"}
                 title={scope_label(scope)}
-                description={
-                  dgettext(
-                    "dashboard",
-                    "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches. Other runs keep read access.",
-                    scope: scope
-                  )
-                }
                 header_size="large"
                 on_dismiss={JS.push("close_oidc_rule_modal", value: %{scope: scope})}
               >
@@ -60,45 +53,53 @@ defmodule TuistWeb.Components.OIDCScopeRules do
                   </.button>
                 </:trigger>
                 <.line_divider />
+                <p data-part="alert-description">
+                  {dgettext(
+                    "dashboard",
+                    "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches; other runs keep read access. Separate patterns with commas. * matches within a path segment and ** across segments.",
+                    scope: scope
+                  )}
+                </p>
                 <input type="hidden" name="scope" value={scope} />
-                <.text_input
-                  id={"#{@id}-#{slug(scope)}-refs"}
-                  type="basic"
-                  name="refs"
-                  value={patterns_value(@rules, scope, :refs)}
-                  label={dgettext("dashboard", "Branches and tags")}
-                  placeholder="refs/heads/main, refs/tags/v*"
-                  hint={dgettext("dashboard", "Matched against the ref claim.")}
-                  error={Map.get(@errors, scope)}
-                />
-                <.text_input
-                  id={"#{@id}-#{slug(scope)}-job-workflow-refs"}
-                  type="basic"
-                  name="job_workflow_refs"
-                  value={patterns_value(@rules, scope, :job_workflow_refs)}
-                  label={dgettext("dashboard", "Workflows")}
-                  placeholder="org/repo/.github/workflows/release.yml@refs/heads/main"
-                  hint={
-                    dgettext(
-                      "dashboard",
-                      "Matched against the job_workflow_ref claim. Use ** to match any ref."
-                    )
-                  }
-                />
-                <.text_input
-                  id={"#{@id}-#{slug(scope)}-environments"}
-                  type="basic"
-                  name="environments"
-                  value={patterns_value(@rules, scope, :environments)}
-                  label={dgettext("dashboard", "Environments")}
-                  placeholder="release"
-                  hint={
-                    dgettext(
-                      "dashboard",
-                      "Matched against the environment claim. Separate patterns with commas; * matches within a path segment."
-                    )
-                  }
-                />
+                <div data-part="alert-form">
+                  <div data-part="schedule-row">
+                    <label data-part="schedule-label" for={"#{@id}-#{slug(scope)}-refs"}>
+                      {dgettext("dashboard", "Branches and tags")}
+                    </label>
+                    <.text_input
+                      id={"#{@id}-#{slug(scope)}-refs"}
+                      type="basic"
+                      name="refs"
+                      value={patterns_value(@rules, scope, :refs)}
+                      placeholder="refs/heads/main"
+                      error={Map.get(@errors, scope)}
+                    />
+                  </div>
+                  <div data-part="schedule-row">
+                    <label data-part="schedule-label" for={"#{@id}-#{slug(scope)}-job-workflow-refs"}>
+                      {dgettext("dashboard", "Workflows")}
+                    </label>
+                    <.text_input
+                      id={"#{@id}-#{slug(scope)}-job-workflow-refs"}
+                      type="basic"
+                      name="job_workflow_refs"
+                      value={patterns_value(@rules, scope, :job_workflow_refs)}
+                      placeholder="org/repo/.github/workflows/release.yml@**"
+                    />
+                  </div>
+                  <div data-part="schedule-row">
+                    <label data-part="schedule-label" for={"#{@id}-#{slug(scope)}-environments"}>
+                      {dgettext("dashboard", "Environments")}
+                    </label>
+                    <.text_input
+                      id={"#{@id}-#{slug(scope)}-environments"}
+                      type="basic"
+                      name="environments"
+                      value={patterns_value(@rules, scope, :environments)}
+                      placeholder="release"
+                    />
+                  </div>
+                </div>
                 <.line_divider />
                 <:footer>
                   <.modal_footer>
