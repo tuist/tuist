@@ -99,6 +99,25 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
              Identity.buildkite_identity(job, put_in(payload, ["env", "BUILDKITE_SOURCE"], "schedule"))
   end
 
+  test "Buildkite resolves the captured identity after the scheduling payload disappears" do
+    {assigned, payload} = buildkite()
+    {:ok, identity} = Identity.buildkite_identity(assigned, payload)
+    stored = Map.new(identity, fn {key, value} -> {Atom.to_string(key), value} end)
+    assigned = %{assigned | account_id: 1, cache_volume_identity: stored}
+    stub(Buildkite, :get_job, fn 42 -> assigned end)
+    stub(Buildkite, :get_installation, fn 1 -> %Buildkite.Installation{enabled: true} end)
+
+    assert {:ok, ^identity} = Identity.resolve(%{provider: "buildkite", account_id: 1, workflow_job_id: 42})
+    assert {:error, :unavailable} = Identity.resolve(%{provider: "buildkite", account_id: 2, workflow_job_id: 42})
+
+    stub(Buildkite, :get_job, fn 42 -> %{assigned | cache_volume_identity: nil} end)
+    assert {:error, :unavailable} = Identity.resolve(%{provider: "buildkite", account_id: 1, workflow_job_id: 42})
+
+    stub(Buildkite, :get_job, fn 42 -> assigned end)
+    stub(Buildkite, :get_installation, fn 1 -> %Buildkite.Installation{enabled: false} end)
+    assert {:error, :unavailable} = Identity.resolve(%{provider: "buildkite", account_id: 1, workflow_job_id: 42})
+  end
+
   defp gitlab do
     job = %GitLab.Job{job_id: 42, url: "https://gitlab.com", pipeline_id: 5}
     payload = %{"id" => 42, "job_info" => %{"project_id" => 123}, "git_info" => %{"sha" => "abc"}}
@@ -168,20 +187,14 @@ defmodule Tuist.Runners.CacheVolumes.IdentityTest do
     assert {:error, :unavailable} = Identity.resolve(job)
   end
 
-  test "Buildkite resolver fetches the account's exact assigned job from Stacks" do
-    {assigned, payload} = buildkite()
-    assigned = %{assigned | account_id: 7, queue_key: "linux"}
-    installation = %Buildkite.Installation{enabled: true}
-    expect(Buildkite, :get_job, fn 10 -> assigned end)
-    expect(Buildkite, :get_installation, fn 7 -> installation end)
-    expect(Buildkite, :stack_key_for, fn ^installation, "linux" -> "stack" end)
+  test "Buildkite rejects incomplete captured identities" do
+    {assigned, _} = buildkite()
+    stub(Buildkite, :get_installation, fn 7 -> %Buildkite.Installation{enabled: true} end)
 
-    expect(Buildkite.Client, :get_job, fn ^installation, "stack", id ->
-      assert id == assigned.job_uuid
-      {:ok, payload}
-    end)
-
-    assert {:ok, %{trusted: true}} = Identity.resolve(%{provider: "buildkite", account_id: 7, workflow_job_id: 10})
+    for identity <- [nil, %{}, %{"trusted" => true}, %{"provider" => "github"}] do
+      expect(Buildkite, :get_job, fn 10 -> %{assigned | account_id: 7, cache_volume_identity: identity} end)
+      assert {:error, :unavailable} = Identity.resolve(%{provider: "buildkite", account_id: 7, workflow_job_id: 10})
+    end
   end
 
   test "GitLab save permission requires authoritative default branch and non-MR source" do

@@ -3,7 +3,6 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
 
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Runners.Buildkite
-  alias Tuist.Runners.Buildkite.Client, as: BuildkiteClient
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.GitLab.Cache, as: GitLabCache
   alias Tuist.Runners.GitLab.Client, as: GitLabClient
@@ -26,15 +25,13 @@ defmodule Tuist.Runners.CacheVolumes.Identity do
   end
 
   def resolve(%{provider: "buildkite", account_id: account_id} = job) do
-    with %Buildkite.Job{account_id: ^account_id} = assigned <- Buildkite.get_job(job.workflow_job_id),
-         %Buildkite.Installation{enabled: true} = installation <- Buildkite.get_installation(account_id),
-         {:ok, payload} <-
-           BuildkiteClient.get_job(
-             installation,
-             Buildkite.stack_key_for(installation, assigned.queue_key),
-             assigned.job_uuid
-           ) do
-      buildkite_identity(assigned, payload)
+    with %Buildkite.Job{account_id: ^account_id, cache_volume_identity: identity} <-
+           Buildkite.get_job(job.workflow_job_id),
+         %Buildkite.Installation{enabled: true} <- Buildkite.get_installation(account_id),
+         %{"provider" => "buildkite", "provider_instance" => instance, "scope_id" => scope, "trusted" => trusted} <-
+           identity,
+         true <- is_binary(instance) and is_binary(scope) and is_boolean(trusted) do
+      {:ok, %{provider: "buildkite", provider_instance: instance, scope_id: scope, repository_id: nil, trusted: trusted}}
     else
       _ -> {:error, :unavailable}
     end

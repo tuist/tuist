@@ -13,6 +13,11 @@ these schemas persist volume identities and per-job uses.
   PRs can read private clones; publication requires a successful eligible job
   and local fencing. Preserve legacy GitHub volume UUIDs when changing identity.
   See `infra/runners-controller/cache-volume-integrations.md` for provider policies.
+- Capture Buildkite's normalized cache identity before returning its acquisition
+  token. The Stacks job payload returns 404 once the agent has acquired the job.
+  Persist only scope and save permission on the account-owned job mapping, never
+  the provider environment, commands or credentials. Failed refresh clears the
+  snapshot; missing snapshots and disabled installations decline attachment.
 - GitLab's verified job response supplies trigger type in `pipeline.source`.
   Fall back to the top-level `source` only when that nested field is
   absent. Missing, unknown or denied nested sources never grant save permission.

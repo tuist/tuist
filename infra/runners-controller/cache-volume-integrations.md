@@ -82,7 +82,7 @@ permission from the mount request or job environment.
 
 - **GitHub:** retain the existing installation-authenticated run/repository
   lookup, including run attempt and source repository checks.
-- **Buildkite:** retrieve the account-owned job UUID through the existing
+- **Buildkite:** before returning the job acquisition token, retrieve the account-owned job UUID through the existing
   [Stacks job API](https://buildkite.com/docs/apis/agent-api/stacks). Check job,
   build, build number, organization slug and pipeline slug against the assignment.
   Scope by the server-returned organization UUID, pipeline UUID and SHA-256 of
@@ -91,7 +91,11 @@ permission from the mount request or job environment.
   supply branch, default branch, PR, tag and source. Never inspect the plugin's
   environment for this decision. Manual/API builds remain read-only because a
   manually supplied branch is not guaranteed to contain the requested commit.
-  No additional API token is needed.
+  Persist only the normalized scope and save decision on the account-owned job
+  mapping: Stacks returns 404 for the full payload once its agent has acquired
+  the job. Mounts use that snapshot with the live executed-job binding and an
+  enabled installation. Failed refreshes clear prior authority. No additional
+  API token is needed.
 - **GitLab:** use the encrypted acquired job token for
   [GET /job](https://docs.gitlab.com/api/jobs/#retrieve-a-job-by-job-token), checking
   the assigned job ID, project ID, running status and commit SHA. Scope by the
