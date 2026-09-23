@@ -40,6 +40,7 @@ users: []
 type scriptRun struct {
 	host   string
 	script string
+	pinned string
 }
 
 type fakeRunner struct {
@@ -47,8 +48,8 @@ type fakeRunner struct {
 	results []error
 }
 
-func (f *fakeRunner) run(_ context.Context, _, host string, _ []byte, script string, _ time.Duration, _ *bootstrap.HostKeyState) (string, error) {
-	f.runs = append(f.runs, scriptRun{host: host, script: script})
+func (f *fakeRunner) run(_ context.Context, _, host string, _ []byte, script string, _ time.Duration, hk *bootstrap.HostKeyState) (string, error) {
+	f.runs = append(f.runs, scriptRun{host: host, script: script, pinned: hk.Observed()})
 	var err error
 	if len(f.results) > 0 {
 		err = f.results[0]
@@ -313,21 +314,41 @@ func TestRackLinuxMachinePinsAReinstalledHostAfresh(t *testing.T) {
 	objs := append(rackClusterObjects(true), host, machine)
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 	ctx := context.Background()
-	if err := h.r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey("ber1-edge"), "SHA256:old"); err != nil {
+	if err := h.r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey("ber1-edge", "dev-1"), "SHA256:old"); err != nil {
 		t.Fatal(err)
 	}
 
 	m := h.reconcile(t)
 
-	creds, err := h.r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey("ber1-edge"))
-	if err != nil {
-		t.Fatal(err)
+	if len(h.runner.runs) != 1 || h.runner.runs[0].pinned != "" {
+		t.Fatalf("runs %+v; the reinstalled host must be trusted on first use", h.runner.runs)
 	}
-	if creds != nil && creds.HostFingerprint == "SHA256:old" {
-		t.Fatal("the reinstalled host is still pinned to its old host key")
+	if creds, err := h.r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey("ber1-edge", "dev-1")); err != nil || creds != nil {
+		t.Fatalf("the previous install's pin is still there: %+v %v", creds, err)
 	}
 	if m.Status.TailnetDeviceID != "dev-2" {
 		t.Fatalf("device %q", m.Status.TailnetDeviceID)
+	}
+}
+
+func TestRackLinuxMachineKeepsAPinPerInstall(t *testing.T) {
+	host := claimedEdgeHost("dev-2")
+	host.Status.ClaimedBy = "edge-0"
+	machine := edgeMachine()
+	machine.Status.RackLinuxHost = "ber1-edge"
+	objs := append(rackClusterObjects(true), host, machine)
+	h := newRackMachineHarness(t, "v1.34.8", objs...)
+	ctx := context.Background()
+	for device, pin := range map[string]string{"dev-1": "SHA256:first-install", "dev-2": "SHA256:second-install"} {
+		if err := h.r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey("ber1-edge", device), pin); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	h.reconcile(t)
+
+	if len(h.runner.runs) != 1 || h.runner.runs[0].pinned != "SHA256:second-install" {
+		t.Fatalf("runs %+v; want the current install's pin", h.runner.runs)
 	}
 }
 
