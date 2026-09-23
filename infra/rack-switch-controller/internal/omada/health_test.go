@@ -53,21 +53,30 @@ func TestSwitchHealthReportsAModelWithoutTheSensor(t *testing.T) {
 func TestSwitchOpticsListsEachTransceiver(t *testing.T) {
 	fake := omadatest.New()
 	defer fake.Close()
-	fake.AddSwitch(omadatest.Switch{MAC: healthMAC, State: omadatest.Connected, Optics: map[int]float64{25: 38.5, 26: 41.25}})
+	fake.AddSwitch(omadatest.Switch{MAC: healthMAC, State: omadatest.Connected, Optics: []omada.Optic{
+		{Port: 25, Temperature: ptr(38.5), DataReady: ptr(1)},
+		{Port: 26, Temperature: ptr(0.0), DataReady: ptr(0)},
+	}})
 	c := newClient(t, fake)
 
 	optics, err := c.SwitchOptics(context.Background(), omadatest.SiteID, healthMAC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []omada.Optic{{Port: 25, Temperature: ptr(38.5)}, {Port: 26, Temperature: ptr(41.25)}}
-	if len(optics) != len(want) {
+	if len(optics) != 2 {
 		t.Fatalf("optics = %+v", optics)
 	}
-	for i := range want {
-		if optics[i].Port != want[i].Port || optics[i].Temperature == nil || *optics[i].Temperature != *want[i].Temperature {
-			t.Fatalf("optics[%d] = %+v, want port %d at %v", i, optics[i], want[i].Port, *want[i].Temperature)
-		}
+	if o := optics[0]; o.Port != 25 || o.Temperature == nil || *o.Temperature != 38.5 || !o.Valid() {
+		t.Fatalf("optics[0] = %+v, want port 25 at 38.5 and valid", o)
+	}
+	if o := optics[1]; o.Port != 26 || o.Valid() {
+		t.Fatalf("optics[1] = %+v, want port 26 and not valid", o)
+	}
+}
+
+func TestOpticWithoutDataReadyIsNotValid(t *testing.T) {
+	if (omada.Optic{Port: 1, Temperature: ptr(30.0)}).Valid() {
+		t.Fatal("a reading the controller did not mark valid was treated as valid")
 	}
 }
 

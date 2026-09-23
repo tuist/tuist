@@ -28,10 +28,18 @@ func (c *Client) SwitchHealth(ctx context.Context, siteID, mac string, start, en
 }
 
 // Optic is the digital diagnostics of the transceiver in one port. The
-// controller documents the temperature in Celsius.
+// controller documents the temperature in Celsius, and dataReady as 1 when the
+// readings are valid and 0 when they are not.
 type Optic struct {
 	Port        int      `json:"port"`
 	Temperature *float64 `json:"temperature"`
+	DataReady   *int     `json:"dataReady"`
+}
+
+// Valid reports whether the controller marked the readings valid. An invalid
+// entry still carries a temperature, typically 0, which is not a reading.
+func (o Optic) Valid() bool {
+	return o.DataReady != nil && *o.DataReady == 1 && o.Temperature != nil
 }
 
 // SwitchOptics lists the digital diagnostics of the switch's transceivers.

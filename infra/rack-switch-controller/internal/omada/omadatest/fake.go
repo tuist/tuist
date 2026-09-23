@@ -71,8 +71,8 @@ type Switch struct {
 	// The health detail's average temperature; nil on a model without the
 	// sensor, which the controller reports as unsupported.
 	Temperature *int
-	// Transceiver temperature per port, as ddm/info reports it.
-	Optics map[int]float64
+	// Transceiver diagnostics, as ddm/info reports them.
+	Optics []omada.Optic
 
 	queue []State
 }
@@ -427,16 +427,7 @@ func (s *Server) route(method, path string, body map[string]any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		ports := make([]int, 0, len(sw.Optics))
-		for port := range sw.Optics {
-			ports = append(ports, port)
-		}
-		sort.Ints(ports)
-		optics := make([]map[string]any, 0, len(ports))
-		for _, port := range ports {
-			optics = append(optics, map[string]any{"port": port, "temperature": sw.Optics[port]})
-		}
-		return optics, nil
+		return append([]omada.Optic{}, sw.Optics...), nil
 	}
 	if m := routeGeneral.FindStringSubmatch(path); m != nil {
 		sw, err := s.adopted(m[1], m[2])

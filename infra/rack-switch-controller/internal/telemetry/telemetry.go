@@ -222,7 +222,7 @@ func (p *Poller) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(temperatureDesc, prometheus.GaugeValue, float64(*r.temperature), r.name)
 		}
 		for _, o := range r.optics {
-			if o.Temperature != nil {
+			if o.Valid() {
 				ch <- prometheus.MustNewConstMetric(opticDesc, prometheus.GaugeValue, *o.Temperature, r.name, strconv.Itoa(o.Port))
 			}
 		}

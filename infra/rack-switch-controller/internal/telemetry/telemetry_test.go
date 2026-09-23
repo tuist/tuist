@@ -69,7 +69,7 @@ func TestPollExportsAConnectedSwitch(t *testing.T) {
 	o := omadatest.New()
 	defer o.Close()
 	temperature := 41
-	o.AddSwitch(omadatest.Switch{MAC: mgmtMAC, State: omadatest.Connected, CPU: 7, Memory: 63, Temperature: &temperature, Optics: map[int]float64{49: 38.5}})
+	o.AddSwitch(omadatest.Switch{MAC: mgmtMAC, State: omadatest.Connected, CPU: 7, Memory: 63, Temperature: &temperature, Optics: []omada.Optic{{Port: 49, Temperature: ptr(38.5), DataReady: ptr(1)}}})
 	p, _ := newPoller(t, o, rackSwitch("ber1-mgmt", mgmtMAC, v1alpha1.ManagedByController))
 
 	p.poll(context.Background())
@@ -95,6 +95,24 @@ func TestPollExportsAConnectedSwitch(t *testing.T) {
 		t.Fatalf("health window = %q, want %q", healthQuery, want)
 	}
 }
+
+func TestPollExportsOnlyOpticReadingsTheControllerMarksValid(t *testing.T) {
+	o := omadatest.New()
+	defer o.Close()
+	o.AddSwitch(omadatest.Switch{MAC: mgmtMAC, State: omadatest.Connected, Optics: []omada.Optic{
+		{Port: 49, Temperature: ptr(38.5), DataReady: ptr(1)},
+		{Port: 50, Temperature: ptr(0.0), DataReady: ptr(0)},
+		{Port: 51, Temperature: ptr(0.0)},
+	}})
+	p, _ := newPoller(t, o, rackSwitch("ber1-mgmt", mgmtMAC, v1alpha1.ManagedByController))
+
+	p.poll(context.Background())
+
+	expect(t, p, helpOptic+`rack_switch_optic_temperature_celsius{port="49",switch="ber1-mgmt"} 38.5
+`, "rack_switch_optic_temperature_celsius")
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestPollExportsNoTemperatureForAModelWithoutTheSensor(t *testing.T) {
 	o := omadatest.New()
