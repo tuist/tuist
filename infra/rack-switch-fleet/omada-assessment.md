@@ -222,7 +222,7 @@ read back over SSH, then undone.
 
 A factory reset of `ber1-mgmt` on 2026-09-23 (`POST devices/{mac}/forget`, which
 resets a switch and reboots it), with DHCP served on `ber1-edge` by a systemd
-unit that the rack-edge pod has since replaced, with the same configuration:
+unit that the rack-edge pod has since replaced:
 
 1. The factory switch asked for DHCP and for option 138 among its options, got
    its site address from its reservation, with the edge node as router and the
@@ -236,6 +236,17 @@ unit that the rack-edge pod has since replaced, with the same configuration:
 4. After one pass of the Open API (hostname, spanning-tree mode), the only
    difference from the render was the management address being DHCP; writing
    it static with the edge node as gateway left the switch matching its render.
+
+Repeated the same day with the rack-edge pod serving DHCP and the reconciler
+doing the adoption and the writes (its `apply` command, since it deploys only
+once merged). Reset at 13:05:28 UTC; the pod acknowledged the switch's request
+at 13:07:43 with its reservation, the edge node as router and option 138 as
+`64:54:84:5c` (100.84.132.92), which the switch had asked for; pending at
+13:08:12; `apply` adopted it and wrote its render by 13:14:27; the controller
+reported it connected at 13:15:29, and a minute later SSH found it matching its
+render. A diff taken in between, while the controller was still pushing its
+writes, showed per-port spanning tree and the static management address
+missing, so read a switch only once the controller has settled.
 
 So a switch behind the edge node is zero touch: plugged in, it gets its address
 and its controller, and adoption plus one write pass bring it to its render. The

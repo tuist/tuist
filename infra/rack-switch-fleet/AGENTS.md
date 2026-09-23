@@ -681,11 +681,12 @@ is in the data center. Where that stands on 2026-09-23:
   across a reboot, and with the controller's own lines left out it matches its
   render; see "Switches the controller has adopted".
 - **Zero touch, measured.** `ber1-mgmt` was factory reset through the controller
-  and came back by itself: DHCP on `ber1-edge` (measured before it moved into
-  the rack-edge pod, with the configuration the pod runs) gave it its site
-  address and the controller's, it appeared pending, adoption with the factory
-  login and one API pass brought it to its render. See "Zero touch through the
-  controller, measured" in the assessment.
+  and came back by itself: DHCP on `ber1-edge` gave it its site address and
+  the controller's, it appeared pending, adoption with the factory login and
+  one API pass brought it to its render. Repeated with the rack-edge pod
+  serving DHCP and the reconciler's `apply` command adopting: pending under
+  three minutes after the reset, matching its render ten minutes after it. See
+  "Zero touch through the controller, measured" in the assessment.
 - **The reconciler.** [`infra/rack-switch-controller`](../rack-switch-controller/AGENTS.md)
   watches `RackSwitch` objects and drives the controller: it adopts a pending
   switch whose MAC an object names, writes the management address and the
