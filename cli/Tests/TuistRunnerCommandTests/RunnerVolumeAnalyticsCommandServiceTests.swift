@@ -1,12 +1,13 @@
 import Foundation
 import Mockable
 import Testing
+import TuistEnvironmentTesting
 import TuistNooraTesting
 import TuistServer
 @testable import TuistRunnerCommand
 
 struct RunnerVolumeAnalyticsCommandServiceTests {
-    @Test(.withMockedNoora, arguments: [false, true])
+    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [false, true])
     func forwardsResolvedContextAndRendersResponse(json: Bool) async throws {
         let service = MockGetRunnerVolumeAnalyticsServicing()
         let response: RunnerVolumeAnalytics = try RunnerVolumeTestData.decode("""
@@ -17,19 +18,20 @@ struct RunnerVolumeAnalyticsCommandServiceTests {
         """)
         given(service).getRunnerVolumeAnalytics(
             accountHandle: .value("resolved-account"),
-            serverURL: .value(StubRunnerVolumeContextService.serverURL),
+            serverURL: .value(RunnerVolumeTestData.serverURL),
             volumeID: .value(RunnerVolumeTestData.id),
             start: .value(nil),
             end: .value(nil)
         ).willReturn(response)
         let subject = RunnerVolumeAnalyticsCommandService(
-            contextService: StubRunnerVolumeContextService(),
+            configLoader: try await RunnerVolumeTestData.configLoader(),
+            serverEnvironmentService: RunnerVolumeTestData.serverEnvironmentService(),
             getRunnerVolumeAnalyticsService: service
         )
 
         try await subject.run(
             volumeID: RunnerVolumeTestData.id,
-            account: "explicit-account",
+            account: nil,
             path: "/project",
             start: nil,
             end: nil,
@@ -38,7 +40,7 @@ struct RunnerVolumeAnalyticsCommandServiceTests {
 
         verify(service).getRunnerVolumeAnalytics(
             accountHandle: .value("resolved-account"),
-            serverURL: .value(StubRunnerVolumeContextService.serverURL),
+            serverURL: .value(RunnerVolumeTestData.serverURL),
             volumeID: .value(RunnerVolumeTestData.id),
             start: .value(nil),
             end: .value(nil)

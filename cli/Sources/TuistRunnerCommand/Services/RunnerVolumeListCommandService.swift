@@ -1,5 +1,8 @@
 import Foundation
 import Noora
+import TuistConfigLoader
+import TuistEnvironment
+import TuistHTTP
 import TuistServer
 
 protocol RunnerVolumeListCommandServicing {
@@ -16,15 +19,29 @@ protocol RunnerVolumeListCommandServicing {
     ) async throws
 }
 
+enum RunnerVolumeListCommandServiceError: LocalizedError, Equatable {
+    case missingAccount
+
+    var errorDescription: String? {
+        "Pass --account or configure a project full handle."
+    }
+}
+
 struct RunnerVolumeListCommandService: RunnerVolumeListCommandServicing {
-    private let contextService: RunnerVolumeContextServicing
+    private let configLoader: ConfigLoading
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let fullHandleService: FullHandleServicing
     private let listRunnerVolumesService: ListRunnerVolumesServicing
 
     init(
-        contextService: RunnerVolumeContextServicing = RunnerVolumeContextService(),
+        configLoader: ConfigLoading = ConfigLoader(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        fullHandleService: FullHandleServicing = FullHandleService(),
         listRunnerVolumesService: ListRunnerVolumesServicing = ListRunnerVolumesService()
     ) {
-        self.contextService = contextService
+        self.configLoader = configLoader
+        self.serverEnvironmentService = serverEnvironmentService
+        self.fullHandleService = fullHandleService
         self.listRunnerVolumesService = listRunnerVolumesService
     }
 
@@ -39,10 +56,17 @@ struct RunnerVolumeListCommandService: RunnerVolumeListCommandServicing {
         pageSize: Int,
         json: Bool
     ) async throws {
-        let context = try await contextService.resolve(account: account, path: path)
+        let directory = try await Environment.current.pathRelativeToWorkingDirectory(path)
+        let config = try await configLoader.loadConfig(path: directory)
+        guard let accountHandle = try account ?? config.fullHandle.map({ try fullHandleService.parse($0).accountHandle }),
+              !accountHandle.isEmpty
+        else {
+            throw RunnerVolumeListCommandServiceError.missingAccount
+        }
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let response = try await listRunnerVolumesService.listRunnerVolumes(
-            accountHandle: context.accountHandle,
-            serverURL: context.serverURL,
+            accountHandle: accountHandle,
+            serverURL: serverURL,
             name: name,
             repository: repository,
             sortBy: sortBy,
@@ -66,8 +90,8 @@ struct RunnerVolumeListCommandService: RunnerVolumeListCommandServicing {
             loadPage: { pageIndex in
                 if pageIndex == page - 1 { return response.volumes.map(RunnerVolumeOutput.volumeRow) }
                 let nextPage = try await listRunnerVolumesService.listRunnerVolumes(
-                    accountHandle: context.accountHandle,
-                    serverURL: context.serverURL,
+                    accountHandle: accountHandle,
+                    serverURL: serverURL,
                     name: name,
                     repository: repository,
                     sortBy: sortBy,

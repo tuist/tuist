@@ -1,19 +1,28 @@
 import Foundation
+import Mockable
 import Testing
+import TuistConfig
+import TuistConfigLoader
+import TuistEnvironment
 import TuistServer
 @testable import TuistRunnerCommand
 
-struct StubRunnerVolumeContextService: RunnerVolumeContextServicing {
+enum RunnerVolumeTestData {
     static let serverURL = URL(string: "https://runner-volume-tests.tuist.dev")!
 
-    func resolve(account: String?, path: String?) async throws -> RunnerVolumeContext {
-        #expect(account == "explicit-account")
-        #expect(path == "/project")
-        return RunnerVolumeContext(accountHandle: "resolved-account", serverURL: Self.serverURL)
+    static func configLoader(fullHandle: String? = "resolved-account/project") async throws -> MockConfigLoading {
+        let loader = MockConfigLoading()
+        let directory = try await Environment.current.pathRelativeToWorkingDirectory("/project")
+        given(loader).loadConfig(path: .value(directory)).willReturn(.test(fullHandle: fullHandle))
+        return loader
     }
-}
 
-enum RunnerVolumeTestData {
+    static func serverEnvironmentService() -> MockServerEnvironmentServicing {
+        let service = MockServerEnvironmentServicing()
+        given(service).url(configServerURL: .value(Tuist.test().url)).willReturn(serverURL)
+        return service
+    }
+
     static let id = "a57a427c-1ffc-476f-9282-558ff3f61585"
     static let volume = """
     {"id":"a57a427c-1ffc-476f-9282-558ff3f61585","key":"gradle","repository":"demo/android-app",

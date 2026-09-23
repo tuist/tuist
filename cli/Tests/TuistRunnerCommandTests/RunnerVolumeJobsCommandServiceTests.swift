@@ -1,12 +1,13 @@
 import Foundation
 import Mockable
 import Testing
+import TuistEnvironmentTesting
 import TuistNooraTesting
 import TuistServer
 @testable import TuistRunnerCommand
 
 struct RunnerVolumeJobsCommandServiceTests {
-    @Test(.withMockedNoora, arguments: [false, true])
+    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [false, true])
     func forwardsResolvedContextAndRendersResponse(json: Bool) async throws {
         let service = MockListRunnerVolumeJobsServicing()
         let response: RunnerVolumeJobsPage = try RunnerVolumeTestData
@@ -15,19 +16,20 @@ struct RunnerVolumeJobsCommandServiceTests {
             )
         given(service).listRunnerVolumeJobs(
             accountHandle: .value("resolved-account"),
-            serverURL: .value(StubRunnerVolumeContextService.serverURL),
+            serverURL: .value(RunnerVolumeTestData.serverURL),
             volumeID: .value(RunnerVolumeTestData.id),
             page: .value(2),
             pageSize: .value(5)
         ).willReturn(response)
         let subject = RunnerVolumeJobsCommandService(
-            contextService: StubRunnerVolumeContextService(),
+            configLoader: try await RunnerVolumeTestData.configLoader(),
+            serverEnvironmentService: RunnerVolumeTestData.serverEnvironmentService(),
             listRunnerVolumeJobsService: service
         )
 
         try await subject.run(
             volumeID: RunnerVolumeTestData.id,
-            account: "explicit-account",
+            account: nil,
             path: "/project",
             page: 2,
             pageSize: 5,
@@ -36,7 +38,7 @@ struct RunnerVolumeJobsCommandServiceTests {
 
         verify(service).listRunnerVolumeJobs(
             accountHandle: .value("resolved-account"),
-            serverURL: .value(StubRunnerVolumeContextService.serverURL),
+            serverURL: .value(RunnerVolumeTestData.serverURL),
             volumeID: .value(RunnerVolumeTestData.id),
             page: .value(2),
             pageSize: .value(5)

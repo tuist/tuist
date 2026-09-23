@@ -6,8 +6,10 @@
   service. Inject API service protocols from TuistServer; keep authenticated client
   construction, OpenAPI requests and HTTP response mapping in TuistServer services.
   Change server schemas and regenerate OpenAPI; never edit generated files.
-- Resolve account and server configuration through the injectable volume context
-  service. Pass plain argument values into services, not ParsableArguments wrappers.
+- Use the existing ConfigLoading, FullHandleServicing and ServerEnvironmentServicing
+  dependencies directly in command services. ConfigLoader loads the full handle;
+  FullHandleService parses it. An explicit account bypasses inferred-account parsing.
+  Pass plain argument values into services, not ParsableArguments wrappers.
 - Keep list, show, jobs, analytics and clear aligned with the public API
   and MCP contract in `server/lib/tuist/runners/cache_volumes/query.ex`.
 - `--account` overrides the project full-handle account; `--path` selects config.
