@@ -60,6 +60,15 @@ cluster" below for the steps and who does each.
 
 ### Group B: zero touch, on the bench, with a switch nobody depends on
 
+For a switch the controller will adopt this group is superseded: `rack:edge-path`
+now also runs `tuist-rack-dhcp.service` on the edge node's switch port, which
+gives each known switch behind the edge its site address, the edge node as
+router and the controller's address in option 138, and a factory switch then
+appears in the controller by itself (measured; see "Zero touch through the
+controller, measured" in omada-assessment.md). What follows is the Auto Install
+path for a standalone switch, and `rack:ztp` refuses to serve while that service
+runs (`sudo systemctl stop tuist-rack-dhcp` first).
+
 `ber1-mgmt` cabled to `ber1-edge`'s i226-LM port (`enp89s0`), which is where its
 management link goes in the real rack anyway, with nothing else on that segment.
 Serving from the edge node rather than a laptop is also how it would work in a
@@ -212,7 +221,7 @@ mise run rack:fleet ports [device]          # what is plugged into each port
 mise run rack:fleet sessions <device> [tid] # terminal lines, and free one
 mise run rack:fleet probe-tftp <device>     # is the TFTP export text or opaque?
 mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credentials]  # zero touch
-mise run rack:edge-path --interface <iface> # route the switches behind the edge node into the tailnet
+mise run rack:edge-path --interface <iface> # the switches' path to the tailnet, and DHCP naming the controller
 mise run rack:omada controller|devices|inform|adopt|apply|api [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
 ```
@@ -629,9 +638,11 @@ is in the data center. Where that stands on 2026-09-23:
   `tag:tuist-rack-edge`.
 - **Adopted: all three switches**, on 2026-09-23. `ber1-mgmt` first, once
   `ber1-edge` clamped the MSS of what it forwards into the tailnet; then
-  `ber1-tor-b` and `ber1-tor-a`, once every switch carried the route to the
-  tailnet through the edge node (the ToRs reach its address on the house
-  network) and the edge node translated all three. The SX3832 took the same
+  `ber1-tor-b` and `ber1-tor-a`, once they had a path to the tailnet through
+  the edge node (they reach its address on the house network) and the edge node
+  translated all three. Every switch's management gateway is now the edge node,
+  written by the controller with the address; the ToRs' interim static route
+  was removed through a controller CLI configuration. The SX3832 took the same
   treatment from the controller as the SG3452; its baseline is
   `controller-baselines/sx3832.tsv`, measured on `ber1-tor-b` and confirmed on
   `ber1-tor-a`. Adoption replaces a switch's login with the
@@ -648,10 +659,11 @@ is in the data center. Where that stands on 2026-09-23:
   spanning-tree mode and port descriptions from its render and keeps them
   across a reboot, and with the controller's own lines left out it matches its
   render; see "Switches the controller has adopted".
-- **Not started.** The reconciler that watches `RackSwitch` objects and drives
-  the controller; joining `ber1-edge` to staging as a node, which would let
-  `rack:ztp` and the edge path run as workloads; and a factory-reset run of
-  zero touch, for the two questions it left open.
+- **Zero touch, measured.** `ber1-mgmt` was factory reset through the controller
+  and came back by itself: `tuist-rack-dhcp.service` on `ber1-edge` gave it its
+  site address and the controller's, it appeared pending, adoption with the
+  factory login and one API pass brought it to its render. See "Zero touch
+  through the controller, measured" in the assessment.
 
 ## Apply is a confirmed commit
 

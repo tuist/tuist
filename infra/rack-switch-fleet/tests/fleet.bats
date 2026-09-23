@@ -673,7 +673,7 @@ export_fixture() { echo "$FLEET_ROOT/tests/fixtures/ber1-tor-b-tftp-export.cfg";
 @test "the merge loses nothing the switch is holding" {
     desired="$BATS_TEST_TMPDIR/desired.cfg"
     merged="$BATS_TEST_TMPDIR/merged.cfg"
-    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    render_as_captured ber1-tor-b > "$desired"
     fleet_merge_unmanaged "$(export_fixture)" "$desired" > "$merged"
     run bash -c "diff <(grep -vE '^!|^[[:space:]]*#?[[:space:]]*\$' '$(export_fixture)') \
                       <(grep -vE '^!|^[[:space:]]*#?[[:space:]]*\$' '$merged') | grep '^<' | wc -l | tr -d ' '"
@@ -856,7 +856,7 @@ STUB
     printf 'radius-server host 10.0.0.5 key secret\n' >> "$current"
     desired="$BATS_TEST_TMPDIR/desired2.cfg"
     merged="$BATS_TEST_TMPDIR/merged2.cfg"
-    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    render_as_captured ber1-tor-b > "$desired"
     fleet_merge_unmanaged "$current" "$desired" > "$merged"
 
     run fleet_removed_lines "$current" "$merged"
@@ -868,7 +868,7 @@ STUB
     grep -v '^!' "$(export_fixture)" > "$current"
     desired="$BATS_TEST_TMPDIR/desired3.cfg"
     merged="$BATS_TEST_TMPDIR/merged3.cfg"
-    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    render_as_captured ber1-tor-b > "$desired"
     fleet_merge_unmanaged "$current" "$desired" > "$merged"
     run fleet_removed_lines "$current" "$merged"
     [ "${#output}" -eq 0 ]
@@ -891,7 +891,7 @@ STUB
 
     desired="$BATS_TEST_TMPDIR/mixed-desired.cfg"
     merged="$BATS_TEST_TMPDIR/mixed-merged.cfg"
-    fleet_render "$SITE_FILE" ber1-tor-b | sed 's/^lldp$/no lldp/' > "$desired"
+    render_as_captured ber1-tor-b | sed 's/^lldp$/no lldp/' > "$desired"
     fleet_merge_unmanaged "$current" "$desired" > "$merged"
 
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_removed_lines '$current' '$merged' | grep '^declared' | cut -f3"
@@ -921,7 +921,7 @@ STUB
     merged="$BATS_TEST_TMPDIR/m.cfg"
     current="$BATS_TEST_TMPDIR/c.cfg"
     grep -v '^!' "$(export_fixture)" > "$current"
-    fleet_render "$SITE_FILE" ber1-tor-b > "$desired"
+    render_as_captured ber1-tor-b > "$desired"
     fleet_merge_unmanaged "$current" "$desired" > "$merged"
     run fleet_has_login "$merged"
     [ "$status" -eq 0 ]
@@ -1772,26 +1772,17 @@ run_resolve() {
     [ "${lines[3]}" = "255.255.255.255" ]
 }
 
-@test "a switch behind the edge routes the tailnet through it, where the switch prints routes" {
-    # Read off ber1-mgmt: static routes come after lldp and before the
-    # controller lines, and the diff is order-sensitive.
-    run fleet_render "$SITE_FILE" ber1-mgmt
-    [ "$status" -eq 0 ]
-    route="$(grep -n '^ip route 100.64.0.0 255.192.0.0 192.168.0.10$' <<<"$output" | cut -d: -f1)"
-    lldp="$(grep -nx 'lldp' <<<"$output" | cut -d: -f1)"
-    cloud="$(grep -nx 'no controller cloud-based' <<<"$output" | cut -d: -f1)"
-    [ -n "$route" ]
-    [ "$lldp" -lt "$route" ]
-    [ "$route" -lt "$cloud" ]
-}
-
-@test "every switch routes the tailnet through the edge node, since the controller is there" {
-    # The ToRs share the management segment with the edge node rather than
-    # hanging off it, and reach the controller the same way.
+@test "every switch's management address has the edge node as its gateway, as the controller writes it" {
+    # Read off ber1-mgmt and both ToRs once the controller had written the
+    # address with a gateway: the switch prints it on the address line. The
+    # ToRs share the management segment with the edge node and ber1-mgmt hangs
+    # off it; all three reach the controller that way.
     for device in ber1-tor-a ber1-tor-b ber1-mgmt; do
         run fleet_render "$SITE_FILE" "$device"
         [ "$status" -eq 0 ]
-        [[ "$output" == *"ip route 100.64.0.0 255.192.0.0 192.168.0.10"* ]]
+        address="$(jq -r --arg n "$device" '.devices[] | select(.name == $n) | .mgmt_address' "$SITE_FILE")"
+        [[ "$output" == *"  ip address $address 255.255.255.0 gateway 192.168.0.10"* ]]
+        [[ "$output" != *"ip route"* ]]
     done
 }
 
@@ -1882,8 +1873,8 @@ STUB
     [ ! -e "$(dirname "$(cat "$args.askpass")")" ]
 }
 
-# ber1-mgmt as backed up once adopted and brought to its render with
-# `rack:omada apply`, on 2026-09-23.
+# ber1-mgmt as backed up after a factory reset, adoption with the factory login
+# and one pass of the Open API, on 2026-09-23.
 ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
 
 @test "an adopted switch at its render, less the controller's own lines, is clean" {
@@ -1988,7 +1979,7 @@ STUB
     edge_stub "$bin"
     run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp87s0 --dry-run
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ip addr replace 192.168.0.10/32 dev enp87s0"* ]]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
     [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
     [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp87s0"* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade'* ]]
@@ -2578,7 +2569,9 @@ STUB
 #!/usr/bin/env bash
 if [ "$1" = "-f" ]; then echo "NFT load $(tr -s ' \n' ' ' < "$2")" >> "$FAKE_LOG"; else echo "NFT $*" >> "$FAKE_LOG"; fi
 STUB
-    chmod +x "$dir/ssh" "$dir/ip" "$dir/nft"
+    # tuist-rack-dhcp.service is stopped unless FAKE_DHCP_ACTIVE says otherwise.
+    printf '#!/bin/sh\n[ -n "$FAKE_DHCP_ACTIVE" ]\n' > "$dir/systemctl"
+    chmod +x "$dir/ssh" "$dir/ip" "$dir/nft" "$dir/systemctl"
     : > "$dir/log"
 }
 
@@ -2591,6 +2584,31 @@ STUB
     [[ "$output" == *"carries tuist@edge's default route"* ]]
     run grep -c '^SSH tuist@edge' "$bin/log"
     [ "$output" -ge 1 ]
+}
+
+@test "--via will not serve beside the edge node's own DHCP for the controller path" {
+    bin="$BATS_TEST_TMPDIR/via-dhcp"
+    ztp_via_stub "$bin"
+    run env PATH="$bin:$PATH" HOME="$bin/home" FAKE_LOG="$bin/log" FAKE_DHCP_ACTIVE=1 \
+        "$FLEET_ROOT/ztp.sh" ber1-mgmt --via tuist@edge --interface enp89s0 --dry-run
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"already serves DHCP there (tuist-rack-dhcp.service"* ]]
+}
+
+@test "the edge node hands the switches behind it their site address and their controller" {
+    bin="$BATS_TEST_TMPDIR/edge-dhcp"
+    edge_stub "$bin"
+    run env PATH="$bin:$PATH" "$FLEET_ROOT/edge-path.sh" --interface enp87s0 --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
+    [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
+    [[ "$output" == *"dhcp-option=tag:known,option:router,192.168.0.10"* ]]
+    [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150,255.255.255.0,1h"* ]]
+    [[ "$output" == *"dhcp-option=138,$(jq -r '.management.controller.address' "$SITE_FILE")"* ]]
+    # replies to a known switch go to its MAC, since the SG3452 ignores broadcast ones
+    [[ "$output" == *"udp sport 67 udp dport 68 @th,288,48 0xa82948feb4be ether daddr set a8:29:48:fe:b4:be"* ]]
+    # and the ToRs, which share the management segment, are not served here
+    [[ "$output" != *"dhcp-host=d4:d6:df"* ]]
 }
 
 @test "--via refuses an interface name that could smuggle a command" {

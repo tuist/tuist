@@ -15,9 +15,6 @@
     "edge": {
       "ssh": "tuist@ber1-edge",
       "address": "192.168.0.10",
-      "routes": [
-        "100.64.0.0/10"
-      ],
       "provisioning": "192.168.50.1/24"
     },
     "controller": {

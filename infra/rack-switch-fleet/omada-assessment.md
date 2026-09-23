@@ -171,8 +171,9 @@ Steps 1 to 3 ran on 2026-09-23, against the staging controller (6.3.0.45) and
 - **A reboot keeps what the controller wrote.** So the confirmed commit this
   directory built on `reboot-schedule` does not carry over: under the
   controller, going back is writing the previous values again.
-- **Not yet known:** what the SX3832 does under the controller. Its baseline is
-  unmeasured until a ToR is adopted.
+- **The SX3832 behaves the same.** Both ToRs were adopted the same day; the
+  controller does to them what it does to the SG3452, with ten-gigabit port
+  names (`controller-baselines/sx3832.tsv`).
 
 The login was the finding that shaped the design. Every SSH path in this
 directory, including the spanning-tree read-back the reconciler sketch keeps,
@@ -181,6 +182,64 @@ site's device account is now set deliberately, from the 1Password item
 `management.controller.device_account_item` names, by `rack:omada controller`
 before anything is adopted; fleet sessions to a switch marked `adopted` log in
 with that account's password instead of the key.
+
+## VLANs, port settings, link aggregation and addressing, measured
+
+On `ber1-tor-b` and `ber1-mgmt`, 2026-09-23, each written through the Open API,
+read back over SSH, then undone.
+
+- **VLANs are site networks.** `POST lan-networks` with `purpose: 0` and the VLAN
+  id creates one, and it is carried tagged on every port whose profile is `All`,
+  which is every port by default (`switchport general allowed vlan 20 tagged`,
+  plus `vlan 20` with its name and a controller `profile network` line).
+  `DELETE lan-networks/{id}` removes it everywhere. A port needs an override only
+  when its tagged set differs from every site network.
+- **Per-port settings are overrides on the port's profile.** VLAN membership
+  (`profileVlanOverrideEnable`, native and tagged network ids) and spanning tree
+  off (`no spanning-tree` on the switch) both took. Returning a port to its
+  profile is `profileOverrideEnable: false`; asking for the VLAN part alone to
+  follow the profile is refused. The port list does not echo overrides back, so
+  they are verified over SSH, like spanning-tree mode.
+- **Link aggregation is LACP only.** `operation: aggregating` with `lagType: 2`
+  made `interface port-channel 1` with `channel-group 1 mode active` on its
+  members; the static type (`lagType: 1`) was refused with a bare "General
+  error". Members cannot be changed through the port endpoint afterwards, and
+  `DELETE switches/{mac}/lags/{id}` dissolves the group.
+- **The management address and gateway are writable and readable.** `POST
+  switches/{mac}/networks/{id}` with the object as read and a static `ip`
+  (including the fallback fields, without which it is refused) moved a switch
+  from DHCP to its site address with the edge node as gateway, without dropping
+  its controller connection. The switch prints it as `ip address <a> <mask>
+  gateway <g>`. So every switch's management gateway is now the edge node, and
+  the static tailnet route the ToRs carried is gone: the API had no way to write
+  it, so a reset switch could never get it back.
+- **Raw CLI goes through device CLI configurations** for anything the API does
+  not model. One config per device (`devices: [{deviceMac}]` at creation; adding
+  a device later is refused), then `apply`. That removed the ToRs' old route.
+
+## Zero touch through the controller, measured
+
+A factory reset of `ber1-mgmt` on 2026-09-23 (`POST devices/{mac}/forget`, which
+resets a switch and reboots it), with `tuist-rack-dhcp.service` on `ber1-edge`:
+
+1. The factory switch asked for DHCP and for option 138 among its options, got
+   its site address from its reservation, with the edge node as router and the
+   controller's tailnet address in option 138, and announced itself to the
+   controller. It was pending about two minutes after the reset.
+2. Its Auto Install is on at the factory: it asked the DHCP server for a file
+   over TFTP unprompted. That closes the question zero touch through Auto
+   Install left open; the controller path does not need it.
+3. Adoption with the factory login (`admin`/`admin`) took under a minute, and
+   the site's device account replaced the login.
+4. After one pass of the Open API (hostname, spanning-tree mode), the only
+   difference from the render was the management address being DHCP; writing
+   it static with the edge node as gateway left the switch matching its render.
+
+So a switch behind the edge node is zero touch: plugged in, it gets its address
+and its controller, and adoption plus one write pass bring it to its render. The
+reconciler does both. A switch on the house network, like the ToRs at home, gets
+the house router's DHCP, which names no controller; in the data center the
+management segment is the rack's own.
 
 ## What the reconciler looks like
 

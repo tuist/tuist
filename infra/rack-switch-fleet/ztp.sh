@@ -93,6 +93,13 @@ fi
 if [ -n "$via" ]; then
   default_interfaces="$(on_server "ip route show default | awk '{print \$5}'" 2>/dev/null || true)"
   on_server "ip link show dev $interface" >/dev/null 2>&1 || { echo "error: $server has no interface $interface" >&2; exit 1; }
+  # rack:edge-path runs DHCP for the controller path on the edge node's switch
+  # port, and two DHCP servers on one segment answer the same switch.
+  if on_server 'systemctl is-active --quiet tuist-rack-dhcp.service' 2>/dev/null; then
+    echo "error: $server already serves DHCP there (tuist-rack-dhcp.service, the controller path)." >&2
+    echo "       Auto Install needs it stopped while this serves: sudo systemctl stop tuist-rack-dhcp" >&2
+    exit 1
+  fi
   # The edge node's port can carry more than one address; the one to serve
   # from is the provisioning segment the site names, when it names one.
   addresses="$(on_server "ip -4 -o addr show dev $interface | awk '{print \$4}' | cut -d/ -f1" 2>/dev/null || true)"
