@@ -451,3 +451,81 @@ Evidence: `/tmp/spec95-rollout-{identities,iam-inventory,elixir-tests,flags-fina
 The earlier staging results refer to the deployed integration revision. The new
 production gate and canary/production overlays have been tested locally and
 remain pending the draft PR's merge deployment.
+
+## Actual gateway outage and persistent connections — September 23
+
+The final drill first restored the fixture's Paris instance through
+`Kura.return_from_archive/3`, with Montreal primary and Paris secondary. This
+exposed a third defect: Route53 returned HTTP 409 `HealthCheckAlreadyExists`
+because it retains caller references for deleted checks for several days.
+The previous deterministic box reference prevented a normal cold return from
+advertising again after the earlier successful collection.
+
+The controller now adds an incarnation nonce while preserving the zone/owner/box
+prefix used for adoption and collection. Legacy checks remain adoptable.
+Ambiguous create retries retain their pending reference; a definite conflict
+clears it for the next reconciliation. The new regression failed with the same
+error before the fix. The full Go race suite and vet pass, including tests for
+restart adoption, uncertain requests, and collection/recreation.
+
+[Controller image build 35865029302](https://github.com/tuist/tuist/actions/runs/35865029302)
+and [staging deployment 35865967008](https://github.com/tuist/tuist/actions/runs/35865967008)
+passed. Staging now runs controller `sha-e1af68dc5af9`; server
+`sha-2857be3434e2`, runtime `sha-db5e8ea4c0ee`, registry and search
+`sha-56966885e6aa` remained pinned. Both stable observations were Ready by
+13:21:59 UTC. Paris received replacement health check
+`db199e07-3775-4b3d-9e77-37ff461f8b43`, and both checks had all 16 observers
+reporting success before the fault. No canary or production deployment ran.
+
+The live impact inventory found exactly two Montreal Ingresses, both belonging
+to account 49, and only this fixture's DNS records referencing its box check.
+Paris serves other accounts and was left running. The private runner gateway
+also remained running. Temporary measurement pods on the two regional nodes
+used no service-account token, no elevated capabilities, and a 90-minute deadline.
+
+At **13:22:52 UTC** the fixture-only Montreal gateway DaemonSet was unscheduled
+with a temporary node selector. Its existing pod was deleted with one second
+of shutdown grace at **13:22:53**, breaking real TCP connections. An exit trap
+and an independent 330-second watchdog restore only the injected selector.
+This did not change the AWS check configuration, DNS records, backend caches,
+or any network policy.
+
+The probe processes began at 13:00 (Paris and laptop) and 13:02 (Montreal).
+Each held one HTTP/1.1 transport and one HTTP/2 REAPI transport, reading and
+byte-checking the same fixture every two seconds. Connection addresses prove
+the original sockets remained in use for over twenty minutes, then changed
+to Paris without restarting a process, refreshing configuration, or forcing a
+failover IP. TLS validation remained enabled. This is transport-level recovery
+with a Go harness; it does not claim every native SDK's retry budget is identical.
+
+| Observation | UTC / result |
+| --- | --- |
+| Montreal first failed reads, both protocols | 13:22:54.368, TCP connection refused |
+| All AWS observers reported Montreal failure | 13:24:43, 16/16 |
+| Last Montreal authoritative answer targeting Montreal | 13:24:39 |
+| First Montreal authoritative answer targeting Paris | 13:24:50 |
+| Montreal HTTP recovered to Paris | 13:24:58.706 |
+| Montreal HTTP/2 REAPI recovered to Paris | 13:24:58.706 |
+| Montreal failed attempts | 62 per protocol, two-second cadence |
+| Paris clients recovered to Paris | 13:22:55; zero failed probe results |
+| Laptop clients recovered to Paris | 13:22:56; zero failed probe results |
+
+The measured outage recovery is **about 126 seconds**, including health
+convergence, DNS caching, and client reconnection. It must not be described as
+instant failover. The gateway was still down when every client recovered.
+Existing healthy connections can remain on the survivor after restoration;
+DNS proximity is reconsidered on the next resolution, not on every request.
+
+Restoration and the final steering-window results are recorded below after the
+bounded probes finish. Raw evidence remains under `/tmp/spec95-staging-e2e/`
+(`gateway-outage-timeline.log`, `outage-health-*.json`, `outage-dns-watch.log`,
+`outage-soak-{paris,montreal,laptop}.jsonl`, and `steering-up-*.jsonl`).
+
+Restoration completed at **13:28:18 UTC**, and the gateway was Ready at
+**13:28:31**. Its pod template compares exactly equal to the snapshot taken
+immediately before the fault; the extra node selector is absent. Direct
+Montreal TLS `/ready` passed, and all 16 AWS health observers were healthy again
+by **13:29:54**. Both controller stable observations returned Ready.
+The full Route53 record-set snapshot compares byte-for-byte equal before and
+after the outage. Thirty consecutive endpoint API requests after recovery
+returned exactly the stable URL with `provisioning: false`.
