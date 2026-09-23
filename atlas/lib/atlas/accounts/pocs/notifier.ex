@@ -17,6 +17,7 @@ defmodule Atlas.Accounts.POCs.Notifier do
 
   alias Atlas.Accounts.POCs.AccessRequest
   alias Atlas.Accounts.POCs.POC
+  alias Atlas.Accounts.POCs.VerificationEmail
   alias Atlas.Mailer
   alias Atlas.Slack
   alias Atlas.Slack.API, as: SlackAPI
@@ -45,13 +46,7 @@ defmodule Atlas.Accounts.POCs.Notifier do
     If you did not request this, you can safely ignore this email.
     """
 
-    html_body = """
-    <p>You (or someone using your email) asked to open the <strong>#{brand_label(poc)}</strong> POC brief on Tuist.</p>
-    <p>Confirm the request by clicking the button below within 15 minutes:</p>
-    <p><a href="#{url}" style="background:#6f2cff;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600">Confirm my email</a></p>
-    <p style="color:#666;font-size:13px">Or paste this link into your browser: <br /><code>#{url}</code></p>
-    <p style="color:#666;font-size:13px">If you did not request this, you can safely ignore this email.</p>
-    """
+    html_body = VerificationEmail.render(brand_label(poc), url)
 
     new()
     |> from({@from_name, @from_email})
