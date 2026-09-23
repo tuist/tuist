@@ -317,6 +317,19 @@ defmodule TuistWeb.Coverage.Components do
     ~H"""
     <.badge_cell
       :if={not is_nil(@partial)}
+      title={
+        if @partial,
+          do:
+            dgettext(
+              "dashboard_tests",
+              "Selective testing, or a filter, left some of the run's tests out, so it measured part of the scheme."
+            ),
+          else:
+            dgettext(
+              "dashboard_tests",
+              "Every test of the run's scheme ran, so it measured the scheme in full."
+            )
+      }
       style="light-fill"
       color={if @partial, do: "warning", else: "success"}
       label={
@@ -451,6 +464,31 @@ defmodule TuistWeb.Coverage.Components do
   def completeness_label(%{chained: true}), do: dgettext("dashboard_tests", "Comparable")
   def completeness_label(_commit), do: dgettext("dashboard_tests", "Not chained")
 
+  @doc "What a commit's status in a list means, for the status's title."
+  def completeness_title(%{measured: false}),
+    do: dgettext("dashboard_tests", "No run of this commit gathered coverage, so it has no figure of its own.")
+
+  def completeness_title(%{complete: true}),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "The commit's coverage pipeline signalled it finished, so no more runs are expected and its figure is final."
+      )
+
+  def completeness_title(%{chained: true}),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "Measured the same schemes, each as fully, as the commit before it on the trend, so the two compare as a whole. More runs may still land."
+      )
+
+  def completeness_title(_commit),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "Measured a different set of schemes than the commit before it on the trend, so it only compares scheme by scheme and stays off the chart."
+      )
+
   @doc false
   def completeness_color(%{measured: false}), do: "neutral"
   def completeness_color(%{complete: true}), do: "success"
@@ -528,6 +566,17 @@ defmodule TuistWeb.Coverage.Components do
   def gate_status_label(:passed), do: dgettext("dashboard_tests", "Passed")
   def gate_status_label(:failed), do: dgettext("dashboard_tests", "Failed")
   def gate_status_label(_status), do: dgettext("dashboard_tests", "Not evaluated")
+
+  @doc "What a gate's result means, for the result's title."
+  def gate_status_title(:passed), do: dgettext("dashboard_tests", "The commit met this gate's threshold.")
+  def gate_status_title(:failed), do: dgettext("dashboard_tests", "The commit did not meet this gate's threshold.")
+
+  def gate_status_title(_status),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "The gate could not be judged, for the reason beside it, so it neither passes nor fails the check."
+      )
 
   def gate_status_color(:passed), do: "success"
   def gate_status_color(:failed), do: "destructive"
@@ -607,6 +656,21 @@ defmodule TuistWeb.Coverage.Components do
   """
   def ref_status_label(%{complete: true}), do: dgettext("dashboard_tests", "Complete")
   def ref_status_label(_ref), do: dgettext("dashboard_tests", "Pending")
+
+  @doc "What a branch's or commit's status means, for the status's title."
+  def ref_status_title(%{complete: true}),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "The coverage pipeline of its newest commit signalled it finished, so its figure is final."
+      )
+
+  def ref_status_title(_ref),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "The coverage pipeline of its newest commit has not signalled completion yet, so more runs may still land and its gates wait."
+      )
 
   def ref_status_color(%{complete: true}), do: "success"
   def ref_status_color(_ref), do: "information"

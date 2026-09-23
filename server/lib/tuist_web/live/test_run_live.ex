@@ -680,7 +680,10 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:coverage_targets, Enum.map(targets, &Map.put(&1, :id, &1.name)))
     |> assign(
       :coverage_files,
-      Enum.map(files, &Map.merge(&1, %{id: &1.path, coverage: Coverage.percentage(&1.covered_lines, &1.executable_lines)}))
+      Enum.map(
+        files,
+        &Map.merge(&1, %{id: &1.path, coverage: Coverage.percentage(&1.covered_lines, &1.executable_lines)})
+      )
     )
     |> assign(:coverage_files_meta, %{current_page: page, total_pages: max(1, ceil(files_count / @table_page_size))})
     |> assign_selective_testing_defaults()

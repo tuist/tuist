@@ -313,6 +313,11 @@
     }
   }
 
+  /* A cell with a title explains itself on hover. */
+  & [data-part="cell"][title] {
+    cursor: help;
+  }
+
   & [data-part="coverage-file-link"] {
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-medium);

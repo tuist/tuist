@@ -150,6 +150,8 @@ defmodule TuistWeb.CoverageLiveTest do
       table = lv |> element("#coverage-commits-table") |> render()
       assert table =~ "Not measured"
       assert table =~ "+50.0%"
+      # Each status explains itself on hover.
+      assert table =~ "No run of this commit gathered coverage, so it has no figure of its own."
       refute has_element?(lv, "#coverage-commits-time-order")
       assert has_element?(lv, "#coverage-commits-table a[href*='/tests/coverage/commits/c']")
     end

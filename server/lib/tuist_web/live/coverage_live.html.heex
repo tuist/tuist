@@ -260,6 +260,7 @@
               style="light-fill"
               color={completeness_color(row)}
               label={completeness_label(row)}
+              title={completeness_title(row)}
             />
           </:col>
           <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>

@@ -426,7 +426,7 @@
             <.text_cell label={gate_value(check)} />
           </:col>
           <:col :let={check} label={dgettext("dashboard_tests", "Result")}>
-            <div data-part="cell" data-type="badge">
+            <div data-part="cell" data-type="badge" title={gate_status_title(check.status)}>
               <.badge
                 style="light-fill"
                 size="large"
@@ -555,6 +555,7 @@
                 style="light-fill"
                 color={completeness_color(row)}
                 label={completeness_label(row)}
+                title={completeness_title(row)}
               />
             </:col>
             <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
