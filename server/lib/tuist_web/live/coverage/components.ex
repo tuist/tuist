@@ -83,13 +83,16 @@ defmodule TuistWeb.Coverage.Components do
           navigate={@href}
         />
       </:actions>
-      <.card_section :if={is_nil(@baseline)} data-part="movements-empty">
-        <div data-part="empty">
-          {dgettext("dashboard_tests", "Nothing to compare with: %{reason}.",
+      <.coverage_empty
+        :if={is_nil(@baseline)}
+        title={
+          dgettext("dashboard_tests", "Nothing to compare with: %{reason}.",
             reason: reason_label(@baseline_reason)
-          )}
-        </div>
-      </.card_section>
+          )
+        }
+        image="table"
+        data-part="movements-empty"
+      />
       <div :if={@baseline} data-part="movements-sections">
         <.movement_section
           id="target-rises"
@@ -139,13 +142,16 @@ defmodule TuistWeb.Coverage.Components do
           navigate={@href}
         />
       </:actions>
-      <.card_section :if={is_nil(@baseline)} data-part="movements-empty">
-        <div data-part="empty">
-          {dgettext("dashboard_tests", "Nothing to compare with: %{reason}.",
+      <.coverage_empty
+        :if={is_nil(@baseline)}
+        title={
+          dgettext("dashboard_tests", "Nothing to compare with: %{reason}.",
             reason: reason_label(@baseline_reason)
-          )}
-        </div>
-      </.card_section>
+          )
+        }
+        image="table"
+        data-part="movements-empty"
+      />
       <div :if={@baseline} data-part="movements-sections">
         <.movement_section
           id="file-rises"
