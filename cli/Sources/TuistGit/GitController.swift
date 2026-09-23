@@ -1,9 +1,9 @@
-import Command
 import Foundation
 import Mockable
 import Path
 import TSCUtility
 import TuistEnvironment
+import TuistProcess
 import TuistSupport
 
 @Mockable
