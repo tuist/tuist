@@ -1450,6 +1450,7 @@ defmodule TuistWeb.Router do
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/automations/:automation_id", ProjectAutomationLive
       live "/settings/bundles", ProjectBundleSettingsLive
+      live "/settings/oidc", ProjectOIDCSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
     end
 

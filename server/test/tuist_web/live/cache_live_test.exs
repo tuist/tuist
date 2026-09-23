@@ -236,7 +236,7 @@ defmodule TuistWeb.CacheLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache")
 
-    assert has_element?(lv, "#account-oidc-scope-rules-account-cache-write", "Any workflow")
+    assert has_element?(lv, "#account-oidc-scope-rules-account-cache-write", "Any")
 
     lv
     |> form("#account-oidc-scope-rules-account-cache-write-form", %{

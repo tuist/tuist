@@ -6,7 +6,6 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.OIDC.ScopeRules
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "renders the project settings page", %{
@@ -163,72 +162,6 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
 
       refute html =~ "/logo?v="
       assert is_nil(Tuist.Projects.get_project_by_id(project.id).logo_storage_key)
-    end
-  end
-
-  describe "OIDC rules" do
-    test "is hidden when the project isn't linked to a repository", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
-
-      refute has_element?(lv, "#project-oidc-scope-rules")
-    end
-
-    test "saves, shows, and removes a rule for a scope", %{conn: conn, organization: organization} do
-      project =
-        ProjectsFixtures.project_fixture(
-          account: organization.account,
-          vcs_connection: [repository_full_handle: "tuist/settings-rules"]
-        )
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
-
-      assert has_element?(lv, "#project-oidc-scope-rules-project-previews-write", "Any workflow")
-
-      lv
-      |> form("#project-oidc-scope-rules-project-previews-write-form", %{
-        "scope" => "project:previews:write",
-        "refs" => "refs/heads/main, refs/tags/v*",
-        "job_workflow_refs" => "",
-        "environments" => "production"
-      })
-      |> render_submit()
-
-      assert [%{refs: ["refs/heads/main", "refs/tags/v*"], environments: ["production"]}] =
-               ScopeRules.list_project_rules(project)
-
-      assert has_element?(lv, "#project-oidc-scope-rules-project-previews-write", "refs/heads/main, refs/tags/v*")
-
-      render_click(lv, "delete_oidc_rule", %{"scope" => "project:previews:write"})
-
-      assert [] = ScopeRules.list_project_rules(project)
-      assert has_element?(lv, "#project-oidc-scope-rules-project-previews-write", "Any workflow")
-    end
-
-    test "shows a validation error for an empty rule", %{conn: conn, organization: organization} do
-      project =
-        ProjectsFixtures.project_fixture(
-          account: organization.account,
-          vcs_connection: [repository_full_handle: "tuist/settings-rules-empty"]
-        )
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
-
-      html =
-        lv
-        |> form("#project-oidc-scope-rules-project-cache-write-form", %{
-          "scope" => "project:cache:write",
-          "refs" => " ",
-          "job_workflow_refs" => "",
-          "environments" => ""
-        })
-        |> render_submit()
-
-      assert html =~ "add at least one branch, workflow, or environment pattern"
-      assert [] = ScopeRules.list_project_rules(project)
     end
   end
 end

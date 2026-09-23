@@ -4,7 +4,7 @@ defmodule TuistWeb.Components.OIDCScopeRules do
   them through a modal per scope.
 
   The hosting LiveView handles `save_oidc_rule`, `delete_oidc_rule`, and
-  `close_oidc_rule_modal` through `handle_rule_event/3`.
+  `close_oidc_rule_modal` through `handle_rule_event/4`.
   """
   use Phoenix.Component
   use Noora
@@ -12,6 +12,7 @@ defmodule TuistWeb.Components.OIDCScopeRules do
 
   import Phoenix.LiveView, only: [push_event: 3, put_flash: 3]
 
+  alias Phoenix.LiveView.JS
   alias Tuist.OIDC.ScopeRule
 
   attr(:id, :string, required: true)
@@ -20,126 +21,116 @@ defmodule TuistWeb.Components.OIDCScopeRules do
   attr(:errors, :map, default: %{}, doc: "Validation errors keyed by scope")
 
   def oidc_scope_rules(assigns) do
+    assigns = assign(assigns, :row_key, fn scope -> "#{assigns.id}-#{slug(scope)}" end)
+
     ~H"""
-    <div id={@id} class="oidc-scope-rules">
-      <div :for={scope <- @scopes} data-part="rule" id={"#{@id}-#{slug(scope)}"}>
-        <div data-part="info">
-          <span data-part="label">{scope_label(scope)}</span>
-          <span data-part="scope">{scope}</span>
-        </div>
-        <div data-part="summary">
-          <%= case Map.get(@rules, scope) do %>
-            <% nil -> %>
-              <.badge
-                label={dgettext("dashboard", "Any workflow")}
-                color="neutral"
-                style="light-fill"
-                size="small"
-              />
-            <% rule -> %>
-              <span :for={{field, patterns} <- rule_fields(rule)} data-part="field">
-                <span data-part="field-label">{field_label(field)}</span>
-                <span data-part="patterns">{Enum.join(patterns, ", ")}</span>
-              </span>
-          <% end %>
-        </div>
-        <.form
-          for={%{}}
-          id={"#{@id}-#{slug(scope)}-form"}
-          phx-submit="save_oidc_rule"
-          data-part="form"
-        >
-          <.modal
-            id={"#{@id}-#{slug(scope)}-modal"}
-            title={scope_label(scope)}
-            description={
-              dgettext(
-                "dashboard",
-                "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches. Other runs keep read access.",
-                scope: scope
-              )
-            }
-            header_size="large"
-            on_dismiss="close_oidc_rule_modal"
-          >
-            <:trigger :let={attrs}>
-              <.button
-                variant="secondary"
-                size="medium"
-                label={dgettext("dashboard", "Configure")}
-                {attrs}
-              />
-            </:trigger>
-            <.line_divider />
-            <input type="hidden" name="scope" value={scope} />
-            <.text_input
-              id={"#{@id}-#{slug(scope)}-refs"}
-              type="basic"
-              name="refs"
-              value={patterns_value(@rules, scope, :refs)}
-              label={dgettext("dashboard", "Branches and tags")}
-              placeholder="refs/heads/main, refs/tags/v*"
-              hint={dgettext("dashboard", "Matched against the ref claim.")}
-              error={Map.get(@errors, scope)}
-            />
-            <.text_input
-              id={"#{@id}-#{slug(scope)}-job-workflow-refs"}
-              type="basic"
-              name="job_workflow_refs"
-              value={patterns_value(@rules, scope, :job_workflow_refs)}
-              label={dgettext("dashboard", "Workflows")}
-              placeholder="org/repo/.github/workflows/release.yml@refs/heads/main"
-              hint={
-                dgettext(
-                  "dashboard",
-                  "Matched against the job_workflow_ref claim. Use ** to match any ref."
-                )
-              }
-            />
-            <.text_input
-              id={"#{@id}-#{slug(scope)}-environments"}
-              type="basic"
-              name="environments"
-              value={patterns_value(@rules, scope, :environments)}
-              label={dgettext("dashboard", "Environments")}
-              placeholder="release"
-              hint={
-                dgettext(
-                  "dashboard",
-                  "Matched against the environment claim. Separate patterns with commas; * matches within a path segment."
-                )
-              }
-            />
-            <.line_divider />
-            <:footer>
-              <.modal_footer>
-                <:action :if={Map.has_key?(@rules, scope)}>
-                  <.button
-                    type="button"
-                    label={dgettext("dashboard", "Remove rule")}
-                    variant="destructive"
-                    phx-click="delete_oidc_rule"
-                    phx-value-scope={scope}
-                  />
-                </:action>
-                <:action>
-                  <.button
-                    type="reset"
-                    label={dgettext("dashboard", "Cancel")}
-                    variant="secondary"
-                    phx-click="close_oidc_rule_modal"
-                    phx-value-scope={scope}
-                  />
-                </:action>
-                <:action>
-                  <.button type="submit" label={dgettext("dashboard", "Save")} variant="primary" />
-                </:action>
-              </.modal_footer>
-            </:footer>
-          </.modal>
-        </.form>
-      </div>
-    </div>
+    <.table id={@id} rows={@scopes} row_key={@row_key}>
+      <:col :let={scope} label={dgettext("dashboard", "Permission")}>
+        <.text_and_description_cell label={scope_label(scope)} description={scope} />
+      </:col>
+      <:col :let={scope} label={dgettext("dashboard", "Branches and tags")}>
+        <.text_cell label={patterns_label(@rules, scope, :refs)} />
+      </:col>
+      <:col :let={scope} label={dgettext("dashboard", "Workflows")}>
+        <.text_cell label={patterns_label(@rules, scope, :job_workflow_refs)} />
+      </:col>
+      <:col :let={scope} label={dgettext("dashboard", "Environments")}>
+        <.text_cell label={patterns_label(@rules, scope, :environments)} />
+      </:col>
+      <:col :let={scope} label="">
+        <.button_cell>
+          <:button>
+            <.form for={%{}} id={"#{@id}-#{slug(scope)}-form"} phx-submit="save_oidc_rule">
+              <.modal
+                id={"#{@id}-#{slug(scope)}-modal"}
+                title={scope_label(scope)}
+                description={
+                  dgettext(
+                    "dashboard",
+                    "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches. Other runs keep read access.",
+                    scope: scope
+                  )
+                }
+                header_size="large"
+                on_dismiss={JS.push("close_oidc_rule_modal", value: %{scope: scope})}
+              >
+                <:trigger :let={attrs}>
+                  <.button icon_only size="small" variant="secondary" {attrs}>
+                    <.icon name="pencil" />
+                  </.button>
+                </:trigger>
+                <.line_divider />
+                <input type="hidden" name="scope" value={scope} />
+                <.text_input
+                  id={"#{@id}-#{slug(scope)}-refs"}
+                  type="basic"
+                  name="refs"
+                  value={patterns_value(@rules, scope, :refs)}
+                  label={dgettext("dashboard", "Branches and tags")}
+                  placeholder="refs/heads/main, refs/tags/v*"
+                  hint={dgettext("dashboard", "Matched against the ref claim.")}
+                  error={Map.get(@errors, scope)}
+                />
+                <.text_input
+                  id={"#{@id}-#{slug(scope)}-job-workflow-refs"}
+                  type="basic"
+                  name="job_workflow_refs"
+                  value={patterns_value(@rules, scope, :job_workflow_refs)}
+                  label={dgettext("dashboard", "Workflows")}
+                  placeholder="org/repo/.github/workflows/release.yml@refs/heads/main"
+                  hint={
+                    dgettext(
+                      "dashboard",
+                      "Matched against the job_workflow_ref claim. Use ** to match any ref."
+                    )
+                  }
+                />
+                <.text_input
+                  id={"#{@id}-#{slug(scope)}-environments"}
+                  type="basic"
+                  name="environments"
+                  value={patterns_value(@rules, scope, :environments)}
+                  label={dgettext("dashboard", "Environments")}
+                  placeholder="release"
+                  hint={
+                    dgettext(
+                      "dashboard",
+                      "Matched against the environment claim. Separate patterns with commas; * matches within a path segment."
+                    )
+                  }
+                />
+                <.line_divider />
+                <:footer>
+                  <.modal_footer>
+                    <:action :if={Map.has_key?(@rules, scope)}>
+                      <.button
+                        type="button"
+                        label={dgettext("dashboard", "Remove rule")}
+                        variant="destructive"
+                        phx-click="delete_oidc_rule"
+                        phx-value-scope={scope}
+                      />
+                    </:action>
+                    <:action>
+                      <.button
+                        type="reset"
+                        label={dgettext("dashboard", "Cancel")}
+                        variant="secondary"
+                        phx-click="close_oidc_rule_modal"
+                        phx-value-scope={scope}
+                      />
+                    </:action>
+                    <:action>
+                      <.button type="submit" label={dgettext("dashboard", "Save")} variant="primary" />
+                    </:action>
+                  </.modal_footer>
+                </:footer>
+              </.modal>
+            </.form>
+          </:button>
+        </.button_cell>
+      </:col>
+    </.table>
     """
   end
 
@@ -159,13 +150,13 @@ defmodule TuistWeb.Components.OIDCScopeRules do
     case callbacks.put_rule.(scope, attrs) do
       {:ok, _rule} ->
         socket
-        |> Phoenix.Component.assign(:oidc_rules, rules_by_scope(callbacks.list_rules.()))
-        |> Phoenix.Component.assign(:oidc_rule_errors, %{})
+        |> assign(:oidc_rules, rules_by_scope(callbacks.list_rules.()))
+        |> assign(:oidc_rule_errors, %{})
         |> push_event("close-modal", %{id: "#{callbacks.id}-#{slug(scope)}-modal"})
         |> put_flash(:info, dgettext("dashboard", "OIDC rule saved."))
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        Phoenix.Component.assign(
+        assign(
           socket,
           :oidc_rule_errors,
           Map.put(socket.assigns.oidc_rule_errors, scope, changeset_error(changeset))
@@ -177,14 +168,14 @@ defmodule TuistWeb.Components.OIDCScopeRules do
     :ok = callbacks.delete_rule.(scope)
 
     socket
-    |> Phoenix.Component.assign(:oidc_rules, rules_by_scope(callbacks.list_rules.()))
-    |> Phoenix.Component.assign(:oidc_rule_errors, %{})
+    |> assign(:oidc_rules, rules_by_scope(callbacks.list_rules.()))
+    |> assign(:oidc_rule_errors, %{})
     |> push_event("close-modal", %{id: "#{callbacks.id}-#{slug(scope)}-modal"})
     |> put_flash(:info, dgettext("dashboard", "OIDC rule removed."))
   end
 
   def handle_rule_event("close_oidc_rule_modal", params, socket, callbacks) do
-    socket = Phoenix.Component.assign(socket, :oidc_rule_errors, %{})
+    socket = assign(socket, :oidc_rule_errors, %{})
 
     case params do
       %{"scope" => scope} -> push_event(socket, "close-modal", %{id: "#{callbacks.id}-#{slug(scope)}-modal"})
@@ -215,11 +206,11 @@ defmodule TuistWeb.Components.OIDCScopeRules do
     |> Enum.join(". ")
   end
 
-  defp rule_fields(rule) do
-    Enum.reject(
-      [refs: rule.refs, job_workflow_refs: rule.job_workflow_refs, environments: rule.environments],
-      fn {_field, patterns} -> patterns == [] end
-    )
+  defp patterns_label(rules, scope, field) do
+    case patterns_value(rules, scope, field) do
+      "" -> dgettext("dashboard", "Any")
+      value -> value
+    end
   end
 
   defp patterns_value(rules, scope, field) do
@@ -230,10 +221,6 @@ defmodule TuistWeb.Components.OIDCScopeRules do
   end
 
   defp slug(scope), do: String.replace(scope, ":", "-")
-
-  defp field_label(:refs), do: dgettext("dashboard", "Branches and tags")
-  defp field_label(:job_workflow_refs), do: dgettext("dashboard", "Workflows")
-  defp field_label(:environments), do: dgettext("dashboard", "Environments")
 
   defp scope_label("project:cache:write"), do: dgettext("dashboard", "Cache uploads")
   defp scope_label("project:previews:write"), do: dgettext("dashboard", "Preview uploads")

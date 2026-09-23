@@ -92,6 +92,16 @@
     }
   }
 
+  & > [data-part="oidc-scope-rules-card"] {
+    gap: var(--noora-spacing-7);
+
+    & .noora-modal [data-part="body"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-7);
+    }
+  }
+
   & > [data-part="cache-write-policy-card"] {
     gap: var(--noora-spacing-7);
     /* First section on the page: sits directly under the page header without

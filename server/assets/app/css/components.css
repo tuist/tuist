@@ -12,6 +12,5 @@
 @import "./components/public_project_cta_banner.css";
 @import "./components/widget.css";
 @import "./components/policy_options.css";
-@import "./components/oidc_scope_rules.css";
 @import "./components/webhook_endpoint_form.css";
 @import "./components/project_with_tags.css";
