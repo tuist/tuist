@@ -13,6 +13,7 @@ defmodule AtlasWeb.AccountLiveTest do
   alias Atlas.Accounts.Invoice
   alias Atlas.Accounts.Outcome
   alias Atlas.Accounts.OutcomeProposal
+  alias Atlas.Accounts.POCs
   alias Atlas.Accounts.ServiceLevel
   alias Atlas.Accounts.ServiceLevelExtractionCheck
   alias Atlas.Authorization.Roles
@@ -27,6 +28,35 @@ defmodule AtlasWeb.AccountLiveTest do
   alias Atlas.Users.User
 
   setup :verify_on_exit!
+
+  test "shows evaluations for this account", %{conn: conn} do
+    user = insert_user!("poc-account-#{System.unique_integer([:positive])}@tuist.dev")
+    account = insert_account!(%{name: "Evaluation account"})
+    other_account = insert_account!(%{name: "Another account"})
+
+    {:ok, poc} = POCs.create_poc(%{"account_id" => account.id, "title" => "Mobile evaluation"}, user)
+
+    {:ok, other_poc} =
+      POCs.create_poc(%{"account_id" => other_account.id, "title" => "Other evaluation"}, user)
+
+    conn = init_test_session(conn, %{"user_id" => user.id})
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
+
+    assert has_element?(view, "#account-poc-#{poc.id}", poc.title)
+    assert has_element?(view, "#account-pocs-table")
+    refute has_element?(view, "#account-poc-#{other_poc.id}")
+    refute has_element?(view, "#account-pocs-empty")
+  end
+
+  test "shows an empty evaluation state for accounts without one", %{conn: conn} do
+    {conn, _user} = log_in_user(conn)
+    account = insert_account!(%{})
+
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
+
+    assert has_element?(view, "#account-pocs-empty")
+    refute has_element?(view, "#account-pocs-table")
+  end
 
   test "shows the tax certificate request action only to leadership", %{conn: conn} do
     suffix = System.unique_integer([:positive])
