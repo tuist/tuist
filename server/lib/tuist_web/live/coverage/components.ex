@@ -149,6 +149,7 @@ defmodule TuistWeb.Coverage.Components do
       <div :if={@baseline} data-part="movements-sections">
         <.movement_section
           id="file-rises"
+          row_href={@file_href}
           title={dgettext("dashboard_tests", "Files that rose most")}
           rows={@rises}
           empty={dgettext("dashboard_tests", "No file rose.")}
@@ -156,6 +157,7 @@ defmodule TuistWeb.Coverage.Components do
         />
         <.movement_section
           id="file-falls"
+          row_href={@file_href}
           title={dgettext("dashboard_tests", "Files that fell most")}
           rows={@falls}
           empty={dgettext("dashboard_tests", "No file fell.")}
@@ -218,6 +220,7 @@ defmodule TuistWeb.Coverage.Components do
   attr :label, :string, required: true
   attr :empty, :string, required: true
   attr :rows, :list, required: true
+  attr :row_href, :any, default: nil, doc: "A row's page, from its name; rows are not links without it."
 
   @doc """
   One side of a movement: the targets or files that rose, or fell, most
@@ -230,7 +233,12 @@ defmodule TuistWeb.Coverage.Components do
       <div data-part="header">
         <span data-part="title">{@title}</span>
       </div>
-      <.table :if={@rows != []} id={"coverage-#{@id}-table"} rows={@rows}>
+      <.table
+        :if={@rows != []}
+        id={"coverage-#{@id}-table"}
+        rows={@rows}
+        row_navigate={@row_href && fn row -> @row_href.(row.name) end}
+      >
         <:col :let={row} label={@label}>
           <.text_and_description_cell
             label={Path.basename(row.name)}
@@ -548,6 +556,34 @@ defmodule TuistWeb.Coverage.Components do
     end
   end
 
+  @doc """
+  The points a trend chart draws over a period: every commit over a month at
+  most, the last commit of each week over half a year at most, and the last
+  of each month past that.
+  """
+  def chart_points(points, {start_datetime, end_datetime}) do
+    days = DateTime.diff(end_datetime, start_datetime, :day)
+
+    cond do
+      days <= 30 -> points
+      days <= 183 -> last_per(points, &Date.beginning_of_week(point_date(&1)))
+      true -> last_per(points, &Date.beginning_of_month(point_date(&1)))
+    end
+  end
+
+  defp last_per(points, bucket) do
+    points
+    |> Enum.chunk_by(bucket)
+    |> Enum.map(&List.last/1)
+  end
+
+  defp point_date(point) do
+    case Map.get(point, :committed_at) || Map.get(point, :ran_at) || point.inserted_at do
+      %DateTime{} = at -> DateTime.to_date(at)
+      at -> NaiveDateTime.to_date(at)
+    end
+  end
+
   @doc "How far coverage moved from a series' first point to its last, or nil when there is nothing to compare."
   def period_trend([first | [_ | _] = rest]) do
     last = List.last(rest)
@@ -590,5 +626,233 @@ defmodule TuistWeb.Coverage.Components do
       {line, line} -> Integer.to_string(line)
       {first, last} -> "#{first}–#{last}"
     end)
+  end
+
+  @brief_ranges 2
+
+  @doc """
+  Line ranges as `line_ranges_label/1` words them, but at most two: past
+  them, an ellipsis, and `full_line_ranges/1` for the title holding them all.
+  """
+  def brief_line_ranges(ranges) when ranges in [nil, []], do: "—"
+
+  def brief_line_ranges(ranges) when length(ranges) > @brief_ranges,
+    do: line_ranges_label(Enum.take(ranges, @brief_ranges)) <> ", …"
+
+  def brief_line_ranges(ranges), do: line_ranges_label(ranges)
+
+  @doc "Every range, for the title of a `brief_line_ranges/1` that left some out; nil when it left none."
+  def full_line_ranges(ranges) when is_list(ranges) and length(ranges) > @brief_ranges, do: line_ranges_label(ranges)
+  def full_line_ranges(_ranges), do: nil
+
+  attr :ranges, :any, required: true
+  attr :rest, :global
+
+  @doc "A table cell with line ranges, folded as `brief_line_ranges/1` folds them."
+  def line_ranges_cell(assigns) do
+    ~H"""
+    <.text_cell label={brief_line_ranges(@ranges)} title={full_line_ranges(@ranges)} {@rest} />
+    """
+  end
+
+  @doc """
+  Where a file's own page lives. A commit's file carries the commit it was
+  read at and the page it was opened from (`branch:` or `pull_request:`,
+  and its `tab:`), so the page can lead back there; a run's file lives
+  under the run (`test_run:`).
+  """
+  def coverage_file_href(account_name, project_name, path, %{test_run: test_run_id}),
+    do: "/#{account_name}/#{project_name}/tests/test-runs/#{test_run_id}/files/#{encode_path(path)}"
+
+  def coverage_file_href(account_name, project_name, path, scope) do
+    query =
+      Enum.flat_map([commit: "commit", branch: "branch", pull_request: "pull-request", tab: "tab"], fn {key, name} ->
+        case Map.get(scope, key) do
+          value when value in [nil, ""] -> []
+          value -> [{name, value}]
+        end
+      end)
+
+    "/#{account_name}/#{project_name}/tests/coverage/files/#{encode_path(path)}?" <> URI.encode_query(query)
+  end
+
+  @doc false
+  def encode_path(path), do: path |> String.split("/") |> Enum.map_join("/", &encode_segment/1)
+
+  defp encode_segment(segment), do: URI.encode(segment, &URI.char_unreserved?/1)
+
+  attr :file, :map, required: true, doc: "A file's detail, from `Commits.file_detail/4` or `Coverage.file_detail/3`."
+  attr :tests, :map, default: nil, doc: "The tests behind the file, from `Evidence.covering/3`; nil without evidence."
+  attr :changed, :map, default: nil, doc: "The lines the diff changed, from `Comparison.changed_lines/3`."
+  attr :test_href, :any, required: true, doc: "A test case's page, from its id."
+
+  @doc """
+  One file's coverage: its figures, the targets that compiled it, the lines
+  no test ran and the ones the diff changed, the tests that executed it and
+  its functions. A commit's file page and a run's show the same.
+  """
+  def coverage_file_view(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :functions,
+        assigns.file |> Map.get(:functions, []) |> Enum.with_index() |> Enum.map(fn {f, i} -> Map.put(f, :id, i) end)
+      )
+
+    ~H"""
+    <.card title={dgettext("dashboard_tests", "Coverage")} icon="file" data-part="file-summary-card">
+      <.card_section data-part="file-summary-section">
+        <div data-part="widgets">
+          <.widget
+            id="widget-coverage-file-percentage"
+            title={dgettext("dashboard_tests", "Code coverage")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Share of the file's executable lines the tests ran at least once."
+              )
+            }
+            value={"#{Coverage.percentage(@file.covered_lines, @file.executable_lines)}%"}
+          />
+          <.widget
+            id="widget-coverage-file-lines"
+            title={dgettext("dashboard_tests", "Covered lines")}
+            description={dgettext("dashboard_tests", "Executable lines the tests ran at least once.")}
+            value={"#{format_number(@file.covered_lines)} / #{format_number(@file.executable_lines)}"}
+          />
+          <.widget
+            :if={@functions != []}
+            id="widget-coverage-file-functions"
+            title={dgettext("dashboard_tests", "Functions")}
+            description={
+              dgettext("dashboard_tests", "Functions the compiler instrumented in the file.")
+            }
+            value={format_number(length(@functions))}
+          />
+        </div>
+        <dl data-part="file-details">
+          <div :if={@file.targets != []}>
+            <dt>{dgettext("dashboard_tests", "Targets")}</dt>
+            <dd id="coverage-file-targets">
+              <ul data-part="targets">
+                <li :for={target <- @file.targets}>
+                  <.badge label={target} color="neutral" style="light-fill" size="large" />
+                </li>
+              </ul>
+            </dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard_tests", "Uncovered lines")}</dt>
+            <dd id="coverage-file-uncovered-lines" title={full_line_ranges(@file.uncovered_ranges)}>
+              {case @file.uncovered_ranges do
+                nil -> dgettext("dashboard_tests", "Unavailable")
+                [] -> dgettext("dashboard_tests", "None")
+                ranges -> brief_line_ranges(ranges)
+              end}
+            </dd>
+          </div>
+          <div :if={@changed}>
+            <dt>{dgettext("dashboard_tests", "Changed lines")}</dt>
+            <dd id="coverage-file-changed-lines" title={full_line_ranges(@changed.changed_ranges)}>
+              {dgettext(
+                "dashboard_tests",
+                "%{ranges}: %{covered} of %{executable} executable lines ran",
+                ranges: brief_line_ranges(@changed.changed_ranges),
+                covered: format_number(@changed.covered_lines),
+                executable: format_number(@changed.executable_lines)
+              )}
+            </dd>
+          </div>
+          <div :if={Map.get(@file, :carried_lines, []) != []}>
+            <dt>{dgettext("dashboard_tests", "Covered by skipped tests, carried forward")}</dt>
+            <dd
+              id="coverage-file-carried-lines"
+              title={full_line_ranges(Coverage.Evidence.line_ranges(@file.carried_lines))}
+            >
+              {brief_line_ranges(Coverage.Evidence.line_ranges(@file.carried_lines))}
+            </dd>
+          </div>
+          <div :if={Map.get(@file, :git_blob_id, "") not in [nil, ""]}>
+            <dt>{dgettext("dashboard_tests", "Git blob")}</dt>
+            <dd><code>{@file.git_blob_id}</code></dd>
+          </div>
+        </dl>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@tests}
+      title={dgettext("dashboard_tests", "Tests executing this file")}
+      icon="checkup_list"
+      data-part="file-tests-card"
+    >
+      <.card_section data-part="file-tests-section">
+        <.table
+          :if={@tests.tests != []}
+          id="coverage-file-tests-table"
+          rows={Enum.map(@tests.tests, &Map.put(&1, :id, &1.test_case_id))}
+          row_navigate={fn test -> @test_href.(test.test_case_id) end}
+        >
+          <:col :let={test} label={dgettext("dashboard_tests", "Test")}>
+            <.text_and_description_cell
+              label={test.name}
+              description={"#{test.module_name} · #{test.suite_name}"}
+            />
+          </:col>
+          <:col :let={test} label={dgettext("dashboard_tests", "Lines it ran")}>
+            <.line_ranges_cell ranges={test.lines} />
+          </:col>
+        </.table>
+        <dl data-part="file-details">
+          <div :if={@tests.tests == []}>
+            <dt>{dgettext("dashboard_tests", "Tests executing this file")}</dt>
+            <dd id="coverage-file-no-tests">
+              {dgettext("dashboard_tests", "None by their own evidence")}
+            </dd>
+          </div>
+          <div :if={@tests.suites != []}>
+            <dt>{dgettext("dashboard_tests", "Suites running it around their tests")}</dt>
+            <dd>{Enum.join(@tests.suites, ", ")}</dd>
+          </div>
+          <div :if={@tests.targets != []}>
+            <dt>{dgettext("dashboard_tests", "Test targets executing it")}</dt>
+            <dd id="coverage-file-test-targets">{Enum.join(@tests.targets, ", ")}</dd>
+          </div>
+        </dl>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@functions != []}
+      title={dgettext("dashboard_tests", "Functions")}
+      icon="list_tree"
+      data-part="file-functions-card"
+    >
+      <.card_section data-part="file-functions-section">
+        <.table id="coverage-functions-table" rows={@functions}>
+          <:col :let={function} label={dgettext("dashboard_tests", "Function")}>
+            <.text_cell label={function.name} />
+          </:col>
+          <:col :let={function} label={dgettext("dashboard_tests", "Line")}>
+            <.text_cell label={Integer.to_string(function.line_number)} />
+          </:col>
+          <:col :let={function} label={dgettext("dashboard_tests", "Executions")}>
+            <.text_cell label={format_number(function.execution_count)} />
+          </:col>
+          <:col :let={function} label={dgettext("dashboard_tests", "Coverage")}>
+            <.text_cell
+              :if={is_nil(function.covered_lines)}
+              label={dgettext("dashboard_tests", "Unavailable")}
+            />
+            <.coverage_cell
+              :if={function.covered_lines}
+              covered={function.covered_lines}
+              executable={function.executable_lines}
+            />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+    """
   end
 end

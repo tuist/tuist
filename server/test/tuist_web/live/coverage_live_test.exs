@@ -77,6 +77,27 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#coverage-chart")
     end
 
+    test "leads to the branch's page over the same period", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])])
+
+      base = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+      {:ok, lv, _html} = live(conn, base <> "?coverage-date-range=last-12-months")
+
+      assert has_element?(
+               lv,
+               "[data-part='analytics'] a[href='#{base}/branches/main?coverage-date-range=last-12-months&tab=overview']"
+             )
+
+      assert has_element?(
+               lv,
+               "[data-part='commits'] a[href='#{base}/branches/main?coverage-date-range=last-12-months&tab=commits']"
+             )
+    end
+
     test "a period picked in the date picker lands in the URL", %{
       conn: conn,
       organization: organization,
@@ -102,6 +123,9 @@ defmodule TuistWeb.CoverageLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
       assert has_element?(lv, "[data-part='empty-analytics']")
+      # Nothing to see more of: the branch's page has no measured commit to open on.
+      refute has_element?(lv, "[data-part='analytics'] a", "View more")
+      refute has_element?(lv, "[data-part='commits'] a", "View more")
 
       stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
 
@@ -162,6 +186,11 @@ defmodule TuistWeb.CoverageLiveTest do
       files = lv |> element("#coverage-gap-files-table") |> render()
       assert files =~ "A.swift"
       assert files =~ "50.0%"
+
+      assert has_element?(
+               lv,
+               "#coverage-gap-files-table a[href='/#{organization.account.name}/#{project.name}/tests/coverage/files/Sources/A.swift?commit=b&branch=main&tab=overview']"
+             )
 
       unmeasured = lv |> element("#coverage-unmeasured-files-table") |> render()
       assert unmeasured =~ "Untested.swift"

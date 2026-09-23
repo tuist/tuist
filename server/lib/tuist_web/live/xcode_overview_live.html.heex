@@ -193,6 +193,26 @@
           trend_type={:inverse}
           empty={@test_analytics.ok? && @test_analytics.result.total_average_duration == 0}
         />
+        <.widget
+          :if={@coverage_analytics}
+          loading={!@coverage_analytics.ok?}
+          title={dgettext("dashboard_tests", "Code coverage")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Share of executable lines covered at the latest measured commit of %{branch} in the period.",
+              branch: @selected_project.default_branch
+            )
+          }
+          value={
+            if @coverage_analytics.ok? && @coverage_analytics.result.latest,
+              do: "#{@coverage_analytics.result.latest.coverage}%"
+          }
+          id="widget-code-coverage"
+          trend_value={if @coverage_analytics.ok?, do: @coverage_analytics.result.trend}
+          trend_label={@analytics_trend_label}
+          empty={@coverage_analytics.ok? && is_nil(@coverage_analytics.result.latest)}
+        />
       </div>
       <div
         :if={

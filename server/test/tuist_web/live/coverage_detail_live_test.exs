@@ -142,6 +142,11 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert falls =~ "Calculator"
       assert falls =~ "-50.0%"
 
+      assert has_element?(
+               lv,
+               "#coverage-file-falls-table a[href='/#{organization.account.name}/#{project.name}/tests/coverage/files/Sources/A.swift?commit=p&pull-request=12&tab=overview']"
+             )
+
       patch = lv |> element("#coverage-patch-table") |> render()
       assert patch =~ "Sources/A.swift"
       assert patch =~ "Sources/New.swift"
@@ -183,18 +188,20 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       refute files =~ "B.swift"
     end
 
-    test "opens a changed file from the patch with the lines the diff changed", %{
+    test "opens a changed file from the patch on its own page, with the lines the diff changed", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/pull-requests/12"
-      {:ok, lv, _html} = live(conn, path)
+      base = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/12")
 
-      assert has_element?(lv, "#coverage-patch-table a[href$='?coverage-file=Sources%2FA.swift']")
+      file_path = base <> "/files/Sources/A.swift?commit=p&pull-request=12&tab=overview"
+      assert has_element?(lv, "#coverage-patch-table a[href='#{file_path}']")
 
-      {:ok, lv, _html} = live(conn, path <> "?coverage-file=Sources%2FA.swift")
+      {:ok, lv, _html} = live(conn, file_path)
       assert has_element?(lv, "#coverage-file-changed-lines", "3–4: 0 of 2 executable lines ran")
+      assert has_element?(lv, "[data-part='back-button'][href='#{base}/pull-requests/12?commit=p&tab=overview']")
     end
 
     test "tells a file the diff changed apart from one only the runs moved", %{
@@ -333,7 +340,7 @@ defmodule TuistWeb.CoverageDetailLiveTest do
       assert lv |> element("#coverage-detail [data-part='badges']") |> render() =~ "Complete"
     end
 
-    test "opens a file of the commit with its uncovered lines and the tests behind it", %{
+    test "opens a file of the commit on its own page, with its uncovered lines and the tests behind it", %{
       conn: conn,
       organization: organization,
       project: project
@@ -353,18 +360,21 @@ defmodule TuistWeb.CoverageDetailLiveTest do
         }
       })
 
-      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage/commits/b"
-      {:ok, lv, _html} = live(conn, path)
-      refute has_element?(lv, "#coverage-file")
+      base = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+      {:ok, lv, _html} = live(conn, base <> "/commits/b")
+      assert has_element?(lv, "#coverage-gap-files-table a[href='#{base}/files/Sources/A.swift?commit=b&tab=overview']")
 
-      {:ok, lv, _html} = live(conn, path <> "?coverage-file=Sources/A.swift")
+      {:ok, lv, _html} = live(conn, base <> "/files/Sources/A.swift?commit=b&tab=overview")
+      assert has_element?(lv, "[data-part='back-button'][href='#{base}/commits/b?tab=overview']")
       assert has_element?(lv, "#widget-coverage-file-percentage", "100.0%")
+      assert has_element?(lv, "#coverage-file-targets li", "Calculator")
       assert has_element?(lv, "#coverage-file-uncovered-lines", "None")
       assert has_element?(lv, "#coverage-file-tests-table", "testA()")
       assert has_element?(lv, "#coverage-file-tests-table", "1–3")
+      assert has_element?(lv, "#coverage-file-tests-table a[href*='/tests/test-cases/'][href$='?tab=coverage']")
 
-      {:ok, lv, _html} = live(conn, path <> "?coverage-file=Sources/B.swift")
-      assert has_element?(lv, "#coverage-file-no-tests")
+      {:ok, lv, _html} = live(conn, base <> "/files/Sources/Missing.swift?commit=b")
+      assert has_element?(lv, "[data-part='file-empty']")
     end
 
     test "shows what the gates decided, and that they wait for the completion signal", %{

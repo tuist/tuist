@@ -105,7 +105,7 @@ defmodule TuistWeb.CoverageLive do
     latest = List.last(points)
 
     socket
-    |> assign(:points, points)
+    |> assign(:points, chart_points(points, socket.assigns.coverage_period))
     |> assign(:latest, latest)
     |> assign(:trend, period_trend(points))
   end

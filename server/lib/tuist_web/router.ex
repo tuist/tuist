@@ -1435,7 +1435,9 @@ defmodule TuistWeb.Router do
       live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
       live "/tests/coverage/pull-requests/:pull_request_number", CoverageDetailLive, :pull_request
       live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
+      live "/tests/coverage/files/*path", CoverageFileLive, :commit
       live "/tests/test-runs/:test_run_id", TestRunLive
+      live "/tests/test-runs/:test_run_id/files/*path", CoverageFileLive, :test_run
       live "/tests/test-cases", TestCasesLive
       live "/tests/test-cases/:test_case_id", TestCaseLive
       live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive

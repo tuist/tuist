@@ -357,7 +357,13 @@ defmodule TuistWeb.TestCaseLive do
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
-    selected_tab = params["tab"] || "overview"
+
+    selected_tab =
+      case params["tab"] do
+        "coverage" when is_nil(socket.assigns.coverage_evidence) -> "overview"
+        nil -> "overview"
+        tab -> tab
+      end
 
     socket =
       socket

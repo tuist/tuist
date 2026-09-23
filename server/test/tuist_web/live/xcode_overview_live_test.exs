@@ -5,6 +5,7 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   @render_async_timeout 5_000
@@ -51,6 +52,39 @@ defmodule TuistWeb.XcodeOverviewLiveTest do
       assert has_element?(live_view, "#chart-single-test-run-duration")
       assert has_element?(live_view, "[data-part='test-runs-chart']", "Passed runs")
       assert has_element?(live_view, "[data-part='test-runs-chart']", "Failed runs")
+    end
+  end
+
+  describe "overview page with code coverage" do
+    test "shows the default branch's coverage in the analytics", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      CoverageFixtures.run_with_coverage(
+        project,
+        organization.account,
+        [CoverageFixtures.file("Sources/A.swift", [1, 1, 1, 0], targets: ["App"])],
+        %{git_commit_sha: "a", ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second)}
+      )
+
+      {:ok, live_view, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+      render_async(live_view, @render_async_timeout)
+
+      assert has_element?(live_view, "#widget-code-coverage", "75.0%")
+    end
+
+    test "hides the coverage widget without the coverage flag", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      Mimic.stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
+
+      {:ok, live_view, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+      render_async(live_view, @render_async_timeout)
+
+      refute has_element?(live_view, "#widget-code-coverage")
     end
   end
 

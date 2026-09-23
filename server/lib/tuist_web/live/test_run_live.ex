@@ -183,14 +183,6 @@ defmodule TuistWeb.TestRunLive do
   end
 
   @doc false
-  def coverage_line_ranges(ranges) do
-    Enum.map_join(ranges, ", ", fn
-      {line, line} -> Integer.to_string(line)
-      {first, last} -> "#{first}–#{last}"
-    end)
-  end
-
-  @doc false
   def stress_candidate_for(candidates_by_identity, test_case_run) do
     Map.get(
       candidates_by_identity,
@@ -483,20 +475,6 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_coverage_summary(socket, _run), do: assign(socket, :coverage_summary, nil)
 
-  # The tests behind a file, when the run has evidence: those whose own evidence holds it, then
-  # the wider scopes, each of whose tests may depend on it too.
-  defp coverage_file_tests(nil, _covering), do: nil
-  defp coverage_file_tests(_evidence, nil), do: nil
-
-  defp coverage_file_tests(_evidence, covering) do
-    tests =
-      Enum.map(covering.tests, fn test ->
-        %{id: test.test_case_id, name: test.name, suite: test.suite_name, module: test.module_name, lines: test.lines}
-      end)
-
-    %{tests: tests, suites: covering.suites, targets: covering.targets}
-  end
-
   defp reload_run_state(%{assigns: %{run: run, selected_project: project, selected_tab: selected_tab, uri: uri}} = socket) do
     case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
       {:ok, refreshed_run} ->
@@ -687,33 +665,21 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "coverage", params) do
     run = socket.assigns.run
     page = Query.bounded_page(params["coverage-page"])
-    selected_path = params["coverage-file"]
 
-    [targets, {files, files_count}, file, evidence, enumeration, covering] =
+    [targets, {files, files_count}, evidence, enumeration] =
       Tuist.Tasks.parallel_tasks([
         fn -> Coverage.targets_for_run(run.project_id, run.id) end,
         fn -> Coverage.list_files(run.project_id, run.id, page, @table_page_size) end,
-        fn -> selected_path && Coverage.file_detail(run.project_id, run.id, selected_path) end,
         fn -> Evidence.summary(run) end,
-        fn -> Enumeration.summary(run) end,
-        fn -> selected_path && Evidence.covering(run, selected_path) end
+        fn -> Enumeration.summary(run) end
       ])
 
     socket
     |> assign(:coverage_evidence, evidence)
     |> assign(:coverage_enumeration, enumeration)
-    |> assign(:coverage_file_tests, coverage_file_tests(evidence, covering))
     |> assign(:coverage_targets, Enum.map(targets, &Map.put(&1, :id, &1.name)))
     |> assign(:coverage_files, Enum.map(files, &Map.put(&1, :id, &1.path)))
     |> assign(:coverage_files_meta, %{current_page: page, total_pages: max(1, ceil(files_count / @table_page_size))})
-    |> assign(:coverage_file, file)
-    |> assign(
-      :coverage_file_functions,
-      if(file,
-        do: file.functions |> Enum.with_index() |> Enum.map(fn {function, index} -> Map.put(function, :id, index) end),
-        else: []
-      )
-    )
     |> assign_selective_testing_defaults()
     |> assign_binary_cache_defaults()
     |> assign_param_defaults(params)

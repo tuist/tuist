@@ -22,7 +22,6 @@ defmodule TuistWeb.CoverageDetailLive do
   alias Tuist.FeatureFlags
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Comparison
-  alias Tuist.Tests.Coverage.Evidence
   alias Tuist.Tests.Coverage.Gates
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
@@ -69,7 +68,7 @@ defmodule TuistWeb.CoverageDetailLive do
     # baseline can take seconds on a large suite, and doing it on both passes
     # doubled every first view.
     if connected?(socket) do
-      {:noreply, socket |> assign(:loading, false) |> assign_tab(query) |> assign_file(query["coverage-file"])}
+      {:noreply, socket |> assign(:loading, false) |> assign_tab(query)}
     else
       {:noreply, socket |> assign(:loading, true) |> assign(:tab, tab(socket, query["tab"]))}
     end
@@ -87,28 +86,17 @@ defmodule TuistWeb.CoverageDetailLive do
     end
   end
 
-  # The file the page was asked to open: its coverage at the head commit (the
-  # reported one when the commit's skipped tests were all carried forward)
-  # and the tests behind it, across the commit's runs.
-  defp assign_file(socket, path) when path in [nil, ""],
-    do: socket |> assign(:coverage_file, nil) |> assign(:coverage_file_tests, nil) |> assign(:coverage_patch_file, nil)
-
-  defp assign_file(%{assigns: %{selected_project: project, subject: subject}} = socket, path) do
-    file = Commits.file_detail(project.id, subject.sha, path)
-
-    tests =
-      file &&
-        Evidence.covering(%{project_id: project.id, test_run_ids: Commits.run_ids(project.id, subject.sha)}, path)
-
-    socket
-    |> assign(:coverage_file, file)
-    |> assign(:coverage_file_tests, tests)
-    |> assign(:coverage_patch_file, Map.get(patch_files(socket.assigns.comparison), path))
-  end
-
   @doc false
-  def file_href(%{current_path: current_path, uri: uri}, path),
-    do: current_path <> "?" <> Query.put(uri.query, "coverage-file", path)
+  def file_href(%{selected_account: account, selected_project: project, subject: subject, tab: tab}, path) do
+    scope =
+      case subject do
+        %{kind: :branch, branch: branch} -> %{branch: branch}
+        %{kind: :pull_request, pull_request_number: number} -> %{pull_request: number}
+        _ -> %{}
+      end
+
+    coverage_file_href(account.name, project.name, path, Map.merge(scope, %{commit: subject.sha, tab: tab}))
+  end
 
   def handle_event(
         "coverage_period_changed",
@@ -210,7 +198,7 @@ defmodule TuistWeb.CoverageDetailLive do
       pull_request_number: nil
     })
     |> assign(:against_default, History.against_default(project, head, period))
-    |> assign(:series, History.branch_points(project, branch, period))
+    |> assign(:series, project |> History.branch_points(branch, period) |> chart_points(socket.assigns.coverage_period))
   end
 
   defp assign_tab(socket, query) do

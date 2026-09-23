@@ -279,7 +279,7 @@
 
   & [data-part="test-details"],
   & [data-part="coverage-summary-section"],
-  & [data-part="coverage-file-section"] {
+  & [data-part="coverage-evidence-section"] {
     & [data-part="widgets"] {
       display: flex;
       flex-direction: row;

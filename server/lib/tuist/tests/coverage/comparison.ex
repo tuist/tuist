@@ -511,6 +511,22 @@ defmodule Tuist.Tests.Coverage.Comparison do
     }
   end
 
+  @doc """
+  The lines of a file (a `Commits.file_detail/4`) the commit's diff changed,
+  counted as its patch counts them: the diff's hunks, and how many of the
+  executable lines inside them ran. Nil when the diff did not change the
+  file, or when the coverage measured another version of it.
+  """
+  def changed_lines(project_id, sha, %{path: path, lines: lines} = file) do
+    with %{status: status, truncated: false} = changed when status != "deleted" <-
+           project_id |> changed_files_for_commit(sha) |> Enum.find(&(&1.path == path)),
+         true <- same_blob?(file.git_blob_id || "", changed.git_blob_id) do
+      patch_file(changed, lines)
+    else
+      _ -> nil
+    end
+  end
+
   # An unknown blob on either side cannot contradict the other; an abbreviated
   # id (what `git diff --raw` prints without `--no-abbrev`) names the same
   # object as the full id it prefixes.

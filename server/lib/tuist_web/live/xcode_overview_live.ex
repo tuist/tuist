@@ -12,7 +12,9 @@ defmodule TuistWeb.XcodeOverviewLive do
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
   alias Tuist.Cache
+  alias Tuist.FeatureFlags
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage.History
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -67,6 +69,7 @@ defmodule TuistWeb.XcodeOverviewLive do
       {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)}}
     end)
     |> assign_build_duration_analytics(project.id, analytics_opts, builds_opts)
+    |> assign_coverage_analytics(project, analytics_period)
     |> assign_async(:test_analytics, fn ->
       {:ok, %{test_analytics: Tests.Analytics.test_run_average_duration_analytics(project.id, analytics_opts)}}
     end)
@@ -178,6 +181,26 @@ defmodule TuistWeb.XcodeOverviewLive do
     |> assign_async(:builds_duration_analytics, fn ->
       {:ok, %{builds_duration_analytics: BuildsAnalytics.build_duration_analytics(project_id, builds_opts)}}
     end)
+  end
+
+  # The default branch's coverage at its latest measured commit of the
+  # period, and how far it moved over it, behind the account's coverage flag.
+  defp assign_coverage_analytics(socket, project, period) do
+    if FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account) do
+      assign_async(socket, :coverage_analytics, fn ->
+        points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
+
+        {:ok,
+         %{
+           coverage_analytics: %{
+             latest: List.last(points),
+             trend: TuistWeb.Coverage.Components.period_trend(points)
+           }
+         }}
+      end)
+    else
+      assign(socket, :coverage_analytics, nil)
+    end
   end
 
   defp assign_build_time_analytics(socket, "ci", analytics_opts) do

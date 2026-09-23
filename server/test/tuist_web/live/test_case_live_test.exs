@@ -69,7 +69,14 @@ defmodule TuistWeb.TestCaseLiveTest do
       Tuist.Tests.Coverage.Evidence.record(test_run, %{
         paths: ["Sources/Math.swift", "Sources/Boot.swift"],
         scopes: [
-          %{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[3, 5, 9, 9]]},
+          %{
+            kind: "test",
+            module: "AppTests",
+            suite: "MathTests",
+            name: "testAdd()",
+            files: [0],
+            lines: [[3, 5, 9, 9, 12, 14]]
+          },
           %{kind: "target", module: "AppTests", suite: "", name: "", files: [0, 1]}
         ]
       })
@@ -77,10 +84,24 @@ defmodule TuistWeb.TestCaseLiveTest do
       test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       id = fn name -> Enum.find(test_run.test_case_runs, &(&1.name == name)).test_case_id end
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{id.("testAdd()")}")
+      path = ~p"/#{account.name}/#{project.name}/tests/test-cases/#{id.("testAdd()")}"
+      {:ok, lv, _html} = live(conn, path)
+      refute has_element?(lv, "#test-case-coverage-table")
+
+      {:ok, lv, _html} = live(conn, path <> "?tab=coverage")
       assert has_element?(lv, "#test-case-coverage-table", "Math.swift")
-      assert has_element?(lv, "#test-case-coverage-table", "3–5, 9")
+      assert has_element?(lv, "#test-case-coverage-table [title='3–5, 9, 12–14']", "3–5, 9, …")
       assert has_element?(lv, "#test-case-coverage-table", "Its target")
+
+      assert has_element?(
+               lv,
+               "#test-case-coverage-table a[href='/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}/files/Sources/Math.swift']"
+             )
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{id.("testNone()")}?tab=coverage")
+
+      refute html =~ "test-case-coverage-table"
     end
 
     test "scopes test case runs to the selected project", %{

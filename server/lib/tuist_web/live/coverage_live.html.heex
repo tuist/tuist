@@ -60,11 +60,13 @@
   >
     <:actions>
       <.button
+        :if={@latest}
         label={dgettext("dashboard_tests", "View more")}
         variant="secondary"
         size="medium"
         navigate={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?tab=overview"
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}" <>
+            "?" <> Query.put(@uri.query, "tab", "overview")
         }
       />
     </:actions>
@@ -197,11 +199,13 @@
   >
     <:actions>
       <.button
+        :if={@commit_rows != [] and @latest}
         label={dgettext("dashboard_tests", "View more")}
         variant="secondary"
         size="medium"
         navigate={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?tab=commits"
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}" <>
+            "?" <> Query.put(@uri.query, "tab", "commits")
         }
       />
     </:actions>
@@ -215,7 +219,7 @@
         title={
           dgettext(
             "dashboard_tests",
-            "The branch's head is not in the repository's Git history, so its commits are listed in the order they were measured."
+            "Listed in the order they were measured: no run on this branch has reported its latest commit yet, so its Git history cannot be followed."
           )
         }
       />
@@ -287,7 +291,8 @@
     baseline={@comparison.baseline}
     baseline_reason={@comparison.baseline_reason}
     href={
-      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?tab=targets"
+      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}" <>
+            "?" <> Query.put(@uri.query, "tab", "targets")
     }
   />
   <.files_coverage_card
@@ -295,12 +300,22 @@
     rises={@file_rises}
     falls={@file_falls}
     least_covered={@least_covered_files}
+    file_href={
+      fn path ->
+        coverage_file_href(@selected_account.name, @selected_project.name, path, %{
+          commit: @head_commit.git_commit_sha,
+          branch: @branch,
+          tab: "overview"
+        })
+      end
+    }
     unmeasured={@unmeasured_files}
     unmeasured_count={Map.get(@head_commit, :unmeasured_files_count) || 0}
     baseline={@comparison.baseline}
     baseline_reason={@comparison.baseline_reason}
     href={
-      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}?tab=files"
+      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{@branch}" <>
+            "?" <> Query.put(@uri.query, "tab", "files")
     }
   />
 </div>

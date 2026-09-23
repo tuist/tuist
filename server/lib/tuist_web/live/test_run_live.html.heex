@@ -2282,7 +2282,7 @@
         />
         <div data-part="widgets">
           <.widget
-            title={dgettext("dashboard_tests", "Line coverage")}
+            title={dgettext("dashboard_tests", "Code coverage")}
             description={
               dgettext(
                 "dashboard_tests",
@@ -2356,152 +2356,31 @@
           />
         </div>
       </.card_section>
-      <.card_section data-part="coverage-targets-section">
+    </.card>
+
+    <.card
+      title={dgettext("dashboard_tests", "Targets")}
+      icon="stack_2"
+      data-part="coverage-targets-card"
+    >
+      <.card_section :if={@coverage_targets != []} data-part="coverage-targets-section">
         <.table id="coverage-targets-table" rows={@coverage_targets}>
           <:col :let={target} label={dgettext("dashboard_tests", "Target")}>
             <.text_cell label={target.name} />
           </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
-            <.text_cell label={format_number(target.files_count)} />
-          </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Lines")}>
-            <.text_cell label={"#{format_number(target.covered_lines)} / #{format_number(target.executable_lines)}"} />
-          </:col>
           <:col :let={target} label={dgettext("dashboard_tests", "Coverage")}>
             <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
           </:col>
-        </.table>
-      </.card_section>
-    </.card>
-
-    <.card
-      :if={@coverage_file}
-      title={@coverage_file.path}
-      icon="file"
-      data-part="coverage-file-card"
-      id="coverage-file"
-    >
-      <:actions>
-        <.button
-          label={dgettext("dashboard_tests", "Close")}
-          variant="secondary"
-          size="medium"
-          patch={"?#{Query.drop(@uri.query, "coverage-file")}"}
-        />
-      </:actions>
-      <.card_section data-part="coverage-file-section">
-        <div data-part="widgets">
-          <.widget
-            title={dgettext("dashboard_tests", "Line coverage")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Share of the file's executable lines the tests ran at least once."
-              )
-            }
-            value={"#{Coverage.percentage(@coverage_file.covered_lines, @coverage_file.executable_lines)}%"}
-            id="widget-coverage-file-percentage"
-          />
-          <.widget
-            title={dgettext("dashboard_tests", "Covered lines")}
-            description={
-              dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
-            }
-            value={"#{format_number(@coverage_file.covered_lines)} / #{format_number(@coverage_file.executable_lines)}"}
-            id="widget-coverage-file-lines"
-          />
-          <.widget
-            title={dgettext("dashboard_tests", "Functions")}
-            description={
-              dgettext("dashboard_tests", "Functions the compiler instrumented in the file.")
-            }
-            value={length(@coverage_file.functions)}
-            id="widget-coverage-file-functions"
-          />
-        </div>
-        <dl data-part="coverage-file-details">
-          <div :if={@coverage_file.git_blob_id != ""}>
-            <dt>{dgettext("dashboard_tests", "Git blob")}</dt>
-            <dd><code>{@coverage_file.git_blob_id}</code></dd>
-          </div>
-          <div :if={@coverage_file.targets != []}>
-            <dt>{dgettext("dashboard_tests", "Targets")}</dt>
-            <dd>{Enum.join(@coverage_file.targets, ", ")}</dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard_tests", "Uncovered lines")}</dt>
-            <dd id="coverage-file-uncovered-lines">
-              {case @coverage_file.uncovered_ranges do
-                nil -> dgettext("dashboard_tests", "Unavailable")
-                [] -> dgettext("dashboard_tests", "None")
-                ranges -> coverage_line_ranges(ranges)
-              end}
-            </dd>
-          </div>
-        </dl>
-      </.card_section>
-      <.card_section :if={@coverage_file_tests} data-part="coverage-file-tests-section">
-        <.table
-          :if={@coverage_file_tests.tests != []}
-          id="coverage-file-tests-table"
-          rows={@coverage_file_tests.tests}
-        >
-          <:col :let={test} label={dgettext("dashboard_tests", "Test executing this file")}>
-            <.text_cell label={test.name} />
-          </:col>
-          <:col :let={test} label={dgettext("dashboard_tests", "Suite")}>
-            <.text_cell label={test.suite} />
-          </:col>
-          <:col :let={test} label={dgettext("dashboard_tests", "Target")}>
-            <.text_cell label={test.module} />
-          </:col>
-          <:col :let={test} label={dgettext("dashboard_tests", "Lines it ran")}>
-            <.text_cell label={TuistWeb.Coverage.Components.line_ranges_label(test.lines)} />
-          </:col>
-        </.table>
-        <dl data-part="coverage-file-details">
-          <div :if={@coverage_file_tests.tests == []}>
-            <dt>{dgettext("dashboard_tests", "Tests executing this file")}</dt>
-            <dd id="coverage-file-no-tests">
-              {dgettext("dashboard_tests", "None by their own evidence")}
-            </dd>
-          </div>
-          <div :if={@coverage_file_tests.suites != []}>
-            <dt>{dgettext("dashboard_tests", "Suites running it around their tests")}</dt>
-            <dd>{Enum.join(@coverage_file_tests.suites, ", ")}</dd>
-          </div>
-          <div :if={@coverage_file_tests.targets != []}>
-            <dt>{dgettext("dashboard_tests", "Test targets executing it")}</dt>
-            <dd id="coverage-file-test-targets">
-              {Enum.join(@coverage_file_tests.targets, ", ")}
-            </dd>
-          </div>
-        </dl>
-      </.card_section>
-      <.card_section :if={@coverage_file_functions != []} data-part="coverage-functions-section">
-        <.table id="coverage-functions-table" rows={@coverage_file_functions}>
-          <:col :let={function} label={dgettext("dashboard_tests", "Function")}>
-            <.text_cell label={function.name} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Line")}>
-            <.text_cell label={Integer.to_string(function.line_number)} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Executions")}>
-            <.text_cell label={format_number(function.execution_count)} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Coverage")}>
-            <.text_cell
-              :if={is_nil(function.covered_lines)}
-              label={dgettext("dashboard_tests", "Unavailable")}
-            />
-            <.coverage_cell
-              :if={function.covered_lines}
-              covered={function.covered_lines}
-              executable={function.executable_lines}
-            />
+          <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
+            <.text_cell label={format_number(target.files_count)} />
           </:col>
         </.table>
       </.card_section>
+      <TuistWeb.Coverage.Components.coverage_empty
+        :if={@coverage_targets == []}
+        title={dgettext("dashboard_tests", "No target was measured in this run")}
+        image="table"
+      />
     </.card>
 
     <.card
@@ -2515,7 +2394,14 @@
             <div data-part="cell" data-type="text">
               <.link
                 data-part="coverage-file-link"
-                patch={"?#{Query.put(@uri.query, "coverage-file", file.path)}"}
+                navigate={
+                  TuistWeb.Coverage.Components.coverage_file_href(
+                    @selected_account.name,
+                    @selected_project.name,
+                    file.path,
+                    %{test_run: @run.id}
+                  )
+                }
               >
                 {file.path}
               </.link>

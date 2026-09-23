@@ -205,6 +205,13 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
+      :if={@coverage_evidence}
+      label={dgettext("dashboard_tests", "Coverage")}
+      selected={@selected_tab == "coverage"}
+      patch={"?#{Query.put(@uri.query, "tab", "coverage")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
       label={dgettext("dashboard_tests", "Test History")}
       selected={@selected_tab == "history"}
       patch={"?#{Query.put(@uri.query, "tab", "history")}"}
@@ -958,7 +965,7 @@
   </.card>
 
   <.card
-    :if={@selected_tab == "overview" and @coverage_evidence}
+    :if={@selected_tab == "coverage" and @coverage_evidence}
     title={dgettext("dashboard_tests", "Code it covers")}
     icon="file"
     data-part="test-case-coverage-card"
@@ -970,7 +977,7 @@
         variant="secondary"
         size="medium"
         navigate={
-          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{@coverage_evidence.test_run_id}"
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{@coverage_evidence.test_run_id}?tab=coverage"
         }
       />
     </:actions>
@@ -978,6 +985,16 @@
       <.table
         id="test-case-coverage-table"
         rows={Enum.map(@coverage_evidence.files, &Map.put(&1, :id, &1.path))}
+        row_navigate={
+          fn file ->
+            TuistWeb.Coverage.Components.coverage_file_href(
+              @selected_project.account.name,
+              @selected_project.name,
+              file.path,
+              %{test_run: @coverage_evidence.test_run_id}
+            )
+          end
+        }
       >
         <:col :let={file} label={dgettext("dashboard_tests", "File")}>
           <.text_and_description_cell
@@ -989,7 +1006,7 @@
           <.text_cell label={TuistWeb.Coverage.Components.evidence_scope_label(file.scope)} />
         </:col>
         <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
-          <.text_cell label={TuistWeb.Coverage.Components.line_ranges_label(file.lines)} />
+          <TuistWeb.Coverage.Components.line_ranges_cell ranges={file.lines} />
         </:col>
       </.table>
     </.card_section>

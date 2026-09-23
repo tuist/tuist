@@ -3,7 +3,8 @@
    other dashboard page. */
 #coverage,
 #coverage-branches,
-#coverage-detail {
+#coverage-detail,
+#coverage-file-page {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
@@ -114,7 +115,8 @@
 /* A branch, a pull request or a commit against its baseline: a title block
    above the tabs, as the test run detail page has. */
 #coverage-branches,
-#coverage-detail {
+#coverage-detail,
+#coverage-file-page {
   & > [data-part="back-button"] {
     align-self: flex-start;
   }
@@ -255,7 +257,8 @@
    a commit as a row of badges: table cells with no Noora equivalent. */
 #coverage,
 #coverage-branches,
-#coverage-detail {
+#coverage-detail,
+#coverage-file-page {
   & [data-part="coverage-cell"] {
     display: flex;
     flex-grow: 1;
@@ -311,5 +314,55 @@
     &:hover {
       text-decoration: underline;
     }
+  }
+}
+
+/* One file's page: its figures above a list of what it is made of. */
+#coverage-file-page {
+  & [data-part="loading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="file-summary-section"],
+  & [data-part="file-tests-section"],
+  & [data-part="file-functions-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
+  & [data-part="file-details"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--noora-spacing-5);
+    margin: 0;
+
+    & dt {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & dd {
+      margin: var(--noora-spacing-2) 0 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      word-break: break-all;
+    }
+
+    & dd[title] {
+      cursor: help;
+    }
+  }
+
+  & [data-part="targets"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 }

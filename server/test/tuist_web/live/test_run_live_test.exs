@@ -166,17 +166,22 @@ defmodule TuistWeb.TestRunLiveTest do
     add = files_html |> :binary.match("Add.swift") |> elem(0)
     assert untested < add
 
-    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage&coverage-file=Sources/Calculator/Add.swift")
-
-    assert has_element?(lv, "#coverage-file", "Sources/Calculator/Add.swift")
-    assert has_element?(lv, "#coverage-file-uncovered-lines", "3–4")
-    assert has_element?(lv, "#coverage-functions-table", "add(_:_:)")
     assert has_element?(lv, "#widget-coverage-tests-left-out", "2")
     assert has_element?(lv, "#widget-coverage-tests-with-evidence", "1")
+    assert has_element?(lv, "#coverage-files-table a[href='#{base}/files/Sources/Calculator/Add.swift']")
+
+    # A file opens on a page of its own, scoped by the run and leading back to it.
+    {:ok, lv, _html} = live(conn, "#{base}/files/Sources/Calculator/Add.swift")
+
+    assert has_element?(lv, "#coverage-file-page h1", "Add.swift")
+    assert has_element?(lv, "[data-part='back-button'][href='#{base}?tab=coverage']")
+    assert has_element?(lv, "#coverage-file-targets", "Calculator")
+    assert has_element?(lv, "#coverage-file-uncovered-lines", "3–4")
+    assert has_element?(lv, "#coverage-functions-table", "add(_:_:)")
     assert has_element?(lv, "#coverage-file-tests-table", "testAdd()")
     assert has_element?(lv, "#coverage-file-test-targets", "CalculatorTests")
 
-    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage&coverage-file=Sources/Calculator/Untested.swift")
+    {:ok, lv, _html} = live(conn, "#{base}/files/Sources/Calculator/Untested.swift")
     assert has_element?(lv, "#coverage-file-no-tests")
     refute has_element?(lv, "#coverage-file-tests-table")
   end
@@ -219,7 +224,7 @@ defmodule TuistWeb.TestRunLiveTest do
     {:ok, lv, _html} =
       live(
         conn,
-        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Legacy.swift"
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}/files/Sources/Calculator/Legacy.swift"
       )
 
     assert has_element?(lv, "#widget-coverage-file-percentage", "80.0%")
@@ -272,7 +277,7 @@ defmodule TuistWeb.TestRunLiveTest do
     {:ok, lv, _html} =
       live(
         conn,
-        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Add.swift"
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}/files/Sources/Calculator/Add.swift"
       )
 
     assert has_element?(lv, "#widget-coverage-file-lines", "2 / 2")
