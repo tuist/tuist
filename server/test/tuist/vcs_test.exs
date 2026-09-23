@@ -337,10 +337,10 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
-        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
+        | Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | 0 % | - | 0 | 0 | 0 | #{commit_link} |
+        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 3 / 4 | 4 | 0 | 4 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -1553,9 +1553,9 @@ defmodule Tuist.VCSTest do
 
         ##### Xcode
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+        | Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 0 % | - | 1 | 0 | 1 | #{commit_link} |
 
         ##### Gradle
 
@@ -1624,9 +1624,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 % | - | 0 | 0 | 0 | #{commit_link} |
 
         """
 
@@ -1747,9 +1747,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | - | 0 | 0 | 0 | #{commit_link} |
 
 
         #### Builds 🔨
@@ -1985,9 +1985,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+        | Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | - | 1 | 0 | 1 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -2094,9 +2094,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 7 | 0 | 7 | #{commit_link} |
+        | Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | - | 7 | 0 | 7 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -2356,9 +2356,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 2 | 0 | 2 | #{commit_link} |
+        | Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | - | 2 | 0 | 2 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -2500,9 +2500,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 7 | 0 | 7 | #{commit_link} |
+        | Scheme | Status | Cache hit rate | Skipped test targets | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | - | 7 | 0 | 7 | #{commit_link} |
 
 
         #### Failed Tests ❌

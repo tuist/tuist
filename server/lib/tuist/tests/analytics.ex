@@ -948,10 +948,12 @@ defmodule Tuist.Tests.Analytics do
 
   Returns a list of maps with:
   - test_run_id: The test run ID
-  - total_tests: Total number of test cases
+  - total_tests: Number of test cases reported by the run
+  - skipped_tests: Number of those test cases reported as skipped
+  - ran_tests: Number of those test cases that ran
   - cache_hit_rate: Cache hit rate as a string (e.g., "50 %")
-  - skipped_tests: Number of skipped test targets
-  - ran_tests: Number of test cases that actually ran
+  - test_targets: Number of test targets considered by selective testing
+  - skipped_test_targets: Number of test targets skipped by selective testing
   """
   def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
@@ -967,7 +969,8 @@ defmodule Tuist.Tests.Analytics do
           group_by: t.test_run_id,
           select: %{
             test_run_id: t.test_run_id,
-            total_count: fragment("count(DISTINCT ?)", t.id)
+            total_count: fragment("count(DISTINCT ?)", t.id),
+            skipped_count: fragment("uniqExactIf(?, ? = 'skipped')", t.id, t.status)
           }
         )
       )
@@ -981,6 +984,7 @@ defmodule Tuist.Tests.Analytics do
             cacheable_targets_count: e.cacheable_targets_count,
             local_cache_hits_count: e.local_cache_hits_count,
             remote_cache_hits_count: e.remote_cache_hits_count,
+            test_targets_count: e.test_targets_count,
             local_test_hits_count: e.local_test_hits_count,
             remote_test_hits_count: e.remote_test_hits_count
           }
@@ -994,9 +998,9 @@ defmodule Tuist.Tests.Analytics do
       total_count = test_case_count.total_count
       event_info = Map.get(event_data_map, test_run_id, %{})
 
-      cacheable_targets = Map.get(event_info, :cacheable_targets_count) || 0
-      local_cache_hits = Map.get(event_info, :local_cache_hits_count) || 0
-      remote_cache_hits = Map.get(event_info, :remote_cache_hits_count) || 0
+      cacheable_targets = Map.get(event_info, :cacheable_targets_count, 0)
+      local_cache_hits = Map.get(event_info, :local_cache_hits_count, 0)
+      remote_cache_hits = Map.get(event_info, :remote_cache_hits_count, 0)
       total_cache_hits = local_cache_hits + remote_cache_hits
 
       cache_hit_rate =
@@ -1006,17 +1010,17 @@ defmodule Tuist.Tests.Analytics do
           "#{(total_cache_hits / cacheable_targets * 100) |> Float.floor() |> round()} %"
         end
 
-      local_test_hits = Map.get(event_info, :local_test_hits_count) || 0
-      remote_test_hits = Map.get(event_info, :remote_test_hits_count) || 0
-      skipped_tests = local_test_hits + remote_test_hits
-      ran_tests = total_count - skipped_tests
+      local_test_hits = Map.get(event_info, :local_test_hits_count, 0)
+      remote_test_hits = Map.get(event_info, :remote_test_hits_count, 0)
 
       %{
         test_run_id: test_run_id,
         total_tests: total_count,
+        skipped_tests: test_case_count.skipped_count,
+        ran_tests: total_count - test_case_count.skipped_count,
         cache_hit_rate: cache_hit_rate,
-        skipped_tests: skipped_tests,
-        ran_tests: ran_tests
+        test_targets: Map.get(event_info, :test_targets_count, 0),
+        skipped_test_targets: local_test_hits + remote_test_hits
       }
     end)
   end

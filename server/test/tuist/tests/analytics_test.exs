@@ -297,7 +297,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testAnother",
-          status: 0,
+          status: 2,
           is_flaky: false,
           duration: 150,
           inserted_at: ~N[2024-04-30 11:00:00.000000]
@@ -346,25 +346,21 @@ defmodule Tuist.Tests.AnalyticsTest do
       result_one = Enum.find(got, &(&1.test_run_id == test_run_one.id))
       result_two = Enum.find(got, &(&1.test_run_id == test_run_two.id))
 
-      # Verify test_run_one metrics (1 test case run)
-      # Cache: 3 cacheable targets, 2 hits (A local, B remote) = 66%
-      # Skipped: 1 local test target hit (TestA) = 1 skipped
-      # Ran: 1 total - 1 skipped = 0 ran
       assert result_one.test_run_id == test_run_one.id
       assert result_one.total_tests == 1
+      assert result_one.skipped_tests == 0
+      assert result_one.ran_tests == 1
       assert result_one.cache_hit_rate == "66 %"
-      assert result_one.skipped_tests == 1
-      assert result_one.ran_tests == 0
+      assert result_one.test_targets == 2
+      assert result_one.skipped_test_targets == 1
 
-      # Verify test_run_two metrics (3 test case runs: 2 success, 1 failure)
-      # Cache: 4 cacheable targets, 2 hits (E, F remote) = 50%
-      # Skipped: 2 test target hits (TestC local, TestD remote) = 2 skipped
-      # Ran: 3 total - 2 skipped = 1 ran
       assert result_two.test_run_id == test_run_two.id
       assert result_two.total_tests == 3
+      assert result_two.skipped_tests == 1
+      assert result_two.ran_tests == 2
       assert result_two.cache_hit_rate == "50 %"
-      assert result_two.skipped_tests == 2
-      assert result_two.ran_tests == 1
+      assert result_two.test_targets == 3
+      assert result_two.skipped_test_targets == 2
     end
 
     test "handles test runs without command events" do
@@ -413,15 +409,13 @@ defmodule Tuist.Tests.AnalyticsTest do
       assert length(got) == 1
       result = List.first(got)
 
-      # Without command event, no cache targets or test target hits
-      # Cache: 0 cacheable targets = 0%
-      # Skipped: 0 test target hits = 0 skipped
-      # Ran: 1 total - 0 skipped = 1 ran
       assert result.test_run_id == test_run.id
       assert result.total_tests == 1
-      assert result.cache_hit_rate == "0 %"
       assert result.skipped_tests == 0
       assert result.ran_tests == 1
+      assert result.cache_hit_rate == "0 %"
+      assert result.test_targets == 0
+      assert result.skipped_test_targets == 0
     end
   end
 
