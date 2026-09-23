@@ -39,6 +39,9 @@ once, checked against Ubuntu's SHA256SUMS, and cached in
 
 The stick carries:
 
+- network configuration for the SFP+ uplinks only (DHCP on the X710's `i40e`
+  ports), so the 2.5G ports stay unmanaged for the node's pods: the edge
+  node's rack-edge pod owns the switch port;
 - the host's hostname and role, the `tuist` account with passwordless sudo and
   a console password from the 1Password item `<host> console` (created on
   first use), SSH with password authentication off, and the rack's fleet key

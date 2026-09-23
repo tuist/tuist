@@ -141,3 +141,12 @@ render() {
   entry="$(printf 'BootCurrent: 0000\nBoot0000* Ubuntu\tHD(1,GPT,x)/File(\\EFI\\ubuntu\\shimx64.efi)\nBoot0001* UEFI: PXE IPv4\n' | sed -n "$pattern")"
   [ "$entry" = 0000 ]
 }
+
+@test "the install configures only the SFP+ uplinks, leaving the 2.5G ports to the node's pods" {
+  run render
+  [ "$status" -eq 0 ]
+  seed="$BATS_TEST_TMPDIR/seed/user-data"
+  [ "$(yq -r '.autoinstall.network.ethernets | keys | join(",")' "$seed")" = uplinks ]
+  [ "$(yq -r '.autoinstall.network.ethernets.uplinks.match.driver' "$seed")" = i40e ]
+  [ "$(yq -r '.autoinstall.network.ethernets.uplinks.dhcp4' "$seed")" = true ]
+}

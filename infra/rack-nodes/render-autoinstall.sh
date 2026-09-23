@@ -83,6 +83,13 @@ autoinstall:
 $authorized_keys  storage:
     layout:
       name: direct
+  network:
+    version: 2
+    ethernets:
+      uplinks:
+        match:
+          driver: i40e
+        dhcp4: true
   packages:
     - curl
     - ca-certificates
