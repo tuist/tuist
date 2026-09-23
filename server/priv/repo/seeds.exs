@@ -5788,8 +5788,8 @@ coverage_repository_url = "https://github.com/tuist/tuist"
 coverage_repository_key = GitHistory.repository_key(coverage_repository_url)
 
 # Re-seeding starts from a clean graph: dropping the repository cascades to its
-# commits, parents, branch heads and listings, and the runs that named it go
-# with it, so the trend is never two seedings deep.
+# commits, parents, refs and listings, and the runs that named it go with it,
+# so the trend is never two seedings deep.
 coverage_previous_repository_id =
   Repo.one(
     from(r in GitHistory.Repository,
@@ -5806,9 +5806,11 @@ if coverage_previous_repository_id do
   Repo.delete_all(from(r in GitHistory.Repository, where: r.id == ^coverage_previous_repository_id))
 end
 
-for table <- ["coverage_files", "coverage_runs", "coverage_commits"] do
+for table <- ["coverage_files", "coverage_runs"] do
   IngestRepo.query!("DELETE FROM #{table} WHERE project_id = {project_id:Int64}", %{project_id: tuist_project.id})
 end
+
+Repo.delete_all(from(c in Tuist.Tests.CoverageCommit, where: c.project_id == ^tuist_project.id))
 
 # A mutation rather than a lightweight delete: `test_runs` carries projections,
 # which lightweight deletes refuse to touch.
@@ -6111,7 +6113,7 @@ for {branch, sha} <- [
       {"feature/networking-retries", coverage_commit_sha.("retries-1")},
       {"feature/coverage-page", coverage_commit_sha.("coverage-page-1")}
     ] do
-  GitHistory.record_branch_head(coverage_repository_id, branch, sha)
+  GitHistory.record_branch_head(coverage_repository_id, branch, sha, tuist_project.default_branch)
 end
 
 # Each commit's file listing, as the CLI uploads it from a clean checkout: the
