@@ -50,6 +50,8 @@ defmodule Tuist.Accounts.Account do
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
+    field :current_month_cache_egress_megabytes, :integer
+    field :current_month_cache_requests, :integer
     field :free_tier_reset_at, :utc_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
@@ -129,7 +131,9 @@ defmodule Tuist.Accounts.Account do
     cast(account, attrs, [
       :customer_id,
       :current_month_remote_cache_hits_count,
-      :current_month_remote_cache_hits_count_updated_at
+      :current_month_remote_cache_hits_count_updated_at,
+      :current_month_cache_egress_megabytes,
+      :current_month_cache_requests
     ])
   end
 
@@ -138,7 +142,12 @@ defmodule Tuist.Accounts.Account do
   end
 
   def free_tier_reset_changeset(account, attrs) do
-    cast(account, attrs, [:free_tier_reset_at, :current_month_remote_cache_hits_count])
+    cast(account, attrs, [
+      :free_tier_reset_at,
+      :current_month_remote_cache_hits_count,
+      :current_month_cache_egress_megabytes,
+      :current_month_cache_requests
+    ])
   end
 
   def update_changeset(account, attrs) do

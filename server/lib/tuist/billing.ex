@@ -13,6 +13,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
+  alias Tuist.Billing.UsageMeters
   alias Tuist.Billing.UsagePricing
   alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
@@ -781,6 +782,77 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Holds usage-based pricing off for every Air account whose metered cache
+  usage over `[period_start, period_end)` reached a cache allowance, and
+  answers with `%{held:, failed:}`.
+
+  Those are the Air accounts the new allowances would cut off where the
+  previous pricing may not, so they keep the previous pricing until
+  `release_usage_based_pricing_holds/0`. Every other Air account follows the
+  global gate, including one the previous cap blocks today that fits within
+  the new allowances. Test cases never count, because Air is never gated on
+  them.
+  """
+  def hold_usage_based_pricing_for_impacted_air_accounts(%DateTime{} = period_start, %DateTime{} = period_end) do
+    period_start
+    |> UsageMeters.accounts_with_cache_downloads(period_end)
+    |> Enum.chunk_every(1_000)
+    |> Enum.flat_map(&Repo.all(from(a in Account, where: a.id in ^&1, preload: :subscriptions)))
+    |> Enum.filter(fn account ->
+      # The plan check goes first so ClickHouse is only asked about Air accounts.
+      effective_plan(account) == :air and
+        account.id
+        |> UsagePricing.metered_cache_usage(period_start, period_end)
+        |> UsagePricing.cache_allowance_reached?()
+    end)
+    |> Enum.reduce(%{held: [], failed: []}, fn account, result ->
+      case FunWithFlags.disable(:usage_based_pricing, for_actor: account) do
+        {:ok, false} -> %{result | held: result.held ++ [account]}
+        {:error, reason} -> %{result | failed: result.failed ++ [{account.id, reason}]}
+      end
+    end)
+  end
+
+  @doc """
+  Ends the holds on the day the previous pricing stops, and answers with
+  `%{released:, failed:, switch:}`.
+
+  Every held account that is on Air now has its gate cleared, so it follows
+  the global gate. `:usage_based_pricing_switch` is enabled for everyone, so
+  `SwitchUsageBasedPricingWorker` moves each Pro subscription the next time
+  it runs. Held Pro accounts are left to that switch, which enables their
+  gate once their subscription carries the meters: clearing it here would
+  put them on the new pricing with the hit Price still on the subscription.
+  Held enterprise and open source accounts stay held.
+  """
+  def release_usage_based_pricing_holds do
+    result =
+      held_usage_based_pricing_account_ids()
+      |> Enum.chunk_every(1_000)
+      |> Enum.flat_map(&Repo.all(from(a in Account, where: a.id in ^&1, preload: :subscriptions)))
+      |> Enum.filter(&(effective_plan(&1) == :air))
+      |> Enum.reduce(%{released: [], failed: []}, fn account, result ->
+        case FunWithFlags.clear(:usage_based_pricing, for_actor: account) do
+          :ok -> %{result | released: result.released ++ [account]}
+          {:error, reason} -> %{result | failed: result.failed ++ [{account.id, reason}]}
+        end
+      end)
+
+    Map.put(result, :switch, FunWithFlags.enable(:usage_based_pricing_switch))
+  end
+
+  defp held_usage_based_pricing_account_ids do
+    case FunWithFlags.get_flag(:usage_based_pricing) do
+      %FunWithFlags.Flag{gates: gates} ->
+        for %FunWithFlags.Gate{type: :actor, enabled: false, for: "account:" <> id} <- gates,
+            do: String.to_integer(id)
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
   The accounts carrying an active Pro subscription, which are the ones the
   switch to usage-based pricing applies to. Whether a given one is switched
   is decided per account by `:usage_based_pricing_switch`.
@@ -1197,23 +1269,24 @@ defmodule Tuist.Billing do
 
   Only Air accounts are gated. An account whose paid subscription lapsed
   resolves to Air, so it is gated on the same terms as one that never
-  subscribed.
+  subscribed. What exhausts the free tier depends on the pricing the account
+  is on: 200 remote cache hits, or either cache allowance on usage-based
+  pricing.
   """
   def cache_access_blocked?(%Account{} = account) do
-    effective_plan(account) == :air and
-      over_free_tier?(account.current_month_remote_cache_hits_count)
+    effective_plan(account) == :air and over_free_tier?(account)
   end
 
   @doc """
   Starts `account`'s free tier over from now.
 
-  Both fields move together, and the second is the one that is easy to
-  miss. The counter is what `cache_access_blocked?/1` reads, so zeroing
-  it is what unblocks the account. `free_tier_reset_at` is what makes
-  that survive: `CommandEvents.account_month_usage/2` counts events from
-  `max(beginning_of_month, free_tier_reset_at)`, so a reset that left
-  the timestamp behind would be recomputed straight back over the
-  threshold at the next nightly sweep.
+  The counters and the timestamp move together, and the timestamp is the one
+  that is easy to miss. The counters are what `cache_access_blocked?/1`
+  reads, so zeroing them is what unblocks the account. `free_tier_reset_at`
+  is what makes that survive: the nightly refresh counts usage from
+  `max(beginning_of_month, free_tier_reset_at)`, so a reset that left the
+  timestamp behind would be recomputed straight back over the threshold at
+  the next sweep.
 
   This grants a fresh allowance for the rest of the month, not an
   exemption. The reset goes inert on the first of the next month, when
@@ -1223,7 +1296,9 @@ defmodule Tuist.Billing do
     account
     |> Account.free_tier_reset_changeset(%{
       free_tier_reset_at: DateTime.utc_now(),
-      current_month_remote_cache_hits_count: 0
+      current_month_remote_cache_hits_count: 0,
+      current_month_cache_egress_megabytes: 0,
+      current_month_cache_requests: 0
     })
     |> Repo.update()
   end
@@ -1231,15 +1306,15 @@ defmodule Tuist.Billing do
   @doc """
   The ids of the given accounts whose free tier is exhausted.
 
-  Only accounts already past the threshold need their plan resolved, and those
-  are resolved in one query rather than one apiece, so the cache authorization
-  paths do not scale a query per account the subject can reach.
+  Only accounts already past their threshold need their plan resolved, and
+  those are resolved in one query rather than one apiece, so the cache
+  authorization paths do not scale a query per account the subject can reach.
   """
   def cache_blocked_account_ids(accounts) do
     candidates =
       accounts
       |> Enum.uniq_by(& &1.id)
-      |> Enum.filter(&over_free_tier?(&1.current_month_remote_cache_hits_count))
+      |> Enum.filter(&over_free_tier?/1)
 
     case candidates do
       [] ->
@@ -1269,11 +1344,24 @@ defmodule Tuist.Billing do
     |> Map.new(fn {account_id, [latest | _]} -> {account_id, latest} end)
   end
 
+  # Both counters are refreshed nightly, so neither check reaches ClickHouse
+  # from the cache authorization path. The flag read is an in-memory lookup.
+  defp over_free_tier?(%Account{} = account) do
+    if FeatureFlags.usage_based_pricing_enabled?(account) do
+      UsagePricing.cache_allowance_reached?(%{
+        egress_megabytes: account.current_month_cache_egress_megabytes,
+        requests: account.current_month_cache_requests
+      })
+    else
+      over_remote_cache_hit_threshold?(account.current_month_remote_cache_hits_count)
+    end
+  end
+
   # Elixir orders atoms above numbers, so a nil counter would compare as being
   # over the threshold and deny the account.
-  defp over_free_tier?(nil), do: false
+  defp over_remote_cache_hit_threshold?(nil), do: false
 
-  defp over_free_tier?(count) do
+  defp over_remote_cache_hit_threshold?(count) do
     count >= get_payment_thresholds()[:remote_cache_hits]
   end
 

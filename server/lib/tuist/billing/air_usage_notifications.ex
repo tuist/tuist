@@ -8,18 +8,23 @@ defmodule Tuist.Billing.AirUsageNotifications do
   alias Tuist.Accounts.Account
   alias Tuist.Billing
   alias Tuist.Billing.AirUsageNotification
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Billing.Workers.AirUsageNotificationWorker
   alias Tuist.CommandEvents
+  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
   alias Tuist.Runners.Trials
 
+  @metrics [:remote_cache_hits, :cache_egress_megabytes, :cache_requests, :runner_minutes]
+  @cache_meters [:cache_egress_megabytes, :cache_requests]
+
   def enqueue(account_id, updated_at) do
     account = Repo.get!(Account, account_id)
 
     if current_month?(updated_at) && Billing.effective_plan(account) == :air do
-      for metric <- [:remote_cache_hits, :runner_minutes], eligible?(account, metric) do
+      for metric <- @metrics, eligible?(account, metric) do
         enqueue_metric(account, updated_at, metric)
       end
     end
@@ -27,8 +32,14 @@ defmodule Tuist.Billing.AirUsageNotifications do
     {:ok, :ok}
   end
 
+  # An account is warned about the limit it will actually hit: remote cache
+  # hits on the previous pricing, and the two cache allowances on usage-based
+  # pricing. Delivery checks this again, so a warning queued before an
+  # account changed pricing is dropped rather than sent about a limit it no
+  # longer has.
   def eligible?(account, :runner_minutes), do: not Trials.on_trial?(account)
-  def eligible?(_account, :remote_cache_hits), do: true
+  def eligible?(account, :remote_cache_hits), do: not FeatureFlags.usage_based_pricing_enabled?(account)
+  def eligible?(account, metric) when metric in @cache_meters, do: FeatureFlags.usage_based_pricing_enabled?(account)
 
   def usage(account, :runner_minutes) do
     now = DateTime.utc_now()
@@ -40,11 +51,16 @@ defmodule Tuist.Billing.AirUsageNotifications do
   def usage(account, :remote_cache_hits),
     do: {account.current_month_remote_cache_hits_count, Billing.get_payment_thresholds().remote_cache_hits}
 
+  def usage(account, :cache_egress_megabytes),
+    do: {account.current_month_cache_egress_megabytes, UsagePricing.included_egress_megabytes()}
+
+  def usage(account, :cache_requests), do: {account.current_month_cache_requests, UsagePricing.included_requests()}
+
   def period_start(account, date, metric \\ :remote_cache_hits)
 
   def period_start(_account, date, :runner_minutes), do: date |> Timex.beginning_of_month() |> DateTime.truncate(:second)
 
-  def period_start(account, date, :remote_cache_hits) do
+  def period_start(account, date, _cache_metric) do
     account |> CommandEvents.usage_counted_from(date) |> DateTime.truncate(:second)
   end
 
