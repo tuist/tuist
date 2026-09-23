@@ -299,6 +299,15 @@
     align-items: flex-start;
     gap: var(--noora-spacing-4);
 
+    /* A verified domain carries only its badge. Without a record to publish
+       there is nothing to fill the column, so it tracks the control it
+       describes rather than sitting at the opposite edge of the row. */
+    &:not(:has([data-part="domain-record"])) {
+      align-self: flex-end;
+      width: 320px;
+      max-width: 100%;
+    }
+
     & > [data-part="domain-verification-status"] {
       border-radius: var(--noora-radius-4);
       padding: var(--noora-spacing-1) var(--noora-spacing-3);
@@ -312,6 +321,11 @@
       &[data-status="pending"] {
         background: var(--noora-badge-light-fill-warning-background);
         color: var(--noora-badge-light-fill-warning-label);
+      }
+
+      &[data-status="expiring"] {
+        background: var(--noora-badge-light-fill-destructive-background);
+        color: var(--noora-badge-light-fill-destructive-label);
       }
     }
 
