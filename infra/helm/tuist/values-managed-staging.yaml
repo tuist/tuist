@@ -1143,7 +1143,7 @@ runnersFleetLinux:
     enabled: true
     hostPath: /var/lib/kubelet/tuist-runner-cache
     image:
-      tag: sha-f7efd232d7b9
+      tag: sha-a1c278970fe8
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
