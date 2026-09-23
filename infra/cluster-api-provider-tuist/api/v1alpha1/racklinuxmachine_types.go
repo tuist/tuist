@@ -48,8 +48,9 @@ type RackLinuxMachineStatus struct {
 	// +optional
 	Addresses []clusterv1.MachineAddress `json:"addresses,omitempty"`
 
-	// TailnetDeviceID is the host's tailnet device at the last successful
-	// converge. A host on a different device was reinstalled.
+	// TailnetDeviceID is the host's tailnet device at the last converge
+	// attempt. A host on a different device was reinstalled, and is converged
+	// without waiting out the previous device's failure backoff.
 	// +optional
 	TailnetDeviceID string `json:"tailnetDeviceID,omitempty"`
 

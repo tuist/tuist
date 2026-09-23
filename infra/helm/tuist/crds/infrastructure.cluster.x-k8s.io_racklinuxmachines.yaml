@@ -207,8 +207,9 @@ spec:
                   type: boolean
                 tailnetDeviceID:
                   description: |-
-                    TailnetDeviceID is the host's tailnet device at the last successful
-                    converge. A host on a different device was reinstalled.
+                    TailnetDeviceID is the host's tailnet device at the last converge
+                    attempt. A host on a different device was reinstalled, and is converged
+                    without waiting out the previous device's failure backoff.
                   type: string
               type: object
           type: object
