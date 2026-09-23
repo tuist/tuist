@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Path
@@ -21,20 +22,20 @@ public enum XCResultParserError: LocalizedError, Equatable {
 
 public struct XCResultParser: Sendable {
     private let fileSystem: FileSysteming
-    private let execute: XCResultToolExecuting
+    private let commandRunner: CommandRunning
     private let ipsCrashReportParser: IPSCrashReportParsing
     private let coverageParser: XcodeCoverageParsing
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        execute: @escaping XCResultToolExecuting = executeXCResultTool,
+        commandRunner: CommandRunning = CommandRunner(),
         ipsCrashReportParser: IPSCrashReportParsing = IPSCrashReportParser(),
         coverageParser: XcodeCoverageParsing? = nil
     ) {
         self.fileSystem = fileSystem
-        self.execute = execute
+        self.commandRunner = commandRunner
         self.ipsCrashReportParser = ipsCrashReportParser
-        self.coverageParser = coverageParser ?? XcodeCoverageParser(fileSystem: fileSystem, execute: execute)
+        self.coverageParser = coverageParser ?? XcodeCoverageParser(fileSystem: fileSystem, commandRunner: commandRunner)
     }
 
     private func secondsToMilliseconds(_ seconds: Double) -> Int {
@@ -128,14 +129,14 @@ public struct XCResultParser: Sendable {
             .runInTemporaryDirectory(prefix: "xcresult-test-results") { temporaryDirectory in
                 let tempFile = temporaryDirectory.appending(component: "test-results.json")
 
-                let output = try await execute([
+                _ = try await commandRunner.run(
+                    arguments: [
                         "/bin/sh", "-c",
                         // `exec` replaces the shell with the tool so cancellation, which signals
                         // only the direct child, reaches xcresulttool instead of orphaning it.
                         "exec /usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
                     ]
-                )
-                try output.requireSuccess(for: ["xcresulttool", "get", "test-results", "tests"])
+                ).concatenatedString()
 
                 let outputString = try await fileSystem.readTextFile(at: tempFile)
                 let jsonString = extractJSON(from: outputString)
@@ -740,16 +741,14 @@ public struct XCResultParser: Sendable {
         try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-action-log") { temporaryDirectory in
             let tempFile = temporaryDirectory.appending(component: "action-log.json")
 
-            let output = try await execute([
+            _ = try await commandRunner.run(
+                arguments: [
                     "/bin/sh", "-c",
                     // `exec` replaces the shell with the tool so cancellation, which signals
                     // only the direct child, reaches xcresulttool instead of orphaning it.
                     "exec /usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
                 ]
-            )
-            if !output.succeeded, !output.standardError.contains("No action log available") {
-                try output.requireSuccess(for: ["xcresulttool", "get", "log", "--type", "action"])
-            }
+            ).concatenatedString()
 
             let logData = try await fileSystem.readFile(at: tempFile)
             // An aborted or test-less xcresult has no action log: `xcresulttool
@@ -833,13 +832,14 @@ public struct XCResultParser: Sendable {
         do {
             let temporaryDirectory = try await attachmentsExportDirectory(in: attachmentsDirectory)
 
-            _ = try await execute([
+            _ = try await commandRunner.run(
+                arguments: [
                     "/bin/sh", "-c",
                     // `exec` replaces the shell with the tool so cancellation, which signals
                     // only the direct child, reaches xcresulttool instead of orphaning it.
                     "exec /usr/bin/xcrun xcresulttool export attachments --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
                 ]
-            )
+            ).concatenatedString()
 
             let manifestPath = temporaryDirectory.appending(component: "manifest.json")
             guard try await fileSystem.exists(manifestPath) else {
@@ -901,7 +901,9 @@ public struct XCResultParser: Sendable {
         for fileName in pngFileNames {
             let filePath = directory.appending(component: fileName)
             do {
-                _ = try await execute(["/usr/bin/sips", "-s", "format", "png", filePath.pathString, "--out", filePath.pathString])
+                _ = try await commandRunner.run(
+                    arguments: ["/usr/bin/sips", "-s", "format", "png", filePath.pathString, "--out", filePath.pathString]
+                ).concatenatedString()
             } catch {
                 // Silently skip PNG conversion failures
             }

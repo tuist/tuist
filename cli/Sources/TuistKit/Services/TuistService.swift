@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Path
@@ -8,7 +9,6 @@ import TuistEnvironment
 import TuistLoader
 import TuistLogging
 import TuistPlugin
-import TuistProcess
 import TuistSupport
 
 enum TuistServiceError: Error {

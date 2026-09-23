@@ -30,7 +30,7 @@ let targets: [Target] = [
         dependencies: [
             "XcodeGraph",
             "XcodeMetadata",
-            .product(name: "Subprocess", package: "swift-subprocess"),
+            .product(name: "Command", package: "tuist.Command"),
             .product(name: "FileSystem", package: "tuist.FileSystem"),
             .product(name: "Path", package: "tuist.Path"),
             .product(name: "XcodeProj", package: "tuist.XcodeProj"),
@@ -57,7 +57,7 @@ let package = Package(
         .package(id: "flight-school.AnyCodable", .upToNextMajor(from: "0.6.7")),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.14.0")),
-        .package(url: "https://github.com/swiftlang/swift-subprocess.git", exact: "0.4.0"),
+        .package(id: "tuist.Command", from: "0.13.0"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),

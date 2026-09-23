@@ -1,4 +1,4 @@
-import TuistProcess
+import Command
 import Foundation
 import Path
 import TuistCore

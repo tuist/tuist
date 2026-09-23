@@ -7,9 +7,9 @@ import TuistAndroid
 import TuistEnvironment
 
 #if canImport(TuistCore)
+    import Command
     import TuistAutomation
     import TuistCore
-    import TuistProcess
     import TuistSimulator
     import TuistXcodeBuildProducts
 #endif

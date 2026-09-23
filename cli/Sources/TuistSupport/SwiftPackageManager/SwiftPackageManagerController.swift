@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -7,7 +8,6 @@ import TSCUtility
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
-import TuistProcess
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 @Mockable

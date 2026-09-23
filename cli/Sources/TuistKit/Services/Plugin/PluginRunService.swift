@@ -1,6 +1,6 @@
+import Command
 import Path
 import TuistEnvironment
-import TuistProcess
 import TuistSupport
 
 struct PluginRunService {

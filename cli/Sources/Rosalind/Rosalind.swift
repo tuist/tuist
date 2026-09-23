@@ -1,6 +1,6 @@
+import Command
 @preconcurrency import FileSystem
 import Foundation
-import TuistProcess
 #if canImport(MachOKit)
     import MachOKit
 #endif
