@@ -176,7 +176,8 @@ enum PackageResolver {
         let checkouts = scratchDir.appendingPathComponent("checkouts")
         guard try await fileSystem.exists(checkouts.absolutePath) else { return }
         for entry in try await fileSystem.contentsOfDirectory(at: checkouts)
-        where fileSystem.isSymlink(entry) {
+            where fileSystem.isSymlink(entry)
+        {
             try await fileSystem.removePath(entry)
         }
     }
