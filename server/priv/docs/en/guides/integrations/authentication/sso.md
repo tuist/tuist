@@ -61,7 +61,7 @@ The setting cannot be set to `admin`, applies to members provisioned over <.loca
 
 ### Link an existing Tuist account {#link-an-existing-account}
 
-A linked provider identity signs in to the whole Tuist account, including every other organization the account belongs to. For Okta and custom providers, Tuist links an existing account automatically only when its email address is on the verified login email domain.
+A linked provider identity signs in to the whole Tuist account, including every other organization the account belongs to. For Okta and custom providers, Tuist links an existing account automatically only when its email address is on the verified login email domain, or when the organization's SCIM provisioning created the account.
 
 Members and invited users whose account does not qualify link the identity themselves:
 
@@ -137,7 +137,7 @@ If you also want Okta to create, update, or deprovision members automatically, c
 
 Assign the users or groups that should be allowed to authenticate through the Okta application.
 
-Assignment grants access to the login flow, but organization membership still follows the enrollment policy. If the same users are provisioned through System for Cross-domain Identity Management, Tuist links the Okta identity to the existing organization member the first time the user signs in, provided their email address is on the verified login email domain.
+Assignment grants access to the login flow, but organization membership still follows the enrollment policy. If the same users are provisioned through System for Cross-domain Identity Management, Tuist links the Okta identity to the account SCIM created the first time the user signs in. A member whose account existed before SCIM added it is linked when their email address is on the verified login email domain, or after they confirm the link from their signed-in account.
 
 ## Microsoft Entra ID {#microsoft-entra-id}
 
@@ -171,7 +171,7 @@ If you also want Entra ID to create, update, or deprovision members automaticall
 
 Assign the users or groups that should be allowed to authenticate. If the application is configured to require assignment, only assigned users can sign in.
 
-Assignment grants access to the login flow, but organization membership still follows the enrollment policy. If the same users are provisioned through System for Cross-domain Identity Management, Tuist links the Entra identity to the existing organization member the first time the user signs in, provided their email address is on the verified login email domain.
+Assignment grants access to the login flow, but organization membership still follows the enrollment policy. If the same users are provisioned through System for Cross-domain Identity Management, Tuist links the Entra identity to the account SCIM created the first time the user signs in. A member whose account existed before SCIM added it is linked when their email address is on the verified login email domain, or after they confirm the link from their signed-in account.
 
 ### Requirements for the email claim {#entra-email-claim}
 
@@ -221,8 +221,7 @@ For new Okta and custom-provider configurations, confirm that the login email do
 
 ### Single sign-on asks you to log in first {#single-sign-on-asks-you-to-log-in-first}
 
-The email address of your Tuist account is not on the organization's verified login email domain, or the domain is not verified yet, so Tuist does not link the provider identity automatically. Log in with your usual sign-in method and confirm the link, as described in <.localized_link href="/guides/integrations/authentication/sso#link-an-existing-account">Link an existing Tuist account</.localized_link>. A member provisioned through SCIM who has never set a password can set one from **Forgot password?** on the login page first.
-
+The email address of your Tuist account is not on the organization's verified login email domain, or the domain is not verified yet, so Tuist does not link the provider identity automatically. Log in with your usual sign-in method and confirm the link, as described in <.localized_link href="/guides/integrations/authentication/sso#link-an-existing-account">Link an existing Tuist account</.localized_link>.
 ### Tuist cannot find an organization for an email address {#tuist-cannot-find-an-organization-for-an-email-address}
 
 Confirm that the user entered the expected employee email address and that its domain exactly matches the verified login email domain. Existing members may also be discovered through their current organization membership.

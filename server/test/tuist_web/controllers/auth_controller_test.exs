@@ -1155,6 +1155,43 @@ defmodule TuistWeb.AuthControllerTest do
                Tuist.Accounts.get_oauth2_identity(:oauth2, "off-domain-member", "https://login.vendor.example")
     end
 
+    test "links an account the organization's SCIM provisioning created while the domain is unverified", %{
+      conn: conn
+    } do
+      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      organization = custom_provider_organization(creator: owner)
+      {:ok, provisioned} = Tuist.SCIM.provision_user(organization, %{user_name: "provisioned@customer.example"})
+      stub_sso_userinfo("provisioned-identity", provisioned.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) =~ "/#{provisioned.account.name}"
+
+      assert {:ok, identity} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "provisioned-identity", "https://login.vendor.example")
+
+      assert identity.user_id == provisioned.id
+    end
+
+    test "does not link an account another organization's SCIM provisioning created", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture(email: "owner@customer.example")
+      organization = custom_provider_organization(creator: owner)
+
+      other_organization =
+        AccountsFixtures.organization_fixture(creator: AccountsFixtures.user_fixture(email: "other-owner@mail.example"))
+
+      {:ok, provisioned} = Tuist.SCIM.provision_user(other_organization, %{user_name: "shared@customer.example"})
+      :ok = Tuist.Accounts.add_user_to_organization(provisioned, organization, role: :user)
+      stub_sso_userinfo("foreign-identity", provisioned.email)
+
+      conn = sso_callback(conn, organization)
+
+      assert redirected_to(conn) == "/users/log_in"
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(:oauth2, "foreign-identity", "https://login.vendor.example")
+    end
+
     test "keeps linking members by email in compatibility mode", %{conn: conn} do
       member = AccountsFixtures.user_fixture(email: "legacy-member@customer.example")
 

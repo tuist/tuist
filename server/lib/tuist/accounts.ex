@@ -977,7 +977,8 @@ defmodule Tuist.Accounts do
           token: token,
           password: password,
           confirmed_at: confirmed_at,
-          created_at: created_at
+          created_at: created_at,
+          provisioned_by_organization_id: Keyword.get(opts, :provisioned_by_organization_id)
         })
       )
       |> Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->

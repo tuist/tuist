@@ -247,7 +247,7 @@ defmodule Tuist.SCIM do
 
   defp apply_provision(organization, email, role, active) do
     {user, provenance} =
-      case provisionable_user(email) do
+      case provisionable_user(email, organization) do
         {:ok, %User{} = u, p} -> {u, p}
         {:error, reason} -> Repo.rollback(reason)
       end
@@ -301,7 +301,7 @@ defmodule Tuist.SCIM do
     |> Oban.insert!()
   end
 
-  defp provisionable_user(email, opts \\ []) do
+  defp provisionable_user(email, %Organization{} = organization, opts \\ []) do
     retry_after_email_taken = Keyword.get(opts, :retry_after_email_taken, true)
 
     case Accounts.get_user_by_email(email) do
@@ -309,12 +309,17 @@ defmodule Tuist.SCIM do
         {:ok, user, :existing}
 
       {:error, :not_found} ->
-        case Accounts.create_user(email, confirmed_at: default_confirmed_at()) do
+        # Recorded so the organization's identity provider can link the
+        # account it created without a verified login email domain.
+        case Accounts.create_user(email,
+               confirmed_at: default_confirmed_at(),
+               provisioned_by_organization_id: organization.id
+             ) do
           {:ok, user} ->
             {:ok, user, :created}
 
           {:error, :email_taken} when retry_after_email_taken ->
-            provisionable_user(email, retry_after_email_taken: false)
+            provisionable_user(email, organization, retry_after_email_taken: false)
 
           {:error, :email_taken} ->
             {:error, :email_taken}
