@@ -426,6 +426,91 @@ struct ResolveTests {
     }
 
     @Test
+    func nativeResolveKeepsCachedCheckoutsWithoutAGitDirectoryLinked() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+            let other = root.appendingPathComponent("Other")
+            try await writeLibraryPackageManifest(at: other, name: "Other")
+            try await initGitDependency(at: other, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            let writeManifest: (String) async throws -> Void = { dependencyVersion in
+                try await fileSystem.atomicWrite(
+                    """
+                    // swift-tools-version: 6.0
+                    import PackageDescription
+                    let package = Package(
+                        name: "App",
+                        products: [
+                            .library(name: "App", targets: ["App"]),
+                        ],
+                        dependencies: [
+                            .package(url: "\(dependency.path)", exact: "\(dependencyVersion)"),
+                            .package(url: "\(other.path)", exact: "1.0.0"),
+                        ],
+                        targets: [
+                            .target(name: "App", dependencies: [
+                                .product(name: "Framework", package: "Dependency"),
+                                .product(name: "Other", package: "Other"),
+                            ]),
+                        ]
+                    )
+                    """,
+                    to: package.appendingPathComponent("Package.swift")
+                )
+            }
+            try await writeManifest("1.0.0")
+            try await fileSystem.atomicWrite(
+                "public struct App {}\n", to: package.appendingPathComponent("Sources/App/App.swift")
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            _ = try await SwifterPM().resolve(request)
+            let checkouts = scratch.appendingPathComponent("checkouts")
+            let dependencySlot = checkouts.appendingPathComponent("dependency").resolvingSymlinksInPath()
+            #expect(fileSystem.isSymlink(checkouts.appendingPathComponent("other")))
+
+            try await writeManifest("2.0.0")
+            _ = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cacheDirectory,
+                registryConfigurationPath: nil,
+                defaultRegistryURL: nil,
+                disableSandbox: true,
+                scmToRegistryTransformation: .disabled,
+                useExistingResolvedFile: true,
+                writeResolvedFile: true,
+                forwardOutput: false
+            )
+
+            #expect(fileSystem.isSymlink(checkouts.appendingPathComponent("other")))
+            let committedArchive = try await SystemProcess.run(
+                "/usr/bin/git", ["-C", dependency.path, "show", "1.0.0:Framework.zip"]
+            ).stdout
+            let slotArchive = try await fileSystem.readFile(
+                at: dependencySlot.appendingPathComponent("Framework.zip").absolutePath
+            )
+            #expect(slotArchive == committedArchive)
+
+            _ = try await SwifterPM().resolve(request)
+            let restored = try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency")
+            #expect(restored == "v2")
+        }
+    }
+
+    @Test
     func resolvingARevisionWhoseCachedSourceWasCheckedOutInPlaceRestoresThatRevisionsBinaryArtifact() async throws {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")

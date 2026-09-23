@@ -105,17 +105,8 @@ enum PackageResolver {
         // exists to escape. Clear both together and let SwiftPM rewrite each
         // from the fresh solver output.
         let workspaceStatePath = effectiveScratchDir.appendingPathComponent("workspace-state.json")
-        // `checkouts/<identity>` may still be a whole-directory symlink a previous
-        // restore pointed at one revision's slot in our own persistent source cache
-        // (`WorkspaceRestorer.restoreSourcePins`). Native SwiftPM doesn't know that:
-        // when the graph now needs a different revision, it updates what looks like
-        // its own disposable working copy with an in-place `git checkout`, mutating
-        // that cache slot through the link. The slot is then silently wrong for the
-        // revision its directory name and freshness marker still claim, and a later
-        // resolve back to that revision reuses it as if nothing happened. Removing the
-        // symlink first forces SwiftPM to materialize its own working copy — from its
-        // own repository cache, so this is a local checkout, not a network refetch —
-        // instead of writing into ours.
+        // Native SwiftPM updates an existing git checkout in place, which would rewrite a
+        // cached source through its `checkouts/<identity>` symlink.
         try await detachNativeCheckoutSymlinks(scratchDir: effectiveScratchDir)
         let resolvedSnapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
@@ -167,17 +158,16 @@ enum PackageResolver {
         }
     }
 
-    /// Removes any `checkouts/<identity>` entry that is a symlink, so the native
-    /// `swift package resolve`/`update` subprocess about to run materializes its own
-    /// working copy instead of checking out a new revision through a link into our
-    /// persistent, per-revision source cache. See the call site for why that link is
-    /// unsafe to hand to a process that doesn't know it's shared.
+    /// Only links whose target still has a `.git` can be checked out in place.
     private static func detachNativeCheckoutSymlinks(scratchDir: URL) async throws {
         let checkouts = scratchDir.appendingPathComponent("checkouts")
         guard try await fileSystem.exists(checkouts.absolutePath) else { return }
         for entry in try await fileSystem.contentsOfDirectory(at: checkouts)
             where fileSystem.isSymlink(entry)
         {
+            guard try await fileSystem.exists(entry.appendingPathComponent(".git").absolutePath) else {
+                continue
+            }
             try await fileSystem.removePath(entry)
         }
     }
