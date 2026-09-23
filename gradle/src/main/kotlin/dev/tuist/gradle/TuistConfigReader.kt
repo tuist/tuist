@@ -129,6 +129,8 @@ object CacheEndpointResolver {
         return if (endpoints.size == 1) {
             endpoints[0]
         } else {
+            // Stable managed URLs can coexist with custom/self-hosted caches. The API list is
+            // unranked, so these and regional fallback responses still need client selection.
             pickFastestEndpoint(endpoints, httpClients)
                 ?: throw CacheEndpointsUnreachableException(endpoints)
         }

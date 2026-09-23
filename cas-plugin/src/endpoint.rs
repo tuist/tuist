@@ -11,15 +11,16 @@
 //!
 //! Asked of the CLI rather than of the API directly, so "which endpoint" has
 //! one implementation. The CLI already resolves the account's endpoints,
-//! probes them for latency and caches the answer under the freshness the
-//! server sets; a second resolver here would be a second set of rules to keep
-//! in step with it.
+//! uses a sole endpoint directly (DNS steers managed stable hostnames), and
+//! probes only multi-endpoint responses for latency. `cache config` returns
+//! the choice and alternatives from one fresh response; a second resolver
+//! here would be a second set of rules to keep in step with it.
 
 use std::process::Command;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedEndpoint {
-    /// The endpoint the CLI picked by latency.
+    /// The sole endpoint, or the CLI's latency choice among multiple endpoints.
     pub url: String,
     /// Every endpoint the server currently serves the account from, or `None`
     /// when the CLI did not report them.

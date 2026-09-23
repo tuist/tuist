@@ -54,17 +54,13 @@ struct CacheConfigCommandServiceTests {
 
         if let cacheURLError {
             given(cacheURLStore)
-                .getCacheURL(for: .any, accountHandle: .any)
+                .getCacheEndpointSelection(for: .any, accountHandle: .any)
                 .willThrow(cacheURLError)
         } else {
             given(cacheURLStore)
-                .getCacheURL(for: .any, accountHandle: .any)
-                .willReturn(cacheURL)
+                .getCacheEndpointSelection(for: .any, accountHandle: .any)
+                .willReturn(CacheEndpointSelection(url: cacheURL, endpoints: [cacheURL, farCacheURL]))
         }
-
-        given(cacheURLStore)
-            .getCacheEndpoints(for: .any, accountHandle: .any)
-            .willReturn([cacheURL, farCacheURL])
 
         let subject = CacheConfigCommandService(
             serverEnvironmentService: serverEnvironmentService,
@@ -169,7 +165,7 @@ struct CacheConfigCommandServiceTests {
             subject,
             _,
             serverAuthenticationController,
-            _,
+            cacheURLStore,
             _,
             _,
             _,
@@ -192,6 +188,12 @@ struct CacheConfigCommandServiceTests {
         let output = ui()
         #expect(output.contains("\"endpoints\""))
         #expect(output.contains("far-cache.tuist.dev"))
+        verify(cacheURLStore)
+            .getCacheEndpointSelection(for: .any, accountHandle: .any)
+            .called(1)
+        verify(cacheURLStore)
+            .getCacheURL(for: .any, accountHandle: .any)
+            .called(0)
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
@@ -457,7 +459,7 @@ struct CacheConfigCommandServiceTests {
             .called(1)
 
         verify(cacheURLStore)
-            .getCacheURL(for: .any, accountHandle: .value("my-account"))
+            .getCacheEndpointSelection(for: .any, accountHandle: .value("my-account"))
             .called(1)
     }
 }

@@ -53,11 +53,16 @@
                 .called(1)
         }
 
-        @Test(.withMockedEnvironment())
-        func uses_single_endpoint_directly_without_measuring_latency() async throws {
+        @Test(.withMockedEnvironment(), arguments: [
+            "https://acme.cache.tuist.dev",
+            "https://acme-canary.cache.tuist.dev",
+            "https://acme-staging.cache.tuist.dev",
+            "https://acme-eu-west.kura.tuist.dev",
+            "http://cache.internal:8080",
+        ])
+        func uses_single_endpoint_directly_without_measuring_latency(endpoint: String) async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
-            let endpoint = "https://cache.example.com"
 
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(nil))
@@ -172,7 +177,7 @@
         }
 
         @Test(.withMockedEnvironment())
-        func lists_every_endpoint_the_account_is_served_from() async throws {
+        func selects_and_lists_endpoints_from_one_response() async throws {
             // Given
             let serverURL = URL(string: "https://tuist.dev")!
             let near = "https://acme-us-central-1.kura.tuist.dev"
@@ -181,15 +186,74 @@
             given(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
                 .willReturn(CacheEndpointsResolution(endpoints: [near, far], maxAge: nil))
+            given(latencyService)
+                .measureLatency(for: .value(URL(string: near)!))
+                .willReturn(0.01)
+            given(latencyService)
+                .measureLatency(for: .value(URL(string: far)!))
+                .willReturn(0.2)
 
             // When
-            let result = try await subject.getCacheEndpoints(for: serverURL, accountHandle: "acme")
+            let result = try await subject.getCacheEndpointSelection(for: serverURL, accountHandle: "acme")
 
             // Then
-            #expect(result == [URL(string: near)!, URL(string: far)!])
-            verify(latencyService)
-                .measureLatency(for: .any)
-                .called(0)
+            #expect(result.url == URL(string: near)!)
+            #expect(result.endpoints == [URL(string: near)!, URL(string: far)!])
+            verify(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .any, accountHandle: .any)
+                .called(1)
+        }
+
+        @Test(.withMockedEnvironment())
+        func fresh_selection_does_not_mix_a_cached_regional_choice_with_a_stable_response() async throws {
+            let serverURL = URL(string: "https://tuist.dev")!
+            let regional = "https://acme-eu-west.kura.tuist.dev"
+            let stable = "https://acme.cache.tuist.dev"
+            var calls = 0
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("acme"))
+                .willProduce { _, _ in
+                    calls += 1
+                    return CacheEndpointsResolution(endpoints: [calls == 2 ? stable : regional], maxAge: 3600)
+                }
+
+            #expect(try await subject.getCacheURL(for: serverURL, accountHandle: "acme").absoluteString == regional)
+
+            let selection = try await subject.getCacheEndpointSelection(for: serverURL, accountHandle: "acme")
+
+            #expect(selection.url.absoluteString == stable)
+            #expect(selection.endpoints.map(\.absoluteString) == [stable])
+            #expect(calls == 2)
+
+            let rollback = try await subject.getCacheEndpointSelection(for: serverURL, accountHandle: "acme")
+            #expect(rollback.url.absoluteString == regional)
+            #expect(rollback.endpoints.map(\.absoluteString) == [regional])
+            #expect(calls == 3)
+            verify(latencyService).measureLatency(for: .any).called(0)
+        }
+
+        @Test(.withMockedEnvironment(), arguments: [
+            "http://cache.internal:8080",
+            "https://custom.example.com",
+            "https://acme-unsupported.kura.tuist.dev",
+        ])
+        func stable_endpoint_does_not_override_a_faster_alternative(alternative: String) async throws {
+            let serverURL = URL(string: "https://tuist.dev")!
+            let stable = "https://acme.cache.tuist.dev"
+            given(getCacheEndpoints)
+                .getCacheEndpoints(serverURL: .any, accountHandle: .any)
+                .willReturn(CacheEndpointsResolution(endpoints: [stable, alternative], maxAge: 3600))
+            given(latencyService)
+                .measureLatency(for: .value(URL(string: stable)!))
+                .willReturn(0.2)
+            given(latencyService)
+                .measureLatency(for: .value(URL(string: alternative)!))
+                .willReturn(0.01)
+
+            let selection = try await subject.getCacheEndpointSelection(for: serverURL, accountHandle: "acme")
+
+            #expect(selection.url.absoluteString == alternative)
+            #expect(selection.endpoints.map(\.absoluteString) == [stable, alternative])
         }
 
         @Test(.withMockedEnvironment())
@@ -200,10 +264,11 @@
             Environment.mocked?.variables["TUIST_CACHE_ENDPOINT"] = overrideEndpoint
 
             // When
-            let result = try await subject.getCacheEndpoints(for: serverURL, accountHandle: nil)
+            let result = try await subject.getCacheEndpointSelection(for: serverURL, accountHandle: nil)
 
             // Then
-            #expect(result == [URL(string: overrideEndpoint)!])
+            #expect(result.url == URL(string: overrideEndpoint)!)
+            #expect(result.endpoints == [URL(string: overrideEndpoint)!])
             verify(getCacheEndpoints)
                 .getCacheEndpoints(serverURL: .any, accountHandle: .any)
                 .called(0)
