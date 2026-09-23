@@ -214,7 +214,9 @@ spec:
         checksum/script: {{ .Files.Get "files/rack-boot.sh" | sha256sum }}
     spec:
       hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      # The node's own resolvers: a rack node has no route to the cluster's DNS
+      # Service, and the ISO comes from releases.ubuntu.com.
+      dnsPolicy: Default
       automountServiceAccountToken: false
       enableServiceLinks: false
       nodeSelector:
