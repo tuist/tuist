@@ -7,7 +7,7 @@ images or network block devices are required. Custom key/path volumes remain
 Linux-only; the existing automatic macOS repository cache is unchanged.
 
 The feature is disabled by default. Staging is enabled for the validation below;
-production remains disabled pending the remaining provider and operational gates.
+production remains disabled pending public integration releases and operational gates.
 
 ## Workflow
 
@@ -207,7 +207,7 @@ would lose publication metadata.
 
 ### Staging evidence (September 23, 2026)
 
-The [staging deployment](https://github.com/tuist/tuist/actions/runs/35879898316)
+The [staging deployment](https://github.com/tuist/tuist/actions/runs/35888943138)
 uses a separately provisioned 200 GB preallocated XFS filesystem on the staging
 OVH Linux host. Its systemd mount and provisioning idempotency were checked; a host
 reboot has not been tested. Production is unchanged.
@@ -234,8 +234,36 @@ discarded both jobs' private writes, and
 [subsequent jobs](https://github.com/tuist/runners-benchmark/actions/runs/35884844710)
 verified the last successful contents were unchanged.
 
+GitLab’s actual remote template passed
+[cold attachment and save](https://gitlab.com/tuist2/gitlab-runner-staging-e2e/-/jobs/16687684514),
+[warm restoration](https://gitlab.com/tuist2/gitlab-runner-staging-e2e/-/pipelines/2875884783),
+and [post-failure content verification](https://gitlab.com/tuist2/gitlab-runner-staging-e2e/-/pipelines/2875891183).
+The [intentional failure](https://gitlab.com/tuist2/gitlab-runner-staging-e2e/-/pipelines/2875887310)
+wrote a different sentinel; its eligible-but-failed use was discarded. The original
+pipeline configuration was restored exactly after these tests. The live job-token
+API exposed `pipeline.source`, which required correcting the top-level-only lookup.
+
+Buildkite’s [scheduled seed](https://buildkite.com/tuist/tuist-staging-smoke/builds/9)
+passed with a real cold mount and accepted generation-1 publication. The
+[API-triggered warm run](https://buildkite.com/tuist/tuist-staging-smoke/builds/13)
+restored its contents and changed a private sentinel; its successful use was
+discarded with save permission disabled. The self-contained warm smoke skipped
+the unrelated example-repository checkout and used Git protocol v1 for the actual
+plugin clone after anonymous GitHub v2 checkout failures.
+The [fresh verification run](https://buildkite.com/tuist/tuist-staging-smoke/builds/14)
+then recovered the original sentinel, nested file, and symlink, confirming that
+the read-only run's private writes did not replace the saved contents. The original
+Buildkite pipeline command and queue were restored, and all temporary schedules
+were removed.
+
+Buildkite’s first real plugin invocation exposed a missing explicit plugin
+checkout directory in the standalone agent. The corrected image reached the hook,
+then exposed a second issue: Stacks reports a running job’s state but returns 404
+for its full scheduling payload after acquisition. The server now captures only
+verified scope and save permission before returning the acquisition token. Missing
+identity snapshots decline attachment, and a failed refresh clears earlier authority.
+
 The first live run exposed the verified-job webhook race and the Kata SubPath
-teardown deadlock described above. Both were fixed and rerun. Passing Buildkite
-and GitLab workload evidence, public distribution releases, host reboot/loss,
+teardown deadlock described above. Both were fixed and rerun. Public distribution releases, host reboot/loss,
 capacity exhaustion, upload outage injection, and representative workload
 benchmarks remain required before production enablement.
