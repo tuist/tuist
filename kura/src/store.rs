@@ -26,6 +26,10 @@ use uuid::Uuid;
 
 use crate::{
     action_cache_refs::referenced_blob_keys,
+    action_cache_removals::{
+        ACTION_CACHE_REMOVAL_LOG_MAX, ActionCacheRemoval, ActionCacheRemovalLog,
+        ActionCacheRemovals,
+    },
     artifact::{
         manifest::{ArtifactManifest, PersistedManifestRecord},
         producer::ArtifactProducer,
@@ -233,6 +237,10 @@ pub struct Store {
     /// per node: it only ever gates a local cache, a fresh process rebuilds once,
     /// and the apply path bumps it too so a peer's write is not missed.
     action_cache_generations: StdMutex<HashMap<String, u64>>,
+    /// Entries and blobs removed per namespace, so a cached snapshot index can
+    /// drop what it advertises before its next reconcile (see
+    /// `action_cache_removals`).
+    action_cache_removals: StdMutex<ActionCacheRemovalLog>,
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
@@ -1143,6 +1151,9 @@ struct CascadeProgress {
     seen_recipes: HashSet<String>,
     pending_entries: Vec<String>,
     pending_namespaces: HashSet<String>,
+    /// Entries and blobs staged for deletion in the current chunk, recorded for
+    /// cached snapshot indexes when the chunk commits.
+    removals: Vec<(String, ActionCacheRemoval)>,
     total: usize,
     recipe_total: usize,
 }
@@ -1362,6 +1373,9 @@ impl Store {
             #[cfg(test)]
             write_thread_observer: Arc::new(StdMutex::new(None)),
             action_cache_generations: StdMutex::new(HashMap::new()),
+            action_cache_removals: StdMutex::new(ActionCacheRemovalLog::new(
+                ACTION_CACHE_REMOVAL_LOG_MAX,
+            )),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
             durable_seq: AtomicU64::new(0),
@@ -4168,6 +4182,14 @@ impl Store {
                         );
                         batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
                         self.stage_backfill_index_delete(&mut batch, &manifest);
+                        if manifest.producer == ArtifactProducer::Reapi
+                            && let Some(removal) =
+                                ActionCacheRemoval::for_artifact_key(&manifest.key)
+                        {
+                            cascade
+                                .removals
+                                .push((manifest.namespace_id.clone(), removal));
+                        }
                         *removed_artifacts.entry(manifest.producer).or_default() += 1;
                         removed_artifact_ids.push(artifact_id);
                     }
@@ -4253,7 +4275,10 @@ impl Store {
         // store no longer has and snapshots advertising cascaded entries: the
         // `CAS error: missing object` class again. Clearing early is safe in
         // the other direction, because a miss just re-reads a row that is still
-        // there, and it costs only a re-read if the commit then fails.
+        // there, and it costs only a re-read if the commit then fails. Recording
+        // the removals early is safe for the same reason: a snapshot that drops
+        // an entry the commit then keeps only sends that key per key.
+        self.record_action_cache_removals(std::mem::take(&mut cascade.removals));
         self.invalidate_committed_eviction(removed_artifact_ids, cascade);
         let db = Arc::clone(&self.db);
         #[cfg(test)]
@@ -4415,6 +4440,11 @@ impl Store {
                     continue;
                 }
                 self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
+                if let Some(removal) = ActionCacheRemoval::for_artifact_key(&entry_manifest.key) {
+                    cascade
+                        .removals
+                        .push((entry_manifest.namespace_id.clone(), removal));
+                }
                 cascade.record(&entry_manifest.namespace_id, entry_id);
                 // Bound the batch inside the cascade, not just between blobs. The
                 // caller stages this blob's own rows only after this returns, so
@@ -4520,6 +4550,11 @@ impl Store {
                     // representation. Removing the recipe cannot strand them when
                     // the complete blob remains on another segment.
                     if !canonical_blob_survives {
+                        if let Some(removal) = ActionCacheRemoval::for_artifact_key(&blob_key) {
+                            cascade
+                                .removals
+                                .push((recipe_manifest.namespace_id.clone(), removal));
+                        }
                         self.stage_action_cache_cascade_for_blob(
                             batch,
                             &blob_id,
@@ -6746,6 +6781,15 @@ impl Store {
         }
         self.write_batch_sync(batch, "artifact metadata deletes")?;
         self.remove_manifest_cache_keys(&ids);
+        self.record_action_cache_removals(
+            manifests
+                .iter()
+                .filter(|manifest| manifest.producer == ArtifactProducer::Reapi)
+                .filter_map(|manifest| {
+                    ActionCacheRemoval::for_artifact_key(&manifest.key)
+                        .map(|removal| (manifest.namespace_id.clone(), removal))
+                }),
+        );
         Ok(())
     }
 
@@ -6994,6 +7038,41 @@ impl Store {
             .get(namespace_id)
             .copied()
             .unwrap_or(0)
+    }
+
+    /// The removal sequence a snapshot index built from the store now resumes
+    /// from.
+    pub fn action_cache_removal_seq(&self, namespace_id: &str) -> u64 {
+        self.action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned")
+            .last(namespace_id)
+    }
+
+    /// The entries and blobs removed from the namespace after `after`, or `None`
+    /// when the log no longer retains all of them and the index has to rebuild.
+    pub fn action_cache_removals_since(
+        &self,
+        namespace_id: &str,
+        after: u64,
+    ) -> Option<ActionCacheRemovals> {
+        self.action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned")
+            .since(namespace_id, after)
+    }
+
+    fn record_action_cache_removals(
+        &self,
+        removals: impl IntoIterator<Item = (String, ActionCacheRemoval)>,
+    ) {
+        let mut log = self
+            .action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned");
+        for (namespace_id, removal) in removals {
+            log.record(&namespace_id, removal);
+        }
     }
 
     fn bump_action_cache_generation(&self, namespace_id: &str) {
@@ -17384,6 +17463,44 @@ mod tests {
             "the entry stranded by the evicted blob should be cascaded away"
         );
         assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn segment_eviction_records_its_removals_for_cached_snapshots() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+        let before = store.action_cache_removal_seq("acme");
+
+        store
+            .evict_segment(blob.segment_id.as_deref().expect("segment-backed blob"))
+            .await
+            .expect("failed to evict segment");
+
+        let removals = store
+            .action_cache_removals_since("acme", before)
+            .expect("the log retains this eviction");
+        let Some(ActionCacheRemoval::Entry(entry_hash)) =
+            ActionCacheRemoval::for_artifact_key(&entry.key)
+        else {
+            panic!("the entry key should name an action hash");
+        };
+        let Some(ActionCacheRemoval::Blob { hash, size }) =
+            ActionCacheRemoval::for_artifact_key(&blob.key)
+        else {
+            panic!("the blob key should name a digest");
+        };
+        assert!(removals.entries.contains(&entry_hash));
+        assert!(removals.blobs.contains(&(hash, size)));
+        assert_eq!(removals.through, store.action_cache_removal_seq("acme"));
     }
 
     #[tokio::test]

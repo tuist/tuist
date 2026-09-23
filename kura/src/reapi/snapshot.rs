@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     io::Write,
     time::{Duration, Instant},
 };
@@ -203,6 +203,10 @@ pub(super) struct NamespaceSnapshotIndex {
     /// The namespace's action-cache generation when this index was built. An
     /// empty index is only served while this still matches the store.
     pub(super) built_at_generation: u64,
+    /// The store's removal sequence this index reflects: every entry and blob
+    /// the store removed up to it is gone from the index too (see
+    /// `crate::action_cache_removals`).
+    pub(super) applied_removal_seq: u64,
 }
 
 impl NamespaceSnapshotIndex {
@@ -215,6 +219,7 @@ impl NamespaceSnapshotIndex {
             last_used: Instant::now(),
             reconciled_at: Instant::now(),
             built_at_generation: 0,
+            applied_removal_seq: 0,
         };
         index.recompute_estimated_bytes();
         index
@@ -272,6 +277,50 @@ impl NamespaceSnapshotIndex {
             .estimated_bytes
             .saturating_add(estimated_snapshot_entry_bytes(entry.nodes.len()));
         self.entries.insert(hash, entry);
+    }
+
+    /// Drops every entry the store removed and every entry that references a
+    /// blob it removed, then records `removals.through` as applied. Returns how
+    /// many entries were dropped.
+    pub(super) fn apply_removals(
+        &mut self,
+        removals: &crate::action_cache_removals::ActionCacheRemovals,
+    ) -> usize {
+        let mut dropped: Vec<[u8; 32]> = removals
+            .entries
+            .iter()
+            .filter(|hash| self.entries.contains_key(*hash))
+            .copied()
+            .collect();
+        if !removals.blobs.is_empty() {
+            let removed_nodes: HashSet<u32> = self
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, node)| removals.blobs.contains(&(node.blob_hash, node.blob_size)))
+                .map(|(index, _)| index as u32)
+                .collect();
+            if !removed_nodes.is_empty() {
+                dropped.extend(
+                    self.entries
+                        .iter()
+                        .filter(|(_, entry)| {
+                            entry.nodes.iter().any(|node| removed_nodes.contains(node))
+                        })
+                        .map(|(hash, _)| *hash),
+                );
+            }
+        }
+        dropped.sort_unstable();
+        dropped.dedup();
+        for hash in &dropped {
+            self.remove_entry(hash);
+        }
+        if !dropped.is_empty() {
+            self.compact_nodes();
+        }
+        self.applied_removal_seq = self.applied_removal_seq.max(removals.through);
+        dropped.len()
     }
 
     pub(super) fn estimated_bytes(&self) -> usize {
@@ -595,6 +644,9 @@ pub(crate) struct SnapshotCache {
     /// pruned with the index LRU — unlike cloning the whole index, whose
     /// node table the entry cap does not bound.
     pub(super) served_full: std::sync::Mutex<BTreeMap<String, std::sync::Arc<Vec<u8>>>>,
+    /// The removal sequence each `served_full` view reflects. A view without one
+    /// is not served.
+    pub(super) served_full_removal_seq: std::sync::Mutex<BTreeMap<String, u64>>,
     pub(super) build_lock: tokio::sync::Mutex<()>,
     pub(super) max_bytes: usize,
 }
@@ -620,6 +672,7 @@ impl SnapshotCache {
             indexes: Default::default(),
             builds: Default::default(),
             served_full: Default::default(),
+            served_full_removal_seq: Default::default(),
             build_lock: Default::default(),
             max_bytes: max_bytes.max(1),
         }

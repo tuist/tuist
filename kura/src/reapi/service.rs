@@ -854,6 +854,27 @@ impl ReapiService {
                 .indexes
                 .lock()
                 .expect("snapshot cache lock poisoned");
+            // Drop what the store removed since the index was built before
+            // anything is served from it: a view still listing a cascaded entry
+            // hands the client a candidate it cannot restore, and it misses
+            // without the per-key lookup that would have answered not-found. An
+            // index the removal log no longer covers is rebuilt instead.
+            let behind_removals = indexes.get_mut(&cache_key).is_some_and(|index| {
+                match self
+                    .state
+                    .store
+                    .action_cache_removals_since(namespace_id, index.applied_removal_seq)
+                {
+                    Some(removals) => {
+                        index.apply_removals(&removals);
+                        false
+                    }
+                    None => true,
+                }
+            });
+            if behind_removals {
+                indexes.remove(&cache_key);
+            }
             let unchanged = indexes
                 .get(&cache_key)
                 .is_some_and(|index| index.built_at_generation == generation);
@@ -863,9 +884,10 @@ impl ReapiService {
                 let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
                 index.last_used = Instant::now();
                 let entries = index.entries.len();
+                let removal_seq = index.applied_removal_seq;
                 let mut snapshot = self.encode_snapshot(index, after)?;
                 drop(indexes);
-                self.cache_full_view(&cache_key, after, entries, &snapshot);
+                self.cache_full_view(&cache_key, after, entries, removal_seq, &snapshot);
                 snapshot.retain_response_memory()?;
                 if stale {
                     let _build =
@@ -887,7 +909,8 @@ impl ReapiService {
                 .lock()
                 .expect("snapshot served_full lock poisoned")
                 .get(&cache_key)
-                .cloned();
+                .cloned()
+                .filter(|_| self.served_full_is_current(namespace_id, &cache_key));
             if let Some(cached) = cached {
                 let permit = self
                     .state
@@ -933,13 +956,48 @@ impl ReapiService {
                 "action-cache snapshot index was not retained; use per-key lookup and retry",
             ));
         };
+        match self
+            .state
+            .store
+            .action_cache_removals_since(namespace_id, index.applied_removal_seq)
+        {
+            Some(removals) => {
+                index.apply_removals(&removals);
+            }
+            None => {
+                return Err(Status::unavailable(
+                    "action-cache snapshot index fell behind its removals; use per-key lookup and retry",
+                ));
+            }
+        }
         index.last_used = Instant::now();
         let entries = index.entries.len();
+        let removal_seq = index.applied_removal_seq;
         let mut snapshot = self.encode_snapshot(index, after)?;
         drop(indexes);
-        self.cache_full_view(&cache_key, after, entries, &snapshot);
+        self.cache_full_view(&cache_key, after, entries, removal_seq, &snapshot);
         snapshot.retain_response_memory()?;
         Ok(snapshot)
+    }
+
+    /// Whether the cached full view still describes the store: nothing it could
+    /// advertise was removed since it was encoded. A stale one is not served,
+    /// and the request waits for the rebuild like a cold one.
+    fn served_full_is_current(&self, namespace_id: &str, cache_key: &str) -> bool {
+        let Some(removal_seq) = self
+            .snapshot_cache
+            .served_full_removal_seq
+            .lock()
+            .expect("snapshot served_full lock poisoned")
+            .get(cache_key)
+            .copied()
+        else {
+            return false;
+        };
+        self.state
+            .store
+            .action_cache_removals_since(namespace_id, removal_seq)
+            .is_some_and(|removals| removals.is_empty())
     }
 
     /// Caches a full (`after == 0`) encoded view as the namespace's
@@ -947,7 +1005,14 @@ impl ReapiService {
     /// reconcile returns it instead of shedding to UNAVAILABLE. A delta is
     /// relative to a client's watermark and cannot be replayed, so it is not
     /// cached.
-    fn cache_full_view(&self, cache_key: &str, after: u64, entries: usize, bytes: &[u8]) {
+    fn cache_full_view(
+        &self,
+        cache_key: &str,
+        after: u64,
+        entries: usize,
+        removal_seq: u64,
+        bytes: &[u8],
+    ) {
         if after != 0 {
             return;
         }
@@ -974,6 +1039,11 @@ impl ReapiService {
             .lock()
             .expect("snapshot served_full lock poisoned")
             .insert(cache_key.to_owned(), std::sync::Arc::new(bytes.to_vec()));
+        self.snapshot_cache
+            .served_full_removal_seq
+            .lock()
+            .expect("snapshot served_full lock poisoned")
+            .insert(cache_key.to_owned(), removal_seq);
         self.snapshot_cache
             .trim_to(target_bytes, "capacity", &self.state.metrics);
     }
@@ -1203,6 +1273,9 @@ impl ReapiService {
         // would copy an unbounded node table (the entry cap does not bound it);
         // the cached full encoding is bounded at the wire ceiling.
         let generation = state.store.action_cache_generation(&namespace);
+        // Read before the scan: every removal up to here is already out of the
+        // store it reads, and later ones are applied on the next serve.
+        let removal_seq = state.store.action_cache_removal_seq(&namespace);
         let index = cache
             .indexes
             .lock()
@@ -1226,6 +1299,7 @@ impl ReapiService {
             Ok(mut index) => {
                 index.reconciled_at = Instant::now();
                 index.built_at_generation = generation;
+                index.applied_removal_seq = removal_seq;
                 (index, Ok(()))
             }
             Err((index, error)) => {
@@ -1293,6 +1367,7 @@ impl ReapiService {
     ) -> Result<(), String> {
         let _build_guard = cache.build_lock.lock().await;
         let generation = state.store.action_cache_generation(&namespace);
+        let removal_seq = state.store.action_cache_removal_seq(&namespace);
         let index = cache
             .indexes
             .lock()
@@ -1302,6 +1377,7 @@ impl ReapiService {
         let mut index = gate_snapshot_index(&state, &namespace, index).await;
         index.reconciled_at = Instant::now();
         index.built_at_generation = generation;
+        index.applied_removal_seq = removal_seq;
         if trigger == IndexBuildTrigger::Serve {
             index.last_used = Instant::now();
         }
@@ -5892,12 +5968,20 @@ mod tests {
             .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("second serve should succeed");
-        wait_for_snapshot_index(&service, "ios", |index| index.entries.len() == 1).await;
+        // The serve itself already dropped both stranded entries from the index;
+        // deleting them from the store is the background reconcile's job.
         let exists = |key: &str| {
             store
                 .artifact_manifest_exists(ArtifactProducer::Reapi, "ios", key)
                 .expect("existence check should succeed")
         };
+        for _ in 0..400 {
+            if !exists(&stranded_key) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        wait_for_snapshot_index(&service, "ios", |index| index.entries.len() == 1).await;
         assert!(
             !exists(&stranded_key),
             "the stranded entry past the grace window is cascade-deleted"
@@ -5907,6 +5991,120 @@ mod tests {
             "a young stranded entry is kept — its blobs may still be mid-replication"
         );
         assert!(exists(&live_key));
+    }
+
+    #[tokio::test]
+    async fn snapshot_serve_drops_entries_whose_blobs_were_removed_after_the_index_was_built() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    crate::utils::now_ms(),
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn entry_bytes(llcas: &[u8], blob_hash: [u8; 32]) -> Vec<u8> {
+            reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: hex::encode(llcas),
+                    digest: Some(reapi::Digest {
+                        hash: hex::encode(blob_hash),
+                        size_bytes: 7,
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }
+            .encode_to_vec()
+        }
+        let blob_manifest = |key: &str| {
+            store
+                .manifest(&crate::utils::artifact_storage_id(
+                    ArtifactProducer::Reapi,
+                    "test-tenant",
+                    "ios",
+                    key,
+                ))
+                .expect("manifest read should succeed")
+                .expect("blob manifest should exist")
+        };
+
+        let evicted_blob = [0x11u8; 32];
+        let live_blob = [0x22u8; 32];
+        let evicted_blob_key = blob_key(&format!("{}/7", hex::encode(evicted_blob)));
+        let live_blob_key = blob_key(&format!("{}/7", hex::encode(live_blob)));
+        let stranded_hash = [0x44u8; 32];
+        let live_hash = [0x66u8; 32];
+        write_artifact(store, &uploads, &evicted_blob_key, b"payload").await;
+        write_artifact(store, &uploads, &live_blob_key, b"payload").await;
+        write_artifact(
+            store,
+            &uploads,
+            &format!("action_cache/{}/10", hex::encode(stranded_hash)),
+            &entry_bytes(&[0xAB, 0xCD], evicted_blob),
+        )
+        .await;
+        write_artifact(
+            store,
+            &uploads,
+            &format!("action_cache/{}/10", hex::encode(live_hash)),
+            &entry_bytes(&[0xEE, 0xFF], live_blob),
+        )
+        .await;
+        service
+            .serve_actioncache_snapshot("ios", 0, None)
+            .await
+            .expect("first serve should succeed");
+
+        store
+            .delete_artifact_metadata(&[blob_manifest(&evicted_blob_key)])
+            .expect("blob eviction should succeed");
+        // The index was just reconciled, so nothing rebuilds it before this
+        // serve: the removal has to be applied on the way out.
+        service
+            .serve_actioncache_snapshot("ios", 0, None)
+            .await
+            .expect("second serve should succeed");
+
+        let advertised: Vec<[u8; 32]> = service.snapshot_cache.indexes.lock().unwrap()["ios"]
+            .entries
+            .keys()
+            .copied()
+            .collect();
+        assert_eq!(
+            advertised,
+            vec![live_hash],
+            "an entry whose blob was removed must not be served again"
+        );
+        assert!(service.served_full_is_current("ios", "ios"));
+
+        // A cached full view encoded before a removal is not served while the
+        // index is out for a rebuild.
+        store
+            .delete_artifact_metadata(&[blob_manifest(&live_blob_key)])
+            .expect("blob eviction should succeed");
+        assert!(!service.served_full_is_current("ios", "ios"));
     }
 
     #[tokio::test]
