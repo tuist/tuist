@@ -1862,6 +1862,41 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "update_paused/2" do
+    test "reads the controller's StatefulSet update pause off the instance status" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", _opts ->
+        {:ok,
+         %{
+           "status" => %{
+             "updatePaused" => %{
+               "strategy" => "Partition",
+               "partition" => 1,
+               "templateImage" => "ghcr.io/tuist/kura:0.55.0",
+               "heldPods" => ["kura-tuist-scw-fr-par-0"]
+             }
+           }
+         }}
+      end)
+
+      assert KubernetesController.update_paused("kura-tuist-scw-fr-par", scaleway_region()) ==
+               {:ok,
+                %{
+                  "strategy" => "Partition",
+                  "partition" => 1,
+                  "template_image_tag" => "0.55.0",
+                  "held_pods" => ["kura-tuist-scw-fr-par-0"]
+                }}
+    end
+
+    test "reads an instance without the field as not paused" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", _opts ->
+        {:ok, %{"status" => %{"phase" => "Pending"}}}
+      end)
+
+      assert KubernetesController.update_paused("kura-tuist-scw-fr-par", scaleway_region()) == {:ok, nil}
+    end
+  end
+
   describe "image_tag_from_image/1" do
     test "extracts the tag from a normal image reference" do
       assert KubernetesController.image_tag_from_image("ghcr.io/tuist/kura:0.5.2") == "0.5.2"

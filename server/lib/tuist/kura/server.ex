@@ -182,6 +182,13 @@ defmodule Tuist.Kura.Server do
     # ahead of its DNS record.
     field :public_host_drift_observed_at, :utc_datetime
 
+    # Observed-state projection: the kura-controller's `status.updatePaused`,
+    # set while an operator's `OnDelete` or positive partition holds the
+    # StatefulSet's pods off its template image. Refreshed each tick an open
+    # deployment is applied; `Tuist.Kura.Rollouts` reads it to name a paused
+    # StatefulSet instead of a generic wave deadline.
+    field :update_paused, :map
+
     belongs_to :account, Account
 
     has_many :deployments, Deployment, foreign_key: :kura_server_id
@@ -307,6 +314,11 @@ defmodule Tuist.Kura.Server do
     |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:observed_image_tag, max: 128)
     |> validate_status_and_image()
+  end
+
+  @doc "Reconciler-only changeset for the observed StatefulSet update pause."
+  def update_paused_changeset(server, attrs) do
+    cast(server, attrs, [:update_paused])
   end
 
   @doc "Reconciler-only changeset for the public-host drift clock."

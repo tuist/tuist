@@ -74,6 +74,40 @@ defmodule TuistWeb.OpsKuraRolloutLiveTest do
     refute html =~ "phx-submit=\"operate\""
   end
 
+  test "renders the servers a paused StatefulSet holds", %{conn: conn} do
+    {:ok, rollout} =
+      create_rollout()
+      |> Rollout.update_changeset(%{
+        status: :paused,
+        paused_at: DateTime.truncate(DateTime.utc_now(), :second),
+        pause_reason: "statefulset_update_paused"
+      })
+      |> Repo.update()
+
+    {:ok, _} =
+      %{
+        kura_rollout_id: rollout.id,
+        action: "paused",
+        actor: "gate",
+        metadata: %{
+          wave: 1,
+          signal: :statefulset_update_paused,
+          servers: [
+            %{server_id: "server-a", region: "eu-east", strategy: "OnDelete", held_pods: ["kura-a-0", "kura-a-1"]}
+          ]
+        }
+      }
+      |> RolloutEvent.create_changeset()
+      |> Repo.insert()
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/kura/rollouts/#{rollout.id}")
+
+    assert html =~ "statefulset_update_paused"
+    assert html =~ "strategy=OnDelete"
+    assert html =~ "held_pods=kura-a-0,kura-a-1"
+    assert html =~ "server_id=server-a"
+  end
+
   test "paginates the audit trail", %{conn: conn} do
     rollout = create_rollout()
     record_events(rollout, 30)

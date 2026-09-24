@@ -56,6 +56,12 @@ delete a pod or discard its volume based solely on a missed heartbeat.
    StatefulSet annotated `kura.tuist.dev/resize-rollout-hold` is already on
    `OnDelete` for a data volume resize, and the controller lifts it once every
    replica is Ready. Remove the annotation to keep it as an incident pause.
+   While an incident pause holds pods off the template's image, the
+   KuraInstance publishes `status.updatePaused` (strategy, partition, template
+   image and held pods) and prefixes `status.message` with it. The server
+   records it on the server and open deployment, and a rollout wave held only
+   by paused StatefulSets pauses as `statefulset_update_paused` naming them.
+   Resuming the rollout does nothing until step 6 restores the strategies.
 3. Compare an unauthenticated `/ready` request to the control-plane Service by
    normal hostname, absolute hostname, and its current ClusterIP. Preserve the
    initial mesh gate: bypassing it would let a process serve with an incomplete

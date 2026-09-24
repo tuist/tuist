@@ -24,6 +24,8 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 For an `OnDelete` deployment, Kubernetes may retain the original `currentRevision` after every pod has been manually replaced. Rollout observation must accept an observed generation with a nonempty update revision and the complete replica set updated and Ready, while preserving the pause. Partial replacements, extra old replicas and stale observations must remain pending.
 
+`status.updatePaused` reports an operator pause that holds pods off the template's Kura image: `OnDelete` with any pod on another image, or a positive `rollingUpdate.partition` with such a pod below it. It lists the held pods and prefixes `status.message`; phase stays `Pending`. It is observation only. The controller never clears or overrides the strategy, since it is incident tooling (see [node-local-recovery.md](node-local-recovery.md)). The field is additive: an older CRD prunes it from status updates and the server reads its absence as "not paused", so apply the CRD before relying on the signal.
+
 ## Deployment Topology
 
 - **Cache traffic (HTTPS)**: each `KuraInstance` with `spec.publicHost` set gets an nginx Ingress on `spec.ingressClassName` (managed regions default to dedicated shared regional Kura ingress controllers). ingress-nginx terminates TLS and streams uploads/downloads to the instance's internal ClusterIP Service on the runtime's plain HTTP port (`4000`). The backend Service is not a Hetzner `LoadBalancer`.

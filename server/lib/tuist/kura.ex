@@ -1603,6 +1603,36 @@ defmodule Tuist.Kura do
   end
 
   @doc """
+  Records the controller's StatefulSet update pause (`nil` once lifted) on the
+  server and, as a human-readable reason, on its open deployment.
+  """
+  def record_update_pause(%Server{} = server, %Deployment{} = deployment, pause) do
+    Repo.transaction(fn ->
+      with {:ok, server} <- server |> Server.update_paused_changeset(%{update_paused: pause}) |> Repo.update(),
+           {:ok, deployment} <-
+             deployment |> Deployment.blocked_changeset(%{blocked_reason: update_pause_reason(pause)}) |> Repo.update() do
+        {server, deployment}
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc "Human-readable form of a StatefulSet update pause, or nil for none."
+  def update_pause_reason(nil), do: nil
+
+  def update_pause_reason(%{"strategy" => strategy} = pause) do
+    by =
+      case strategy do
+        "Partition" -> "rollingUpdate.partition=#{pause["partition"]}"
+        _ -> "updateStrategy #{strategy}"
+      end
+
+    "StatefulSet update paused by #{by}: #{Enum.join(pause["held_pods"] || [], ", ")} held off " <>
+      "#{pause["template_image_tag"] || "the template image"}; replace the pods or restore RollingUpdate to continue"
+  end
+
+  @doc """
   Records the reconciler's observation of a server into Postgres: the
   derived `status` plus the observed-state columns. This is the only
   writer of the projection besides `activate_server/2` (which records

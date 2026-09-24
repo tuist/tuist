@@ -341,3 +341,17 @@ spec:
                         type: boolean
                       node:
                         type: string
+                updatePaused:
+                  type: object
+                  properties:
+                    strategy:
+                      type: string
+                    partition:
+                      type: integer
+                      format: int32
+                    templateImage:
+                      type: string
+                    heldPods:
+                      type: array
+                      items:
+                        type: string

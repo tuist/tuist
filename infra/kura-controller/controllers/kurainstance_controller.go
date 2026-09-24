@@ -600,7 +600,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	rollout, err := r.rolloutStatus(ctx, instance)
+	rollout, err := r.rolloutStatus(ctx, instance, pods)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -620,11 +620,21 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.LastReconciledAt = &now
 	instance.Status.RolloutHealth = r.aggregateRolloutHealth(instance, pods)
 	instance.Status.PeerRoles = peerRoles(instance, pods, primaryPod, gatewayPod)
+	instance.Status.UpdatePaused = rollout.updatePaused
 
 	if err := r.Status().Update(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 
+	if rollout.updatePaused != nil {
+		logger.Info(
+			"Kura StatefulSet update paused by operator strategy",
+			"strategy", rollout.updatePaused.Strategy,
+			"partition", rollout.updatePaused.Partition,
+			"templateImage", rollout.updatePaused.TemplateImage,
+			"heldPods", rollout.updatePaused.HeldPods,
+		)
+	}
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
@@ -3797,9 +3807,10 @@ type rolloutState struct {
 	observedImage string
 	readyReplicas int32
 	message       string
+	updatePaused  *kurav1alpha1.KuraInstanceUpdatePause
 }
 
-func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance) (rolloutState, error) {
+func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) (rolloutState, error) {
 	sts := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts)
 	if apierrors.IsNotFound(err) {
@@ -3813,7 +3824,67 @@ func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *ku
 	if err != nil {
 		return rolloutState{}, err
 	}
-	return rolloutStatusFromStatefulSet(instance, sts), nil
+	state := rolloutStatusFromStatefulSet(instance, sts)
+	if state.phase != "Ready" {
+		state.updatePaused = statefulSetUpdatePause(instance, sts, pods)
+	}
+	if pause := state.updatePaused; pause != nil {
+		state.message = fmt.Sprintf(
+			"update paused by %s: %s held on a previous image, template on %s; %s",
+			updatePauseStrategyDescription(pause),
+			strings.Join(pause.HeldPods, ","),
+			pause.TemplateImage,
+			state.message,
+		)
+	}
+	return state, nil
+}
+
+// statefulSetUpdatePause reports pods an operator's OnDelete or positive
+// partition keeps off the template's Kura image. It only observes: the
+// pause is incident tooling and the controller leaves it in place.
+func statefulSetUpdatePause(instance *kurav1alpha1.KuraInstance, sts *appsv1.StatefulSet, pods []corev1.Pod) *kurav1alpha1.KuraInstanceUpdatePause {
+	pause := &kurav1alpha1.KuraInstanceUpdatePause{}
+	switch strategy := sts.Spec.UpdateStrategy; {
+	case strategy.Type == appsv1.OnDeleteStatefulSetStrategyType:
+		pause.Strategy = "OnDelete"
+	case strategy.RollingUpdate != nil && strategy.RollingUpdate.Partition != nil && *strategy.RollingUpdate.Partition > 0:
+		pause.Strategy = "Partition"
+		pause.Partition = *strategy.RollingUpdate.Partition
+	default:
+		return nil
+	}
+	pause.TemplateImage = podKuraImage(&corev1.Pod{Spec: sts.Spec.Template.Spec})
+	if pause.TemplateImage == "" {
+		return nil
+	}
+	for i := range pods {
+		pod := &pods[i]
+		image := podKuraImage(pod)
+		if image == "" || image == pause.TemplateImage {
+			continue
+		}
+		// Kubernetes still rolls ordinals at or above the partition.
+		if pause.Strategy == "Partition" {
+			ordinal, ok := podOrdinal(pod.Name, instance.Name)
+			if !ok || int32(ordinal) >= pause.Partition {
+				continue
+			}
+		}
+		pause.HeldPods = append(pause.HeldPods, pod.Name)
+	}
+	if len(pause.HeldPods) == 0 {
+		return nil
+	}
+	sort.Strings(pause.HeldPods)
+	return pause
+}
+
+func updatePauseStrategyDescription(pause *kurav1alpha1.KuraInstanceUpdatePause) string {
+	if pause.Strategy == "Partition" {
+		return fmt.Sprintf("rollingUpdate.partition=%d", pause.Partition)
+	}
+	return "updateStrategy OnDelete"
 }
 
 func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *appsv1.StatefulSet) rolloutState {

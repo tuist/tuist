@@ -229,6 +229,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
+  @impl true
+  def update_paused(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"updatePaused" => %{"strategy" => strategy} = pause}}}
+      when is_binary(strategy) and strategy != "" ->
+        {:ok,
+         %{
+           "strategy" => strategy,
+           "partition" => pause["partition"],
+           "template_image_tag" =>
+             if(is_binary(pause["templateImage"]), do: image_tag_from_image(pause["templateImage"])),
+           "held_pods" => Enum.filter(List.wrap(pause["heldPods"]), &is_binary/1)
+         }}
+
+      {:ok, _} ->
+        {:ok, nil}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   # The controller publishes the aggregate with explicit per-field
   # semantics (conjunctions, sums with reset clamping, max pressure,
   # oldest sample); this only normalizes the wire shape. Missing numeric

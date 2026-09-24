@@ -136,6 +136,26 @@ func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	if in.CPUAutosize != nil {
 		out.CPUAutosize = in.CPUAutosize.DeepCopy()
 	}
+	if in.UpdatePaused != nil {
+		out.UpdatePaused = in.UpdatePaused.DeepCopy()
+	}
+}
+
+func (in *KuraInstanceUpdatePause) DeepCopyInto(out *KuraInstanceUpdatePause) {
+	*out = *in
+	if in.HeldPods != nil {
+		out.HeldPods = make([]string, len(in.HeldPods))
+		copy(out.HeldPods, in.HeldPods)
+	}
+}
+
+func (in *KuraInstanceUpdatePause) DeepCopy() *KuraInstanceUpdatePause {
+	if in == nil {
+		return nil
+	}
+	out := new(KuraInstanceUpdatePause)
+	in.DeepCopyInto(out)
+	return out
 }
 
 func (in *KuraInstanceStatus) DeepCopy() *KuraInstanceStatus {

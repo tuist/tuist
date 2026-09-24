@@ -45,6 +45,9 @@ defmodule Tuist.Kura.Deployment do
     field :image_tag, :string
     field :status, Ecto.Enum, values: @status_mappings, default: :pending
     field :error_message, :string
+    # Why an open deployment is not progressing, while it is not; nil once
+    # it moves again. Distinct from `error_message`, which is terminal.
+    field :blocked_reason, :string
     field :started_at, :utc_datetime
     field :finished_at, :utc_datetime
 
@@ -75,6 +78,10 @@ defmodule Tuist.Kura.Deployment do
       name: :kura_deployments_one_open_per_server_index,
       message: "already has an open deployment"
     )
+  end
+
+  def blocked_changeset(deployment, attrs) do
+    cast(deployment, attrs, [:blocked_reason])
   end
 
   def status_changeset(deployment, attrs) do

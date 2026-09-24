@@ -426,6 +426,7 @@ defmodule Tuist.Kura.Reconciler do
     with {:ok, deployment} <- ensure_running(deployment) do
       case Kura.activate_server(server, deployment.image_tag) do
         {:ok, _server} ->
+          clear_update_pause(server, deployment)
           {:ok, _deployment} = Kura.mark_succeeded(deployment)
           Lifecycle.record_ready(server, deployment)
           :ok
@@ -492,6 +493,7 @@ defmodule Tuist.Kura.Reconciler do
 
       case Provisioner.rollout(server, inputs) do
         :ok ->
+          observe_update_pause(server, deployment)
           await_activation(server)
 
         {:error, :not_found} ->
@@ -500,6 +502,67 @@ defmodule Tuist.Kura.Reconciler do
         {:error, reason} ->
           fail(deployment, server, reason)
       end
+    end
+  end
+
+  # The re-apply above is a no-op while an operator's OnDelete or partition
+  # holds the StatefulSet: the template already carries the image and no pod
+  # will take it. That wait has no deadline of its own, so it is recorded on
+  # the server and deployment for the rollout gate and /ops to name, rather
+  # than left for a generic wave deadline to report. The pause itself is
+  # incident tooling and is never lifted from here.
+  defp observe_update_pause(%Server{} = server, %Deployment{} = deployment) do
+    case Provisioner.update_paused(server) do
+      {:ok, pause} ->
+        record_observed_update_pause(server, deployment, pause)
+
+      {:error, :not_found} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not observe update pause for server #{server.id}: #{inspect(reason)}")
+    end
+
+    :ok
+  end
+
+  defp record_observed_update_pause(%Server{} = server, %Deployment{} = deployment, pause) do
+    reason = Kura.update_pause_reason(pause)
+    recorded? = pause == server.update_paused and reason == deployment.blocked_reason
+
+    cond do
+      recorded? and is_nil(pause) ->
+        :ok
+
+      recorded? ->
+        Logger.info("[Kura.Reconciler] deployment #{deployment.id} for server #{server.id} still blocked: #{reason}")
+
+      is_nil(pause) ->
+        Logger.info("[Kura.Reconciler] StatefulSet update pause lifted for server #{server.id}")
+        persist_update_pause(server, deployment, nil)
+
+      true ->
+        Logger.warning(
+          "[Kura.Reconciler] deployment #{deployment.id} (#{deployment.image_tag}) for server #{server.id} in #{server.region} is blocked: #{reason}"
+        )
+
+        persist_update_pause(server, deployment, pause)
+    end
+  end
+
+  defp clear_update_pause(%Server{update_paused: nil}, %Deployment{blocked_reason: nil}), do: :ok
+
+  defp clear_update_pause(%Server{} = server, %Deployment{} = deployment),
+    do: persist_update_pause(server, deployment, nil)
+
+  defp persist_update_pause(%Server{} = server, %Deployment{} = deployment, pause) do
+    case Kura.record_update_pause(server, deployment, pause) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not record update pause for server #{server.id}: #{inspect(reason)}")
+        :ok
     end
   end
 

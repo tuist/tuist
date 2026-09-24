@@ -10,6 +10,7 @@ defmodule Tuist.Kura.RolloutsTest do
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Rollout
   alias Tuist.Kura.Rollouts
+  alias Tuist.Kura.Rollouts.Notifier
   alias Tuist.Kura.RolloutServer
   alias Tuist.Kura.RolloutWaveAssignment
   alias Tuist.Kura.Server
@@ -23,7 +24,7 @@ defmodule Tuist.Kura.RolloutsTest do
   @target_tag "0.6.0"
 
   setup do
-    stub(Tuist.Kura.Rollouts.Notifier, :notify, fn _event, _rollout, _metadata -> :ok end)
+    stub(Notifier, :notify, fn _event, _rollout, _metadata -> :ok end)
     stub(Usage, :recent_request_counts_by_account, fn _account_ids, _days -> %{} end)
     stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @target_tag end)
     stub(Tuist.Environment, :kura_available_region_ids, fn -> ["local-controller"] end)
@@ -83,6 +84,15 @@ defmodule Tuist.Kura.RolloutsTest do
 
       {:ok, _} = Kura.mark_succeeded(deployment)
     end)
+  end
+
+  defp mark_update_paused(server, pause) do
+    {:ok, _} =
+      server
+      |> Server.update_paused_changeset(%{update_paused: pause})
+      |> Repo.update()
+
+    :ok
   end
 
   defp rollout_server(rollout, server) do
@@ -354,6 +364,68 @@ defmodule Tuist.Kura.RolloutsTest do
       assert rollout.pause_reason == "wave_deadline_exceeded"
     end
 
+    test "names the paused StatefulSets when they alone hold the wave past the deadline" do
+      %{server: first} = create_active_server()
+      %{server: second} = create_active_server()
+      test_pid = self()
+
+      stub(Notifier, :notify, fn event, _rollout, metadata ->
+        send(test_pid, {:notified, event, metadata})
+        :ok
+      end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      mark_update_paused(first, %{"strategy" => "OnDelete", "held_pods" => ["kura-a-0", "kura-a-1"]})
+      mark_update_paused(second, %{"strategy" => "Partition", "partition" => 1, "held_pods" => ["kura-b-0"]})
+
+      rollout = back_date(rollout, :wave_started_at, 61 * 60)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :paused
+      assert rollout.pause_reason == "statefulset_update_paused"
+
+      assert_received {:notified, :paused, metadata}
+      assert metadata.signal == :statefulset_update_paused
+
+      assert Enum.sort_by(metadata.servers, & &1.server_id) ==
+               Enum.sort_by(
+                 [
+                   %{
+                     server_id: first.id,
+                     region: "local-controller",
+                     strategy: "OnDelete",
+                     held_pods: ["kura-a-0", "kura-a-1"]
+                   },
+                   %{server_id: second.id, region: "local-controller", strategy: "partition=1", held_pods: ["kura-b-0"]}
+                 ],
+                 & &1.server_id
+               )
+
+      [event | _] = Rollouts.list_events(rollout)
+      assert event.action == "paused"
+      assert length(event.metadata["servers"]) == 2
+    end
+
+    test "keeps the generic deadline signal when a straggler is not update-paused" do
+      %{server: paused} = create_active_server()
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      mark_update_paused(paused, %{"strategy" => "OnDelete", "held_pods" => ["kura-a-0"]})
+
+      rollout = back_date(rollout, :wave_started_at, 61 * 60)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :paused
+      assert rollout.pause_reason == "wave_deadline_exceeded"
+    end
+
     test "pauses on a terminal deployment failure" do
       %{server: server} = create_active_server()
 
@@ -460,6 +532,24 @@ defmodule Tuist.Kura.RolloutsTest do
       rollout = Repo.get!(Rollout, rollout.id)
       assert rollout.status == :paused
       assert rollout.pause_reason == "wave_deadline_exceeded"
+    end
+
+    test "the wave deadline names a canary held by a paused StatefulSet" do
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      mark_update_paused(canary_server, %{"strategy" => "OnDelete", "held_pods" => ["kura-canary-0"]})
+
+      rollout = back_date(rollout, :wave_started_at, 61 * 60)
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :paused
+      assert rollout.pause_reason == "statefulset_update_paused"
     end
 
     test "critical memory pressure pauses immediately" do

@@ -134,6 +134,16 @@ defmodule Tuist.Kura.Provisioner do
               {:ok, map() | nil} | {:error, term()}
 
   @doc """
+  The operator pause holding the server's workload off its desired image
+  (a StatefulSet `OnDelete` or positive partition), as
+  `%{"strategy", "partition", "template_image_tag", "held_pods"}`, or
+  `{:ok, nil}` when nothing is held. Observation only: the pause is incident
+  tooling, and nothing in the control plane lifts it.
+  """
+  @callback update_paused(ref :: String.t(), Regions.t()) ::
+              {:ok, map() | nil} | {:error, term()}
+
+  @doc """
   The replication roles the backing platform publishes for the server's
   pods — `[%{url, gateway, primary}]`, `url` being each pod's internal peer
   URL — or `{:ok, []}` when the resource exists but has not published any
@@ -236,6 +246,13 @@ defmodule Tuist.Kura.Provisioner do
   def rollout_health(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.rollout_health(ref, region)
+    end
+  end
+
+  @doc "Calls `update_paused/2` on the region's provisioner."
+  def update_paused(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.update_paused(ref, region)
     end
   end
 

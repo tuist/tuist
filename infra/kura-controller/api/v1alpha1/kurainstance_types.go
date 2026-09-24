@@ -263,6 +263,22 @@ type KuraInstancePeerRole struct {
 	Node string `json:"node,omitempty"`
 }
 
+// KuraInstanceUpdatePause reports an operator pause on the StatefulSet:
+// `OnDelete`, or a positive `rollingUpdate.partition`. Both are incident
+// tooling (see node-local-recovery.md) that the controller never overrides,
+// so a new image reaches the template and stops there until an operator
+// replaces the held pods or restores RollingUpdate.
+type KuraInstanceUpdatePause struct {
+	// Strategy is "OnDelete" or "Partition".
+	Strategy  string `json:"strategy"`
+	Partition int32  `json:"partition,omitempty"`
+	// TemplateImage is the Kura image the StatefulSet template carries.
+	TemplateImage string `json:"templateImage"`
+	// HeldPods are the pods still running another image that the strategy
+	// will not replace.
+	HeldPods []string `json:"heldPods,omitempty"`
+}
+
 type KuraInstanceStatus struct {
 	// PrivateURL is published only after the private gateway, DNS, certificate,
 	// and primary have been observed ready for EndpointObservedGeneration.
@@ -296,6 +312,10 @@ type KuraInstanceStatus struct {
 	// status because nothing outside the controller sets it, and it has to
 	// outlive a controller restart.
 	CPUAutosize *KuraInstanceCPUAutosize `json:"cpuAutosize,omitempty"`
+
+	// UpdatePaused is set while the StatefulSet's update strategy holds pods
+	// on a Kura image other than its template's. Absent otherwise.
+	UpdatePaused *KuraInstanceUpdatePause `json:"updatePaused,omitempty"`
 
 	// NodePort exposure (spec.exposeNodePort): the address clients
 	// outside the pod network dial. NodeAddress is the

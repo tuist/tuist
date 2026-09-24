@@ -252,7 +252,7 @@ The pieces:
 
 The rollout gate explicitly assumes only that it can fetch `/status/rollout` from each node. It does not depend on Kubernetes probes or Prometheus.
 
-Beyond the signals the standalone gate consumes, `/status/rollout` also reports `peer_connection_failure_count` — peer-plane request failures (catch-up listings, body fetches and forward reads that errored against a peer). The managed fleet's control plane consumes it, together with `fd_timeout_count`, as a regression signal for its health-gated progressive rollout ([spec #79](https://hive.tuist.dev/specs/79)); the standalone gate keeps its existing conditions.
+Beyond the signals the standalone gate consumes, `/status/rollout` also reports `peer_connection_failure_count` — peer-plane request failures (catch-up listings, body fetches and forward reads that errored against a peer). The managed fleet's control plane consumes it, together with `fd_timeout_count`, as a regression signal for its health-gated progressive rollout ([spec #79](https://hive.tuist.dev/specs/79)); the standalone gate keeps its existing conditions. A managed wave that reaches its deadline with every straggler held by an operator StatefulSet pause (`OnDelete` or a positive partition, published by the controller as `status.updatePaused`) pauses as `statefulset_update_paused` and names the held servers, instead of the generic `wave_deadline_exceeded`; the control plane never lifts that pause itself.
 
 ## Observability
 

@@ -691,7 +691,7 @@ defmodule Tuist.Kura.Rollouts do
         complete_rollout(rollout)
 
       deadline_exceeded?(rollout) ->
-        pause_rollout(rollout, {:wave_deadline_exceeded, %{wave: rollout.current_wave}})
+        pause_rollout(rollout, deadline_signal(rollout))
 
       true ->
         :ok
@@ -1204,11 +1204,48 @@ defmodule Tuist.Kura.Rollouts do
       end
 
     if deadline_exceeded?(rollout) do
-      pause_rollout(rollout, {:wave_deadline_exceeded, %{wave: rollout.current_wave}})
+      pause_rollout(rollout, deadline_signal(rollout))
     else
       :ok
     end
   end
+
+  # A wave held only by operator-paused StatefulSets (an incident `OnDelete`
+  # or partition left in place) would wait forever, and resuming it changes
+  # nothing until someone lifts the pause, so the deadline names them instead
+  # of reporting a generic timeout. Any other straggler keeps the generic
+  # signal, since the pause is then not the whole explanation.
+  defp deadline_signal(rollout) do
+    pending =
+      RolloutServer
+      |> join(:inner, [rs], s in assoc(rs, :kura_server))
+      |> where([rs], rs.kura_rollout_id == ^rollout.id and is_nil(rs.converged_at))
+      |> where([_rs, s], s.status not in ^@terminal_server_statuses)
+      |> order_by([_rs, s], asc: s.region, asc: s.id)
+      |> select([_rs, s], %{server_id: s.id, region: s.region, update_paused: s.update_paused})
+      |> Repo.all()
+
+    if pending != [] and Enum.all?(pending, &is_map(&1.update_paused)) do
+      {:statefulset_update_paused,
+       %{
+         wave: rollout.current_wave,
+         servers:
+           Enum.map(pending, fn server ->
+             %{
+               server_id: server.server_id,
+               region: server.region,
+               strategy: update_pause_strategy(server.update_paused),
+               held_pods: server.update_paused["held_pods"] || []
+             }
+           end)
+       }}
+    else
+      {:wave_deadline_exceeded, %{wave: rollout.current_wave}}
+    end
+  end
+
+  defp update_pause_strategy(%{"strategy" => "Partition", "partition" => partition}), do: "partition=#{partition}"
+  defp update_pause_strategy(%{"strategy" => strategy}), do: strategy
 
   defp deadline_exceeded?(%Rollout{wave_started_at: nil}), do: false
 

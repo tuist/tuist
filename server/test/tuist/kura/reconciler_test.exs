@@ -2,6 +2,8 @@ defmodule Tuist.Kura.ReconcilerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.Accounts
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
@@ -25,6 +27,7 @@ defmodule Tuist.Kura.ReconcilerTest do
     # the kill-switch fallback now that orchestration is on by default.
     stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> false end)
     stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+    stub(Provisioner, :update_paused, fn _server -> {:ok, nil} end)
     :ok
   end
 
@@ -808,6 +811,82 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
              Repo.get!(Server, server.id)
+  end
+
+  describe "StatefulSet update pauses" do
+    @update_pause %{
+      "strategy" => "OnDelete",
+      "partition" => nil,
+      "template_image_tag" => "0.5.2",
+      "held_pods" => ["kura-a-0", "kura-a-1"]
+    }
+
+    test "records an operator pause on the open deployment and server instead of re-applying silently" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, "0.5.1"} end)
+      expect(Provisioner, :rollout, 2, fn _server, _inputs -> :ok end)
+
+      stub(Provisioner, :update_paused, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, @update_pause}
+      end)
+
+      first_tick = capture_log(fn -> assert :ok = Reconciler.reconcile() end)
+
+      assert first_tick =~ "is blocked: StatefulSet update paused by updateStrategy OnDelete: kura-a-0, kura-a-1"
+      assert %Server{update_paused: @update_pause} = Repo.get!(Server, server.id)
+
+      assert %Deployment{status: :running, blocked_reason: reason} = Repo.get!(Deployment, deployment.id)
+      assert reason =~ "updateStrategy OnDelete"
+      assert reason =~ "held off 0.5.2"
+
+      # Recorded once; later ticks only re-read it.
+      second_tick = capture_log(fn -> assert :ok = Reconciler.reconcile() end)
+
+      refute second_tick =~ "is blocked"
+    end
+
+    test "clears the recorded pause once the controller stops reporting it" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      {:ok, _} = Kura.record_update_pause(server, deployment, @update_pause)
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, "0.5.1"} end)
+      stub(Provisioner, :rollout, fn _server, _inputs -> :ok end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{update_paused: nil} = Repo.get!(Server, server.id)
+      assert %Deployment{status: :running, blocked_reason: nil} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "clears the recorded pause when the deployment succeeds" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      {:ok, _} = Kura.record_update_pause(server, deployment, @update_pause)
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :active, update_paused: nil} = Repo.get!(Server, server.id)
+      assert %Deployment{status: :succeeded, blocked_reason: nil} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "records a fresh deployment as blocked by a pause already on the server" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      {:ok, _} = Kura.record_update_pause(server, deployment, @update_pause)
+      {:ok, _} = Kura.mark_cancelled(Repo.get!(Deployment, deployment.id), "superseded by a resume")
+      {:ok, next} = Kura.create_deployment(Repo.get!(Server, server.id), "0.5.3")
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, "0.5.1"} end)
+      stub(Provisioner, :rollout, fn _server, _inputs -> :ok end)
+      stub(Provisioner, :update_paused, fn _server -> {:ok, @update_pause} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Deployment{blocked_reason: reason} = Repo.get!(Deployment, next.id)
+      assert reason =~ "updateStrategy OnDelete"
+    end
   end
 
   describe "warm-handoff moves" do

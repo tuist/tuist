@@ -226,8 +226,17 @@ defmodule TuistWeb.OpsKuraComponents do
   def format_metadata(metadata) when metadata == %{}, do: ""
 
   def format_metadata(metadata) do
-    Enum.map_join(metadata, ", ", fn {key, value} -> "#{key}: #{value}" end)
+    Enum.map_join(metadata, ", ", fn {key, value} -> "#{key}: #{format_metadata_value(value)}" end)
   end
+
+  defp format_metadata_value([%{} | _] = values), do: Enum.map_join(values, "; ", &format_metadata_value/1)
+  defp format_metadata_value(values) when is_list(values), do: Enum.map_join(values, ",", &format_metadata_value/1)
+
+  defp format_metadata_value(value) when is_map(value) do
+    Enum.map_join(value, " ", fn {key, value} -> "#{key}=#{format_metadata_value(value)}" end)
+  end
+
+  defp format_metadata_value(value), do: to_string(value)
 
   def parse_page(nil), do: 1
 

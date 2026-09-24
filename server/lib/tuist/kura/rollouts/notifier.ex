@@ -45,7 +45,7 @@ defmodule Tuist.Kura.Rollouts.Notifier do
       |> Enum.join(", ")
 
     "Kura rollout paused: `#{rollout.image_tag}` at wave #{rollout.current_wave} in #{environment()}" <>
-      if(details == "", do: "", else: " (#{details})")
+      if(details == "", do: "", else: " (#{details})") <> paused_servers(metadata[:servers])
   end
 
   defp message(:completed, rollout, _metadata) do
@@ -67,6 +67,18 @@ defmodule Tuist.Kura.Rollouts.Notifier do
   defp message(:aborted, rollout, metadata) do
     "Kura rollout aborted: `#{rollout.image_tag}` in #{environment()} by #{metadata[:actor]}"
   end
+
+  defp paused_servers([_ | _] = servers) do
+    lines =
+      Enum.map_join(servers, "\n", fn server ->
+        "• server #{server[:server_id]} (#{server[:region]}): #{server[:strategy]} holds #{Enum.join(server[:held_pods] || [], ", ")}"
+      end)
+
+    "\nStatefulSet updates are paused by an operator strategy. Replace the held pods or restore RollingUpdate, then resume.\n" <>
+      lines
+  end
+
+  defp paused_servers(_servers), do: ""
 
   defp environment, do: Environment.env()
 end
