@@ -250,4 +250,48 @@ struct SettingsContentHasherCompilationCacheTests {
         // When / Then
         #expect(try await subject.hash(settings: plain) != subject.hash(settings: withRealFlag))
     }
+
+    /// Two git worktrees of the same repository map different absolute directories to
+    /// the same placeholders, and must land on the same hash.
+    @Test func hash_ignoresPrefixMappingDirectoriesAcrossCheckouts() async throws {
+        // Given
+        let subject = makeSubject()
+        let mainCheckout = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array([
+                "$(inherited)", "/Users/dev/app/Tuist/.build=/^spm", "/Users/dev/app=/^workspace",
+            ]),
+            "CLANG_OTHER_PREFIX_MAPPINGS": .string("/Users/dev/app/Tuist/.build=/^spm /Users/dev/app=/^workspace"),
+        ])
+        let worktree = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array([
+                "$(inherited)", "/Users/dev/worktrees/feature/Tuist/.build=/^spm", "/Users/dev/worktrees/feature=/^workspace",
+            ]),
+            "CLANG_OTHER_PREFIX_MAPPINGS": .string(
+                "/Users/dev/worktrees/feature/Tuist/.build=/^spm /Users/dev/worktrees/feature=/^workspace"
+            ),
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: mainCheckout) == subject.hash(settings: worktree))
+    }
+
+    /// The placeholder is recorded in the built product, so a different one must move the hash.
+    @Test func hash_keepsPrefixMappingPlaceholders() async throws {
+        // Given
+        let subject = makeSubject()
+        let spm = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/Users/dev/app/Tuist/.build=/^spm"]),
+        ])
+        let other = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/Users/dev/app/Tuist/.build=/^other"]),
+        ])
+        let unmapped = settings(base: [:])
+
+        // When
+        let spmHash = try await subject.hash(settings: spm)
+
+        // Then
+        #expect(try await spmHash != subject.hash(settings: other))
+        #expect(try await spmHash != subject.hash(settings: unmapped))
+    }
 }

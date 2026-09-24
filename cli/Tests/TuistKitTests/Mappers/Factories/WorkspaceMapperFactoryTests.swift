@@ -113,6 +113,23 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertContainsElementOfType(got, LastUpgradeVersionWorkspaceMapper.self)
     }
+
+    func test_default_contains_the_xcode_cache_prefix_mapping_mapper() {
+        // Given
+        subject = WorkspaceMapperFactory(
+            projectMapper: SequentialProjectMapper(
+                mappers: projectMapperFactory.default(
+                    tuist: .default
+                )
+            )
+        )
+
+        // When
+        let got = subject.default(tuist: .default)
+
+        // Then
+        XCTAssertContainsElementOfType(got, XcodeCachePrefixMappingWorkspaceMapper.self)
+    }
 }
 
 #if canImport(TuistCacheEE)
