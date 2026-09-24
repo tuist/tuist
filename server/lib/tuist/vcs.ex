@@ -871,7 +871,7 @@ defmodule Tuist.VCS do
            fn {_test_run, metrics} -> metrics.module_cache_hit_rate || "-" end},
           {"Xcode cache hit rate", any_run?.(:xcode_cache_hit_rate),
            fn {_test_run, metrics} -> metrics.xcode_cache_hit_rate || "-" end},
-          {"Test modules", true, fn {_test_run, metrics} -> test_modules_text(metrics) end},
+          {"Ran test modules", true, fn {_test_run, metrics} -> test_modules_text(metrics) end},
           {"Commit", true, fn {test_run, _metrics} -> commit_link(test_run.git_commit_sha, git_remote_url_origin) end}
         ],
         fn {_header, shown?, _cell} -> shown? end

@@ -277,7 +277,7 @@ defmodule Tuist.Runners do
 
   def volume_master_upload_url(account_id, volume_name, tree_digest, content_digest)
       when is_integer(account_id) and is_binary(tree_digest) do
-    if valid_inventory_digest?(tree_digest) and VolumeHeads.valid_volume_name?(volume_name) do
+    if valid_inventory_digest?(tree_digest) and VolumeHeads.valid_storage_volume_name?(volume_name) do
       content_digest = reported_content_digest(content_digest)
 
       with {:ok, account} <- Accounts.get_account_by_id(account_id),
@@ -298,6 +298,33 @@ defmodule Tuist.Runners do
   end
 
   def volume_master_upload_url(_account_id, _volume_name, _tree_digest, _content_digest), do: :error
+
+  # Shared by the automatic macOS cache and Linux custom volumes. The caller
+  # resolves the volume identity; neither path accepts an object key from a job.
+  def volume_master_download_url(account_id, volume_name, digest, content_digest) do
+    with true <- VolumeHeads.valid_storage_volume_name?(volume_name),
+         true <- is_binary(digest) and valid_inventory_digest?(digest),
+         content when is_binary(content) <- reported_content_digest(content_digest),
+         {:ok, account} <- Accounts.get_account_by_id(account_id),
+         key = volume_master_object_key(account_id, volume_name, master_object_id(digest, content)),
+         url when is_binary(url) <-
+           Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds),
+         true <- Tuist.URL.public_host_url?(url) do
+      {:ok, url}
+    else
+      _ -> :error
+    end
+  end
+
+  def track_volume_master_upload(account_id, volume_name, digest, content_digest) do
+    reclaim_rejected_master_upload(account_id, volume_name, master_object_id(digest, content_digest))
+  end
+
+  def clear_volume_master(account_id, volume_name) do
+    head = VolumeHeads.get_head(account_id, volume_name)
+    VolumeHeads.delete_head(account_id, volume_name)
+    schedule_superseded_master_prune(account_id, volume_name, head, nil)
+  end
 
   # The base64 SHA-256 to sign into the presigned PUT, plus the storage opts
   # that sign it. No digest — or a provider whose presigned URLs cannot carry

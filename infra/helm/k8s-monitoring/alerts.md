@@ -1959,6 +1959,108 @@ cannot see that shape: the StatefulSet itself was deleted, so both
 `kube_statefulset_replicas` and `kube_statefulset_status_replicas_ready` were
 absent for the instance and their subtraction returned no series at all.
 
+### Kura rollout paused
+
+```promql
+max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)
+```
+
+- Threshold: `> 0`
+- Pending period: 15 minutes
+- Severity: warning
+- All environments. Folder `Alerts`, group `Cache`. No contact point on the
+  rule: the policy tree sends production and canary to `#notifications` and
+  staging to `#notifications-non-prod`. **No Data: Normal**, **Error: Error**.
+- Summary: `Kura rollout of {{ $labels.image_tag }} is paused in {{ $labels.env }}`
+- **Live** as
+  [`Kura - rollout paused`](https://tuist.grafana.net/alerting/grafana/kura-rollout-paused/view)
+  (UID `kura-rollout-paused`), recorded in
+  [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json).
+
+A paused rollout is the orchestrator's safety gate (see
+`Tuist.Kura.Rollouts`). It pauses when a hard health signal regresses on a
+scoped server, when a wave cannot converge within its one-hour deadline
+(`wave_deadline_exceeded`), or when an operator pauses it by hand. After that
+nothing moves until someone resumes or aborts it from `/ops/kura/rollouts`.
+The fleet keeps serving on mixed versions in the meantime, so no customer
+notices. That is exactly why a pause can go unnoticed.
+
+**What it would have caught.** The 0.55.0 production rollout paused on
+2026-09-22 at 17:27 UTC with `wave_deadline_exceeded` at wave 1 and sat there
+for about two days before anyone looked. The 2026-09-22 eu-east incident had
+set every eu-east StatefulSet to `updateStrategy: OnDelete`, so their pods
+never picked up the new template, and the server logs nothing while that
+holds. In the 30 days before it, 0.28.0 (12 hours) and 0.45.4 (60 hours) had
+also stayed paused unnoticed. The only signal was the one-shot Slack message
+from `Tuist.Kura.Rollouts.Notifier`, which is best-effort context, not
+detection. This rule keeps renotifying on the policy's repeat interval until
+the rollout resumes, completes, or is aborted.
+
+**When it fires.** Open `/ops/kura/rollouts` for the pause reason, and for the
+server, region and signal that caused it. For `wave_deadline_exceeded`, look
+for StatefulSets that cannot roll:
+
+```sh
+kubectl -n kura get sts -o json \
+  | jq -r '.items[] | select(.spec.updateStrategy.type == "OnDelete" or (.spec.updateStrategy.rollingUpdate.partition // 0) > 0) | .metadata.name'
+```
+
+Check `infra/kura-controller/incidents/` for a recovery that left them that
+way, and restore `RollingUpdate` one StatefulSet at a time
+(`infra/kura-controller/node-local-recovery.md`) before you resume.
+
+**Why 15 minutes, and why warning.** The orchestrator itself decides when to
+pause, so there is no flapping to smooth over. The pending period only lets an
+operator who pauses on purpose resume without a notification. A pause is a
+safe state, and so it should not page anyone at night. It has to stay visible
+until someone acts on it, and a repeating Slack notification does that.
+
+### Kura rollout running without progress
+
+```promql
+sum_over_time(
+  (
+    max by (cluster, env, image_tag, mode) (tuist_kura_rollout_active)
+    - max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)
+  )[6h:5m]
+) * 5 / 60
+```
+
+- Threshold: `> 5.5`. The value is the number of hours in the last six that
+  the rollout spent running and unpaused
+- Pending period: 5 minutes
+- Severity: warning
+- All environments. Same folder, group and routing as **Kura rollout
+  paused**; **No Data: Normal**, **Error: Error**.
+- Summary: `Kura rollout of {{ $labels.image_tag }} has been running for
+  {{ $values.A.Value | printf "%.1f" }} of the last 6 hours in {{ $labels.env }}`
+- **Live** as
+  [`Kura - rollout running without progress`](https://tuist.grafana.net/alerting/grafana/kura-rollout-stalled/view)
+  (UID `kura-rollout-stalled`), recorded in
+  [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json).
+
+This rule covers the rollout that is stuck but never pauses. Every wave has a
+one-hour deadline that pauses the rollout, so a working reconciler either
+finishes or pauses long before six hours. In the 30 days up to 2026-09-24, no
+rollout ran unpaused for more than 1.3 hours in any six-hour window. If a
+rollout stays in `running` that long, the reconciler is not advancing it: it
+is not ticking, or it is erroring before it reaches the deadline check. The
+PromEx poll reads the rollout row from Postgres independently of the
+reconciler, so it still reports `active` while the reconciler is wedged.
+
+**Why a sum over the window rather than `min_over_time` or a long pending
+period.** `min_over_time` ignores missing points, so a rollout that started
+one hour ago would already read as "active for six hours". A six-hour pending
+period is reset by any rule edit or ruler restart. Summing the running samples
+needs six real hours of data to reach the threshold. Scrape gaps (server pod
+replacements) can only delay it.
+
+**Not covered: the control plane stops reporting mid-rollout.** Both rules
+read gauges that the server emits, so if every server pod dies, both go to
+No Data and stay silent. The companion absence rule described on the Kura
+rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
+availability alerts cover that failure.
+
 ### Kura egress budget almost entirely consumed
 
 ```promql

@@ -131,6 +131,18 @@
       "include_paths": ["skills/**/*"]
     },
     {
+      "name": "cache-volume",
+      "tag_prefix": "cache-volume@",
+      "tag_regex": "^cache-volume@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "ci/cache-volume/cliff.toml",
+      "initial_version": "1.0.0",
+      "include_paths": [
+        ".github/actions/cache-volume/**/*",
+        "ci/cache-volume/**/*",
+        ".github/workflows/cache-volume-action.yml"
+      ]
+    },
+    {
       "name": "noora",
       "tag_prefix": "noora@",
       "tag_regex": "^noora@[0-9]+\\.[0-9]+\\.[0-9]+$",

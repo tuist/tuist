@@ -23,7 +23,7 @@ defmodule Tuist.Runners.Buildkite.Installation do
   schema "runner_buildkite_installations" do
     field :organization_slug, :string
     field :stack_key, :string
-    field :agent_token, Binary
+    field :agent_token, Binary, redact: true
     field :enabled, :boolean, default: true
     field :last_polled_at, :utc_datetime
     field :last_error, :string
