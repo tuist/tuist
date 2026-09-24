@@ -1,5 +1,5 @@
 // Package rackinstall renders what installs a rack Linux host: the Ubuntu
-// autoinstall seed, and the GRUB menu that netboots the installer with it.
+// autoinstall seed, and the iPXE script that netboots the installer with it.
 // The operator publishes both for PXE, and rack:write-install-usb bakes the
 // same seed into an install stick.
 package rackinstall
@@ -211,19 +211,17 @@ func MACPath(mac string) string {
 	return strings.ReplaceAll(strings.ToLower(mac), ":", "-")
 }
 
-// GRUBConfig netboots the Ubuntu installer with the host's seed. It is the
-// menu Ubuntu's signed network GRUB loads for the host, so the chain from the
-// firmware to the kernel is signed and boots with Secure Boot on. The kernel
-// and initrd come over TFTP; the installer then downloads the ISO into memory
-// (url=) and the seed over HTTP from server. BOOTIF keeps its DHCP on the NIC
-// that netbooted, and cloud-config-url is cleared because cloud-init would
-// otherwise fetch the ISO as a config.
-func GRUBConfig(server, mac, host string) string {
+// IPXEScript netboots the Ubuntu installer with the host's seed. iPXE runs it
+// after the firmware's PXE loads iPXE, and fetches the kernel and initrd from
+// server over HTTP; the installer then downloads the ISO into memory (url=) and
+// the seed. BOOTIF keeps the installer's DHCP on the NIC that netbooted, and
+// cloud-config-url is cleared because cloud-init would otherwise fetch the ISO
+// as a config.
+func IPXEScript(server, mac string) string {
 	server = strings.TrimRight(server, "/")
-	return fmt.Sprintf(`set timeout=0
-menuentry "Install %[3]s" {
-	linux /ubuntu/vmlinuz ip=dhcp BOOTIF=01-%[2]s url=%[1]s/ubuntu/ubuntu.iso cloud-config-url=/dev/null autoinstall ds=nocloud-net\;s=%[1]s/hosts/%[2]s/ ---
-	initrd /ubuntu/initrd
-}
-`, server, MACPath(mac), host)
+	return fmt.Sprintf(`#!ipxe
+kernel %[1]s/ubuntu/vmlinuz initrd=initrd ip=dhcp BOOTIF=01-%[2]s url=%[1]s/ubuntu/ubuntu.iso cloud-config-url=/dev/null autoinstall ds=nocloud-net;s=%[1]s/hosts/%[2]s/ ---
+initrd --name initrd %[1]s/ubuntu/initrd
+boot
+`, server, MACPath(mac))
 }

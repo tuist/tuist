@@ -148,8 +148,8 @@ func publishedBoot(keyID string) *corev1.Secret {
 		Data: map[string][]byte{
 			svcMACPath + ".user-data":     []byte("#cloud-config " + keyID),
 			svcMACPath + ".meta-data":     []byte("instance-id: x"),
-			svcMACPath + ".grub.cfg":      []byte("set timeout=0"),
-			"aa-bb-cc-dd-ee-ff.grub.cfg":  []byte("another host"),
+			svcMACPath + ".ipxe":          []byte("#!ipxe"),
+			"aa-bb-cc-dd-ee-ff.ipxe":      []byte("another host"),
 			"aa-bb-cc-dd-ee-ff.user-data": []byte("another host"),
 			"aa-bb-cc-dd-ee-ff.meta-data": []byte("another host"),
 		},
@@ -191,8 +191,8 @@ func TestRackInstallPublishesAnInstallForAHostNotOnTheTailnet(t *testing.T) {
 	if string(boot[svcMACPath+".meta-data"]) != "instance-id: ber1-svc-kmint1cntrl\nlocal-hostname: ber1-svc\n" {
 		t.Errorf("meta-data %q", boot[svcMACPath+".meta-data"])
 	}
-	if grub := string(boot[svcMACPath+".grub.cfg"]); !strings.Contains(grub, "BOOTIF=01-"+svcMACPath) || !strings.Contains(grub, "s=http://192.168.50.1:8480/hosts/"+svcMACPath+"/") {
-		t.Errorf("grub.cfg %q", grub)
+	if script := string(boot[svcMACPath+".ipxe"]); !strings.Contains(script, "BOOTIF=01-"+svcMACPath) || !strings.Contains(script, "s=http://192.168.50.1:8480/hosts/"+svcMACPath+"/") {
+		t.Errorf("ipxe %q", script)
 	}
 
 	console := &corev1.Secret{}
@@ -241,7 +241,7 @@ func TestRackInstallWithdrawsTheInstallOnceTheHostJoins(t *testing.T) {
 		t.Fatal("Installed is not True")
 	}
 	boot := h.boot(t)
-	for _, suffix := range []string{".user-data", ".meta-data", ".grub.cfg"} {
+	for _, suffix := range []string{".user-data", ".meta-data", ".ipxe"} {
 		if _, ok := boot[svcMACPath+suffix]; ok {
 			t.Errorf("%s is still published", suffix)
 		}
@@ -452,5 +452,19 @@ else echo "efibootmgr $*" >>"` + calls + `"; fi`,
 
 	if out, err := run("aa:bb:cc:dd:ee:ff"); err == nil || !strings.Contains(out, "no IPv4 network boot entry for aa:bb:cc:dd:ee:ff") {
 		t.Fatalf("a MAC without an entry: err %v output %q", err, out)
+	}
+}
+
+func TestRackInstallPublishesAgainWhenTheBootSecretLostIt(t *testing.T) {
+	stale := publishedBoot("kOLDCNTRL")
+	delete(stale.Data, svcMACPath+".ipxe")
+	stale.Data[svcMACPath+".grub.cfg"] = []byte("set timeout=0")
+	h := newInstallHarness(t, withInstall(svcHost(), "kOLDCNTRL", "", installEpoch.Add(-time.Hour), nil), stale)
+	host := h.reconcile(t, "ber1-svc")
+	if len(h.api.minted) != 1 || host.Status.Install.KeyID != "kMINT1CNTRL" {
+		t.Fatalf("minted %v, install %+v; an install the boot server no longer has is published again", h.api.minted, host.Status.Install)
+	}
+	if !strings.Contains(string(h.boot(t)[svcMACPath+".ipxe"]), "BOOTIF=01-"+svcMACPath) {
+		t.Fatal("the host's iPXE script is not published")
 	}
 }

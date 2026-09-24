@@ -6,7 +6,7 @@ setup() {
   ROOT="$(git rev-parse --show-toplevel)"
   export STATE="$BATS_TEST_TMPDIR/state" SEEDS="$BATS_TEST_TMPDIR/seeds" NETBOOT="$BATS_TEST_TMPDIR/netboot"
   mkdir -p "$SEEDS" "$NETBOOT"
-  echo grub >"$NETBOOT/grubx64.efi"
+  echo ipxe >"$NETBOOT/snponly.efi"
   RACK_BOOT_SOURCE_ONLY=1
   # shellcheck source=/dev/null
   source "$ROOT/infra/helm/tuist/files/rack-boot.sh"
@@ -15,18 +15,17 @@ setup() {
 
 publish() {
   local mac="$1" tag="$2"
-  printf 'menu %s\n' "$tag" >"$SEEDS/$mac.grub.cfg"
+  printf '#!ipxe %s\n' "$tag" >"$SEEDS/$mac.ipxe"
   printf '#cloud-config %s\n' "$tag" >"$SEEDS/$mac.user-data"
   printf 'instance-id: %s\n' "$tag" >"$SEEDS/$mac.meta-data"
 }
 
-@test "a published install is served over TFTP under both names GRUB looks for, and its seed over HTTP" {
+@test "a published install is served over HTTP: the host's iPXE script and its seed" {
   publish 38-05-25-38-b5-b5 one
   run sync_seeds
   [ "$status" -eq 0 ]
   [[ "$output" == *"serving the install for 38-05-25-38-b5-b5"* ]]
-  [ "$(cat "$STATE/tftp/grub/grub.cfg-01-38-05-25-38-b5-b5")" = "menu one" ]
-  [ "$(cat "$STATE/tftp/grub/hosts/38:05:25:38:b5:b5.cfg")" = "menu one" ]
+  [ "$(cat "$STATE/http/hosts/38-05-25-38-b5-b5.ipxe")" = "#!ipxe one" ]
   [ "$(cat "$STATE/http/hosts/38-05-25-38-b5-b5/user-data")" = "#cloud-config one" ]
   [ "$(cat "$STATE/http/hosts/38-05-25-38-b5-b5/meta-data")" = "instance-id: one" ]
   [ -f "$STATE/http/hosts/38-05-25-38-b5-b5/vendor-data" ]
@@ -36,7 +35,7 @@ publish() {
 
   publish 38-05-25-38-b5-b5 two
   sync_seeds
-  [ "$(cat "$STATE/tftp/grub/hosts/38:05:25:38:b5:b5.cfg")" = "menu two" ]
+  [ "$(cat "$STATE/http/hosts/38-05-25-38-b5-b5.ipxe")" = "#!ipxe two" ]
   [ "$(cat "$STATE/http/hosts/38-05-25-38-b5-b5/user-data")" = "#cloud-config two" ]
 }
 
@@ -48,9 +47,8 @@ publish() {
   run sync_seeds
   [[ "$output" == *"withdrew the install for 38-05-25-38-b5-b5"* ]]
   [ ! -e "$STATE/http/hosts/38-05-25-38-b5-b5" ]
-  [ ! -e "$STATE/tftp/grub/grub.cfg-01-38-05-25-38-b5-b5" ]
-  [ ! -e "$STATE/tftp/grub/hosts/38:05:25:38:b5:b5.cfg" ]
-  [ "$(cat "$STATE/tftp/grub/hosts/aa:bb:cc:dd:ee:ff.cfg")" = "menu other" ]
+  [ ! -e "$STATE/http/hosts/38-05-25-38-b5-b5.ipxe" ]
+  [ "$(cat "$STATE/http/hosts/aa-bb-cc-dd-ee-ff.ipxe")" = "#!ipxe other" ]
 }
 
 @test "only a complete install under a MAC is served" {
@@ -60,10 +58,9 @@ publish() {
   publish AA-BB-CC-DD-EE-FF upper
   sync_seeds
   [ -z "$(ls "$STATE/http/hosts" 2>/dev/null)" ]
-  [ -z "$(ls "$STATE/tftp/grub/hosts" 2>/dev/null)" ]
 }
 
-@test "prepare verifies the ISO, and lays out its shim and kernel beside the network GRUB" {
+@test "prepare verifies the ISO, serves its kernel over HTTP and iPXE over TFTP" {
   bin="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$bin"
   cat >"$bin/curl" <<'EOF'
@@ -83,22 +80,22 @@ read -r sum file
 EOF
   chmod +x "$bin"/*
   PATH="$bin:$PATH"
-  ISO_URL=https://releases.example/ubuntu.iso
+  ISO_URL=https://releases.example/ubuntu.iso BOOT_ADDRESS=192.168.50.1 HTTP_PORT=8480
 
   ISO_SHA256=bad
   run prepare
   [ "$status" -ne 0 ]
   [ ! -e "$STATE/http/ubuntu/ubuntu.iso" ]
 
+  mkdir -p "$STATE/tftp/grub"
   ISO_SHA256=good
   run prepare
   [ "$status" -eq 0 ]
-  [ "$(cat "$STATE/tftp/ubuntu/vmlinuz")" = "extracted casper/vmlinuz" ]
-  [ "$(cat "$STATE/tftp/ubuntu/initrd")" = "extracted casper/initrd" ]
-  [ "$(cat "$STATE/tftp/bootx64.efi")" = "extracted EFI/boot/bootx64.efi" ]
-  [ "$(cat "$STATE/tftp/grubx64.efi")" = grub ]
-  grep -qx 'configfile $prefix/hosts/${net_default_mac}.cfg' "$STATE/tftp/grub/grub.cfg"
-  grep -qx 'exit 1' "$STATE/tftp/grub/grub.cfg"
+  [ "$(cat "$STATE/http/ubuntu/vmlinuz")" = "extracted casper/vmlinuz" ]
+  [ "$(cat "$STATE/http/ubuntu/initrd")" = "extracted casper/initrd" ]
+  [ "$(cat "$STATE/tftp/snponly.efi")" = ipxe ]
+  grep -qx 'chain http://192.168.50.1:8480/hosts/${mac:hexhyp}.ipxe || exit 1' "$STATE/tftp/boot.ipxe"
+  [ ! -e "$STATE/tftp/grub" ]
 
   run prepare
   [ "$status" -eq 0 ]

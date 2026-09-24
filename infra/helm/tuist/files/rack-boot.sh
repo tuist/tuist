@@ -1,15 +1,15 @@
 #!/bin/sh
 # The rack's boot server, run by the rack-boot DaemonSet on the rack's edge
-# node with host networking. On the provisioning address it serves, over TFTP,
-# the installer ISO's shim, Ubuntu's signed network GRUB, the installer's kernel
-# and initrd, and a GRUB menu per host; over HTTP, the installer ISO and each
-# host's autoinstall seed. The per-host files are what the operator publishes
-# to the fleet's boot Secret, mounted at $SEEDS: <mac>.grub.cfg,
-# <mac>.user-data and <mac>.meta-data, with the MAC hyphenated. A host with
-# nothing published gets nothing and falls through to its next boot entry.
+# node with host networking. On the provisioning address it serves iPXE and
+# boot.ipxe over TFTP, and over HTTP the installer's kernel, initrd and ISO and
+# each host's iPXE script and autoinstall seed. The per-host files are what the
+# operator publishes to the fleet's boot Secret, mounted at $SEEDS:
+# <mac>.ipxe, <mac>.user-data and <mac>.meta-data, with the MAC hyphenated. A
+# host with nothing published gets nothing and falls through to its next boot
+# entry.
 #
 # Environment: BOOT_ADDRESS, HTTP_PORT, ISO_URL, ISO_SHA256, STATE (a host
-# directory kept across restarts), SEEDS, NETBOOT (the network GRUB).
+# directory kept across restarts), SEEDS, NETBOOT (iPXE).
 # RACK_BOOT_SOURCE_ONLY=1 defines the functions without serving, for the tests.
 set -eu
 
@@ -24,7 +24,8 @@ log() { echo "rack-boot: $*"; }
 # Downloads and verifies the installer ISO once per checksum, and lays out
 # what every netboot shares.
 prepare() {
-  mkdir -p "$tftp/grub/hosts" "$tftp/ubuntu" "$http/ubuntu" "$http/hosts"
+  rm -rf "$tftp"
+  mkdir -p "$tftp" "$http/ubuntu" "$http/hosts"
   iso="$http/ubuntu/ubuntu.iso"
   if [ "$(cat "$STATE/iso.sha256" 2>/dev/null)" != "$ISO_SHA256" ]; then
     rm -f "$iso" "$STATE/iso.sha256"
@@ -39,43 +40,37 @@ prepare() {
     echo "$ISO_SHA256" > "$STATE/iso.sha256"
   fi
   # The kernel and initrd come from the ISO the installer then loads, so the
-  # modules in its squashfs match the running kernel, and so does the shim,
-  # the one the ISO boots with from a stick.
-  bsdtar -xOf "$iso" casper/vmlinuz > "$tftp/ubuntu/vmlinuz"
-  bsdtar -xOf "$iso" casper/initrd > "$tftp/ubuntu/initrd"
-  bsdtar -xOf "$iso" EFI/boot/bootx64.efi > "$tftp/bootx64.efi"
-  cp "$NETBOOT/grubx64.efi" "$tftp/"
-  # GRUB reads grub.cfg-01-<mac> before grub.cfg when there is one, and
-  # grub.cfg looks for the host's menu by the MAC GRUB booted from; a host with
-  # neither returns to its firmware's next boot entry.
-  cat > "$tftp/grub/grub.cfg" <<'GRUB'
-set timeout=0
-configfile $prefix/hosts/${net_default_mac}.cfg
-exit 1
-GRUB
+  # modules in its squashfs match the running kernel.
+  bsdtar -xOf "$iso" casper/vmlinuz > "$http/ubuntu/vmlinuz"
+  bsdtar -xOf "$iso" casper/initrd > "$http/ubuntu/initrd"
+  cp "$NETBOOT/snponly.efi" "$tftp/"
+  # iPXE asks for the host's script by the MAC it booted from; a host with none
+  # returns to its firmware's next boot entry.
+  cat > "$tftp/boot.ipxe" <<IPXE
+#!ipxe
+chain http://$BOOT_ADDRESS:$HTTP_PORT/hosts/\${mac:hexhyp}.ipxe || exit 1
+IPXE
 }
 
-# Mirrors the Secret into the served trees. Files are copied rather than
-# linked, so neither server follows a link out of its root.
+# Mirrors the Secret into the served tree. Files are copied rather than linked,
+# so the server never follows a link out of its root.
 sync_seeds() {
   wanted=" "
-  for cfg in "$SEEDS"/*.grub.cfg; do
-    [ -f "$cfg" ] || continue
-    mac="$(basename "$cfg" .grub.cfg)"
+  for script in "$SEEDS"/*.ipxe; do
+    [ -f "$script" ] || continue
+    mac="$(basename "$script" .ipxe)"
     case "$mac" in
       [0-9a-f][0-9a-f]-[0-9a-f][0-9a-f]-[0-9a-f][0-9a-f]-[0-9a-f][0-9a-f]-[0-9a-f][0-9a-f]-[0-9a-f][0-9a-f]) ;;
       *) continue ;;
     esac
     [ -f "$SEEDS/$mac.user-data" ] && [ -f "$SEEDS/$mac.meta-data" ] || continue
     wanted="$wanted$mac "
-    mkdir -p "$http/hosts/$mac" "$tftp/grub/hosts"
+    mkdir -p "$http/hosts/$mac"
     : > "$http/hosts/$mac/vendor-data"
-    for f in user-data meta-data; do
-      cmp -s "$SEEDS/$mac.$f" "$http/hosts/$mac/$f" || { cp "$SEEDS/$mac.$f" "$http/hosts/$mac/$f.new" && mv "$http/hosts/$mac/$f.new" "$http/hosts/$mac/$f"; }
-    done
     changed=
-    for target in "$tftp/grub/grub.cfg-01-$mac" "$tftp/grub/hosts/$(echo "$mac" | tr - :).cfg"; do
-      cmp -s "$cfg" "$target" || { cp "$cfg" "$target.new" && mv "$target.new" "$target" && changed=1; }
+    for pair in "$mac.ipxe:$mac.ipxe" "$mac.user-data:$mac/user-data" "$mac.meta-data:$mac/meta-data"; do
+      src="$SEEDS/${pair%%:*}" target="$http/hosts/${pair#*:}"
+      cmp -s "$src" "$target" || { cp "$src" "$target.new" && mv "$target.new" "$target" && changed=1; }
     done
     [ -z "$changed" ] || log "serving the install for $mac"
   done
@@ -83,7 +78,7 @@ sync_seeds() {
     [ -d "$dir" ] || continue
     mac="$(basename "$dir")"
     case "$wanted" in *" $mac "*) continue ;; esac
-    rm -rf "$dir" "$tftp/grub/grub.cfg-01-$mac" "$tftp/grub/hosts/$(echo "$mac" | tr - :).cfg"
+    rm -rf "$dir" "$http/hosts/$mac.ipxe"
     log "withdrew the install for $mac"
   done
 }

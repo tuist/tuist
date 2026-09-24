@@ -128,7 +128,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 	}
 
 	now := r.now()
-	if inst == nil || now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore)) {
+	if inst == nil || now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore)) || !r.installServed(ctx, inst) {
 		previous := ""
 		var triggered *metav1.Time
 		if inst != nil {
@@ -184,7 +184,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 	return 0, nil
 }
 
-// publishInstall mints a join key and writes the host's seed and GRUB menu to
+// publishInstall mints a join key and writes the host's seed and iPXE script to
 // the boot Secret, under the host's boot MAC.
 func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infrav1.RackLinuxHost, previous string, triggered *metav1.Time, now time.Time) error {
 	fleetKey, err := r.CredentialsManager.ReadFleetSSHKey(ctx, r.Install.FleetName)
@@ -238,7 +238,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		}
 		secret.Data[mac+".user-data"] = []byte(userData)
 		secret.Data[mac+".meta-data"] = []byte(rackinstall.MetaData(seed))
-		secret.Data[mac+".grub.cfg"] = []byte(rackinstall.GRUBConfig(r.Install.ServerURL, host.Spec.BootMAC, host.Name))
+		secret.Data[mac+".ipxe"] = []byte(rackinstall.IPXEScript(r.Install.ServerURL, host.Spec.BootMAC))
 		return nil
 	}); err != nil {
 		return fmt.Errorf("write the install to Secret %s: %w", secret.Name, err)
@@ -263,6 +263,18 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	return nil
 }
 
+// installServed reports whether the boot Secret still carries the published
+// install's iPXE script, which it no longer does once someone deleted the
+// Secret.
+func (r *RackLinuxHostReconciler) installServed(ctx context.Context, inst *infrav1.RackLinuxHostInstallStatus) bool {
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: r.CredentialsManager.Namespace, Name: rackBootSecretName(r.Install.FleetName)}, secret); err != nil {
+		return false
+	}
+	_, ok := secret.Data[rackinstall.MACPath(inst.BootMAC)+".ipxe"]
+	return ok
+}
+
 // withdrawInstall removes the host's published install, whose join key the
 // boot server would otherwise keep handing out.
 func (r *RackLinuxHostReconciler) withdrawInstall(ctx context.Context, host *infrav1.RackLinuxHost) error {
@@ -279,7 +291,7 @@ func (r *RackLinuxHostReconciler) withdrawInstall(ctx context.Context, host *inf
 	default:
 		mac := rackinstall.MACPath(inst.BootMAC)
 		changed := false
-		for _, suffix := range []string{".user-data", ".meta-data", ".grub.cfg"} {
+		for _, suffix := range []string{".user-data", ".meta-data", ".ipxe", ".grub.cfg"} {
 			if _, ok := secret.Data[mac+suffix]; ok {
 				delete(secret.Data, mac+suffix)
 				changed = true
