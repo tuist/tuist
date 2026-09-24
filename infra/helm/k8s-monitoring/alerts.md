@@ -1974,8 +1974,8 @@ max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)
 - Summary: `Kura rollout of {{ $labels.image_tag }} is paused in {{ $labels.env }}`
 - **Live** as
   [`Kura - rollout paused`](https://tuist.grafana.net/alerting/grafana/kura-rollout-paused/view)
-  (UID `kura-rollout-paused`). [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json)
-  records it; see **How these rules were created** below.
+  (UID `kura-rollout-paused`), recorded in
+  [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json).
 
 A paused rollout is the orchestrator's safety gate (see
 `Tuist.Kura.Rollouts`). It pauses when a hard health signal regresses on a
@@ -2060,41 +2060,6 @@ read gauges that the server emits, so if every server pod dies, both go to
 No Data and stay silent. The companion absence rule described on the Kura
 rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
 availability alerts cover that failure.
-
-#### How these rules were created
-
-Both rules are ordinary UI-editable rules in `Alerts` › `Cache` (no
-provenance), live since 2026-09-24 17:56 UTC.
-[`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json) records them
-in the provisioning API's format. Nothing applies it on merge. Edit the rules in
-the UI like any other, then refresh the file.
-
-They were created with the provisioning API, sent through
-[gcx](https://github.com/grafana/gcx) so it could use gcx's login:
-
-```sh
-gcx api /api/v1/provisioning/alert-rules -X POST \
-  -H "X-Disable-Provenance: true" -H "Content-Type: application/json" \
-  -d @rule.json
-```
-
-**Do not create alert rules with `gcx resources push`.** A first attempt did,
-and the rules it creates through the `rules.alerting.grafana.app` resource API
-have three problems:
-
-- **No rule group.** The API refuses a group on create (`cannot set group when
-  creating a new rule`) and on update. Each rule lands in a synthetic
-  `no_group_for_rule_<uid>` group, so it does not show under its intended
-  group.
-- **Read-only in the UI.** Such rules get provenance `api`, and the UI will not
-  save or delete them. A provisioning-API update with `X-Disable-Provenance`
-  fails with `409 provenanceMismatch`.
-- **Hard to delete.** The provisioning API refuses to delete them (`needs
-  'kubectl'`). Only `gcx resources delete alertrules/<uid>` works, and only
-  with a login whose grant includes `grafana-api:delete`.
-
-`noDataState` is also spelled differently: `OK` in the provisioning API, `Ok`
-in the resource API.
 
 ### Kura egress budget almost entirely consumed
 
