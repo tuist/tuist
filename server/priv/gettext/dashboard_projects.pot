@@ -56,7 +56,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:682
 #: lib/tuist_web/live/project_notifications_live.ex:754
 #: lib/tuist_web/live/project_notifications_live.ex:757
-#: lib/tuist_web/live/xcode_overview_live.ex:294
+#: lib/tuist_web/live/xcode_overview_live.ex:309
 #: lib/tuist_web/live/xcode_overview_live.html.heex:15
 #: lib/tuist_web/live/xcode_overview_live.html.heex:915
 #, elixir-autogen, elixir-format
@@ -139,7 +139,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:676
 #: lib/tuist_web/live/bazel_overview_live.ex:683
 #: lib/tuist_web/live/project_notifications_live.ex:756
-#: lib/tuist_web/live/xcode_overview_live.ex:296
+#: lib/tuist_web/live/xcode_overview_live.ex:311
 #: lib/tuist_web/live/xcode_overview_live.html.heex:23
 #: lib/tuist_web/live/xcode_overview_live.html.heex:923
 #, elixir-autogen, elixir-format
@@ -306,7 +306,7 @@ msgstr ""
 #: lib/tuist_web/live/bazel_overview_live.ex:677
 #: lib/tuist_web/live/bazel_overview_live.ex:684
 #: lib/tuist_web/live/project_notifications_live.ex:755
-#: lib/tuist_web/live/xcode_overview_live.ex:295
+#: lib/tuist_web/live/xcode_overview_live.ex:310
 #: lib/tuist_web/live/xcode_overview_live.html.heex:31
 #: lib/tuist_web/live/xcode_overview_live.html.heex:931
 #, elixir-autogen, elixir-format
@@ -514,19 +514,19 @@ msgid "You are not authorized to perform this action."
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:30
-#: lib/tuist_web/live/xcode_overview_live.ex:292
+#: lib/tuist_web/live/xcode_overview_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:27
-#: lib/tuist_web/live/xcode_overview_live.ex:289
+#: lib/tuist_web/live/xcode_overview_live.ex:304
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:28
-#: lib/tuist_web/live/xcode_overview_live.ex:290
+#: lib/tuist_web/live/xcode_overview_live.ex:305
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -587,13 +587,13 @@ msgid "Last 7 days"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:29
-#: lib/tuist_web/live/xcode_overview_live.ex:291
+#: lib/tuist_web/live/xcode_overview_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
 #: lib/tuist_web/live/bazel_analytics_helpers.ex:26
-#: lib/tuist_web/live/xcode_overview_live.ex:288
+#: lib/tuist_web/live/xcode_overview_live.ex:303
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
