@@ -396,10 +396,15 @@ defmodule Tuist.Kura.RolloutsTest do
                    %{
                      server_id: first.id,
                      region: "local-controller",
-                     strategy: "OnDelete",
+                     strategy: "updateStrategy OnDelete",
                      held_pods: ["kura-a-0", "kura-a-1"]
                    },
-                   %{server_id: second.id, region: "local-controller", strategy: "partition=1", held_pods: ["kura-b-0"]}
+                   %{
+                     server_id: second.id,
+                     region: "local-controller",
+                     strategy: "rollingUpdate.partition=1",
+                     held_pods: ["kura-b-0"]
+                   }
                  ],
                  & &1.server_id
                )

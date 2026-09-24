@@ -25,22 +25,27 @@ defmodule Tuist.Kura.Rollouts.NotifierTest do
       wave: 1,
       signal: :statefulset_update_paused,
       servers: [
-        %{server_id: "server-a", region: "eu-east", strategy: "OnDelete", held_pods: ["kura-a-0", "kura-a-1"]},
-        %{server_id: "server-b", region: "eu-east", strategy: "partition=1", held_pods: ["kura-b-0"]}
+        %{
+          server_id: "server-a",
+          region: "eu-east",
+          strategy: "updateStrategy OnDelete",
+          held_pods: ["kura-a-0", "kura-a-1"]
+        },
+        %{server_id: "server-b", region: "eu-east", strategy: "rollingUpdate.partition=1", held_pods: ["kura-b-0"]}
       ]
     })
 
-    assert_receive {:slack, text}
+    assert_receive {:slack, text}, 2_000
     assert text =~ "Kura rollout paused: `0.55.0` at wave 1 in production (signal statefulset_update_paused)"
     assert text =~ "Replace the held pods or restore RollingUpdate, then resume."
-    assert text =~ "server server-a (eu-east): OnDelete holds kura-a-0, kura-a-1"
-    assert text =~ "server server-b (eu-east): partition=1 holds kura-b-0"
+    assert text =~ "server server-a (eu-east): updateStrategy OnDelete holds kura-a-0, kura-a-1"
+    assert text =~ "server server-b (eu-east): rollingUpdate.partition=1 holds kura-b-0"
   end
 
   test "keeps the generic pause message for other signals", %{rollout: rollout} do
     Notifier.notify(:paused, rollout, %{wave: 1, signal: :wave_deadline_exceeded})
 
-    assert_receive {:slack, text}
+    assert_receive {:slack, text}, 2_000
     assert text == "Kura rollout paused: `0.55.0` at wave 1 in production (signal wave_deadline_exceeded)"
   end
 end

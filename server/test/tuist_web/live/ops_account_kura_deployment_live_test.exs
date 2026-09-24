@@ -56,4 +56,29 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
     assert html =~ "Superseded"
     assert html =~ "superseded by Kura image 0.5.3"
   end
+
+  test "renders why a running deployment is blocked", %{conn: conn, user: user} do
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: user.account.id,
+        region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    {:ok, deployment} = server.deployments |> List.first() |> Kura.mark_running()
+
+    {:ok, _} =
+      Kura.record_update_pause(server, deployment, %{
+        "strategy" => "OnDelete",
+        "partition" => nil,
+        "template_image_tag" => "0.5.2",
+        "held_pods" => ["kura-a-0"]
+      })
+
+    {:ok, _live_view, html} =
+      live(conn, ~p"/ops/accounts/#{user.account.id}/kura/deployments/#{deployment.id}")
+
+    assert html =~ "Blocked"
+    assert html =~ "StatefulSet update paused by updateStrategy OnDelete: kura-a-0 held off 0.5.2"
+  end
 end

@@ -1618,17 +1618,17 @@ defmodule Tuist.Kura do
     end)
   end
 
+  @doc "The strategy holding a StatefulSet update pause, e.g. `updateStrategy OnDelete`."
+  def update_pause_strategy(%{"strategy" => "Partition", "partition" => partition}),
+    do: "rollingUpdate.partition=#{partition}"
+
+  def update_pause_strategy(%{"strategy" => strategy}), do: "updateStrategy #{strategy}"
+
   @doc "Human-readable form of a StatefulSet update pause, or nil for none."
   def update_pause_reason(nil), do: nil
 
-  def update_pause_reason(%{"strategy" => strategy} = pause) do
-    by =
-      case strategy do
-        "Partition" -> "rollingUpdate.partition=#{pause["partition"]}"
-        _ -> "updateStrategy #{strategy}"
-      end
-
-    "StatefulSet update paused by #{by}: #{Enum.join(pause["held_pods"] || [], ", ")} held off " <>
+  def update_pause_reason(pause) do
+    "StatefulSet update paused by #{update_pause_strategy(pause)}: #{Enum.join(pause["held_pods"] || [], ", ")} held off " <>
       "#{pause["template_image_tag"] || "the template image"}; replace the pods or restore RollingUpdate to continue"
   end
 

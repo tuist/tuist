@@ -37,6 +37,13 @@
       </div>
     </.card_section>
 
+    <.card_section :if={@deployment.blocked_reason}>
+      <div data-part="metadata">
+        <div data-part="title">{dgettext("dashboard", "Blocked")}</div>
+        <span data-part="label">{@deployment.blocked_reason}</span>
+      </div>
+    </.card_section>
+
     <.card_section :if={@deployment.error_message}>
       <div data-part="metadata">
         <div data-part="title">{dgettext("dashboard", "Error")}</div>

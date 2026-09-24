@@ -1234,7 +1234,7 @@ defmodule Tuist.Kura.Rollouts do
              %{
                server_id: server.server_id,
                region: server.region,
-               strategy: update_pause_strategy(server.update_paused),
+               strategy: Kura.update_pause_strategy(server.update_paused),
                held_pods: server.update_paused["held_pods"] || []
              }
            end)
@@ -1243,9 +1243,6 @@ defmodule Tuist.Kura.Rollouts do
       {:wave_deadline_exceeded, %{wave: rollout.current_wave}}
     end
   end
-
-  defp update_pause_strategy(%{"strategy" => "Partition", "partition" => partition}), do: "partition=#{partition}"
-  defp update_pause_strategy(%{"strategy" => strategy}), do: strategy
 
   defp deadline_exceeded?(%Rollout{wave_started_at: nil}), do: false
 

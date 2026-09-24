@@ -93,7 +93,12 @@ defmodule TuistWeb.OpsKuraRolloutLiveTest do
           wave: 1,
           signal: :statefulset_update_paused,
           servers: [
-            %{server_id: "server-a", region: "eu-east", strategy: "OnDelete", held_pods: ["kura-a-0", "kura-a-1"]}
+            %{
+              server_id: "server-a",
+              region: "eu-east",
+              strategy: "updateStrategy OnDelete",
+              held_pods: ["kura-a-0", "kura-a-1"]
+            }
           ]
         }
       }
@@ -103,7 +108,7 @@ defmodule TuistWeb.OpsKuraRolloutLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/ops/kura/rollouts/#{rollout.id}")
 
     assert html =~ "statefulset_update_paused"
-    assert html =~ "strategy=OnDelete"
+    assert html =~ "strategy=updateStrategy OnDelete"
     assert html =~ "held_pods=kura-a-0,kura-a-1"
     assert html =~ "server_id=server-a"
   end
