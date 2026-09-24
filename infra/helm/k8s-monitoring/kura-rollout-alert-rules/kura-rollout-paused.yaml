@@ -1,0 +1,69 @@
+apiVersion: rules.alerting.grafana.app/v0alpha1
+kind: AlertRule
+metadata:
+  annotations:
+    grafana.app/folder: df5dn1g4rckxsf
+  labels:
+    grafana.app/folder: df5dn1g4rckxsf
+  name: kura-rollout-paused
+  namespace: stacks-1028740
+spec:
+  annotations:
+    description: 'The Kura fleet rollout stopped and will not move until someone resumes or aborts it
+      from /ops/kura. A pause is the rollout''s safety gate: either a health signal regressed on a scoped
+      server, a wave could not converge within its one-hour deadline (wave_deadline_exceeded), or an operator
+      paused it by hand. The fleet keeps serving on mixed versions meanwhile, so nothing is customer-visible
+      yet; the risk is that it goes unnoticed for days. Open /ops/kura/rollouts for the pause reason,
+      server and signal. For wave_deadline_exceeded, check the scoped StatefulSets for updateStrategy
+      OnDelete or a partition left over from an incident before resuming.'
+    runbook_url: https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#kura-rollout-paused
+    summary: Kura rollout of {{ $labels.image_tag }} is paused in {{ $labels.env }}
+  execErrState: Error
+  expressions:
+    A:
+      datasourceUID: grafanacloud-prom
+      model:
+        editorMode: code
+        expr: max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+      relativeTimeRange:
+        from: 10m0s
+        to: 0s
+    C:
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - C
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+      queryType: expression
+      source: true
+  for: 15m0s
+  labels:
+    severity: warning
+  noDataState: Ok
+  title: Kura - rollout paused
+  trigger:
+    interval: 5m

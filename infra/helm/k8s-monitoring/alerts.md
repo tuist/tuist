@@ -1968,15 +1968,15 @@ max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)
 - Threshold: `> 0`
 - Pending period: 15 minutes
 - Severity: warning
-- All environments. Folder `Alerts`, group `Cache`, no contact point on the
-  rule (the policy tree sends production and canary to `#notifications` and
-  staging to `#notifications-non-prod`); **No Data: Normal**, **Error: Error**.
+- All environments. Folder `Alerts`, no rule group (see **Managed with gcx**
+  below), evaluated every 5 minutes. No contact point on the rule: the policy
+  tree sends production and canary to `#notifications` and staging to
+  `#notifications-non-prod`. **No Data: Normal**, **Error: Error**.
 - Summary: `Kura rollout of {{ $labels.image_tag }} is paused in {{ $labels.env }}`
-- Rule payload: [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json)
-- **Not created in Grafana yet.** Merging does not provision it. Create both
-  rules in this section from the payload through
-  `/api/v1/provisioning/alert-rules` with `X-Disable-Provenance: true`, then
-  record their UIDs here.
+- **Live since 2026-09-24 17:23 UTC** as
+  [`Kura - rollout paused`](https://tuist.grafana.net/alerting/grafana/kura-rollout-paused/view)
+  (UID `kura-rollout-paused`), defined in
+  [`kura-rollout-alert-rules/kura-rollout-paused.yaml`](kura-rollout-alert-rules/kura-rollout-paused.yaml).
 
 A paused rollout is the orchestrator's safety gate (see
 `Tuist.Kura.Rollouts`). It pauses when a hard health signal regresses on a
@@ -2031,10 +2031,14 @@ sum_over_time(
   the rollout spent running and unpaused
 - Pending period: 5 minutes
 - Severity: warning
-- All environments. Same folder, group and routing as **Kura rollout paused**;
-  **No Data: Normal**, **Error: Error**.
+- All environments. Same folder, evaluation interval and routing as **Kura
+  rollout paused**; **No Data: Normal**, **Error: Error**.
 - Summary: `Kura rollout of {{ $labels.image_tag }} has been running for
   {{ $values.A.Value | printf "%.1f" }} of the last 6 hours in {{ $labels.env }}`
+- **Live since 2026-09-24 17:23 UTC** as
+  [`Kura - rollout running without progress`](https://tuist.grafana.net/alerting/grafana/kura-rollout-stalled/view)
+  (UID `kura-rollout-stalled`), defined in
+  [`kura-rollout-alert-rules/kura-rollout-stalled.yaml`](kura-rollout-alert-rules/kura-rollout-stalled.yaml).
 
 This rule covers the rollout that is stuck but never pauses. Every wave has a
 one-hour deadline that pauses the rollout, so a working reconciler either
@@ -2057,6 +2061,38 @@ read gauges that the server emits, so if every server pod dies, both go to
 No Data and stay silent. The companion absence rule described on the Kura
 rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
 availability alerts cover that failure.
+
+#### Managed with gcx
+
+Both rollout rules were created with [gcx](https://github.com/grafana/gcx),
+Grafana's CLI, from the manifests in
+[`kura-rollout-alert-rules/`](kura-rollout-alert-rules/). They are the only
+rules in this document managed that way; every other rule here is still
+created and edited in the Grafana UI. Nothing applies the manifests on merge,
+so a change is live only after someone pushes it:
+
+```sh
+gcx login tuist --server https://tuist.grafana.net
+gcx resources push -p infra/helm/k8s-monitoring/kura-rollout-alert-rules
+gcx alert rules get kura-rollout-paused
+```
+
+Push only this directory. Pulling or pushing every `alertrules` resource would
+touch the UI-managed rules too.
+
+Three consequences of creating a rule through gcx:
+
+- **Read-only in the UI.** Rules pushed through the resource API get
+  provenance `api`, so the Grafana UI shows them as provisioned and will not
+  save edits. Change the YAML and push it instead.
+- **No rule group.** The resource API refuses a group on create (`cannot set
+  group when creating a new rule`) and on update of an ungrouped rule. So these
+  two sit outside the `Cache` group and carry their own `trigger.interval` of
+  5 minutes, the same cadence the `Cache` group uses. Routing does not depend
+  on the group: the policy tree groups by folder and `alertname`.
+- **Server-side dry-run is not supported.** `--dry-run` only checks that the
+  files parse; a bad field (for example `noDataState: OK` instead of `Ok`) only
+  surfaces as a 403 on the real push.
 
 ### Kura egress budget almost entirely consumed
 
