@@ -502,10 +502,16 @@ STUB
 
 @test "every x86 node reaches the management switch on copper" {
     run jq -r '[.nodes[] | select(.hardware == "ms-01") |
-        select([.links[] | select(.switch == "ber1-mgmt" and .media == "copper")] | length != 1)] | length' "$SITE_FILE"
+        select([.links[] | select(.switch == "ber1-mgmt" and .media == "copper" and .purpose == "management")] | length != 1)] | length' "$SITE_FILE"
     [ "$output" = "0" ]
     run jq -r '[.nodes[] | select(.hardware == "ms-01")] | length' "$SITE_FILE"
     [ "$output" = "4" ]
+}
+
+@test "only the edge node has a second copper link to the management switch, from its i226-V" {
+    run jq -c '[.nodes[] | {name, link: (.links[] | select(.switch == "ber1-mgmt" and .purpose != "management"))} |
+        {name, nic: .link.nic, port: .link.port, purpose: .link.purpose}]' "$SITE_FILE"
+    [ "$output" = '[{"name":"ber1-edge","nic":"i226-v","port":48,"purpose":"edge"}]' ]
 }
 
 @test "the things on the management switch that are not machines are modelled" {
