@@ -28,6 +28,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> where([r], r.project_id == ^project_id)
       |> maybe_filter_kinds(commands)
       |> maybe_filter_period(opts)
+      |> maybe_filter_environment(opts)
       |> apply_flop_filters(Map.get(flop_params, :filters, []))
 
     order_by = Map.get(flop_params, :order_by, [:finished_at])
@@ -78,6 +79,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
       |> maybe_filter_kinds(commands)
       |> maybe_filter_period(opts)
+      |> maybe_filter_environment(opts)
       |> select([r], %{
         total: count(r.id),
         successful:
@@ -182,6 +184,7 @@ defmodule Tuist.OnceEvents.Analytics do
       Run
       |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
       |> maybe_filter_kinds(commands)
+      |> maybe_filter_environment(opts)
       |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
       |> group_by([r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
       |> select([r], %{
@@ -247,27 +250,66 @@ defmodule Tuist.OnceEvents.Analytics do
   end
 
   @doc """
-  Configuration Insights: average build duration per `once_version`.
+  Configuration Insights: average build duration split by one dimension.
   Same shape as `Tuist.Bazel.build_duration_analytics_by_version/2`
-  (`[%{category, value}]`).
+  (`[%{category, value}]`), which is what the bar chart renders.
+
+  `dimension` is `:version` (the Once release), `:host` (the host class the
+  run executed on) or `:environment` (CI against a developer machine). The
+  Xcode page splits the same card three ways; Once reports a single
+  `host_class` where Xcode has separate device and macOS version columns,
+  so environment stands in as the third axis.
   """
   def build_duration_analytics_by_version(project_id, opts \\ []) do
-    commands = Keyword.get(opts, :commands)
+    build_duration_analytics_by(project_id, :version, opts)
+  end
 
-    Run
-    |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
-    |> maybe_filter_kinds(commands)
-    |> maybe_filter_period(opts)
-    |> where([r], not is_nil(r.once_version) and r.once_version != "")
-    |> group_by([r], r.once_version)
+  def build_duration_analytics_by(project_id, dimension, opts \\ [])
+
+  def build_duration_analytics_by(project_id, :environment, opts) do
+    project_id
+    |> duration_by_dimension_query(opts)
+    |> group_by([r], r.is_ci)
     |> select([r], %{
-      category: r.once_version,
+      is_ci: r.is_ci,
       value: fragment("coalesce(avg(?), 0)", r.wall_ms)
     })
-    |> order_by([r], asc: r.once_version)
+    |> order_by([r], asc: r.is_ci)
+    |> Repo.all()
+    |> Enum.map(fn row ->
+      %{category: environment_category(row.is_ci), value: to_number(row.value)}
+    end)
+  end
+
+  def build_duration_analytics_by(project_id, dimension, opts) do
+    column = insight_column(dimension)
+
+    project_id
+    |> duration_by_dimension_query(opts)
+    |> where([r], not is_nil(field(r, ^column)) and field(r, ^column) != "")
+    |> group_by([r], field(r, ^column))
+    |> select([r], %{
+      category: field(r, ^column),
+      value: fragment("coalesce(avg(?), 0)", r.wall_ms)
+    })
+    |> order_by([r], asc: field(r, ^column))
     |> Repo.all()
     |> Enum.map(fn row -> Map.update!(row, :value, &to_number/1) end)
   end
+
+  defp duration_by_dimension_query(project_id, opts) do
+    Run
+    |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
+    |> maybe_filter_kinds(Keyword.get(opts, :commands))
+    |> maybe_filter_period(opts)
+    |> maybe_filter_environment(opts)
+  end
+
+  defp insight_column(:host), do: :host_class
+  defp insight_column(_version), do: :once_version
+
+  defp environment_category(true), do: "CI"
+  defp environment_category(_local), do: "Local"
 
   # ---- Internals --------------------------------------------------------
 
@@ -292,6 +334,17 @@ defmodule Tuist.OnceEvents.Analytics do
          %DateTime{} = end_dt <- Keyword.get(opts, :end_datetime) do
       where(query, [r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
     else
+      _ -> query
+    end
+  end
+
+  # `:is_ci` is the same opt name `Tuist.Builds` takes for Xcode, so the
+  # overview translates its dropdown the same way for both build systems.
+  # Anything other than a boolean leaves the query unfiltered, which is what
+  # the "Any" selection passes.
+  defp maybe_filter_environment(query, opts) do
+    case Keyword.get(opts, :is_ci) do
+      is_ci when is_boolean(is_ci) -> where(query, [r], r.is_ci == ^is_ci)
       _ -> query
     end
   end
@@ -357,7 +410,10 @@ defmodule Tuist.OnceEvents.Analytics do
       status: run_status(run),
       duration_ms: run.wall_ms || 0,
       finished_at: run.finalized_at || run.started_at,
-      is_ci: false,
+      is_ci: run.is_ci || false,
+      git_rev: run.git_rev,
+      git_branch: run.git_branch,
+      host_class: run.host_class,
       cache: %{
         hit_rate: hit_rate,
         download_bytes: run.cache_bytes_downloaded || 0,

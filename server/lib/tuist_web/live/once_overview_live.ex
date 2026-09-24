@@ -19,6 +19,7 @@ defmodule TuistWeb.OnceOverviewLive do
   alias Tuist.OnceEvents.CacheAnalytics
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Utilities.Query
 
   @build_commands ["build"]
   @test_commands ["test"]
@@ -33,10 +34,15 @@ defmodule TuistWeb.OnceOverviewLive do
     %{preset: builds_preset, period: builds_period} =
       DatePicker.date_picker_params(params, "builds")
 
+    builds_environment = params["builds-environment"] || "any"
+    builds_opts = opts(builds_period, @build_commands, builds_environment)
+
     socket
     |> assign(
       uri: uri,
       uri_path: uri_path,
+      builds_environment: builds_environment,
+      builds_environment_label: environment_label(builds_environment),
       analytics_preset: analytics_preset,
       analytics_period: analytics_period,
       analytics_granularity: time_series_granularity(analytics_period),
@@ -63,16 +69,16 @@ defmodule TuistWeb.OnceOverviewLive do
     |> assign_async([:recent_builds, :builds_duration_analytics, :builds_summary], fn ->
       {:ok,
        %{
-         recent_builds: recent_runs(project, builds_period, @build_commands),
-         builds_duration_analytics: Analytics.invocation_analytics(project.id, opts(builds_period, @build_commands)),
-         builds_summary: Analytics.summary(project.id, opts(builds_period, @build_commands))
+         recent_builds: recent_runs(project, builds_opts),
+         builds_duration_analytics: Analytics.invocation_analytics(project.id, builds_opts),
+         builds_summary: Analytics.summary(project.id, builds_opts)
        }}
     end)
     |> assign_async([:test_summary, :recent_test_runs], fn ->
       {:ok,
        %{
          test_summary: summary_with_trends(project.id, analytics_period, @test_commands),
-         recent_test_runs: recent_runs(project, analytics_period, @test_commands)
+         recent_test_runs: recent_runs(project, opts(analytics_period, @test_commands))
        }}
     end)
   end
@@ -280,6 +286,36 @@ defmodule TuistWeb.OnceOverviewLive do
         data-part="builds-card-section"
       >
         <:actions>
+          <.dropdown
+            id="once-overview-builds-environment-dropdown"
+            label={@builds_environment_label}
+            secondary_text={dgettext("dashboard_projects", "Environment:")}
+          >
+            <.dropdown_item
+              value="any"
+              label={dgettext("dashboard_projects", "Any")}
+              patch={"?#{Query.put(@uri.query, "builds-environment", "any")}"}
+              data-selected={@builds_environment == "any"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="ci"
+              label={dgettext("dashboard_projects", "CI")}
+              patch={"?#{Query.put(@uri.query, "builds-environment", "ci")}"}
+              data-selected={@builds_environment == "ci"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="local"
+              label={dgettext("dashboard_projects", "Local")}
+              patch={"?#{Query.put(@uri.query, "builds-environment", "local")}"}
+              data-selected={@builds_environment == "local"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
           <.date_picker
             id="builds-date-range-picker"
             name="builds-date-range"
@@ -506,12 +542,12 @@ defmodule TuistWeb.OnceOverviewLive do
 
   # Same point shape the Bazel overview charts: value + per-status colour,
   # newest last so the bars read left to right.
-  defp recent_runs(project, period, commands) do
+  defp recent_runs(project, opts) do
     {runs, _meta} =
       Analytics.list_invocations(
         project.id,
         %{page: 1, page_size: 30, order_by: [:finished_at], order_directions: [:desc]},
-        opts(period, commands)
+        opts
       )
 
     runs
@@ -571,4 +607,15 @@ defmodule TuistWeb.OnceOverviewLive do
   end
 
   defp opts(period, commands), do: period |> period_opts() |> Keyword.put(:commands, commands)
+
+  # Same translation `TuistWeb.XcodeOverviewLive` applies, so the dropdown
+  # means the same thing on both build systems. "Any" leaves `:is_ci` unset
+  # rather than passing a value the analytics layer would filter on.
+  defp opts(period, commands, "ci"), do: period |> opts(commands) |> Keyword.put(:is_ci, true)
+  defp opts(period, commands, "local"), do: period |> opts(commands) |> Keyword.put(:is_ci, false)
+  defp opts(period, commands, _any), do: opts(period, commands)
+
+  defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
+  defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
+  defp environment_label(_any), do: dgettext("dashboard_projects", "Any")
 end
