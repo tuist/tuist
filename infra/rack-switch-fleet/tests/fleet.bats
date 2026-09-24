@@ -521,11 +521,17 @@ STUB
     [ "$status" -eq 0 ]
     [ "$(grep -c '| ber1-edge-b |' <<<"$output")" -eq 5 ]
     [[ "$output" == *"| ber1-tor-b | 26 | ber1-edge-b | sfp28-1 | dac | data | installed |"* ]]
-    [[ "$output" == *"| ber1-tor-a | 26 | ber1-edge-b | sfp28-2 | dac | data | planned |"* ]]
-    [[ "$output" == *"| ber1-mgmt | 47 | ber1-edge-b | i226-v | copper | edge | planned |"* ]]
+    [[ "$output" == *"| ber1-tor-a | 26 | ber1-edge-b | sfp28-2 | dac | data | installed |"* ]]
+    [[ "$output" == *"| ber1-mgmt | 47 | ber1-edge-b | i226-v | copper | edge | installed |"* ]]
     [[ "$output" == *"| ber1-ats-2 |  | ber1-edge-b | psu | power | power | planned |"* ]]
     [[ "$output" == *"| ber1-tor-a | 32 | ber1-tor-b |  | dac | isl | installed |"* ]]
     [ "$(diff <(printf '%s\n' "$output") "$FLEET_ROOT/cables/ber1.md")" = "" ]
+    # a cable not in yet on an installed node is planned on its own
+    jq '(.nodes[] | select(.name == "ber1-edge-b") | .links[] | select(.port == 47)).status = "planned"' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/cable.json"
+    run fleet_cable_schedule "$BATS_TEST_TMPDIR/cable.json"
+    [[ "$output" == *"| ber1-mgmt | 47 | ber1-edge-b | i226-v | copper | edge | planned |"* ]]
+    [[ "$output" == *"| ber1-mgmt | 2 | ber1-edge-b | i226-lm | copper | management | installed |"* ]]
 }
 
 @test "the two edges hang off different transfer switches" {

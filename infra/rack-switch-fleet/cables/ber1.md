@@ -10,7 +10,7 @@ definition, not this file. Mac minis are RackHosts, in the tuist chart's
 | ber1-ats-2 |  | ber1-edge-b | psu | power | power | planned |
 | ber1-mgmt | 1 | ber1-edge | i226-lm | copper | management | installed |
 | ber1-mgmt | 2 | ber1-edge-b | i226-lm | copper | management | installed |
-| ber1-mgmt | 47 | ber1-edge-b | i226-v | copper | edge | planned |
+| ber1-mgmt | 47 | ber1-edge-b | i226-v | copper | edge | installed |
 | ber1-mgmt | 48 | ber1-edge | i226-v | copper | edge | installed |
 | ber1-mgmt |  | ber1-ats-1 | netpack | copper | management | planned |
 | ber1-mgmt |  | ber1-ats-2 | netpack | copper | management | planned |
@@ -23,7 +23,7 @@ definition, not this file. Mac minis are RackHosts, in the tuist chart's
 | ber1-mgmt |  | ber1-store-b | i226-lm | copper | management | planned |
 | ber1-tor-a | 24 | router |  | copper | wan | installed |
 | ber1-tor-a | 25 | ber1-edge | sfp28-2 | dac | data | installed |
-| ber1-tor-a | 26 | ber1-edge-b | sfp28-2 | dac | data | planned |
+| ber1-tor-a | 26 | ber1-edge-b | sfp28-2 | dac | data | installed |
 | ber1-tor-a | 32 | ber1-tor-b |  | dac | isl | installed |
 | ber1-tor-a |  | ber1-store-a | sfp28-1 | dac | data | installed |
 | ber1-tor-b | 25 | ber1-edge | sfp28-1 | dac | data | installed |

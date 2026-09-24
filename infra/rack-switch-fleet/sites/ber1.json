@@ -221,8 +221,7 @@
           "port": 26,
           "media": "dac",
           "purpose": "data",
-          "nic": "sfp28-2",
-          "status": "planned"
+          "nic": "sfp28-2"
         },
         {
           "switch": "ber1-mgmt",
@@ -236,8 +235,7 @@
           "port": 47,
           "media": "copper",
           "nic": "i226-v",
-          "purpose": "edge",
-          "status": "planned"
+          "purpose": "edge"
         }
       ],
       "status": "installed",
