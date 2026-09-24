@@ -111,7 +111,7 @@ msgid "Emails"
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:187
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:49
 #: lib/tuist_web/live/ops_database_live.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Error"
@@ -139,7 +139,7 @@ msgid "Go to dashboard"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:613
-#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
@@ -2886,4 +2886,9 @@ msgstr ""
 #: lib/tuist_web/components/runs/pull_request_button.ex:25
 #, elixir-autogen, elixir-format
 msgid "PR #%{number}"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Blocked"
 msgstr ""

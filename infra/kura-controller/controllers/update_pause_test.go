@@ -72,10 +72,11 @@ func TestStatefulSetUpdatePause(t *testing.T) {
 	rolling := appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
 
 	for _, tt := range []struct {
-		name      string
-		strategy  appsv1.StatefulSetUpdateStrategy
-		podImages []string
-		want      *kurav1alpha1.KuraInstanceUpdatePause
+		name        string
+		strategy    appsv1.StatefulSetUpdateStrategy
+		annotations map[string]string
+		podImages   []string
+		want        *kurav1alpha1.KuraInstanceUpdatePause
 	}{
 		{
 			name:      "OnDelete holds every pod on the previous image",
@@ -124,6 +125,12 @@ func TestStatefulSetUpdatePause(t *testing.T) {
 			podImages: []string{updatePauseOldImage, updatePauseOldImage},
 		},
 		{
+			name:        "the controller's own resize hold is not an operator pause",
+			strategy:    appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType},
+			annotations: map[string]string{resizeRolloutHoldAnnotation: "true"},
+			podImages:   []string{updatePauseOldImage, updatePauseOldImage},
+		},
+		{
 			name:      "RollingUpdate in flight is not paused",
 			strategy:  rolling,
 			podImages: []string{updatePauseOldImage, updatePauseOldImage},
@@ -131,6 +138,7 @@ func TestStatefulSetUpdatePause(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			instance, sts, pods := updatePauseFixture(tt.strategy, tt.podImages...)
+			sts.Annotations = tt.annotations
 			got := statefulSetUpdatePause(instance, sts, pods)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("got %+v; want %+v", got, tt.want)

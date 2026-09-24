@@ -3844,15 +3844,13 @@ func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *ku
 // partition keeps off the template's Kura image. It only observes: the
 // pause is incident tooling and the controller leaves it in place.
 func statefulSetUpdatePause(instance *kurav1alpha1.KuraInstance, sts *appsv1.StatefulSet, pods []corev1.Pod) *kurav1alpha1.KuraInstanceUpdatePause {
-	pause := &kurav1alpha1.KuraInstanceUpdatePause{}
-	switch strategy := sts.Spec.UpdateStrategy; {
-	case strategy.Type == appsv1.OnDeleteStatefulSetStrategyType:
-		pause.Strategy = "OnDelete"
-	case strategy.RollingUpdate != nil && strategy.RollingUpdate.Partition != nil && *strategy.RollingUpdate.Partition > 0:
-		pause.Strategy = "Partition"
-		pause.Partition = *strategy.RollingUpdate.Partition
-	default:
+	if !rolloutPausedByOperator(sts) {
 		return nil
+	}
+	pause := &kurav1alpha1.KuraInstanceUpdatePause{Strategy: "OnDelete"}
+	if rollingPartitioned(sts) {
+		pause.Strategy = "Partition"
+		pause.Partition = *sts.Spec.UpdateStrategy.RollingUpdate.Partition
 	}
 	pause.TemplateImage = podKuraImage(&corev1.Pod{Spec: sts.Spec.Template.Spec})
 	if pause.TemplateImage == "" {
@@ -3867,7 +3865,7 @@ func statefulSetUpdatePause(instance *kurav1alpha1.KuraInstance, sts *appsv1.Sta
 		// Kubernetes still rolls ordinals at or above the partition.
 		if pause.Strategy == "Partition" {
 			ordinal, ok := podOrdinal(pod.Name, instance.Name)
-			if !ok || int32(ordinal) >= pause.Partition {
+			if !ok || ordinal >= int(pause.Partition) {
 				continue
 			}
 		}
