@@ -663,18 +663,26 @@ The controller moves `status.osUpdate.phase` through:
 | `Preparing` | Checks the host is bootstrapped, reads its version, resolves the `softwareupdate` label for the target |
 | `Draining` | Cordons the Node and waits for every pod on it to finish. The runners controller retires idle warm runners on a cordoned Node, so what is left are pods running jobs, which are never evicted |
 | `Downloading` | Downloads the update on the drained host, so it never competes with a job for the uplink or the disk |
-| `Installing` | Sets `cluster.x-k8s.io/skip-remediation` on the CAPI Machine, installs, and waits for the host to restart on the target version. The drift loop does not dial the host in this phase |
+| `Installing` | Sets `cluster.x-k8s.io/skip-remediation` on the CAPI Machine and records the host's boot time, then installs and waits for the host to restart on the target version. The drift loop does not dial the host in this phase |
 | `Converging` | Pushes the whole host config again, because the installer resets files it owns such as `/etc/pf.conf`. Waits for the push, a Ready Node and the auto-login console session |
 | `Succeeded` | Uncordons, removes `skip-remediation`, clears the annotation |
 
 Update one host, let it run real jobs, then do the next. Nothing sequences a
 rack.
 
+The update only lifts a cordon it placed and only removes a `skip-remediation`
+it set. It marks its cordon with the `tuist.dev/os-update-cordon` Node
+annotation and its `skip-remediation` with the value `tuist.dev/os-update`,
+each in the same patch as the change itself, so an operator's own cordon or
+`skip-remediation` is left alone.
+
 **Refused without touching the host**, with the annotation cleared: a target in
 another release family (that is an erase), a downgrade, a version Software
 Update does not offer, a host that is not bootstrapped or holds a terminal
 drift failure, and an SSH user with no secure token (`NoSecureToken`). A host
-already on the target succeeds at once.
+already on the target succeeds at once, unless an earlier update left its
+cordon on the Node: then it goes through `Converging` and is uncordoned once
+the host converges.
 
 A newly enrolled host has no secure token for its SSH user: the only volume
 owner is the MDM bootstrap token until that user first logs in at the login
@@ -694,7 +702,16 @@ the host changed:
 | `DownloadFailed`, `DownloadTimedOut`, `DownloadLost`, `InstallFailed` (exited before restarting) | Uncordoned: the host is unchanged |
 | `InstallTimedOut`, `VersionMismatch`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human; a NotReady Node goes back to the MachineHealthCheck |
 
-Reading the outcome on the host: the jobs log to `/Users/Shared/tuist-os-update/`, which survives the install. `/private/var/tmp` does not.
+Once an install has started, the drift loop pushes the whole host config again
+however the update ends. To hand back a Node a failed update left cordoned, fix
+the cause and set the annotation again rather than running `kubectl uncordon`,
+which leaves the `tuist.dev/os-update-cordon` marker behind for a later update
+to mistake for its own.
+
+Reading the outcome on the host: each update's jobs log to
+`/Users/Shared/tuist-os-update/<status.osUpdate.id>/`, which survives the
+install. `/private/var/tmp` does not. Starting a job removes every other
+update's directory.
 Nothing in the cluster reports a host's macOS version outside
 `status.osUpdate`, because `tart-kubelet` leaves `NodeInfo.OSImage` empty.
 

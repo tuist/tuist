@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -84,6 +85,7 @@ func TestParseOSUpdateJob(t *testing.T) {
 		{"running\nDownloading: 30.00%\n", OSUpdateJob{State: OSUpdateJobRunning, LogTail: "Downloading: 30.00%"}},
 		{"exited 0\n", OSUpdateJob{State: OSUpdateJobExited}},
 		{"exited 1\nError downloading updates.\n", OSUpdateJob{State: OSUpdateJobExited, ExitCode: 1, LogTail: "Error downloading updates."}},
+		{"lost\nRestarting...\n", OSUpdateJob{State: OSUpdateJobLost, LogTail: "Restarting..."}},
 	} {
 		got, err := parseOSUpdateJob(tc.out)
 		if err != nil || got != tc.want {
@@ -114,9 +116,9 @@ func runScript(t *testing.T, shell, script, stdin string, env ...string) {
 	}
 }
 
-func jobState(t *testing.T, shell, dir, job string, env ...string) OSUpdateJob {
+func jobState(t *testing.T, shell, root, id, job string, env ...string) OSUpdateJob {
 	t.Helper()
-	cmd := exec.Command(shell, "-c", renderOSUpdateJobStateScript(dir, job))
+	cmd := exec.Command(shell, "-c", renderOSUpdateJobStateScript(root, id, job))
 	cmd.Env = append(os.Environ(), env...)
 	out, err := cmd.Output()
 	if err != nil {
@@ -129,11 +131,11 @@ func jobState(t *testing.T, shell, dir, job string, env ...string) OSUpdateJob {
 	return state
 }
 
-func waitForExit(t *testing.T, shell, dir, job string) OSUpdateJob {
+func waitForExit(t *testing.T, shell, root, id, job string) OSUpdateJob {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		if state := jobState(t, shell, dir, job); state.State == OSUpdateJobExited {
+		if state := jobState(t, shell, root, id, job); state.State == OSUpdateJobExited {
 			return state
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -145,8 +147,8 @@ func waitForExit(t *testing.T, shell, dir, job string) OSUpdateJob {
 func TestOSUpdateJobRecordsTheExitCodeOfAFailingBody(t *testing.T) {
 	for _, shell := range loginShells(t) {
 		dir := t.TempDir()
-		runScript(t, shell, renderOSUpdateJobScript(dir, OSUpdateJobDownload, "", "sh -c 'echo Error downloading updates.; exit 3'"), "")
-		got := waitForExit(t, shell, dir, OSUpdateJobDownload)
+		runScript(t, shell, renderOSUpdateJobScript(dir, "u1", OSUpdateJobDownload, "", "sh -c 'echo Error downloading updates.; exit 3'"), "")
+		got := waitForExit(t, shell, dir, "u1", OSUpdateJobDownload)
 		if got.ExitCode != 3 || got.LogTail != "Error downloading updates." {
 			t.Errorf("%s: got %#v", shell, got)
 		}
@@ -157,14 +159,14 @@ func TestOSUpdateJobReturnsWhileItsBodyRuns(t *testing.T) {
 	for _, shell := range loginShells(t) {
 		dir := t.TempDir()
 		start := time.Now()
-		runScript(t, shell, renderOSUpdateJobScript(dir, OSUpdateJobDownload, "", "sleep 1"), "")
+		runScript(t, shell, renderOSUpdateJobScript(dir, "u1", OSUpdateJobDownload, "", "sleep 1"), "")
 		if elapsed := time.Since(start); elapsed >= time.Second {
 			t.Errorf("%s: starting the job waited %s for its body", shell, elapsed)
 		}
-		if got := jobState(t, shell, dir, OSUpdateJobDownload); got.State != OSUpdateJobRunning {
+		if got := jobState(t, shell, dir, "u1", OSUpdateJobDownload); got.State != OSUpdateJobRunning {
 			t.Errorf("%s: state right after start = %#v, want running", shell, got)
 		}
-		if got := waitForExit(t, shell, dir, OSUpdateJobDownload); got.ExitCode != 0 {
+		if got := waitForExit(t, shell, dir, "u1", OSUpdateJobDownload); got.ExitCode != 0 {
 			t.Errorf("%s: got %#v", shell, got)
 		}
 	}
@@ -172,9 +174,64 @@ func TestOSUpdateJobReturnsWhileItsBodyRuns(t *testing.T) {
 
 func TestOSUpdateJobStateIsAbsentBeforeAnyJob(t *testing.T) {
 	for _, shell := range loginShells(t) {
-		if got := jobState(t, shell, t.TempDir(), OSUpdateJobInstall); got.State != OSUpdateJobAbsent {
+		if got := jobState(t, shell, t.TempDir(), "u1", OSUpdateJobInstall); got.State != OSUpdateJobAbsent {
 			t.Errorf("%s: got %#v", shell, got)
 		}
+	}
+}
+
+func TestOSUpdateJobWhoseProcessDiedWithoutAnExitCodeIsLost(t *testing.T) {
+	for _, shell := range loginShells(t) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "u1")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		dead := exec.Command("true")
+		if err := dead.Run(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, OSUpdateJobInstall+".pid"), []byte(strconv.Itoa(dead.Process.Pid)+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got := jobState(t, shell, root, "u1", OSUpdateJobInstall); got.State != OSUpdateJobLost {
+			t.Errorf("%s: got %#v, want lost", shell, got)
+		}
+	}
+}
+
+func TestOSUpdateJobBelongsToItsUpdate(t *testing.T) {
+	for _, shell := range loginShells(t) {
+		root := t.TempDir()
+		runScript(t, shell, renderOSUpdateJobScript(root, "earlier", OSUpdateJobDownload, "", "true"), "")
+		waitForExit(t, shell, root, "earlier", OSUpdateJobDownload)
+		if err := os.WriteFile(filepath.Join(root, OSUpdateJobInstall+".exit"), []byte("0\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		if got := jobState(t, shell, root, "later", OSUpdateJobDownload); got.State != OSUpdateJobAbsent {
+			t.Errorf("%s: another update's download reads as %#v, want absent", shell, got)
+		}
+		runScript(t, shell, renderOSUpdateJobScript(root, "later", OSUpdateJobDownload, "", "true"), "")
+		waitForExit(t, shell, root, "later", OSUpdateJobDownload)
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 1 || entries[0].Name() != "later" {
+			t.Errorf("%s: after the later update started a job, the root holds %v, want only its directory", shell, entries)
+		}
+	}
+}
+
+func TestOSUpdateSessionRejectsAnIDThatIsNotAPathSegment(t *testing.T) {
+	for _, id := range []string{"", "../etc", "a b", "a/b"} {
+		if err := checkOSUpdateID(id); err == nil {
+			t.Errorf("checkOSUpdateID(%q) accepted it", id)
+		}
+	}
+	if err := checkOSUpdateID("0b8f2c1e-5d3a-4c55-9a7e-2f1d6b9c4e10"); err != nil {
+		t.Errorf("rejected a UUID: %v", err)
 	}
 }
 
@@ -195,9 +252,9 @@ func TestOSUpdateInstallPassesThePasswordOnStdinOnly(t *testing.T) {
 			"FAKE_SUDO_STDIN=" + stdin,
 		}
 
-		script := renderOSUpdateInstallScript(dir, "macOS Tahoe 26.7-25G229", "tuist")
+		script := renderOSUpdateInstallScript(dir, "u1", "macOS Tahoe 26.7-25G229", "tuist")
 		runScript(t, shell, script, password+"\n", env...)
-		if got := waitForExit(t, shell, dir, OSUpdateJobInstall); got.ExitCode != 0 {
+		if got := waitForExit(t, shell, dir, "u1", OSUpdateJobInstall); got.ExitCode != 0 {
 			t.Fatalf("%s: install job %#v", shell, got)
 		}
 

@@ -33,6 +33,7 @@ type fakeOSUpdateHost struct {
 	bootTime    int64
 	updates     []bootstrap.OSUpdate
 	jobs        map[string]bootstrap.OSUpdateJob
+	jobsID      string
 	console     string
 	noToken     bool
 	downloads   []string
@@ -65,23 +66,44 @@ func (f *fakeOSUpdateHost) ListUpdates(context.Context) ([]bootstrap.OSUpdate, e
 	return f.updates, nil
 }
 
-func (f *fakeOSUpdateHost) StartDownload(_ context.Context, label string) error {
+func (f *fakeOSUpdateHost) StartDownload(_ context.Context, id, label string) error {
 	f.downloads = append(f.downloads, label)
-	f.jobs[bootstrap.OSUpdateJobDownload] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobRunning}
+	f.start(id, bootstrap.OSUpdateJobDownload)
 	return nil
 }
 
-func (f *fakeOSUpdateHost) StartInstall(_ context.Context, label, user, password string) error {
+func (f *fakeOSUpdateHost) StartInstall(_ context.Context, id, label, user, password string) error {
 	f.installs = append(f.installs, fakeInstall{label, user, password})
-	f.jobs[bootstrap.OSUpdateJobInstall] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobRunning}
+	f.start(id, bootstrap.OSUpdateJobInstall)
 	return nil
 }
 
-func (f *fakeOSUpdateHost) Job(_ context.Context, job string) (bootstrap.OSUpdateJob, error) {
-	if state, ok := f.jobs[job]; ok {
+// start mirrors the host scripts: a job lives in its update's directory, and
+// starting one removes every other update's.
+func (f *fakeOSUpdateHost) start(id, job string) {
+	if f.jobsID != id {
+		f.jobs = map[string]bootstrap.OSUpdateJob{}
+	}
+	f.jobsID = id
+	f.jobs[job] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobRunning}
+}
+
+func (f *fakeOSUpdateHost) Job(_ context.Context, id, job string) (bootstrap.OSUpdateJob, error) {
+	if state, ok := f.jobs[job]; ok && f.jobsID == id {
 		return state, nil
 	}
 	return bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobAbsent}, nil
+}
+
+// leftover places a job an earlier update left on the host.
+func (f *fakeOSUpdateHost) leftover(job string, state bootstrap.OSUpdateJob) {
+	f.jobsID = "an-earlier-update"
+	f.jobs[job] = state
+}
+
+// exit ends a job the current update started.
+func (f *fakeOSUpdateHost) exit(job string, code int, tail string) {
+	f.jobs[job] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited, ExitCode: code, LogTail: tail}
 }
 
 func updatingMachine(target string, mutate ...func(*infrav1.RackAppleSiliconMachine)) *infrav1.RackAppleSiliconMachine {
@@ -161,6 +183,31 @@ func (f *osUpdateFixture) step() {
 	}
 }
 
+// stepLosingStatus runs a reconcile whose status write never lands, as when the
+// controller restarts or the patch fails. What it did to the host, the Node and
+// the Machine stays done.
+func (f *osUpdateFixture) stepLosingStatus() {
+	f.t.Helper()
+	persisted := f.oc.machine.Status.DeepCopy()
+	f.step()
+	f.oc.machine.Status = *persisted
+}
+
+func (f *osUpdateFixture) stepUntil(phase string) {
+	f.t.Helper()
+	for range 4 {
+		f.step()
+		if f.status().Phase == phase {
+			return
+		}
+	}
+	f.wantPhase(phase)
+}
+
+func (f *osUpdateFixture) converged() {
+	f.oc.machine.Status.HostConfigHash = f.r.desiredHostConfigHash(f.oc.machine, f.oc.host)
+}
+
 func (f *osUpdateFixture) status() *infrav1.OSUpdateStatus {
 	f.t.Helper()
 	if f.oc.machine.Status.OSUpdate == nil {
@@ -208,13 +255,29 @@ func (f *osUpdateFixture) annotated() bool {
 	return ok
 }
 
-// driveToInstalling runs a fresh update through the download and an empty drain.
+func (f *osUpdateFixture) cordonMarked() bool {
+	f.t.Helper()
+	node := &corev1.Node{}
+	if err := f.r.Get(context.Background(), types.NamespacedName{Name: osUpdateTestMachine}, node); err != nil {
+		f.t.Fatalf("get node: %v", err)
+	}
+	_, marked := node.Annotations[OSUpdateCordonAnnotation]
+	return marked
+}
+
+// driveToInstalling runs a fresh update through an empty drain and the
+// download until the install is running.
 func (f *osUpdateFixture) driveToInstalling() {
 	f.t.Helper()
-	f.step()
-	f.host.jobs[bootstrap.OSUpdateJobDownload] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited}
+	installs := len(f.host.installs)
+	f.stepUntil(OSUpdatePhaseDownloading)
+	f.host.exit(bootstrap.OSUpdateJobDownload, 0, "")
+	f.stepUntil(OSUpdatePhaseInstalling)
 	f.step()
 	f.wantPhase(OSUpdatePhaseInstalling)
+	if len(f.host.installs) != installs+1 {
+		f.t.Fatal("the install did not start")
+	}
 }
 
 func TestOSUpdateRunsTheWholeWave(t *testing.T) {
@@ -223,12 +286,14 @@ func TestOSUpdateRunsTheWholeWave(t *testing.T) {
 
 	f.step()
 	f.wantPhase(OSUpdatePhaseDraining)
-	if st := f.status(); st.Label != osUpdateTestLabel || st.FromVersion != "26.6" {
-		t.Fatalf("label %q from %q", st.Label, st.FromVersion)
+	if st := f.status(); st.Label != osUpdateTestLabel || st.FromVersion != "26.6" || st.ID == "" {
+		t.Fatalf("label %q from %q id %q", st.Label, st.FromVersion, st.ID)
 	}
-	if !f.cordoned() {
-		t.Fatal("the Node was not cordoned before anything else")
+	if !f.cordoned() || !f.cordonMarked() {
+		t.Fatal("the Node was not cordoned, as the update's, before anything else")
 	}
+	f.step()
+	f.wantPhase(OSUpdatePhaseDraining)
 	if !strings.Contains(f.status().Message, "tuist-runners/job-1") || strings.Contains(f.status().Message, "job-0") {
 		t.Fatalf("drain message %q should name only the running pod", f.status().Message)
 	}
@@ -248,17 +313,31 @@ func TestOSUpdateRunsTheWholeWave(t *testing.T) {
 		t.Fatal("the install started before the download finished")
 	}
 
-	f.host.jobs[bootstrap.OSUpdateJobDownload] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited}
+	f.host.exit(bootstrap.OSUpdateJobDownload, 0, "")
+	f.oc.machine.Status.HostConfigHash = "converged-before-the-update"
 	f.step()
 	f.wantPhase(OSUpdatePhaseInstalling)
-	if want := []fakeInstall{{osUpdateTestLabel, "tuist", "hunter2"}}; len(f.host.installs) != 1 || f.host.installs[0] != want[0] {
-		t.Fatalf("installs = %+v, want %+v", f.host.installs, want)
+	if len(f.host.installs) != 0 {
+		t.Fatal("the install started before its boot time was written to the status")
 	}
 	if !f.remediationSkipped() {
 		t.Fatal("skip-remediation was not set for the install")
 	}
 	if f.status().BootTimeBefore != 100 {
 		t.Fatalf("boot time before = %d", f.status().BootTimeBefore)
+	}
+	if f.oc.machine.Status.HostConfigHash != "" {
+		t.Fatal("the host config hash was not cleared, so the drift loop will not re-push what the installer resets")
+	}
+
+	f.step()
+	f.wantPhase(OSUpdatePhaseInstalling)
+	if want := []fakeInstall{{osUpdateTestLabel, "tuist", "hunter2"}}; len(f.host.installs) != 1 || f.host.installs[0] != want[0] {
+		t.Fatalf("installs = %+v, want %+v", f.host.installs, want)
+	}
+	f.step()
+	if len(f.host.installs) != 1 {
+		t.Fatal("started the running install again")
 	}
 
 	f.host.unreachable = true
@@ -267,12 +346,8 @@ func TestOSUpdateRunsTheWholeWave(t *testing.T) {
 
 	f.host.unreachable = false
 	f.host.bootTime, f.host.version = 200, "26.7"
-	f.oc.machine.Status.HostConfigHash = "converged-before-the-update"
 	f.step()
 	f.wantPhase(OSUpdatePhaseConverging)
-	if f.oc.machine.Status.HostConfigHash != "" {
-		t.Fatal("the host config hash was not cleared, so the drift loop will not re-push what the installer reset")
-	}
 
 	f.step()
 	f.wantPhase(OSUpdatePhaseConverging)
@@ -280,7 +355,7 @@ func TestOSUpdateRunsTheWholeWave(t *testing.T) {
 		t.Fatal("uncordoned before the host config was pushed again")
 	}
 
-	f.oc.machine.Status.HostConfigHash = f.r.desiredHostConfigHash(f.oc.machine, f.oc.host)
+	f.converged()
 	f.host.console = "root"
 	f.step()
 	f.wantPhase(OSUpdatePhaseConverging)
@@ -288,8 +363,8 @@ func TestOSUpdateRunsTheWholeWave(t *testing.T) {
 	f.host.console = "tuist"
 	f.step()
 	f.wantPhase(OSUpdatePhaseSucceeded)
-	if f.cordoned() || f.remediationSkipped() || f.annotated() {
-		t.Fatalf("after success: cordoned=%t skipRemediation=%t annotated=%t", f.cordoned(), f.remediationSkipped(), f.annotated())
+	if f.cordoned() || f.cordonMarked() || f.remediationSkipped() || f.annotated() {
+		t.Fatalf("after success: cordoned=%t marked=%t skipRemediation=%t annotated=%t", f.cordoned(), f.cordonMarked(), f.remediationSkipped(), f.annotated())
 	}
 	if msg := f.status().Message; msg != "updated from macOS 26.6 to 26.7" {
 		t.Fatalf("message = %q", msg)
@@ -377,17 +452,16 @@ func TestOSUpdateWaitsOutAnUnreachableHostBeforeStarting(t *testing.T) {
 	}
 	f.host.unreachable = false
 	f.step()
-	f.wantPhase(OSUpdatePhaseDownloading)
+	f.wantPhase(OSUpdatePhaseDraining)
 }
 
 func TestOSUpdateFailedDownloadHandsTheNodeBack(t *testing.T) {
 	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
-	f.step()
-	f.wantPhase(OSUpdatePhaseDownloading)
+	f.stepUntil(OSUpdatePhaseDownloading)
 	if !f.cordoned() {
 		t.Fatal("downloading on a Node that can still take jobs")
 	}
-	f.host.jobs[bootstrap.OSUpdateJobDownload] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited, ExitCode: 1, LogTail: "Error downloading updates."}
+	f.host.exit(bootstrap.OSUpdateJobDownload, 1, "Error downloading updates.")
 	f.step()
 	f.wantFailed("DownloadFailed")
 	if f.cordoned() || f.remediationSkipped() {
@@ -397,8 +471,7 @@ func TestOSUpdateFailedDownloadHandsTheNodeBack(t *testing.T) {
 
 func TestOSUpdateCancelledWhileDownloadingUncordons(t *testing.T) {
 	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
-	f.step()
-	f.wantPhase(OSUpdatePhaseDownloading)
+	f.stepUntil(OSUpdatePhaseDownloading)
 
 	delete(f.oc.machine.Annotations, OSUpdateAnnotation)
 	f.step()
@@ -432,7 +505,7 @@ func TestOSUpdateCannotBeCancelledOnceInstalling(t *testing.T) {
 func TestOSUpdateInstallFailureBeforeRestartReturnsTheHost(t *testing.T) {
 	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
 	f.driveToInstalling()
-	f.host.jobs[bootstrap.OSUpdateJobInstall] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited, ExitCode: 1, LogTail: "Failed to authenticate"}
+	f.host.exit(bootstrap.OSUpdateJobInstall, 1, "Failed to authenticate")
 	f.step()
 	f.wantFailed("InstallFailed")
 	if f.cordoned() || f.remediationSkipped() {
@@ -502,10 +575,112 @@ func TestOSUpdateOnlyUndoesWhatItDid(t *testing.T) {
 	}
 }
 
+func TestOSUpdateResumesAnInstallWhoseStatusWriteWasLost(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	f.stepUntil(OSUpdatePhaseDownloading)
+	f.host.exit(bootstrap.OSUpdateJobDownload, 0, "")
+
+	for i := 0; i < 3 && len(f.host.installs) == 0; i++ {
+		f.stepLosingStatus()
+	}
+	f.step()
+	f.step()
+	f.wantPhase(OSUpdatePhaseInstalling)
+	if len(f.host.installs) != 1 {
+		t.Fatalf("installs = %d, want exactly one", len(f.host.installs))
+	}
+
+	f.host.bootTime, f.host.version = 200, "26.7"
+	f.step()
+	f.wantPhase(OSUpdatePhaseConverging)
+	f.converged()
+	f.step()
+	f.wantPhase(OSUpdatePhaseSucceeded)
+	if f.cordoned() || f.remediationSkipped() {
+		t.Fatalf("after a resumed install: cordoned=%t skipRemediation=%t", f.cordoned(), f.remediationSkipped())
+	}
+}
+
+func TestOSUpdateLiftsItsCordonAfterALostStatusWrite(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	f.stepLosingStatus()
+	if !f.cordoned() {
+		t.Fatal("the first reconcile did not cordon")
+	}
+
+	f.stepUntil(OSUpdatePhaseDownloading)
+	f.host.exit(bootstrap.OSUpdateJobDownload, 0, "")
+	f.stepUntil(OSUpdatePhaseInstalling)
+	f.step()
+	f.host.bootTime, f.host.version = 200, "26.7"
+	f.step()
+	f.converged()
+	f.step()
+	f.wantPhase(OSUpdatePhaseSucceeded)
+	if f.cordoned() {
+		t.Fatal("the update left behind the cordon it placed before losing its status")
+	}
+}
+
+func TestOSUpdateAdoptsItsDownloadAfterALostStatusWrite(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	f.step()
+	f.wantPhase(OSUpdatePhaseDraining)
+	f.stepLosingStatus()
+	f.step()
+	f.wantPhase(OSUpdatePhaseDownloading)
+	if len(f.host.downloads) != 1 {
+		t.Fatalf("downloads = %d, want the one already running", len(f.host.downloads))
+	}
+}
+
+func TestOSUpdateRetryAfterAFailedConvergeFinishesTheRecovery(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	f.driveToInstalling()
+	f.host.bootTime, f.host.version = 200, "26.7"
+	f.step()
+	f.wantPhase(OSUpdatePhaseConverging)
+	f.status().PhaseStartedAt = &metav1.Time{Time: time.Now().Add(-osUpdateConvergeTimeout - time.Minute)}
+	f.step()
+	f.wantFailed("ConvergeTimedOut")
+
+	f.oc.machine.Annotations[OSUpdateAnnotation] = "26.7"
+	f.step()
+	f.wantPhase(OSUpdatePhaseConverging)
+	if !f.cordoned() {
+		t.Fatal("uncordoned before the host converged")
+	}
+	f.converged()
+	f.step()
+	f.wantPhase(OSUpdatePhaseSucceeded)
+	if f.cordoned() || f.annotated() {
+		t.Fatalf("after the retry: cordoned=%t annotated=%t", f.cordoned(), f.annotated())
+	}
+}
+
+func TestOSUpdateIgnoresJobsAnEarlierUpdateLeftOnTheHost(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	// A PID recycled after a restart makes an earlier update's job look alive.
+	f.host.leftover(bootstrap.OSUpdateJobDownload, bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobRunning})
+	f.host.leftover(bootstrap.OSUpdateJobInstall, bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobRunning})
+
+	f.stepUntil(OSUpdatePhaseDownloading)
+	if len(f.host.downloads) != 1 {
+		t.Fatal("took an earlier update's download for this one's")
+	}
+	f.host.exit(bootstrap.OSUpdateJobDownload, 0, "")
+	f.stepUntil(OSUpdatePhaseInstalling)
+	f.step()
+	if len(f.host.installs) != 1 {
+		t.Fatal("took an earlier update's install for this one's")
+	}
+}
+
 func TestInstallingHostIsNotPushedByTheDriftLoop(t *testing.T) {
 	machine := updatingMachine("26.7", func(m *infrav1.RackAppleSiliconMachine) {
 		m.Status.HostConfigHash = "stale"
 		m.Status.OSUpdate = &infrav1.OSUpdateStatus{
+			ID:             "u1",
 			Target:         "26.7",
 			Label:          osUpdateTestLabel,
 			Phase:          OSUpdatePhaseInstalling,

@@ -14,6 +14,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -26,8 +27,19 @@ import (
 
 // OSUpdateAnnotation asks the controller to update the machine's host to the
 // named macOS version in place, e.g. "26.7". The controller clears it when the
-// update finishes; removing it before the install starts cancels the update.
+// update finishes; removing it before the Installing phase cancels the update.
 const OSUpdateAnnotation = "tuist.dev/os-update"
+
+// OSUpdateCordonAnnotation marks a Node cordon an update placed. It is written
+// in the same patch as the cordon, so the update can lift its cordon even after
+// losing its own status, and a retry takes over a cordon an earlier failed
+// update left. A cordon someone else placed never carries it.
+const OSUpdateCordonAnnotation = "tuist.dev/os-update-cordon"
+
+// osUpdateSkipRemediationValue is the value an update gives skip-remediation on
+// the CAPI Machine. CAPI reads the annotation by presence alone, so the value
+// only tells the update which one it set.
+const osUpdateSkipRemediationValue = "tuist.dev/os-update"
 
 const (
 	OSUpdatePhasePreparing   = "Preparing"
@@ -54,9 +66,9 @@ type osUpdateHost interface {
 	Version(ctx context.Context) (string, error)
 	BootTime(ctx context.Context) (int64, error)
 	ListUpdates(ctx context.Context) ([]bootstrap.OSUpdate, error)
-	StartDownload(ctx context.Context, label string) error
-	StartInstall(ctx context.Context, label, user, password string) error
-	Job(ctx context.Context, job string) (bootstrap.OSUpdateJob, error)
+	StartDownload(ctx context.Context, id, label string) error
+	StartInstall(ctx context.Context, id, label, user, password string) error
+	Job(ctx context.Context, id, job string) (bootstrap.OSUpdateJob, error)
 	ConsoleUser(ctx context.Context) (string, error)
 	SecureTokenEnabled(ctx context.Context, user string) (bool, error)
 	Close() error
@@ -144,11 +156,10 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 	if previous := machine.Status.OSUpdate; previous == nil || osUpdateFinished(previous.Phase) {
 		now := metav1.Now()
 		machine.Status.OSUpdate = &infrav1.OSUpdateStatus{
+			ID:             string(uuid.NewUUID()),
 			Phase:          OSUpdatePhasePreparing,
 			StartedAt:      &now,
 			PhaseStartedAt: &now,
-			// A failed update can leave its cordon behind; a retry takes it over.
-			Cordoned: previous != nil && previous.Cordoned,
 		}
 	}
 	st := machine.Status.OSUpdate
@@ -177,6 +188,15 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 
 	switch cmp := compareMacOSVersions(target, current); {
 	case cmp == 0:
+		recovering, err := r.nodeCordonedByOSUpdate(ctx, machine.Name)
+		if err != nil {
+			return osUpdateWait(st, "could not read Node %s: %v", machine.Name, err)
+		}
+		if recovering {
+			r.setOSUpdatePhase(machine, OSUpdatePhaseConverging,
+				fmt.Sprintf("already on macOS %s; finishing the recovery an earlier update left", current))
+			return r.osUpdateConverging(ctx, oc)
+		}
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseSucceeded, "",
 			"already on macOS "+current, false)
 	case macOSMajor(target) != macOSMajor(current):
@@ -220,14 +240,13 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 			fmt.Sprintf("macOS %s is not offered to this host (offered: %s)", target, strings.Join(offered, ", ")), false)
 	}
 
-	cordoned, err := r.setNodeUnschedulable(ctx, machine.Name, true)
-	if err != nil {
+	if err := r.cordonNodeForOSUpdate(ctx, machine.Name, target); err != nil {
 		return osUpdateWait(st, "could not cordon Node %s: %v", machine.Name, err)
 	}
 	st.Label = label
-	st.Cordoned = st.Cordoned || cordoned
 	r.setOSUpdatePhase(machine, OSUpdatePhaseDraining, "cordoned; waiting for running pods to finish")
-	return r.osUpdateDraining(ctx, oc)
+	// The update's ID reaches the status before any job starts on the host.
+	return ctrl.Result{Requeue: true}, nil
 }
 
 func (r *RackAppleSiliconMachineReconciler) osUpdateDraining(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
@@ -250,12 +269,12 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateDraining(ctx context.Context
 	}
 	defer host.Close()
 
-	job, err := host.Job(ctx, bootstrap.OSUpdateJobDownload)
+	job, err := host.Job(ctx, st.ID, bootstrap.OSUpdateJobDownload)
 	if err != nil {
 		return osUpdateWait(st, "could not read the download: %v", err)
 	}
-	if job.State != bootstrap.OSUpdateJobRunning {
-		if err := host.StartDownload(ctx, st.Label); err != nil {
+	if job.State == bootstrap.OSUpdateJobAbsent {
+		if err := host.StartDownload(ctx, st.ID, st.Label); err != nil {
 			return osUpdateWait(st, "could not start the download: %v", err)
 		}
 	}
@@ -276,14 +295,14 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateDownloading(ctx context.Cont
 	}
 	defer host.Close()
 
-	job, err := host.Job(ctx, bootstrap.OSUpdateJobDownload)
+	job, err := host.Job(ctx, st.ID, bootstrap.OSUpdateJobDownload)
 	if err != nil {
 		return osUpdateWait(st, "could not read the download: %v", err)
 	}
 	switch {
 	case job.State == bootstrap.OSUpdateJobRunning:
 		return osUpdateWait(st, "downloading: %s", job.LogTail)
-	case job.State == bootstrap.OSUpdateJobAbsent:
+	case job.State == bootstrap.OSUpdateJobAbsent || job.State == bootstrap.OSUpdateJobLost:
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "DownloadLost",
 			"the download stopped without recording an exit code", true)
 	case job.ExitCode != 0:
@@ -291,31 +310,22 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateDownloading(ctx context.Cont
 			fmt.Sprintf("softwareupdate --download exited %d: %s", job.ExitCode, job.LogTail), true)
 	}
 
-	if !st.RemediationSuspended {
-		suspended, err := r.setSkipRemediation(ctx, oc.machine, true)
-		if err != nil {
-			return osUpdateWait(st, "could not suspend health-check remediation: %v", err)
-		}
-		st.RemediationSuspended = suspended
+	if err := r.suspendRemediationForOSUpdate(ctx, oc.machine); err != nil {
+		return osUpdateWait(st, "could not suspend health-check remediation: %v", err)
 	}
-
-	job, err = host.Job(ctx, bootstrap.OSUpdateJobInstall)
+	bootTime, err := host.BootTime(ctx)
 	if err != nil {
-		return osUpdateWait(st, "could not read the install: %v", err)
+		return osUpdateWait(st, "could not read the host's boot time: %v", err)
 	}
-	if job.State != bootstrap.OSUpdateJobRunning {
-		bootTime, err := host.BootTime(ctx)
-		if err != nil {
-			return osUpdateWait(st, "could not read the host's boot time: %v", err)
-		}
-		if err := host.StartInstall(ctx, st.Label, oc.host.Spec.SSHUser, oc.sudoPassword); err != nil {
-			return osUpdateWait(st, "could not start the install: %v", err)
-		}
-		st.BootTimeBefore = bootTime
-	}
+	st.BootTimeBefore = bootTime
+	// The installer resets files the host config owns, /etc/pf.conf among them,
+	// so the drift loop pushes the whole config again however the update ends.
+	oc.machine.Status.HostConfigHash = ""
 	r.setOSUpdatePhase(oc.machine, OSUpdatePhaseInstalling,
 		fmt.Sprintf("installing %s; the host restarts when it finishes", st.Label))
-	return ctrl.Result{RequeueAfter: osUpdatePollInterval}, nil
+	// The install starts only once this status is written, so a restarted
+	// controller always knows the boot time to compare against.
+	return ctrl.Result{Requeue: true}, nil
 }
 
 func (r *RackAppleSiliconMachineReconciler) osUpdateAwaitingInstall(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
@@ -344,20 +354,28 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateAwaitingInstall(ctx context.
 			return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "VersionMismatch",
 				fmt.Sprintf("the host restarted on macOS %s, not %s; the Node stays cordoned", version, st.Target), false)
 		}
-		// The installer resets files the host config owns, /etc/pf.conf among them.
-		oc.machine.Status.HostConfigHash = ""
 		r.setOSUpdatePhase(oc.machine, OSUpdatePhaseConverging,
 			fmt.Sprintf("restarted on macOS %s; pushing the host config again", version))
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	job, err := host.Job(ctx, bootstrap.OSUpdateJobInstall)
+	job, err := host.Job(ctx, st.ID, bootstrap.OSUpdateJobInstall)
 	if err != nil {
 		return osUpdateWait(st, "could not read the install: %v", err)
 	}
-	if job.State == bootstrap.OSUpdateJobExited && job.ExitCode != 0 {
+	switch {
+	case job.State == bootstrap.OSUpdateJobAbsent:
+		if err := host.StartInstall(ctx, st.ID, st.Label, oc.host.Spec.SSHUser, oc.sudoPassword); err != nil {
+			return osUpdateWait(st, "could not start the install: %v", err)
+		}
+		return osUpdateWait(st, "installing %s; the host restarts when it finishes", st.Label)
+	case job.State == bootstrap.OSUpdateJobExited && job.ExitCode != 0:
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "InstallFailed",
 			fmt.Sprintf("softwareupdate --install exited %d before restarting: %s", job.ExitCode, job.LogTail), true)
+	case job.State == bootstrap.OSUpdateJobExited:
+		return osUpdateWait(st, "installed; waiting for the host to restart")
+	case job.State == bootstrap.OSUpdateJobLost:
+		return osUpdateWait(st, "the install stopped without an exit code; waiting for the host to restart: %s", job.LogTail)
 	}
 	return osUpdateWait(st, "installing: %s", job.LogTail)
 }
@@ -375,7 +393,7 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateConverging(ctx context.Conte
 	}
 	if osUpdatePhaseOlderThan(st, osUpdateConvergeTimeout) {
 		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "ConvergeTimedOut",
-			fmt.Sprintf("the host did not converge within %s of restarting; the Node stays cordoned", osUpdateConvergeTimeout), false)
+			fmt.Sprintf("the host did not converge within %s; the Node stays cordoned", osUpdateConvergeTimeout), false)
 	}
 	if machine.Status.HostConfigHash != r.desiredHostConfigHash(machine, oc.host) {
 		return osUpdateWait(st, "waiting for the host config push")
@@ -401,26 +419,26 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateConverging(ctx context.Conte
 		return osUpdateWait(st, "waiting for %s to log in at the console; it belongs to %q", oc.host.Spec.SSHUser, console)
 	}
 
-	return r.finishOSUpdate(ctx, oc, OSUpdatePhaseSucceeded, "",
-		fmt.Sprintf("updated from macOS %s to %s", st.FromVersion, st.Target), true)
+	message := fmt.Sprintf("updated from macOS %s to %s", st.FromVersion, st.Target)
+	if compareMacOSVersions(st.FromVersion, st.Target) == 0 {
+		message = fmt.Sprintf("already on macOS %s; the host converged, so its Node is back in service", st.Target)
+	}
+	return r.finishOSUpdate(ctx, oc, OSUpdatePhaseSucceeded, "", message, true)
 }
 
-// finishOSUpdate ends the update. The Node is uncordoned only when uncordon is
-// set and the update cordoned it; remediation is always handed back.
+// finishOSUpdate ends the update. With uncordon set it lifts an update's
+// cordon; remediation is always handed back. Both touch only what an update
+// marked as its own.
 func (r *RackAppleSiliconMachineReconciler) finishOSUpdate(ctx context.Context, oc *osUpdateContext, phase, reason, message string, uncordon bool) (ctrl.Result, error) {
 	machine := oc.machine
 	st := machine.Status.OSUpdate
-	if uncordon && st.Cordoned {
-		if _, err := r.setNodeUnschedulable(ctx, machine.Name, false); err != nil && !apierrors.IsNotFound(err) {
+	if uncordon {
+		if err := r.uncordonNodeAfterOSUpdate(ctx, machine.Name); err != nil {
 			return ctrl.Result{}, fmt.Errorf("uncordon Node %s: %w", machine.Name, err)
 		}
-		st.Cordoned = false
 	}
-	if st.RemediationSuspended {
-		if _, err := r.setSkipRemediation(ctx, machine, false); err != nil {
-			return ctrl.Result{}, fmt.Errorf("resume health-check remediation: %w", err)
-		}
-		st.RemediationSuspended = false
+	if err := r.resumeRemediationAfterOSUpdate(ctx, machine); err != nil {
+		return ctrl.Result{}, fmt.Errorf("resume health-check remediation: %w", err)
 	}
 
 	now := metav1.Now()
@@ -477,17 +495,52 @@ func (r *RackAppleSiliconMachineReconciler) openOSUpdateHost(ctx context.Context
 	return nil, errors.Join(errs...)
 }
 
-func (r *RackAppleSiliconMachineReconciler) setNodeUnschedulable(ctx context.Context, name string, unschedulable bool) (bool, error) {
+// cordonNodeForOSUpdate cordons the Node and marks the cordon as an update's in
+// the same patch. A Node that is already cordoned keeps whatever marking it has,
+// so a cordon someone else placed is never lifted by the update.
+func (r *RackAppleSiliconMachineReconciler) cordonNodeForOSUpdate(ctx context.Context, name, target string) error {
 	node := &corev1.Node{}
 	if err := r.Get(ctx, types.NamespacedName{Name: name}, node); err != nil {
-		return false, err
+		return err
 	}
-	if node.Spec.Unschedulable == unschedulable {
-		return false, nil
+	if node.Spec.Unschedulable {
+		return nil
 	}
 	base := node.DeepCopy()
-	node.Spec.Unschedulable = unschedulable
-	return true, r.Patch(ctx, node, client.MergeFrom(base))
+	node.Spec.Unschedulable = true
+	metav1.SetMetaDataAnnotation(&node.ObjectMeta, OSUpdateCordonAnnotation, target)
+	return r.Patch(ctx, node, client.MergeFrom(base))
+}
+
+// uncordonNodeAfterOSUpdate lifts a cordon an update placed, and no other.
+func (r *RackAppleSiliconMachineReconciler) uncordonNodeAfterOSUpdate(ctx context.Context, name string) error {
+	node := &corev1.Node{}
+	if err := r.Get(ctx, types.NamespacedName{Name: name}, node); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if _, marked := node.Annotations[OSUpdateCordonAnnotation]; !marked {
+		return nil
+	}
+	base := node.DeepCopy()
+	node.Spec.Unschedulable = false
+	delete(node.Annotations, OSUpdateCordonAnnotation)
+	return r.Patch(ctx, node, client.MergeFrom(base))
+}
+
+// nodeCordonedByOSUpdate reports whether an update's cordon is still on the Node.
+func (r *RackAppleSiliconMachineReconciler) nodeCordonedByOSUpdate(ctx context.Context, name string) (bool, error) {
+	node := &corev1.Node{}
+	if err := r.Get(ctx, types.NamespacedName{Name: name}, node); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	_, marked := node.Annotations[OSUpdateCordonAnnotation]
+	return marked && node.Spec.Unschedulable, nil
 }
 
 func (r *RackAppleSiliconMachineReconciler) nodeReady(ctx context.Context, name string) (bool, error) {
@@ -530,26 +583,34 @@ func (r *RackAppleSiliconMachineReconciler) activePodsOn(ctx context.Context, no
 	return active, nil
 }
 
-// setSkipRemediation adds or removes skip-remediation on the owning CAPI
-// Machine and reports whether it changed anything.
-func (r *RackAppleSiliconMachineReconciler) setSkipRemediation(ctx context.Context, machine *infrav1.RackAppleSiliconMachine, skip bool) (bool, error) {
+// suspendRemediationForOSUpdate sets skip-remediation on the owning CAPI
+// Machine, valued so the update can tell it set it. One already set, by anyone,
+// is left as it is.
+func (r *RackAppleSiliconMachineReconciler) suspendRemediationForOSUpdate(ctx context.Context, machine *infrav1.RackAppleSiliconMachine) error {
 	owner, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if err != nil || owner == nil {
-		return false, err
+		return err
 	}
-	if _, has := owner.Annotations[clusterv1.MachineSkipRemediationAnnotation]; has == skip {
-		return false, nil
+	if _, set := owner.Annotations[clusterv1.MachineSkipRemediationAnnotation]; set {
+		return nil
 	}
 	base := owner.DeepCopy()
-	if skip {
-		if owner.Annotations == nil {
-			owner.Annotations = map[string]string{}
-		}
-		owner.Annotations[clusterv1.MachineSkipRemediationAnnotation] = ""
-	} else {
-		delete(owner.Annotations, clusterv1.MachineSkipRemediationAnnotation)
+	metav1.SetMetaDataAnnotation(&owner.ObjectMeta, clusterv1.MachineSkipRemediationAnnotation, osUpdateSkipRemediationValue)
+	return r.Patch(ctx, owner, client.MergeFrom(base))
+}
+
+// resumeRemediationAfterOSUpdate removes skip-remediation only when an update set it.
+func (r *RackAppleSiliconMachineReconciler) resumeRemediationAfterOSUpdate(ctx context.Context, machine *infrav1.RackAppleSiliconMachine) error {
+	owner, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	if err != nil || owner == nil {
+		return err
 	}
-	return true, r.Patch(ctx, owner, client.MergeFrom(base))
+	if value, set := owner.Annotations[clusterv1.MachineSkipRemediationAnnotation]; !set || value != osUpdateSkipRemediationValue {
+		return nil
+	}
+	base := owner.DeepCopy()
+	delete(owner.Annotations, clusterv1.MachineSkipRemediationAnnotation)
+	return r.Patch(ctx, owner, client.MergeFrom(base))
 }
 
 func compareMacOSVersions(a, b string) int {

@@ -308,20 +308,21 @@ spec:
                   properties:
                     bootTimeBefore:
                       description: |-
-                        BootTimeBefore is the host's boot time (Unix seconds) read just before the
-                        install, so the reboot is detected by the boot time moving.
+                        BootTimeBefore is the host's boot time (Unix seconds), recorded before the
+                        install starts, so the reboot is detected by the boot time moving.
                       format: int64
                       type: integer
                     completedAt:
                       format: date-time
                       type: string
-                    cordoned:
-                      description: |-
-                        Cordoned records that the update cordoned the Node, so it only uncordons
-                        a Node it cordoned itself.
-                      type: boolean
                     fromVersion:
                       description: FromVersion is the macOS version the host ran when the update started.
+                      type: string
+                    id:
+                      description: |-
+                        ID names this update's job directory on the host, so a resumed update
+                        recognises the download and install it started and never one an earlier
+                        update left.
                       type: string
                     label:
                       description: Label is the softwareupdate label resolved for Target.
@@ -340,11 +341,6 @@ spec:
                     reason:
                       description: Reason is a machine-readable cause when Phase is Failed.
                       type: string
-                    remediationSuspended:
-                      description: |-
-                        RemediationSuspended records that the update set skip-remediation on the
-                        owning Machine, so it only removes an annotation it added itself.
-                      type: boolean
                     startedAt:
                       format: date-time
                       type: string

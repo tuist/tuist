@@ -143,6 +143,12 @@ type RackAppleSiliconMachineStatus struct {
 
 // OSUpdateStatus tracks one in-place macOS update of a rack host.
 type OSUpdateStatus struct {
+	// ID names this update's job directory on the host, so a resumed update
+	// recognises the download and install it started and never one an earlier
+	// update left.
+	// +optional
+	ID string `json:"id,omitempty"`
+
 	// Target is the requested macOS version, e.g. "26.7".
 	// +optional
 	Target string `json:"target,omitempty"`
@@ -177,20 +183,10 @@ type OSUpdateStatus struct {
 	// +optional
 	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
 
-	// BootTimeBefore is the host's boot time (Unix seconds) read just before the
-	// install, so the reboot is detected by the boot time moving.
+	// BootTimeBefore is the host's boot time (Unix seconds), recorded before the
+	// install starts, so the reboot is detected by the boot time moving.
 	// +optional
 	BootTimeBefore int64 `json:"bootTimeBefore,omitempty"`
-
-	// Cordoned records that the update cordoned the Node, so it only uncordons
-	// a Node it cordoned itself.
-	// +optional
-	Cordoned bool `json:"cordoned,omitempty"`
-
-	// RemediationSuspended records that the update set skip-remediation on the
-	// owning Machine, so it only removes an annotation it added itself.
-	// +optional
-	RemediationSuspended bool `json:"remediationSuspended,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -10,8 +10,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// osUpdateDir holds the detached jobs' logs and exit codes. A macOS install resets /private/var/tmp; /Users/Shared survives it.
-const osUpdateDir = "/Users/Shared/tuist-os-update"
+// osUpdateRoot holds a directory per update, named by the update's ID, with its detached jobs' logs, pids and exit codes. A macOS install resets /private/var/tmp; /Users/Shared survives it.
+const osUpdateRoot = "/Users/Shared/tuist-os-update"
+
+var osUpdateIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 
 const (
 	OSUpdateJobDownload = "download"
@@ -33,9 +35,13 @@ func (u OSUpdate) IsMacOS() bool {
 type OSUpdateJobState string
 
 const (
+	// OSUpdateJobAbsent is a job the update never started.
 	OSUpdateJobAbsent  OSUpdateJobState = "absent"
 	OSUpdateJobRunning OSUpdateJobState = "running"
 	OSUpdateJobExited  OSUpdateJobState = "exited"
+	// OSUpdateJobLost is a started job whose process is gone without an exit
+	// code, as when the host shuts down for the restart an install asked for.
+	OSUpdateJobLost OSUpdateJobState = "lost"
 )
 
 // OSUpdateJob is the observed state of a detached download or install.
@@ -49,7 +55,7 @@ var (
 	softwareUpdateLabel  = regexp.MustCompile(`^\*\s*Label:\s*(.+?)\s*$`)
 	softwareUpdateTitle  = regexp.MustCompile(`Title:\s*(.+?),\s*Version:\s*([^,]+?)\s*,`)
 	kernBootTimeSeconds  = regexp.MustCompile(`sec\s*=\s*(\d+)`)
-	osUpdateJobStateLine = regexp.MustCompile(`^(absent|running|exited)(?:\s+(-?\d+))?$`)
+	osUpdateJobStateLine = regexp.MustCompile(`^(absent|running|exited|lost)(?:\s+(-?\d+))?$`)
 	secureTokenStatus    = regexp.MustCompile(`Secure token is (ENABLED|DISABLED)`)
 )
 
@@ -108,42 +114,53 @@ func parseOSUpdateJob(out string) (OSUpdateJob, error) {
 	return job, nil
 }
 
-// renderOSUpdateJobScript starts body detached from the SSH session and records its exit code beside its log.
-func renderOSUpdateJobScript(dir, job, preamble, body string) string {
+// renderOSUpdateJobScript starts body detached from the SSH session and records its exit code beside its log, in the update's own directory. It removes every other update's directory, so a job an earlier update left, or a recycled pid, is never read as this update's.
+func renderOSUpdateJobScript(root, id, job, preamble, body string) string {
 	return fmt.Sprintf(`set -eu
-%[3]sdir=%[1]s
+%[4]sroot=%[1]s
+dir=%[1]s/%[2]s
 mkdir -p "$dir"
-chmod 700 "$dir"
-rm -f "$dir/%[2]s.exit" "$dir/%[2]s.log" "$dir/%[2]s.pid"
-( set +e; trap '' HUP; %[4]s; echo $? > "$dir/%[2]s.exit" ) </dev/null >"$dir/%[2]s.log" 2>&1 &
-echo $! > "$dir/%[2]s.pid"
-`, shellQuote(dir), job, preamble, body)
+chmod 700 "$root" "$dir"
+find "$root" -mindepth 1 -maxdepth 1 ! -name %[2]s -exec rm -rf {} +
+rm -f "$dir/%[3]s.exit" "$dir/%[3]s.log" "$dir/%[3]s.pid"
+( set +e; trap '' HUP; %[5]s; echo $? > "$dir/%[3]s.exit" ) </dev/null >"$dir/%[3]s.log" 2>&1 &
+echo $! > "$dir/%[3]s.pid"
+`, shellQuote(root), shellQuote(id), job, preamble, body)
 }
 
-func renderOSUpdateDownloadScript(dir, label string) string {
-	return renderOSUpdateJobScript(dir, OSUpdateJobDownload, "",
+func renderOSUpdateDownloadScript(root, id, label string) string {
+	return renderOSUpdateJobScript(root, id, OSUpdateJobDownload, "",
 		"sudo -n softwareupdate --download "+shellQuote(label))
 }
 
 // renderOSUpdateInstallScript reads the volume owner's password from stdin, so it never appears in a process's arguments.
-func renderOSUpdateInstallScript(dir, label, user string) string {
-	return renderOSUpdateJobScript(dir, OSUpdateJobInstall, "IFS= read -r pw\n",
+func renderOSUpdateInstallScript(root, id, label, user string) string {
+	return renderOSUpdateJobScript(root, id, OSUpdateJobInstall, "IFS= read -r pw\n",
 		`printf '%s\n' "$pw" | sudo -n softwareupdate --install `+shellQuote(label)+
 			" --restart --user "+shellQuote(user)+" --stdinpass")
 }
 
-func renderOSUpdateJobStateScript(dir, job string) string {
-	return fmt.Sprintf(`dir=%[1]s
-if [ -f "$dir/%[2]s.exit" ]; then
-  echo "exited $(cat "$dir/%[2]s.exit")"
-elif [ -f "$dir/%[2]s.pid" ] && kill -0 "$(cat "$dir/%[2]s.pid")" 2>/dev/null; then
+func renderOSUpdateJobStateScript(root, id, job string) string {
+	return fmt.Sprintf(`dir=%[1]s/%[2]s
+if [ -f "$dir/%[3]s.exit" ]; then
+  echo "exited $(cat "$dir/%[3]s.exit")"
+elif [ -f "$dir/%[3]s.pid" ] && kill -0 "$(cat "$dir/%[3]s.pid")" 2>/dev/null; then
   echo running
+elif [ -f "$dir/%[3]s.pid" ]; then
+  echo lost
 else
   echo absent
 fi
-tail -c 2000 "$dir/%[2]s.log" 2>/dev/null | tr '\r' '\n' | grep -v '^[[:space:]]*$' | tail -n 1
+tail -c 2000 "$dir/%[3]s.log" 2>/dev/null | tr '\r' '\n' | grep -v '^[[:space:]]*$' | tail -n 1
 true
-`, shellQuote(dir), job)
+`, shellQuote(root), shellQuote(id), job)
+}
+
+func checkOSUpdateID(id string) error {
+	if !osUpdateIDPattern.MatchString(id) {
+		return fmt.Errorf("invalid update ID %q", id)
+	}
+	return nil
 }
 
 // OSUpdateSession is one SSH connection used to drive an in-place macOS update.
@@ -195,16 +212,26 @@ func (s *OSUpdateSession) ListUpdates(ctx context.Context) ([]OSUpdate, error) {
 	return ParseSoftwareUpdateList(out), nil
 }
 
-func (s *OSUpdateSession) StartDownload(ctx context.Context, label string) error {
-	return RunCommand(ctx, s.client, renderOSUpdateDownloadScript(osUpdateDir, label))
+func (s *OSUpdateSession) StartDownload(ctx context.Context, id, label string) error {
+	if err := checkOSUpdateID(id); err != nil {
+		return err
+	}
+	return RunCommand(ctx, s.client, renderOSUpdateDownloadScript(osUpdateRoot, id, label))
 }
 
-func (s *OSUpdateSession) StartInstall(ctx context.Context, label, user, password string) error {
-	return RunCommandWithStdin(ctx, s.client, renderOSUpdateInstallScript(osUpdateDir, label, user), strings.NewReader(password+"\n"))
+func (s *OSUpdateSession) StartInstall(ctx context.Context, id, label, user, password string) error {
+	if err := checkOSUpdateID(id); err != nil {
+		return err
+	}
+	return RunCommandWithStdin(ctx, s.client, renderOSUpdateInstallScript(osUpdateRoot, id, label, user), strings.NewReader(password+"\n"))
 }
 
-func (s *OSUpdateSession) Job(ctx context.Context, job string) (OSUpdateJob, error) {
-	out, err := RunCommandOutput(ctx, s.client, renderOSUpdateJobStateScript(osUpdateDir, job), nil)
+// Job reports the named job of the update with this ID; another update's job reads as absent.
+func (s *OSUpdateSession) Job(ctx context.Context, id, job string) (OSUpdateJob, error) {
+	if err := checkOSUpdateID(id); err != nil {
+		return OSUpdateJob{}, err
+	}
+	out, err := RunCommandOutput(ctx, s.client, renderOSUpdateJobStateScript(osUpdateRoot, id, job), nil)
 	if err != nil {
 		return OSUpdateJob{}, err
 	}
