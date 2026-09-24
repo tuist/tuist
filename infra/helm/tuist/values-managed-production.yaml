@@ -569,6 +569,18 @@ clickhouse:
       # Keeper runs on the general pool rather than these two boxes, so one
       # machine failing cannot take both a data replica and the quorum.
       replicas: 3
+      # Say that, rather than leaving it to the scheduler. The processor pool
+      # is not tainted, so a member with no selector can land there, and that
+      # pool has no room to give: a processor replica requests 10Gi against
+      # ~11.7Gi of free memory per node, so its maxSurge pod only fits while
+      # nothing else moves in. A 512Mi member did move in on the deploy that
+      # first brought this server up, the surge pod stayed Pending for ten
+      # minutes, and the release rolled back on "Progress deadline exceeded"
+      # with ClickHouse itself healthy. The general pool has the memory, and
+      # it has exactly three nodes, which is what the required anti-affinity
+      # between members wants.
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: general
     # Reachable over the tailnet as well as in-cluster, because the
     # xcresult-processor is not on the pod network: it runs in a Tart VM on
     # the macOS fleet, so the Service name every other writer resolves does
