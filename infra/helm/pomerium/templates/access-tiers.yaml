@@ -93,7 +93,8 @@ subjects:
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
 # nodes, PersistentVolumes, CAPI machines, our Scaleway provider CRs, the Kura
-# CRs, the RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects.
+# CRs, the RunnerPool CRs, the CNPG Postgres clusters, DNSEndpoints, CRDs,
+# and RBAC objects.
 # This aggregates into `view` via the label below (no extra binding; both
 # tuist-admins and tuist-eng inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
@@ -130,6 +131,9 @@ rules:
       - postgresql.cnpg.io
       - barmancloud.cnpg.io
     resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["externaldns.k8s.io"]
+    resources: ["dnsendpoints"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
@@ -181,6 +185,24 @@ rules:
   - apiGroups: ["tuist.dev"]
     resources: ["runnerpools"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+---
+# RackSwitch objects: a rack's switches as the cluster sees them
+# (infra/rack-switch-fleet). Spec is rendered from the site definition and
+# applied from git; status is what `rack:fleet publish` observed, patched from an
+# operator's machine that can reach the switches, hence `rackswitches/status`.
+# Scoped to this kind, like runnerpools above, so other `tuist.dev` kinds do not
+# inherit write access from the edit tier.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-rackswitches-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["tuist.dev"]
+    resources: ["rackswitches", "rackswitches/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 # CNPG analog of `tuist-edit-kura-write`, and deliberately narrower. The
 # CloudNativePG clusters (`tuist-tuist-pg`, `tuist-ops-pg`, and their per-env

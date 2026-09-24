@@ -1,8 +1,10 @@
+import Crypto
 import Foundation
 import Mockable
 import OpenAPIRuntime
 import OpenAPIURLSession
 import TuistHTTP
+import TuistLogging
 import TuistServer
 
 @Mockable
@@ -19,7 +21,7 @@ public protocol DownloadModuleCacheServicing: Sendable {
     ) async throws -> Data
 }
 
-public enum DownloadModuleCacheServiceError: LocalizedError {
+public enum DownloadModuleCacheServiceError: LocalizedError, Equatable {
     case unknownError(Int)
     case unauthorized(String)
     case forbidden(String)
@@ -30,6 +32,10 @@ public enum DownloadModuleCacheServiceError: LocalizedError {
     /// it is worth retrying, and worth reporting to the user as congestion rather than
     /// as an outage.
     case rateLimited(String, retryAfterSeconds: Int?)
+    /// The body did not match the digest its uploader declared, on two fetches in a
+    /// row. A damaged copy at rest does not repair on retry, so this is a miss to
+    /// rebuild from source rather than a transient failure.
+    case checksumMismatch(expected: String, actual: String)
 
     public var errorDescription: String? {
         switch self {
@@ -38,6 +44,8 @@ public enum DownloadModuleCacheServiceError: LocalizedError {
         case let .rateLimited(message, retryAfterSeconds):
             guard let retryAfterSeconds else { return message }
             return "\(message) (retry after \(retryAfterSeconds)s)"
+        case let .checksumMismatch(expected, actual):
+            return "The downloaded module cache artifact does not match the checksum it was uploaded with (expected \(expected), received \(actual))."
         case let .unauthorized(message),
              let .forbidden(message),
              let .notFound(message),
@@ -56,6 +64,7 @@ extension DownloadModuleCacheServiceError: HTTPStatusCodeError {
         case .notFound: return 404
         case .badRequest: return 400
         case .rateLimited: return 429
+        case .checksumMismatch: return 422
         }
     }
 }
@@ -79,7 +88,45 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
             serverAuthenticationController: serverAuthenticationController,
             fullHandle: "\(accountHandle)/\(projectHandle)"
         )
+        let fetch = {
+            try await fetchArtifact(
+                client: client,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                hash: hash,
+                name: name,
+                cacheCategory: cacheCategory
+            )
+        }
 
+        let first = try await fetch()
+        guard let mismatch = first.checksumMismatch else { return first.data }
+        // Damage in flight is transient and damage at rest is not, so one fresh
+        // fetch tells them apart. It compares against its own response's digest, in
+        // case the artifact was replaced in between.
+        Logger.current.debug(
+            "The downloaded module cache artifact \(name) with hash \(hash) did not match its checksum. Downloading it again..."
+        )
+        let second = try await fetch()
+        guard second.checksumMismatch == nil else { throw second.checksumMismatch ?? mismatch }
+        return second.data
+    }
+
+    private struct FetchedArtifact {
+        let data: Data
+        /// Set when the response declared a digest the body does not match. A
+        /// response without one is not compared, as before.
+        let checksumMismatch: DownloadModuleCacheServiceError?
+    }
+
+    private func fetchArtifact(
+        client: Client,
+        accountHandle: String,
+        projectHandle: String,
+        hash: String,
+        name: String,
+        cacheCategory: String
+    ) async throws -> FetchedArtifact {
         let response = try await client.downloadModuleCacheArtifact(
             .init(
                 path: .init(id: hash),
@@ -97,7 +144,14 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .binary(body):
-                return try await Data(collecting: body, upTo: .max)
+                let data = try await Data(collecting: body, upTo: .max)
+                return FetchedArtifact(
+                    data: data,
+                    checksumMismatch: Self.checksumMismatch(
+                        of: data,
+                        declared: okResponse.headers.tuist_hyphen_checksum_hyphen_sha256
+                    )
+                )
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
@@ -132,12 +186,11 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
                     retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
                 )
             }
-        // Neither service sends a `Range`, so a ranged answer is not a reply to
-        // the request that was made. Its body is a fragment, and returning it
-        // as the artifact would store a truncated one under a key that claims
-        // to be whole, so it is refused. Declared on the operation because kura
-        // honours ranges on this route; used by resume, which works below this
-        // layer on the raw response.
+        // Nothing on this path sends a `Range`, so a ranged answer is not a
+        // reply to the request that was made. Its body is a fragment, and
+        // returning it as the artifact would store a truncated one under a key
+        // that claims to be whole, so it is refused. Declared on the operation
+        // because kura honours ranges on this route.
         case .partialContent:
             throw DownloadModuleCacheServiceError.unknownError(206)
         case .rangeNotSatisfiable:
@@ -145,5 +198,12 @@ public struct DownloadModuleCacheService: DownloadModuleCacheServicing {
         case let .undocumented(statusCode: statusCode, _):
             throw DownloadModuleCacheServiceError.unknownError(statusCode)
         }
+    }
+
+    static func checksumMismatch(of data: Data, declared: String?) -> DownloadModuleCacheServiceError? {
+        guard let declared = declared?.lowercased(), !declared.isEmpty else { return nil }
+        let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard actual != declared else { return nil }
+        return .checksumMismatch(expected: declared, actual: actual)
     }
 }

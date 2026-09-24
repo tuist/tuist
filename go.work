@@ -27,6 +27,7 @@ use (
 	./infra/macos-host-bootstrap
 	./infra/macos-log-shipper
 	./infra/mdm/enroller
+	./infra/rack-switch-controller
 	./infra/runner-image
 	./infra/runners-controller
 	./infra/stable-egress-controller

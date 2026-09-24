@@ -35,6 +35,11 @@ type fakeCF struct {
 	updateCalls  int
 	createCalls  int
 	getCalls     int
+	// lastAdded / lastUpdated capture the wire payload the reconciler
+	// last sent so tests can assert on fields beyond the ones stashed
+	// in ruleset (e.g. action_parameters on a skip rule).
+	lastAdded   cloudflare.Rule
+	lastUpdated cloudflare.Rule
 }
 
 func (f *fakeCF) GetPhaseRuleset(_ context.Context, _, _ string) (*cloudflare.Ruleset, error) {
@@ -53,6 +58,7 @@ func (f *fakeCF) CreatePhaseRuleset(_ context.Context, _, _ string) (*cloudflare
 
 func (f *fakeCF) AddRule(_ context.Context, _, _ string, rule cloudflare.Rule) (*cloudflare.Ruleset, error) {
 	f.addCalls++
+	f.lastAdded = rule
 	if f.addRule != nil {
 		rs, err := f.addRule(rule)
 		if rs != nil {
@@ -70,6 +76,7 @@ func (f *fakeCF) AddRule(_ context.Context, _, _ string, rule cloudflare.Rule) (
 
 func (f *fakeCF) UpdateRule(_ context.Context, _, _, ruleID string, rule cloudflare.Rule) (*cloudflare.Ruleset, error) {
 	f.updateCalls++
+	f.lastUpdated = rule
 	if f.updateRule != nil {
 		rs, err := f.updateRule(ruleID, rule)
 		if rs != nil {

@@ -38,6 +38,26 @@ func clientHost(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Spec.PrivateHost
 }
 
+// clientHosts is shared by every client-plane renderer. No host may disappear
+// from TLS or routing while its retained alias is still published in DNS.
+func clientHosts(instance *kurav1alpha1.KuraInstance) []string {
+	canonical := clientHost(instance)
+	if canonical == "" {
+		return nil
+	}
+	hosts := []string{canonical}
+	aliases := append([]string{}, instance.Spec.ClientHostAliases...)
+	sort.Strings(aliases)
+	seen := map[string]bool{canonical: true}
+	for _, host := range aliases {
+		if host != "" && !seen[host] {
+			hosts = append(hosts, host)
+			seen[host] = true
+		}
+	}
+	return hosts
+}
+
 func clientIngressAnnotations(instance *kurav1alpha1.KuraInstance, annotations map[string]string) map[string]string {
 	if instance.Spec.Private {
 		annotations["nginx.ingress.kubernetes.io/whitelist-source-range"] = strings.Join(instance.Spec.ClientCIDRs, ",")
@@ -236,37 +256,43 @@ func (r *KuraInstanceReconciler) privateGatewayStatus(ctx context.Context, insta
 	if !ready || !runtimeStatusServing(status) {
 		return pending("PrimaryUnavailable", "Selected primary is not Ready and serving with its writer lock")
 	}
-	cert := &unstructured.Unstructured{}
-	cert.SetGroupVersionKind(certificateGVK())
-	if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: publicTLSSecretName(instance)}, cert); err != nil {
-		if apierrors.IsNotFound(err) {
-			return pending("CertificatePending", "Gateway certificate has not been created")
+	// A host the shared wildcard spans has no certificate of its own to read,
+	// because none is minted for it. Coverage is established there against the
+	// issued leaf itself, which is the same guarantee this branch reaches by
+	// requiring Ready plus the host in dnsNames.
+	if !r.sharedPublicTLSCovers(ctx, instance) {
+		cert := &unstructured.Unstructured{}
+		cert.SetGroupVersionKind(certificateGVK())
+		if err := r.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: publicTLSSecretName(instance)}, cert); err != nil {
+			if apierrors.IsNotFound(err) {
+				return pending("CertificatePending", "Gateway certificate has not been created")
+			}
+			return privateEndpointObservation{}, err
 		}
-		return privateEndpointObservation{}, err
-	}
-	conditions, _, _ := unstructured.NestedSlice(cert.Object, "status", "conditions")
-	ready = false
-	for _, entry := range conditions {
-		condition, ok := entry.(map[string]interface{})
-		if !ok || condition["type"] != "Ready" || condition["status"] != "True" {
-			continue
+		conditions, _, _ := unstructured.NestedSlice(cert.Object, "status", "conditions")
+		ready = false
+		for _, entry := range conditions {
+			condition, ok := entry.(map[string]interface{})
+			if !ok || condition["type"] != "Ready" || condition["status"] != "True" {
+				continue
+			}
+			// cert-manager permits an absent observedGeneration. An explicit stale
+			// generation is never accepted; the certificate must name the current host.
+			generation, observed := condition["observedGeneration"]
+			if !observed || generation == cert.GetGeneration() {
+				ready = true
+			}
 		}
-		// cert-manager permits an absent observedGeneration. An explicit stale
-		// generation is never accepted; the certificate must name the current host.
-		generation, observed := condition["observedGeneration"]
-		if !observed || generation == cert.GetGeneration() {
-			ready = true
+		hosts, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
+		hostCovered := false
+		for _, name := range hosts {
+			if name == host {
+				hostCovered = true
+			}
 		}
-	}
-	hosts, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames")
-	hostCovered := false
-	for _, name := range hosts {
-		if name == host {
-			hostCovered = true
+		if !ready || !hostCovered {
+			return pending("CertificatePending", "Certificate is not Ready for the current hostname and generation")
 		}
-	}
-	if !ready || !hostCovered {
-		return pending("CertificatePending", "Certificate is not Ready for the current hostname and generation")
 	}
 	target, err := r.privateGatewayTarget(ctx, instance)
 	if err != nil {

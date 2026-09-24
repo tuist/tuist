@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -29,11 +30,18 @@ import (
 
 const maxLogBytes = 64 * 1024 * 1024
 
+// Matches the section the server opens in the job log while the job waits.
+const waitingSection = "tuist_waiting_for_runner"
+
+var timestampHeader = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z [0-9a-f]{2}[EO][ +]`)
+
 type assignment struct {
 	URL         string   `json:"url"`
 	Payload     spec.Job `json:"payload"`
 	ReportToken string   `json:"report_token"`
 	ReportURL   string   `json:"report_url"`
+	// The server may already have written these bytes to the GitLab job log.
+	WaitingTrace string `json:"waiting_trace"`
 }
 
 // GitLab's build logger masks variables and credentials before writing to
@@ -83,12 +91,15 @@ func (t *jobTrace) Cancel() bool {
 	return t.JobTrace.Cancel()
 }
 
-func execute(job assignment, buildsDir string) error {
+func execute(job assignment, buildsDir, resultFile string) error {
 	if job.URL == "" || job.Payload.ID <= 0 || job.Payload.Token == "" || job.ReportToken == "" || job.ReportURL == "" {
 		return errors.New("incomplete GitLab assignment")
 	}
 	command, err := os.Executable()
 	if err != nil {
+		return err
+	}
+	if err := registerCacheAdapter(job); err != nil {
 		return err
 	}
 	provider := shell.NewProvider(command)
@@ -100,6 +111,7 @@ func execute(job assignment, buildsDir string) error {
 		RunnerSettings: common.RunnerSettings{
 			Executor: "shell", Shell: "bash", BuildsDir: buildsDir,
 			CacheDir: filepath.Join(buildsDir, ".gitlab-cache"),
+			Cache:    cacheConfig(),
 		},
 	}
 	credentials := &common.JobCredentials{ID: job.Payload.ID, Token: job.Payload.Token}
@@ -115,6 +127,7 @@ func execute(job assignment, buildsDir string) error {
 	defer os.Remove(logFile.Name())
 	defer logFile.Close()
 	trace := &jobTrace{JobTrace: upstreamTrace, log: logFile}
+	writeWaitingTrace(trace, job.WaitingTrace, time.Now())
 	defer func() {
 		// This is idempotent in GitLab Runner when Build.Run already failed.
 		trace.mu.Lock()
@@ -124,8 +137,14 @@ func execute(job assignment, buildsDir string) error {
 			_ = trace.Success()
 		}
 		trace.mu.Lock()
-		outcome := map[string]any{"exit_status": trace.exitCode, "cancelled": trace.cancelled}
+		exitCode, cancelled := trace.exitCode, trace.cancelled
 		trace.mu.Unlock()
+		if resultFile != "" {
+			if err := os.WriteFile(resultFile, []byte(jobResult(exitCode, cancelled)), 0o644); err != nil {
+				fmt.Fprintln(os.Stderr, "Tuist job result could not be written")
+			}
+		}
+		outcome := map[string]any{"exit_status": exitCode, "cancelled": cancelled}
 		if err := report(job, "finish", outcome); err != nil {
 			fmt.Fprintln(os.Stderr, "Tuist job completion report failed")
 		}
@@ -169,6 +188,20 @@ func execute(job assignment, buildsDir string) error {
 		}
 	}
 	return err
+}
+
+// jobResult names the job's outcome for the machine's own teardown, which
+// promotes the cache volume only after a job that succeeded. The process exit
+// status cannot carry it: job outcomes deliberately exit zero.
+func jobResult(exitCode int, cancelled bool) string {
+	switch {
+	case cancelled:
+		return "canceled"
+	case exitCode == 0:
+		return "succeeded"
+	default:
+		return "failed"
+	}
 }
 
 func report(job assignment, endpoint string, body any) error {
@@ -238,7 +271,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "tuist-gitlab-runner"
 	app.Version = common.AppVersion.ShortLine()
-	app.Flags = []cli.Flag{cli.StringFlag{Name: "job-file"}, cli.StringFlag{Name: "builds-dir", Value: "work"}}
+	app.Flags = []cli.Flag{cli.StringFlag{Name: "job-file"}, cli.StringFlag{Name: "builds-dir", Value: "work"}, cli.StringFlag{Name: "result-file"}}
 	// The shell executor invokes these commands on its own executable for
 	// artifact and cache operations, exactly as the upstream runner does.
 	app.Commands = []cli.Command{
@@ -256,7 +289,7 @@ func main() {
 		if err := json.NewDecoder(io.LimitReader(file, 32*1024*1024)).Decode(&job); err != nil {
 			return errors.New("invalid GitLab assignment")
 		}
-		return execute(job, ctx.String("builds-dir"))
+		return execute(job, ctx.String("builds-dir"), ctx.String("result-file"))
 	}
 	if err := app.Run(os.Args); err != nil {
 		// Errors from the executor may include repository URLs or job data.
@@ -264,4 +297,19 @@ func main() {
 		fmt.Fprintln(os.Stderr, "GitLab job execution failed")
 		os.Exit(1)
 	}
+}
+
+// Upstream skips to GitLab's offset when the log already holds bytes, so the
+// log continues after the server's waiting section only if it starts with the
+// same bytes. GitLab reads from the first line whether every line carries a
+// timestamp header, so the closing line follows the server's format.
+func writeWaitingTrace(trace io.Writer, waitingTrace string, now time.Time) {
+	if waitingTrace == "" {
+		return
+	}
+	header := ""
+	if timestampHeader.MatchString(waitingTrace) {
+		header = now.UTC().Format("2006-01-02T15:04:05.000000Z") + " 00O "
+	}
+	_, _ = fmt.Fprintf(trace, "%s%ssection_end:%d:%s\r\x1b[0K\n", waitingTrace, header, now.UTC().Unix(), waitingSection)
 }

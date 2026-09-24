@@ -149,17 +149,18 @@ var cacheVolumeOutcomeTotal = prometheus.NewCounterVec(
 	[]string{"outcome"},
 )
 
-// cacheVolumeMaterializeTotal counts post-dispatch materializations by whether
-// a master existed for the dispatched account on this host: "warm" (the
-// account's master was clonefiled into the VM's branch) or "cold" (no master
-// yet — a first job for that account here, whose writes seed the master).
-// warm/(warm+cold) is the hit rate of the local warm set against dispatched
-// demand — the signal for whether affinity is routing jobs to hosts that hold
-// their account's master.
+// cacheVolumeMaterializeTotal counts post-dispatch materializations by where
+// the branch's image came from (MaterializeSource): "warm" (the job's volume
+// master was clonefiled into the VM's branch), "seeded" (the repository volume
+// had no master here, so the account's ReservedTuistCacheVolume master was
+// cloned instead) or "cold" (no master to clone — a first job for that volume
+// here, whose writes seed its master). warm/total is the hit rate of the local
+// warm set against dispatched demand — the signal for whether affinity is
+// routing jobs to hosts that hold their volume's master.
 var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "tart_kubelet_cache_volume_materialize_total",
-		Help: "Post-dispatch cache materializations, by warm/cold.",
+		Help: "Post-dispatch cache materializations, by warm/seeded/cold.",
 	},
 	[]string{"result"},
 )
@@ -289,10 +290,45 @@ var cacheVolumeUploadSeconds = prometheus.NewHistogram(
 // reserve/split tunable from observation rather than from build failures.
 var cacheVolumeFillPercent = prometheus.NewHistogram(
 	prometheus.HistogramOpts{
-		Name:    "tart_kubelet_cache_volume_fill_percent",
-		Help:    "Post-job fill % of the cache image mount (binary cache + CAS + overhead); the tail near 100 is ENOSPC pressure.",
-		Buckets: []float64{25, 50, 60, 70, 80, 85, 90, 93, 95, 97, 99, 100},
+		Name: "tart_kubelet_cache_volume_fill_percent",
+		Help: "Post-job fill % of the cache image mount (binary cache + CAS + overhead); the tail near 100 is ENOSPC pressure.",
+		// Boundaries below 50 were added once the 30 GiB cap and the division by
+		// use put every teardown under 60%, where 25 -> 50 -> 60 says almost
+		// nothing. Only added, never moved, so quantiles stay comparable across
+		// the change.
+		Buckets: []float64{10, 20, 25, 30, 40, 50, 60, 70, 80, 85, 90, 93, 95, 97, 99, 100},
 	},
+)
+
+// cacheVolumeByteBuckets sit on the decisions the guest's division makes: the
+// 2 GiB floor either cache is never sized under, the 12 GiB even share of a
+// 24 GiB budget, and the 10/14 GiB fixed split it replaced.
+var cacheVolumeByteBuckets = []float64{
+	256 << 20, 512 << 20, 1 << 30, 2 << 30, 4 << 30, 6 << 30, 8 << 30,
+	10 << 30, 12 << 30, 14 << 30, 16 << 30, 20 << 30, 24 << 30,
+}
+
+// cacheVolumeCacheBytes is what a cache in the image held when the guest divided
+// the budget, and cacheVolumeCacheLimitBytes what the division allowed it, per
+// cache and end of job. Together they answer what no other metric does: how the
+// budget is actually spent, whether the floors bind, and whether an account's two
+// caches diverge enough for the division to do anything.
+var cacheVolumeCacheBytes = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_cache_bytes",
+		Help:    "Bytes a cache in the image held when the guest divided the shared budget, by cache and end of job.",
+		Buckets: cacheVolumeByteBuckets,
+	},
+	[]string{"cache", "when"},
+)
+
+var cacheVolumeCacheLimitBytes = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_cache_limit_bytes",
+		Help:    "Bytes the guest's division allowed a cache in the image, by cache and end of job.",
+		Buckets: cacheVolumeByteBuckets,
+	},
+	[]string{"cache", "when"},
 )
 
 func init() {
@@ -314,7 +350,19 @@ func init() {
 		cacheVolumeAdmissionDeclinedTotal,
 		cacheVolumeUploadSeconds,
 		cacheVolumeFillPercent,
+		cacheVolumeCacheBytes,
+		cacheVolumeCacheLimitBytes,
 	)
+
+	// Same reason as the promote results below: a vector's series is created on
+	// first observation, so a panel dividing by a cache that no job has divided
+	// for yet would read "No data" instead of nothing-to-show.
+	for _, cache := range []string{"binary", "compilation"} {
+		for _, when := range []string{"attach", "teardown"} {
+			cacheVolumeCacheBytes.WithLabelValues(cache, when)
+			cacheVolumeCacheLimitBytes.WithLabelValues(cache, when)
+		}
+	}
 
 	// Initialize every promote-result series to 0 at registration. Counter-vector
 	// series are created lazily on first Inc(), so without this the "rejected"
@@ -343,6 +391,15 @@ func RecordVolumeFill(pct int) {
 	cacheVolumeFillPercent.Observe(float64(pct))
 }
 
+// RecordVolumeCacheLimits records what each cache in the image held and what the
+// guest's division allowed it.
+func RecordVolumeCacheLimits(samples []cacheLimitSample) {
+	for _, sample := range samples {
+		cacheVolumeCacheBytes.WithLabelValues(sample.cache, sample.when).Observe(sample.heldBytes)
+		cacheVolumeCacheLimitBytes.WithLabelValues(sample.cache, sample.when).Observe(sample.limitBytes)
+	}
+}
+
 // RecordVolumeOutcome increments the per-outcome count of finalized cache
 // volume branches.
 func RecordVolumeOutcome(outcome string) {
@@ -366,14 +423,10 @@ func RecordVolumePromote(result string) {
 	cacheVolumePromoteTotal.WithLabelValues(result).Inc()
 }
 
-// RecordVolumeMaterialized increments the warm/cold count of post-dispatch
-// cache materializations.
-func RecordVolumeMaterialized(warm bool) {
-	result := "cold"
-	if warm {
-		result = "warm"
-	}
-	cacheVolumeMaterializeTotal.WithLabelValues(result).Inc()
+// RecordVolumeMaterialized increments the count of post-dispatch cache
+// materializations by where the branch's image came from.
+func RecordVolumeMaterialized(source MaterializeSource) {
+	cacheVolumeMaterializeTotal.WithLabelValues(string(source)).Inc()
 }
 
 // RecordVolumeConverged increments the count of materialize-time master

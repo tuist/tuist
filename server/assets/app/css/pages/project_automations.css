@@ -382,6 +382,90 @@
   max-width: 840px;
 }
 
+#create-automation-modal [data-part="automation-save-options"] {
+  padding: 0 var(--noora-spacing-7);
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+    cursor: pointer;
+    border: 0;
+    background: none;
+    padding: var(--noora-spacing-5) 0 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    text-align: left;
+  }
+
+  [data-part="body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  #apply-existing-matches-description,
+  #existing-matches-pending {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+}
+
+#create-automation-modal {
+  [data-part="automation-basics"] > [data-part="form-row"] {
+    padding-top: 0;
+  }
+
+  [data-part="section-toggle"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+    cursor: pointer;
+    border: 0;
+    background: none;
+    padding: 0;
+    width: 100%;
+    color: var(--noora-surface-label-primary);
+    text-align: left;
+  }
+
+  [data-part="section-heading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    [data-part="title"] {
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    [data-part="summary"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+
+  [data-part="section-chevron"] {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  [aria-expanded="true"] [data-part="section-chevron"] {
+    transform: rotate(180deg);
+  }
+
+  [data-part="section-panel"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-5);
+
+    &[hidden] {
+      display: none;
+    }
+  }
+}
+
 #create-automation-modal-body {
   padding: 0;
 

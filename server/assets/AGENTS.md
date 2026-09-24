@@ -12,6 +12,7 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
 - `BuildTimelineMetrics.mjs` renders CPU, memory, network and disk tracks using the same time range as build steps; each plot has its own time ruler, synchronized cursor and range-selection overlay, with coordinates scaled to its own width. Noora-styled chart cards use taller line plots, horizontal gridlines, and purple/blue series. Metric hover values appear only in each chart’s top-right readout, including both network/disk directions; floating tooltips are reserved for build steps. The initial and maximum zoom-out both show the entire build. Failed hook initialization cleans up listeners and indicators and hides partially mounted content. Samples are loaded once, culled by binary search, and keep stable scales across zooms; missing samples and collection gaps are not shown as zero readings.
 
 - JS/CSS sources built by esbuild.
+- The shared `GoogleOneTap` hook uses Google's hosted identity library only in secure, top-level browsers that support native identity credentials. It requests explicit account selection, submits its own challenge nonce and the `csrf_token` returned by the start request with the credential (the page's embedded token may come from a shared cache), so browser tabs remain independent, and preserves ordinary login links when the prompt is unavailable. It does not prompt when the start response lacks any of `client_id`, `nonce`, or `csrf_token`. Initialization, credential callbacks and teardown contain failures so optional Google sign-in cannot interrupt LiveView navigation; shared hook regression tests run with the frontend interaction suite.
 - `marketing/source-images` keeps the original shared header artwork outside
   the served `priv/static` tree. Regenerate its 960px desktop and 480px mobile
   WebP derivatives with
@@ -37,7 +38,10 @@ This directory contains frontend assets for the Phoenix app (LiveView, marketing
   origin and the Content Security Policy stays on `'self'`. Web vitals feed the
   LCP alerts documented in `infra/helm/k8s-monitoring/alerts.md`.
   Browsers reporting `navigator.webdriver` are not instrumented at all, so
-  crawlers and headless test runners neither emit web vitals nor page views.
+  those browsers emit neither web vitals nor page views. Other automation can
+  still report measurements; do not describe the remaining population as
+  verified human. The optional server gateway adds collection-time auth and
+  correlation context; see `infra/helm/k8s-monitoring/browser-rum.md`.
 
 ## Related Context
 

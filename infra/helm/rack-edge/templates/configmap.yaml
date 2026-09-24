@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rack-edge-{{ include "rack-edge.site" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rack-edge.labels" . | nindent 4 }}
+data:
+  mgmt-path.sh: |
+    {{- .Files.Get (printf "sites/%s/mgmt-path.sh" (include "rack-edge.site" .)) | nindent 4 }}
+  dnsmasq.conf: |
+    {{- .Files.Get (printf "sites/%s/dnsmasq.conf" (include "rack-edge.site" .)) | nindent 4 }}

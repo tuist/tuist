@@ -546,6 +546,59 @@ defmodule L10n.Catalog do
   defp present?(_value), do: false
 end
 
+defmodule L10n.ProviderGate do
+  @moduledoc "Stops queued translations after a provider-wide failure."
+
+  def with_gate(fun) do
+    {:ok, gate} = Agent.start_link(fn -> nil end)
+
+    try do
+      fun.(gate)
+    after
+      Agent.stop(gate)
+    end
+  end
+
+  def call(nil, fun), do: fun.()
+
+  def call(gate, fun) do
+    case Agent.get(gate, & &1) do
+      nil ->
+        case invoke(fun) do
+          {:error, reason} ->
+            normalized = normalize_error(reason)
+
+            case normalized do
+              {:provider_unavailable, status} -> Agent.update(gate, fn _ -> status end)
+              _ -> :ok
+            end
+
+            {:error, normalized}
+
+          result ->
+            result
+        end
+
+      status ->
+        {:error, {:provider_unavailable, status}}
+    end
+  end
+
+  defp invoke(fun) do
+    fun.()
+  rescue
+    error in [ReqLLM.Error.API.Request, ReqLLM.Error.API.Response] -> {:error, error}
+  end
+
+  def normalize_error(%ReqLLM.Error.API.Stream{cause: cause}) when is_map(cause),
+    do: normalize_error(cause)
+
+  def normalize_error(%{status: status}) when status in [401, 402, 403, 429, 500, 502, 503, 504],
+    do: {:provider_unavailable, status}
+
+  def normalize_error(reason), do: reason
+end
+
 defmodule L10n.Translator do
   @moduledoc """
   Translates .pot files to target locales using an LLM via req_llm.
@@ -710,7 +763,8 @@ defmodule L10n.Translator do
   defp handle_retry(error, resolved_model, messages, timeout, locale, stream?, attempt) do
     case retry_delay_ms(error, attempt) do
       nil ->
-        {:error, Exception.message(error)}
+        reason = L10n.ProviderGate.normalize_error(error)
+        {:error, if(is_exception(reason), do: Exception.message(reason), else: reason)}
 
       delay ->
         IO.puts(
@@ -718,6 +772,7 @@ defmodule L10n.Translator do
         )
 
         Process.sleep(delay)
+
         generate_text_with_retries(
           resolved_model,
           messages,
@@ -844,7 +899,19 @@ defmodule L10n.Translator do
                    model,
                    request_timeout,
                    force,
-                   Keyword.get(opts, :batch_fn, &translate_batch/7)
+                   fn batch, locale, language, context, override, model, timeout ->
+                     L10n.ProviderGate.call(opts[:provider_gate], fn ->
+                       Keyword.get(opts, :batch_fn, &translate_batch/7).(
+                         batch,
+                         locale,
+                         language,
+                         context,
+                         override,
+                         model,
+                         timeout
+                       )
+                     end)
+                   end
                  ) do
               {:ok, :complete} ->
                 L10n.Lock.write!(lock_path, %{
@@ -924,7 +991,8 @@ defmodule L10n.Translator do
           locale_override,
           model,
           timeout,
-          batch_fn
+          batch_fn,
+          fn fresh -> write_catalog!(pot, existing, fresh, locale, plural_forms, output_path) end
         )
 
       merged = L10n.Catalog.merge(pot, existing, fresh, locale, plural_forms)
@@ -945,17 +1013,55 @@ defmodule L10n.Translator do
     end
   end
 
-  defp translate_batches([], _locale, _language, _context, _override, _model, _timeout, _fun) do
+  defp write_catalog!(pot, existing, fresh, locale, plural_forms, output_path) do
+    content =
+      pot
+      |> L10n.Catalog.merge(existing, fresh, locale, plural_forms)
+      |> Expo.PO.compose()
+      |> IO.iodata_to_binary()
+
+    :ok = L10n.Validator.validate(content)
+    File.mkdir_p!(Path.dirname(output_path))
+    File.write!(output_path <> ".tmp", content)
+    File.rename!(output_path <> ".tmp", output_path)
+  end
+
+  defp translate_batches(
+         [],
+         _locale,
+         _language,
+         _context,
+         _override,
+         _model,
+         _timeout,
+         _fun,
+         _checkpoint
+       ) do
     {%{}, []}
   end
 
-  defp translate_batches(pending, locale, language, context, override, model, timeout, fun) do
+  defp translate_batches(
+         pending,
+         locale,
+         language,
+         context,
+         override,
+         model,
+         timeout,
+         fun,
+         checkpoint
+       ) do
     pending
     |> Enum.chunk_every(@batch_size)
     |> Enum.reduce({%{}, []}, fn batch, {translated, errors} ->
       case fun.(batch, locale, language, context, override, model, timeout) do
-        {:ok, index} -> {Map.merge(translated, index), errors}
-        {:error, reason} -> {translated, errors ++ [describe(reason)]}
+        {:ok, index} ->
+          translated = Map.merge(translated, index)
+          checkpoint.(translated)
+          {translated, errors}
+
+        {:error, reason} ->
+          {translated, errors ++ [describe(reason)]}
       end
     end)
   end
@@ -968,6 +1074,9 @@ defmodule L10n.Translator do
       _error -> %{}
     end
   end
+
+  defp describe({:provider_unavailable, status}),
+    do: "Provider unavailable (#{status}); remaining translations stopped"
 
   defp describe(reason) when is_binary(reason), do: reason
   defp describe(reason), do: inspect(reason)
@@ -1352,7 +1461,7 @@ defmodule L10n.MarkdownTranslator do
         )
 
       {:error, reason} ->
-        {:error, format_error(reason)}
+        {:error, L10n.ProviderGate.normalize_error(reason)}
     end
   end
 
@@ -1407,26 +1516,28 @@ defmodule L10n.MarkdownTranslator do
             output_path = Path.join([l10n_dir, target["path"], output_relative_path])
 
             with {:ok, translated_content} <-
-                   translate(
-                     markdown_content,
-                     locale,
-                     language,
-                     context_body,
-                     locale_override,
-                     model,
-                     request_timeout,
-                     validation_command,
-                     validation_attempts,
-                     %{
-                       repo_root: repo_root,
-                       l10n_dir: l10n_dir,
-                       source_path: Path.join(repo_root, source_relative_path),
-                       output_path: output_path,
-                       locale: locale,
-                       language: language,
-                       format: "markdown"
-                     }
-                   ) do
+                   L10n.ProviderGate.call(opts[:provider_gate], fn ->
+                     translate(
+                       markdown_content,
+                       locale,
+                       language,
+                       context_body,
+                       locale_override,
+                       model,
+                       request_timeout,
+                       validation_command,
+                       validation_attempts,
+                       %{
+                         repo_root: repo_root,
+                         l10n_dir: l10n_dir,
+                         source_path: Path.join(repo_root, source_relative_path),
+                         output_path: output_path,
+                         locale: locale,
+                         language: language,
+                         format: "markdown"
+                       }
+                     )
+                   end) do
               File.write!(output_path, translated_content <> "\n")
 
               L10n.Lock.write!(lock_path, %{
@@ -1440,7 +1551,7 @@ defmodule L10n.MarkdownTranslator do
 
               {:translated, locale}
             else
-              {:error, reason} -> {:error, locale, reason}
+              {:error, reason} -> {:error, locale, format_error(reason)}
             end
           rescue
             e -> {:error, locale, Exception.message(e)}
@@ -1671,6 +1782,9 @@ defmodule L10n.MarkdownTranslator do
     |> String.replace(~r/\n```$/, "")
   end
 
+  defp format_error({:provider_unavailable, status}),
+    do: "Provider unavailable (#{status}); remaining translations stopped"
+
   defp format_error(reason) when is_binary(reason), do: reason
   defp format_error(reason), do: inspect(reason)
 
@@ -1772,8 +1886,12 @@ defmodule L10n.CLI do
     end
 
     results =
-      Enum.flat_map(l10n_files, fn l10n_dir ->
-        process_l10n_dir(l10n_dir, repo_root, opts)
+      L10n.ProviderGate.with_gate(fn gate ->
+        opts = Keyword.put(opts, :provider_gate, gate)
+
+        Enum.flat_map(l10n_files, fn l10n_dir ->
+          process_l10n_dir(l10n_dir, repo_root, opts)
+        end)
       end)
 
     print_summary(results)
@@ -1842,6 +1960,7 @@ defmodule L10n.CLI do
                 source_relative,
                 source_path_relative_to_l10n_dir,
                 context_files,
+                provider_gate: opts[:provider_gate],
                 force: Keyword.get(opts, :force, false),
                 locale_override_fn: locale_override_fn,
                 max_concurrency: Keyword.get(opts, :concurrency, 7),
@@ -1861,6 +1980,7 @@ defmodule L10n.CLI do
                 repo_root,
                 source_relative,
                 context_files,
+                provider_gate: opts[:provider_gate],
                 force: Keyword.get(opts, :force, false),
                 locale_override_fn: locale_override_fn,
                 max_concurrency: Keyword.get(opts, :concurrency, 7),

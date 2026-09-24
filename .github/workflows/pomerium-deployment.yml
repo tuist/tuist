@@ -50,6 +50,7 @@ jobs:
   # Resolve the matrix dynamically: workflow_dispatch with a specific
   # env runs only that env; push or empty dispatch runs all three.
   matrix:
+    if: github.repository == 'tuist/tuist'
     runs-on: ubuntu-latest
     outputs:
       envs: ${{ steps.envs.outputs.envs }}
@@ -66,7 +67,7 @@ jobs:
 
   build-impersonator:
     name: Build + push kube-impersonator image
-    if: inputs.image_tag == ''
+    if: github.repository == 'tuist/tuist' && inputs.image_tag == ''
     runs-on: tuist-linux
     timeout-minutes: 15
     outputs:
@@ -104,7 +105,7 @@ jobs:
     needs: [matrix, build-impersonator]
     # `always()` lets a workflow_dispatch with a pre-built
     # `image_tag` skip the build job and still deploy.
-    if: always() && (needs.build-impersonator.result == 'success' || needs.build-impersonator.result == 'skipped')
+    if: always() && github.repository == 'tuist/tuist' && (needs.build-impersonator.result == 'success' || needs.build-impersonator.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:

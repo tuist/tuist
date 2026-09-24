@@ -180,7 +180,8 @@ struct ResolveTests {
             #expect(
                 try await !PackageResolver.shouldUseNativeColdPath(
                     packageDir: package,
-                    cacheRoot: cache.root
+                    cacheRoot: cache.root,
+                    registryConfig: RegistryConfig()
                 )
             )
 
@@ -359,6 +360,444 @@ struct ResolveTests {
     }
 
     @Test
+    func resolvingBackToAnOlderVersionRestoresThatVersionsOwnBinaryArtifact() async throws {
+        // `.build/checkouts/<identity>` is a whole-directory symlink into our own
+        // persistent, per-revision source cache (`WorkspaceRestorer.restoreSourcePins`).
+        // Bumping the pin to a new revision runs native `swift package resolve`, which
+        // doesn't know that directory is shared: it treats the existing checkout as its
+        // own disposable working copy and updates it with an in-place `git checkout`
+        // through the symlink, silently overwriting the OLD revision's cache slot with
+        // the NEW revision's tree. That slot's freshness marker isn't part of the
+        // git-tracked content, so it keeps claiming the old revision. Resolving back to
+        // that revision later then reused the poisoned slot as-is: the binary artifact
+        // restored (and ultimately vended into the generated project) silently stayed
+        // the newer version's, with no checksum mismatch and no error. Reported as
+        // https://github.com/tuist/tuist/issues/13457 via an Intercom SDK downgrade.
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeBinaryAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "1.0.0"
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+
+            _ = try await SwifterPM().resolve(request)
+            #expect(
+                try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency") == "v1"
+            )
+
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+            try await writeBinaryAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "2.0.0"
+            )
+            let bumped = try await SwifterPM().resolve(request)
+            #expect(bumped.pins.first?.version == "2.0.0")
+            #expect(
+                try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency") == "v2"
+            )
+
+            try await writeBinaryAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "1.0.0"
+            )
+            let reverted = try await SwifterPM().resolve(request)
+            #expect(reverted.pins.first?.version == "1.0.0")
+            #expect(
+                try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency") == "v1"
+            )
+        }
+    }
+
+    @Test
+    func switchingVersionsBackAndForthKeepsEachVersionsCachedBinaryArtifact() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+
+            let package = root.appendingPathComponent("App")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: root.appendingPathComponent("cache"),
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            for version in ["1.0.0", "2.0.0", "1.0.0"] {
+                try await writeBinaryAppPackageManifest(
+                    at: package, dependencyURL: dependency.path, exactVersion: version
+                )
+                _ = try await SwifterPM().resolve(request)
+            }
+
+            try await fileSystem.remove(scratch.absolutePath)
+            try await writeBinaryAppPackageManifest(
+                at: package, dependencyURL: dependency.path, exactVersion: "2.0.0"
+            )
+            _ = try await SwifterPM().resolve(request)
+            let restored = try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency")
+            #expect(restored == "v2")
+        }
+    }
+
+    @Test
+    func restoringAVersionWhoseCachedBinaryArtifactHoldsAnotherVersionReextractsIt() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+
+            let package = root.appendingPathComponent("App")
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            for version in ["1.0.0", "2.0.0", "1.0.0", "2.0.0"] {
+                try await fileSystem.remove(scratch.absolutePath)
+                try await writeBinaryAppPackageManifest(
+                    at: package, dependencyURL: dependency.path, exactVersion: version
+                )
+                _ = try await SwifterPM().resolve(request)
+            }
+
+            let entries = cacheDirectory.appendingPathComponent("artifacts/dependency")
+            let restoredEntry = scratch.appendingPathComponent("artifacts/dependency/Framework")
+                .resolvingSymlinksInPath()
+            let otherEntry = try #require(
+                try await fileSystem.contentsOfDirectory(at: entries).first {
+                    fileSystem.isDirectoryAndNotSymlink($0)
+                        && $0.lastPathComponent != restoredEntry.lastPathComponent
+                }
+            )
+            try await fileSystem.remove(restoredEntry.absolutePath)
+            try await fileSystem.makeDirectory(at: restoredEntry.absolutePath)
+            try await fileSystem.copy(
+                otherEntry.appendingPathComponent("Framework.xcframework").absolutePath,
+                to: restoredEntry.appendingPathComponent("Framework.xcframework").absolutePath
+            )
+
+            try await fileSystem.remove(scratch.absolutePath)
+            _ = try await SwifterPM().resolve(request)
+            #expect(try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency") == "v2")
+
+            let inode: () async throws -> String = {
+                try await SystemProcess.output(
+                    "/usr/bin/stat",
+                    ["-f", "%i", restoredEntry.appendingPathComponent("Framework.xcframework").path]
+                )
+            }
+            let repaired = try await inode()
+            try await fileSystem.remove(scratch.absolutePath)
+            _ = try await SwifterPM().resolve(request)
+            #expect(try await inode() == repaired)
+        }
+    }
+
+    @Test
+    func nativeResolveKeepsCachedCheckoutsWithoutAGitDirectoryLinked() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+            let other = root.appendingPathComponent("Other")
+            try await writeLibraryPackageManifest(at: other, name: "Other")
+            try await initGitDependency(at: other, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            let writeManifest: (String) async throws -> Void = { dependencyVersion in
+                try await fileSystem.atomicWrite(
+                    """
+                    // swift-tools-version: 6.0
+                    import PackageDescription
+                    let package = Package(
+                        name: "App",
+                        products: [
+                            .library(name: "App", targets: ["App"]),
+                        ],
+                        dependencies: [
+                            .package(url: "\(dependency.path)", exact: "\(dependencyVersion)"),
+                            .package(url: "\(other.path)", exact: "1.0.0"),
+                        ],
+                        targets: [
+                            .target(name: "App", dependencies: [
+                                .product(name: "Framework", package: "Dependency"),
+                                .product(name: "Other", package: "Other"),
+                            ]),
+                        ]
+                    )
+                    """,
+                    to: package.appendingPathComponent("Package.swift")
+                )
+            }
+            try await writeManifest("1.0.0")
+            try await fileSystem.atomicWrite(
+                "public struct App {}\n", to: package.appendingPathComponent("Sources/App/App.swift")
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            _ = try await SwifterPM().resolve(request)
+            let checkouts = scratch.appendingPathComponent("checkouts")
+            let dependencySlot = checkouts.appendingPathComponent("dependency").resolvingSymlinksInPath()
+            #expect(fileSystem.isSymlink(checkouts.appendingPathComponent("other")))
+
+            try await writeManifest("2.0.0")
+            _ = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cacheDirectory,
+                registryConfigurationPath: nil,
+                defaultRegistryURL: nil,
+                disableSandbox: true,
+                scmToRegistryTransformation: .disabled,
+                useExistingResolvedFile: true,
+                writeResolvedFile: true,
+                forwardOutput: false
+            )
+
+            #expect(fileSystem.isSymlink(checkouts.appendingPathComponent("other")))
+            let committedArchive = try await SystemProcess.run(
+                "/usr/bin/git", ["-C", dependency.path, "show", "1.0.0:Framework.zip"]
+            ).stdout
+            let slotArchive = try await fileSystem.readFile(
+                at: dependencySlot.appendingPathComponent("Framework.zip").absolutePath
+            )
+            #expect(slotArchive == committedArchive)
+
+            _ = try await SwifterPM().resolve(request)
+            let restored = try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency")
+            #expect(restored == "v2")
+        }
+    }
+
+    @Test
+    func resolvingARevisionWhoseCachedSourceWasCheckedOutInPlaceRestoresThatRevisionsBinaryArtifact() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeBinaryDependencyPackageManifest(at: dependency, marker: "v1")
+            try await initGitBinaryDependency(at: dependency, tags: ["1.0.0"])
+            try await addCommitAndTagWithBinaryArtifact(at: dependency, tag: "2.0.0", marker: "v2")
+            let revision1 = try await SystemProcess.output(
+                "/usr/bin/git", ["-C", dependency.path, "rev-parse", "1.0.0"]
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let package = root.appendingPathComponent("App")
+            try await writeBinaryAppPackageManifest(
+                at: package,
+                dependencyURL: dependency.path,
+                exactVersion: "1.0.0"
+            )
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            _ = try await SwifterPM().resolve(request)
+
+            let slot = cacheDirectory.appendingPathComponent("sources/dependency/1.0.0-\(revision1)")
+            #expect(try await fileSystem.exists(slot.absolutePath))
+            try await fileSystem.remove(slot.absolutePath)
+            try await SystemProcess.run(
+                "/usr/bin/git", ["clone", "--quiet", "--shared", "--no-checkout", dependency.path, slot.path]
+            )
+            try await SystemProcess.run("/usr/bin/git", ["-C", slot.path, "checkout", "--quiet", "-f", revision1])
+            try await fileSystem.atomicWrite(
+                revision1, to: slot.appendingPathComponent(WorkspaceRestorer.sourceRevisionMarkerFilename)
+            )
+            try await SystemProcess.run(
+                "/usr/bin/find", [slot.path, "-type", "f", "-exec", "chmod", "a-w", "{}", "+"]
+            )
+            _ = try? await SystemProcess.run("/usr/bin/git", ["-C", slot.path, "checkout", "-f", "2.0.0"])
+            #expect(
+                try await SystemProcess.output("/usr/bin/git", ["-C", slot.path, "rev-parse", "HEAD"])
+                    .trimmingCharacters(in: .whitespacesAndNewlines) == revision1
+            )
+            await #expect(throws: (any Error).self) {
+                try await SystemProcess.run(
+                    "/usr/bin/git", ["-C", slot.path, "diff-index", "--cached", "--quiet", "HEAD"]
+                )
+            }
+
+            try await fileSystem.remove(scratch.absolutePath)
+            try await fileSystem.remove(cacheDirectory.appendingPathComponent("artifacts").absolutePath)
+            _ = try await SwifterPM().resolve(request)
+            let restored = try await restoredBinaryArtifactMarker(scratch: scratch, identity: "dependency")
+            #expect(restored == "v1")
+        }
+    }
+
+    enum SourceAvailability: CaseIterable, Sendable {
+        case cached, staleCheckout, coldLocalRepository, editedLocalRepository
+    }
+
+    @Test(arguments: SourceAvailability.allCases)
+    func resolvePreservesValidTransitivePinsWhenTheResolvedFileOriginHashIsStale(
+        sourceAvailability: SourceAvailability
+    ) async throws {
+        try await withTemporaryDirectory { root in
+            let transitive = root.appendingPathComponent("Transitive")
+            try await writeLibraryPackageManifest(at: transitive, name: "Transitive")
+            try await initGitDependency(at: transitive, tags: ["1.0.0"])
+
+            let direct = root.appendingPathComponent("Direct")
+            try await writeLibraryPackageManifest(
+                at: direct,
+                name: "Direct",
+                dependencyURL: transitive.path
+            )
+            try await initGitDependency(at: direct, tags: ["1.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(
+                at: package,
+                dependencyURL: direct.path,
+                dependencyName: "Direct"
+            )
+
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let initial = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                )
+            )
+            #expect(initial.pins.first { $0.identity == "transitive" }?.version == "1.0.0")
+
+            try await addCommitAndTag(at: transitive, tag: "1.1.0")
+            try await writeLibraryPackageManifest(at: direct, name: "Direct")
+            try await SystemProcess.run("git", ["add", "Package.swift", "Sources"], workingDirectory: direct)
+            try await SystemProcess.run("git", ["commit", "-m", "Remove transitive dependency"], workingDirectory: direct)
+            try await SystemProcess.run("git", ["tag", "2.0.0"], workingDirectory: direct)
+
+            var staleResolved = try await ResolvedFile.read(packageDir: package)
+            switch sourceAvailability {
+            case .cached:
+                break
+            case .staleCheckout:
+                try await writeAppPackageManifest(
+                    at: package, dependencyURL: direct.path, exactVersion: "2.0.0", dependencyName: "Direct"
+                )
+                try await fileSystem.removePath(scratch)
+                try await SystemProcess.run(
+                    "swift", [
+                        "package", "--replace-scm-with-registry", "--disable-sandbox",
+                        "--package-path", package.path, "--scratch-path", scratch.path,
+                        "--cache-path", cacheDirectory.path, "resolve",
+                    ]
+                )
+                try await writeAppPackageManifest(at: package, dependencyURL: direct.path, dependencyName: "Direct")
+                let directPin = try #require(staleResolved.pins.first { $0.identity == "direct" })
+                try await fileSystem.removePath(Cache.sourcePath(root: cacheDirectory, pin: directPin))
+            case .coldLocalRepository, .editedLocalRepository:
+                try await fileSystem.removePath(scratch)
+                try await fileSystem.removePath(cacheDirectory)
+                if sourceAvailability == .editedLocalRepository {
+                    try await fileSystem.atomicWrite(
+                        "// swift-tools-version: 6.0\nunfinished manifest edit\n",
+                        to: direct.appendingPathComponent("Package.swift")
+                    )
+                }
+            }
+
+            staleResolved.originHash = "stale"
+            try await ResolvedFile.write(packageDir: package, resolved: staleResolved)
+
+            let resolved = try await SwifterPM().resolve(
+                .init(
+                    packageDirectory: package,
+                    cacheDirectory: cacheDirectory,
+                    scratchDirectory: scratch,
+                    disableSandbox: true,
+                    quiet: true
+                )
+            )
+            #expect(resolved.pins.first { $0.identity == "transitive" }?.version == "1.0.0")
+        }
+    }
+
+    @Test
+    func resolveReplacesAnOldPinWhoseManifestRequiresANewerToolchain() async throws {
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(at: package, dependencyURL: dependency.path)
+            let cacheDirectory = root.appendingPathComponent("cache")
+            let scratch = root.appendingPathComponent("scratch")
+            let request = SwifterPMResolutionRequest(
+                packageDirectory: package,
+                cacheDirectory: cacheDirectory,
+                scratchDirectory: scratch,
+                disableSandbox: true,
+                quiet: true
+            )
+            _ = try await SwifterPM().resolve(request)
+
+            let incompatibleManifest = "// swift-tools-version: 999.0\nimport PackageDescription\n"
+            try await fileSystem.atomicWrite(incompatibleManifest, to: dependency.appendingPathComponent("Package.swift"))
+            try await SystemProcess.run("git", ["add", "Package.swift"], workingDirectory: dependency)
+            try await SystemProcess.run("git", ["commit", "-m", "Require a newer toolchain"], workingDirectory: dependency)
+            try await SystemProcess.run("git", ["tag", "2.0.0"], workingDirectory: dependency)
+            let revision = try await SystemProcess.run("git", ["rev-parse", "HEAD"], workingDirectory: dependency)
+            var seed = try await ResolvedFile.read(packageDir: package)
+            seed.originHash = "stale"
+            seed.pins[0].state.version = "2.0.0"
+            seed.pins[0].state.revision = String(decoding: revision.stdout, as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let cached = try Cache.sourcePath(root: cacheDirectory, pin: seed.pins[0])
+            try await fileSystem.atomicWrite(incompatibleManifest, to: cached.appendingPathComponent("Package.swift"))
+            try await ResolvedFile.write(packageDir: package, resolved: seed)
+
+            let resolved = try await SwifterPM().resolve(request)
+
+            #expect(resolved.pins.first?.version == "1.0.0")
+            #expect(try await ResolvedFile.read(packageDir: package).pins.first?.state.version == "1.0.0")
+        }
+    }
+
+    @Test
     func resolveDropsAnOrphanPinInsteadOfFetchingIt() async throws {
         // Reported on Slack: after removing a dependency from Package.swift, a
         // subsequent `tuist install` (SwifterPM.resolve) failed with SwiftPM's
@@ -506,10 +945,152 @@ struct ResolveTests {
             #expect(
                 try await PackageResolver.shouldUseNativeColdPath(
                     packageDir: package,
-                    cacheRoot: cache.root
+                    cacheRoot: cache.root,
+                    registryConfig: RegistryConfig()
                 )
             )
         }
+    }
+
+    @Test
+    func registryPinsKeepTheRestorationPathWhenTheCacheHoldsTheRelease() async throws {
+        try await withTemporaryDirectory { root in
+            let graph = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: true, cachesRegistryPin: true
+            )
+
+            #expect(
+                try await !PackageResolver.shouldUseNativeColdPath(
+                    packageDir: graph.package,
+                    cacheRoot: graph.cache.root,
+                    registryConfig: graph.registryConfig
+                )
+            )
+        }
+    }
+
+    @Test
+    func registryPinsUseTheNativeColdPathWhenTheCacheMissesTheRelease() async throws {
+        try await withTemporaryDirectory { root in
+            let graph = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: true, cachesRegistryPin: false
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: graph.package,
+                    cacheRoot: graph.cache.root,
+                    registryConfig: graph.registryConfig
+                )
+            )
+        }
+    }
+
+    @Test
+    func registryPinsUseTheNativeColdPathWhenTheCachedReleaseHasNoChecksumMarker() async throws {
+        try await withTemporaryDirectory { root in
+            let graph = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: true, cachesRegistryPin: true
+            )
+            try await fileSystem.remove(
+                graph.cachedRegistrySource
+                    .appendingPathComponent(WorkspaceRestorer.registryChecksumMarkerFilename)
+                    .absolutePath
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: graph.package,
+                    cacheRoot: graph.cache.root,
+                    registryConfig: graph.registryConfig
+                )
+            )
+        }
+    }
+
+    @Test
+    func aMissingSourcePinUsesTheNativeColdPathEvenWithACachedRegistryRelease() async throws {
+        try await withTemporaryDirectory { root in
+            let graph = try await writeMixedRegistryAndSourceControlGraph(
+                root: root, cachesSourcePin: false, cachesRegistryPin: true
+            )
+
+            #expect(
+                try await PackageResolver.shouldUseNativeColdPath(
+                    packageDir: graph.package,
+                    cacheRoot: graph.cache.root,
+                    registryConfig: graph.registryConfig
+                )
+            )
+        }
+    }
+
+    private struct MixedGraph {
+        let package: URL
+        let cache: Cache
+        let registryConfig: RegistryConfig
+        let cachedRegistrySource: URL
+    }
+
+    private func writeMixedRegistryAndSourceControlGraph(
+        root: URL,
+        cachesSourcePin: Bool,
+        cachesRegistryPin: Bool
+    ) async throws -> MixedGraph {
+        let registryURL = "https://registry.example.com"
+        let package = root.appendingPathComponent("App")
+        try await writeMinimalPackageManifest(at: package, name: "App")
+        let cache = try await Cache(root: root.appendingPathComponent("cache"))
+        let sourcePin = ResolvedPin(
+            identity: "dependency",
+            kind: "remoteSourceControl",
+            location: "https://example.com/dependency.git",
+            state: .init(branch: nil, revision: "aaaaaaaa", version: "1.0.0")
+        )
+        let registryPin = ResolvedPin(
+            identity: "example.package",
+            kind: "registry",
+            location: "",
+            state: .init(branch: nil, revision: nil, version: "1.1.4")
+        )
+        if cachesSourcePin {
+            let cachedSource = try cache.sourcePath(pin: sourcePin)
+            try await fileSystem.makeDirectory(
+                at: cachedSource.absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            try await writeMinimalPackageManifest(at: cachedSource, name: "Dependency")
+        }
+        let cachedRegistrySource = cache.registrySourcePath(
+            identity: registryPin.identity,
+            version: try registryPin.versionString(),
+            registryURL: registryURL
+        )
+        if cachesRegistryPin {
+            try await fileSystem.makeDirectory(
+                at: cachedRegistrySource.absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            try await writeMinimalPackageManifest(at: cachedRegistrySource, name: "Package")
+            try await fileSystem.atomicWrite(
+                "abcdef1234567890\n",
+                to: cachedRegistrySource.appendingPathComponent(
+                    WorkspaceRestorer.registryChecksumMarkerFilename
+                )
+            )
+        }
+        try await ResolvedFile.write(
+            packageDir: package,
+            resolved: .init(originHash: "origin", pins: [registryPin, sourcePin], version: 3)
+        )
+        return MixedGraph(
+            package: package,
+            cache: cache,
+            registryConfig: try await RegistryConfig.load(
+                packageDir: package, configPath: nil, defaultRegistryURL: registryURL
+            ),
+            cachedRegistrySource: cachedRegistrySource
+        )
     }
 
     private func addCommitAndTag(at dependency: URL, tag: String) async throws {
@@ -527,6 +1108,173 @@ struct ResolveTests {
         try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
     }
 
+    private func writeBinaryDependencyPackageManifest(
+        at packageDir: URL,
+        targetName: String = "Framework",
+        marker: String
+    ) async throws {
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "Dependency",
+                products: [
+                    .library(name: "\(targetName)", targets: ["\(targetName)"]),
+                ],
+                targets: [
+                    .binaryTarget(name: "\(targetName)", path: "\(targetName).zip"),
+                ]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await writeXCFrameworkZip(
+            at: packageDir.appendingPathComponent("\(targetName).zip"),
+            targetName: targetName,
+            marker: marker
+        )
+    }
+
+    private func writeBinaryAppPackageManifest(
+        at packageDir: URL,
+        dependencyURL: String,
+        exactVersion: String,
+        productName: String = "Framework"
+    ) async throws {
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "App",
+                products: [
+                    .library(name: "App", targets: ["App"]),
+                ],
+                dependencies: [
+                    .package(url: "\(dependencyURL)", exact: "\(exactVersion)"),
+                ],
+                targets: [
+                    .target(name: "App", dependencies: [
+                        .product(name: "\(productName)", package: "Dependency"),
+                    ]),
+                ]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite(
+            "public struct App {}\n",
+            to: packageDir.appendingPathComponent("Sources/App/App.swift")
+        )
+    }
+
+    private func addCommitAndTagWithBinaryArtifact(
+        at dependency: URL,
+        tag: String,
+        targetName: String = "Framework",
+        marker: String
+    ) async throws {
+        try await writeXCFrameworkZip(
+            at: dependency.appendingPathComponent("\(targetName).zip"),
+            targetName: targetName,
+            marker: marker
+        )
+        try await SystemProcess.run("git", ["add", "\(targetName).zip"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["commit", "-m", "bump to \(tag)"], workingDirectory: dependency
+        )
+        try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
+    }
+
+    private func writeXCFrameworkZip(at zipPath: URL, targetName: String, marker: String) async throws {
+        let archiveRoot = zipPath.deletingLastPathComponent()
+            .appendingPathComponent(".xcframework-build-\(UUID().uuidString)")
+        let framework = archiveRoot.appendingPathComponent("\(targetName).xcframework")
+        try await fileSystem.makeDirectory(
+            at: framework.absolutePath, options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+              <key>AvailableLibraries</key>
+              <array>
+                <dict>
+                  <key>LibraryIdentifier</key>
+                  <string>macos-arm64</string>
+                  <key>LibraryPath</key>
+                  <string>\(targetName).framework</string>
+                  <key>SupportedArchitectures</key>
+                  <array>
+                    <string>arm64</string>
+                  </array>
+                  <key>SupportedPlatform</key>
+                  <string>macos</string>
+                </dict>
+              </array>
+              <key>Marker</key>
+              <string>\(marker)</string>
+            </dict>
+            </plist>
+            """,
+            to: framework.appendingPathComponent("Info.plist")
+        )
+        if try await fileSystem.exists(zipPath.absolutePath) {
+            try await fileSystem.remove(zipPath.absolutePath)
+        }
+        try await SystemProcess.run(
+            "/usr/bin/zip",
+            ["-qry", zipPath.path, "\(targetName).xcframework"],
+            workingDirectory: archiveRoot
+        )
+        try await fileSystem.remove(archiveRoot.absolutePath)
+    }
+
+    private func restoredBinaryArtifactMarker(
+        scratch: URL,
+        identity: String,
+        targetName: String = "Framework"
+    ) async throws -> String {
+        let infoPlist = scratch
+            .appendingPathComponent("artifacts")
+            .appendingPathComponent(identity)
+            .appendingPathComponent(targetName)
+            .appendingPathComponent("\(targetName).xcframework")
+            .appendingPathComponent("Info.plist")
+        let contents = String(
+            decoding: try await fileSystem.readFile(at: infoPlist.absolutePath), as: UTF8.self
+        )
+        guard let markerStart = contents.range(of: "<key>Marker</key>\n  <string>") else {
+            throw ToolError.message("\(infoPlist.path) has no Marker key")
+        }
+        let remainder = contents[markerStart.upperBound...]
+        guard let markerEnd = remainder.range(of: "</string>") else {
+            throw ToolError.message("\(infoPlist.path) has a malformed Marker value")
+        }
+        return String(remainder[..<markerEnd.lowerBound])
+    }
+
+    private func initGitBinaryDependency(
+        at dependency: URL, tags: [String], targetName: String = "Framework"
+    ) async throws {
+        try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["add", "Package.swift", "\(targetName).zip"], workingDirectory: dependency)
+        try await SystemProcess.run("git", ["commit", "-m", "Initial"], workingDirectory: dependency)
+        for tag in tags {
+            try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
+        }
+    }
+
     private func initGitDependency(at dependency: URL, tags: [String]) async throws {
         try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
         try await SystemProcess.run(
@@ -539,6 +1287,43 @@ struct ResolveTests {
         for tag in tags {
             try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
         }
+    }
+
+    private func writeLibraryPackageManifest(
+        at packageDir: URL,
+        name: String,
+        dependencyURL: String
+    ) async throws {
+        try await fileSystem.makeDirectory(
+            at: packageDir.appendingPathComponent("Sources/\(name)").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "\(name)",
+                products: [
+                    .library(name: "\(name)", targets: ["\(name)"]),
+                ],
+                dependencies: [
+                    .package(url: "\(dependencyURL)", from: "1.0.0"),
+                ],
+                targets: [
+                    .target(name: "\(name)", dependencies: [
+                        .product(name: "Transitive", package: "Transitive"),
+                    ]),
+                ]
+            )
+            """,
+            to: packageDir.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite(
+            "import Transitive\npublic struct \(name) {}\n",
+            to: packageDir.appendingPathComponent("Sources/\(name)/\(name).swift")
+        )
     }
 
     private func writeLibraryPackageManifest(at packageDir: URL, name: String) async throws {
@@ -573,7 +1358,8 @@ struct ResolveTests {
         at packageDir: URL,
         dependencyURL: String,
         exactVersion: String = "1.0.0",
-        fromVersion: String? = nil
+        fromVersion: String? = nil,
+        dependencyName: String = "Dependency"
     ) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/App").absolutePath,
@@ -600,7 +1386,7 @@ struct ResolveTests {
                 ],
                 targets: [
                     .target(name: "App", dependencies: [
-                        .product(name: "Dependency", package: "Dependency"),
+                        .product(name: "\(dependencyName)", package: "\(dependencyName)"),
                     ]),
                 ]
             )

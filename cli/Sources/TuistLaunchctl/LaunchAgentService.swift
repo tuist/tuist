@@ -1,10 +1,10 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistEnvironment
 import TuistLogging
+import TuistProcess
 
 public enum LaunchAgentServiceError: Equatable, LocalizedError {
     case failedToLoadLaunchAgent(String)
@@ -51,21 +51,39 @@ public protocol LaunchAgentServicing {
     /// the domain, when launchd holds it without a process, or when launchd
     /// cannot be asked.
     func runningProcessIdentifier(label: String) async -> Int32?
+
+    /// Whether a process is running exactly what `setupLaunchAgent` would install
+    /// for the same arguments, so that installing it again would replace the
+    /// process and change nothing else.
+    ///
+    /// `launchInputs` are files the agent reads once, when it starts. A process
+    /// that started before one of them last changed is still running the old
+    /// one, however identical its plist.
+    func isLaunchAgentCurrent(
+        label: String,
+        plistFileName: String,
+        programArguments: [String],
+        environmentVariables: [String: String],
+        launchInputs: [AbsolutePath]
+    ) async -> Bool
 }
 
 public struct LaunchAgentService: LaunchAgentServicing {
     private let fileSystem: FileSysteming
     private let launchctlController: LaunchctlControlling
     private let bootoutTimeout: Duration
+    private let processLaunchDate: @Sendable (Int32) -> Date?
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
         launchctlController: LaunchctlControlling = LaunchctlController(),
-        bootoutTimeout: Duration = .seconds(3)
+        bootoutTimeout: Duration = .seconds(3),
+        processLaunchDate: @escaping @Sendable (Int32) -> Date? = { LaunchAgentService.launchDate(ofProcess: $0) }
     ) {
         self.fileSystem = fileSystem
         self.launchctlController = launchctlController
         self.bootoutTimeout = bootoutTimeout
+        self.processLaunchDate = processLaunchDate
     }
 
     @discardableResult
@@ -99,30 +117,25 @@ public struct LaunchAgentService: LaunchAgentServicing {
                 // as an unreadable `CommandError` dump.
                 throw LaunchAgentServiceError.failedToBootOutLaunchAgent(String(describing: error))
             }
-            await waitUntilBootedOut(label: label)
+            await waitUntilBootedOut(label: label, outgoingJob: outgoingJob)
         }
 
         if try await fileSystem.exists(plistPath) {
             try await fileSystem.remove(plistPath)
         }
 
-        let fullArguments = [tuistBinaryPath.pathString] + programArguments
-
         let logDirectory = Environment.current.stateDirectory
         if try await !fileSystem.exists(logDirectory) {
             try await fileSystem.makeDirectory(at: logDirectory)
         }
-        let stdoutLogPath = logDirectory.appending(component: "\(label).stdout.log")
         let stderrLogPath = logDirectory.appending(component: "\(label).stderr.log")
 
         let plistContent = launchAgentPlist(
-            programPath: tuistBinaryPath.pathString,
-            programArguments: fullArguments,
             label: label,
-            domain: domain,
+            tuistBinaryPath: tuistBinaryPath,
+            programArguments: programArguments,
             environmentVariables: environmentVariables,
-            standardOutPath: stdoutLogPath.pathString,
-            standardErrorPath: stderrLogPath.pathString
+            domain: domain
         )
 
         try await fileSystem.writeText(plistContent, at: plistPath)
@@ -183,18 +196,78 @@ public struct LaunchAgentService: LaunchAgentServicing {
         await jobIgnoringFailures(label: label).flatMap(\.processIdentifier)
     }
 
+    public func isLaunchAgentCurrent(
+        label: String,
+        plistFileName: String,
+        programArguments: [String],
+        environmentVariables: [String: String],
+        launchInputs: [AbsolutePath]
+    ) async -> Bool {
+        guard let tuistBinaryPath = try? await determineTuistBinaryPath(),
+              let domain = try? await launchctlController.preferredDomain(),
+              let processIdentifier = await runningProcessIdentifier(label: label),
+              let launchedAt = processLaunchDate(processIdentifier)
+        else { return false }
+
+        let plistPath = Environment.current.homeDirectory.appending(
+            components: "Library", "LaunchAgents", plistFileName
+        )
+        // Compared as property lists rather than as text: the environment is
+        // rendered from a dictionary, whose order changes from one process to
+        // the next.
+        guard let installed = try? await fileSystem.readTextFile(at: plistPath),
+              let installedPropertyList = propertyList(installed),
+              let expectedPropertyList = propertyList(launchAgentPlist(
+                  label: label,
+                  tuistBinaryPath: tuistBinaryPath,
+                  programArguments: programArguments,
+                  environmentVariables: environmentVariables,
+                  domain: domain
+              )),
+              installedPropertyList.isEqual(expectedPropertyList)
+        else { return false }
+
+        // launchd reads the plist when the agent is bootstrapped, and the process
+        // reads its binary and inputs when it starts, so a process older than any
+        // of them is running what they replaced. A file that cannot be inspected
+        // is not evidence that it did not change.
+        return ([plistPath, tuistBinaryPath] + launchInputs).allSatisfy { path in
+            lastChangeDate(resolving: path).map { $0 < launchedAt } ?? false
+        }
+    }
+
+    /// When the process started, or `nil` when it cannot be inspected. The start
+    /// survives `execv`, so for an agent it is when launchd spawned the job.
+    public static func launchDate(ofProcess processIdentifier: Int32) -> Date? {
+        #if os(macOS)
+            var info = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            guard proc_pidinfo(processIdentifier, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+            return Date(
+                timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000
+            )
+        #else
+            return nil
+        #endif
+    }
+
     /// `bootout` returns once launchd has accepted the removal, not once the job
     /// has left the domain, so a bootstrap issued straight after can still land
     /// on the outgoing label. Waiting also stops a caller's readiness check from
     /// passing against the previous daemon, which would report success for a
     /// configuration that never took effect.
     ///
+    /// Waits at least as long as launchd may take to kill a process that does not
+    /// exit on SIGTERM: until its exit timeout has passed, plus a margin for the
+    /// label to leave the domain after it.
+    ///
     /// Gives up rather than throwing: a label that outlives the wait is not itself
     /// a failure, and the bootstrap after it settles the question anyway by
     /// requiring a process other than the one being booted out.
-    private func waitUntilBootedOut(label: String) async {
+    private func waitUntilBootedOut(label: String, outgoingJob: LaunchAgentJob?) async {
         let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: bootoutTimeout)
+        let timeout = outgoingJob?.exitTimeout.map { max(bootoutTimeout, $0 + .seconds(1)) } ?? bootoutTimeout
+        let deadline = clock.now.advanced(by: timeout)
 
         while clock.now < deadline, !Task.isCancelled {
             if await jobIgnoringFailures(label: label) == nil { return }
@@ -222,9 +295,10 @@ public struct LaunchAgentService: LaunchAgentServicing {
             components: "Library", "LaunchAgents", plistFileName
         )
 
-        if try await launchctlController.job(label: label) != nil {
+        if let outgoingJob = try await launchctlController.job(label: label) {
             try await launchctlController.bootout(label: label)
             Logger.current.debug("Booted out LaunchAgent")
+            await waitUntilBootedOut(label: label, outgoingJob: outgoingJob)
         }
 
         if try await fileSystem.exists(plistPath) {
@@ -239,6 +313,25 @@ public struct LaunchAgentService: LaunchAgentServicing {
         }
 
         return currentPath
+    }
+
+    private func launchAgentPlist(
+        label: String,
+        tuistBinaryPath: AbsolutePath,
+        programArguments: [String],
+        environmentVariables: [String: String],
+        domain: LaunchAgentDomain
+    ) -> String {
+        let logDirectory = Environment.current.stateDirectory
+        return launchAgentPlist(
+            programPath: tuistBinaryPath.pathString,
+            programArguments: [tuistBinaryPath.pathString] + programArguments,
+            label: label,
+            domain: domain,
+            environmentVariables: environmentVariables,
+            standardOutPath: logDirectory.appending(component: "\(label).stdout.log").pathString,
+            standardErrorPath: logDirectory.appending(component: "\(label).stderr.log").pathString
+        )
     }
 
     private func launchAgentPlist(
@@ -301,4 +394,54 @@ public struct LaunchAgentService: LaunchAgentServicing {
         </plist>
         """
     }
+}
+
+/// The latest `st_ctime` among the file `path` names and every symlink passed
+/// on the way to it, or `nil` when any of them cannot be inspected.
+///
+/// The change time rather than the modification date, because an installer
+/// cannot carry it over from an archive. The symlinks, because switching
+/// versions usually repoints one at a binary installed long before: the path
+/// stays the same, every file behind it is older than the process, and only
+/// the link, which repointing replaces, is newer. Not the directories on the
+/// way, whose change time moves whenever an entry inside them does.
+private func lastChangeDate(resolving path: AbsolutePath) -> Date? {
+    var pending = Array(path.pathString.split(separator: "/").map(String.init).reversed())
+    var resolved: [String] = []
+    var latest = Date.distantPast
+    var symlinksFollowed = 0
+    while let component = pending.popLast() {
+        if component == "." { continue }
+        if component == ".." {
+            _ = resolved.popLast()
+            continue
+        }
+        let candidate = "/" + (resolved + [component]).joined(separator: "/")
+        guard let target = try? FileManager.default.destinationOfSymbolicLink(atPath: candidate) else {
+            resolved.append(component)
+            continue
+        }
+        symlinksFollowed += 1
+        guard symlinksFollowed <= 32, let changedAt = changeDate(of: candidate) else { return nil }
+        latest = max(latest, changedAt)
+        if target.hasPrefix("/") { resolved = [] }
+        pending.append(contentsOf: target.split(separator: "/").map(String.init).reversed())
+    }
+    return changeDate(of: "/" + resolved.joined(separator: "/")).map { max(latest, $0) }
+}
+
+/// `st_ctime` of the entry itself, not of what it links to.
+private func changeDate(of path: String) -> Date? {
+    var status = stat()
+    guard lstat(path, &status) == 0 else { return nil }
+    #if os(Linux)
+        let changedAt = status.st_ctim
+    #else
+        let changedAt = status.st_ctimespec
+    #endif
+    return Date(timeIntervalSince1970: TimeInterval(changedAt.tv_sec) + TimeInterval(changedAt.tv_nsec) / 1_000_000_000)
+}
+
+private func propertyList(_ contents: String) -> NSDictionary? {
+    try? PropertyListSerialization.propertyList(from: Data(contents.utf8), format: nil) as? NSDictionary
 }

@@ -11,24 +11,31 @@ class MachineMetricsCollectorTest {
 
     private fun createCollector() = MachineMetricsCollector(sampleIntervalMs = 50)
 
-    @Test
-    fun `stop skips a sample immediately after a periodic reading`() {
+    private fun timestampsStoppingAfterPeriodicReading(stopMillis: Long): List<Double> {
         val periodicReading = CountDownLatch(1)
         val readings = AtomicInteger()
         val collector = MachineMetricsCollector(sampleIntervalMs = 1000, currentTimeMillis = {
             when (readings.getAndIncrement()) {
                 0 -> 2000L
                 1 -> { periodicReading.countDown(); 3000L }
-                else -> 3050L
+                else -> stopMillis
             }
         })
         collector.start()
-        try {
-            assertTrue(periodicReading.await(5, TimeUnit.SECONDS))
-        } finally {
-            val samples = collector.stop()
-            assertEquals(listOf(2.0, 3.0), samples.map { it.timestamp })
-        }
+        val observedPeriodicReading = periodicReading.await(5, TimeUnit.SECONDS)
+        val timestamps = collector.stop().map { it.timestamp }
+        assertTrue(observedPeriodicReading)
+        return timestamps
+    }
+
+    @Test
+    fun `stop replaces a periodic reading taken less than 200 ms earlier`() {
+        assertEquals(listOf(2.0, 3.05), timestampsStoppingAfterPeriodicReading(stopMillis = 3050))
+    }
+
+    @Test
+    fun `stop keeps a periodic reading taken at least 200 ms earlier`() {
+        assertEquals(listOf(2.0, 3.0, 3.25), timestampsStoppingAfterPeriodicReading(stopMillis = 3250))
     }
 
     @Test

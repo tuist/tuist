@@ -7,12 +7,6 @@
 ---
 # Flaky Tests {#flaky-tests}
 
-> [!WARNING]
-> **Requirements**
->
-> - <.localized_link href="/guides/features/test-insights">Test Insights</.localized_link> must be configured
-
-
 Flaky tests are tests that produce different results (pass or fail) when run multiple times with the same code. They erode trust in your test suite and waste developer time investigating false failures. Tuist automatically detects flaky tests and helps you track them over time.
 
 <.home_cards>
@@ -24,7 +18,7 @@ Flaky tests are tests that produce different results (pass or fail) when run mul
   <.home_card
     title="Generated projects"
     details="Detect, manage, and quarantine flaky tests in Tuist generated projects via tuist test."
-    link="/guides/features/test-insights/flaky-tests/generated-projects"
+    link="/guides/features/test-insights/flaky-tests/generated-xcode-project"
 />
   <.home_card
     title="Gradle"

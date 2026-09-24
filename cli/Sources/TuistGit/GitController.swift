@@ -1,9 +1,9 @@
-import Command
 import Foundation
 import Mockable
 import Path
 import TSCUtility
 import TuistEnvironment
+import TuistProcess
 import TuistSupport
 
 @Mockable
@@ -72,6 +72,12 @@ public protocol GitControlling {
 
     /// Returns the top level `.git` directory path.
     func topLevelGitDirectory(workingDirectory: AbsolutePath) async throws -> AbsolutePath
+
+    /// The Git blob object id of every source file with one of `pathExtensions`, keyed by its path
+    /// relative to `workingDirectory`, which must be the repository's top level. Tracked files the
+    /// working tree has changed, and untracked files Git does not ignore, are hashed from the
+    /// working tree, so each id describes the contents a build would compile.
+    func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String]
 }
 
 /// An implementation of `GitControlling`.
@@ -93,6 +99,39 @@ public struct GitController: GitControlling {
             validating: try await capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "--show-toplevel")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         )
+    }
+
+    public func sourceFileBlobIds(workingDirectory: AbsolutePath, pathExtensions: Set<String>) async throws -> [String: String] {
+        let git = ["git", "-C", workingDirectory.pathString]
+        let isSource: (String) -> Bool = { pathExtensions.contains((($0 as NSString).pathExtension).lowercased()) }
+        var blobIds: [String: String] = [:]
+
+        // `<mode> <object> <stage>\t<path>`, NUL-terminated so no path is quoted.
+        for entry in try await capture(arguments: git + ["ls-files", "--stage", "-z"]).split(separator: "\0") {
+            guard let tab = entry.firstIndex(of: "\t") else { continue }
+            let path = String(entry[entry.index(after: tab)...])
+            let fields = entry[..<tab].split(separator: " ")
+            // A submodule's entry names a commit, not a blob.
+            guard isSource(path), fields.count >= 2, fields[0] != "160000" else { continue }
+            blobIds[path] = String(fields[1])
+        }
+
+        let modified = try await capture(arguments: git + ["diff", "--name-only", "--diff-filter=d", "-z"])
+        let untracked = try await capture(arguments: git + ["ls-files", "--others", "--exclude-standard", "-z"])
+        let workingTreePaths = Array(Set((modified + "\0" + untracked).split(separator: "\0").map(String.init).filter(isSource)))
+            .sorted()
+
+        // Batched so a large change set never exceeds the argument list limit.
+        for start in stride(from: 0, to: workingTreePaths.count, by: 500) {
+            let batch = Array(workingTreePaths[start ..< min(start + 500, workingTreePaths.count)])
+            let ids = try await capture(arguments: git + ["hash-object", "--"] + batch)
+                .split(whereSeparator: \.isNewline)
+            for (path, id) in zip(batch, ids) {
+                blobIds[path] = String(id)
+            }
+        }
+
+        return blobIds
     }
 
     public func clone(url: String, into path: AbsolutePath) async throws {
@@ -334,7 +373,11 @@ public struct GitController: GitControlling {
     }
 
     private func capture(command: String...) async throws -> String {
-        try await commandRunner.capture(arguments: command, environment: hardenedEnvironment())
+        try await capture(arguments: command)
+    }
+
+    private func capture(arguments: [String]) async throws -> String {
+        try await commandRunner.capture(arguments: arguments, environment: hardenedEnvironment())
     }
 
     /// Environment overrides that keep every spawned `git` invocation

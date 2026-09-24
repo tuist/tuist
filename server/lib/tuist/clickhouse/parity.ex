@@ -39,6 +39,14 @@ defmodule Tuist.ClickHouse.Parity do
   way; the ones that applies to either collapse duplicates by key or have not
   been written to in months.
 
+  ## Why rows close to their TTL are left out
+
+  A table with a TTL deletes expired rows only when a merge reaches them, and
+  the two servers merge on their own schedules, so for a while one of them
+  still holds rows the other has already dropped. Counting those fails a table
+  whose data agrees. Both sides are therefore compared only over the rows that
+  are more than a day from expiring.
+
   ## Why only the copied tables are a gate
 
   The tables a materialized view writes into are not transferred. They are
@@ -74,6 +82,8 @@ defmodule Tuist.ClickHouse.Parity do
 
   Returns `{:ok, report}` where the report lists matching and differing
   tables, so a caller can gate on `differing == []` rather than reading logs.
+  Its `migrations` entry lists the `schema_migrations` versions each server
+  holds and the other does not.
   """
   def compare(opts \\ []) do
     Endpoints.with_repos(opts, fn source, target ->
@@ -86,6 +96,7 @@ defmodule Tuist.ClickHouse.Parity do
       Logger.info("Comparing #{length(copied)} copied and #{length(derived)} derived table(s)#{window} as of #{as_of}")
 
       drift = Tables.schema_drift(source, target)
+      migrations = migration_drift(source, target)
 
       {matching, differing, skipped} = split(source, target, copied, since, as_of)
       {derived_matching, derived_differing, _} = split(source, target, derived, since, as_of)
@@ -94,6 +105,7 @@ defmodule Tuist.ClickHouse.Parity do
         compared: length(copied) - length(skipped),
         skipped: skipped,
         schema: drift,
+        migrations: migrations,
         matching: Enum.map(matching, & &1.table),
         differing: Enum.map(differing, &Map.delete(&1, :matches)),
         derived: %{
@@ -115,6 +127,10 @@ defmodule Tuist.ClickHouse.Parity do
         )
       end
 
+      if migrations.missing_on_destination != [] or migrations.only_on_destination != [] do
+        Logger.error("ClickHouse schema_migrations drift: #{inspect(migrations)}")
+      end
+
       if report.derived.differing != [] do
         # Reported with both fingerprints rather than by name. These tables are
         # recomputed rather than copied, so some difference is expected, and
@@ -127,6 +143,23 @@ defmodule Tuist.ClickHouse.Parity do
 
       {:ok, report}
     end)
+  end
+
+  defp migration_drift(source, target) do
+    left = migration_versions(source)
+    right = migration_versions(target)
+
+    %{
+      missing_on_destination: left |> MapSet.difference(right) |> Enum.sort(),
+      only_on_destination: right |> MapSet.difference(left) |> Enum.sort()
+    }
+  end
+
+  defp migration_versions(endpoint) do
+    statement = "SELECT DISTINCT version FROM #{quote_ident(endpoint.database)}.schema_migrations"
+    %{rows: rows} = endpoint.repo.query!(statement, [], log: false)
+
+    rows |> List.flatten() |> MapSet.new()
   end
 
   defp split(source, target, tables, since, as_of) do
@@ -143,8 +176,9 @@ defmodule Tuist.ClickHouse.Parity do
     {matching, differing} =
       comparable
       |> Enum.map(fn table ->
-        left = fingerprint(source, table, since, as_of)
-        right = fingerprint(target, table, since, as_of)
+        ttl = ttl(target, table)
+        left = fingerprint(source, table, since, as_of, ttl)
+        right = fingerprint(target, table, since, as_of, ttl)
 
         # Two fingerprints that failed identically are not a match. Without
         # this, a comparison where both sides timed out reports `differing:
@@ -174,7 +208,7 @@ defmodule Tuist.ClickHouse.Parity do
   # unrounded float sum differs in its last bits for data that is identical.
   # Rounding absorbs that, and the difference a rounded sum could hide is far
   # smaller than any difference worth failing a migration over.
-  defp fingerprint(endpoint, table, since, as_of) do
+  defp fingerprint(endpoint, table, since, as_of, ttl) do
     {integer, float} = numeric_columns(endpoint, table)
     time = time_column(endpoint, table)
 
@@ -185,7 +219,7 @@ defmodule Tuist.ClickHouse.Parity do
         if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
 
     statement =
-      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, as_of)}"
+      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, as_of, ttl)}"
 
     %{rows: [values]} = endpoint.repo.query!(statement, [], settings: [max_memory_usage: @max_memory_usage], log: false)
     selects |> Enum.map(&label/1) |> Enum.zip(values) |> Map.new()
@@ -196,16 +230,18 @@ defmodule Tuist.ClickHouse.Parity do
   defp verified?(%{error: _}), do: false
   defp verified?(_fingerprint), do: true
 
-  defp window_clause(nil, _since, _as_of), do: ""
+  defp window_clause(time, since, as_of, ttl) do
+    conditions =
+      Enum.reject(
+        [
+          time && since && "#{quote_ident(time)} >= toDateTime64('#{stamp(since)}', 6)",
+          time && "#{quote_ident(time)} < toDateTime64('#{stamp(as_of)}', 6)",
+          ttl && "(#{ttl}) > toDateTime64('#{stamp(as_of)}', 6) + INTERVAL 1 DAY"
+        ],
+        &(&1 in [nil, false])
+      )
 
-  defp window_clause(time, since, as_of) do
-    upper = " #{quote_ident(time)} < toDateTime64('#{stamp(as_of)}', 6)"
-
-    if since do
-      " WHERE #{quote_ident(time)} >= toDateTime64('#{stamp(since)}', 6) AND#{upper}"
-    else
-      " WHERE#{upper}"
-    end
+    if conditions == [], do: "", else: " WHERE " <> Enum.join(conditions, " AND ")
   end
 
   defp stamp(at), do: at |> DateTime.to_naive() |> NaiveDateTime.to_string()
@@ -245,6 +281,40 @@ defmodule Tuist.ClickHouse.Parity do
     case List.flatten(rows) do
       [] -> nil
       [column | _] -> column
+    end
+  end
+
+  defp ttl(endpoint, table) do
+    %{rows: rows} =
+      endpoint.repo.query!(
+        "SELECT engine_full FROM system.tables WHERE database = {database:String} AND name = {table:String}",
+        %{"database" => endpoint.database, "table" => table},
+        log: false
+      )
+
+    case rows do
+      [[engine_full]] when is_binary(engine_full) -> ttl_expression(engine_full)
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The expression a table's TTL deletes rows by, read from its `engine_full`, or
+  `nil` when it has no TTL or its TTL does more than delete rows by a single
+  expression.
+
+  Public because it parses ClickHouse's own description of a table, and a
+  wrong parse is silent: the table goes back to being compared over rows each
+  server deletes on its own schedule.
+  """
+  def ttl_expression(engine_full) do
+    with [_, clause] <- Regex.run(~r/\sTTL\s+(.+?)(?:\s+SETTINGS\s|$)/, engine_full),
+         expression = String.replace(clause, ~r/\s+DELETE$/i, ""),
+         false <- String.contains?(expression, ","),
+         false <- Regex.match?(~r/\s(TO|GROUP BY|WHERE|SET|RECOMPRESS)\s/i, " #{expression} ") do
+      expression
+    else
+      _ -> nil
     end
   end
 

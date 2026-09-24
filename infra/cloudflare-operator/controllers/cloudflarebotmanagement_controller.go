@@ -25,8 +25,10 @@ import (
 	"strings"
 	"time"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,6 +38,12 @@ import (
 	cfv1alpha1 "github.com/tuist/tuist/infra/cloudflare-operator/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cloudflare-operator/internal/cloudflare"
 )
+
+// dependencyRequeue is how long the reconciler waits before re-checking
+// a dependency it found not-yet-Ready. Short enough that a green
+// dependency does not sit blocked for the full ResyncInterval, long
+// enough that we do not busy-loop while it churns.
+const dependencyRequeue = 15 * time.Second
 
 // +kubebuilder:rbac:groups=cloudflare.tuist.dev,resources=cloudflarebotmanagements,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=cloudflare.tuist.dev,resources=cloudflarebotmanagements/status,verbs=get;update;patch
@@ -83,6 +91,26 @@ func (r *CloudflareBotManagementReconciler) Reconcile(ctx context.Context, req c
 	}
 	if added {
 		return ctrl.Result{}, nil
+	}
+
+	// spec.dependsOn gates every write path (and even the diff path,
+	// so status.proposedChanges does not go stale against a
+	// half-applied peer). If the reference does not resolve, or its
+	// Ready condition is not True, requeue soon rather than push.
+	if cr.Spec.DependsOn != nil {
+		ready, reason, err := r.dependencyReady(ctx, cr.Spec.DependsOn)
+		if err != nil {
+			_ = r.writeStatus(ctx, cr, fmt.Sprintf("dependency %s/%s: %v", cr.Spec.DependsOn.Kind, cr.Spec.DependsOn.Name, err), "", cfv1alpha1.ReasonReconcileError, metav1.ConditionFalse, cr.Status.ObservedGeneration)
+			return ctrl.Result{RequeueAfter: dependencyRequeue}, nil
+		}
+		if !ready {
+			message := fmt.Sprintf("waiting on %s/%s: %s", cr.Spec.DependsOn.Kind, cr.Spec.DependsOn.Name, reason)
+			logger.Info("dependency not Ready; requeueing", "kind", cr.Spec.DependsOn.Kind, "name", cr.Spec.DependsOn.Name, "reason", reason)
+			if err := r.writeStatus(ctx, cr, message, "", cfv1alpha1.ReasonReconcileError, metav1.ConditionFalse, cr.Status.ObservedGeneration); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: dependencyRequeue}, nil
+		}
 	}
 
 	live, err := r.CF.GetBotManagement(ctx, cr.Spec.ZoneID)
@@ -162,6 +190,70 @@ func (r *CloudflareBotManagementReconciler) writeStatus(
 	return r.Status().Patch(ctx, cr, patch)
 }
 
+// dependencyReady reports whether the referenced resource's Ready
+// condition is True. It returns (false, "not found", nil) when the
+// referenced CR does not exist yet — a common state during first
+// reconcile after a merge — so the caller can requeue without
+// treating the absence as an error.
+func (r *CloudflareBotManagementReconciler) dependencyReady(ctx context.Context, ref *cfv1alpha1.ResourceRef) (bool, string, error) {
+	obj, ok := newDependencyObject(ref.Kind)
+	if !ok {
+		return false, fmt.Sprintf("unsupported dependency kind %q", ref.Kind), nil
+	}
+	if err := r.Get(ctx, types.NamespacedName{Name: ref.Name}, obj); err != nil {
+		if kerrors.IsNotFound(err) {
+			return false, "not found", nil
+		}
+		return false, "", err
+	}
+	for _, c := range readDependencyConditions(obj) {
+		if c.Type != cfv1alpha1.ConditionTypeReady {
+			continue
+		}
+		if c.Status == metav1.ConditionTrue {
+			return true, "", nil
+		}
+		reason := c.Reason
+		if reason == "" {
+			reason = "not Ready"
+		}
+		return false, reason, nil
+	}
+	return false, "no Ready condition reported", nil
+}
+
+// newDependencyObject returns an empty CR of the kind requested by a
+// ResourceRef so the client can Get into it. All cloudflare-operator
+// CRs are cluster-scoped and register their kinds on the shared scheme
+// used by the manager.
+func newDependencyObject(kind string) (client.Object, bool) {
+	switch kind {
+	case "CloudflareCustomRule":
+		return &cfv1alpha1.CloudflareCustomRule{}, true
+	case "CloudflareRateLimit":
+		return &cfv1alpha1.CloudflareRateLimit{}, true
+	case "CloudflareBotManagement":
+		return &cfv1alpha1.CloudflareBotManagement{}, true
+	default:
+		return nil, false
+	}
+}
+
+// readDependencyConditions returns the Conditions slice of a
+// cloudflare-operator CR without reflecting: the interface for each
+// kind is fixed and known.
+func readDependencyConditions(obj client.Object) []metav1.Condition {
+	switch v := obj.(type) {
+	case *cfv1alpha1.CloudflareCustomRule:
+		return v.Status.Conditions
+	case *cfv1alpha1.CloudflareRateLimit:
+		return v.Status.Conditions
+	case *cfv1alpha1.CloudflareBotManagement:
+		return v.Status.Conditions
+	}
+	return nil
+}
+
 func (r *CloudflareBotManagementReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cfv1alpha1.CloudflareBotManagement{}, builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, annotationOrDeletionChanged()))).
@@ -188,10 +280,6 @@ func mergeBotManagement(live cloudflare.BotManagement, spec cfv1alpha1.Cloudflar
 		if spec.BotFightMode.SuppressSessionScore != nil {
 			diffs = appendBoolDiff(diffs, "botFightMode.suppressSessionScore", live.SuppressSessionScore, spec.BotFightMode.SuppressSessionScore)
 			merged.SuppressSessionScore = boolPtr(*spec.BotFightMode.SuppressSessionScore)
-		}
-		if spec.BotFightMode.UsingLatestModel != nil {
-			diffs = appendBoolDiff(diffs, "botFightMode.usingLatestModel", live.UsingLatestModel, spec.BotFightMode.UsingLatestModel)
-			merged.UsingLatestModel = boolPtr(*spec.BotFightMode.UsingLatestModel)
 		}
 	}
 

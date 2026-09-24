@@ -8,6 +8,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.VCS
+  alias Tuist.VCS.RemoteURL
   alias Tuist.Xcode
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
@@ -19,6 +20,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
   alias TuistWeb.RemoteIp
@@ -525,7 +527,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     git_commit_sha = Map.get(body_params, :git_commit_sha)
     git_ref = Map.get(body_params, :git_ref)
-    git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
+    git_remote_url_origin = body_params |> Map.get(:git_remote_url_origin) |> RemoteURL.strip_credentials()
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)
@@ -551,7 +553,7 @@ defmodule TuistWeb.API.AnalyticsController do
     selective_testing_metadata = selective_testing_metadata(body_params)
 
     command_event =
-      CommandEvents.create_command_event(%{
+      %{
         id: command_event_id,
         name: body_params.name,
         subcommand: Map.get(body_params, :subcommand, nil),
@@ -581,7 +583,18 @@ defmodule TuistWeb.API.AnalyticsController do
         ran_at: date(body_params),
         build_run_id: build_run_id,
         test_run_id: test_run_id
-      })
+      }
+      |> CommandEvents.create_command_event()
+      |> case do
+        {:ok, command_event} ->
+          command_event
+
+        {:error, :not_found} ->
+          raise NotFoundError,
+                dgettext("dashboard", "The project %{project_slug} was not found.", %{
+                  project_slug: "#{selected_project.account.name}/#{selected_project.name}"
+                })
+      end
 
     # Where the account's cache traffic comes from, counted once per run that
     # used the cache. This is the unit placement thresholds are expressed in:

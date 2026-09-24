@@ -7,12 +7,6 @@
 ---
 # Bazel test insights {#bazel-test-insights}
 
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link> with Bazel selected as the build system
-> - `tuist bazel setup` has been run in the workspace (see <.localized_link href="/guides/features/cache/bazel-cache">Bazel cache</.localized_link>)
-
 Run Bazel tests through Tuist to feed the same test dashboards used by every other build system:
 
 ```bash

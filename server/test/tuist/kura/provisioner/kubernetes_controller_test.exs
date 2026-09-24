@@ -6,6 +6,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.EgressLimits
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
@@ -14,6 +15,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   setup :set_mimic_from_context
 
   setup do
+    stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
+    stub(Identity, :endpoint_migration_paused?, fn _account -> false end)
+    stub(Identity, :endpoint_handle, &Identity.tenant_id/1)
+    stub(Identity, :client_handles, fn account -> [String.downcase(account.name)] end)
     # The manifest resolves the account's egress override from the database, the
     # same way it resolves its disk claim. These tests render manifests for
     # unpersisted accounts, so the unoverridden answer is stubbed here and the
@@ -23,10 +28,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     stub(EgressLimits, :effective_limits, fn _account, region, region_floor ->
       %{floor_mbps: region_floor, burst_mbps: Regions.egress_burst_mbps(region)}
     end)
-
-    # The account's replication-pull flag is read the same way; the tests that
-    # exercise the flip state their own answer.
-    stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn _account -> false end)
 
     :ok
   end
@@ -383,7 +384,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert non_entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
     end
 
-    test "renders the replication-pull flag into the spec only for an account whose flag is on" do
+    test "renders KURA_REPLICATION_PULL and the +pull revision marker for every mesh instance" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -395,7 +396,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       account = %Account{id: 1, name: "tuist"}
       region = eu_region(%{mesh: true})
 
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> true end)
       pulling = KubernetesController.manifest("kura-tuist-eu-west-1", "0.5.2", account, region, %Server{})
       pulling_env = Map.new(pulling["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       assert pulling_env["KURA_REPLICATION_PULL"] == "true"
@@ -404,29 +404,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # rollout bump until the CRD is upgraded.
       refute Enum.any?(pulling["spec"], fn {key, _} -> String.contains?(String.downcase(key), "pull") end)
 
-      # The env has to move the revision or the reconciler would never apply
-      # it; the marker is present only when on so the rest of the fleet stays
-      # byte-identical.
+      # The marker every flipped account already carried, held constant so
+      # the removal of the per-account flag rolls nothing.
       assert pulling["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
                KubernetesController.manifest_revision() <> "+pull+backfill"
-
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> false end)
-      pushing = KubernetesController.manifest("kura-tuist-eu-west-1", "0.5.2", account, region, %Server{})
-      pushing_env = Map.new(pushing["spec"]["extraEnv"], &{&1["name"], &1["value"]})
-      refute Map.has_key?(pushing_env, "KURA_REPLICATION_PULL")
-
-      assert pushing["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
-               KubernetesController.manifest_revision() <> "+backfill"
     end
 
-    test "leaves an instance outside a mesh region alone when the account's pull flag is on" do
+    test "leaves an instance outside a mesh region without the pull env or marker" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
-
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn _ -> true end)
 
       manifest =
         KubernetesController.manifest(
@@ -1444,7 +1433,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
 
       assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, eu_region(%{mesh: true})) ==
-               KubernetesController.manifest_revision() <> "+backfill"
+               KubernetesController.manifest_revision() <> "+pull+backfill"
     end
 
     test "changes when a peer is enrolled, matching the rendered manifest annotation" do
@@ -1605,7 +1594,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # are not rolled, and the non-entitled ones shed their old `+nosync`
       # marker exactly once, crossing onto the view.
       assert non_entitled == entitled
-      assert entitled == KubernetesController.manifest_revision() <> "+backfill"
+      assert entitled == KubernetesController.manifest_revision() <> "+pull+backfill"
 
       # The rendered manifest stamps the same revision the reconciler computes,
       # so the two never disagree and loop.
@@ -1623,7 +1612,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == non_entitled
     end
 
-    test "crosses a revision boundary on the replication-pull flag so the flip re-applies" do
+    test "keeps the +pull revision marker on mesh regions and off the rest" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -1636,14 +1625,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       region = eu_region(%{mesh: true})
       account = %Account{id: 1, name: "tuist"}
 
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> false end)
-      pushing = KubernetesController.manifest_revision(%Server{account: account}, region)
-
-      stub(Tuist.FeatureFlags, :kura_replication_pull_enabled?, fn ^account -> true end)
+      outside = KubernetesController.manifest_revision(%Server{account: account}, eu_region())
       pulling = KubernetesController.manifest_revision(%Server{account: account}, region)
 
-      refute pushing == pulling
-      assert pushing == KubernetesController.manifest_revision() <> "+backfill"
+      refute outside == pulling
+      assert outside == KubernetesController.manifest_revision() <> "+backfill"
       assert pulling == KubernetesController.manifest_revision() <> "+pull+backfill"
 
       manifest =
@@ -1669,11 +1655,95 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           eu_region(%{mesh: true})
         )
 
-      assert revision == KubernetesController.manifest_revision() <> "+backfill"
+      assert revision == KubernetesController.manifest_revision() <> "+pull+backfill"
     end
   end
 
   describe "rollout/2" do
+    test "a paused missing instance is created only if it has never published a URL" do
+      stub(Identity, :endpoint_migration_paused?, fn _account -> true end)
+      stub(Client, :get_kura_instance, fn "kura", "kura-original-eu-west-1", [] -> {:error, :not_found} end)
+
+      inputs = %{
+        image_tag: "new",
+        account: %{name: "latest", kura_tenant_id: "original"},
+        server: %Server{url: "https://middle-eu-west-1.kura.tuist.dev"},
+        region: eu_region()
+      }
+
+      stub(Client, :apply, fn _, _ -> flunk("cannot reconstruct published endpoints from a missing instance") end)
+      assert {:error, :endpoint_migration_paused} = KubernetesController.rollout("kura-original-eu-west-1", inputs)
+
+      expect(Client, :apply, fn manifest, [] ->
+        assert manifest["spec"]["publicHost"] == "original-eu-west-1.kura.tuist.dev"
+        refute Map.has_key?(manifest["spec"], "clientHostAliases")
+        {:ok, manifest}
+      end)
+
+      assert :ok = KubernetesController.rollout("kura-original-eu-west-1", %{inputs | server: %Server{}})
+    end
+
+    test "paused migration preserves deployed public, gRPC, private hosts and aliases during image updates" do
+      stub(Identity, :endpoint_migration_paused?, fn _account -> true end)
+
+      # These may be intermediate names, not the immutable tenant or latest name.
+      endpoints = %{
+        "publicHost" => "middle-eu-west-1.kura.tuist.dev",
+        "grpcPublicHost" => "grpc-middle.kura.tuist.dev",
+        "privateHost" => "middle.kura.internal",
+        "clientHostAliases" => ["original-eu-west-1.kura.tuist.dev"]
+      }
+
+      expect(Client, :get_kura_instance, fn "kura", "kura-original-eu-west-1", [] ->
+        {:ok, %{"spec" => Map.put(endpoints, "image", "ghcr.io/tuist/kura:old")}}
+      end)
+
+      expect(Client, :apply, fn manifest, [] ->
+        assert Map.take(manifest["spec"], Map.keys(endpoints)) == endpoints
+        assert manifest["spec"]["image"] == "ghcr.io/tuist/kura:new"
+        assert manifest["spec"]["tenantID"] == "original"
+        {:ok, manifest}
+      end)
+
+      assert :ok =
+               KubernetesController.rollout("kura-original-eu-west-1", %{
+                 image_tag: "new",
+                 account: %{name: "latest", kura_tenant_id: "original"},
+                 server: %Server{},
+                 region: eu_region()
+               })
+    end
+
+    test "paused migration preserves absent endpoint fields and fails closed on observation errors" do
+      stub(Identity, :endpoint_migration_paused?, fn _account -> true end)
+
+      inputs = %{
+        image_tag: "new",
+        account: %{name: "latest", kura_tenant_id: "original"},
+        server: %Server{},
+        region: eu_region()
+      }
+
+      expect(Client, :get_kura_instance, fn "kura", "kura-original-eu-west-1", [] ->
+        {:ok, %{"spec" => %{"publicHost" => "original-eu-west-1.kura.tuist.dev"}}}
+      end)
+
+      expect(Client, :apply, fn manifest, [] ->
+        refute Map.has_key?(manifest["spec"], "clientHostAliases")
+        refute Map.has_key?(manifest["spec"], "grpcPublicHost")
+        refute Map.has_key?(manifest["spec"], "privateHost")
+        {:ok, manifest}
+      end)
+
+      assert :ok = KubernetesController.rollout("kura-original-eu-west-1", inputs)
+
+      for result <- [{:error, :timeout}, {:ok, %{}}] do
+        expect(Client, :get_kura_instance, fn "kura", "kura-original-eu-west-1", [] -> result end)
+        reject(&Client.apply/2)
+        assert {:error, _} = KubernetesController.rollout("kura-original-eu-west-1", inputs)
+      end
+    end
+
     test "applies the KuraInstance without waiting for controller readiness" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
