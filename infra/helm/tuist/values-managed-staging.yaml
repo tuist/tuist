@@ -856,11 +856,12 @@ rackLinuxFleet:
       nodeTaints:
         - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
   hosts:
-    - name: ber1-edge
+    # The two edges, each netbooting from the other. ber1-edge-a is preferred.
+    - name: ber1-edge-a
       role: edge
       tailnetTags: [tag:tuist-rack-edge]
-    # The standby edge. It netboots from the boot server on ber1-edge, which
-    # holds the floating provisioning address while ber1-edge-b is not up.
+      # Its i226-LM, on ber1-mgmt port 1.
+      bootMAC: "38:05:25:38:b5:b5"
     - name: ber1-edge-b
       role: edge
       tailnetTags: [tag:tuist-rack-edge]
