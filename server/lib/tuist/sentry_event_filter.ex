@@ -6,7 +6,25 @@ defmodule Tuist.SentryEventFilter do
 
   alias Tuist.Telemetry.QueryErrorContext
 
+  # `InvalidCSRFTokenError` fires whenever a POST reaches a CSRF-protected
+  # route without a matching token. Every scanner and misconfigured link
+  # previewer that touches a form endpoint raises it, so the report
+  # carries no signal about broken code — only about background probing —
+  # and the plug has already turned the request into a 403. Legitimate
+  # regressions (a broken layout, a stale token in our own JS) still
+  # surface through the 403 rate in Loki, request-completed traces, and
+  # dashboard reports, all of which move together and stay visible even
+  # when the Sentry event is dropped.
+  #
+  # `InvalidCrossOriginRequestError` is deliberately NOT filtered: it
+  # trips when a non-XHR GET returns JS from a CSRF-protected pipeline,
+  # which historically caught a real layout bug where FunWithFlags.UI's
+  # bundled JS asset was routed through `:browser_app` (see
+  # `skip_csrf_for_fun_with_flags_assets/2` in the router). Keeping it
+  # visible so the next similar layout regression pages us instead of
+  # silently 403-ing.
   @additional_ignored_exceptions [
+    Plug.CSRFProtection.InvalidCSRFTokenError,
     TuistWeb.Errors.BadRequestError,
     TuistWeb.Errors.NotFoundError,
     TuistWeb.Errors.TooManyRequestsError,
