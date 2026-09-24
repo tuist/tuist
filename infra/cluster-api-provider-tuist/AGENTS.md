@@ -204,6 +204,11 @@ own source address. Notes:
   the rules survive a reboot or an external flush with no SSH round trip.
 - Loopback must stay open or `renderSSHReachabilityScript`'s `127.0.0.1:22`
   probe reads as a permanent wedge and reloads ssh every minute.
+- Every pass rule carries `flags any`. On a fresh host `installVMEgressFirewall`
+  enables pf under the bootstrap's own session, so that session has no state
+  when the guard loads, and under pf's default `flags S/SA` its next packet
+  hits the block. macOS pf tracks a connection it picks up mid-stream with the
+  maximum window scale, so the adopted session is not throttled.
 - Folding the live session's source into the table makes the guard
   self-correcting: if the operator's egress address changes and the configured
   list goes stale, the public dial is dropped, the drift loop falls back to the

@@ -679,7 +679,7 @@ func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
 	}
 	for _, want := range []string{
 		"table <vm_ssh_sources> persist { 192.168.64.0/22 }",
-		"pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state",
+		"pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state",
 		"block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22",
 	} {
 		if !strings.Contains(s, want) {
@@ -696,6 +696,59 @@ func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
 	if vmPass < strings.Index(s, "block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22") {
 		t.Error("VM pass renders before the VM→VM block; a VM could reach the host's :22")
 	}
+}
+
+// On a fresh host pf is enabled under the bootstrap's own SSH session, so that
+// session reaches the guard with no state. With pf's default `flags S/SA` only a
+// SYN creates state, and the session's next packet falls through to the block.
+func TestRenderSSHIngressGuardScript_PassesAdmitEstablishedSessions(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{SSHIngressAllowCIDRs: []string{"203.0.113.7/32"}})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	const open = "<<PFCONF\n"
+	start := strings.Index(s, open)
+	if start < 0 {
+		t.Fatalf("no PFCONF heredoc in rendered script\n%s", s)
+	}
+	anchor := s[start+len(open):]
+	end := strings.Index(anchor, "\nPFCONF\n")
+	if end < 0 {
+		t.Fatalf("unterminated PFCONF heredoc\n%s", s)
+	}
+	anchor = strings.ReplaceAll(anchor[:end+1], "${SESSION_ENTRY}", ", 198.51.100.9")
+
+	assertPassesUseFlagsAny := func(source, rules string) {
+		t.Helper()
+		passes := 0
+		for _, line := range strings.Split(rules, "\n") {
+			if !strings.HasPrefix(line, "pass ") {
+				continue
+			}
+			passes++
+			if !strings.Contains(line, " flags any ") {
+				t.Errorf("%s: pass rule only admits new connections: %q", source, line)
+			}
+		}
+		if passes == 0 {
+			t.Fatalf("%s: no pass rules in\n%s", source, rules)
+		}
+	}
+	assertPassesUseFlagsAny("rendered anchor", anchor)
+
+	pfctl, err := exec.LookPath("pfctl")
+	if err != nil {
+		return
+	}
+	file := filepath.Join(t.TempDir(), "tuist.sshguard")
+	if err := os.WriteFile(file, []byte(anchor), 0o600); err != nil {
+		t.Fatalf("write anchor: %v", err)
+	}
+	parsed, err := exec.Command(pfctl, "-n", "-v", "-f", file).Output()
+	if err != nil {
+		t.Fatalf("pfctl rejects the anchor: %v\n%s", err, anchor)
+	}
+	assertPassesUseFlagsAny("pfctl", string(parsed))
 }
 
 // A malformed allow CIDR must fail closed rather than render a creative
