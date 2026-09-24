@@ -19,7 +19,6 @@ name: Kura Canary Release
 # resolves it. The RC/stable train only serves self-hosted operators.
 on:
   workflow_call:
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -29,12 +28,13 @@ permissions:
   id-token: write
 
 concurrency:
-  # Serialize all Kura publishing (canaries, RCs, promotions) through one
-  # ref-independent group. They all derive the next version from the tag set
-  # and create tags, so they must never run concurrently. Queue rather than
-  # cancel so each release publishes atomically. kura-rc.yml and
-  # kura-promote.yml share this group.
-  group: kura-publish
+  # Canaries get their own group so the deploy cascade never queues behind a
+  # multi-hour RC or promote build. Canary, RC and stable tags are disjoint
+  # (-canary.N, -rc.N, X.Y.Z), so they cannot collide. The only overlap: a
+  # canary resolved while an RC line is being cut keeps the previous minor,
+  # and the next canary moves on. Queue rather than cancel so each canary
+  # publishes atomically.
+  group: kura-canary-publish
   cancel-in-progress: false
 
 env:

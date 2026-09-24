@@ -790,9 +790,10 @@ jobs:
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@' 'tuist/tuist-xcresult-processor')"
             # Hosted Kura follows main like the server: the newest canary
             # this commit contains (server-production-deployment.yml calls
-            # kura-release.yml before deploying a Kura change). The weekly RC/stable train is for
-            # self-hosted operators. The stable fallback only covers
-            # re-deploys of commits that predate canaries.
+            # kura-release.yml before deploying a Kura change). The weekly
+            # RC/stable train is for self-hosted operators. The stable
+            # fallback only covers re-deploys of commits that predate
+            # canaries.
             kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' merged '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$')"
             [ -n "$kura_runtime_tag" ] || kura_runtime_tag="$(resolve 'kura@' 'tuist/kura' any)"
             echo "KURA_RUNTIME_TAG=$kura_runtime_tag"

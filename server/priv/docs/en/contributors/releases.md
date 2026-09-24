@@ -91,13 +91,13 @@ Every component uses the same three channels:
 
 | Channel | Version | Cut by |
 |---------|---------|--------|
-| Canary | `X.Y.0-canary.N` | Automatically, on every component-touching push to `main` (`<component>-release.yml`) |
+| Canary | `X.Y.0-canary.N` | Automatically, on every component-touching push to `main` (`<component>-release.yml`; for Kura, called by `server-production-deployment.yml` when `kura/` changed) |
 | Release candidate | `X.Y.0-rc.N` | Every Monday, or manually, on a `releases/<component>-<major>.<minor>.x` branch (`<component>-rc.yml`) |
 | Stable | `X.Y.Z` | Every Monday, or manually, by promoting a soaked RC (`<component>-promote.yml`); patches via `<component>-backport.yml` |
 
 Canary and RC builds are published as GitHub prereleases (never marked "Latest", never move `:latest` on GHCR, never pushed to Homebrew for the CLI), so package managers and image resolvers only pick them up on explicit opt-in. Canary always targets the next unreleased minor: once an RC line is cut, `main`'s canary advances to the following minor.
 
-Hosted Tuist does not wait for the stable train: the server deploys per commit, and hosted Kura runs the newest Kura canary. For Kura, `kura-release.yml` is called by `server-production-deployment.yml` when `kura/` changed, so the canary is published before the deploy cascade uses it.
+Hosted Tuist does not wait for the stable train: the server deploys per commit, and hosted canary and production run the newest Kura canary. The deploy cascade publishes that canary itself before deploying it, so `kura-release.yml` has no trigger of its own. Changes to the Kura release tooling alone (`mise/tasks/kura/**`, the `kura-*.yml` workflows) do not cut a canary.
 
 You never hand-pick version numbers. Every channel's next version is derived from the existing git tags by `mise/tasks/<component>/release/channel-version.sh`, which the workflows below invoke.
 
@@ -170,12 +170,12 @@ Users need to clear their cache after updating.
 
 The CLI, the server, and Kura each have their own set of channel workflows, following the same shape:
 
-- `<component>-release.yml` - publishes a canary on every component-touching push to `main`
+- `<component>-release.yml` - publishes a canary on every component-touching push to `main` (Kura's is a reusable workflow that `server-production-deployment.yml` calls when `kura/` changed)
 - `<component>-rc.yml` - cuts a release candidate every Monday (via `workflow_run` after the promote), or manually cuts or iterates one
 - `<component>-promote.yml` - promotes the pending RC to stable every Monday at 06:00 UTC, or manually promotes a soaked RC
 - `<component>-build-publish.yml` - the shared build and publish pipeline the three above call
 
-The CLI additionally has `cli-backport.yml` for cutting patches on a stable line. All of a component's workflows serialize through one `<component>-publish` concurrency group so version resolution and tagging never race.
+The CLI additionally has `cli-backport.yml` for cutting patches on a stable line. All of a component's workflows serialize through one `<component>-publish` concurrency group so version resolution and tagging never race. Kura is the exception: its canary uses `kura-canary-publish` and its RC and promote use `kura-stable-publish`, so a long RC or promote build never holds up the deploy cascade. The tag namespaces are disjoint, so the two groups cannot collide.
 
 The Helm chart and the infrastructure images (CAPI operator, runners controller, xcresult processor image, linux runner image, and so on) still release through `.github/workflows/server-production-deployment.yml`. It runs on pushes to `main` and cascades canary → acceptance tests → production for the hosted deploy, and publishes those infra components as they change. The app, cache, Gradle plugin, skills, Noora, and the standalone infra controllers each have a dedicated `*-release.yml` workflow. All of them share change detection: `mise/tasks/release/components.json` declares each component's tag prefix and include paths, and git cliff turns the matching commits into release notes.
 
