@@ -366,10 +366,8 @@ async fn feed_cap_drops_the_oldest_rows_instead_of_blocking() {
     );
 }
 
-// A feed held at its cap by a sibling that stopped reading trims in batches:
-// every cap trim is a range delete from key 0, so one per write stacks
-// thousands of nested tombstones in a memtable, which RocksDB fragments
-// quadratically on read, flush and WAL replay.
+// A feed held at its cap by a sibling that stopped reading trims in batches,
+// not on every write.
 #[tokio::test]
 async fn feed_cap_trims_in_batches_while_pinned_at_the_cap() {
     let context = test_context(|config| config.sync_feed_max_rows = 10).await;

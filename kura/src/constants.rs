@@ -28,10 +28,9 @@ pub const ROCKSDB_WAL_BYTES_PER_SYNC: u64 = 1024 * 1024;
 
 pub const ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER: i32 = 20;
 pub const ROCKSDB_LEVEL0_STOP_TRIGGER: i32 = 36;
-/// Range deletes a `key_value` memtable holds before RocksDB flushes it. Reads,
-/// flushes and WAL replay fragment a memtable's overlapping tombstones into up
-/// to ~N²/2 entries, so an unbounded count is an OOM rather than a slowdown.
-/// Well above the handful a healthy memtable carries.
+/// Range deletes a `key_value` memtable holds before RocksDB flushes it, since
+/// overlapping tombstones fragment quadratically. Well above the handful a
+/// healthy memtable carries.
 pub const ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS: u32 = 256;
 pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;

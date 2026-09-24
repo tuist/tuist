@@ -32,7 +32,7 @@ the same `A-n` tag):
 | A-2 | Echo rule | a change applied from the sibling writes no row; a no-op apply writes no row |
 | A-3 | Seq monotonic across reopen; incarnation stable across reopen, new on an empty dir | values compared across `Store::open` |
 | A-4 | Trim below the consumer cursor; floor meta advances; range delete | rows below cursor gone, floor == cursor |
-| A-5 | Cap drops oldest, never blocks a write | write succeeds at cap; oldest row gone; dropped counter +1 |
+| A-5 | Cap drops oldest in batches, never blocks a write | write succeeds at cap; the feed overshoots by one trim batch, then the oldest rows go and the dropped counter rises by the batch |
 | A-6 | Activation by `{head}`; off after the stale window | no rows before the first `{head}`; rows after; rows dropped after the window |
 | A-7 | Endpoint four cases | `{entries,next,head}` / `{head}` / `410 floor` / `410 incarnation` |
 | A-8 | Long-poll wakes on commit, returns on `wait` | latency < wait when a commit lands; == wait when idle |

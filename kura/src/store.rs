@@ -7933,14 +7933,9 @@ impl Store {
         );
         let floor = self.sync_feed.floor();
         let cap = self.sync_feed.cap();
-        // The feed overshoots the cap by a batch before it trims back to it,
-        // so a feed pinned at its cap by a lagging sibling pays one range
-        // delete per batch of writes rather than one per write. Every trim
-        // starts at key 0, so each tombstone nests over all the earlier ones,
-        // and RocksDB fragments N nested tombstones into ~N²/2 entries on every
-        // read, flush and WAL replay of the memtable holding them: one per
-        // write reached thousands per memtable and OOM-killed the node, live
-        // and again on each restart's recovery.
+        // Overshoot by a batch before trimming back: every trim is a range
+        // delete from key 0, so a trim per write under a pinned cap stacks
+        // nested tombstones that RocksDB fragments quadratically.
         if ticket.seq().saturating_sub(floor) > cap.saturating_add(sync_feed_cap_trim_slack(cap)) {
             let new_floor = ticket.seq() - cap;
             self.stage_sync_feed_trim(batch, new_floor);

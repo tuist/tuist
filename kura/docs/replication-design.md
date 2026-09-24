@@ -1043,7 +1043,8 @@ names below are the shipped ones.
 - `kura_sync_forward_cursor_lag_entries{peer}` and `_seconds{peer}` — how far
   the sibling is behind. On loopback this should sit near zero; sustained lag is
   the early warning for a flip landing on a cold replica.
-- `kura_sync_forward_index_entries` — arrival-feed depth, bounded by the cap.
+- `kura_sync_forward_index_entries` — arrival-feed depth, bounded by the cap
+  plus one trim batch.
 - `kura_sync_forward_index_dropped_total` — **drop-oldest events.** Non-zero
   means a sibling fell off the retained range and will need a backward pass. On
   loopback this should be approximately never, so it is an alert, not a gauge to
