@@ -92,7 +92,6 @@ defmodule TuistWeb.Helpers.VCSLinks do
 
   attr :project, :map, required: true
   attr :git_ref, :string, required: true
-  attr :show_icon, :boolean, default: false
   attr :fallback, :string, default: nil
   attr :rest, :global
 
@@ -104,17 +103,8 @@ defmodule TuistWeb.Helpers.VCSLinks do
 
     ~H"""
     <%= if @pr_number do %>
-      <%= if @url do %>
-        <a href={@url} target="_blank" {@rest}>
-          <.git_merge :if={@show_icon} />
-          {"##{@pr_number}"}
-        </a>
-      <% else %>
-        <span {@rest}>
-          <.git_merge :if={@show_icon} />
-          {"##{@pr_number}"}
-        </span>
-      <% end %>
+      <a :if={@url} href={@url} target="_blank" {@rest}>{"##{@pr_number}"}</a>
+      <span :if={!@url} {@rest}>{"##{@pr_number}"}</span>
     <% else %>
       <span :if={@fallback} {@rest}>{@fallback}</span>
     <% end %>

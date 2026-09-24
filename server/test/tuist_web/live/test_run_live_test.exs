@@ -674,7 +674,7 @@ defmodule TuistWeb.TestRunLiveTest do
     refute has_element?(lv, "a", "Download result")
   end
 
-  describe "pull request metadata" do
+  describe "pull request button" do
     test "links the test run to its pull request", %{conn: conn, organization: organization} do
       project =
         ProjectsFixtures.project_fixture(
@@ -689,26 +689,24 @@ defmodule TuistWeb.TestRunLiveTest do
 
       assert has_element?(
                lv,
-               ~s([data-part="test-details"] a[href="https://github.com/tuist/tuist/pull/23958"]),
-               "#23958"
+               ~s([data-part="actions"] a[data-part="pull-request-button"][href="https://github.com/tuist/tuist/pull/23958"]),
+               "PR #23958"
              )
     end
 
-    test "shows a fallback when the test run is not for a pull request", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
+    test "is hidden when the test run is not for a pull request", %{conn: conn, organization: organization} do
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: organization.account.id,
+          vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+        )
+
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, git_ref: "refs/heads/main")
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-      html = lv |> element(~s([data-part="test-details"])) |> render()
-
-      assert html =~ "Pull request"
-      assert html =~ "None"
-      refute html =~ "/pull/"
+      refute has_element?(lv, ~s([data-part="pull-request-button"]))
     end
   end
 
