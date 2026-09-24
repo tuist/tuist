@@ -63,6 +63,24 @@ defmodule TuistWeb.OverviewLive do
   end
 
   def handle_event(
+        "coverage_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("coverage-date-range", "custom")
+        |> Query.put("coverage-start-date", start_date)
+        |> Query.put("coverage-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "coverage-date-range", preset)
+      end
+
+    {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
+  end
+
+  def handle_event(
         "builds_period_changed",
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         socket

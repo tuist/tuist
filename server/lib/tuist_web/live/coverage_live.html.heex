@@ -1,0 +1,226 @@
+<div id="coverage">
+  <div data-part="filters">
+    <.date_picker
+      id="coverage-date-range-picker"
+      name="coverage-date-range"
+      presets={[
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@coverage_preset}
+      period={@coverage_period}
+      on_period_change="coverage_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel", detail: %{id: "coverage-date-range-picker"})
+          }
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply", detail: %{id: "coverage-date-range-picker"})
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+
+  <div :if={@loading} data-part="loading">
+    <.skeleton_box width="100%" height="320px" />
+    <.skeleton_box width="100%" height="240px" />
+  </div>
+
+  <%= if not @loading do %>
+    <%!-- Analytics --%>
+    <.card
+      title={dgettext("dashboard_tests", "Analytics")}
+      icon="chart_arcs"
+      data-part="analytics"
+    >
+      <div data-part="analytics-content">
+        <div :if={@latest} data-part="widgets">
+          <.widget
+            id="widget-coverage"
+            title={dgettext("dashboard_tests", "Code coverage")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it.",
+                branch: @branch,
+                sha: short_sha(@latest.git_commit_sha)
+              )
+            }
+            value={"#{@latest.coverage}%"}
+            legend_color="primary"
+            trend_value={@trend}
+            trend_label={dgettext("dashboard_tests", "over the period")}
+          />
+          <.widget
+            id="widget-coverage-covered-lines"
+            title={dgettext("dashboard_tests", "Covered lines")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Lines that commit's tests ran at least once."
+              )
+            }
+            value={format_number(@latest.covered_lines)}
+          />
+          <.widget
+            id="widget-coverage-executable-lines"
+            title={dgettext("dashboard_tests", "Executable lines")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Lines the compiler instrumented for coverage at that commit."
+              )
+            }
+            value={format_number(@latest.executable_lines)}
+          />
+          <.widget
+            id="widget-coverage-unmeasured-files"
+            title={dgettext("dashboard_tests", "Files without coverage data")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Source files Git tracks at that commit that no scheme compiled, so they are missing from the total."
+              )
+            }
+            value={format_number(Map.get(@latest, :unmeasured_files_count) || 0)}
+          />
+        </div>
+        <.card_section :if={@latest}>
+          <div data-part="analytics-chart">
+            <.coverage_trend_chart id="coverage-chart" points={@points} />
+          </div>
+        </.card_section>
+        <.coverage_empty
+          :if={is_nil(@latest)}
+          title={
+            dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
+              branch: @branch
+            )
+          }
+          get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+          data-part="empty-analytics"
+        />
+      </div>
+    </.card>
+
+    <%!-- Commits --%>
+    <.card
+      title={dgettext("dashboard_tests", "Recent commits")}
+      icon="git_commit"
+      data-part="commits"
+    >
+      <.card_section :if={@commit_rows != []} data-part="commits-section">
+        <.alert
+          :if={@commits_ordered_by == :time}
+          id="coverage-commits-time-order"
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_tests",
+              "Listed in the order they were measured: no run on this branch has reported its latest commit yet, so its Git history cannot be followed."
+            )
+          }
+        />
+        <div data-part="commits-table">
+          <.table
+            id="coverage-commits-table"
+            rows={@commit_rows}
+            row_navigate={
+              fn row ->
+                if row.measured,
+                  do:
+                    url(
+                      ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{row.git_commit_sha}"
+                    )
+              end
+            }
+          >
+            <:col :let={row} label={dgettext("dashboard_tests", "Commit")}>
+              <.text_cell label={short_sha(row.git_commit_sha)} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Coverage")}>
+              <.coverage_cell
+                :if={row.measured}
+                covered={row.covered_lines}
+                executable={row.executable_lines}
+              />
+              <.text_cell :if={not row.measured} label="—" />
+            </:col>
+            <:col :let={row} label={"#{scheme_label(@selected_project)}s"}>
+              <.measured_by_cell :if={row.measured} commit={row} />
+              <.text_cell :if={not row.measured} label="—" />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Status")}>
+              <.badge_cell
+                style="light-fill"
+                color={completeness_color(row)}
+                label={completeness_label(row)}
+                title={completeness_title(row)}
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard_tests", "Committed")}>
+              <.text_cell sublabel={
+                if row.committed_at,
+                  do: Tuist.Utilities.DateFormatter.from_now(row.committed_at),
+                  else: "—"
+              } />
+            </:col>
+          </.table>
+        </div>
+      </.card_section>
+      <.coverage_empty
+        :if={@commit_rows == []}
+        title={
+          dgettext("dashboard_tests", "No commit of %{branch} in this period", branch: @branch)
+        }
+        get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+        image="table"
+        data-part="empty-commits"
+      />
+    </.card>
+
+    <%!-- Where the latest commit is thinnest --%>
+    <.files_coverage_card
+      :if={@head_commit}
+      least_covered={@least_covered_files}
+      file_href={
+        fn path ->
+          coverage_file_href(@selected_account.name, @selected_project.name, path, %{
+            commit: @head_commit.git_commit_sha,
+            tab: "overview"
+          })
+        end
+      }
+      unmeasured={@unmeasured_files}
+      unmeasured_count={Map.get(@head_commit, :unmeasured_files_count) || 0}
+      href={
+        ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{@head_commit.git_commit_sha}?tab=files"
+      }
+    />
+  <% end %>
+</div>

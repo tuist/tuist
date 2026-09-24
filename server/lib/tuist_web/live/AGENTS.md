@@ -17,6 +17,8 @@ This area owns LiveView pages and components for the web UI.
 - Xcode overview charts opt into Noora's `data-lazy="true"` behavior so charts
   below the viewport do not initialize while the visible analytics are loading.
 
+- Code coverage has three pages. `CoverageLive` (`/tests/coverage`) is a glance at the **default branch** over the chosen period — analytics, recent commits, coverage gaps — whose commits and files open on `CoverageDetailLive` (`/tests/coverage/commits/:sha`: Overview, Targets, Files and Test Runs of one commit) and `CoverageFileLive` (`/tests/coverage/files/*path?commit=`, which leads back to the commit's tab it came from). Every figure is a commit's (`Tuist.Tests.Coverage.Commits`), pooled over the schemes that measured it, and the pages read on the connected render only, the static one showing a skeleton.
+
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.
 - Frontend assets are in `server/assets`.

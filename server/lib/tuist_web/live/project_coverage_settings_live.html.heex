@@ -1,0 +1,228 @@
+<div id="project-coverage-settings">
+  <h1 data-part="title">
+    {@selected_project.name}
+  </h1>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "General")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
+      label={dgettext("dashboard_projects", "Notifications")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
+    />
+    <.tab_menu_horizontal_item
+      :if={
+        Tuist.Projects.Project.xcode_project?(@selected_project) or
+          Tuist.Projects.Project.bazel_project?(@selected_project)
+      }
+      label={dgettext("dashboard_projects", "Automations")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Code coverage")}
+      selected={true}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/coverage"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.supports_bundles?(@selected_project)}
+      label={dgettext("dashboard_projects", "Bundles")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
+    />
+  </.tab_menu_horizontal>
+
+  <h2 data-part="subtitle">
+    {dgettext("dashboard_projects", "Code coverage")}
+  </h2>
+
+  <.card_section data-part="tracked-files-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">{dgettext("dashboard_projects", "Tracked files")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Files a run's evidence depends on beyond its sources, recorded with their blobs: dependency manifests, generator configuration, fixtures, snapshots."
+          )}
+        </span>
+      </div>
+    </div>
+    <div data-part="content">
+      <div data-part="setting-row">
+        <div data-part="content">
+          <div data-part="tags">
+            <.tag :for={glob <- @git_history.tracked_file_globs} label={glob} />
+            <.tag
+              :if={@git_history.tracked_file_globs == []}
+              label={dgettext("dashboard_projects", "Nothing tracked")}
+            />
+          </div>
+        </div>
+        <div data-part="row-content">
+          <.modal
+            id="coverage-tracked-files-modal"
+            title={dgettext("dashboard_projects", "Configure tracked files")}
+            header_size="large"
+            on_dismiss={JS.push("close_modal", value: %{form: "tracked_files"})}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Configure")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <form
+              id="coverage-tracked-files-form"
+              phx-change="update_form"
+              data-part="modal-form"
+            >
+              <input type="hidden" name="form" value="tracked_files" />
+              <.text_area
+                id="coverage-tracked-file-globs"
+                name="globs"
+                label={dgettext("dashboard_projects", "One Git pathspec glob per line")}
+                hint={
+                  dgettext(
+                    "dashboard_projects",
+                    "Globs match the whole repository-relative path, as in excluded paths. Nothing is tracked when empty."
+                  )
+                }
+                value={@forms["tracked_files"]["globs"]}
+                placeholder={Enum.join(["Package.resolved", "**/*.xctestplan"], "\n")}
+                rows={8}
+                max_length={10_000}
+                show_character_count={false}
+                phx-debounce="300"
+              />
+            </form>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_modal"
+                    phx-value-form="tracked_files"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Save")}
+                    variant="primary"
+                    phx-click="save_form"
+                    phx-value-form="tracked_files"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section data-part="excluded-paths-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">{dgettext("dashboard_projects", "Excluded paths")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Files left out of every coverage figure, such as generated code. Changes apply to past runs whose per-file coverage is still retained."
+          )}
+        </span>
+      </div>
+    </div>
+    <div data-part="content">
+      <div data-part="setting-row">
+        <div data-part="content">
+          <h3 data-part="title">{dgettext("dashboard_projects", "Globs")}</h3>
+          <div data-part="tags">
+            <.tag :for={glob <- @excluded_path_globs} label={glob} />
+            <.tag
+              :if={@excluded_path_globs == []}
+              label={dgettext("dashboard_projects", "Nothing excluded")}
+            />
+          </div>
+        </div>
+        <div data-part="row-content">
+          <.modal
+            id="coverage-excluded-paths-modal"
+            title={dgettext("dashboard_projects", "Configure excluded paths")}
+            header_size="large"
+            on_dismiss={JS.push("close_modal", value: %{form: "excluded_paths"})}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Configure")}
+                variant="secondary"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <form
+              id="coverage-excluded-paths-form"
+              phx-change="update_form"
+              data-part="modal-form"
+            >
+              <input type="hidden" name="form" value="excluded_paths" />
+              <.text_area
+                id="coverage-excluded-path-globs"
+                name="globs"
+                label={dgettext("dashboard_projects", "One glob per line")}
+                hint={
+                  dgettext(
+                    "dashboard_projects",
+                    "Globs match the whole repository-relative path: * and ? stay within a directory, **/ matches any number of directories, and /** everything inside one."
+                  )
+                }
+                value={@forms["excluded_paths"]["globs"]}
+                placeholder={Enum.join(["Sources/API/Generated/**", "**/*.pb.swift"], "\n")}
+                rows={6}
+                max_length={10_000}
+                show_character_count={false}
+                phx-debounce="300"
+              />
+            </form>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_modal"
+                    phx-value-form="excluded_paths"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Save")}
+                    variant="primary"
+                    phx-click="save_form"
+                    phx-value-form="excluded_paths"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+      </div>
+    </div>
+  </.card_section>
+</div>

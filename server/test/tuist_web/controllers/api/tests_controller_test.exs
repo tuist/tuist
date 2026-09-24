@@ -331,6 +331,54 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
     end
 
+    test "schedules the publication of uploaded coverage under the run's own key", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      run_id = UUIDv7.generate()
+      key = "#{user.account.name}/#{project.name}/runs/#{run_id}/coverage.ndjson.deflate"
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: run_id,
+        duration: 1000,
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        xcode_coverage_storage_key: key,
+        xcode_coverage_partial: true
+      })
+      |> json_response(:ok)
+
+      assert_enqueued(
+        worker: Tuist.Tests.Workers.PublishCoverageWorker,
+        args: %{test_run_id: run_id, storage_key: key, partial: true}
+      )
+    end
+
+    test "rejects a coverage storage key that is not the run's", %{conn: conn, user: user, project: project} do
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: false,
+          test_modules: [],
+          status: "success",
+          xcode_coverage_storage_key: "#{user.account.name}/#{project.name}/runs/other/coverage.ndjson.deflate"
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "xcode_coverage_storage_key"
+    end
+
     test "creates a test run with gradle build system", %{conn: conn, user: user, project: project} do
       expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 

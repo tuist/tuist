@@ -1,0 +1,35 @@
+<div id="coverage-file-page">
+  <.button
+    label={@back.label}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={@back.href}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <h1 data-part="title">{Path.basename(@path)}</h1>
+      <div data-part="badges">
+        <.badge label={@path} color="neutral" style="light-fill" size="large" />
+        <.badge label={scope_label(@scope)} color="information" style="light-fill" size="large" />
+      </div>
+    </div>
+  </div>
+
+  <div :if={@loading} data-part="loading">
+    <.skeleton_box width="100%" height="120px" />
+    <.skeleton_box width="100%" height="320px" />
+  </div>
+
+  <.card :if={not @loading and is_nil(@file)} title={@path} icon="file" data-part="file-empty">
+    <.coverage_empty
+      title={dgettext("dashboard_tests", "No coverage data for this file here")}
+      image="table"
+    />
+  </.card>
+
+  <.coverage_file_view :if={not @loading and @file} file={@file} />
+</div>

@@ -169,6 +169,8 @@ strip_release_binaries() {
         "$BUILD_DIRECTORY/tuist" \
         "$BUILD_DIRECTORY/ProjectDescription.framework/ProjectDescription" \
         "$BUILD_DIRECTORY/libtuist_cas_plugin.dylib" \
+        "$BUILD_DIRECTORY/libtuist_coverage_observer.dylib" \
+        "$BUILD_DIRECTORY/libtuist_coverage_observer_iossimulator.dylib" \
         "$BUILD_DIRECTORY/tuist-cas-proxy"
 }
 
@@ -201,6 +203,14 @@ build_cas_plugin() {
         -output "$BUILD_DIRECTORY/tuist-cas-proxy"
 }
 
+# Builds the coverage observer the CLI injects into test hosts to collect per-test coverage
+# evidence (cli/CoverageObserver), for macOS and for the iOS simulator. ResourceLocator-style
+# lookup finds both next to `tuist`. Plain C and Objective-C against Foundation, so no rpath
+# wiring is needed.
+build_coverage_observer() {
+    "$TUIST_DIR/cli/CoverageObserver/build.sh" "$BUILD_DIRECTORY"
+}
+
 echo "$(format_section "Building")"
 
 echo "$(format_subsection "Generating Xcode project")"
@@ -214,6 +224,9 @@ build_project_desscription
 
 echo "$(format_subsection "Building cas-plugin dylib")"
 build_cas_plugin
+
+echo "$(format_subsection "Building coverage observer dylibs")"
+build_coverage_observer
 
 echo "$(format_subsection "Bundling Swift runtime libraries")"
 bundle_swift_runtime_libraries
@@ -238,12 +251,14 @@ echo "$(format_section "Bundling")"
         done
     fi
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose libtuist_cas_plugin.dylib
+    /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose libtuist_coverage_observer.dylib
+    /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose libtuist_coverage_observer_iossimulator.dylib
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist-cas-proxy
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
-    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor libtuist_cas_plugin.dylib tuist-cas-proxy
+    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor libtuist_cas_plugin.dylib libtuist_coverage_observer.dylib libtuist_coverage_observer_iossimulator.dylib tuist-cas-proxy
 
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \
@@ -287,7 +302,7 @@ echo "$(format_section "Bundling")"
     rm "notarization-bundle.zip"
 
     echo "$(format_subsection "Bundling tuist.zip")"
-    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib tuist-cas-proxy
+    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib libtuist_coverage_observer.dylib libtuist_coverage_observer_iossimulator.dylib tuist-cas-proxy
 
     echo "$(format_subsection "Bundling ProjectDescription.xcframework.zip")"
     xcodebuild -create-xcframework -framework ProjectDescription.framework -output ProjectDescription.xcframework
@@ -298,7 +313,7 @@ echo "$(format_section "Bundling")"
     ./tuist --experimental-dump-help --path "$SPEC_TMP_DIR" > tuist.spec.json
     rm -rf "$SPEC_TMP_DIR"
 
-    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib tuist-cas-proxy
+    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib libtuist_coverage_observer.dylib libtuist_coverage_observer_iossimulator.dylib tuist-cas-proxy
 
     : > SHASUMS256.txt
     : > SHASUMS512.txt
