@@ -2954,6 +2954,9 @@ STUB
     run fleet_edge_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"interface=enp87s0"* ]]
+    # the standby edge holds no address on the port, where bind-interfaces exits
+    [[ "$output" == *$'\nbind-dynamic\n'* ]]
+    [[ "$output" != *"bind-interfaces"* ]]
     [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
     [[ "$output" == *"dhcp-option=tag:known,option:router,192.168.0.10"* ]]
     [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150,255.255.255.0,1h"* ]]
