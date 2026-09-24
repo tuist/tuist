@@ -75,7 +75,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS kubelet-builder
 
-WORKDIR /src
+WORKDIR /src/tart-kubelet
+COPY infra/runner-cache /src/runner-cache
 COPY infra/tart-kubelet/go.mod infra/tart-kubelet/go.sum ./
 RUN go mod download
 

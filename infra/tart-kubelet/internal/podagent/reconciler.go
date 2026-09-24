@@ -164,7 +164,8 @@ type Reconciler struct {
 	// — when nil or disabled (no runner-cache root provisioned on this
 	// host), every VM boots on the status-quo cold path and the volume
 	// lifecycle no-ops.
-	Volumes *VolumeManager
+	Volumes       *VolumeManager
+	CustomVolumes *CustomVolumes
 
 	// ConvergeHeadWaitInterval / ConvergeHeadWaitAttempts bound how long a
 	// background convergence waits for the guest to stage the cache-volume HEAD.
@@ -580,7 +581,13 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 		att = VolumeAttachment{}
 	}
+	if r.CustomVolumes != nil && pod.Labels["tuist.dev/runner"] == "true" {
+		if share, e := r.CustomVolumes.Share(pod); e == nil {
+			sharedDirs = append(sharedDirs, "custom-cache:"+share)
+		}
+	}
 	var statusDir string
+
 	if att.Attached {
 		// tart's --dir mounts read-write by default and only accepts a `:ro`
 		// modifier; a `:rw` suffix is parsed as part of the path and fails the

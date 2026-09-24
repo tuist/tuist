@@ -15,10 +15,12 @@ on:
       - feat/runners-shape-2
     paths:
       - infra/runners-controller/**
+      - infra/runner-cache/**
       - .github/workflows/runners-controller-image.yml
   pull_request:
     paths:
       - infra/runners-controller/**
+      - infra/runner-cache/**
       - .github/workflows/runners-controller-image.yml
   workflow_dispatch: {}
 
@@ -43,7 +45,7 @@ jobs:
       - name: Check formatting
         working-directory: infra/runners-controller
         run: |
-          files="$(gofmt -l .)"
+          files="$(gofmt -l . ../runner-cache)"
           if [ -n "$files" ]; then
             echo "$files"
             exit 1
@@ -60,7 +62,7 @@ jobs:
           cache-dependency-path: infra/runners-controller/go.sum
       - name: Test
         working-directory: infra/runners-controller
-        run: go test ./...
+        run: go test ./... ../runner-cache/...
       - name: Vet
         working-directory: infra/runners-controller
         run: go vet ./...

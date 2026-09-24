@@ -7,7 +7,7 @@ defmodule TuistWeb.RunnerCacheVolumesController do
 
   def authorize(conn, params) do
     with :ok <- authenticate(conn),
-         true <- Application.get_env(:tuist, :runner_linux_cache_volumes, false),
+         true <- enabled?(params),
          {:ok, identity} <- CacheVolumes.allocate(params) do
       conn |> put_resp_header("cache-control", "no-store") |> json(identity)
     else
@@ -57,6 +57,16 @@ defmodule TuistWeb.RunnerCacheVolumesController do
   end
 
   def image(conn, _), do: send_resp(conn, :bad_request, "")
+
+  defp enabled?(%{"pod_name" => pod, "node_name" => node}) do
+    case CacheVolumes.platform(pod, node) do
+      :linux -> Application.get_env(:tuist, :runner_linux_cache_volumes, false)
+      :macos -> Application.get_env(:tuist, :runner_macos_cache_volumes, false)
+      _ -> false
+    end
+  end
+
+  defp enabled?(_), do: false
 
   defp authenticate(conn) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),

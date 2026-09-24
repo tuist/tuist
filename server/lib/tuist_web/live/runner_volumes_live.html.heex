@@ -210,9 +210,9 @@
           >
             <.text_cell label={volume.repository} />
           </:col>
-          <:col label={dgettext("dashboard_runners", "Platform")}>
+          <:col :let={volume} label={dgettext("dashboard_runners", "Platform")}>
             <.badge_cell
-              label={dgettext("dashboard_runners", "Linux")}
+              label={if volume.platform == "macos", do: "macOS", else: "Linux"}
               color="attention"
               style="light-fill"
             />
@@ -308,7 +308,7 @@
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div><.badge
-                label={"Linux · #{volume.architecture}"}
+                label={"#{if volume.platform == "macos", do: "macOS", else: "Linux"} · #{volume.architecture}"}
                 color="neutral"
                 style="light-fill"
                 size="large"

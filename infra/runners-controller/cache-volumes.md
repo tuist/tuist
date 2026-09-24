@@ -63,7 +63,7 @@ Linux storage names are `linux-<hash of volume UUID and clear generation>`;
 macOS dispatch names still accept only `tuist-cache` and repository names. A Linux
 custom volume cannot be selected as a macOS cache by widening storage validation.
 
-The filesystem-specific implementation lives in `internal/cachevolumes/local.go`:
+The filesystem-specific implementation lives in `../runner-cache/local.go`:
 
 - A dedicated XFS filesystem with reflinks (or another validated reflink-capable
   filesystem) holds immutable masters and sparse, 20 decimal GB ext4 images.

@@ -32,6 +32,7 @@ type LocalImages struct {
 	SizeGB       int
 	MinFreeBytes uint64
 	Transfer     ImageTransfer
+	Clone        func(string, string) error
 	Run          func(context.Context, string, ...string) ([]byte, error)
 	Mount        func(string, string) error
 	Unmount      func(string, string) error
@@ -68,6 +69,9 @@ func (b *LocalImages) master(slot Slot) string {
 	return filepath.Join(b.Root, "masters", slot.Scope, fmt.Sprintf("%020d-%s.img", slot.BaseGeneration, slot.ContentDigest))
 }
 func (b *LocalImages) clone(src, dst string) error {
+	if b.Clone != nil {
+		return b.Clone(src, dst)
+	}
 	_, err := b.command("cp", "--reflink=always", "--", src, dst)
 	return err
 }
@@ -345,6 +349,9 @@ func (b *LocalImages) Seal(slot Slot, path string) error {
 	if err := b.verify(slot, path); err != nil {
 		return err
 	}
+	return b.publish(slot)
+}
+func (b *LocalImages) publish(slot Slot) error {
 	archive := b.image(slot) + ".gz"
 	defer os.Remove(archive)
 	digest, content, err := compressImage(b.image(slot), archive)

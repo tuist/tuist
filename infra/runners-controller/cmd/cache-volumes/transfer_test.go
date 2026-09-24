@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	"github.com/tuist/tuist/infra/runner-cache"
 )
 
 func TestPublicationPreflightChecksumAndRetry(t *testing.T) {

@@ -348,14 +348,14 @@ The archive contains everything needed to understand the account's complete data
 
 - **Pending Bazel profiles** (`bazel_profile_uploads`, PostgreSQL): One bounded gzip body (at most 32 MiB), state (`pending`, `processed`, `rejected`, or `failed`), rejection reason, project/invocation identifiers and timestamps per invocation. A job on the bounded Bazel artifact processor queue parses and sanitizes the raw profile; the request process only validates the envelope and digest. Raw bytes, which may include command lines, paths and credentials, are deleted after successful processing or terminal validation rejection, or exhausted processing retries. A new upload may replace a rejected or failed body and clear its error for another processing attempt; pending or processed duplicates leave the row unchanged. The existing batched daily Bazel ingestion cleanup removes staging/status rows older than 90 days. Export by `project_id`, including pending bodies and their invocation IDs.
 
-## Linux runner cache volumes (opt-in)
+## Runner cache volumes (opt-in)
 
 - **Volume identities** (`runner_cache_volumes`, PostgreSQL): UUID, account ID,
   provider, provider instance, immutable scope ID, optional numeric repository/project ID,
-  repository or pipeline display name, user-chosen key, architecture,
+  repository or pipeline display name, user-chosen key, platform (Linux or macOS), architecture,
   execution UID, generation, published head use UUID,
   last use, logical deletion and creation/update timestamps. Identity is unique
-  per account/provider/instance/scope/key/architecture/UID. GitHub uses github.com
+  per account/provider/instance/scope/key/platform/architecture/UID. GitHub uses github.com
   and repository ID; Buildkite uses organization UUID plus pipeline UUID and a
   SHA-256 repository-URL digest; GitLab uses a canonical instance-URL digest and
   project ID. Digests encode identity, not anonymization. Kept until account deletion.
@@ -379,22 +379,27 @@ The archive contains everything needed to understand the account's complete data
   visibility; they are not a billing ledger or measurements of unique physical
   allocation. Observation time is report receipt time, not the exact time data
   was written, and changes before reporting cannot be reconstructed.
-- **Cache contents** (host-local images and object storage): private sparse ext4
+- **Cache contents** (host-local images and object storage): private sparse ext4 (Linux) or APFS (macOS)
   images in `images/<use UUID>.img`, immutable reflink masters under
   `masters/<scope>/<HEAD generation>-<content SHA-256>.img`, and gzip-compressed
-  images under `runner-volume-masters/<account ID>/linux-<scope>/<image SHA-1>-<content SHA-256>.image`
+  images under `runner-volume-masters/<account ID>/<platform>-<scope>/<image SHA-1>-<content SHA-256>.image`
   in the existing account object storage. The scope hashes volume UUID and clear
   generation. Contents include anything workflows write, such as dependencies,
   package metadata and inadvertently cached credentials. Logical filesystem usage
   is not unique physical usage because reflinks share blocks and host replicas are
   evictable; dashboard measurements are not an inventory of every host replica.
 - **Host journal and scratch** (`cacheVolumes.hostPath`, default
-  `/var/lib/tuist-runner-cache`): `state/<use UUID>.json` records account ID, opaque
+  `/var/lib/tuist-runner-cache` on Linux; `<runner-cache-root>/custom` on macOS):
+  `state/<use UUID>.json` records account ID, opaque
   scope, parent/use UUIDs, base generation, digests, pod identity, state, permission,
   execution UID and measurements. Master `.json` sidecars retain their source
   identity for validating eviction against the server. `pods/<pod UID>/<scope>`
   exposes the private mounted image. Arbitrary scratch files may exist beneath
-  the pod subtree. Tokens and presigned URLs are not persisted in these records.
+  the pod subtree. macOS also keeps host-only `owners/<pod UID>` pod names for
+  orphan cleanup, bounded per-pod key/UID requests and allocation responses,
+  mounted/detached lease markers, and host-only verification/usage sidecars.
+  Guest APFS contents are not measured while mounted; verified usage is captured
+  after teardown. Tokens and presigned URLs are not persisted in these records.
 
 Export joins volumes, uses and measurements by account ID and includes the
 account's `runner-volume-masters` prefix and local image/master/journal/scratch

@@ -56,27 +56,30 @@ func init() {
 
 func main() {
 	var (
-		nodeName           string
-		providerID         string
-		nodeIP             string
-		nodeIPSource       string
-		scrapeAllowedCIDRs cidrList
-		nodeLabelsRaw      string
-		hostCPU            int
-		hostMemoryMB       int
-		maxPods            int
-		metricsAddr        string
-		probeAddr          string
-		tartBinary         string
-		vncControlDir      string
-		vncRelayHost       string
-		vncRelayPort       int
-		vncRelayPortCount  int
-		minGoldensKept     int
-		disableVMGC        bool
-		runnerCacheRoot    string
-		cacheVolumeCapGiB  int
-		cacheVolumeCASGiB  int
+		nodeName             string
+		providerID           string
+		nodeIP               string
+		nodeIPSource         string
+		scrapeAllowedCIDRs   cidrList
+		nodeLabelsRaw        string
+		hostCPU              int
+		hostMemoryMB         int
+		maxPods              int
+		metricsAddr          string
+		probeAddr            string
+		tartBinary           string
+		vncControlDir        string
+		vncRelayHost         string
+		vncRelayPort         int
+		vncRelayPortCount    int
+		minGoldensKept       int
+		disableVMGC          bool
+		runnerCacheRoot      string
+		customCacheURL       string
+		customCacheNamespace string
+		customCacheSA        string
+		cacheVolumeCapGiB    int
+		cacheVolumeCASGiB    int
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
@@ -136,6 +139,9 @@ func main() {
 		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images. "+
 			"Empty (default) disables cache volumes entirely: every VM boots on the status-quo cold path. "+
 			"Host bootstrap sets this to the runner-cache volume it provisions (e.g. /var/lib/tart-cache).")
+	flag.StringVar(&customCacheURL, "custom-cache-url", envOr("TART_KUBELET_CUSTOM_CACHE_URL", ""), "Opt-in server /api/internal/runners/cache-volumes URL")
+	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Runner namespace")
+	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
 	flag.IntVar(&cacheVolumeCapGiB, "cache-volume-cap-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAP_GIB", 20),
 		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
@@ -362,6 +368,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	var customVolumes *podagent.CustomVolumes
+	if customCacheURL != "" && volumes.Enabled() {
+		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Builtins: volumes}
+		if err := mgr.Add(customVolumes); err != nil {
+			setupLog.Error(err, "add custom volumes")
+			os.Exit(1)
+		}
+	}
 	if err := (&podagent.Reconciler{
 		CachedClient:       mgr.GetClient(),
 		NodeName:           nodeName,
@@ -379,10 +393,11 @@ func main() {
 		// sampler reuses it to POST for the job's full duration (a 1h TTL
 		// expired mid-run on long jobs and truncated their charts). It's
 		// Pod-bound, so it dies when the Pod is reaped regardless.
-		TokenMinter: &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 28800},
-		GC:          gcCollector,
-		Volumes:     volumes,
-		Recorder:    mgr.GetEventRecorderFor("tart-kubelet"),
+		TokenMinter:   &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 28800},
+		GC:            gcCollector,
+		Volumes:       volumes,
+		CustomVolumes: customVolumes,
+		Recorder:      mgr.GetEventRecorderFor("tart-kubelet"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)

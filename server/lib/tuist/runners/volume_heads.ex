@@ -72,8 +72,9 @@ defmodule Tuist.Runners.VolumeHeads do
   def valid_volume_name?(name) when is_binary(name), do: Regex.match?(~r/\Arepo-[0-9a-f]{16}\z/, name)
   def valid_volume_name?(_name), do: false
 
-  # Storage names are broader than dispatch labels. Custom volumes remain
-  # Linux-only; macOS volume_owner_for_sa still accepts only built-in names.
+  # Storage names are broader than dispatch labels. macOS volume_owner_for_sa
+  # still accepts only built-in names; custom images use the host agent.
+  def valid_storage_volume_name?("macos-" <> scope), do: Regex.match?(~r/\A[0-9a-f]{64}\z/, scope)
   def valid_storage_volume_name?("linux-" <> scope), do: Regex.match?(~r/\A[0-9a-f]{64}\z/, scope)
   def valid_storage_volume_name?(name), do: valid_volume_name?(name)
 

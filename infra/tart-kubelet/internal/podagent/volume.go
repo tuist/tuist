@@ -268,7 +268,8 @@ type VolumeManager struct {
 	// reserved holds the branch directories admission has reserved CapGiB for:
 	// branches materialized and not yet finalized. A warm standby's branch is
 	// not in it, because it writes nothing until it has a job.
-	reserved map[string]bool
+	reserved       map[string]bool
+	CustomReserved func() uint64
 
 	// retained is the set of branch dirs (keyed by VM name) that belong to
 	// VMs still running after a kubelet restart. ReattachBranch adds to it
@@ -559,6 +560,9 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 		return nil
 	}
 	want := m.capBytes() * uint64(len(m.reserved)+1)
+	if m.CustomReserved != nil {
+		want += m.CustomReserved()
+	}
 	free, err := m.ensureFreeLocked(want, keep)
 	if errors.Is(err, errNoRoom) {
 		// Surfaced so a host wedged under disk pressure does not look identical to

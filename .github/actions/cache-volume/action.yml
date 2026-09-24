@@ -1,5 +1,5 @@
 name: Tuist cache volume
-description: Attach a private clone of a persistent cache volume on Tuist Linux runners.
+description: Attach a private clone of a persistent cache volume on Tuist Linux or macOS runners.
 branding:
   icon: hard-drive
   color: purple

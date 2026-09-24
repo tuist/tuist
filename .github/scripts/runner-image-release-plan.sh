@@ -22,7 +22,7 @@ previous_manifest='[]'
 sources_changed=true
 if [ -n "$latest_tag" ]; then
   previous_manifest="$(gh release download "$latest_tag" --pattern build-manifest.json --output - 2>/dev/null || echo '[]')"
-  changed_sources="$(git diff --name-only "$latest_tag" HEAD -- infra/runner-image \
+  changed_sources="$(git diff --name-only "$latest_tag" HEAD -- infra/runner-image infra/linux-runner-image/cmd/tuist-cache-volume .github/actions/build-runner-image-binaries \
     ':(exclude)infra/runner-image/profiles.json' \
     ':(exclude)infra/runner-image/cliff.toml' \
     ':(glob,exclude)infra/runner-image/**/*.md')"

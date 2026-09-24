@@ -35,7 +35,7 @@ defmodule Tuist.Runners.CacheVolumes do
          true <- arch in ["amd64", "arm64"],
          true <- is_integer(user_id) and user_id >= 0 and user_id <= 2_147_483_647,
          true <- is_binary(uid) and Regex.match?(~r/^[a-zA-Z0-9-]{1,128}$/, uid),
-         %WorkflowJob{} = job <- executing_job(pod, node),
+         {%WorkflowJob{} = job, platform} <- executing_job(pod, node),
          {:ok, identity} <- Identity.resolve(job) do
       allocate_for_job(job, identity, %{
         pod_name: pod,
@@ -43,6 +43,7 @@ defmodule Tuist.Runners.CacheVolumes do
         node_name: node,
         key: key,
         architecture: arch,
+        platform: to_string(platform),
         uid: user_id
       })
     else
@@ -56,13 +57,24 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def allocate(_), do: {:error, :unavailable}
 
+  def platform(pod, node) do
+    Repo.one(
+      from(s in RunnerSession,
+        where: s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at),
+        order_by: [desc: s.started_at],
+        limit: 1,
+        select: s.platform
+      )
+    )
+  end
+
   def valid_key?(key), do: is_binary(key) and Regex.match?(~r/^[a-zA-Z0-9][a-zA-Z0-9_.\/-]{0,199}$/, key)
 
   defp pending_execution?(pod, node) do
     Repo.exists?(
       from(s in RunnerSession,
         where:
-          s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform == :linux and
+          s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos] and
             is_nil(s.executed_workflow_job_id)
       )
     )
@@ -74,11 +86,11 @@ defmodule Tuist.Runners.CacheVolumes do
         join: j in WorkflowJob,
         on: j.workflow_job_id == s.executed_workflow_job_id and j.account_id == s.account_id,
         where:
-          s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform == :linux and
+          s.pod_name == ^pod and s.node_name == ^node and is_nil(s.ended_at) and s.platform in [:linux, :macos] and
             j.provider in ["github", "buildkite", "gitlab"] and j.status == "running",
         order_by: [desc: s.started_at],
         limit: 1,
-        select: j
+        select: {j, s.platform}
       )
     )
   end
@@ -88,6 +100,7 @@ defmodule Tuist.Runners.CacheVolumes do
   # Also used by lifecycle tests with already verified provider metadata.
   def allocate_for_job(job, identity, attrs) do
     identity = Identity.storage_scope(identity)
+    attrs = Map.put_new(attrs, :platform, "linux")
 
     Repo.transaction(fn ->
       # One admission lock per pod also bounds concurrent requests for new keys.
@@ -98,7 +111,7 @@ defmodule Tuist.Runners.CacheVolumes do
       ensure_job_capacity!(job, identity, attrs)
       now = DateTime.utc_now()
       timestamp = DateTime.truncate(now, :second)
-      fields = Map.take(attrs, [:key, :architecture, :uid])
+      fields = Map.take(attrs, [:key, :platform, :architecture, :uid])
 
       row =
         Map.merge(fields, %{
@@ -115,7 +128,7 @@ defmodule Tuist.Runners.CacheVolumes do
 
       Repo.insert_all(Volume, [row],
         on_conflict: :nothing,
-        conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :architecture, :uid]
+        conflict_target: [:account_id, :provider, :provider_instance, :scope_id, :key, :platform, :architecture, :uid]
       )
 
       volume =
@@ -193,7 +206,8 @@ defmodule Tuist.Runners.CacheVolumes do
       where:
         v.account_id == ^job.account_id and v.provider == ^identity.provider and
           v.provider_instance == ^identity.provider_instance and v.scope_id == ^identity.scope_id and
-          v.key == ^attrs.key and v.architecture == ^attrs.architecture and v.uid == ^attrs.uid
+          v.key == ^attrs.key and v.platform == ^attrs.platform and v.architecture == ^attrs.architecture and
+          v.uid == ^attrs.uid
     )
   end
 
@@ -382,7 +396,7 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  def storage_name(volume), do: "linux-" <> scope(volume)
+  def storage_name(volume), do: volume.platform <> "-" <> scope(volume)
 
   # Reuse macOS HEAD arbitration, immutable objects, checksums and delayed
   # reclamation. The custom-volume lock also serializes clearing with publication.

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	"github.com/tuist/tuist/infra/runner-cache"
 )
 
 func (a *agent) authorize(ctx context.Context, body []byte) (cachevolumes.Identity, error) {

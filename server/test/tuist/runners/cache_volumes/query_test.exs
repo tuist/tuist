@@ -39,6 +39,12 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
     %{account: account, other: other, uses: uses}
   end
 
+  test "public inventory returns the stored platform", %{account: account, uses: [use | _]} do
+    use.volume_id |> then(&Repo.get!(Volume, &1)) |> Ecto.Changeset.change(platform: "macos") |> Repo.update!()
+    assert {:ok, %{platform: "macos"} = volume} = Query.run(:show, account.id, %{"volume_id" => use.volume_id})
+    assert_schema(:show, volume)
+  end
+
   test "sorts before paginating and counts the filtered inventory", %{account: account} do
     assert {:ok, %{volumes: [%{key: "bravo"} = volume], pagination_metadata: meta}} =
              Query.run(:list, account.id, %{"page" => 2, "page_size" => 1, "sort_by" => "volume"})
