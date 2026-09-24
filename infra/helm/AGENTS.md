@@ -25,8 +25,6 @@ This node covers Helm assets under `infra/helm/`.
   provisioned separately from Helm. Its zero-ready-replica expression and routing
   are exercised by `test-kura-availability-alert.sh` using Bash, jq, promtool and amtool.
   Keep unavailable service separate from the 30-minute redundancy warning.
-- `k8s-monitoring/kura-rollout-alert-rules.json` records the two Kura rollout rules
-  (group `Cache`), managed in the Grafana UI like the rest.
 - Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
 - The managed production overlay enables the browser RUM gateway; the chart default remains disabled. Roll back by disabling that production override, restoring the direct Alloy backend and `/collect` rewrite.
 - When filtering metrics, preserve every side of absence-based alerts. The
