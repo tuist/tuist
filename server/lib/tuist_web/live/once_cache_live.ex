@@ -134,40 +134,42 @@ defmodule TuistWeb.OnceCacheLive do
   def render(assigns) do
     ~H"""
     <div id="bazel-cache" class="bazel-invocations">
+      <%!-- The period control sits above the cards, not inside the Analytics
+      card's header, which is where the Xcode cache page puts it. --%>
+      <div data-part="filters">
+        <.date_picker
+          id="once-cache-date-range-picker"
+          name="analytics-date-range"
+          presets={date_picker_presets()}
+          selected_preset={@analytics_preset}
+          period={@analytics_period}
+          on_period_change="analytics_period_changed"
+          max={Date.utc_today()}
+        >
+          <:actions>
+            <.button
+              label={dgettext("dashboard_projects", "Cancel")}
+              variant="secondary"
+              phx-click={
+                JS.dispatch("phx:date-picker-cancel",
+                  detail: %{id: "once-cache-date-range-picker"}
+                )
+              }
+            />
+            <.button
+              label={dgettext("dashboard_projects", "Apply")}
+              phx-click={
+                JS.dispatch("phx:date-picker-apply", detail: %{id: "once-cache-date-range-picker"})
+              }
+            />
+          </:actions>
+        </.date_picker>
+      </div>
       <.card
         title={dgettext("dashboard_projects", "Analytics")}
         icon="chart_arcs"
         data-part="bazel-cache-analytics-card"
       >
-        <:actions>
-          <.date_picker
-            id="once-cache-date-range-picker"
-            name="analytics-date-range"
-            presets={date_picker_presets()}
-            selected_preset={@analytics_preset}
-            period={@analytics_period}
-            on_period_change="analytics_period_changed"
-            max={Date.utc_today()}
-          >
-            <:actions>
-              <.button
-                label={dgettext("dashboard_projects", "Cancel")}
-                variant="secondary"
-                phx-click={
-                  JS.dispatch("phx:date-picker-cancel",
-                    detail: %{id: "once-cache-date-range-picker"}
-                  )
-                }
-              />
-              <.button
-                label={dgettext("dashboard_projects", "Apply")}
-                phx-click={
-                  JS.dispatch("phx:date-picker-apply", detail: %{id: "once-cache-date-range-picker"})
-                }
-              />
-            </:actions>
-          </.date_picker>
-        </:actions>
         <div data-part="widgets">
           <.percentile_dropdown_widget
             id="once-cache-hit-rate"
