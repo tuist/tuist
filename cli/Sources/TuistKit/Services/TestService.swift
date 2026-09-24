@@ -1488,6 +1488,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let runningMultipleSchemes = testSchemeRuns.count > 1
         var perSchemeResultBundlePaths: [AbsolutePath] = []
+        // Stored once every scheme has run: schemes can share a test target, and a hash stored after
+        // an earlier scheme would survive a later scheme's gate finding a flaky new test in it.
+        var passingTestTargets: [GraphTarget] = []
+        var stressWithheldTargetNames = Set<String>()
+        func storePassingTestHashes() async throws {
+            guard !passingTestTargets.isEmpty else { return }
+            try await storeSuccessfulTestHashes(
+                for: passingTestTargets.filter { !stressWithheldTargetNames.contains($0.target.name) },
+                graph: graph,
+                mapperEnvironment: mapperEnvironment,
+                cacheStorage: uploadCacheStorage
+            )
+        }
 
         do {
             for testSchemeRun in testSchemeRuns {
@@ -1515,7 +1528,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     perSchemeResultBundlePaths.append(testSchemeResultBundlePath)
                 }
 
-                var stressWithheldTargetNames = Set<String>()
                 do {
                     try await self.testScheme(
                         scheme: testScheme,
@@ -1544,18 +1556,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     if error is StressNewTestsError {
                         throw error
                     }
-                    if try await handleTestSchemeFailure(
+                    let failure = try await testSchemeFailure(
                         error,
                         scheme: testScheme,
                         resultBundlePath: testSchemeResultBundlePath,
                         graph: graph,
-                        mapperEnvironment: mapperEnvironment,
-                        cacheStorage: uploadCacheStorage,
                         testPlanConfiguration: testPlanConfiguration,
                         action: action,
-                        quarantinedTests: quarantinedTests,
-                        withholding: stressWithheldTargetNames
-                    ) {
+                        quarantinedTests: quarantinedTests
+                    )
+                    passingTestTargets += failure.passingTestTargets
+                    if failure.onlyQuarantinedTestsFailed {
                         continue
                     }
                     throw error
@@ -1571,21 +1582,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                             ).map(\.name)
                         ).subtracting(passthroughSkippedTargetNames)
                         : Set(testSchemeRun.testTargets.map(\.target))
-                    try await storeSuccessfulTestHashes(
-                        for: testActionTargets(
-                            for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
-                        )
-                        .filter {
-                            runTestTargetNames.contains($0.target.name)
-                                && !stressWithheldTargetNames.contains($0.target.name)
-                        },
-                        graph: graph,
-                        mapperEnvironment: mapperEnvironment,
-                        cacheStorage: uploadCacheStorage
+                    passingTestTargets += testActionTargets(
+                        for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
                     )
+                    .filter { runTestTargetNames.contains($0.target.name) }
                 }
             }
         } catch {
+            try? await storePassingTestHashes()
             // Assemble the requested result bundle from whatever schemes produced one before
             // rethrowing, so consumers of a fixed `--result-bundle-path` still find it on failure.
             try? await assembleRequestedResultBundle(
@@ -1595,6 +1599,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
             throw error
         }
+
+        try await storePassingTestHashes()
 
         try await assembleRequestedResultBundle(
             from: perSchemeResultBundlePaths,
@@ -1621,18 +1627,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return true
     }
 
-    private func handleTestSchemeFailure(
+    /// The test targets of a failed scheme whose test cases all passed, and whether the failures were
+    /// all quarantined, so the run carries on. Rethrows `error` when the result bundle can't tell.
+    private func testSchemeFailure(
         _ error: Error,
         scheme: Scheme,
         resultBundlePath: AbsolutePath?,
         graph: Graph,
-        mapperEnvironment: MapperEnvironment,
-        cacheStorage: CacheStoring,
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction,
-        quarantinedTests: [TestIdentifier],
-        withholding stressWithheldTargetNames: Set<String>
-    ) async throws -> Bool {
+        quarantinedTests: [TestIdentifier]
+    ) async throws -> (passingTestTargets: [GraphTarget], onlyQuarantinedTestsFailed: Bool) {
         guard action != .build, let resultBundlePath else { throw error }
 
         guard try await fileSystem.exists(resultBundlePath) else { throw error }
@@ -1644,23 +1649,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
             for: [scheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
         )
 
-        let passingModuleNames = testStatuses.passingModuleNames().subtracting(stressWithheldTargetNames)
-        let passingTestTargets = testTargets.filter {
-            passingModuleNames.contains($0.target.name)
-        }
-
-        try await storeSuccessfulTestHashes(
-            for: passingTestTargets,
-            graph: graph,
-            mapperEnvironment: mapperEnvironment,
-            cacheStorage: cacheStorage
+        let passingModuleNames = testStatuses.passingModuleNames()
+        return (
+            passingTestTargets: testTargets.filter { passingModuleNames.contains($0.target.name) },
+            onlyQuarantinedTestsFailed: testQuarantineService.onlyQuarantinedTestsFailed(
+                testStatuses: testStatuses,
+                quarantinedTests: quarantinedTests
+            )
         )
-
-        if testQuarantineService.onlyQuarantinedTestsFailed(testStatuses: testStatuses, quarantinedTests: quarantinedTests) {
-            return true
-        }
-
-        throw error
     }
 
     private func updateTestServiceAnalytics(
@@ -2239,7 +2235,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 skipTestIdentifiers: skipTestTargets.map(\.description),
                 stressNewTests: stressResult
             )
-            stressWithheldTargetNames = stressResult?.withheldTargetNames ?? []
+            stressWithheldTargetNames.formUnion(stressResult?.withheldTargetNames ?? [])
             if let stressResult, stressResult.blocks {
                 throw StressNewTestsError.blocked(stressResult.blockingCandidates)
             }
@@ -2278,7 +2274,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipTestIdentifiers: skipTestTargets.map(\.description),
             stressNewTests: stressResult
         )
-        stressWithheldTargetNames = stressResult?.withheldTargetNames ?? []
+        stressWithheldTargetNames.formUnion(stressResult?.withheldTargetNames ?? [])
         if let stressResult, stressResult.blocks {
             throw StressNewTestsError.blocked(stressResult.blockingCandidates)
         }
