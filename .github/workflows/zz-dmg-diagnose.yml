@@ -10,47 +10,38 @@ jobs:
     runs-on: tuist-macos
     timeout-minutes: 20
     steps:
-      - name: Seed Runner.Listener approvals and retry Finder
+      - name: System database first, then per-user
         run: |
+          SYSTEM_DB='/Library/Application Support/com.apple.TCC/TCC.db'
           USER_DB="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
           CLIENT=/Users/runner/actions-runner/bin/Runner.Listener
           FINDER_REQ="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
-          ls -la "$(dirname "$USER_DB")"
-          echo "--- client signature"
-          codesign -dvv "$CLIENT" 2>&1 | grep -E 'Identifier|Signature|CDHash|flags' || true
-          codesign -d -r- "$CLIENT" 2>&1 | tail -2 || true
-          echo "--- access schema"
-          sqlite3 "$USER_DB" '.schema access'
-
+          SQL="INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '$CLIENT', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', $FINDER_REQ, 0, strftime('%s','now'));"
           try_finder() {
-            log stream --style compact --predicate 'subsystem == "com.apple.TCC"' > /tmp/tcc.log 2>&1 &
-            stream=$!
-            sleep 1
             start=$(date +%s)
             osascript -e 'with timeout of 15 seconds' -e 'tell application "Finder" to get name of startup disk' -e 'end timeout' \
               && echo "OK after $(( $(date +%s) - start ))s" || echo "FAILED after $(( $(date +%s) - start ))s"
-            sleep 1; kill $stream 2>/dev/null
-            grep -a -i -E 'indirect|prompt|csreq|requirement|kTCCServiceAppleEvents|AUTHREQ_RESULT.*AppleEvents|mismatch|error' /tmp/tcc.log \
-              | grep -v -E 'ListenEvent|ScreenCapture|PostEvent' | cut -c1-330 | head -25
-          }
-          reset() {
-            killall UserNotificationCenter 2>/dev/null || true
-            killall tccd 2>/dev/null || true
-            sleep 2
           }
 
-          echo "===== A: Finder code identity, no client csreq"
-          sqlite3 "$USER_DB" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '$CLIENT', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', $FINDER_REQ, 0, strftime('%s','now'));" && echo seeded
-          ls -la "$(dirname "$USER_DB")"
-          reset
+          echo "===== system database only"
+          sudo sqlite3 "$SYSTEM_DB" "$SQL" && echo seeded
+          killall tccd 2>/dev/null || true
+          sudo killall tccd 2>/dev/null || true
+          sleep 2
           try_finder
 
-          echo "===== B: plus the client's designated requirement"
-          codesign -d -r- "$CLIENT" 2>&1 | sed -n 's/^designated => //p' > /tmp/client.req
-          cat /tmp/client.req
-          csreq -r /tmp/client.req -b /tmp/client.csreq && CLIENT_REQ="X'$(xxd -p /tmp/client.csreq | tr -d '\n')'" || CLIENT_REQ=NULL
-          sqlite3 "$USER_DB" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '$CLIENT', 1, 2, 3, 1, $CLIENT_REQ, 0, 'com.apple.finder', $FINDER_REQ, 0, strftime('%s','now'));" && echo seeded
-          reset
+          echo "===== per-user database, without restarting tccd"
+          killall UserNotificationCenter 2>/dev/null || true
+          sqlite3 "$USER_DB" "$SQL" && echo seeded
           try_finder
-          echo "--- rows"
-          sqlite3 "$USER_DB" "select client, auth_value, auth_reason, length(csreq), indirect_object_identifier, length(indirect_object_code_identity) from access where service='kTCCServiceAppleEvents'"
+
+      - name: create-dmg end to end
+        run: |
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg >/dev/null 2>&1
+          mkdir -p /tmp/app/Diag.app/Contents/MacOS
+          printf '#!/bin/sh\n' > /tmp/app/Diag.app/Contents/MacOS/Diag && chmod +x /tmp/app/Diag.app/Contents/MacOS/Diag
+          rm -f /tmp/Diag-out.dmg
+          start=$(date +%s)
+          create-dmg --window-size 605 363 --icon Diag.app 139 161 --app-drop-link 467 161 --volname Diag /tmp/Diag-out.dmg /tmp/app
+          echo "create-dmg took $(( $(date +%s) - start ))s"
+          ls -la /tmp/Diag-out.dmg
