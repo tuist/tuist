@@ -6,6 +6,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -251,6 +252,66 @@ func cpuRequestMilli(instance *kurav1alpha1.KuraInstance) int32 {
 		return state.ScheduleCapMilli
 	}
 	return milli
+}
+
+// holdCPURequest keeps a replacement pod within the room the pod it replaces
+// frees, which on a node pinned by local volumes is the only room it has: the
+// template never asks for more than a scheduled pod of the instance holds.
+// Between image changes it also keeps the live value, since every template
+// change is a revision RollingUpdate rolls, so a sizing decision reaches pods
+// only when they are replaced anyway, the way probe timings do.
+func holdCPURequest(rendered *corev1.PodTemplateSpec, live *corev1.PodTemplateSpec, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) {
+	container := templateKuraContainer(rendered)
+	if container == nil {
+		return
+	}
+	next := int32(container.Resources.Requests.Cpu().MilliValue())
+
+	if existing := templateKuraContainer(live); existing != nil && existing.Image == instance.Spec.Image {
+		if milli := int32(existing.Resources.Requests.Cpu().MilliValue()); milli > 0 {
+			next = milli
+		}
+	}
+	if held := heldCPURequestMilli(pods); held > 0 && held < next {
+		next = held
+	}
+	if state := instance.Status.CPUAutosize; state != nil && state.ScheduleCapMilli > 0 && state.ScheduleCapMilli < next {
+		next = state.ScheduleCapMilli
+	}
+	if limit, ok := container.Resources.Limits[corev1.ResourceCPU]; ok && limit.MilliValue() < int64(next) {
+		next = int32(limit.MilliValue())
+	}
+
+	container.Resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(int64(next), resource.DecimalSI)
+}
+
+// heldCPURequestMilli is the smallest request among the instance's pods that
+// hold a place on a node, or zero when none does. A Pending pod holds nothing,
+// and a terminal one has already released what it held.
+func heldCPURequestMilli(pods []corev1.Pod) int32 {
+	var held int32
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+		if milli := podCPURequestMilli(pod); milli > 0 && (held == 0 || milli < held) {
+			held = milli
+		}
+	}
+	return held
+}
+
+func templateKuraContainer(template *corev1.PodTemplateSpec) *corev1.Container {
+	if template == nil {
+		return nil
+	}
+	for i := range template.Spec.Containers {
+		if template.Spec.Containers[i].Name == kuraContainerName {
+			return &template.Spec.Containers[i]
+		}
+	}
+	return nil
 }
 
 // seedCPURequest adopts the request the instance is already running with, so

@@ -3270,10 +3270,15 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 	if err != nil {
 		return err
 	}
+	pods, err := r.instancePods(ctx, instance)
+	if err != nil {
+		return err
+	}
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		existingVolumeClaimTemplates := sts.Spec.VolumeClaimTemplates
 		tolerations := nodeLocalTolerations(instance, sts)
 		fastProbes := templateUsesFastProbes(sts, instance)
+		liveTemplate := sts.Spec.Template.DeepCopy()
 		if err := controllerutil.SetControllerReference(instance, sts, r.Scheme); err != nil {
 			return err
 		}
@@ -3288,6 +3293,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		}
 		gatewayGRPC := templateServesGatewayGRPC(&sts.Spec.Template, instance)
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion, binPackCeiling, gatewayGRPC, fastProbes)
+		holdCPURequest(&sts.Spec.Template, liveTemplate, instance, pods)
 		sts.Spec.Template.Spec.Tolerations = tolerations
 		r.configureConnectivityDiagnostics(instance, &sts.Spec.Template)
 		if len(existingVolumeClaimTemplates) > 0 {
