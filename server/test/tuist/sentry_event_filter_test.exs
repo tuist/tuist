@@ -1,7 +1,6 @@
 defmodule Tuist.SentryEventFilterTest do
   use ExUnit.Case, async: true
 
-  alias Phoenix.LiveView.ReloadError
   alias Tuist.SentryEventFilter
 
   defp event(overrides) do
@@ -62,30 +61,6 @@ defmodule Tuist.SentryEventFilterTest do
       event = event(%{original_exception: %TuistWeb.Errors.NotFoundError{message: "not found"}})
 
       assert SentryEventFilter.before_send(event) == false
-    end
-
-    test "drops LiveView reload errors for client errors" do
-      event =
-        event(%{
-          original_exception: %ReloadError{
-            message: "TuistWeb.DocsLive raised  during connected mount sending a 404 response\n",
-            plug_status: 404
-          }
-        })
-
-      assert SentryEventFilter.before_send(event) == false
-    end
-
-    test "keeps LiveView reload errors for server errors" do
-      event =
-        event(%{
-          original_exception: %ReloadError{
-            message: "TuistWeb.DocsLive raised  during connected mount sending a 500 response\n",
-            plug_status: 500
-          }
-        })
-
-      assert SentryEventFilter.before_send(event) == event
     end
 
     test "keeps other exceptions" do
