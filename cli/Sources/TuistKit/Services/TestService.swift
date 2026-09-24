@@ -857,7 +857,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 selectiveTestingGraph: selectiveTestingGraph,
                 passingTargetNames: await passingTargetNames(
                     resultBundlePath: resultBundlePath,
-                    blockedBy: stressResult
+                    withholding: stressResult
                 ),
                 cacheStorage: hashUploadStorage
             )
@@ -1041,7 +1041,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             selectiveTestingGraph: selectiveTestingGraph,
             passingTargetNames: await passingTargetNames(
                 resultBundlePath: resultBundlePath,
-                blockedBy: stressResult
+                withholding: stressResult
             ),
             cacheStorage: hashUploadStorage
         )
@@ -1383,18 +1383,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try await storeTestHashes(cacheableItems, cacheStorage: cacheStorage)
     }
 
-    /// The modules that passed, minus any the gate is failing the run over.
+    /// The modules that passed, minus any with a new test case the gate found flaky.
     ///
     /// A candidate passed the first pass by construction, so its module is in the passing set
-    /// however the reruns went. Banking its hash would let a re-run of the blocked job skip the
-    /// module, report no test cases for it, and exit green with no change to the branch.
+    /// however the reruns went. Banking its hash would let the next run skip the module, report no
+    /// test cases for it, and exit green: in `enforce` with no change to the branch, in `report`
+    /// with the warning gone after one run.
     private func passingTargetNames(
         resultBundlePath: AbsolutePath?,
-        blockedBy stressResult: StressNewTestsResult?
+        withholding stressResult: StressNewTestsResult?
     ) async -> Set<String> {
         let passing = await passingTargetNames(resultBundlePath: resultBundlePath)
-        guard let stressResult, stressResult.blocks else { return passing }
-        return passing.subtracting(stressResult.blockingCandidates.map(\.identifier.target))
+        guard let stressResult else { return passing }
+        return passing.subtracting(stressResult.withheldTargetNames)
     }
 
     private func passingTargetNames(resultBundlePath: AbsolutePath?) async -> Set<String> {
@@ -1514,6 +1515,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     perSchemeResultBundlePaths.append(testSchemeResultBundlePath)
                 }
 
+                var stressWithheldTargetNames = Set<String>()
                 do {
                     try await self.testScheme(
                         scheme: testScheme,
@@ -1535,7 +1537,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         config: config,
                         quarantinedTests: quarantinedTests,
                         mode: mode,
-                        stressNewTests: stressNewTests
+                        stressNewTests: stressNewTests,
+                        stressWithheldTargetNames: &stressWithheldTargetNames
                     )
                 } catch {
                     if error is StressNewTestsError {
@@ -1550,7 +1553,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         cacheStorage: uploadCacheStorage,
                         testPlanConfiguration: testPlanConfiguration,
                         action: action,
-                        quarantinedTests: quarantinedTests
+                        quarantinedTests: quarantinedTests,
+                        withholding: stressWithheldTargetNames
                     ) {
                         continue
                     }
@@ -1571,7 +1575,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         for: testActionTargets(
                             for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
                         )
-                        .filter { runTestTargetNames.contains($0.target.name) },
+                        .filter {
+                            runTestTargetNames.contains($0.target.name)
+                                && !stressWithheldTargetNames.contains($0.target.name)
+                        },
                         graph: graph,
                         mapperEnvironment: mapperEnvironment,
                         cacheStorage: uploadCacheStorage
@@ -1623,7 +1630,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         cacheStorage: CacheStoring,
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction,
-        quarantinedTests: [TestIdentifier]
+        quarantinedTests: [TestIdentifier],
+        withholding stressWithheldTargetNames: Set<String>
     ) async throws -> Bool {
         guard action != .build, let resultBundlePath else { throw error }
 
@@ -1636,8 +1644,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             for: [scheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
         )
 
+        let passingModuleNames = testStatuses.passingModuleNames().subtracting(stressWithheldTargetNames)
         let passingTestTargets = testTargets.filter {
-            testStatuses.passingModuleNames().contains($0.target.name)
+            passingModuleNames.contains($0.target.name)
         }
 
         try await storeSuccessfulTestHashes(
@@ -2056,7 +2065,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         config: Tuist,
         quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode = .local,
-        stressNewTests: StressNewTestsMode? = nil
+        stressNewTests: StressNewTestsMode? = nil,
+        stressWithheldTargetNames: inout Set<String>
     ) async throws {
         Logger.current.log(
             level: .notice, "\(action.description) scheme \(scheme.name)", metadata: .section
@@ -2229,6 +2239,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 skipTestIdentifiers: skipTestTargets.map(\.description),
                 stressNewTests: stressResult
             )
+            stressWithheldTargetNames = stressResult?.withheldTargetNames ?? []
             if let stressResult, stressResult.blocks {
                 throw StressNewTestsError.blocked(stressResult.blockingCandidates)
             }
@@ -2267,6 +2278,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             skipTestIdentifiers: skipTestTargets.map(\.description),
             stressNewTests: stressResult
         )
+        stressWithheldTargetNames = stressResult?.withheldTargetNames ?? []
         if let stressResult, stressResult.blocks {
             throw StressNewTestsError.blocked(stressResult.blockingCandidates)
         }

@@ -61,6 +61,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var shardService: MockShardServicing!
     private var xcActivityLogController: MockXCActivityLogControlling!
     private var uploadBuildRunService: MockUploadBuildRunServicing!
+    private var stressNewTestsService: MockStressNewTestsServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -89,6 +90,7 @@ final class TestServiceTests: TuistUnitTestCase {
         shardService = .init()
         xcActivityLogController = .init()
         uploadBuildRunService = .init()
+        stressNewTestsService = .init()
 
         given(xcActivityLogController)
             .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
@@ -221,7 +223,8 @@ final class TestServiceTests: TuistUnitTestCase {
             shardMatrixOutputService: shardMatrixOutputService,
             shardService: shardService,
             xcActivityLogController: xcActivityLogController,
-            uploadBuildRunService: uploadBuildRunService
+            uploadBuildRunService: uploadBuildRunService,
+            stressNewTestsService: stressNewTestsService
         )
 
         given(simulatorController)
@@ -1667,6 +1670,99 @@ final class TestServiceTests: TuistUnitTestCase {
                 .store(
                     .value([CacheStorableItem(name: "FrameworkA", hash: "hash-fw"): []]),
                     cacheCategory: .value(.selectiveTests)
+                )
+                .called(0)
+        }
+    }
+
+    func test_run_tests_withholds_hash_of_target_with_flaky_new_test_in_report_mode() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+
+            let projectPath = try temporaryPath().appending(component: "Project")
+            let scheme = Scheme.test(
+                name: "UnitTests",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "FlakyTests")),
+                        .test(target: TargetReference(projectPath: projectPath, name: "StableTests")),
+                    ]
+                )
+            )
+
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(.test())
+
+            let flakyTarget = Target.test(name: "FlakyTests", product: .unitTests)
+            let stableTarget = Target.test(name: "StableTests", product: .unitTests)
+            let initialGraph = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [flakyTarget, stableTarget],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = initialGraph
+            environment.targetTestHashes = [
+                projectPath: [
+                    "FlakyTests": "hash-flaky",
+                    "StableTests": "hash-stable",
+                ],
+            ]
+
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in (path, initialGraph, environment) }
+
+            given(stressNewTestsService)
+                .run(
+                    mode: .any,
+                    testSummary: .any,
+                    firstPassFailed: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    mutedTests: .any,
+                    resultBundleDirectory: .any,
+                    stressPass: .any
+                )
+                .willReturn(try disagreedStressResult(mode: .report, target: "FlakyTests"))
+
+            // When
+            try await testRun(path: try temporaryPath(), stressNewTests: .report)
+
+            // Then
+            verify(cacheStorage)
+                .store(
+                    .value([CacheStorableItem(name: "StableTests", hash: "hash-stable"): []]),
+                    cacheCategory: .value(.selectiveTests)
+                )
+                .called(1)
+            verify(cacheStorage)
+                .store(
+                    .matching { $0.keys.contains { $0.name == "FlakyTests" } },
+                    cacheCategory: .any
                 )
                 .called(0)
         }
@@ -4952,6 +5048,102 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
+    func test_run_testWithoutBuilding_fromBundle_withholdsHashOfTargetWithFlakyNewTest_inReportMode() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["FlakyTests": "hash-flaky", "StableTests": "hash-stable"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: ["FlakyTests", "StableTests"].map { module in
+                        TestModule(
+                            name: module,
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: module,
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        )
+                    }
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        let localCacheStorage = MockCacheStoring()
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(localCacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willReturn([])
+
+        given(stressNewTestsService)
+            .run(
+                mode: .any,
+                testSummary: .any,
+                firstPassFailed: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                mutedTests: .any,
+                resultBundleDirectory: .any,
+                stressPass: .any
+            )
+            .willReturn(try disagreedStressResult(mode: .report, target: "FlakyTests"))
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                noUpload: true,
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString],
+                stressNewTests: .report
+            )
+        }
+
+        // Then
+        verify(localCacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "StableTests", hash: "hash-stable"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
     func test_run_testWithoutBuilding_shard_routesSelectiveTestHashesToLocalStorage_whenNoUpload() async throws {
         // Given
         let path = try temporaryPath()
@@ -6444,6 +6636,26 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(writtenGraph.attemptedTestPlans.sorted(), ["IntegrationTestSuite", "Smoke"])
     }
 
+    private func disagreedStressResult(mode: StressNewTestsMode, target: String) throws -> StressNewTestsResult {
+        StressNewTestsResult(
+            mode: mode,
+            outcome: .disagreed,
+            newCount: 1,
+            stressedCount: 1,
+            excludedCount: 0,
+            knownCount: 10,
+            candidates: [
+                StressNewTestsCandidate(
+                    identifier: try TestIdentifier(target: target, class: "\(target)Case", method: "testNew"),
+                    repetitions: 10,
+                    failedRepetitions: 3,
+                    outcome: .disagreed,
+                    isQuarantined: false
+                ),
+            ]
+        )
+    }
+
     fileprivate func testRun(
         runId: String = "run-id",
         schemeName: String? = nil,
@@ -6477,7 +6689,8 @@ final class TestServiceTests: TuistUnitTestCase {
         shardIndex: Int? = nil,
         shardSkipUpload: Bool = false,
         shardArchivePath: AbsolutePath? = nil,
-        mode: TestProcessingMode? = .local
+        mode: TestProcessingMode? = .local,
+        stressNewTests: StressNewTestsMode? = nil
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -6515,7 +6728,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 shardIndex: shardIndex,
                 shardSkipUpload: shardSkipUpload,
                 shardArchivePath: shardArchivePath,
-                mode: mode
+                mode: mode,
+                stressNewTests: stressNewTests
             )
         }
     }
