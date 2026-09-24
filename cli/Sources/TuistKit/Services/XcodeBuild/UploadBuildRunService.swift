@@ -173,6 +173,14 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
             )
         }
 
+        if let casLogPath = casLogPath(), try await fileSystem.exists(casLogPath) {
+            try? Self.copyTail(
+                of: casLogPath,
+                maxBytes: Self.casLogTailBytes,
+                to: buildDirectory.appending(component: "cas.log")
+            )
+        }
+
         // Snapshot the metrics file under the sampler's shared lock so the copy is consistent
         // with the always-on daemon that keeps appending to it; an unlocked copy can capture a
         // mid-write file that the server later rejects with a bad CRC.
@@ -183,6 +191,32 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         let zipPath = tempDirectory.appending(component: "build.zip")
         try await fileSystem.zipFileOrDirectoryContent(at: buildDirectory, to: zipPath)
         return zipPath
+    }
+
+    static let casLogTailBytes = 4 * 1024 * 1024
+
+    /// The Xcode cache's diagnostic log, which records why a lookup missed or an upload was
+    /// skipped. The plugin and proxy write it on CI only, to `TUIST_CAS_LOG` or `cas.log` in the
+    /// state directory.
+    private func casLogPath() -> AbsolutePath? {
+        if let path = Environment.current.variables["TUIST_CAS_LOG"], !path.isEmpty {
+            return try? AbsolutePath(validating: path)
+        }
+        return Environment.current.stateDirectory.appending(component: "cas.log")
+    }
+
+    /// Copies the last `maxBytes` of `source` to `destination`, starting at the first complete line.
+    static func copyTail(of source: AbsolutePath, maxBytes: Int, to destination: AbsolutePath) throws {
+        let handle = try FileHandle(forReadingFrom: source.url)
+        defer { try? handle.close() }
+        let size = try handle.seekToEnd()
+        let start = size > UInt64(maxBytes) ? size - UInt64(maxBytes) : 0
+        try handle.seek(toOffset: start)
+        var tail = try handle.readToEnd() ?? Data()
+        if start > 0, let newline = tail.firstIndex(of: UInt8(ascii: "\n")) {
+            tail = Data(tail[tail.index(after: newline)...])
+        }
+        try tail.write(to: destination.url)
     }
 
     private func readCustomMetadata() -> BuildCustomMetadata {

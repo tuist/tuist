@@ -81,14 +81,14 @@ mise run dev
 - `mix ecto.dump`
 - `mix excellent_migrations.check_safety`
 
-## Marketing Redesign Rollout
+## Marketing Site
 
-The marketing site redesign launches as a whole behind a single FunWithFlags boolean (`:new_marketing`), decided by `TuistWeb.Marketing.Design`. Anonymous traffic follows the global flag; authenticated users can preview the redesign before the flip by enabling the flag for their user as a FunWithFlags actor (their responses are marked `private, no-store` so shared caches never store a previewed variant). Rules while the rollout is in progress:
+The marketing site lives under `lib/tuist_web/marketing/` and is a single design:
 
-- Redesigned page templates live in `new/` directories next to the legacy ones (`marketing_html/new/home.html.heex`, `marketing_layout_components/new/navbar.html.heex`), embedded with `embed_templates(..., suffix: "_new")` so the function names stay `home_new/1`, `navbar_new/1`, etc.; the controller action picks the template via `Design.new?(conn)` and assigns `:new_design` so the root layout links `bundle-new.css` (built from `assets/marketing/marketing_new.css`) instead of `bundle.css`.
-- Old and new designs restyle the same selectors, so their CSS must stay in separate bundles: legacy page styles in `marketing.css` imports, redesigned page styles under `assets/marketing/css/new/` imported from `marketing_new.css`. Never import a page's old and new CSS into the same bundle.
-- JS hooks, tokens, and components are shared between both designs — additions are fine, but do not rewrite shared files in place if the change would alter how legacy pages render.
-- Once the flag has been on in production and the legacy version is no longer needed, delete the legacy templates/CSS, move the `new/` files into place, and remove the flag.
+- Controller pages render templates in `controllers/marketing_html/` (embedded by `TuistWeb.Marketing.MarketingHTML`); LiveView pages keep their template next to the module (`live/marketing_blog_live/blog.html.heex`); the shared navbar and footer live in `components/marketing_layout_components/` and are rendered by `TuistWeb.Marketing.MarketingComponents` from the marketing layout.
+- Styles: `assets/marketing/marketing.css` is the single entry, served as `bundle.css` and built together with `bundle.js` from `marketing.js`. Page styles live under `assets/marketing/css/routes/`, layout styles under `assets/marketing/css/layouts/`, tokens and the page skeleton under `assets/marketing/css/shared/`.
+- Page switches are cross-document view transitions with prefetch-on-hover (see the root layout); the navbar and footer hooks are mounted by `assets/marketing/js/lib/static-hooks.js` independently of LiveView, so they must not rely on LiveView-only hook APIs.
+- Social cards are designed PNGs under `priv/static/marketing/images/og/`, served by `TuistWeb.Marketing.SocialCards`; per-item pages (blog posts, changelog entries, case studies, newsletter issues) keep their generated images.
 
 ## Key Configuration Files
 - `.mise.toml` - Tool versions
@@ -111,6 +111,12 @@ The marketing site redesign launches as a whole behind a single FunWithFlags boo
   and duration by outcome) and LiveView async loads by
   `Tuist.LiveView.PromExPlugin`. Add the alert rule alongside a new metric:
   a metric nothing queries has its labels aggregated away by Grafana Cloud.
+- `Tuist.Repo.PromExPlugin` exports pool pressure, query attempts by outcome,
+  and connection-wait, execution, decoding, and total-duration histograms for
+  PostgreSQL and ClickHouse in all runtimes. The `workload` label separates
+  web, build processing, test-result processing, and registry synchronization.
+  The Processor Service dashboard compares these workloads using the same
+  measurements; execution time includes the network round trip.
 
 ## Code Style Guidelines
 - Use `alias` for modules used multiple times; avoid `import` unless using DSLs (e.g., Ecto.Query).

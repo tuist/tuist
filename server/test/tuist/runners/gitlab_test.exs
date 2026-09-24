@@ -6,8 +6,10 @@ defmodule Tuist.Runners.GitLabTest do
   alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.GitLab.Cache
   alias Tuist.Runners.GitLab.Client
   alias Tuist.Runners.GitLab.Job
   alias Tuist.Runners.JobReportToken
@@ -34,6 +36,7 @@ defmodule Tuist.Runners.GitLabTest do
 
     reject(&Req.request/1)
     stub(Client, :update_job, fn _, _, _, _ -> {:ok, %{}} end)
+    stub(Client, :write_trace, fn _, _, _ -> {:ok, nil} end)
     %{account: account, connection: connection}
   end
 
@@ -86,6 +89,111 @@ defmodule Tuist.Runners.GitLabTest do
     assert {:ok, %{workflow_job_id: id}} = JobReportToken.verify(acquisition.report_token)
     assert id == job.workflow_job_id
     assert {:error, :not_found} = GitLab.mint_acquisition(account.id + 1, id)
+  end
+
+  test "writes the waiting section the executor continues from", %{connection: connection, account: account} do
+    payload = payload()
+    test_pid = self()
+    expect(Client, :request_job, fn ^connection -> {:ok, payload} end)
+
+    expect(Client, :write_trace, fn "https://gitlab.com", ^payload, trace ->
+      send(test_pid, {:waiting_trace, trace})
+      {:ok, nil}
+    end)
+
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert_received {:waiting_trace, trace}
+    job = Repo.one!(Job)
+    unix = DateTime.to_unix(job.inserted_at)
+
+    # GitLab reads the first line's timestamp header as the whole log's format.
+    assert trace ==
+             Calendar.strftime(job.inserted_at, "%Y-%m-%dT%H:%M:%S") <>
+               ".000000Z 00O section_start:#{unix}:tuist_waiting_for_runner\r\e[0K" <>
+               "Waiting for a Tuist runner for tuist-macos (4 vCPU, 16 GB)\n"
+
+    assert {:ok, %{waiting_trace: ^trace}} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
+  end
+
+  test "writes the waiting section without a timestamp when the job turns timestamps off", %{connection: connection} do
+    payload = Map.update!(payload(), "variables", &(&1 ++ [%{"key" => "FF_TIMESTAMPS", "value" => "false"}]))
+    test_pid = self()
+    expect(Client, :request_job, fn _ -> {:ok, payload} end)
+    expect(Client, :write_trace, fn _, _, trace -> send(test_pid, {:waiting_trace, trace}) end)
+
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert_received {:waiting_trace, "section_start:" <> _}
+  end
+
+  test "does not write a waiting section for a job it rejects", %{connection: connection} do
+    payload = put_in(payload(), ["variables"], [%{"key" => "CI_JOB_TAGS", "value" => ~s(["other"])}])
+    expect(Client, :request_job, fn _ -> {:ok, payload} end)
+    expect(Client, :reject_job, fn _, ^payload, _ -> {:ok, nil} end)
+    reject(&Client.write_trace/3)
+
+    assert {:error, :invalid_job_tags} = GitLab.poll(connection)
+  end
+
+  test "report tokens carry the coordinator's project and ref protection", %{connection: connection, account: account} do
+    for protected? <- [true, false] do
+      identity = mint_identity(connection, account, %{"protected" => protected?})
+
+      assert identity.gitlab_instance == Cache.instance_id("https://gitlab.com")
+      assert identity.gitlab_project_id == 123
+      assert identity.ref_protected == protected?
+    end
+  end
+
+  # Treating an unknown ref as unprotected would put a protected branch's
+  # archives in the namespace unprotected pipelines write to. A pipeline can
+  # override CI_COMMIT_REF_PROTECTED, so it is never a substitute.
+  test "report tokens get no cache scope without the coordinator's ref protection", %{
+    connection: connection,
+    account: account
+  } do
+    for git_info <- [%{}, %{"protected" => nil}, %{"protected" => "true"}] do
+      identity =
+        mint_identity(connection, account, git_info, [%{"key" => "CI_COMMIT_REF_PROTECTED", "value" => "true"}])
+
+      refute Map.has_key?(identity, :ref_protected), inspect(git_info)
+      refute Map.has_key?(identity, :gitlab_project_id)
+    end
+  end
+
+  defp mint_identity(connection, account, git_info, variables \\ []) do
+    payload =
+      payload()
+      |> Map.update!("git_info", &Map.merge(&1, git_info))
+      |> Map.update!("variables", &(&1 ++ variables))
+
+    job =
+      Repo.insert!(%Job{
+        account_id: account.id,
+        connection_id: connection.id,
+        url: "https://gitlab.com",
+        job_id: payload["id"],
+        project_path: "acme/mobile",
+        pipeline_id: 42,
+        payload: JSON.encode!(payload)
+      })
+
+    :ok =
+      WorkflowJobs.enqueue_many_if_missing([
+        %{
+          workflow_job_id: job.workflow_job_id,
+          provider: "gitlab",
+          account_id: account.id,
+          fleet_name: "pool-macos",
+          requested_dispatch_label: "tuist-macos",
+          platform: "macos",
+          vcpus: 4,
+          memory_gb: 16
+        }
+      ])
+
+    assert {:ok, acquisition} = GitLab.mint_acquisition(account.id, job.workflow_job_id)
+    assert {:ok, identity} = JobReportToken.verify(acquisition.report_token)
+    identity
   end
 
   test "does not acquire jobs when access or allowance is disabled", %{connection: connection} do
@@ -257,20 +365,92 @@ defmodule Tuist.Runners.GitLabTest do
     assert Repo.aggregate(Job, :count) == 0
   end
 
-  test "caps waiting assignments and keeps them alive", %{connection: connection} do
+  test "caps waiting assignments and keeps them alive", %{connection: connection, account: account} do
+    {:ok, _} =
+      Concurrency.update_limits(account, %{
+        runner_linux_vcpus_limit: 32,
+        runner_linux_memory_gb_limit: 64,
+        runner_macos_vcpus_limit: 64,
+        runner_macos_memory_gb_limit: 256
+      })
+
     stub(Client, :request_job, fn _ -> {:ok, payload()} end)
     for _ <- 1..5, do: assert({:ok, 1} = GitLab.poll(connection))
     reject(&Client.request_job/1)
     assert {:ok, 0} = GitLab.poll(connection)
   end
 
-  test "expires an assignment that cannot get a machine", %{connection: connection} do
-    expect(Client, :request_job, fn _ -> {:ok, payload()} end)
+  test "stops acquiring while queued jobs take the account's remaining concurrency", %{connection: connection} do
+    stub(Client, :request_job, fn _ ->
+      send(self(), :requested)
+      {:ok, payload()}
+    end)
+
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert_received :requested
+    job = Repo.one!(Job)
+
+    assert {:ok, 0} = GitLab.poll(connection)
+    refute_received :requested
+    assert Repo.get!(WorkflowJob, job.workflow_job_id).status == "queued"
+
+    Repo.update_all(WorkflowJob, set: [status: "completed"])
+    assert {:ok, 1} = GitLab.poll(connection)
+    assert_received :requested
+  end
+
+  test "sums queued jobs of different sizes against the platform's remaining concurrency", %{connection: connection} do
+    payload = fn -> put_in(payload(), ["variables"], [%{"key" => "CI_JOB_TAGS", "value" => ~s(["tuist-linux"])}]) end
+
+    stub(Client, :request_job, fn _ ->
+      send(self(), :requested)
+      {:ok, payload.()}
+    end)
+
+    for {vcpus, memory_gb} <- [{4, 16}, {4, 16}, {8, 32}] do
+      expect(Dispatch, :resolve_dispatch_target, fn _, [label] ->
+        {:ok,
+         %{pool_name: "pool-linux", requested_dispatch_label: label, platform: :linux, vcpus: vcpus, memory_gb: memory_gb}}
+      end)
+
+      assert {:ok, 1} = GitLab.poll(connection)
+      assert_received :requested
+    end
+
+    assert {:ok, 0} = GitLab.poll(connection)
+    refute_received :requested
+  end
+
+  test "keeps an assignment waiting for a machine until its GitLab timeout", %{connection: connection} do
+    expect(Client, :request_job, fn _ -> {:ok, Map.put(payload(), "runner_info", %{"timeout" => 3600})} end)
     assert {:ok, 1} = GitLab.poll(connection)
     job = Repo.one!(Job)
-    Repo.update_all(Job, set: [inserted_at: DateTime.utc_now() |> DateTime.add(-700) |> DateTime.truncate(:second)])
-    expect(Client, :update_job, fn _, _, "failed", "runner_system_failure" -> {:ok, %{}} end)
-    expect(Client, :request_job, fn _ -> {:ok, nil} end)
+    stub(Client, :request_job, fn _ -> {:ok, nil} end)
+
+    age_assignments(3500)
+    expect(Client, :update_job, fn _, _, "running", nil -> {:ok, nil} end)
+    assert {:ok, 0} = GitLab.poll(connection)
+    assert Repo.get!(WorkflowJob, job.workflow_job_id).status == "queued"
+    assert GitLab.get_job(job.workflow_job_id).payload
+
+    age_assignments(3600)
+    expect(Client, :update_job, fn _, _, "failed", "runner_system_failure" -> {:ok, nil} end)
+    assert {:ok, 0} = GitLab.poll(connection)
+    assert Repo.get!(WorkflowJob, job.workflow_job_id).status == "completed"
+    assert is_nil(GitLab.get_job(job.workflow_job_id).payload)
+  end
+
+  test "settles a waiting assignment before payload retention ends", %{connection: connection} do
+    expect(Client, :request_job, fn _ -> {:ok, Map.put(payload(), "runner_info", %{"timeout" => 86_400})} end)
+    assert {:ok, 1} = GitLab.poll(connection)
+    job = Repo.one!(Job)
+    stub(Client, :request_job, fn _ -> {:ok, nil} end)
+
+    age_assignments(12 * 60 * 60)
+    assert :ok = GitLab.purge_expired_payloads()
+    assert GitLab.get_job(job.workflow_job_id).payload
+
+    expect(Client, :update_job, fn _, _, "failed", "runner_system_failure" -> {:ok, nil} end)
     assert {:ok, 0} = GitLab.poll(connection)
     assert Repo.get!(WorkflowJob, job.workflow_job_id).status == "completed"
     assert is_nil(GitLab.get_job(job.workflow_job_id).payload)
@@ -360,13 +540,15 @@ defmodule Tuist.Runners.GitLabTest do
     expect(Client, :request_job, fn _ -> {:ok, payload()} end)
     assert {:ok, 1} = GitLab.poll(connection)
     job = Repo.one!(Job)
-
-    Repo.update_all(Job,
-      set: [inserted_at: DateTime.utc_now() |> DateTime.add(-13 * 60 * 60) |> DateTime.truncate(:second)]
-    )
+    Repo.update_all(WorkflowJob, set: [status: "running"])
+    age_assignments(13 * 60 * 60)
 
     assert :ok = GitLab.purge_expired_payloads()
     assert is_nil(GitLab.get_job(job.workflow_job_id).payload)
     assert GitLab.get_job(job.workflow_job_id).project_path == "acme/mobile"
+  end
+
+  defp age_assignments(seconds) do
+    Repo.update_all(Job, set: [inserted_at: DateTime.utc_now() |> DateTime.add(-seconds) |> DateTime.truncate(:second)])
   end
 end

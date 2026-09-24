@@ -109,6 +109,7 @@ spec:
             {{- if not .Values.server.managedSecrets }}
             {{- include "tuist.clickhouseUrlEnv" . | nindent 12 }}
             {{- end }}
+            {{- include "tuist.clickhouseManagedUrlEnvForKey" (dict "root" . "key" "url") | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             - name: TUIST_HOSTED

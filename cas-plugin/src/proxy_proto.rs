@@ -40,6 +40,12 @@
 //! global query, after the proxy has registered the closure guard. Returns the
 //! same statuses as FETCH_OBJECT. An older proxy rejects this new operation;
 //! clients must not retry it as an ordinary object fetch.
+//! PUBLISH_WAIT (op 8): payload = u32 big-endian milliseconds the caller will
+//! wait | utf8 path of a write-ahead publication record. PUBLISH, answered once
+//! the publication is done. status 1 = nothing is owed for this record any more,
+//! status 0 = it is still owed and the proxy finishes it in the background,
+//! status 2 = the proxy could not run it (an older proxy answers `bad op`, and
+//! the caller falls back to PUBLISH). See `Proxy::publish_and_wait`.
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -88,6 +94,11 @@ pub const OP_PRUNE: u8 = 6;
 /// RESOLVE, before publishing any root fetch instruction. Older proxies reject
 /// this additive operation and the plugin safely reports a cache miss.
 pub const OP_PREPARE_ACTION: u8 = 7;
+/// Publish a record and answer when it is done, so the compile that produced it
+/// finishes only once its output is on the remote. Additive like OP_DRAIN: a
+/// proxy that predates it answers `bad op`, and the plugin then sends an
+/// ordinary PUBLISH.
+pub const OP_PUBLISH_WAIT: u8 = 8;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -172,6 +183,10 @@ pub struct ProxyClient {
 /// a proxy that spends its whole budget still gets to answer instead of the
 /// read timing out on a drain that IS running.
 const DRAIN_READ_GRACE: Duration = Duration::from_secs(30);
+
+/// How much longer than its wait budget a PUBLISH_WAIT client reads, so the
+/// proxy's answer at the end of the budget arrives before the read times out.
+const PUBLISH_WAIT_READ_GRACE: Duration = Duration::from_secs(5);
 
 /// How long a prune may take before the caller stops waiting. A prune that has
 /// something to collect costs a few hundred ms (measured 300-500 ms), but it
@@ -367,6 +382,60 @@ impl ProxyClient {
             Err(format!("proxy publish: {}", String::from_utf8_lossy(&body)))
         }
     }
+
+    /// Hands the proxy a publication record and blocks until it is published,
+    /// for at most `budget`.
+    ///
+    /// `Ok(true)` is a record that no longer owes the remote anything;
+    /// `Ok(false)` is one the proxy still owes and finishes in the background;
+    /// an `Err` is a proxy that could not take it (nothing listening, or one too
+    /// old to know the op), which the caller answers with an ordinary `publish`.
+    pub fn publish_and_wait(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        record_path: &str,
+        budget: Duration,
+    ) -> Result<bool, String> {
+        let mut stream = self
+            .connect_with_read_timeout(budget + PUBLISH_WAIT_READ_GRACE)
+            .map_err(|e| format!("proxy connect: {e}"))?;
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_PUBLISH_WAIT,
+                cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
+                payload: publish_wait_payload(record_path, budget),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        match status {
+            STATUS_HIT => Ok(true),
+            STATUS_MISS => Ok(false),
+            _ => Err(format!("proxy publish wait: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+}
+
+fn publish_wait_payload(record_path: &str, budget: Duration) -> Vec<u8> {
+    let millis = u32::try_from(budget.as_millis()).unwrap_or(u32::MAX);
+    let mut payload = Vec::with_capacity(4 + record_path.len());
+    payload.extend_from_slice(&millis.to_be_bytes());
+    payload.extend_from_slice(record_path.as_bytes());
+    payload
+}
+
+/// Splits a PUBLISH_WAIT payload into the caller's budget in milliseconds and
+/// the record path. `None` for a payload too short to carry the budget.
+pub fn parse_publish_wait_payload(payload: &[u8]) -> Option<(u32, String)> {
+    let (millis, record_path) = payload.split_first_chunk::<4>()?;
+    Some((
+        u32::from_be_bytes(*millis),
+        String::from_utf8_lossy(record_path).into_owned(),
+    ))
 }
 
 #[cfg(test)]
@@ -413,6 +482,29 @@ mod tests {
             "/Volumes/cache/CompilationCache.noindex/plugin"
         );
         assert_eq!(read.payload, vec![0x00, 0x01, 0xD4, 0xC0]);
+    }
+
+    #[test]
+    fn a_publish_wait_request_carries_its_budget_and_record() {
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_PUBLISH_WAIT,
+            cas_path: "/dd/CompilationCache.noindex/plugin".to_string(),
+            instance: "acme/app".to_string(),
+            payload: publish_wait_payload(
+                "/dd/CompilationCache.noindex/plugin/tuist-spool/123-4",
+                Duration::from_secs(30),
+            ),
+        });
+        assert_eq!(read.op, OP_PUBLISH_WAIT);
+        assert_eq!(
+            parse_publish_wait_payload(&read.payload),
+            Some((
+                30_000,
+                "/dd/CompilationCache.noindex/plugin/tuist-spool/123-4".to_string()
+            ))
+        );
+        assert_eq!(parse_publish_wait_payload(&[0x00, 0x01]), None);
     }
 
     /// The prune rides the same frame layout too, and carries no instance: a

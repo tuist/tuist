@@ -3,6 +3,7 @@
 This file provides guidance to AI agents when working with code in this repository. It serves as the root intent node and points to deeper context in subdirectories.
 
 ## Repository Map
+- `.github/` - GitHub automation and community Slack notifications - see `.github/AGENTS.md`
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `codebase-search/` - Bounded Rust service for hosted source-code search - see `codebase-search/AGENTS.md`
@@ -11,7 +12,9 @@ This file provides guidance to AI agents when working with code in this reposito
 - `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
+- `tuist_ex/` - Elixir build and test instrumentation Hex package - see `tuist_ex/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
+- `atlas/` - Atlas internal ops app (Elixir/Phoenix) covering CRM, contracts, GTM, finance, letters, and the MCP tools other services call into. Deployed to `atlas-production` on the CAPI cluster. MPL-2.0. See `atlas/AGENTS.md`.
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `gradle/` - Tuist Gradle plugin (Kotlin) - see `gradle/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
@@ -27,6 +30,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `infra/cluster-api-provider-tuist/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-tuist/AGENTS.md`.
 - `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
 - `infra/egress-tree-agent/` - Go DaemonSet enforcing kura per-tenant egress floors/ceilings and the node box cap via a shared per-node HTB tree (tcx BPF veth trampoline that keeps Cilium's datapath applied to shaped traffic). Consumes the `tuist.dev/egress-class` pod annotation rendered by the kura-controller. See `infra/egress-tree-agent/AGENTS.md`.
+- `infra/rack-switch-controller/` - Go controller that adopts `RackSwitch` objects marked `managedBy: controller` into the Omada SDN controller and writes their configuration through its Open API, one switch at a time in the site's apply order. Owns the generated RackSwitch CRD. See `infra/rack-switch-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
 - `grafana-datasource/` - Grafana data source plugin (Go backend + React) exposing Tuist build/test duration metrics. Thin client over the server's `/builds/metrics/duration` + `/tests/metrics/duration` API - see `grafana-datasource/AGENTS.md`
@@ -40,6 +44,9 @@ This file provides guidance to AI agents when working with code in this reposito
 - Do not edit translation `.po` files; only the `tuistit` bot should change them.
 - Do not modify content in languages other than English (source language).
 
+## Repository Build Configuration
+- Keep Swift project prefix mapping enabled. Tests must resolve fixture and snapshot locations through `TuistTestSupport` using the runtime checkout path (`TUIST_CONFIG_SRCROOT`), rather than accessing compiler-remapped `#file` or `#filePath` paths directly.
+
 ## Intent Layer Maintenance
 When making changes in a directory with an `AGENTS.md`, keep that node up to date. If a new subsystem or boundary is introduced, add a new leaf `AGENTS.md` and link it from the nearest parent node.
 
@@ -49,12 +56,14 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS and macOS app
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
+- `atlas` - Changes to the Atlas internal ops app (Elixir/Phoenix)
 - `codebase-search` - Changes to the bounded source-code search service
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `registry` - Changes to the Swift package registry service
 - `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
 - `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
+- `tuist-ex` - Changes to the Elixir build and test integration
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
 - `search` - Changes to the search infrastructure (TypeSense)
@@ -259,7 +268,9 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 
 ## Translation Management (Gettext)
 
-**Important:** Translations are managed through Weblate. Do not manually edit translation files.
+**Important:** The translation workflow uses `translate.exs` and the `tuistit` bot. Do not manually edit translation files. Catalog translation is incremental by source-message key. Each successful batch is written before the next request. Markdown translations are reused when their source and context hashes match.
+
+The workflow restores the unmerged `l10n/update-translations` branch with a three-way merge before spending tokens, then saves validated progress even if translation fails. Conflicts stop the run before model requests. Provider-wide failures stop queued batches across sources and locales; in-flight requests may finish. Keep the translation step's timeout below the job timeout so saving partial progress has time to complete. Run `elixir translate_test.exs` when changing this behavior; it covers translation logic and branch recovery in temporary local repositories.
 
 **Translation File Types:**
 - `.pot` files (templates) - **CAN be modified** by developers when adding/changing translatable strings
@@ -270,7 +281,7 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 1. Add translatable strings using `dgettext/2` in your code
 2. Run `mix gettext.extract` to update the `.pot` template files
 3. Commit only the `.pot` files (and your code changes)
-4. Weblate will automatically sync the `.pot` changes and create translation PRs via the `tuistit` bot
+4. The translation workflow sends missing entries to the model and updates the translation pull request through the `tuistit` bot
 5. **Never run `mix gettext.extract --merge`** in your PRs as this modifies `.po` files
 
 **Key Principles:**

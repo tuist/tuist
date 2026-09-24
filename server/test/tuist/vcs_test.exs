@@ -12,6 +12,7 @@ defmodule Tuist.VCSTest do
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
@@ -232,11 +233,20 @@ defmodule Tuist.VCSTest do
           test_run_id: test_run_one.id
         )
 
+      {:ok, test_run_two_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          cacheable_tasks_count: 10,
+          cacheable_task_local_hits_count: 6,
+          cacheable_task_remote_hits_count: 2
+        )
+
       {:ok, test_run_two} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
+          build_run_id: test_run_two_build.id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           status: "failure",
@@ -294,7 +304,7 @@ defmodule Tuist.VCSTest do
           remote_cache_target_hits: ["C"],
           test_targets: ["ATests", "BTests", "CTests", "DTests"],
           local_test_target_hits: ["ATests", "BTests"],
-          remote_test_target_hits: ["CTests"],
+          remote_test_target_hits: [],
           status: "failure",
           test_run_id: test_run_two.id
         )
@@ -336,10 +346,10 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
-        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
+        | Scheme | Status | Module cache hit rate | Xcode cache hit rate | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | - | - | 0 | #{commit_link} |
+        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 80 % | 1/3 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -1552,9 +1562,9 @@ defmodule Tuist.VCSTest do
 
         ##### Xcode
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 1 | #{commit_link} |
 
         ##### Gradle
 
@@ -1623,9 +1633,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 | #{commit_link} |
 
         """
 
@@ -1746,9 +1756,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 | #{commit_link} |
 
 
         #### Builds 🔨
@@ -1984,9 +1994,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -2093,9 +2103,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 7 | 0 | 7 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -2355,9 +2365,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 2 | 0 | 2 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -2499,9 +2509,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 7 | 0 | 7 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -3027,7 +3037,7 @@ defmodule Tuist.VCSTest do
       assert {:ok, %Oban.Job{}} = result
 
       assert_enqueued(
-        worker: VCS.Workers.CommentWorker,
+        worker: CommentWorker,
         args: %{
           "build_id" => build.id,
           "git_commit_sha" => "abc123",
@@ -3035,6 +3045,34 @@ defmodule Tuist.VCSTest do
           "git_remote_url_origin" => "https://github.com/tuist/tuist",
           "project_id" => project.id
         }
+      )
+    end
+
+    test "strips credentials from the remote URL before enqueuing" do
+      project = ProjectsFixtures.project_fixture()
+
+      VCS.enqueue_vcs_pull_request_comment(%{
+        git_commit_sha: "abc123",
+        git_ref: "refs/pull/123/head",
+        git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
+        project_id: project.id
+      })
+
+      VCS.enqueue_vcs_pull_request_comment(%{
+        "git_commit_sha" => "def456",
+        "git_ref" => "refs/pull/124/head",
+        "git_remote_url_origin" => "https://x-access-token:fake-token@github.com/tuist/tuist.git",
+        "project_id" => project.id
+      })
+
+      assert_enqueued(
+        worker: CommentWorker,
+        args: %{"git_commit_sha" => "abc123", "git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
+      )
+
+      assert_enqueued(
+        worker: CommentWorker,
+        args: %{"git_commit_sha" => "def456", "git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
       )
     end
 

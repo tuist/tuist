@@ -1,0 +1,228 @@
+#email {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+
+  & > [data-part="header"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & [data-part="header-actions"] {
+    display: flex;
+    flex-shrink: 0;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="description"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+    max-width: 720px;
+  }
+
+  & [data-part="email-audiences-card"] [data-part="filters"],
+  & [data-part="email-subscribers-card"] [data-part="filters"],
+  & [data-part="email-members-card"] [data-part="filters"],
+  & [data-part="email-inbox-card"] [data-part="filters"],
+  & [data-part="email-outbox-card"] [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="email-audiences-card"] [data-part="search"],
+  & [data-part="email-subscribers-card"] [data-part="search"],
+  & [data-part="email-members-card"] [data-part="search"],
+  & [data-part="email-inbox-card"] [data-part="search"],
+  & [data-part="email-outbox-card"] [data-part="search"] {
+    width: 280px;
+    flex-shrink: 0;
+  }
+
+  & [data-part="email-audiences-card"] [data-part="active-filters"],
+  & [data-part="email-subscribers-card"] [data-part="active-filters"],
+  & [data-part="email-members-card"] [data-part="active-filters"],
+  & [data-part="email-outbox-card"] [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="email-audiences-card"] .noora-pagination-group,
+  & [data-part="email-subscribers-card"] .noora-pagination-group,
+  & [data-part="email-members-card"] .noora-pagination-group,
+  & [data-part="email-broadcasts-card"] .noora-pagination-group,
+  & [data-part="email-inbox-card"] .noora-pagination-group,
+  & [data-part="email-outbox-card"] .noora-pagination-group {
+    display: flex;
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    /* overflow-x also clips vertically, so the page buttons need room for
+       their border shadow. */
+    padding: var(--noora-spacing-2);
+    padding-top: var(--noora-spacing-5);
+  }
+
+  @media (max-width: 960px) {
+    & [data-part="email-audiences-card"] [data-part="filters"],
+    & [data-part="email-subscribers-card"] [data-part="filters"],
+    & [data-part="email-members-card"] [data-part="filters"],
+    & [data-part="email-inbox-card"] [data-part="filters"],
+    & [data-part="email-outbox-card"] [data-part="filters"] {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    & [data-part="email-audiences-card"] [data-part="search"],
+    & [data-part="email-subscribers-card"] [data-part="search"],
+    & [data-part="email-members-card"] [data-part="search"],
+    & [data-part="email-inbox-card"] [data-part="search"],
+    & [data-part="email-outbox-card"] [data-part="search"] {
+      width: 100%;
+    }
+  }
+
+  & [data-part="widgets"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--noora-spacing-4);
+
+    & [data-part="widget"] {
+      height: 100%;
+    }
+
+    @media (max-width: 1024px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 640px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  & [data-part="email-form-grid"] {
+    display: grid;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="email-audience-rules"] {
+    display: grid;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-5);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-large);
+    background: var(--noora-surface-background-secondary);
+  }
+
+  & [data-part="email-audience-rules-heading"] {
+    display: grid;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="email-audience-rules-description"],
+  & [data-part="email-audience-select-hint"] {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="email-details-card"] [data-part="details"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--noora-spacing-5);
+    margin: 0;
+
+    @media (max-width: 800px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  & [data-part="email-details-card"] [data-part="detail"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+
+    & dt {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & dd {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      overflow-wrap: anywhere;
+    }
+  }
+
+  & [data-part="email-details-card"] [data-part="account-link"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="email-body-card"] [data-part="description"] {
+    margin: 0;
+  }
+
+  & [data-part="row-actions"] {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  & [data-part="email-delete-audience-card"] [data-part="delete-audience-action"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="email-delete-audience-card"] [data-part="delete-audience-copy"] {
+    display: grid;
+    gap: var(--noora-spacing-1);
+  }
+
+  & [data-part="email-delete-audience-card"] [data-part="delete-audience-title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="email-delete-audience-card"] [data-part="delete-audience-description"] {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  @media (max-width: 900px) {
+    & [data-part="header"] {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    & [data-part="header-actions"] {
+      flex-wrap: wrap;
+    }
+
+    & [data-part="email-delete-audience-card"] [data-part="delete-audience-action"] {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+}

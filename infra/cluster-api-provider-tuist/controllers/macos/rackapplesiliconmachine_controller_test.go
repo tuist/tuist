@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -783,10 +784,13 @@ func TestDesiredHostConfigHashMatchesWhatIsPushed(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := &RackAppleSiliconMachineReconciler{FleetConfig: fleet, DefaultGuestCapacity: 1}
-			pushed := r.hostConfig(tc.machine, bootstrap.PerHost{
+			host := rackHost("mini-01", func(h *infrav1.RackHost) {
+				h.Spec.SSHIngressAllowCIDRs = []string{"192.168.0.223/32"}
+			})
+			pushed := r.hostConfig(tc.machine, host, bootstrap.PerHost{
 				IP: "192.168.0.41", NodeName: "m", Kubeconfig: "kubeconfig",
 			})
-			if want, have := r.desiredHostConfigHash(tc.machine), bootstrap.HostConfigHash(pushed); want != have {
+			if want, have := r.desiredHostConfigHash(tc.machine, host), bootstrap.HostConfigHash(pushed); want != have {
 				t.Fatalf("stamped hash %s != hash of what was pushed %s", want, have)
 			}
 		})
@@ -821,8 +825,83 @@ func TestRunnerCacheVolumeResolvesOnPresence(t *testing.T) {
 
 	unset := rackMachine("m")
 	disabled := rackMachine("m", func(m *infrav1.RackAppleSiliconMachine) { m.Spec.RunnerCacheVolumeGiB = ptr.To(0) })
-	if r.desiredHostConfigHash(unset) == r.desiredHostConfigHash(disabled) {
+	host := rackHost("mini-01")
+	if r.desiredHostConfigHash(unset, host) == r.desiredHostConfigHash(disabled, host) {
 		t.Fatal("disabling cache volumes does not drift the host; the change would never reach it")
+	}
+}
+
+// --- reachable without the host's own tailnet identity ----------------------
+
+// On 2026-09-18 the BER1 prototype came back from a few days unpowered with its
+// tailnet device gone, and its SSH ingress guard dropped the operator's LAN
+// dial: through the subnet router that dial arrives from the router's own
+// address, which the guard had only ever admitted as a session source, since
+// overwritten. A rented mini would still have been reachable on its
+// allow-listed public address; a rack mini has no such path, so the router has
+// to be in its allow list for good.
+func TestRackHostConfigAdmitsItsSubnetRouters(t *testing.T) {
+	// Spare capacity, so an overlay that appended to the shared slice in place
+	// would write the first host's router where the second host reads.
+	fleetAllow := make([]string, 1, 4)
+	fleetAllow[0] = "78.47.186.71/32"
+	r := &RackAppleSiliconMachineReconciler{
+		FleetConfig:          bootstrap.Config{SSHIngressAllowCIDRs: fleetAllow},
+		DefaultGuestCapacity: 1,
+	}
+	machine := rackMachine("m")
+	first := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Spec.SSHIngressAllowCIDRs = []string{"192.168.0.223/32"}
+	})
+	second := rackHost("mini-02", func(h *infrav1.RackHost) {
+		h.Spec.SSHIngressAllowCIDRs = []string{"192.168.0.224/32", "192.168.0.225/32"}
+	})
+
+	firstCfg := r.hostConfig(machine, first, bootstrap.PerHost{})
+	secondCfg := r.hostConfig(machine, second, bootstrap.PerHost{})
+
+	if want := []string{"78.47.186.71/32", "192.168.0.223/32"}; !slices.Equal(firstCfg.SSHIngressAllowCIDRs, want) {
+		t.Fatalf("first host allow list = %v, want %v", firstCfg.SSHIngressAllowCIDRs, want)
+	}
+	if want := []string{"78.47.186.71/32", "192.168.0.224/32", "192.168.0.225/32"}; !slices.Equal(secondCfg.SSHIngressAllowCIDRs, want) {
+		t.Fatalf("second host allow list = %v, want %v", secondCfg.SSHIngressAllowCIDRs, want)
+	}
+	if want := []string{"78.47.186.71/32"}; !slices.Equal(r.FleetConfig.SSHIngressAllowCIDRs, want) {
+		t.Fatalf("the shared fleet allow list became %v; the rented fleet reads the same value", r.FleetConfig.SSHIngressAllowCIDRs)
+	}
+}
+
+// A router address that changes (a new DHCP lease, a second router for
+// failover) has to reach a host that is already Ready, which only happens if it
+// moves the hash the drift loop compares.
+func TestSubnetRouterChangeDriftsTheHost(t *testing.T) {
+	r := &RackAppleSiliconMachineReconciler{DefaultGuestCapacity: 1}
+	machine := rackMachine("m")
+	before := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Spec.SSHIngressAllowCIDRs = []string{"192.168.0.223/32"}
+	})
+	after := rackHost("mini-01", func(h *infrav1.RackHost) {
+		h.Spec.SSHIngressAllowCIDRs = []string{"192.168.0.223/32", "192.168.0.224/32"}
+	})
+	if r.desiredHostConfigHash(machine, before) == r.desiredHostConfigHash(machine, after) {
+		t.Fatal("adding a subnet router does not drift the host; the guard would keep dropping the new router")
+	}
+}
+
+// Tailscale deletes an ephemeral device 30 to 60 minutes after it was last
+// seen, however long it had been online, and a key minted from an OAuth client
+// is ephemeral unless told otherwise. A rack mini powered off for longer than
+// that comes back with no tailnet identity. The rented fleet shares the same
+// FleetConfig value and must keep joining ephemeral, so the overlay must not
+// leak into it.
+func TestRackHostJoinsTheTailnetAsAStandardDevice(t *testing.T) {
+	r := &RackAppleSiliconMachineReconciler{DefaultGuestCapacity: 1}
+	pushed := r.hostConfig(rackMachine("m"), rackHost("mini-01"), bootstrap.PerHost{})
+	if !pushed.TailscalePersistentDevice {
+		t.Fatal("a rack host is pushed an ephemeral tailnet join; powering it off for an hour deletes its device")
+	}
+	if r.FleetConfig.TailscalePersistentDevice {
+		t.Fatal("the rack overlay changed the shared fleet config; rented minis would stop joining ephemeral")
 	}
 }
 
@@ -1116,8 +1195,8 @@ func TestPerHostConfigDialsTheEgressServiceNotTheAddress(t *testing.T) {
 
 	// And the dial target must NOT reach the host-config hash, or two hosts
 	// with identical config would drift each other.
-	withEgressTarget := r.hostConfig(machine, perHost)
-	if bootstrap.HostConfigHash(withEgressTarget) != r.desiredHostConfigHash(machine) {
+	withEgressTarget := r.hostConfig(machine, host, perHost)
+	if bootstrap.HostConfigHash(withEgressTarget) != r.desiredHostConfigHash(machine, host) {
 		t.Fatal("the dial target changed the host-config hash; it is transport, not config")
 	}
 }

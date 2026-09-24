@@ -8,18 +8,18 @@
 //! is multi-process by design) and materializes fetched graphs into it
 //! before answering a resolve, so consumers' demand loads are local hits.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PREPARE_ACTION,
-    OP_PRUNE, OP_PUBLISH, OP_RESOLVE,
+    parse_publish_wait_payload, read_request, write_response, Request, OP_DRAIN, OP_FETCH_OBJECT,
+    OP_INVALIDATE, OP_PREPARE_ACTION, OP_PRUNE, OP_PUBLISH, OP_PUBLISH_WAIT, OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -42,6 +42,65 @@ use crate::PublishRecord;
 /// nothing has to fail first. This process is a per-machine daemon and can
 /// outlive several such moves.
 pub const ENDPOINT_REFRESH_INTERVAL: Duration = Duration::from_secs(600);
+
+/// How soon a resolution that prefers another endpoint over a healthy current
+/// one is asked again. The move happens only if the second answer agrees.
+pub const ENDPOINT_CONFIRM_INTERVAL: Duration = Duration::from_secs(60);
+
+/// How soon a proxy with no endpoint at all asks again when the CLI has not
+/// said the account's cache is being prepared. Every build until an endpoint
+/// is found runs without a remote.
+pub const ENDPOINT_ABSENT_INTERVAL: Duration = Duration::from_secs(10);
+
+/// How soon the proxy asks again while the CLI reports the account's cache as
+/// being prepared, whether or not it has an endpoint. Every build until the
+/// answer changes runs without the account's cache.
+pub const ENDPOINT_PREPARING_INTERVAL: Duration = Duration::from_secs(1);
+
+/// How long a streak of "being prepared" answers keeps the proxy on
+/// `ENDPOINT_PREPARING_INTERVAL`. Each answer is a CLI process, and a cache
+/// still being prepared after this is not coming back in seconds.
+pub const ENDPOINT_PREPARING_WINDOW: Duration = Duration::from_secs(120);
+
+/// How often the proxy checks whether an endpoint resolution is due.
+pub const ENDPOINT_RESOLUTION_TICK: Duration = Duration::from_millis(250);
+
+#[derive(Debug, PartialEq, Eq)]
+enum EndpointVerdict {
+    Keep,
+    Confirm,
+    Move,
+}
+
+/// What to do with a resolution given the endpoint in force.
+///
+/// The CLI picks by one latency probe per endpoint, so a single bad probe of a
+/// healthy endpoint makes it pick a far one. The current endpoint is therefore
+/// left at once only when the account is no longer served from it, or when it
+/// does not answer; any other disagreement has to be repeated by the next
+/// resolution first.
+fn endpoint_verdict(
+    current: &str,
+    resolved: &crate::endpoint::ResolvedEndpoint,
+    candidate: Option<&str>,
+    current_reachable: impl FnOnce() -> bool,
+) -> EndpointVerdict {
+    use crate::endpoint::same_endpoint;
+
+    if same_endpoint(current, &resolved.url) {
+        return EndpointVerdict::Keep;
+    }
+    if resolved.lists(current) == Some(false) {
+        return EndpointVerdict::Move;
+    }
+    if candidate.is_some_and(|candidate| same_endpoint(candidate, &resolved.url)) {
+        return EndpointVerdict::Move;
+    }
+    if !current_reachable() {
+        return EndpointVerdict::Move;
+    }
+    EndpointVerdict::Confirm
+}
 
 const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
@@ -106,6 +165,10 @@ const DEMAND_BATCH_LINGER: Duration = Duration::from_millis(3);
 // answers UNAVAILABLE while it builds a large namespace's snapshot index,
 // and timeouts/transport errors are transient by the same token.
 const SNAPSHOT_ERROR_RETRY_INTERVAL: Duration = Duration::from_secs(60);
+// How long a snapshot that advertised a blob the remote no longer holds stays
+// out of service before its full refetch. Resolves go per key meanwhile, where
+// the server's presence gate answers an entry with evicted blobs as a miss.
+const SNAPSHOT_STALE_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
 
@@ -255,6 +318,116 @@ fn drain_timeout(payload: &[u8]) -> Duration {
     }
 }
 
+/// How long a build waits for one upload when its caller names no budget.
+const UPLOAD_WAIT_DEFAULT: Duration = Duration::from_secs(30);
+/// Ceiling on a caller-named upload wait, for the same reason as
+/// `DRAIN_TIMEOUT_MAX`.
+const UPLOAD_WAIT_MAX: Duration = Duration::from_secs(120);
+/// Failed uploads in a row after which builds stop waiting. One failure is as
+/// likely to be the record as the remote; a run of them is the remote.
+const UPLOAD_WAIT_FAILURES_TO_OPEN: u64 = 3;
+/// How long builds stop waiting once uploads fail or stall. Afterwards a single
+/// upload waits again, and only its success lets the rest wait.
+const UPLOAD_WAIT_OPEN_MS: u64 = 60_000;
+/// How often a waiting build checks whether the breaker has released it.
+const UPLOAD_WAIT_POLL: Duration = Duration::from_millis(25);
+
+fn upload_wait_budget(millis: u32) -> Duration {
+    match millis {
+        0 => UPLOAD_WAIT_DEFAULT,
+        millis => Duration::from_millis(u64::from(millis)).min(UPLOAD_WAIT_MAX),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UploadWaitAdmission {
+    Closed,
+    Probe,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UploadWaitOutcome {
+    Published,
+    Failed,
+    TimedOut,
+    // The breaker opened while this build waited. Says nothing about this
+    // upload, so it is not recorded.
+    Released,
+}
+
+/// Decides whether a build waits for its upload.
+///
+/// A build waits once per cache put, and every compile puts. So a remote that
+/// stalls or refuses uploads would cost a wait per compile: a thousand compiles
+/// at a 30s budget is a build that never finishes. Once uploads stall, or fail
+/// several times in a row, builds stop waiting for `UPLOAD_WAIT_OPEN_MS`,
+/// including the ones already waiting, and their records are published in the
+/// background instead. After the window a single upload waits again, and only
+/// its success lets every build wait.
+#[derive(Default)]
+struct UploadWaitBreaker {
+    // Epoch ms until which builds do not wait; 0 while builds wait.
+    open_until_ms: AtomicU64,
+    probing: AtomicBool,
+    consecutive_failures: AtomicU64,
+}
+
+impl UploadWaitBreaker {
+    fn admit(&self, now_ms: u64) -> Option<UploadWaitAdmission> {
+        let open_until = self.open_until_ms.load(Ordering::Acquire);
+        if open_until == 0 {
+            return Some(UploadWaitAdmission::Closed);
+        }
+        if now_ms < open_until {
+            return None;
+        }
+        self.probing
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()
+            .map(|_| UploadWaitAdmission::Probe)
+    }
+
+    /// Whether builds waiting since before a stall should stop: the breaker
+    /// opened after they were let in. A probe is let in while it is open, so
+    /// only a build let in while it was closed is released.
+    fn releases(&self, admission: UploadWaitAdmission) -> bool {
+        admission == UploadWaitAdmission::Closed && self.open_until_ms.load(Ordering::Acquire) != 0
+    }
+
+    fn record(&self, admission: UploadWaitAdmission, outcome: UploadWaitOutcome, now_ms: u64) {
+        if outcome == UploadWaitOutcome::Released {
+            return;
+        }
+        let probe = admission == UploadWaitAdmission::Probe;
+        if outcome == UploadWaitOutcome::Published {
+            self.consecutive_failures.store(0, Ordering::Release);
+            if probe {
+                self.open_until_ms.store(0, Ordering::Release);
+                self.probing.store(false, Ordering::Release);
+                crate::log_line("upload wait: uploads succeed again; builds wait for them");
+            }
+            return;
+        }
+        let failures = self.consecutive_failures.fetch_add(1, Ordering::AcqRel) + 1;
+        if probe || outcome == UploadWaitOutcome::TimedOut || failures >= UPLOAD_WAIT_FAILURES_TO_OPEN
+        {
+            let previous = self
+                .open_until_ms
+                .swap(now_ms + UPLOAD_WAIT_OPEN_MS, Ordering::AcqRel);
+            if previous == 0 {
+                crate::log_line(&format!(
+                    "upload wait: uploads are {}; builds stop waiting for them for {}s and they are published in the background",
+                    if outcome == UploadWaitOutcome::TimedOut { "stalling" } else { "failing" },
+                    UPLOAD_WAIT_OPEN_MS / 1000
+                ));
+            }
+        }
+        if probe {
+            self.probing.store(false, Ordering::Release);
+        }
+    }
+}
+
 /// The per-generation byte limit a PRUNE request carries. A malformed or zero
 /// payload means "no budget to impose": prune against whatever limit the store
 /// already has rather than refuse, since a caller that only wants the
@@ -268,6 +441,52 @@ fn prune_limit(payload: &[u8]) -> u64 {
 fn remove_record(record_path: &str) {
     let _ = std::fs::remove_file(record_path);
     let _ = std::fs::remove_file(tags_path(record_path));
+}
+
+/// Whether the record names the value this proxy last published for its key,
+/// so the remote already holds it. A trunk build may still republish it to claim
+/// the entry for trunk (see `is_redundant_reput`), but that moves a tag, not
+/// bytes, so a build has nothing to wait for.
+fn value_already_published(state: &PathState, record_path: &str) -> bool {
+    let Ok(bytes) = std::fs::read(record_path) else {
+        return false;
+    };
+    let Some(record) = PublishRecord::decode_body(&bytes, None) else {
+        return false;
+    };
+    matches!(
+        state.resolved.lock().unwrap().get(&record.key),
+        Some(Resolution::Hit(value)) if value == &record.value_digest
+    )
+}
+
+/// Waits for the publishing thread to report on `ran` until `deadline` passes or
+/// `released` says the build should stop waiting. That thread returns once the
+/// record has been published by it or by the pool worker that already had it,
+/// and a record is deleted only by a publication that succeeded or found
+/// nothing to upload, so the file still being there is a failure.
+fn await_publication(
+    ran: &std::sync::mpsc::Receiver<bool>,
+    record_path: &str,
+    deadline: Instant,
+    released: impl Fn() -> bool,
+) -> UploadWaitOutcome {
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match ran.recv_timeout(UPLOAD_WAIT_POLL.min(remaining)) {
+            Ok(true) if !Path::new(record_path).exists() => return UploadWaitOutcome::Published,
+            Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return UploadWaitOutcome::Failed;
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        if released() {
+            return UploadWaitOutcome::Released;
+        }
+        if deadline <= Instant::now() {
+            return UploadWaitOutcome::TimedOut;
+        }
+    }
 }
 
 /// Whether a re-put can be dropped without a `publish` round trip. True only
@@ -351,6 +570,59 @@ const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 /// next build. Bounds the RAM a long-lived proxy holds for projects nobody is
 /// building, which the size caps alone never release.
 const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
+
+/// How long a registered path may go without a build using it before the
+/// registry forgets it. A forgotten path is registered again by the next build
+/// that declares its instance.
+const REGISTRY_FORGET_AFTER: Duration = Duration::from_secs(3 * 24 * 60 * 60);
+
+/// How far a path's last use may move past the one on disk before it is written.
+const PATH_USE_RECORD_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
+/// How long a path whose store failed to reopen answers misses before the next
+/// check starts another attempt.
+const REOPEN_RETRY_INTERVAL: Duration = Duration::from_secs(5);
+
+/// How long a reopen may run before the proxy logs that it has not returned. A
+/// healthy one takes milliseconds.
+const REOPEN_STALL_REPORT: Duration = Duration::from_secs(10);
+
+/// How often `bound_store` measures a store whose project set a size limit.
+/// Measuring walks the store directory, and a prune that could not rotate the
+/// store (another process still holds it open) would otherwise be retried on
+/// every tick.
+const STORE_BOUND_INTERVAL: Duration = Duration::from_secs(10 * 60);
+
+/// The per-generation limit for a store whose footprint may reach
+/// `store_size_limit` bytes. A pruned store settles at about twice its
+/// per-generation limit (the primary plus the upstream it demoted), so halving
+/// is what keeps the footprint within what the project asked for. Never 0,
+/// which `prune_store` reads as imposing no limit.
+///
+/// A Tuist runner does NOT halve the figure it stages for its compilation cache,
+/// and the difference is the reserve. A runner's cache image keeps room a job
+/// grows into, and its stores are pruned only at the two ends of a job, so they
+/// are budgeted to reach their whole figure and overshoot it in between. A
+/// machine running this proxy has no such reserve and is pruned on a timer, so
+/// here the project's limit is a footprint the store stays within.
+fn generation_limit(store_size_limit: u64) -> u64 {
+    (store_size_limit / 2).max(1)
+}
+
+/// `generation_sizes` keyed by each generation's `N` in `v1.N`.
+fn indexed_generation_sizes(sizes: &HashMap<String, u64>) -> BTreeMap<u64, u64> {
+    sizes
+        .iter()
+        .filter_map(|(name, size)| Some((name.strip_prefix("v1.")?.parse().ok()?, *size)))
+        .collect()
+}
+
+/// The size limit of a store several projects share: the smallest any of them
+/// set. A project that set none does not lift the others'. Pure so the policy
+/// is unit-testable.
+fn shared_store_limit(limits: impl IntoIterator<Item = Option<u64>>) -> Option<u64> {
+    limits.into_iter().flatten().min()
+}
 
 /// A cached resolve outcome for a key.
 enum Resolution {
@@ -443,6 +715,44 @@ fn should_reclaim(idle: Duration, cas_dir_gone: bool) -> bool {
     cas_dir_gone || idle > IDLE_RECLAIM
 }
 
+/// Whether the registry should forget a path: its store directory is gone, or no
+/// build has used it for REGISTRY_FORGET_AFTER.
+fn should_forget(unused_for: Duration, cas_dir_gone: bool) -> bool {
+    cas_dir_gone || unused_for > REGISTRY_FORGET_AFTER
+}
+
+/// Only a path the filesystem reports as missing counts as gone, so a volume
+/// that errors for another reason keeps its registration.
+fn cas_dir_missing(cas_path: &str) -> bool {
+    matches!(
+        std::fs::symlink_metadata(cas_path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    )
+}
+
+/// When a build last used a registered path, and the use the registry on disk
+/// records for it, in seconds since the Unix epoch. `revision` changes on every
+/// use, including two within one second.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PathUse {
+    at: u64,
+    recorded: u64,
+    revision: u64,
+}
+
+impl PathUse {
+    fn needs_recording(&self) -> bool {
+        self.at >= self.recorded.saturating_add(PATH_USE_RECORD_INTERVAL.as_secs())
+    }
+}
+
+fn unix_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0)
+}
+
 /// A cheap identity for the on-disk CAS directory. When it changes, the
 /// directory was deleted and recreated (`xcodebuild clean` / a deleted
 /// DerivedData) under this long-lived proxy, so the in-memory `known_local` and
@@ -480,10 +790,71 @@ fn generation_changed(stored: Option<CasGeneration>, current: Option<CasGenerati
     matches!((stored, current), (Some(prev), Some(now)) if prev != now)
 }
 
+/// What `check_generation` knows about a path's handle.
+struct StoreBinding {
+    /// Identity of the CAS directory the handle was last bound to. A change
+    /// means the store was deleted and recreated under this long-lived proxy.
+    generation: Option<CasGeneration>,
+    reopen: Reopen,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Reopen {
+    /// Nothing is rebinding the handle.
+    Idle,
+    /// A `cas-reopen` thread is rebinding the handle, or a prune owns it.
+    InFlight { since: Instant, stall_reported: bool },
+    /// The last reopen failed at `at` and left the slot empty.
+    Failed { at: Instant },
+}
+
+/// What `check_generation` does for a path.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum StoreVerdict {
+    /// Answer from the handle.
+    Serve,
+    /// Answer a miss: a reopen or prune is running, or a reopen failed inside
+    /// `REOPEN_RETRY_INTERVAL`.
+    Unavailable,
+    /// Rebind the handle to the directory with this identity.
+    Reopen(CasGeneration),
+}
+
+/// The verdict for a path from its binding and the CAS directory's identity at
+/// `now`. A failed reopen is retried once the interval has passed whether or not
+/// the directory changed again, because the slot it left is empty. A directory
+/// that is gone is left to `reclaim_idle`, as in `generation_changed`. Pure so
+/// the policy is unit-testable.
+fn store_verdict(
+    binding: &StoreBinding,
+    current: Option<CasGeneration>,
+    now: Instant,
+) -> StoreVerdict {
+    match (binding.reopen, current) {
+        (Reopen::InFlight { .. }, _) => StoreVerdict::Unavailable,
+        (Reopen::Failed { at }, Some(current))
+            if now.saturating_duration_since(at) >= REOPEN_RETRY_INTERVAL =>
+        {
+            StoreVerdict::Reopen(current)
+        }
+        (Reopen::Failed { .. }, _) => StoreVerdict::Unavailable,
+        (Reopen::Idle, Some(current))
+            if generation_changed(binding.generation, Some(current)) =>
+        {
+            StoreVerdict::Reopen(current)
+        }
+        (Reopen::Idle, _) => StoreVerdict::Serve,
+    }
+}
+
+/// Opens a handle on the store at a path. `open_cas` outside tests.
+type OpenCas = Box<dyn Fn(&'static Upstream, &str) -> Result<llcas_cas_t, String> + Send + Sync>;
+
 /// Per-local-CAS-path state. Leaked for 'static lifetime: the proxy runs
 /// until killed.
 pub struct PathState {
     up: &'static Upstream,
+    open: OpenCas,
     // The handle addressing the store at `cas_path`. Behind a lock because it
     // is REBOUND when the directory is wiped and recreated: an llcas handle
     // holds the store's files open, so after an `rm -rf DerivedData` the old
@@ -492,20 +863,20 @@ pub struct PathState {
     // nothing will ever read them. Readers hold the guard across their whole
     // FFI call so a swap can never dispose a handle mid-use.
     //
-    // `None` is a store that is OUT OF SERVICE: `prune_ondisk` has to dispose
-    // the handle before it can reopen one (llcas only rotates a store as its
-    // last handle closes), and a reopen that then fails must not leave readers
-    // a disposed pointer to dereference. Every reader treats `None` as "this
-    // store can answer nothing" -- a miss on the read paths, an error on the
-    // write ones -- which is exactly what a store we can no longer open is.
+    // `None` is a store that is OUT OF SERVICE: `prune_ondisk` and `reopen_cas`
+    // both dispose the handle before they open another (llcas only rotates a
+    // store as its last handle closes), and an open that then fails must not
+    // leave readers a disposed pointer to dereference. Every reader treats
+    // `None` as "this store can answer nothing" -- a miss on the read paths, an
+    // error on the write ones -- which is exactly what a store we can no longer
+    // open is.
     cas: RwLock<Option<llcas_cas_t>>,
     // The on-disk CAS directory this state wraps, kept so a resolve can restat
-    // it for wipe detection (see `generation`).
+    // it for wipe detection (see `binding`).
     cas_path: String,
-    // Identity of the CAS directory as last observed by a resolve. A change means
-    // the store was deleted and recreated under this long-lived proxy, so the
-    // in-memory marks below are stale and must be dropped before they are trusted.
-    generation: Mutex<Option<CasGeneration>>,
+    // The directory identity `cas` is bound to and the state of any reopen.
+    // Every resolve takes this lock, so it is never held across an FFI call.
+    binding: Mutex<StoreBinding>,
     // Monotonic counter bumped by every invalidation (a detected wipe or a prune
     // signal). A resolve snapshots it after its wipe check and only commits its
     // known_local / resolved writes if it is unchanged, so a resolve that began
@@ -551,6 +922,9 @@ pub struct PathState {
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
+    // Resolves answered as a miss because the store was being reopened or its
+    // reopen had failed (see `check_generation`).
+    pub stats_reopen_misses: AtomicU64,
     // Keys answered from the instance's action-cache snapshot (no remote
     // lookup at all).
     pub stats_snapshot_hits: AtomicU64,
@@ -605,6 +979,13 @@ pub struct PathState {
     // moved says which half moved, and a `write_duration` that did not move
     // says whether that is health or silence.
     pub stats_publish_shed: AtomicU64,
+    // Uploads a build waited for and saw published, uploads it stopped waiting
+    // for with the record still owed, and the milliseconds builds spent waiting.
+    // Together they are what synchronous uploads cost a build and how often
+    // they fell back to the background.
+    pub stats_upload_waited: AtomicU64,
+    pub stats_upload_unwaited: AtomicU64,
+    pub ms_upload_wait: AtomicU64,
 }
 
 /// Fetch instructions for one value-graph node: enough to produce the object
@@ -839,6 +1220,17 @@ impl Snapshot {
 }
 
 impl PathState {
+    fn printed_node_id(&self, digest: &[u8]) -> Option<String> {
+        let cas_guard = self.cas.read().unwrap();
+        let cas = (*cas_guard)?;
+        unsafe {
+            self.up.print_digest(cas, llcas_digest_t {
+                data: digest.as_ptr(),
+                size: digest.len(),
+            })
+        }
+    }
+
     fn shard(&self, digest: &[u8]) -> &Mutex<HashSet<Vec<u8>>> {
         &self.known_local[digest.first().copied().unwrap_or(0) as usize % 32]
     }
@@ -876,9 +1268,10 @@ impl PathState {
         // the read-ahead wavefront's work and sent every later lookup back to
         // the remote (measured: ~2x the remote round trips of the key set).
         // Keeping it is only safe while that guard probes the store the
-        // consumer reads: a wipe must rebind the handle (see `reopen_cas`)
-        // BEFORE this runs, or every retained Hit is re-verified against the
-        // deleted store and served as a `missing object` build failure.
+        // consumer reads: a wipe must take the stale handle out of service (see
+        // `reopen_cas`) BEFORE this runs, or every retained Hit is re-verified
+        // against the deleted store and served as a `missing object` build
+        // failure.
         for shard in &self.known_local {
             shard.lock().unwrap().clear();
         }
@@ -916,115 +1309,139 @@ impl PathState {
     /// Dropping the marks is not enough on its own, because `load_present`
     /// re-learns them from that same handle.
     ///
-    /// The fresh handle is opened before the lock is taken, so a failure leaves
-    /// the existing one in place; the stale handle is disposed only once the
-    /// swap holds the write lock, where no thread can be inside a call with it.
-    /// Disposing (rather than leaking) also lets go of the deleted store's
-    /// inodes, which is what actually returns the disk the user meant to free.
+    /// The stale handle leaves the slot and is disposed BEFORE the fresh one is
+    /// opened, the order `prune_ondisk` uses, so the open never runs beside a
+    /// handle of ours on the same path. Taking it under the write lock means no
+    /// thread is inside a call with it. Readers see the empty slot as out of
+    /// service meanwhile, and it stays empty if the open fails. Disposing
+    /// (rather than leaking) also lets go of the deleted store's inodes, which
+    /// is what actually returns the disk the user meant to free.
+    ///
+    /// The marks are dropped as soon as the slot is empty. A probe through the
+    /// stale handle finished before the write lock was granted, so the resolve
+    /// that made it observed the counter before this bump and `committable`
+    /// drops its writes.
+    ///
+    /// Blocks for as long as the upstream dispose and open take, so outside
+    /// tests only the `cas-reopen` thread `check_generation` starts calls it.
     fn reopen_cas(&self) -> Result<(), String> {
-        let fresh = unsafe { open_cas(self.up, &self.cas_path)? };
-        let mut cas = self.cas.write().unwrap();
-        if let Some(stale) = std::mem::replace(&mut *cas, Some(fresh)) {
+        let stale = self.cas.write().unwrap().take();
+        self.invalidate();
+        self.publish_cache.lock().unwrap().clear();
+        if let Some(stale) = stale {
             unsafe { (self.up.llcas_cas_dispose)(stale) };
         }
+        let fresh = (self.open)(self.up, &self.cas_path)?;
+        *self.cas.write().unwrap() = Some(fresh);
         Ok(())
+    }
+
+    /// Runs the reopen `check_generation` claimed and records how it ended.
+    /// `target` is the directory identity observed before the open, so a wipe
+    /// that lands during it still reads as a change afterwards.
+    fn finish_reopen(&self, target: CasGeneration) {
+        let started = Instant::now();
+        let outcome = self.reopen_cas();
+        {
+            let mut binding = self.binding.lock().unwrap();
+            match &outcome {
+                Ok(()) => {
+                    binding.generation = Some(target);
+                    binding.reopen = Reopen::Idle;
+                }
+                Err(_) => binding.reopen = Reopen::Failed { at: Instant::now() },
+            }
+        }
+        let elapsed = started.elapsed().as_millis();
+        match outcome {
+            Ok(()) => crate::log_line(&format!(
+                "cas reopen after wipe took {elapsed}ms for {}",
+                self.cas_path
+            )),
+            Err(message) => crate::log_line(&format!(
+                "cas reopen after wipe failed after {elapsed}ms for {}: {message}; resolves on it answer misses until a retry opens it",
+                self.cas_path
+            )),
+        }
     }
 
     /// Bounds the on-disk store to `limit_bytes` PER GENERATION and deletes the
     /// generations that fall off the chain, returning the bytes reclaimed.
     ///
-    /// `COMPILATION_CACHE_LIMIT_SIZE` does not, on its own, cap anything.
-    /// Measured against Xcode 26.5's `libToolchainCASPlugin`: setting the limit
-    /// and then writing 3x past it prunes nothing, and a
-    /// `llcas_cas_prune_ondisk_data` issued inside that same session returns
-    /// success in ~0ms having reclaimed 0 bytes. What the limit actually drives
-    /// is a chain of generation directories (`v1.1`, `v1.2`, ...): when the live
-    /// chain is over the limit, CLOSING the last handle starts a new primary and
-    /// demotes the old one; `prune_ondisk_data` is what then deletes whatever
-    /// fell off the end. With nothing calling it the directory just grows -- 16
-    /// rounds against a 0.125 GiB limit took it to 1.175 GiB, still climbing.
+    /// This lives in the proxy because a store only rotates once nothing holds
+    /// it open, and on a machine running the proxy the proxy's handle does.
     ///
-    /// So the order below is the whole point, and it is why this lives in the
-    /// proxy: the rotation is a side effect of the LAST handle closing, and on a
-    /// machine running the proxy that handle is the proxy's own. Set the limit,
-    /// dispose (rotate), reopen, and only then prune -- a prune issued through a
-    /// handle opened alongside ours finds the chain still live and collects
-    /// nothing, while reporting success.
-    ///
-    /// The write lock is the quiescence guarantee: no reader can be inside an
-    /// FFI call with the handle we dispose, and none can take one out until the
-    /// replacement is in place.
+    /// The store is claimed for the whole prune (see `claim_for_prune`), so
+    /// lookups answer misses instead of waiting for it, and the write lock is
+    /// held only to take the handle out and to put the fresh one in, never
+    /// across the dispose, prune, or open, any of which can block.
     fn prune_ondisk(&self, limit_bytes: u64) -> Result<u64, String> {
-        let Some(set_limit) = self.up.llcas_cas_set_ondisk_size_limit else {
-            return Err("upstream plugin exports no ondisk size limit".into());
-        };
-        let Some(prune) = self.up.llcas_cas_prune_ondisk_data else {
-            return Err("upstream plugin exports no ondisk prune".into());
-        };
-        let before = generation_sizes(&self.cas_path);
-        let mut cas = self.cas.write().unwrap();
-
-        if let Some(live) = *cas {
-            // Only worth a log: a limit we failed to set means the dispose below
-            // rotates nothing, and the prune then honestly collects nothing.
-            if let Err(message) = unsafe { set_ondisk_limit(self.up, set_limit, live, limit_bytes) }
-            {
-                crate::log_line(&format!(
-                    "proxy prune: could not set the limit on {}: {message}",
-                    self.cas_path
-                ));
-            }
+        if !self.claim_for_prune() {
+            return Err("the store is being reopened or pruned".into());
         }
-        // Dispose FIRST, and leave the slot empty across it: this is the close
-        // that rotates, so nothing of ours may hold the store open here.
-        if let Some(stale) = cas.take() {
-            unsafe { (self.up.llcas_cas_dispose)(stale) };
+        let outcome = self.rotate_and_prune(limit_bytes);
+        self.release_prune_claim();
+        outcome
+    }
+
+    /// Claims the store for a prune, or `false` when a reopen or another prune
+    /// already owns it. A claimed store reads as `Reopen::InFlight`, so
+    /// `check_generation` answers `false` for it and starts no reopen of its
+    /// own, and only one prune or reopen handles the slot at a time.
+    fn claim_for_prune(&self) -> bool {
+        let mut binding = self.binding.lock().unwrap();
+        if matches!(binding.reopen, Reopen::InFlight { .. }) {
+            return false;
         }
-
-        // The fresh handle sees the post-rotation chain. A store that will not
-        // reopen is one we can no longer serve at all, so leave the slot `None`
-        // rather than hand readers a disposed pointer; the recovery is a later
-        // build, which registers the path afresh.
-        //
-        // Every path from here runs through the invalidation below, including
-        // that one. The rotation has already happened, so the marks describe a
-        // chain this state no longer addresses whether or not the prune ran.
-        let outcome = match unsafe { open_cas(self.up, &self.cas_path) } {
-            Ok(fresh) => {
-                *cas = Some(fresh);
-                // Re-set on the new primary so the NEXT close rotates too,
-                // without anyone having to ask again.
-                if let Err(message) =
-                    unsafe { set_ondisk_limit(self.up, set_limit, fresh, limit_bytes) }
-                {
-                    crate::log_line(&format!(
-                        "proxy prune: could not re-set the limit on {}: {message}",
-                        self.cas_path
-                    ));
-                }
-                let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-                let failed = unsafe { prune(fresh, &mut error) };
-                let detail = unsafe { take_error(self.up, error) };
-                if failed {
-                    Err(detail.unwrap_or_else(|| "prune failed".into()))
-                } else {
-                    Ok(())
-                }
-            }
-            Err(message) => Err(format!("reopen after rotation: {message}")),
+        binding.reopen = Reopen::InFlight {
+            since: Instant::now(),
+            stall_reported: false,
         };
-        drop(cas);
+        true
+    }
 
-        // A prune removed objects from the store IN PLACE. Our known-local marks
+    /// Ends a prune's claim. A prune whose reopen failed left the slot empty,
+    /// which is marked `Failed` so `check_generation` retries the open on its
+    /// own thread.
+    fn release_prune_claim(&self) {
+        let out_of_service = self.cas.read().unwrap().is_none();
+        self.binding.lock().unwrap().reopen = if out_of_service {
+            Reopen::Failed { at: Instant::now() }
+        } else {
+            Reopen::Idle
+        };
+    }
+
+    /// Disposes the handle, prunes the store with nothing of ours holding it
+    /// (`prune_store`), and opens a fresh handle. The caller holds the claim.
+    fn rotate_and_prune(&self, limit_bytes: u64) -> Result<u64, String> {
+        // Under the write lock, so no reader is inside a call with the handle.
+        // Readers see the empty slot as out of service until the fresh handle is
+        // installed.
+        let stale = self.cas.write().unwrap().take();
+        // A prune removes objects from the store IN PLACE. Our known-local marks
         // are trusted without an on-disk probe, so a surviving mark for a
         // collected blob hands a consumer a graph with holes -- the same hazard
-        // OP_INVALIDATE exists for, and it applies to a partial prune that then
-        // errored just as much as to one that succeeded.
+        // OP_INVALIDATE exists for. Nothing learns a mark while the slot is
+        // empty, so dropping them here covers the whole prune, including one
+        // that then errors.
         self.invalidate();
         self.publish_cache.lock().unwrap().clear();
+        if let Some(stale) = stale {
+            unsafe { (self.up.llcas_cas_dispose)(stale) };
+        }
+        let pruned = prune_store(&self.cas_path, limit_bytes);
 
-        outcome?;
-        Ok(reclaimed_bytes(&self.cas_path, &before))
+        // A store that will not reopen stays out of service, and
+        // `release_prune_claim` leaves it to the reopen retry.
+        match (self.open)(self.up, &self.cas_path) {
+            Ok(fresh) => *self.cas.write().unwrap() = Some(fresh),
+            Err(message) => crate::log_line(&format!(
+                "proxy prune: could not reopen {}: {message}",
+                self.cas_path
+            )),
+        }
+        pruned.map(|pruned| pruned.reclaimed)
     }
 
     /// Validate the complete local graph while keeping all ids on one handle.
@@ -1349,18 +1766,46 @@ impl DemandCoalescer {
     }
 }
 
-/// What setup recorded for an instance, memoized on a TTL so a publish does not
-/// re-read the registry file.
+/// What setup recorded for an instance, memoized so a publish does not re-read
+/// the registry file.
 struct SourceContext {
     read_at: Instant,
+    /// The fingerprint of the sources file this was read from. Setup changes a
+    /// project's upload policy by replacing the file, and the build it runs next
+    /// starts publishing within seconds, so a replaced file is re-read at once
+    /// rather than when the TTL runs out.
+    sources: Option<SourcesFingerprint>,
     trunk: Option<String>,
     ci_branch: Option<String>,
     upload: bool,
+    store_size_limit: Option<u64>,
 }
 
-/// How long a recorded context is reused before the proxy re-reads the registry,
-/// so a project set up after startup is picked up within seconds.
+/// How long a recorded context is reused while the sources file is unchanged.
 const GIT_CONTEXT_TTL: Duration = Duration::from_secs(15);
+
+/// What is on disk at the sources registry's path, identified without reading
+/// it: two `stat`s return the same fingerprint only if nothing wrote the file in
+/// between. Setup swaps the file in by rename, which is a new inode, and the
+/// change time moves on any other write, since no writer can set it back.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct SourcesFingerprint {
+    device: u64,
+    inode: u64,
+    changed_seconds: i64,
+    changed_nanoseconds: i64,
+}
+
+fn sources_fingerprint(path: &Path) -> Option<SourcesFingerprint> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = std::fs::metadata(path).ok()?;
+    Some(SourcesFingerprint {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        changed_seconds: metadata.ctime(),
+        changed_nanoseconds: metadata.ctime_nsec(),
+    })
+}
 
 /// The (branch, trunk) pair `source_context` resolves, cloned out from under the
 /// cache lock.
@@ -1368,6 +1813,7 @@ struct SourceBranches {
     branch: Option<String>,
     trunk: Option<String>,
     upload: bool,
+    store_size_limit: Option<u64>,
 }
 
 /// What `tuist setup cache` recorded for an instance.
@@ -1406,6 +1852,10 @@ struct RegisteredSource {
     /// Absent is permissive: nothing recorded is nothing to withhold.
     #[serde(default = "uploads_by_default")]
     upload: bool,
+    /// The project's `xcodeCache.storeSizeLimit`, in bytes: what `bound_stores`
+    /// prunes the project's stores back to. Absent is unbounded.
+    #[serde(default, rename = "storeSizeLimit")]
+    store_size_limit: Option<u64>,
 }
 
 fn uploads_by_default() -> bool {
@@ -1420,8 +1870,14 @@ pub struct Proxy {
     // Epoch-ms of the last endpoint resolution, so the sweep can carry the
     // interval without a timer of its own. 0 means never resolved.
     endpoint_resolved_at_ms: AtomicU64,
+    // Epoch-ms of the first answer in the current streak of "being prepared"
+    // answers. 0 means the last answer was not one.
+    endpoint_preparing_since_ms: AtomicU64,
     // Bumped on every adoption. Only ever compared for equality.
     endpoint_generation: AtomicU64,
+    // An endpoint the last resolution preferred over a healthy current one,
+    // awaiting a second resolution that agrees. See `endpoint_verdict`.
+    endpoint_candidate: Mutex<Option<String>>,
     tokens: Arc<TokenProvider>,
     upstream_plugin: String,
     // Monotonic base for per-path last-used timestamps (see PathState.last_used).
@@ -1441,6 +1897,14 @@ pub struct Proxy {
     // persisted so an Xcode ⌘B build (which declares none) still routes after
     // a proxy restart. See proxy_proto for why the fallback exists.
     path_instance: Mutex<HashMap<String, String>>,
+    // cas_path -> every instance that has declared it, persisted in the same
+    // registry. A store is shared (Xcode's default one by every project on the
+    // machine), and its size limit is the smallest any of them set.
+    path_instances: Mutex<HashMap<String, BTreeSet<String>>>,
+    // cas_path -> when a build last used it, persisted beside the registry (see
+    // `forget_unused_paths`). Taken after `path_instance` and `path_instances`.
+    path_uses: Mutex<HashMap<String, PathUse>>,
+    path_use_revision: AtomicU64,
     registry_path: Option<PathBuf>,
     // instance -> what `tuist setup cache` recorded for it: the project's trunk,
     // the CI job's branch, and the upload policy. Not the checkout: nothing about
@@ -1451,11 +1915,14 @@ pub struct Proxy {
     // Instances a build has touched since this proxy started; bounds trunk
     // ingestion to projects actually in use (see `instance_active`).
     active_instances: Mutex<HashSet<String>>,
-    // instance -> the last context read from the registry, refreshed on a short
-    // TTL so per-publish tagging is a cache hit rather than a file read.
+    // instance -> the last context read from the registry, refreshed when the
+    // file is replaced or on a short TTL, so per-publish tagging is a cache hit
+    // rather than a file read.
     source_cache: Mutex<HashMap<String, SourceContext>>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
+    // Whether a build's put waits for its upload; see `publish_and_wait`.
+    upload_wait: UploadWaitBreaker,
     // Resolves/publishes that arrived with no declared instance and no primed
     // registry mapping. They answer a silent miss by design (an unprimed ⌘B
     // build must degrade, not fail) — but a MISCONFIGURED build looks exactly
@@ -1485,6 +1952,8 @@ pub struct Proxy {
     // When we last said a refresh was held off for a busy machine (see
     // `log_busy`).
     busy_logged_at: Mutex<Option<Instant>>,
+    // cas_path -> when `bound_store` last measured it.
+    store_bound_checked: Mutex<HashMap<String, Instant>>,
 
     // Keys answered by a per-key lookup while a snapshot was Ready: they fell
     // out of the server's size-capped wire view, which ranks by version — a
@@ -1519,19 +1988,28 @@ impl Proxy {
         registry_path: Option<PathBuf>,
         analytics: Option<crate::analytics::Analytics>,
     ) -> &'static Proxy {
-        let path_instance = registry_path
+        let (path_instance, path_instances) = registry_path
             .as_deref()
             .map(load_registry)
+            .unwrap_or_default();
+        let path_uses = registry_path
+            .as_deref()
+            .map(|path| load_path_uses(&uses_path_for(path)))
             .unwrap_or_default();
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url: RwLock::new(grpc_url),
             endpoint_resolved_at_ms: AtomicU64::new(0),
+            endpoint_preparing_since_ms: AtomicU64::new(0),
             endpoint_generation: AtomicU64::new(0),
+            endpoint_candidate: Mutex::new(None),
             tokens,
             upstream_plugin,
             epoch: Instant::now(),
             remotes: Mutex::new(HashMap::new()),
             path_instance: Mutex::new(path_instance),
+            path_instances: Mutex::new(path_instances),
+            path_uses: Mutex::new(path_uses),
+            path_use_revision: AtomicU64::new(1),
             instance_sources: Mutex::new(
                 registry_path
                     .as_deref()
@@ -1542,6 +2020,7 @@ impl Proxy {
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
+            upload_wait: UploadWaitBreaker::default(),
             materializer: Prefetcher::new(),
             prematerializer: Prefetcher::new(),
             materialize_jobs: Mutex::new(HashMap::new()),
@@ -1549,6 +2028,7 @@ impl Proxy {
             job_counter: AtomicU64::new(0),
             snapshots: Mutex::new(HashMap::new()),
             busy_logged_at: Mutex::new(None),
+            store_bound_checked: Mutex::new(HashMap::new()),
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
@@ -1645,15 +2125,33 @@ impl Proxy {
     /// empty one falls back to whatever a prior build primed. `None` means an
     /// unprimed ⌘B build: the caller degrades it to a miss.
     fn resolve_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
+        let now = unix_seconds();
         let instance = if !declared.is_empty() {
             let mut map = self.path_instance.lock().unwrap();
-            if map.get(cas_path).map(String::as_str) != Some(declared) {
+            let mut known = self.path_instances.lock().unwrap();
+            let mut uses = self.path_uses.lock().unwrap();
+            let revision = self.path_use_revision.fetch_add(1, Ordering::Relaxed);
+            note_use(&mut uses, cas_path, now, revision);
+            let rerouted = map.get(cas_path).map(String::as_str) != Some(declared);
+            if rerouted {
                 map.insert(cas_path.to_string(), declared.to_string());
-                self.persist_registry(&map);
+            }
+            let newly_known = known
+                .entry(cas_path.to_string())
+                .or_default()
+                .insert(declared.to_string());
+            if rerouted || newly_known {
+                self.persist_registry(&map, &known, &mut uses);
             }
             Some(declared.to_string())
         } else {
-            self.path_instance.lock().unwrap().get(cas_path).cloned()
+            let map = self.path_instance.lock().unwrap();
+            let instance = map.get(cas_path).cloned();
+            if instance.is_some() {
+                let revision = self.path_use_revision.fetch_add(1, Ordering::Relaxed);
+                note_use(&mut self.path_uses.lock().unwrap(), cas_path, now, revision);
+            }
+            instance
         };
         // Every caller of this is real build traffic (a resolve, a demand fetch,
         // a publish), and nothing else reaches it — the startup prefetch does
@@ -1740,20 +2238,128 @@ impl Proxy {
         self.active_instances.lock().unwrap().contains(instance)
     }
 
-    fn persist_registry(&self, map: &HashMap<String, String>) {
+    /// Forgets every registered path whose store directory is gone, or that no
+    /// build has used for REGISTRY_FORGET_AFTER and whose spool holds no
+    /// publications, and writes the uses that have moved past
+    /// PATH_USE_RECORD_INTERVAL. Runs at startup, before
+    /// `prefetch_known_snapshots`, and from the maintenance loop.
+    ///
+    /// A path is forgotten with every instance that declared it, so a store in
+    /// use keeps each sharing project's limit. The sources registry is left
+    /// alone: a build registers its path again, but only `tuist setup cache`
+    /// records a project's policy.
+    pub fn forget_unused_paths(&self) {
+        let now = unix_seconds();
+        let unused = self
+            .observe_paths()
+            .into_iter()
+            .filter_map(|(cas_path, path_use)| {
+                let gone = cas_dir_missing(&cas_path);
+                let unused_for =
+                    Duration::from_secs(path_use.map_or(0, |path_use| now.saturating_sub(path_use.at)));
+                // A spool is swept and drained only through its path's routing.
+                (should_forget(unused_for, gone) && spool_records(&cas_path) == 0).then(|| {
+                    let reason = if gone {
+                        "its store directory is gone".to_string()
+                    } else {
+                        format!("unused for {} days", unused_for.as_secs() / 86_400)
+                    };
+                    (cas_path, path_use, reason)
+                })
+            })
+            .collect();
+        self.forget_paths(unused, now);
+    }
+
+    /// Every registered path with the use recorded for it now.
+    fn observe_paths(&self) -> Vec<(String, Option<PathUse>)> {
+        let routing = self.path_instance.lock().unwrap();
+        let known = self.path_instances.lock().unwrap();
+        let uses = self.path_uses.lock().unwrap();
+        known
+            .keys()
+            .chain(routing.keys())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|cas_path| (cas_path.clone(), uses.get(cas_path).copied()))
+            .collect()
+    }
+
+    /// Forgets each path observed unused, unless a build has used it since it
+    /// was observed.
+    fn forget_paths(&self, unused: Vec<(String, Option<PathUse>, String)>, now: u64) {
+        let mut routing = self.path_instance.lock().unwrap();
+        let mut known = self.path_instances.lock().unwrap();
+        let mut uses = self.path_uses.lock().unwrap();
+        let mut forgot = false;
+        for (cas_path, observed, reason) in unused {
+            let current = uses.get(&cas_path).map(|path_use| path_use.revision);
+            if current != observed.map(|path_use| path_use.revision) {
+                continue;
+            }
+            routing.remove(&cas_path);
+            known.remove(&cas_path);
+            uses.remove(&cas_path);
+            forgot = true;
+            crate::log_line(&format!("registry forgot {cas_path}: {reason}"));
+        }
+        // A path with no recorded use starts its clock now.
+        for cas_path in known.keys().chain(routing.keys()) {
+            uses.entry(cas_path.clone()).or_insert(PathUse {
+                at: now,
+                recorded: 0,
+                revision: 0,
+            });
+        }
+        if forgot || uses.values().any(PathUse::needs_recording) {
+            self.persist_registry(&routing, &known, &mut uses);
+        }
+    }
+
+    /// Writes one `cas_path\tinstance` line per instance that has declared a
+    /// path, with each path's routing instance after its others (see
+    /// `load_registry`), and each path's last use beside it (see
+    /// `load_path_uses`). Callers hold the `path_instance` lock, which is what
+    /// keeps two writes from sharing a staged file.
+    fn persist_registry(
+        &self,
+        routing: &HashMap<String, String>,
+        known: &HashMap<String, BTreeSet<String>>,
+        uses: &mut HashMap<String, PathUse>,
+    ) {
         let Some(path) = &self.registry_path else {
             return;
         };
         let mut body = String::new();
-        for (cas_path, instance) in map {
+        let mut line = |cas_path: &str, instance: &str| {
             if !cas_path.contains(['\t', '\n']) && !instance.contains(['\t', '\n']) {
                 body.push_str(cas_path);
                 body.push('\t');
                 body.push_str(instance);
                 body.push('\n');
             }
+        };
+        for (cas_path, instances) in known {
+            let routed = routing.get(cas_path);
+            for instance in instances.iter().filter(|instance| Some(*instance) != routed) {
+                line(cas_path, instance);
+            }
         }
-        let _ = std::fs::write(path, body);
+        for (cas_path, instance) in routing {
+            line(cas_path, instance);
+        }
+        uses.retain(|cas_path, _| known.contains_key(cas_path) || routing.contains_key(cas_path));
+        let mut used = String::new();
+        for (cas_path, path_use) in uses.iter() {
+            if !cas_path.contains(['\t', '\n']) {
+                used.push_str(&format!("{cas_path}\t{}\n", path_use.at));
+            }
+        }
+        if replace_file(path, &body).is_ok() && replace_file(&uses_path_for(path), &used).is_ok() {
+            for path_use in uses.values_mut() {
+                path_use.recorded = path_use.at;
+            }
+        }
     }
 
     /// Returns the path's state, registering it on first sight.
@@ -1790,9 +2396,13 @@ impl Proxy {
         }
         let state: &'static PathState = Box::leak(Box::new(PathState {
             up,
+            open: Box::new(|up: &'static Upstream, path: &str| unsafe { open_cas(up, path) }),
             cas: RwLock::new(Some(cas)),
             cas_path: cas_path.to_string(),
-            generation: Mutex::new(cas_generation(cas_path)),
+            binding: Mutex::new(StoreBinding {
+                generation: cas_generation(cas_path),
+                reopen: Reopen::Idle,
+            }),
             gen_counter: AtomicU64::new(0),
             resolved: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashSet::new()),
@@ -1805,6 +2415,7 @@ impl Proxy {
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
+            stats_reopen_misses: AtomicU64::new(0),
             stats_snapshot_hits: AtomicU64::new(0),
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
@@ -1821,6 +2432,9 @@ impl Proxy {
             us_publish_local: AtomicU64::new(0),
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
+            stats_upload_waited: AtomicU64::new(0),
+            stats_upload_unwaited: AtomicU64::new(0),
+            ms_upload_wait: AtomicU64::new(0),
         }));
         paths.insert(cas_path.to_string(), state);
         Ok(state)
@@ -1851,8 +2465,12 @@ impl Proxy {
         // before the fast path and before resolve_uncached's manifest filter, so
         // an uncached/changed key or a parallel build can't trust known_local
         // marks for a store that no longer exists (which would skip re-fetching
-        // wiped nodes and hand back a value whose graph is missing on disk).
-        self.check_generation(state);
+        // wiped nodes and hand back a value whose graph is missing on disk). A
+        // store that is being reopened answers a miss instead of waiting.
+        if !self.check_generation(state) {
+            state.stats_reopen_misses.fetch_add(1, Ordering::Relaxed);
+            return Ok(None);
+        }
         // Fast path, outside single-flight so the presence load never
         // serializes other keys: serve a cached Hit only after confirming its
         // value object is still on disk. A long-lived proxy keeps Hits in memory
@@ -1923,10 +2541,13 @@ impl Proxy {
         // during the wait must be caught before resolve_uncached trusts
         // known_local. `observed` is snapshotted here so the write guard drops
         // this resolve's marks if a wipe/prune advances the counter mid-resolve.
-        self.check_generation(state);
-        let observed = state.gen_counter.load(Ordering::SeqCst);
-        let outcome =
-            self.resolve_uncached(remote, instance, state, key, observed, snapshot.is_some());
+        let outcome = if self.check_generation(state) {
+            let observed = state.gen_counter.load(Ordering::SeqCst);
+            self.resolve_uncached(remote, instance, state, key, observed, snapshot.is_some())
+        } else {
+            state.stats_reopen_misses.fetch_add(1, Ordering::Relaxed);
+            Ok(None)
+        };
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -2186,6 +2807,9 @@ impl Proxy {
                     skipped.push(digest.to_vec());
                 }
             };
+            // Nodes the batch read did not return, root included, with their blobs.
+            // Not yet evidence of eviction: a read can also be refused.
+            let mut absent_remotely: Vec<(Vec<u8>, reapi::Digest)> = Vec::new();
             while !ordered.is_empty() {
                 let count = ordered.len();
                 let mut deferred = Vec::new();
@@ -2204,6 +2828,7 @@ impl Proxy {
                             // needs it retries — and surfaces the failure —
                             // per object.
                             None => {
+                                absent_remotely.push((entry.llcas_digest.clone(), entry.blob.clone()));
                                 skip(&entry.llcas_digest, entry_is_root, &mut skipped_digests);
                                 continue;
                             }
@@ -2235,22 +2860,15 @@ impl Proxy {
                                 * (compressed as f64 / total_compressed as f64)
                         };
                         let codec = crate::analytics::millis(codec_elapsed);
-                        // This node's own transfer. Keyed by the node, not by a hex
-                        // of its digest: the checksum the server joins on is the
-                        // separate digest this node's PARENT carries next to its
-                        // casID, which the root of this graph records below.
-                        analytics.record_cas_output(
-                            &entry.llcas_digest,
-                            frame.len() as i64,
-                            compressed,
-                            transfer + codec,
-                            transfer,
-                            codec,
-                        );
-                        // The (casID -> checksum) references this node makes, for the
-                        // nodes table the server maps build-log node ids through.
-                        for (cas_id, hex) in crate::analytics::parse_cas_references(&node.data) {
-                            analytics.record_node(&cas_id, &hex);
+                        if let Some(node_id) = state.printed_node_id(&entry.llcas_digest) {
+                            analytics.record_cas_output(
+                                node_id,
+                                &entry.blob.hash,
+                                frame.len() as i64,
+                                compressed,
+                                transfer,
+                                codec,
+                            );
                         }
                     }
                     let phase = Instant::now();
@@ -2300,6 +2918,11 @@ impl Proxy {
             // measuring against the whole graph reads as `skipped=1 of 40` when
             // only two nodes were in play, which under-reports the failure rate
             // this counter exists to trend.
+            if !remote.declining_reads() {
+                self.distrust_snapshots_advertising(&confirmed_evicted(&absent_remotely, |blobs| {
+                    remote.find_missing(blobs)
+                }));
+            }
             let root_already_local = !root_pending;
             let skipped = skipped_digests.len();
             // Now narrow the pessimistic record to what the pass actually
@@ -2525,8 +3148,9 @@ impl Proxy {
         // fetch stores into a directory nothing reads. Both end as the
         // `missing object` the rebind exists to prevent, and clang does not
         // survive that one. The resolve path restats for the same reason; this
-        // is the door it does not cover.
-        self.check_generation(state);
+        // is the door it does not cover. A store that is being reopened answers
+        // not-found rather than waiting for it.
+        let serving = self.check_generation(state);
         // And a demand fetch IS the build working. The resolves all land during
         // planning, so a long compile phase afterwards is nothing but these: with
         // only resolves and publishes stamping this, the machine reads as idle
@@ -2536,6 +3160,9 @@ impl Proxy {
         state
             .last_used
             .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+        if !serving {
+            return Ok(false);
+        }
         let mut repairing = Vec::new();
         self.fetch_object_inner(state, cas_path, declared_instance, digest, &mut repairing)
     }
@@ -2657,6 +3284,8 @@ impl Proxy {
             return Ok(false);
         };
         let blob = pending.blob.clone();
+        let inlined = pending.contents.is_some();
+        let fetch_started = Instant::now();
         let blob_bytes = match pending.contents {
             Some(bytes) => bytes,
             None => {
@@ -2666,16 +3295,31 @@ impl Proxy {
                 let remote = self.remote_for(&instance);
                 match self.demand_fetch(&instance, &remote, &blob)? {
                     Some(bytes) => bytes,
-                    None => return Ok(false),
+                    None => {
+                        if !remote.declining_reads() {
+                            self.distrust_snapshots_advertising(&confirmed_evicted(
+                                &[(digest.to_vec(), blob.clone())],
+                                |blobs| remote.find_missing(blobs),
+                            ));
+                        }
+                        return Ok(false);
+                    }
                 }
             }
         };
+        let transfer = if inlined {
+            0.0
+        } else {
+            crate::analytics::millis(fetch_started.elapsed())
+        };
+        let codec_started = Instant::now();
         let Some(frame) = reapi::decompress_frame(&blob_bytes) else {
             return Ok(false);
         };
         let Some(node) = reapi::decode_frame(&frame) else {
             return Ok(false);
         };
+        let codec = crate::analytics::millis(codec_started.elapsed());
         // Instructions outlive the manifest's withhold (and proxy restarts can
         // reconstruct just one instruction from the snapshot). References in
         // the node itself are therefore the durable write-side safety check.
@@ -2699,6 +3343,18 @@ impl Proxy {
             return Ok(false);
         }
         unsafe { store_node(state, &node)? };
+        if let Some(analytics) = &self.analytics {
+            if let Some(node_id) = state.printed_node_id(digest) {
+                analytics.record_cas_output(
+                    node_id,
+                    &blob.hash,
+                    frame.len() as i64,
+                    blob.size_bytes,
+                    transfer,
+                    codec,
+                );
+            }
+        }
         // Retain the digest-only instruction — including one the snapshot
         // fallback just reconstructed — so the next prune of this object is
         // produced without another snapshot wait.
@@ -2752,41 +3408,83 @@ impl Proxy {
         })
     }
 
-    /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
-    /// this long-lived proxy) from a change in the CAS directory's identity,
-    /// rebinds the CAS handle to the new store, and drops the now-stale
-    /// in-memory marks (`resolved`, `known_local`, `publish_cache`) so a resolve
-    /// re-probes and re-materializes authoritatively. Called at the head of
-    /// every resolve, so it covers uncached/changed keys and parallel builds,
-    /// not only re-requested cached Hits. The generation lock is held across the
-    /// invalidation so a concurrent resolve can't observe the new generation as
-    /// unchanged and filter against `known_local` while it is being cleared.
+    /// Whether the path's store can answer now. Detects a wiped-and-recreated
+    /// on-disk CAS (a deleted DerivedData, or a per-job directory, under this
+    /// long-lived proxy) from a change in the CAS directory's identity, and
+    /// rebinds the handle to the new store through `reopen_cas`, which also drops
+    /// the now-stale marks (`known_local`, `publish_cache`). Called at the head
+    /// of every resolve and demand fetch and before a snapshot warms the path,
+    /// so it covers uncached/changed keys and parallel builds, not only
+    /// re-requested cached Hits.
     ///
-    /// The handle is rebound BEFORE the counter is bumped, so a resolve that
-    /// probed the old store cannot have its answer committed: it snapshotted
-    /// `observed` before the bump, so `committable` drops the write. Dropping
-    /// the marks without rebinding would achieve nothing -- `load_present` would
-    /// re-learn every one of them from the deleted store (see `reopen_cas`).
-    fn check_generation(&self, state: &PathState) {
-        let Some(current) = cas_generation(&state.cas_path) else {
-            return;
-        };
-        let mut stored = state.generation.lock().unwrap();
-        if generation_changed(*stored, Some(current)) {
-            if let Err(message) = state.reopen_cas() {
-                // Leave `stored` untouched so the next resolve retries: serving
-                // from the old handle is answering about a store that no longer
-                // exists, which fails the compiler with `missing object`.
-                crate::log_line(&format!(
-                    "cas reopen after wipe failed for {}: {message}",
-                    state.cas_path
-                ));
-                return;
+    /// It never waits for the rebind. The caller that sees the change hands
+    /// `reopen_cas` to a `cas-reopen` thread, and every caller gets `false`
+    /// until that thread finishes, and for `REOPEN_RETRY_INTERVAL` after it
+    /// fails. A resolve answers `false` with a miss, so the compiler compiles,
+    /// and no resolve filters against `known_local` while it is being cleared.
+    /// The open is an FFI call that can block indefinitely and cannot be
+    /// cancelled: when it ran while holding `binding`, every lookup on the path
+    /// parked behind it until the plugin's 120s socket timeout. So `binding` is
+    /// held only to read and claim, at most one reopen runs per path, and one
+    /// still running after `REOPEN_STALL_REPORT` is logged once.
+    fn check_generation(&self, state: &'static PathState) -> bool {
+        let current = cas_generation(&state.cas_path);
+        let now = Instant::now();
+        let mut stalled_for = None;
+        let verdict = {
+            let mut binding = state.binding.lock().unwrap();
+            let verdict = store_verdict(&binding, current, now);
+            match verdict {
+                StoreVerdict::Serve => {
+                    if current.is_some() {
+                        binding.generation = current;
+                    }
+                }
+                StoreVerdict::Reopen(_) => {
+                    binding.reopen = Reopen::InFlight {
+                        since: now,
+                        stall_reported: false,
+                    };
+                }
+                StoreVerdict::Unavailable => {
+                    if let Reopen::InFlight {
+                        since,
+                        stall_reported: false,
+                    } = binding.reopen
+                    {
+                        if now.saturating_duration_since(since) >= REOPEN_STALL_REPORT {
+                            binding.reopen = Reopen::InFlight {
+                                since,
+                                stall_reported: true,
+                            };
+                            stalled_for = Some(now.saturating_duration_since(since));
+                        }
+                    }
+                }
             }
-            state.invalidate();
-            state.publish_cache.lock().unwrap().clear();
+            verdict
+        };
+        if let Some(stalled_for) = stalled_for {
+            crate::log_line(&format!(
+                "cas store {} has been out of service for {}s while a reopen or prune runs; resolves on it answer misses until it returns",
+                state.cas_path,
+                stalled_for.as_secs()
+            ));
         }
-        *stored = Some(current);
+        let StoreVerdict::Reopen(target) = verdict else {
+            return verdict == StoreVerdict::Serve;
+        };
+        let spawned = std::thread::Builder::new()
+            .name("cas-reopen".into())
+            .spawn(move || state.finish_reopen(target));
+        if let Err(error) = spawned {
+            state.binding.lock().unwrap().reopen = Reopen::Failed { at: Instant::now() };
+            crate::log_line(&format!(
+                "cas reopen after wipe could not start for {}: {error}",
+                state.cas_path
+            ));
+        }
+        false
     }
 
     fn is_local(&self, state: &PathState, observed: u64, digest: &[u8]) -> bool {
@@ -2838,7 +3536,16 @@ impl Proxy {
         (branch, trunk)
     }
 
-    /// instance + cas_path + the (branch, trunk) bound here + record path.
+    /// Queues a record for the publisher pool.
+    fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
+        if let Some(item) = self.publish_item_bytes(cas_path, instance, record_path) {
+            self.publisher.enqueue(item);
+        }
+    }
+
+    /// The publisher item for a record: instance + cas_path + the (branch, trunk)
+    /// bound here + record path. `None` when the project does not upload, in which
+    /// case the record is already removed.
     ///
     /// The tags are resolved NOW, when the build hands us the record, and not
     /// where they are used (the upload, which runs after the queue wait, the
@@ -2851,9 +3558,9 @@ impl Proxy {
     /// trunk build's outputs would land tagged `feature` and drop out of the
     /// trunk view they belong in.
     ///
-    /// Binding at accept costs nothing: the context is memoized, so this reads
-    /// the registry at most once per TTL per instance, never per publish.
-    fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
+    /// Binding at accept costs a `stat`: the context is memoized, so this reads
+    /// the registry only when setup has replaced it or the TTL has run out.
+    fn publish_item_bytes(&self, cas_path: &str, instance: &str, record_path: &str) -> Option<Vec<u8>> {
         // The project's answer, enforced where both lanes meet. The plugin
         // declines to publish when its own option says so, but that option only
         // reaches Swift: the build system's Clang caching creates its CAS with a
@@ -2869,7 +3576,7 @@ impl Proxy {
             // on, or a registry read fails open) it hands the sweeper a backlog
             // of everything produced while the project was read-only.
             remove_record(record_path);
-            return;
+            return None;
         }
         let (branch, trunk) = self.record_tags(instance, record_path);
         let mut item = Vec::with_capacity(
@@ -2886,7 +3593,92 @@ impl Proxy {
         item.extend_from_slice(&(trunk.len() as u16).to_be_bytes());
         item.extend_from_slice(trunk.as_bytes());
         item.extend_from_slice(record_path.as_bytes());
-        self.publisher.enqueue(item);
+        Some(item)
+    }
+
+    /// PUBLISH_WAIT: publishes a record while the build that wrote it waits,
+    /// and reports whether the remote is still owed it.
+    ///
+    /// On CI outside a Tuist runner the store, and usually the machine, go away
+    /// with the job, so a record still spooled when it ends is an upload that
+    /// never happens. The put that wrote the record waits here instead, and the
+    /// compile or build-system task that issued it finishes once its output is
+    /// on the remote. The publication runs on a thread of its own rather than in
+    /// the pool: queued there it would wait out the background work ahead of it,
+    /// and this way the waits are bounded by how many compiles the build runs.
+    ///
+    /// Nothing waits when nothing is owed (the project does not upload, or the
+    /// remote already holds this value and at most its tags would move), when
+    /// the remote is shedding writes, or while `UploadWaitBreaker` holds waits
+    /// off; the record then goes to the pool as a PUBLISH would. A wait that runs
+    /// out of budget leaves its publication running.
+    fn publish_and_wait(
+        &'static self,
+        cas_path: &str,
+        declared: &str,
+        record_path: &str,
+        budget: Duration,
+    ) -> bool {
+        let deadline = Instant::now() + budget;
+        let Some(instance) = self.resolve_instance(cas_path, declared) else {
+            // Left spooled for a sweep once a build primes the path, as PUBLISH
+            // does.
+            self.note_unprimed(cas_path);
+            return false;
+        };
+        let Some(item) = self.publish_item_bytes(cas_path, &instance, record_path) else {
+            return true;
+        };
+        let Ok(state) = self.path_state(cas_path) else {
+            self.publisher.enqueue(item);
+            return false;
+        };
+        if value_already_published(state, record_path) {
+            self.publisher.enqueue(item);
+            return true;
+        }
+        let admission = if self.remote_for(&instance).shedding_writes() {
+            None
+        } else {
+            self.upload_wait.admit(reapi::now_ms())
+        };
+        let Some(admission) = admission else {
+            state.stats_upload_unwaited.fetch_add(1, Ordering::Relaxed);
+            self.publisher.enqueue(item);
+            return false;
+        };
+
+        let started = Instant::now();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let publisher = &self.publisher;
+        let running = item.clone();
+        let outcome = match std::thread::Builder::new()
+            .name("cas-upload-wait".into())
+            .spawn(move || {
+                let _ = sender.send(publisher.run_now(running));
+            }) {
+            Ok(_) => await_publication(&receiver, record_path, deadline, || {
+                self.upload_wait.releases(admission)
+            }),
+            Err(error) => {
+                crate::log_line(&format!("upload wait could not start: {error}"));
+                self.publisher.enqueue(item);
+                UploadWaitOutcome::Failed
+            }
+        };
+        self.upload_wait.record(admission, outcome, reapi::now_ms());
+        state
+            .ms_upload_wait
+            .fetch_add(started.elapsed().as_millis() as u64, Ordering::Relaxed);
+        if outcome == UploadWaitOutcome::Published {
+            state.stats_upload_waited.fetch_add(1, Ordering::Relaxed);
+            true
+        } else {
+            // A failed publication keeps its record for the next sweep, and a
+            // stalled one is still running.
+            state.stats_upload_unwaited.fetch_add(1, Ordering::Relaxed);
+            false
+        }
     }
 
     fn publish_item(&self, item: &[u8]) {
@@ -3017,9 +3809,9 @@ impl Proxy {
             .map(|digest| (digest.hash, digest.size_bytes))
             .collect();
         let mut uploads: Vec<(reapi::Digest, Vec<u8>)> = Vec::new();
-        // (llcas_digest, uncompressed size, compressed size, node data) per
+        // (printed node id, uncompressed size, compressed size, blob checksum) per
         // uploaded node, recorded once the batch transfer time is known.
-        let mut upload_meta: Vec<(Vec<u8>, i64, i64, Vec<u8>)> = Vec::new();
+        let mut upload_meta: Vec<(String, i64, i64, String)> = Vec::new();
         for (entry, (blob, chunked)) in entries.iter().zip(blobs) {
             if !missing_set.contains(&(entry.blob.hash.clone(), entry.blob.size_bytes)) {
                 continue;
@@ -3031,17 +3823,17 @@ impl Proxy {
                 }
             };
             if self.analytics.is_some() {
-                let (size, data) = reapi::decompress_frame(&bytes)
-                    .and_then(|frame| {
-                        reapi::decode_frame(&frame).map(|node| (frame.len(), node.data))
-                    })
-                    .unwrap_or((bytes.len(), Vec::new()));
-                upload_meta.push((
-                    entry.llcas_digest.clone(),
-                    size as i64,
-                    entry.blob.size_bytes,
-                    data,
-                ));
+                if let Some(node_id) = state.printed_node_id(&entry.llcas_digest) {
+                    let size = reapi::decompress_frame(&bytes)
+                        .map(|frame| frame.len())
+                        .unwrap_or(bytes.len());
+                    upload_meta.push((
+                        node_id,
+                        size as i64,
+                        entry.blob.size_bytes,
+                        entry.blob.hash.clone(),
+                    ));
+                }
             }
             uploads.push((entry.blob.clone(), bytes));
         }
@@ -3051,19 +3843,16 @@ impl Proxy {
             if let Some(analytics) = &self.analytics {
                 let elapsed = crate::analytics::millis(upload_start.elapsed());
                 let total: i64 = upload_meta.iter().map(|(_, _, c, _)| c).sum::<i64>().max(1);
-                for (digest, size, compressed, data) in &upload_meta {
-                    let transfer = elapsed * (*compressed as f64 / total as f64);
+                for (node_id, size, compressed, checksum) in upload_meta {
+                    let transfer = elapsed * (compressed as f64 / total as f64);
                     analytics.record_cas_output(
-                        digest,
-                        *size,
-                        *compressed,
-                        transfer,
+                        node_id,
+                        &checksum,
+                        size,
+                        compressed,
                         transfer,
                         0.0,
                     );
-                    for (cas_id, hex) in crate::analytics::parse_cas_references(data) {
-                        analytics.record_node(&cas_id, &hex);
-                    }
                 }
             }
         }
@@ -3140,6 +3929,108 @@ impl Proxy {
             if should_reclaim(idle, cas_dir_gone) {
                 state.invalidate();
                 state.publish_cache.lock().unwrap().clear();
+            }
+        }
+    }
+
+    /// Prunes every store this proxy holds that has grown past its size limit
+    /// (see `store_size_limit`). Called from the maintenance loop and skipped
+    /// while the machine is busy: a store only rotates when the proxy's handle
+    /// is its last, which a running build's compilers prevent.
+    pub fn bound_stores(&self) {
+        if self.busy_reason().is_some() {
+            return;
+        }
+        let paths: Vec<(String, &'static PathState)> = self
+            .paths
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(cas_path, state)| (cas_path.clone(), *state))
+            .collect();
+        for (cas_path, state) in paths {
+            if let Some(limit) = self.store_size_limit(&cas_path) {
+                self.bound_store(&cas_path, state, limit);
+            }
+        }
+    }
+
+    /// The size limit of the store at `cas_path`: the smallest limit set by any
+    /// project that has used it. Stores are shared (Xcode's default store by
+    /// every project on the machine), so the limit of whichever project built
+    /// last would make the bound depend on build order, and a project without a
+    /// limit would lift another's.
+    fn store_size_limit(&self, cas_path: &str) -> Option<u64> {
+        let instances: Vec<String> = self
+            .path_instances
+            .lock()
+            .unwrap()
+            .get(cas_path)
+            .map(|instances| instances.iter().cloned().collect())
+            .unwrap_or_default();
+        shared_store_limit(
+            instances
+                .iter()
+                .map(|instance| self.source_context(instance).store_size_limit),
+        )
+    }
+
+    /// Measures the store at `cas_path` at most once per STORE_BOUND_INTERVAL
+    /// and prunes it at `generation_limit(limit)` on a `cas-bound` thread, which
+    /// it returns, when the store occupies more than `limit` bytes AND its
+    /// newest generation is large enough for the close to rotate. The prune
+    /// claims the store, so resolves on it answer misses meanwhile, and the
+    /// maintenance loop never waits for a dispose, open, or prune that blocks.
+    fn bound_store(
+        &self,
+        cas_path: &str,
+        state: &'static PathState,
+        limit: u64,
+    ) -> Option<std::thread::JoinHandle<()>> {
+        // A prune deletes objects, and deleting one a spooled publication still
+        // owes the remote strands the association naming it, which is why the
+        // runner's teardown drains before it prunes. Not counted as a check, so
+        // the store is measured once its spool empties.
+        if spool_records(cas_path) > 0 {
+            return None;
+        }
+        {
+            let mut checked = self.store_bound_checked.lock().unwrap();
+            if checked
+                .get(cas_path)
+                .is_some_and(|at| at.elapsed() < STORE_BOUND_INTERVAL)
+            {
+                return None;
+            }
+            checked.insert(cas_path.to_string(), Instant::now());
+        }
+        let size = directory_size(cas_path);
+        if size <= limit {
+            return None;
+        }
+        // A prune disposes the handle, drops the marks and takes the path out of
+        // service, so it only runs when it would rotate or collect something.
+        let sizes = indexed_generation_sizes(&generation_sizes(cas_path));
+        if plan_generations(&sizes, generation_limit(limit), true) == GenerationPlan::default() {
+            return None;
+        }
+        let spawned = std::thread::Builder::new()
+            .name("cas-bound".into())
+            .spawn(move || match state.prune_ondisk(generation_limit(limit)) {
+                Ok(reclaimed) => crate::log_line(&format!(
+                    "store {} occupied {size} bytes, past its {limit}-byte limit: pruning reclaimed {reclaimed} bytes",
+                    state.cas_path
+                )),
+                Err(message) => crate::log_line(&format!(
+                    "store {} occupied {size} bytes, past its {limit}-byte limit: prune failed: {message}",
+                    state.cas_path
+                )),
+            });
+        match spawned {
+            Ok(handle) => Some(handle),
+            Err(error) => {
+                crate::log_line(&format!("store prune could not start for {cas_path}: {error}"));
+                None
             }
         }
     }
@@ -3328,7 +4219,8 @@ impl Proxy {
     /// A resolution that fails changes nothing. A CLI that is absent, logged
     /// out or offline says nothing about where the cache went, and dropping a
     /// working endpoint on its say-so would turn a local problem into a cold
-    /// cache.
+    /// cache. An answer that the account's cache is being prepared keeps the
+    /// endpoint too, and has the proxy ask again sooner.
     pub fn refresh_endpoint(&self) {
         let Some(instance) = self.remotes.lock().unwrap().keys().next().cloned() else {
             // Nothing is being served, so nothing depends on the answer. First
@@ -3339,7 +4231,7 @@ impl Proxy {
     }
 
     /// Re-resolves the endpoint for `instance` unless it was resolved within
-    /// `ENDPOINT_REFRESH_INTERVAL`.
+    /// `endpoint_resolution_interval`.
     ///
     /// The endpoint is per-account and every instance this proxy serves shares
     /// it, so any of them answers the question; the caller passes the one it
@@ -3352,14 +4244,111 @@ impl Proxy {
         let Some(fetch) = self.tokens.cli_fetch() else {
             return;
         };
-        if !self.claim_endpoint_resolution(crate::reapi::now_ms(), ENDPOINT_REFRESH_INTERVAL) {
+        let now = crate::reapi::now_ms();
+        if !self.claim_endpoint_resolution(now, self.endpoint_resolution_interval(now)) {
             return;
         }
-        if let Some(resolved) =
-            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance)
-        {
-            self.adopt_endpoint(resolved);
+        let resolution =
+            crate::endpoint::resolve(&fetch.tuist_bin, fetch.server_url.as_deref(), instance);
+        self.record_resolution(resolution, now, || {
+            self.current_endpoint_reachable(instance)
+        });
+    }
+
+    fn record_resolution(
+        &self,
+        resolution: crate::endpoint::Resolution,
+        now: u64,
+        current_reachable: impl FnOnce() -> bool,
+    ) {
+        match resolution {
+            crate::endpoint::Resolution::Endpoint(resolved) => {
+                self.endpoint_preparing_since_ms.store(0, Ordering::Relaxed);
+                self.consider_endpoint(&resolved, current_reachable);
+            }
+            crate::endpoint::Resolution::BeingPrepared => {
+                // A streak keeps its own start so the window still caps it. A
+                // stamp already older than the window is a streak that ended —
+                // a preparation that outlived it, then `Unknown` answers that
+                // deliberately do not clear it — and this answer starts a new
+                // one. Without that the field keeps its stale timestamp for
+                // the life of the process, and every later preparation (the
+                // archive-and-return this exists for) falls back to the absent
+                // or refresh interval instead of re-arming the fast one.
+                let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
+                let mut observed = self.endpoint_preparing_since_ms.load(Ordering::Relaxed);
+                while observed == 0 || now.saturating_sub(observed) >= window {
+                    match self.endpoint_preparing_since_ms.compare_exchange(
+                        observed,
+                        now,
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => break,
+                        Err(current) => observed = current,
+                    }
+                }
+            }
+            crate::endpoint::Resolution::Unknown => {}
         }
+    }
+
+    fn endpoint_resolution_interval(&self, now: u64) -> Duration {
+        let preparing_since = self.endpoint_preparing_since_ms.load(Ordering::Relaxed);
+        if preparing_since != 0
+            && now.saturating_sub(preparing_since) < ENDPOINT_PREPARING_WINDOW.as_millis() as u64
+        {
+            ENDPOINT_PREPARING_INTERVAL
+        } else if self.grpc_url.read().unwrap().is_empty() {
+            ENDPOINT_ABSENT_INTERVAL
+        } else if self.endpoint_candidate.lock().unwrap().is_some() {
+            ENDPOINT_CONFIRM_INTERVAL
+        } else {
+            ENDPOINT_REFRESH_INTERVAL
+        }
+    }
+
+    /// Applies a resolution through `endpoint_verdict`, returning whether the
+    /// endpoint moved. No lock is held while `current_reachable` runs.
+    fn consider_endpoint(
+        &self,
+        resolved: &crate::endpoint::ResolvedEndpoint,
+        current_reachable: impl FnOnce() -> bool,
+    ) -> bool {
+        let current = self.grpc_url.read().unwrap().clone();
+        let candidate = self.endpoint_candidate.lock().unwrap().clone();
+        match endpoint_verdict(&current, resolved, candidate.as_deref(), current_reachable) {
+            EndpointVerdict::Keep => {
+                *self.endpoint_candidate.lock().unwrap() = None;
+                false
+            }
+            EndpointVerdict::Confirm => {
+                crate::log_line(&format!(
+                    "proxy cache endpoint {current} kept while it serves; resolution preferred {}, confirming in {}s",
+                    resolved.url,
+                    ENDPOINT_CONFIRM_INTERVAL.as_secs()
+                ));
+                *self.endpoint_candidate.lock().unwrap() = Some(resolved.url.clone());
+                false
+            }
+            EndpointVerdict::Move => {
+                *self.endpoint_candidate.lock().unwrap() = None;
+                self.adopt_endpoint(resolved.url.clone())
+            }
+        }
+    }
+
+    fn current_endpoint_reachable(&self, instance: &str) -> bool {
+        let remote = self.current_remote(instance).unwrap_or_else(|| {
+            Remote::new(
+                RemoteConfig {
+                    grpc_url: self.grpc_url.read().unwrap().clone(),
+                    instance: reapi::reapi_instance(instance).to_string(),
+                },
+                self.tokens.clone(),
+            )
+        });
+        remote.reachable()
     }
 
     /// Whether this caller should do the resolution, stamping the attempt when
@@ -3805,18 +4794,29 @@ impl Proxy {
         self.source_context(instance).trunk
     }
 
-    /// What setup recorded for the instance, memoized on GIT_CONTEXT_TTL so a
-    /// publish does not re-read the registry. A refresh re-reads it, so a project
-    /// set up after this proxy started is picked up without a restart.
+    /// What setup recorded for the instance, memoized so a publish does not
+    /// re-read the registry. The memo holds only while the sources file's
+    /// fingerprint matches the one it was read under, and for at most
+    /// GIT_CONTEXT_TTL, so a policy setup rewrites applies to the next
+    /// publication and a project set up after this proxy started is picked up
+    /// without a restart.
     fn source_context(&self, instance: &str) -> SourceBranches {
+        // Taken before the read. A rename landing between the two then shows up
+        // as a new fingerprint on the next call, instead of pairing the new
+        // file's fingerprint with the old file's contents until the TTL runs out.
+        let sources = self
+            .registry_path
+            .as_deref()
+            .and_then(|path| sources_fingerprint(&sources_path_for(path)));
         {
             let cache = self.source_cache.lock().unwrap();
             if let Some(context) = cache.get(instance) {
-                if context.read_at.elapsed() < GIT_CONTEXT_TTL {
+                if context.sources == sources && context.read_at.elapsed() < GIT_CONTEXT_TTL {
                     return SourceBranches {
                         branch: context.ci_branch.clone(),
                         trunk: context.trunk.clone(),
                         upload: context.upload,
+                        store_size_limit: context.store_size_limit,
                     };
                 }
             }
@@ -3826,15 +4826,18 @@ impl Proxy {
         let branch = source.as_ref().and_then(|source| source.ci_branch.clone());
         // Unknown instance: nothing recorded, so nothing to withhold.
         let upload = source.as_ref().map(|source| source.upload).unwrap_or(true);
+        let store_size_limit = source.as_ref().and_then(|source| source.store_size_limit);
         {
             let cache = self.source_cache.lock().unwrap();
             let changed = cache
                 .get(instance)
-                .map(|context| context.ci_branch != branch || context.trunk != trunk)
+                .map(|context| {
+                    context.ci_branch != branch || context.trunk != trunk || context.upload != upload
+                })
                 .unwrap_or(true);
             if changed {
                 crate::log_line(&format!(
-                    "source context for {instance}: branch={branch:?} trunk={trunk:?}"
+                    "source context for {instance}: branch={branch:?} trunk={trunk:?} upload={upload}"
                 ));
             }
         }
@@ -3842,22 +4845,30 @@ impl Proxy {
             instance.to_string(),
             SourceContext {
                 read_at: Instant::now(),
+                sources,
                 trunk: trunk.clone(),
                 ci_branch: branch.clone(),
                 upload,
+                store_size_limit,
             },
         );
-        SourceBranches { branch, trunk, upload }
+        SourceBranches {
+            branch,
+            trunk,
+            upload,
+            store_size_limit,
+        }
     }
 
     /// What setup registered for the instance, reloading the sources registry so
-    /// a mapping written after startup is visible. Cheap: only runs on a TTL
-    /// miss in `git_context`.
+    /// a mapping written after startup is visible. Only runs when the memo in
+    /// `source_context` is stale.
     fn registered_source(&self, instance: &str) -> Option<RegisteredSource> {
         let clone = |source: &RegisteredSource| RegisteredSource {
             trunk: source.trunk.clone(),
             ci_branch: source.ci_branch.clone(),
             upload: source.upload,
+            store_size_limit: source.store_size_limit,
         };
         if let Some(path) = self.registry_path.as_deref() {
             match load_sources(&sources_path_for(path)) {
@@ -3908,8 +4919,11 @@ impl Proxy {
             // handle bound to the deleted store: the fetches cost bandwidth, the
             // stores land where nothing reads them, and they hold the wiped
             // directory's inodes on disk. The resolve that eventually rebinds
-            // discards it all. One restat per snapshot, not per key.
-            self.check_generation(state);
+            // discards it all. One restat per snapshot, not per key. A path whose
+            // store is being reopened is skipped: its stores would fail.
+            if !self.check_generation(state) {
+                continue;
+            }
             let observed = state.gen_counter.load(Ordering::SeqCst);
             // Warm newest-first (the wire order) and stop at the node budget:
             // a shared namespace's snapshot carries every project's history,
@@ -4030,6 +5044,48 @@ impl Proxy {
             .insert(instance.to_string())
     }
 
+    /// Takes out of service every Ready snapshot that advertises one of `nodes`,
+    /// whose blobs the remote just answered as absent.
+    ///
+    /// A snapshot is a copy of the remote's action cache as of its fetch. An
+    /// entry whose blobs were evicted since keeps resolving from it to a
+    /// candidate the plugin cannot restore, so every such key misses without a
+    /// lookup the analytics can see. The same key per key is answered by the
+    /// server's presence gate as an ordinary miss, and the recompiled value is
+    /// published again. The full refetch after `SNAPSHOT_STALE_RETRY_INTERVAL`
+    /// brings back a view the server has gated.
+    fn distrust_snapshots_advertising(&self, nodes: &[Vec<u8>]) {
+        if nodes.is_empty() {
+            return;
+        }
+        let mut distrusted = Vec::new();
+        {
+            let mut snapshots = self.snapshots.lock().unwrap();
+            for (instance, state) in snapshots.iter_mut() {
+                let SnapshotState::Ready { snapshot, .. } = state else {
+                    continue;
+                };
+                if nodes
+                    .iter()
+                    .any(|node| snapshot.node_index.contains_key(node))
+                {
+                    *state = SnapshotState::Absent {
+                        checked: Instant::now(),
+                        retry_after: SNAPSHOT_STALE_RETRY_INTERVAL,
+                    };
+                    distrusted.push(instance.clone());
+                }
+            }
+        }
+        for instance in distrusted {
+            crate::log_line(&format!(
+                "snapshot for {instance} advertises blobs the remote no longer has; \
+                 serving resolves per key until a full refetch in {}s",
+                SNAPSHOT_STALE_RETRY_INTERVAL.as_secs()
+            ));
+        }
+    }
+
     /// Says once per instance that its snapshot has aged out of serving. Worth a
     /// line: the effect is silent otherwise — resolves keep succeeding, just via
     /// a round trip each — so a refresh loop that stopped would surface only as
@@ -4063,12 +5119,13 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} reopen_misses={} demand_fetched={} pending={} blobs={} inlined={} published={} incomplete_closures={} withheld_refused={} withheld_repaired={} | ms action={} filter={} fetch={} decode={} store={} | us publish_local={} nodes_loaded={} shed={} | upload_waited={} upload_unwaited={} upload_wait_ms={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
                 state.stats_snapshot_hits.load(Ordering::Relaxed),
                 state.stats_misses.load(Ordering::Relaxed),
+                state.stats_reopen_misses.load(Ordering::Relaxed),
                 state.stats_demand_fetched.load(Ordering::Relaxed),
                 state.pending_objects.lock().unwrap().len(),
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
@@ -4085,6 +5142,9 @@ impl Proxy {
                 state.us_publish_local.load(Ordering::Relaxed),
                 state.stats_publish_nodes_loaded.load(Ordering::Relaxed),
                 state.stats_publish_shed.load(Ordering::Relaxed),
+                state.stats_upload_waited.load(Ordering::Relaxed),
+                state.stats_upload_unwaited.load(Ordering::Relaxed),
+                state.ms_upload_wait.load(Ordering::Relaxed),
             ));
         }
         drop(paths);
@@ -4104,7 +5164,7 @@ impl Proxy {
         }
     }
 
-    fn handle(&self, mut stream: UnixStream) -> std::io::Result<()> {
+    fn handle(&'static self, mut stream: UnixStream) -> std::io::Result<()> {
         let request: Request = read_request(&mut stream)?;
         // A plugin from a different CLI version speaks a different frame layout;
         // reject rather than misparse, so the plugin degrades to a local miss.
@@ -4168,6 +5228,18 @@ impl Proxy {
                     self.note_unprimed(&request.cas_path);
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_PUBLISH_WAIT => {
+                let Some((millis, record_path)) = parse_publish_wait_payload(&request.payload) else {
+                    return write_response(&mut stream, STATUS_ERROR, b"malformed publish wait");
+                };
+                let published = self.publish_and_wait(
+                    &request.cas_path,
+                    &request.instance,
+                    &record_path,
+                    upload_wait_budget(millis),
+                );
+                write_response(&mut stream, if published { STATUS_HIT } else { STATUS_MISS }, &[])
             }
             OP_DRAIN => {
                 let owed = self.drain_publications(
@@ -4297,17 +5369,85 @@ fn take_u16_field(buf: &[u8]) -> Option<(&[u8], &[u8])> {
     Some((&rest[..len], &rest[len..]))
 }
 
-/// Loads the persisted `cas_path -> instance` registry (tab-separated lines).
-fn load_registry(path: &Path) -> HashMap<String, String> {
-    let mut map = HashMap::new();
+/// Loads the persisted registry: tab-separated `cas_path\tinstance` lines, one
+/// per instance that has declared the path. Returns the routing map (the LAST
+/// line for each path, which is also all a proxy that predates the other lines
+/// reads) and every instance known per path.
+fn load_registry(path: &Path) -> (HashMap<String, String>, HashMap<String, BTreeSet<String>>) {
+    let mut routing = HashMap::new();
+    let mut known: HashMap<String, BTreeSet<String>> = HashMap::new();
     if let Ok(body) = std::fs::read_to_string(path) {
         for line in body.lines() {
             if let Some((cas_path, instance)) = line.split_once('\t') {
-                map.insert(cas_path.to_string(), instance.to_string());
+                routing.insert(cas_path.to_string(), instance.to_string());
+                known
+                    .entry(cas_path.to_string())
+                    .or_default()
+                    .insert(instance.to_string());
             }
         }
     }
-    map
+    (routing, known)
+}
+
+/// Where each registered path's last use is written: `<registry>.used`, one
+/// `cas_path\tseconds since the Unix epoch` line per path.
+fn uses_path_for(registry: &Path) -> PathBuf {
+    let mut path = registry.to_path_buf().into_os_string();
+    path.push(".used");
+    PathBuf::from(path)
+}
+
+fn load_path_uses(path: &Path) -> HashMap<String, PathUse> {
+    let Ok(body) = std::fs::read_to_string(path) else {
+        return HashMap::new();
+    };
+    body.lines()
+        .filter_map(|line| {
+            let (cas_path, at) = line.rsplit_once('\t')?;
+            let at = at.parse().ok()?;
+            Some((
+                cas_path.to_string(),
+                PathUse {
+                    at,
+                    recorded: at,
+                    revision: 0,
+                },
+            ))
+        })
+        .collect()
+}
+
+fn note_use(uses: &mut HashMap<String, PathUse>, cas_path: &str, now: u64, revision: u64) {
+    match uses.get_mut(cas_path) {
+        Some(path_use) => {
+            path_use.at = now;
+            path_use.revision = revision;
+        }
+        None => {
+            uses.insert(
+                cas_path.to_string(),
+                PathUse {
+                    at: now,
+                    recorded: 0,
+                    revision,
+                },
+            );
+        }
+    }
+}
+
+/// Swaps `contents` in by renaming a staged copy over `path`, so a reader sees
+/// the whole old file or the whole new one.
+fn replace_file(path: &Path, contents: &str) -> std::io::Result<()> {
+    let mut staged = path.as_os_str().to_owned();
+    staged.push(format!(".{}.staged", std::process::id()));
+    let staged = PathBuf::from(staged);
+    std::fs::write(&staged, contents)
+        .and_then(|()| std::fs::rename(&staged, path))
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&staged);
+        })
 }
 
 /// The sources registry sits next to the cas_path registry, written by
@@ -4342,6 +5482,7 @@ fn load_sources(path: &Path) -> Option<HashMap<String, RegisteredSource>> {
 }
 
 /// Takes ownership of an llcas out-parameter error string, returning its text.
+#[cfg(test)]
 unsafe fn take_error(up: &'static Upstream, error: *mut std::ffi::c_char) -> Option<String> {
     if error.is_null() {
         return None;
@@ -4349,32 +5490,6 @@ unsafe fn take_error(up: &'static Upstream, error: *mut std::ffi::c_char) -> Opt
     let text = std::ffi::CStr::from_ptr(error).to_string_lossy().into_owned();
     (up.llcas_string_dispose)(error);
     Some(text)
-}
-
-/// Sets the store's per-generation byte limit. `0` leaves whatever limit it
-/// already carries, so a caller with no budget to impose can still ask for a
-/// prune.
-///
-/// NOTE the ABI: llcas booleans report whether the call ERRORED, so `false`
-/// here is SUCCESS. Reading it the other way round is the easiest way to
-/// conclude these forwards are no-ops while they are in fact working.
-unsafe fn set_ondisk_limit(
-    up: &'static Upstream,
-    set_limit: unsafe extern "C" fn(llcas_cas_t, i64, *mut *mut std::ffi::c_char) -> bool,
-    cas: llcas_cas_t,
-    limit_bytes: u64,
-) -> Result<(), String> {
-    if limit_bytes == 0 {
-        return Ok(());
-    }
-    let limit = i64::try_from(limit_bytes).unwrap_or(i64::MAX);
-    let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-    let failed = set_limit(cas, limit, &mut error);
-    let detail = take_error(up, error);
-    if failed {
-        return Err(detail.unwrap_or_else(|| "set_ondisk_size_limit failed".into()));
-    }
-    Ok(())
 }
 
 /// Bytes a directory actually occupies on disk: ALLOCATED blocks, summed over
@@ -4449,46 +5564,104 @@ fn reclaimed_bytes(path: &str, before: &HashMap<String, u64>) -> u64 {
         .sum()
 }
 
-/// Prunes a store NOTHING holds open, without going through a proxy: the same
-/// set-limit / rotate / reopen / prune sequence `PathState::prune_ondisk`
-/// performs, with handles this call owns end to end.
-///
-/// This is the right path only for a store no live proxy has registered -- the
-/// builtin (`generic`) lane, which never loads our plugin, or any store on a
-/// machine with no proxy running. Used on a path the proxy DOES hold it would
-/// silently collect nothing: the proxy's handle keeps the chain live, so the
-/// dispose here is not the last close and no rotation happens.
-pub fn prune_store(upstream_plugin: &str, cas_path: &str, limit_bytes: u64) -> Result<u64, String> {
-    let up = unsafe { Upstream::load(upstream_plugin)? };
-    let up: &'static Upstream = Box::leak(Box::new(up));
-    let Some(set_limit) = up.llcas_cas_set_ondisk_size_limit else {
-        return Err("upstream plugin exports no ondisk size limit".into());
-    };
-    let Some(prune) = up.llcas_cas_prune_ondisk_data else {
-        return Err("upstream plugin exports no ondisk prune".into());
-    };
-    let before = generation_sizes(cas_path);
-    unsafe {
-        let live = open_cas(up, cas_path)?;
-        set_ondisk_limit(up, set_limit, live, limit_bytes)?;
-        // The close that rotates -- only the last one because nothing else on
-        // this machine holds the store.
-        (up.llcas_cas_dispose)(live);
+/// What `prune_store` did to a store.
+#[derive(Debug, PartialEq, Eq)]
+pub struct StorePrune {
+    pub reclaimed: u64,
+    /// Another process held the store open, so it was not rotated.
+    pub held_open: bool,
+}
 
-        let fresh = open_cas(up, cas_path)?;
-        set_ondisk_limit(up, set_limit, fresh, limit_bytes)?;
-        let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-        let failed = prune(fresh, &mut error);
-        let detail = take_error(up, error);
-        (up.llcas_cas_dispose)(fresh);
-        if failed {
-            return Err(detail.unwrap_or_else(|| "prune failed".into()));
+/// Prunes a store by rotating and collecting its `v1.N` generation directories
+/// under the store's `lock`, the way llcas does, without opening it: an open needs room on the volume, and only reads a store in the
+/// upstream plugin's own layout, which the compilers' stores and another Xcode's
+/// are not.
+pub fn prune_store(cas_path: &str, limit_bytes: u64) -> Result<StorePrune, String> {
+    let before = generation_sizes(cas_path);
+    let sizes = indexed_generation_sizes(&before);
+    let lock = lock_store_exclusively(cas_path);
+    let plan = plan_generations(&sizes, limit_bytes, lock.is_some());
+    let generation = |index: u64| Path::new(cas_path).join(format!("v1.{index}"));
+    let collect = |index: u64| {
+        let path = generation(index);
+        std::fs::remove_dir_all(&path)
+            .map_err(|error| format!("could not collect {}: {error}", path.display()))
+    };
+
+    // Collected first, so a full volume has room for the new directory.
+    for &index in plan.unreachable.iter().chain(&plan.demoted) {
+        collect(index)?;
+    }
+    if let Some(next) = plan.rotate_to {
+        let path = generation(next);
+        std::os::unix::fs::DirBuilderExt::mode(&mut std::fs::DirBuilder::new(), 0o770)
+            .create(&path)
+            .map_err(|error| format!("could not start {}: {error}", path.display()))?;
+    }
+
+    let held_open = lock.is_none();
+    drop(lock);
+    Ok(StorePrune { reclaimed: reclaimed_bytes(cas_path, &before), held_open })
+}
+
+/// `None` while anything holds the store open: every handle holds its `lock`
+/// shared.
+fn lock_store_exclusively(cas_path: &str) -> Option<std::fs::File> {
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(Path::new(cas_path).join("lock"))
+        .ok()?;
+    lock.try_lock().ok()?;
+    Some(lock)
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct GenerationPlan {
+    /// Below the newest two generations, so no handle reads them.
+    unreachable: Vec<u64>,
+    rotate_to: Option<u64>,
+    /// Live generations taken off the chain.
+    demoted: Vec<u64>,
+}
+
+/// Plans a prune from each generation's allocated bytes, keyed by index. With
+/// the store to itself (`exclusive`), it rotates once the primary is past half
+/// the limit, as llcas does, and also collects an upstream larger than the
+/// store's whole allowance (twice the limit), which no later rotation can reach
+/// on a full volume.
+fn plan_generations(sizes: &BTreeMap<u64, u64>, limit_bytes: u64, exclusive: bool) -> GenerationPlan {
+    let mut newest_first = sizes.iter().rev().map(|(index, size)| (*index, *size));
+    let primary = newest_first.next();
+    let mut upstream = newest_first.next();
+    let mut plan = GenerationPlan {
+        unreachable: newest_first.map(|(index, _)| index).rev().collect(),
+        ..GenerationPlan::default()
+    };
+    let Some((primary_index, primary_size)) = primary else { return plan };
+    if !exclusive || limit_bytes == 0 {
+        return plan;
+    }
+    if primary_size > limit_bytes / 2 {
+        plan.rotate_to = Some(primary_index + 1);
+        plan.demoted.extend(upstream.map(|(index, _)| index));
+        upstream = primary;
+    }
+    if let Some((index, size)) = upstream {
+        if size > limit_bytes.saturating_mul(2) {
+            plan.demoted.push(index);
         }
     }
-    Ok(reclaimed_bytes(cas_path, &before))
+    plan
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
+    #[cfg(test)]
+    assert!(
+        tests::CAS_TEST_LOCK.get().is_some(),
+        "tests opening an Apple CAS must use run_in_cas_subprocess"
+    );
     let options = (up.llcas_cas_options_create)();
     let c_path = std::ffi::CString::new(path).map_err(|_| "bad cas path".to_string())?;
     (up.llcas_cas_options_set_client_version)(options, 0, 1);
@@ -4615,6 +5788,34 @@ fn encode_node_blob_accounted(
     Ok((blob, ref_digests, chunked))
 }
 
+/// The nodes among `absent` whose blobs the remote confirms it no longer holds.
+///
+/// A blob missing from a read is not proof of eviction: a node under memory
+/// pressure refuses individual reads, and a partly refused batch comes back
+/// without those blobs while the rest succeed. `FindMissingBlobs` answers
+/// presence alone, so only what it names is gone. A failed query confirms
+/// nothing.
+fn confirmed_evicted(
+    absent: &[(Vec<u8>, reapi::Digest)],
+    find_missing: impl FnOnce(Vec<reapi::Digest>) -> Result<Vec<reapi::Digest>, String>,
+) -> Vec<Vec<u8>> {
+    if absent.is_empty() {
+        return Vec::new();
+    }
+    let Ok(missing) = find_missing(absent.iter().map(|(_, blob)| blob.clone()).collect()) else {
+        return Vec::new();
+    };
+    let missing: HashSet<(String, i64)> = missing
+        .into_iter()
+        .map(|digest| (digest.hash, digest.size_bytes))
+        .collect();
+    absent
+        .iter()
+        .filter(|(_, blob)| missing.contains(&(blob.hash.clone(), blob.size_bytes)))
+        .map(|(node, _)| node.clone())
+        .collect()
+}
+
 fn walk_closure(
     state: &'static PathState,
     root: &[u8],
@@ -4707,6 +5908,125 @@ mod tests {
     use super::*;
     use std::cell::Cell;
 
+    // Production workers require static state. A test subprocess gives every
+    // leaked handle and worker a bounded lifetime, even if a test panics or a
+    // reopen is still running. Serializing only these tests also bounds peak
+    // mapped memory without removing concurrency inside the race tests.
+    static CAS_TEST_RUN: Mutex<()> = Mutex::new(());
+    pub(super) static CAS_TEST_LOCK: std::sync::OnceLock<std::fs::File> =
+        std::sync::OnceLock::new();
+    const CAS_TEST_CHILD: &str = "TUIST_CAS_TEST_CHILD";
+
+    fn run_in_cas_subprocess() -> bool {
+        let thread = std::thread::current();
+        let name = thread.name().expect("a libtest test thread has a name");
+        if std::env::var(CAS_TEST_CHILD).as_deref() == Ok(name) {
+            // Keep the lock until process exit, after all mappings and worker
+            // threads are gone. It also serializes independent cargo runs.
+            CAS_TEST_LOCK.get_or_init(|| {
+                let lock = std::fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(false)
+                    .write(true)
+                    .open(std::env::temp_dir().join("tuist-cas-proxy-tests.lock"))
+                    .expect("open CAS test lock");
+                lock.lock().expect("lock CAS tests");
+                lock
+            });
+            return false;
+        }
+
+        // Do not spawn a process for every waiting libtest thread.
+        let _run = CAS_TEST_RUN
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let output = cas_test_command(name)
+            .output()
+            .expect("run isolated CAS test");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            output.status.success(),
+            "{name}: {}\n{stdout}\n{stderr}",
+            output.status
+        );
+        print!("{stdout}");
+        eprint!("{stderr}");
+        true
+    }
+
+    fn cas_test_command(name: &str) -> std::process::Command {
+        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                name,
+                "--include-ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CAS_TEST_CHILD, name);
+        command
+    }
+
+    #[test]
+    fn isolated_cas_tests_release_handles_on_success_and_panic() {
+        let _run = CAS_TEST_RUN
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        for panic in [false, true] {
+            let dir = TempCasDir::new("isolation-lifetime");
+            let output = cas_test_command("proxy::tests::cas_lifetime_fixture")
+                .env("TUIST_CAS_TEST_STORE", dir.path())
+                .env("TUIST_CAS_TEST_PANIC", panic.to_string())
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.success(),
+                !panic,
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            if panic {
+                assert!(String::from_utf8_lossy(&output.stderr).contains("injected CAS test panic"));
+            }
+            let lock = std::fs::File::options()
+                .write(true)
+                .open(dir.0.join("lock"))
+                .unwrap();
+            lock.try_lock()
+                .expect("every helper and proxy handle must be closed after the test");
+        }
+    }
+
+    #[test]
+    #[ignore = "subprocess fixture for isolated_cas_tests_release_handles_on_success_and_panic"]
+    fn cas_lifetime_fixture() {
+        // Running all ignored tests directly should not require fixture input.
+        let Ok(path) = std::env::var("TUIST_CAS_TEST_STORE") else {
+            return;
+        };
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let state = path_state_for(&path);
+        let digest = store_probe_object(state, b"mapped-test-object");
+        let proxy_state = test_proxy().path_state(&path).unwrap();
+        assert!(proxy_state.load_present(&digest));
+        let lock = std::fs::File::options()
+            .write(true)
+            .open(Path::new(&path).join("lock"))
+            .unwrap();
+        assert!(
+            lock.try_lock().is_err(),
+            "the child must still hold the store open"
+        );
+        if std::env::var("TUIST_CAS_TEST_PANIC").as_deref() == Ok("true") {
+            panic!("injected CAS test panic");
+        }
+    }
+
     /// The churn-skip must not swallow the reclaim: a trunk build re-putting a
     /// value it already resolved may be republishing an entry that is still
     /// tagged with a feature branch, and only that publish pulls it into the
@@ -4760,6 +6080,77 @@ mod tests {
     /// ADD, so a view refreshed by deltas alone looks continuously fresh while
     /// never re-applying the server's eviction gate — which is precisely the
     /// state that serves keys the remote has dropped.
+    #[test]
+    fn a_snapshot_advertising_a_node_the_remote_lost_stops_serving() {
+        let proxy = test_proxy();
+        let snapshot = |node: &[u8]| SnapshotState::Ready {
+            snapshot: Arc::new(Snapshot {
+                nodes: Vec::new(),
+                node_index: HashMap::from([(node.to_vec(), 0)]),
+                keys: HashMap::new(),
+                key_order: Vec::new(),
+                watermark: 0,
+            }),
+            full_at: Instant::now(),
+            refreshed_at: Instant::now(),
+            last_used: Instant::now(),
+        };
+        proxy
+            .snapshots
+            .lock()
+            .unwrap()
+            .insert("tuist/stale".to_string(), snapshot(b"evicted-node"));
+        proxy
+            .snapshots
+            .lock()
+            .unwrap()
+            .insert("tuist/other".to_string(), snapshot(b"live-node"));
+
+        proxy.distrust_snapshots_advertising(&[b"evicted-node".to_vec()]);
+
+        assert!(proxy.snapshot_ready("tuist/stale").is_none());
+        assert!(matches!(
+            proxy.snapshots.lock().unwrap().get("tuist/stale"),
+            Some(SnapshotState::Absent { retry_after, .. })
+                if *retry_after == SNAPSHOT_STALE_RETRY_INTERVAL
+        ));
+        assert!(
+            proxy.snapshot_ready("tuist/other").is_some(),
+            "a snapshot that does not advertise the lost node keeps serving"
+        );
+    }
+
+    /// A partly refused batch read (RESOURCE_EXHAUSTED on some blobs) returns
+    /// without them, like an eviction does. Only what the remote confirms
+    /// missing may take a snapshot out of service.
+    #[test]
+    fn only_blobs_the_remote_confirms_missing_count_as_evicted() {
+        let blob = |byte: u8| reapi::Digest {
+            hash: format!("{byte:02x}").repeat(32),
+            size_bytes: 7,
+        };
+        let absent = vec![
+            (b"refused-node".to_vec(), blob(0x01)),
+            (b"evicted-node".to_vec(), blob(0x02)),
+        ];
+
+        assert_eq!(
+            confirmed_evicted(&absent, |asked| {
+                assert_eq!(asked, vec![blob(0x01), blob(0x02)]);
+                Ok(vec![blob(0x02)])
+            }),
+            vec![b"evicted-node".to_vec()]
+        );
+        assert!(
+            confirmed_evicted(&absent, |_| Ok(Vec::new())).is_empty(),
+            "blobs the remote still holds were refused, not evicted"
+        );
+        assert!(
+            confirmed_evicted(&absent, |_| Err("unavailable".into())).is_empty(),
+            "a failed presence query confirms nothing"
+        );
+    }
+
     #[test]
     fn snapshot_age_comes_from_the_full_fetch_not_the_delta() {
         let dir = std::env::temp_dir().join(format!("tuist-snapage-{}", std::process::id()));
@@ -5247,6 +6638,413 @@ mod tests {
         assert_eq!(drain_timeout(&u32::MAX.to_be_bytes()), DRAIN_TIMEOUT_MAX);
     }
 
+    #[test]
+    fn an_upload_wait_budget_is_bounded() {
+        assert_eq!(upload_wait_budget(5_000), Duration::from_secs(5));
+        assert_eq!(upload_wait_budget(0), UPLOAD_WAIT_DEFAULT);
+        assert_eq!(upload_wait_budget(u32::MAX), UPLOAD_WAIT_MAX);
+    }
+
+    #[test]
+    fn builds_wait_until_an_upload_stalls() {
+        let breaker = UploadWaitBreaker::default();
+        let admission = breaker.admit(1_000).expect("builds wait by default");
+        assert_eq!(admission, UploadWaitAdmission::Closed);
+
+        breaker.record(admission, UploadWaitOutcome::TimedOut, 1_000);
+
+        assert_eq!(breaker.admit(1_001), None);
+        assert_eq!(breaker.admit(1_000 + UPLOAD_WAIT_OPEN_MS - 1), None);
+    }
+
+    /// One failed upload is as likely to be its record as the remote, and not
+    /// waiting costs a job its uploads, so it takes a run of them.
+    #[test]
+    fn builds_stop_waiting_after_a_run_of_failures_not_one() {
+        let breaker = UploadWaitBreaker::default();
+        for _ in 0..UPLOAD_WAIT_FAILURES_TO_OPEN - 1 {
+            breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        }
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Published, 1_000);
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        assert_eq!(
+            breaker.admit(1_000),
+            Some(UploadWaitAdmission::Closed),
+            "a success in between resets the run"
+        );
+
+        for _ in 0..UPLOAD_WAIT_FAILURES_TO_OPEN - 1 {
+            breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::Failed, 1_000);
+        }
+        assert_eq!(breaker.admit(1_000), None);
+    }
+
+    /// After the window one build waits, and the rest keep moving until its
+    /// upload shows the remote is back. Letting all of them wait again would cost
+    /// a stalled budget per compile, once per window, for as long as the outage.
+    #[test]
+    fn after_the_window_one_build_probes_and_its_result_decides() {
+        let breaker = UploadWaitBreaker::default();
+        breaker.record(UploadWaitAdmission::Closed, UploadWaitOutcome::TimedOut, 0);
+
+        let reopened = UPLOAD_WAIT_OPEN_MS;
+        let probe = breaker.admit(reopened).expect("the window has passed");
+        assert_eq!(probe, UploadWaitAdmission::Probe);
+        assert_eq!(breaker.admit(reopened), None, "only one probe at a time");
+
+        breaker.record(probe, UploadWaitOutcome::Failed, reopened);
+        assert_eq!(
+            breaker.admit(reopened + 1),
+            None,
+            "a failed probe opens a fresh window"
+        );
+
+        let reopened = reopened + UPLOAD_WAIT_OPEN_MS;
+        let probe = breaker.admit(reopened).expect("the second window has passed");
+        breaker.record(probe, UploadWaitOutcome::Published, reopened);
+        assert_eq!(breaker.admit(reopened), Some(UploadWaitAdmission::Closed));
+        assert_eq!(breaker.admit(reopened), Some(UploadWaitAdmission::Closed));
+    }
+
+    /// A proxy over a real store whose publisher, instead of uploading, runs
+    /// `publish` on each record path.
+    fn waiting_proxy<F>(dir: &Path, publish: F) -> &'static Proxy
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.join("registry")),
+            None,
+        );
+        proxy.publisher.configure(1, move |item| {
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
+        });
+        proxy
+    }
+
+    /// A temp dir with a sources registry, a store path and a spooled record
+    /// for `key`.
+    fn upload_wait_fixture(name: &str, sources: &str) -> (PathBuf, String, String) {
+        let dir = std::env::temp_dir().join(format!("tuist-upload-wait-{name}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let cas_path = dir.join("cas");
+        let spool = cas_path.join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        std::fs::write(sources_path_for(&dir.join("registry")), sources).expect("sources");
+        let record = spool.join("1234-0");
+        std::fs::write(&record, record_body(b"key", b"value")).expect("record");
+        (
+            dir,
+            cas_path.to_string_lossy().into_owned(),
+            record.to_string_lossy().into_owned(),
+        )
+    }
+
+    fn record_body(key: &[u8], value: &[u8]) -> Vec<u8> {
+        let mut body = (key.len() as u16).to_be_bytes().to_vec();
+        body.extend_from_slice(key);
+        body.extend_from_slice(value);
+        body
+    }
+
+    const UPLOADING: &str = r#"{"tuist/mastodon":{"trunk":"main","branch":"feature"}}"#;
+
+    #[test]
+    fn a_build_waits_until_its_record_is_published() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture("published", UPLOADING);
+        let proxy = waiting_proxy(&dir, |record_path| {
+            std::thread::sleep(Duration::from_millis(200));
+            remove_record(record_path);
+        });
+
+        let started = Instant::now();
+        let published = proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        );
+
+        assert!(published);
+        assert!(started.elapsed() >= Duration::from_millis(200));
+        let state = proxy.path_state(&cas_path).unwrap();
+        assert_eq!(state.stats_upload_waited.load(Ordering::Relaxed), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_failed_upload_is_left_to_the_sweep() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture("failed", UPLOADING);
+        let proxy = waiting_proxy(&dir, |_| {});
+
+        let published = proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        );
+
+        assert!(!published);
+        assert!(Path::new(&record_path).exists(), "the record stays for the sweep");
+        let state = proxy.path_state(&cas_path).unwrap();
+        assert_eq!(state.stats_upload_unwaited.load(Ordering::Relaxed), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The build moves on at its budget, the upload keeps running, and the next
+    /// builds stop waiting at all rather than each paying the budget again.
+    #[test]
+    fn a_stalled_upload_releases_the_build_and_the_ones_after_it() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture("stalled", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            remove_record(record_path);
+        });
+
+        let started = Instant::now();
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_millis(200),
+        ));
+        assert!(started.elapsed() < Duration::from_secs(5));
+
+        let next_record = Path::new(&cas_path).join("tuist-spool").join("1234-1");
+        std::fs::write(&next_record, record_body(b"other-key", b"value")).expect("record");
+        let started = Instant::now();
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &next_record.to_string_lossy(),
+            Duration::from_secs(10),
+        ));
+        assert!(
+            started.elapsed() < Duration::from_millis(150),
+            "the next build did not wait"
+        );
+
+        release.send(()).unwrap();
+        release.send(()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Path::new(&record_path).exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!Path::new(&record_path).exists(), "the stalled upload finished");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Compiles run in parallel, so a stall catches several puts mid-wait. Each
+    /// running out its own budget would stagger the build's delay across all of
+    /// them; the first timeout releases the rest.
+    #[test]
+    fn the_first_stalled_upload_releases_the_builds_already_waiting() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture("released", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |_| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+        });
+        let other_record = Path::new(&cas_path).join("tuist-spool").join("1234-1");
+        std::fs::write(&other_record, record_body(b"other-key", b"value")).expect("record");
+        let other_record = other_record.to_string_lossy().into_owned();
+
+        let started = Instant::now();
+        let waiting = {
+            let cas_path = cas_path.clone();
+            std::thread::spawn(move || {
+                proxy.publish_and_wait(&cas_path, "tuist/mastodon", &other_record, Duration::from_secs(10))
+            })
+        };
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_millis(200),
+        ));
+
+        assert!(!waiting.join().unwrap());
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "the build waiting with a 10s budget was released when the other one stalled"
+        );
+        release.send(()).unwrap();
+        release.send(()).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A sweep can hand the pool a record before its build asks to wait for it.
+    /// That publication failing is one failure, not a stall: the build has to
+    /// hear about it when it happens rather than wait out its budget.
+    #[test]
+    fn a_failed_publication_already_in_flight_ends_the_wait_as_a_failure() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture("in-flight", UPLOADING);
+        let (entered_sender, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |_| {
+            let _ = entered_sender.send(());
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+        });
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &record_path);
+        entered.recv_timeout(Duration::from_secs(10)).expect("the pool took the record");
+
+        let started = Instant::now();
+        let waiting = {
+            let (cas_path, record_path) = (cas_path.clone(), record_path.clone());
+            std::thread::spawn(move || {
+                proxy.publish_and_wait(&cas_path, "tuist/mastodon", &record_path, Duration::from_secs(5))
+            })
+        };
+        std::thread::sleep(Duration::from_millis(100));
+        release.send(()).unwrap();
+
+        assert!(!waiting.join().unwrap());
+        assert!(started.elapsed() < Duration::from_secs(2), "the wait ended with the publication");
+        assert_eq!(
+            proxy.upload_wait.admit(reapi::now_ms()),
+            Some(UploadWaitAdmission::Closed),
+            "one failure does not stop builds waiting"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A record queued behind background work is published by the build waiting
+    /// on it, not after the backlog ahead of it.
+    #[test]
+    fn a_queued_publication_is_taken_over_by_the_build_waiting_on_it() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture("queued", UPLOADING);
+        let blocker = Path::new(&cas_path).join("tuist-spool").join("1234-9");
+        std::fs::write(&blocker, record_body(b"blocker", b"value")).expect("record");
+        let (entered_sender, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            if record_path.ends_with("1234-9") {
+                let _ = entered_sender.send(());
+                let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            }
+            remove_record(record_path);
+        });
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &blocker.to_string_lossy());
+        entered.recv_timeout(Duration::from_secs(10)).expect("the pool's only worker is busy");
+        proxy.enqueue_publish(&cas_path, "tuist/mastodon", &record_path);
+
+        let started = Instant::now();
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(2),
+        ));
+        assert!(started.elapsed() < Duration::from_secs(1));
+
+        release.send(()).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_project_that_does_not_upload_owes_nothing() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture(
+            "read-only",
+            r#"{"tuist/mastodon":{"trunk":"main","upload":false}}"#,
+        );
+        let proxy = waiting_proxy(&dir, |_| panic!("nothing is published"));
+
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        ));
+        assert!(!Path::new(&record_path).exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The build service re-puts most keys its compilers already put. When the
+    /// compiler's wait published the value, the re-put has no bytes to wait for.
+    #[test]
+    fn a_reput_of_a_published_value_does_not_wait() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture("reput", UPLOADING);
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        let proxy = waiting_proxy(&dir, move |record_path| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            remove_record(record_path);
+        });
+        proxy.resolve_instance(&cas_path, "tuist/mastodon");
+        let state = proxy.path_state(&cas_path).unwrap();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(b"key".to_vec(), Resolution::Hit(b"value".to_vec()));
+
+        let started = Instant::now();
+        assert!(proxy.publish_and_wait(
+            &cas_path,
+            "tuist/mastodon",
+            &record_path,
+            Duration::from_secs(10),
+        ));
+        assert!(started.elapsed() < Duration::from_millis(150));
+
+        release.send(()).unwrap();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+        assert!(
+            !Path::new(&record_path).exists(),
+            "the re-put still reached the publisher"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_unprimed_path_is_not_waited_on() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let (dir, cas_path, record_path) = upload_wait_fixture("unprimed", UPLOADING);
+        let proxy = waiting_proxy(&dir, |_| panic!("nowhere to publish to"));
+
+        assert!(!proxy.publish_and_wait(&cas_path, "", &record_path, Duration::from_secs(10)));
+        assert!(Path::new(&record_path).exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// A sweeper claims a record by renaming it to `<base>.claim-<pid>`, so the
     /// sidecar has to be found from the claimed name too.
     #[test]
@@ -5289,6 +7087,7 @@ mod tests {
                 "tuist/ci":        {"trunk": "main", "branch": "feature/x"},
                 "tuist/no-trunk":  {"branch": "feature/y"},
                 "tuist/read-only": {"trunk": "main", "upload": false},
+                "tuist/bounded":   {"trunk": "main", "storeSizeLimit": 1073741824},
                 "tuist/newer":     {"trunk": "main", "something-we-do-not-know": 1},
                 "tuist/dev":       {"trunk": "main"},
                 "tuist/bare":      {}
@@ -5325,6 +7124,10 @@ mod tests {
         assert_eq!(bare.trunk, None);
         assert_eq!(bare.ci_branch, None);
         assert!(bare.upload, "nothing recorded is nothing to withhold");
+        assert_eq!(bare.store_size_limit, None, "nothing recorded is no limit");
+
+        let bounded = sources.get("tuist/bounded").expect("bounded entry");
+        assert_eq!(bounded.store_size_limit, Some(1024 * 1024 * 1024));
 
         // Unreadable is not the same as empty: a project this read forgot would
         // come back as unknown, and unknown has to be allowed to upload.
@@ -5990,6 +7793,178 @@ mod tests {
     }
 
     #[test]
+    fn a_proxy_without_an_endpoint_resolves_on_the_short_interval() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+
+        assert_eq!(
+            proxy.endpoint_resolution_interval(1_000_000),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+        assert_eq!(
+            test_proxy().endpoint_resolution_interval(1_000_000),
+            ENDPOINT_REFRESH_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_cache_being_prepared_is_asked_about_every_second() {
+        let absent = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let serving = test_proxy();
+        let start = 1_000_000_u64;
+
+        for proxy in [absent, serving] {
+            proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+
+            assert_eq!(
+                proxy.endpoint_resolution_interval(start + 30_000),
+                ENDPOINT_PREPARING_INTERVAL
+            );
+        }
+    }
+
+    #[test]
+    fn a_streak_of_being_prepared_answers_is_timed_from_its_first_answer() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let start = 1_000_000_u64;
+        let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
+
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+        proxy.record_resolution(
+            crate::endpoint::Resolution::BeingPrepared,
+            start + window - 1,
+            || true,
+        );
+
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + window - 1),
+            ENDPOINT_PREPARING_INTERVAL
+        );
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + window),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_preparation_after_the_window_lapsed_re_arms_the_fast_interval() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let start = 1_000_000_u64;
+        let window = ENDPOINT_PREPARING_WINDOW.as_millis() as u64;
+
+        // A preparation that outlives its window, then answers the CLI could
+        // not give — the laptop went offline — which do not clear the stamp.
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+        proxy.record_resolution(
+            crate::endpoint::Resolution::Unknown,
+            start + window + 1,
+            || true,
+        );
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + window + 1),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+
+        // A genuinely new preparation, hours later.
+        let later = start + window * 100;
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, later, || true);
+        assert_eq!(
+            proxy.endpoint_resolution_interval(later),
+            ENDPOINT_PREPARING_INTERVAL
+        );
+    }
+
+    #[test]
+    fn an_answer_the_cli_could_not_give_keeps_the_absent_interval() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+
+        proxy.record_resolution(crate::endpoint::Resolution::Unknown, 1_000_000, || true);
+
+        assert_eq!(
+            proxy.endpoint_resolution_interval(1_001_000),
+            ENDPOINT_ABSENT_INTERVAL
+        );
+    }
+
+    #[test]
+    fn an_endpoint_ends_a_streak_of_being_prepared_answers() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let start = 1_000_000_u64;
+
+        proxy.record_resolution(crate::endpoint::Resolution::BeingPrepared, start, || true);
+        proxy.record_resolution(
+            crate::endpoint::Resolution::Endpoint(resolution("http://127.0.0.1:2", None)),
+            start + 5_000,
+            || proxy.current_endpoint_reachable("acme/app"),
+        );
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
+        assert_eq!(
+            proxy.endpoint_resolution_interval(start + 6_000),
+            ENDPOINT_REFRESH_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_proxy_without_an_endpoint_adopts_the_first_one_resolved() {
+        let proxy = Proxy::new(
+            String::new(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        );
+        let resolved = crate::endpoint::ResolvedEndpoint {
+            url: "http://127.0.0.1:2".to_string(),
+            endpoints: None,
+        };
+
+        assert!(proxy.consider_endpoint(&resolved, || {
+            proxy.current_endpoint_reachable("acme/app")
+        }));
+        assert_eq!(*proxy.grpc_url.read().unwrap(), "http://127.0.0.1:2");
+        assert_eq!(
+            proxy.endpoint_resolution_interval(1_000_000),
+            ENDPOINT_REFRESH_INTERVAL
+        );
+    }
+
+    #[test]
     fn a_failing_resolution_is_retried_on_the_interval_not_on_every_request() {
         // The stamp is taken on the attempt, not on success. Stamping only on
         // success would spawn the CLI for every request while it is failing —
@@ -6071,6 +8046,110 @@ mod tests {
         );
     }
 
+    fn resolution(url: &str, endpoints: Option<&[&str]>) -> crate::endpoint::ResolvedEndpoint {
+        crate::endpoint::ResolvedEndpoint {
+            url: url.to_string(),
+            endpoints: endpoints.map(|endpoints| {
+                endpoints
+                    .iter()
+                    .map(|endpoint| endpoint.to_string())
+                    .collect()
+            }),
+        }
+    }
+
+    #[test]
+    fn a_single_disagreeing_resolution_does_not_move_off_a_serving_endpoint() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let before = proxy.remote_for("acme/app");
+        let far = "http://127.0.0.1:2";
+
+        assert!(!proxy.consider_endpoint(&resolution(far, Some(&[&current, far])), || true));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), current);
+        assert!(Arc::ptr_eq(&before, &proxy.remote_for("acme/app")));
+        assert_eq!(
+            proxy.endpoint_resolution_interval(1_000_000),
+            ENDPOINT_CONFIRM_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_disagreement_repeated_by_the_next_resolution_moves() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let far = "http://127.0.0.1:2";
+
+        assert!(!proxy.consider_endpoint(&resolution(far, Some(&[&current, far])), || true));
+        assert!(proxy.consider_endpoint(&resolution(far, Some(&[&current, far])), || true));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), far);
+        assert_eq!(
+            proxy.endpoint_resolution_interval(1_000_000),
+            ENDPOINT_REFRESH_INTERVAL
+        );
+    }
+
+    #[test]
+    fn a_resolution_back_to_the_current_endpoint_discards_the_candidate() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let far = "http://127.0.0.1:2";
+        let listed: &[&str] = &[&current, far];
+
+        assert!(!proxy.consider_endpoint(&resolution(far, Some(listed)), || true));
+        assert!(!proxy.consider_endpoint(&resolution(&current, Some(listed)), || true));
+        assert!(!proxy.consider_endpoint(&resolution(far, Some(listed)), || true));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), current);
+    }
+
+    #[test]
+    fn a_relocated_account_moves_on_the_first_resolution() {
+        let proxy = test_proxy();
+        let _ = proxy.remote_for("acme/app");
+        let relocated = "http://127.0.0.1:2";
+
+        assert!(
+            proxy.consider_endpoint(&resolution(relocated, Some(&[relocated])), || {
+                panic!("a relocation does not depend on the old endpoint still answering")
+            })
+        );
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), relocated);
+        assert!(proxy.remotes.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_unreachable_current_endpoint_is_left_on_the_first_resolution() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let far = "http://127.0.0.1:2";
+
+        assert!(proxy.consider_endpoint(&resolution(far, Some(&[&current, far])), || false));
+
+        assert_eq!(*proxy.grpc_url.read().unwrap(), far);
+    }
+
+    #[test]
+    fn without_an_endpoint_list_a_disagreement_still_needs_confirming() {
+        let proxy = test_proxy();
+        let current = proxy.grpc_url.read().unwrap().clone();
+        let far = "http://127.0.0.1:2";
+
+        assert!(!proxy.consider_endpoint(&resolution(far, None), || true));
+        assert_eq!(*proxy.grpc_url.read().unwrap(), current);
+        assert!(proxy.consider_endpoint(&resolution(far, None), || true));
+    }
+
+    #[test]
+    fn an_endpoint_refusing_connections_is_unreachable() {
+        let proxy = test_proxy();
+
+        assert!(!proxy.current_endpoint_reachable("acme/app"));
+    }
+
     fn test_proxy() -> &'static Proxy {
         Proxy::new(
             "http://127.0.0.1:1".to_string(),
@@ -6084,14 +8163,26 @@ mod tests {
     // Builds a PathState over a real on-disk CAS at `path`, the way `path_state`
     // does, so the wipe tests drive the production probe rather than a copy.
     fn path_state_for(path: &str) -> &'static PathState {
+        path_state_with_open(
+            path,
+            Box::new(|up: &'static Upstream, path: &str| unsafe { open_cas(up, path) }),
+        )
+    }
+
+    // The initial handle is always a real one; `open` serves every reopen.
+    fn path_state_with_open(path: &str, open: OpenCas) -> &'static PathState {
         let up = unsafe { Upstream::load(&crate::upstream_path()).unwrap() };
         let up: &'static Upstream = Box::leak(Box::new(up));
         let cas = unsafe { open_cas(up, path).unwrap() };
         Box::leak(Box::new(PathState {
             up,
+            open,
             cas: RwLock::new(Some(cas)),
             cas_path: path.to_string(),
-            generation: Mutex::new(cas_generation(path)),
+            binding: Mutex::new(StoreBinding {
+                generation: cas_generation(path),
+                reopen: Reopen::Idle,
+            }),
             gen_counter: AtomicU64::new(0),
             resolved: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashSet::new()),
@@ -6104,6 +8195,7 @@ mod tests {
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
+            stats_reopen_misses: AtomicU64::new(0),
             stats_snapshot_hits: AtomicU64::new(0),
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
@@ -6120,6 +8212,9 @@ mod tests {
             us_publish_local: AtomicU64::new(0),
             stats_publish_nodes_loaded: AtomicU64::new(0),
             stats_publish_shed: AtomicU64::new(0),
+            stats_upload_waited: AtomicU64::new(0),
+            stats_upload_unwaited: AtomicU64::new(0),
+            ms_upload_wait: AtomicU64::new(0),
         }))
     }
 
@@ -6175,8 +8270,45 @@ mod tests {
 
     struct TempCasDir(std::path::PathBuf);
 
+    // `Drop` never runs when a test run is killed, and each store can hold
+    // gigabytes, so the first store of every run reclaims the stores of runs
+    // whose process is gone.
+    static SWEEP_DEAD_RUN_STORES: std::sync::Once = std::sync::Once::new();
+
+    fn sweep_dead_run_stores(root: &std::path::Path) {
+        let Ok(entries) = std::fs::read_dir(root) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if !name.starts_with("cas-") {
+                continue;
+            }
+            let Some(pid) = name
+                .rsplit('-')
+                .next()
+                .and_then(|pid| pid.parse::<libc::pid_t>().ok())
+            else {
+                continue;
+            };
+            if pid <= 0 || pid as u32 == std::process::id() {
+                continue;
+            }
+            if !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let dead = unsafe { libc::kill(pid, 0) } == -1
+                && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
+            if dead {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    }
+
     impl TempCasDir {
         fn new(tag: &str) -> Self {
+            SWEEP_DEAD_RUN_STORES.call_once(|| sweep_dead_run_stores(&std::env::temp_dir()));
             let dir = std::env::temp_dir().join(format!("cas-{tag}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).unwrap();
@@ -6198,6 +8330,35 @@ mod tests {
         }
     }
 
+    #[test]
+    fn sweep_reclaims_only_stores_of_dead_runs() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let root = TempCasDir::new("sweep-root");
+        let mut child = std::process::Command::new("true").spawn().unwrap();
+        let dead_pid = child.id();
+        child.wait().unwrap();
+        let live_pid = unsafe { libc::getppid() };
+        let dead = root.0.join(format!("cas-x-{dead_pid}"));
+        let live = root.0.join(format!("cas-x-{live_pid}"));
+        let own = root.0.join(format!("cas-x-{}", std::process::id()));
+        let unrelated = root.0.join(format!("other-x-{dead_pid}"));
+        for dir in [&dead, &live, &own, &unrelated] {
+            std::fs::create_dir_all(dir.join("v1")).unwrap();
+        }
+
+        sweep_dead_run_stores(&root.0);
+
+        assert!(!dead.exists(), "a store of a dead run must be reclaimed");
+        assert!(live.exists(), "a store of a live run must be kept");
+        assert!(own.exists(), "this run's stores must be kept");
+        assert!(
+            unrelated.exists(),
+            "directories that are not stores must be kept"
+        );
+    }
+
     // The regression this whole guard exists for. An llcas handle pins the store
     // it opened: after the directory is wiped, the pre-wipe handle still answers
     // from the deleted inodes, so `load_present` reports objects the compiler
@@ -6206,6 +8367,9 @@ mod tests {
     // Rebinding the handle is what makes the probe authoritative again.
     #[test]
     fn load_present_does_not_answer_from_a_wiped_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("wipe-read");
         let state = path_state_for(&dir.path());
         let digest = store_probe_object(state, b"tuist-cas-wipe-probe");
@@ -6228,6 +8392,9 @@ mod tests {
     // build. After rebinding, what the proxy writes is what the compiler reads.
     #[test]
     fn stores_after_a_wipe_land_in_the_live_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("wipe-write");
         let state = path_state_for(&dir.path());
 
@@ -6246,7 +8413,11 @@ mod tests {
     // The generation directories of a store, sorted. llcas names them `v1.N`;
     // the chain they form is the only thing a size limit acts on.
     fn generations(dir: &TempCasDir) -> Vec<String> {
-        let mut found: Vec<String> = std::fs::read_dir(&dir.0)
+        generations_at(&dir.0)
+    }
+
+    fn generations_at(store: &Path) -> Vec<String> {
+        let mut found: Vec<String> = std::fs::read_dir(store)
             .unwrap()
             .flatten()
             .map(|entry| entry.file_name().to_string_lossy().into_owned())
@@ -6282,7 +8453,10 @@ mod tests {
     /// SECOND that pushes the original off the end for the prune to delete.
     #[test]
     fn a_prune_rotates_the_chain_and_collects_what_falls_off_it() {
-        const LIMIT: u64 = 1024 * 1024;
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const LIMIT: u64 = 16 * 1024 * 1024;
         const FILL: u64 = 24 * 1024 * 1024;
         let dir = TempCasDir::new("prune-rotate");
         let state = path_state_for(&dir.path());
@@ -6341,6 +8515,9 @@ mod tests {
     /// `Ok(0)` with `v1.1` still in place.
     #[test]
     fn concurrent_registrations_leave_exactly_one_handle_on_the_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 1024 * 1024;
         let dir = TempCasDir::new("register-race");
         let proxy = test_proxy();
@@ -6377,27 +8554,883 @@ mod tests {
         );
     }
 
+    /// A project's `storeSizeLimit` is enforced without a caller asking: a store
+    /// within it is left alone, a store past it is brought back within it, and a
+    /// store is measured at most once per STORE_BOUND_INTERVAL.
+    #[test]
+    fn a_store_past_its_projects_size_limit_is_pruned() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const LIMIT: u64 = 4 * 1024 * 1024;
+        let proxy = test_proxy();
+
+        let within = TempCasDir::new("bound-within");
+        let within_state = path_state_for(&within.path());
+        fill_to(within_state, &within, 24 * 1024 * 1024);
+        let untouched = generations(&within);
+        assert!(
+            proxy
+                .bound_store(&within.path(), within_state, u64::MAX)
+                .is_none(),
+            "a store within its limit is left alone"
+        );
+        assert_eq!(generations(&within), untouched);
+
+        let over = TempCasDir::new("bound-over");
+        let over_state = path_state_for(&over.path());
+        fill_to(over_state, &over, 24 * 1024 * 1024);
+        proxy
+            .bound_store(&over.path(), over_state, LIMIT)
+            .expect("a store past its limit is pruned")
+            .join()
+            .unwrap();
+        assert_eq!(generations(&over), vec!["v1.2"]);
+        assert!(directory_size(&over.path()) <= LIMIT);
+
+        fill_to(over_state, &over, 24 * 1024 * 1024);
+        assert!(
+            proxy.bound_store(&over.path(), over_state, LIMIT).is_none(),
+            "a store measured within STORE_BOUND_INTERVAL is not measured again"
+        );
+        assert!(directory_size(&over.path()) > LIMIT);
+    }
+
+    #[test]
+    fn a_prune_rotates_a_primary_past_half_its_limit_and_collects_what_falls_off() {
+        const MIB: u64 = 1024 * 1024;
+        let sizes = BTreeMap::from([(1, 3 * MIB), (2, 3 * MIB), (3, 3 * MIB)]);
+
+        assert_eq!(
+            plan_generations(&sizes, 4 * MIB, true),
+            GenerationPlan { unreachable: vec![1], rotate_to: Some(4), demoted: vec![2] }
+        );
+        assert_eq!(
+            plan_generations(&sizes, 6 * MIB, true),
+            GenerationPlan { unreachable: vec![1], ..GenerationPlan::default() },
+            "a primary within half the limit does not rotate, as llcas's would not"
+        );
+        assert_eq!(
+            plan_generations(&sizes, 0, true),
+            GenerationPlan { unreachable: vec![1], ..GenerationPlan::default() },
+            "a prune with no limit to impose only collects what is unreachable"
+        );
+        assert_eq!(
+            plan_generations(&sizes, 4 * MIB, false),
+            GenerationPlan { unreachable: vec![1], ..GenerationPlan::default() },
+            "a store something holds open is not ours to rotate"
+        );
+    }
+
+    #[test]
+    fn a_prune_collects_an_upstream_larger_than_the_stores_whole_allowance() {
+        const MIB: u64 = 1024 * 1024;
+
+        assert_eq!(
+            plan_generations(&BTreeMap::from([(1, 20 * MIB)]), 4 * MIB, true),
+            GenerationPlan { unreachable: vec![], rotate_to: Some(2), demoted: vec![1] }
+        );
+        assert_eq!(
+            plan_generations(&BTreeMap::from([(1, 20 * MIB), (2, MIB)]), 4 * MIB, true),
+            GenerationPlan { unreachable: vec![], rotate_to: None, demoted: vec![1] }
+        );
+        assert_eq!(
+            plan_generations(&BTreeMap::from([(1, 8 * MIB), (2, MIB)]), 4 * MIB, true),
+            GenerationPlan::default(),
+            "an upstream within the allowance is the warm cache and stays"
+        );
+        assert_eq!(
+            plan_generations(&BTreeMap::from([(1, 20 * MIB), (2, MIB)]), 4 * MIB, false),
+            GenerationPlan::default(),
+            "an upstream is live for whoever holds the store open"
+        );
+    }
+
+    /// `v9.*` is the compilers' own layout, which no upstream plugin reads.
+    #[test]
+    fn a_prune_bounds_a_store_in_a_layout_the_upstream_plugin_does_not_read() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const MIB: usize = 1024 * 1024;
+        let dir = TempCasDir::new("prune-foreign-layout");
+        std::fs::write(dir.0.join("lock"), b"").unwrap();
+        write_generation(&dir.0, 1, "v9.data", 3 * MIB);
+        write_generation(&dir.0, 2, "v9.data", 3 * MIB);
+        let upstream = directory_size(&dir.0.join("v1.1").to_string_lossy());
+
+        let pruned = prune_store(&dir.path(), 4 * MIB as u64).unwrap();
+
+        assert_eq!(pruned, StorePrune { reclaimed: upstream, held_open: false });
+        assert_eq!(generations(&dir), vec!["v1.2", "v1.3"]);
+        assert_eq!(entries_of(&dir.0.join("v1.2")), vec!["v9.data"]);
+        assert!(entries_of(&dir.0.join("v1.3")).is_empty());
+    }
+
+    #[test]
+    fn a_prune_of_a_store_held_open_collects_only_what_is_unreachable() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const MIB: usize = 1024 * 1024;
+        let dir = TempCasDir::new("prune-held-lock");
+        write_generation(&dir.0, 1, "v9.data", MIB);
+        write_generation(&dir.0, 2, "v9.data", 3 * MIB);
+        write_generation(&dir.0, 3, "v9.data", 3 * MIB);
+        let handle = std::fs::File::create(dir.0.join("lock")).unwrap();
+        handle.try_lock_shared().unwrap();
+        let unreachable = directory_size(&dir.0.join("v1.1").to_string_lossy());
+
+        let pruned = prune_store(&dir.path(), 1).unwrap();
+
+        assert_eq!(pruned, StorePrune { reclaimed: unreachable, held_open: true });
+        assert_eq!(generations(&dir), vec!["v1.2", "v1.3"]);
+    }
+
+    #[test]
+    fn a_store_rotated_on_disk_is_the_chain_the_upstream_plugin_expects() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("prune-upstream-roundtrip");
+        let digests = store_directly(&dir.path(), payloads(1, 1));
+
+        let limit = directory_size(&dir.0.join("v1.1").to_string_lossy());
+        prune_store(&dir.path(), limit).unwrap();
+        assert_eq!(generations(&dir), vec!["v1.1", "v1.2"]);
+        assert!(path_state_for(&dir.path()).load_present(&digests[0]));
+    }
+
+    #[test]
+    fn a_prune_runs_on_a_full_volume_and_frees_it() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const MIB: usize = 1024 * 1024;
+        let Some(volume) = TestVolume::attach("prune-full") else { return };
+        let store = volume.mount.join("builtin");
+        std::fs::create_dir_all(&store).unwrap();
+        std::fs::write(store.join("lock"), b"").unwrap();
+        write_generation(&store, 1, "v9.data", 8 * MIB);
+        write_generation(&store, 2, "v9.data", 8 * MIB);
+        let upstream = directory_size(&store.join("v1.1").to_string_lossy());
+        volume.fill();
+
+        let pruned = prune_store(&store.to_string_lossy(), 4 * MIB as u64).unwrap();
+
+        assert_eq!(pruned, StorePrune { reclaimed: upstream, held_open: false });
+        assert_eq!(generations_at(&store), vec!["v1.2", "v1.3"]);
+        assert!(volume.has_room());
+    }
+
+    #[test]
+    fn a_proxy_prune_of_a_store_it_holds_runs_on_a_full_volume() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const LIMIT: u64 = 8 * 1024 * 1024;
+        let Some(volume) = TestVolume::attach("proxy-prune-full") else { return };
+        let store = volume.mount.join("plugin");
+        let path = store.to_string_lossy().into_owned();
+        store_directly(&path, payloads(1, 128));
+        prune_store(&path, LIMIT).unwrap();
+        let kept = store_directly(&path, payloads(2, 128));
+        let upstream = directory_size(&store.join("v1.1").to_string_lossy());
+        let state = path_state_for(&path);
+        volume.fill();
+
+        let reclaimed = state.prune_ondisk(LIMIT).unwrap();
+
+        assert_eq!(reclaimed, upstream);
+        assert_eq!(generations_at(&store), vec!["v1.2", "v1.3"]);
+        assert!(state.load_present(&kept[0]));
+    }
+
+    // Native CAS probes need genuine upstream digests, even for absent objects.
+    // One-byte placeholders made a tiny closure test fault gigabytes of mappings.
+    // Seed a separate store so these objects are still absent from the test's CAS.
+    fn digests_for<const N: usize>(payloads: [&[u8]; N]) -> [Vec<u8>; N] {
+        let seed = TempCasDir::new("digest-seed");
+        store_directly(&seed.path(), payloads.into_iter().map(<[u8]>::to_vec).collect())
+            .try_into()
+            .unwrap()
+    }
+
+    /// Stores each payload through a handle of its own, disposed afterwards.
+    fn store_directly(path: &str, payloads: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
+        let up = unsafe { Upstream::load(&crate::upstream_path()).unwrap() };
+        let up: &'static Upstream = Box::leak(Box::new(up));
+        unsafe {
+            let cas = open_cas(up, path).unwrap();
+            let digests = payloads
+                .iter()
+                .map(|payload| {
+                    let mut id = llcas_objectid_t { opaque: 0 };
+                    let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+                    let data = llcas_data_t { data: payload.as_ptr().cast(), size: payload.len() };
+                    let failed =
+                        (up.llcas_cas_store_object)(cas, data, std::ptr::null(), 0, &mut id, &mut error);
+                    assert!(!failed, "store_object: {:?}", take_error(up, error));
+                    let digest = (up.llcas_objectid_get_digest)(cas, id);
+                    std::slice::from_raw_parts(digest.data, digest.size).to_vec()
+                })
+                .collect();
+            (up.llcas_cas_dispose)(cas);
+            digests
+        }
+    }
+
+    fn payloads(seed: u8, count: u64) -> Vec<Vec<u8>> {
+        (0..count)
+            .map(|nonce| {
+                let mut payload = vec![seed; 64 * 1024];
+                payload[..8].copy_from_slice(&nonce.to_be_bytes());
+                payload
+            })
+            .collect()
+    }
+
+    /// A small APFS disk image, attached for a test and detached when dropped.
+    struct TestVolume {
+        root: std::path::PathBuf,
+        mount: std::path::PathBuf,
+    }
+
+    impl TestVolume {
+        /// `None`, and the test skips, where no disk image can be attached.
+        fn attach(tag: &str) -> Option<Self> {
+            let root = std::env::temp_dir().join(format!("cas-volume-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            std::fs::create_dir_all(&root).unwrap();
+            let volume = Self { mount: root.join("mount"), root };
+            let image = volume.root.join("volume.dmg");
+            let hdiutil = |arguments: &[&std::ffi::OsStr]| {
+                std::process::Command::new("hdiutil")
+                    .args(arguments)
+                    .status()
+                    .is_ok_and(|status| status.success())
+            };
+            let attached = hdiutil(&[
+                "create".as_ref(), "-quiet".as_ref(), "-size".as_ref(), "64m".as_ref(),
+                "-fs".as_ref(), "APFS".as_ref(), "-type".as_ref(), "UDIF".as_ref(),
+                image.as_os_str(),
+            ]) && hdiutil(&[
+                "attach".as_ref(), "-quiet".as_ref(), "-nobrowse".as_ref(),
+                "-mountpoint".as_ref(), volume.mount.as_os_str(), image.as_os_str(),
+            ]);
+            if !attached {
+                eprintln!("skipping: could not create and attach an APFS disk image");
+                return None;
+            }
+            Some(volume)
+        }
+
+        fn fill(&self) {
+            use std::io::Write;
+            let mut filler = std::fs::File::create(self.mount.join("filler")).unwrap();
+            for piece in [1024 * 1024, 64 * 1024, 4096] {
+                while filler.write_all(&vec![0x5Au8; piece]).is_ok() {}
+            }
+            assert!(!self.has_room(), "the volume must be full");
+        }
+
+        fn has_room(&self) -> bool {
+            let probe = self.mount.join("probe");
+            let written = std::fs::write(&probe, vec![0u8; 1024 * 1024]).is_ok();
+            let _ = std::fs::remove_file(probe);
+            written
+        }
+    }
+
+    impl Drop for TestVolume {
+        fn drop(&mut self) {
+            let _ = std::process::Command::new("hdiutil")
+                .args(["detach", "-quiet", "-force"])
+                .arg(&self.mount)
+                .status();
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    fn write_generation(store: &Path, index: u64, file: &str, bytes: usize) {
+        let generation = store.join(format!("v1.{index}"));
+        std::fs::create_dir_all(&generation).unwrap();
+        std::fs::write(generation.join(file), vec![0xA5u8; bytes]).unwrap();
+    }
+
+    fn entries_of(path: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(path)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// The halving is the contract, not arithmetic: a project configures what the
+    /// store may OCCUPY. Cycles rather than one prune, because the footprint has
+    /// to stay within the limit while the store keeps being written to, which is
+    /// what a machine with no reserve for a store to overshoot into depends on.
+    #[test]
+    fn a_projects_store_size_limit_bounds_the_footprint_while_it_is_written_to() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const LIMIT: u64 = 8 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-footprint");
+        let state = path_state_for(&dir.path());
+
+        for cycle in 0..4 {
+            fill_to(state, &dir, directory_size(&dir.path()) + LIMIT / 2);
+            state.prune_ondisk(generation_limit(LIMIT)).unwrap();
+            let occupied = directory_size(&dir.path());
+            assert!(
+                occupied <= LIMIT,
+                "cycle {cycle}: the store occupies {occupied} bytes, past the \
+                 {LIMIT}-byte limit its project set"
+            );
+        }
+    }
+
+    #[test]
+    fn a_store_size_limit_is_a_footprint_split_across_two_generations() {
+        assert_eq!(generation_limit(20 * 1024 * 1024 * 1024), 10 * 1024 * 1024 * 1024);
+        assert_eq!(
+            generation_limit(1),
+            1,
+            "a limit of 0 would lift the bound instead of imposing one"
+        );
+    }
+
+    /// A prune deletes objects, so it waits for the store's spooled publications
+    /// the way the runner's teardown drains before it prunes.
+    #[test]
+    fn a_store_with_spooled_publications_is_not_pruned_until_they_drain() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const LIMIT: u64 = 4 * 1024 * 1024;
+        let dir = TempCasDir::new("bound-spooled");
+        let state = path_state_for(&dir.path());
+        fill_to(state, &dir, 24 * 1024 * 1024);
+        let before = generations(&dir);
+        let spool = spool_dir(&dir.path());
+        std::fs::create_dir_all(&spool).expect("spool");
+        let record = spool.join("1234-0");
+        std::fs::write(&record, b"record").expect("record");
+        let proxy = test_proxy();
+
+        assert!(
+            proxy.bound_store(&dir.path(), state, LIMIT).is_none(),
+            "a store that still owes publications is not pruned"
+        );
+        assert_eq!(generations(&dir), before);
+
+        std::fs::remove_file(&record).expect("drain");
+        proxy
+            .bound_store(&dir.path(), state, LIMIT)
+            .expect("once the spool drains, the next pass prunes the store")
+            .join()
+            .unwrap();
+        assert_ne!(generations(&dir), before);
+    }
+
+    /// Its bulk sits in an upstream within the allowance, under a near-empty
+    /// primary, so a prune would collect nothing and still take the path out of
+    /// service.
+    #[test]
+    fn a_store_past_its_limit_that_a_prune_would_not_change_is_left_alone() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("bound-upstream-heavy");
+        store_directly(&dir.path(), payloads(1, 256));
+        prune_store(&dir.path(), directory_size(&dir.0.join("v1.1").to_string_lossy())).unwrap();
+        let rotated = generations(&dir);
+        let state = path_state_for(&dir.path());
+        let counter = state.gen_counter.load(Ordering::SeqCst);
+        let proxy = test_proxy();
+
+        let limit = directory_size(&dir.path()) - 1;
+        assert!(proxy.bound_store(&dir.path(), state, limit).is_none());
+        assert_eq!(state.gen_counter.load(Ordering::SeqCst), counter);
+        assert_eq!(generations(&dir), rotated);
+    }
+
+    // An automatic prune runs beside builds that start once the machine looks
+    // idle. A dispose, open, or prune that does not return must not hold their
+    // resolves, which answer misses meanwhile, nor the maintenance loop.
+    #[test]
+    fn a_blocked_automatic_prune_parks_neither_resolves_nor_the_maintenance_loop() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        const LIMIT: u64 = 2 * 1024 * 1024;
+        const QUEUED: usize = 8;
+        let dir = TempCasDir::new("bound-blocked");
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel::<()>();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let release_rx = Mutex::new(release_rx);
+        let blocked = std::sync::atomic::AtomicBool::new(false);
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |up: &'static Upstream, path: &str| {
+                if !blocked.swap(true, Ordering::SeqCst) {
+                    let _ = entered_tx.send(());
+                    let _ = release_rx.lock().unwrap().recv();
+                }
+                unsafe { open_cas(up, path) }
+            }),
+        );
+        fill_to(state, &dir, 24 * 1024 * 1024);
+        let digest = store_probe_object(state, b"served-before-the-blocked-prune");
+        let key = b"bound-blocked-key".to_vec();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.clone(), Resolution::Hit(digest));
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/bound-blocked");
+
+        let (returned_tx, returned_rx) = std::sync::mpsc::channel();
+        let cas_path = dir.path();
+        std::thread::spawn(move || {
+            let _ = returned_tx.send(proxy.bound_store(&cas_path, state, LIMIT));
+        });
+        entered_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the prune must reach its reopen");
+        let returned = returned_rx.recv_timeout(Duration::from_secs(5));
+
+        let (answered_tx, answered_rx) = std::sync::mpsc::channel();
+        for _ in 0..QUEUED {
+            let remote = remote.clone();
+            let key = key.clone();
+            let answered = answered_tx.clone();
+            std::thread::spawn(move || {
+                let _ = answered.send(proxy.resolve(&remote, "tuist/bound-blocked", state, &key, None));
+            });
+        }
+        drop(answered_tx);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut answers = Vec::new();
+        while answers.len() < QUEUED {
+            let Some(left) = deadline.checked_duration_since(Instant::now()) else {
+                break;
+            };
+            let Ok(answer) = answered_rx.recv_timeout(left) else {
+                break;
+            };
+            answers.push(answer);
+        }
+        let _ = release_tx.send(());
+
+        let prune = returned.expect("the maintenance loop must not wait for a blocked prune");
+        assert_eq!(
+            answers.len(),
+            QUEUED,
+            "every resolve must answer while the prune is blocked, not wait for it"
+        );
+        assert!(
+            answers.iter().all(|answer| matches!(answer, Ok(None))),
+            "a store being pruned answers misses: {answers:?}"
+        );
+        prune
+            .expect("a store past its limit is pruned")
+            .join()
+            .unwrap();
+        assert!(
+            wait_until_serving(proxy, state),
+            "the path serves again once the prune returns"
+        );
+        assert_eq!(generations(&dir), vec!["v1.2"]);
+    }
+
+    #[test]
+    fn a_shared_store_is_bounded_by_the_smallest_limit_its_projects_set() {
+        assert_eq!(shared_store_limit([None, Some(20), Some(10)]), Some(10));
+        assert_eq!(
+            shared_store_limit([None, None]),
+            None,
+            "a store no project bounded is unbounded"
+        );
+    }
+
+    /// Xcode's default store is shared by every project on the machine. Taking
+    /// the limit of whichever project declared the path last let a project
+    /// without a limit switch another project's bound off, and a restart forgot
+    /// every project but the last.
+    #[test]
+    fn a_project_without_a_limit_does_not_lift_another_projects_limit_on_a_shared_store() {
+        let dir = std::env::temp_dir().join(format!("tuist-shared-limit-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            r#"{"tuist/bounded":{"storeSizeLimit":1073741824},"tuist/unbounded":{}}"#,
+        )
+        .expect("write sources");
+        let proxy_for = |registry: &Path| {
+            Proxy::new(
+                "http://127.0.0.1:1".into(),
+                crate::token::TokenProvider::from_env(),
+                String::new(),
+                Some(registry.to_path_buf()),
+                None,
+            )
+        };
+
+        let proxy = proxy_for(&registry);
+        proxy.resolve_instance("/shared", "tuist/bounded");
+        proxy.resolve_instance("/shared", "tuist/unbounded");
+        assert_eq!(proxy.store_size_limit("/shared"), Some(1024 * 1024 * 1024));
+
+        let (routing, known) = load_registry(&registry);
+        assert_eq!(
+            routing.get("/shared").map(String::as_str),
+            Some("tuist/unbounded"),
+            "⌘B builds route to the project that declared the path last, which is also \
+             what a proxy that reads only the last line sees"
+        );
+        assert_eq!(known.get("/shared").map(BTreeSet::len), Some(2));
+
+        let restarted = proxy_for(&registry);
+        assert_eq!(
+            restarted.store_size_limit("/shared"),
+            Some(1024 * 1024 * 1024),
+            "a restart remembers every project that used the path"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn registry_proxy(registry: &Path) -> &'static Proxy {
+        Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry.to_path_buf()),
+            None,
+        )
+    }
+
+    fn store_in(dir: &TempCasDir, name: &str) -> String {
+        let store = dir.0.join(name);
+        std::fs::create_dir_all(&store).unwrap();
+        store.to_string_lossy().into_owned()
+    }
+
+    fn a_day_past_the_forget_window() -> u64 {
+        unix_seconds() - REGISTRY_FORGET_AFTER.as_secs() - 24 * 60 * 60
+    }
+
+    fn a_day_inside_the_forget_window() -> u64 {
+        unix_seconds() - REGISTRY_FORGET_AFTER.as_secs() + 24 * 60 * 60
+    }
+
+    #[test]
+    fn a_path_is_forgotten_when_its_store_is_gone_or_unused_past_the_window() {
+        assert!(!should_forget(Duration::ZERO, false));
+        assert!(!should_forget(REGISTRY_FORGET_AFTER, false));
+        assert!(should_forget(REGISTRY_FORGET_AFTER + Duration::from_secs(1), false));
+        assert!(should_forget(Duration::ZERO, true));
+    }
+
+    #[test]
+    fn a_use_is_written_once_it_has_moved_past_the_record_interval() {
+        let recorded = unix_seconds() - 24 * 60 * 60;
+        let at = |seconds: u64| PathUse {
+            at: recorded + seconds,
+            recorded,
+            revision: 0,
+        };
+        assert!(!at(0).needs_recording());
+        assert!(!at(PATH_USE_RECORD_INTERVAL.as_secs() - 1).needs_recording());
+        assert!(at(PATH_USE_RECORD_INTERVAL.as_secs()).needs_recording());
+        assert!(PathUse {
+            at: recorded,
+            recorded: 0,
+            revision: 0,
+        }
+        .needs_recording());
+    }
+
+    #[test]
+    fn a_path_no_build_has_used_within_the_window_is_forgotten_and_a_used_one_is_kept() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-unused");
+        let registry = dir.0.join("registry");
+        let idle = store_in(&dir, "idle");
+        let used = store_in(&dir, "used");
+        std::fs::write(&registry, format!("{idle}\ttuist/app\n{used}\ttuist/app\n")).unwrap();
+        std::fs::write(
+            uses_path_for(&registry),
+            format!(
+                "{idle}\t{}\n{used}\t{}\n",
+                a_day_past_the_forget_window(),
+                a_day_inside_the_forget_window()
+            ),
+        )
+        .unwrap();
+
+        registry_proxy(&registry).forget_unused_paths();
+
+        let (routing, _) = load_registry(&registry);
+        assert!(!routing.contains_key(&idle));
+        assert_eq!(routing.get(&used).map(String::as_str), Some("tuist/app"));
+        let uses = load_path_uses(&uses_path_for(&registry));
+        assert!(!uses.contains_key(&idle));
+        assert!(uses.contains_key(&used));
+        assert_eq!(
+            registry_proxy(&registry).resolve_instance(&idle, ""),
+            None,
+            "a restarted proxy has forgotten it too"
+        );
+        let staged = std::fs::read_dir(&dir.0)
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".staged"))
+            .count();
+        assert_eq!(staged, 0);
+    }
+
+    #[test]
+    fn a_path_whose_store_directory_is_gone_is_forgotten_however_recently_it_was_used() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-gone");
+        let registry = dir.0.join("registry");
+        let deleted = dir.0.join("deleted").to_string_lossy().into_owned();
+        std::fs::write(&registry, format!("{deleted}\ttuist/app\n")).unwrap();
+        let proxy = registry_proxy(&registry);
+        proxy.resolve_instance(&deleted, "tuist/app");
+
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&deleted, ""), None);
+        assert!(load_registry(&registry).0.is_empty());
+    }
+
+    /// A registry written before uses were recorded has none for any path.
+    #[test]
+    fn a_path_with_no_recorded_use_starts_its_clock_instead_of_being_forgotten() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-unrecorded");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+
+        registry_proxy(&registry).forget_unused_paths();
+
+        assert_eq!(
+            load_registry(&registry).0.get(&store).map(String::as_str),
+            Some("tuist/app")
+        );
+        let recorded = load_path_uses(&uses_path_for(&registry))
+            .get(&store)
+            .map(|path_use| path_use.at)
+            .expect("the use is recorded");
+        assert!(unix_seconds() - recorded < 60);
+    }
+
+    #[test]
+    fn a_forgotten_path_is_registered_again_by_the_next_build_that_declares_its_instance() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-reregister");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let proxy = registry_proxy(&registry);
+        proxy.forget_unused_paths();
+        assert_eq!(proxy.resolve_instance(&store, ""), None);
+
+        proxy.resolve_instance(&store, "tuist/app");
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+        proxy.forget_unused_paths();
+        let restarted = registry_proxy(&registry);
+        restarted.forget_unused_paths();
+        assert_eq!(
+            restarted.resolve_instance(&store, "").as_deref(),
+            Some("tuist/app"),
+            "an Xcode build that declares no instance routes after a restart"
+        );
+    }
+
+    /// The build system's Clang lane declares no instance and routes through the
+    /// registry, so its requests alone have to keep a path registered.
+    #[test]
+    fn a_build_that_routes_through_the_registry_keeps_its_path() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-routed-use");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.resolve_instance(&store, "");
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+        let recorded = load_path_uses(&uses_path_for(&registry))[&store].at;
+        assert!(unix_seconds() - recorded < 60, "and the use reaches the disk");
+    }
+
+    /// Seconds cannot tell a use apart from the observation it follows: a store
+    /// deleted and recreated by a build can be observed missing and used again
+    /// within one second.
+    #[test]
+    fn a_path_used_after_it_was_observed_is_kept_even_within_the_same_second() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-used-since");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        std::fs::write(uses_path_for(&registry), format!("{store}\t{}\n", unix_seconds())).unwrap();
+        let proxy = registry_proxy(&registry);
+        let observed = proxy.observe_paths();
+
+        proxy.resolve_instance(&store, "");
+        proxy.forget_paths(
+            observed
+                .into_iter()
+                .map(|(cas_path, path_use)| (cas_path, path_use, "gone".to_string()))
+                .collect(),
+            unix_seconds(),
+        );
+
+        assert_eq!(proxy.resolve_instance(&store, "").as_deref(), Some("tuist/app"));
+    }
+
+    /// A spooled record is only published through the path's routing, by the
+    /// sweep or by a drain that declares no instance.
+    #[test]
+    fn a_path_whose_spool_holds_publications_is_kept_past_the_window_until_it_drains() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-spooled");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let unused = format!("{store}\t{}\n", a_day_past_the_forget_window());
+        std::fs::write(uses_path_for(&registry), unused).unwrap();
+        let record = spool_dir(&store).join("record");
+        std::fs::create_dir_all(spool_dir(&store)).unwrap();
+        std::fs::write(&record, b"record").unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.drain_instance(&store, "").as_deref(), Some("tuist/app"));
+        std::fs::remove_file(&record).unwrap();
+        proxy.forget_unused_paths();
+        assert_eq!(proxy.drain_instance(&store, ""), None);
+    }
+
+    /// Resolves run on the build's serial task-setup path, so a use of a path
+    /// that is already registered stays in memory until the maintenance loop.
+    #[test]
+    fn using_a_registered_path_writes_nothing_until_its_use_is_due_to_be_recorded() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-cheap-use");
+        let registry = dir.0.join("registry");
+        let store = store_in(&dir, "store");
+        std::fs::write(&registry, format!("{store}\ttuist/app\n")).unwrap();
+        let uses = uses_path_for(&registry);
+        let recorded = format!("{store}\t{}\n", unix_seconds() - 60);
+        std::fs::write(&uses, &recorded).unwrap();
+        let proxy = registry_proxy(&registry);
+
+        for _ in 0..3 {
+            proxy.resolve_instance(&store, "tuist/app");
+            proxy.resolve_instance(&store, "");
+        }
+        proxy.forget_unused_paths();
+
+        assert_eq!(std::fs::read_to_string(&uses).unwrap(), recorded);
+    }
+
+    /// A store several projects share keeps every project's limit for as long as
+    /// any of them uses it, and a project whose every path is forgotten keeps its
+    /// recorded policy for the next build to find.
+    #[test]
+    fn forgetting_paths_drops_no_project_from_a_store_in_use_or_from_the_sources_registry() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("registry-sources");
+        let registry = dir.0.join("registry");
+        let shared = store_in(&dir, "shared");
+        let idle = store_in(&dir, "idle");
+        let sources = r#"{"tuist/bounded":{"storeSizeLimit":1073741824,"upload":false},"tuist/unbounded":{},"tuist/idle":{"upload":false}}"#;
+        std::fs::write(sources_path_for(&registry), sources).unwrap();
+        std::fs::write(
+            &registry,
+            format!("{shared}\ttuist/bounded\n{shared}\ttuist/unbounded\n{idle}\ttuist/idle\n"),
+        )
+        .unwrap();
+        std::fs::write(
+            uses_path_for(&registry),
+            format!(
+                "{shared}\t{}\n{idle}\t{}\n",
+                a_day_past_the_forget_window(),
+                a_day_past_the_forget_window()
+            ),
+        )
+        .unwrap();
+        let proxy = registry_proxy(&registry);
+
+        proxy.resolve_instance(&shared, "tuist/unbounded");
+        proxy.forget_unused_paths();
+
+        assert_eq!(proxy.resolve_instance(&idle, ""), None);
+        assert_eq!(proxy.store_size_limit(&shared), Some(1024 * 1024 * 1024));
+        assert_eq!(
+            registry_proxy(&registry).store_size_limit(&shared),
+            Some(1024 * 1024 * 1024),
+            "a restart still bounds the shared store by the limit of a project that has not built into it lately"
+        );
+        assert_eq!(std::fs::read_to_string(sources_path_for(&registry)).unwrap(), sources);
+        proxy.resolve_instance(&idle, "tuist/idle");
+        assert!(!proxy.upload_enabled("tuist/idle"));
+    }
+
     /// Why the prune is an op on the proxy rather than something its caller can
-    /// do with handles of its own: llcas rotates a store as its LAST handle
-    /// closes, and on any machine running the proxy that handle is the proxy's.
-    /// A caller pruning alongside it collects nothing -- and, worse, reports
-    /// success while doing so.
+    /// do on its own: only the holder of a store's handle can rotate it.
     #[test]
     fn a_prune_alongside_a_live_handle_cannot_rotate_the_chain() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         const LIMIT: u64 = 1024 * 1024;
         let dir = TempCasDir::new("prune-held");
         let state = path_state_for(&dir.path());
         fill_to(state, &dir, 24 * 1024 * 1024);
         let before = generations(&dir);
 
-        // The proxy still holds its handle, so this dispose is not the last one.
-        prune_store(&crate::upstream_path(), &dir.path(), LIMIT).unwrap();
-        assert_eq!(
-            generations(&dir),
-            before,
-            "a prune driven from a second handle has to be understood as a \
-             no-op, not mistaken for enforcement"
-        );
+        let pruned = prune_store(&dir.path(), LIMIT).unwrap();
+        assert_eq!(generations(&dir), before);
+        assert!(pruned.held_open);
 
         // The same store, pruned by the handle's owner.
         state.prune_ondisk(LIMIT).unwrap();
@@ -6413,6 +9446,9 @@ mod tests {
     /// machine looks idle exactly while it is most bandwidth-bound.
     #[test]
     fn a_demand_fetch_counts_as_the_machine_being_busy() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("busy-fetch");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
@@ -6611,6 +9647,167 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// `tuist setup cache` changes a project's upload policy by replacing the
+    /// sources registry, and leaves a proxy that is already running in place. The
+    /// build the job runs next starts publishing seconds later, well inside the
+    /// TTL, so a memo still holding the previous job's policy would publish a
+    /// read-only job's outputs, or drop an uploading job's.
+    #[test]
+    fn a_replaced_upload_policy_applies_to_the_next_publication_over_the_socket() {
+        let dir = std::env::temp_dir().join(format!("tuist-policy-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        // The way setup writes it: staged beside the registry, then renamed over it.
+        let record_policy = |upload: bool| {
+            let staged = dir.join("registry.sources.staged");
+            std::fs::write(
+                &staged,
+                format!(r#"{{"tuist/lane":{{"trunk":"main","upload":{upload}}}}}"#),
+            )
+            .expect("stage sources");
+            std::fs::rename(&staged, &sources).expect("replace sources");
+        };
+        record_policy(true);
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&captured);
+        proxy
+            .publisher
+            .configure(1, move |item| sink.lock().unwrap().push(item));
+        let socket_path = dir.join("proxy.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&socket_path).expect("bind");
+        std::thread::spawn(move || proxy.serve(listener));
+        let client = crate::proxy_proto::ProxyClient {
+            socket_path: socket_path.to_string_lossy().into_owned(),
+        };
+
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        let cas_path = dir.join("cas").to_string_lossy().into_owned();
+        let publish = |name: &str| {
+            let record = spool.join(name);
+            std::fs::write(&record, b"record").expect("record");
+            client
+                .publish(&cas_path, "tuist/lane", &record.to_string_lossy())
+                .expect("the proxy answers");
+            record
+        };
+        let published = |count: usize| {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while captured.lock().unwrap().len() < count && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            captured.lock().unwrap().len()
+        };
+
+        publish("from-the-uploading-job");
+        assert_eq!(published(1), 1, "an uploading project publishes");
+
+        // The read-only job's setup, moments after the uploading job's build
+        // read the policy.
+        record_policy(false);
+        let withheld = publish("from-the-read-only-job");
+        assert!(
+            !withheld.exists(),
+            "the very next publication is refused, not the first one after the TTL"
+        );
+
+        record_policy(true);
+        publish("from-the-next-uploading-job");
+        assert_eq!(published(2), 2, "and turning uploads back on holds just as soon");
+
+        proxy
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+        let records: Vec<String> = captured
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|item| {
+                let (_, rest) = take_u16_field(item).expect("instance");
+                let (_, rest) = take_u16_field(rest).expect("cas path");
+                let (_, rest) = take_u16_field(rest).expect("branch");
+                let (_, record) = take_u16_field(rest).expect("trunk");
+                String::from_utf8_lossy(record).into_owned()
+            })
+            .collect();
+        assert!(records[0].ends_with("from-the-uploading-job"), "{records:?}");
+        assert!(records[1].ends_with("from-the-next-uploading-job"), "{records:?}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The memo's other half: a context whose sources fingerprint still matches
+    /// the file on disk is trusted, but only for GIT_CONTEXT_TTL, which is what
+    /// bounds a change the fingerprint cannot show and retries a registry that
+    /// could not be read.
+    #[test]
+    fn a_memoized_policy_is_reread_when_the_registry_changes_or_the_ttl_runs_out() {
+        let dir = std::env::temp_dir().join(format!("tuist-policy-ttl-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        std::fs::write(&sources, r#"{"tuist/lane":{"trunk":"main","upload":true}}"#)
+            .expect("write sources");
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        // A memo that disagrees with the file it was read from: what a change
+        // the sources fingerprint cannot show looks like.
+        let contradict_the_registry = || {
+            proxy
+                .source_cache
+                .lock()
+                .unwrap()
+                .get_mut("tuist/lane")
+                .expect("memoized")
+                .upload = false;
+        };
+
+        assert!(proxy.upload_enabled("tuist/lane"));
+        contradict_the_registry();
+        assert!(
+            !proxy.upload_enabled("tuist/lane"),
+            "an unchanged registry is not read again inside the TTL"
+        );
+
+        proxy
+            .source_cache
+            .lock()
+            .unwrap()
+            .get_mut("tuist/lane")
+            .expect("memoized")
+            .read_at = Instant::now()
+            .checked_sub(GIT_CONTEXT_TTL + Duration::from_secs(1))
+            .expect("an instant older than the TTL");
+        assert!(proxy.upload_enabled("tuist/lane"), "past the TTL it is read again");
+
+        contradict_the_registry();
+        // Rewritten in place with the same bytes: a new fingerprint all the same.
+        std::fs::write(&sources, r#"{"tuist/lane":{"trunk":"main","upload":true}}"#)
+            .expect("rewrite sources");
+        assert!(
+            proxy.upload_enabled("tuist/lane"),
+            "a registry written since the memo is read again inside the TTL"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// The case withholding cannot address: the root is ALREADY on disk, so it
     /// never enters the loop (`missing` filters out whatever `is_local` answers
     /// yes for) and there is nothing to withhold. An earlier pass or a demand
@@ -6619,14 +9816,16 @@ mod tests {
     /// which makes this the shape most worth counting, not the least.
     #[test]
     fn an_incomplete_closure_under_an_already_local_root_is_counted() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("root-already-local");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/already-local");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x31];
-        let child = vec![0x32];
+        let [root, child] = digests_for([b"root", b"child"]);
         let root_entry = ManifestEntry {
             llcas_digest: root.clone(),
             blob: reapi::Digest { hash: "1a".repeat(32), size_bytes: 4 },
@@ -6672,6 +9871,9 @@ mod tests {
     /// a withhold: retrying is pointless until the remote can serve the root.
     #[test]
     fn a_root_that_fails_on_its_own_is_still_reported() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("corrupt-root");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
@@ -6680,8 +9882,7 @@ mod tests {
 
         // The child is sound and the ROOT is the undecodable one, which is the
         // inverse of the case above.
-        let root = vec![0x21];
-        let child = vec![0x22];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
@@ -6720,6 +9921,9 @@ mod tests {
     /// "complete". Without it this manifest publishes a root over a hole.
     #[test]
     fn an_incomplete_closure_withholds_its_root() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("incomplete-closure");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
@@ -6730,8 +9934,7 @@ mod tests {
         // inlined, so nothing is fetched and the remote is never consulted; the
         // child's bytes are not a frame, which is one of the ways a node is
         // skipped.
-        let root = vec![0x01];
-        let child = vec![0x02];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
@@ -6768,14 +9971,16 @@ mod tests {
     /// become locally resolvable and every build would re-resolve every key.
     #[test]
     fn a_complete_closure_publishes_its_root() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("complete-closure");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/complete");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x11];
-        let child = vec![0x12];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
@@ -6816,12 +10021,91 @@ mod tests {
         }
     }
 
+    #[test]
+    fn demand_and_background_downloads_record_joinable_output_analytics() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let source_dir = TempCasDir::new("analytics-source");
+        let source = path_state_for(&source_dir.path());
+        let child = store_probe_object(source, b"analytics-child");
+        let root = store_probe_object_with_refs(source, b"analytics-root", &[child]);
+        let remote = test_proxy().remote_for("tuist/analytics");
+        let (mut manifest, blobs) = walk_closure(source, &root, &remote).unwrap();
+        for (entry, (blob, _)) in manifest.iter_mut().zip(blobs) {
+            entry.contents = blob;
+        }
+
+        for demand in [true, false] {
+            let dir = TempCasDir::new(if demand {
+                "analytics-demand"
+            } else {
+                "analytics-background"
+            });
+            let database = format!("{}/analytics.db", dir.path());
+            let proxy = Proxy::new(
+                "http://127.0.0.1:1".into(),
+                crate::token::TokenProvider::from_env(),
+                crate::upstream_path(),
+                None,
+                Some(crate::analytics::Analytics::open(&database).unwrap()),
+            );
+            let state = proxy.path_state(&dir.path()).unwrap();
+            register_instructions(state, &manifest);
+            if demand {
+                assert!(proxy.fetch_object(state, &dir.path(), "", &root).unwrap());
+            } else {
+                proxy
+                    .materialize_manifest(&remote, state, &manifest, 0)
+                    .unwrap();
+            }
+
+            let conn = rusqlite::Connection::open(&database).unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let count: usize = conn
+                    .query_row("SELECT count(*) FROM cas_outputs", [], |row| row.get(0))
+                    .unwrap();
+                if count == manifest.len() {
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "demand={demand}: missing output analytics"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            for entry in &manifest {
+                let node_id = source.printed_node_id(&entry.llcas_digest).unwrap();
+                let (checksum, size, compressed): (String, i64, i64) = conn
+                    .query_row(
+                        "SELECT n.checksum, c.size, c.compressed_size FROM nodes n \
+                     JOIN cas_outputs c ON c.key = n.checksum WHERE n.key = ?1",
+                        [&node_id],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                    )
+                    .unwrap();
+                assert_eq!(checksum, entry.blob.hash.to_uppercase());
+                assert_eq!(
+                    size,
+                    reapi::decompress_frame(entry.contents.as_ref().unwrap())
+                        .unwrap()
+                        .len() as i64
+                );
+                assert_eq!(compressed, entry.blob.size_bytes);
+            }
+        }
+    }
+
     /// Closes the scheduling window between returning a resolve hit and
     /// starting its materializer. The graph and digests come from Apple's CAS;
     /// only the worker schedule and a failed child decode are injected. Both
     /// snapshot hits and per-key hits enter `commit_and_materialize` here.
     #[test]
     fn demand_loads_never_persist_an_incomplete_graph() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let source_dir = TempCasDir::new("demand-race-source");
         let source = path_state_for(&source_dir.path());
         let child = store_probe_object(source, b"demand-race-child");
@@ -6906,7 +10190,7 @@ mod tests {
                 "{label}: both schedules keep refusing the incomplete root"
             );
 
-            // reopen_cas opens the replacement before disposing the old handle.
+            // reopen_cas releases the old handle, then opens a replacement.
             // Loading through it bypasses proxy bookkeeping, as a compiler's
             // local load does, so a withheld_roots entry cannot hide this root.
             state.reopen_cas().expect("reopen persisted reader CAS");
@@ -6931,6 +10215,9 @@ mod tests {
 
     #[test]
     fn demand_repair_checks_descendants_without_a_manifest_guard() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let source_dir = TempCasDir::new("unguarded-source");
         let source = path_state_for(&source_dir.path());
         let leaf = store_probe_object(source, b"unguarded-leaf");
@@ -6979,6 +10266,9 @@ mod tests {
 
     #[test]
     fn materialization_orders_shared_descendants_before_every_parent() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let source_dir = TempCasDir::new("shared-source");
         let source = path_state_for(&source_dir.path());
         let leaf = store_probe_object(source, b"shared-leaf");
@@ -7070,14 +10360,16 @@ mod tests {
     /// no delete and refuses a differing re-put.
     #[test]
     fn a_withheld_root_is_not_put_back_by_a_demand_load() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-demand");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/withheld");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x21];
-        let child = vec![0x22];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
         register_instructions(state, &manifest);
         proxy
@@ -7110,6 +10402,9 @@ mod tests {
 
     #[test]
     fn a_resolve_withholds_its_root_before_the_materializer_starts() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("resolve-before-materializer");
         let state = path_state_for(&dir.path());
         let seed_dir = TempCasDir::new("resolve-root-seed");
@@ -7133,14 +10428,16 @@ mod tests {
 
     #[test]
     fn snapshot_candidates_install_the_same_closure_guard() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         use sha2::{Digest, Sha256};
         let dir = TempCasDir::new("snapshot-candidate-guard");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         proxy.materializer.drain_stop_timeout(Duration::ZERO);
         let remote = proxy.remote_for("tuist/snapshot-candidate-guard");
-        let root = vec![0x31];
-        let child = vec![0x32];
+        let [root, child] = digests_for([b"root", b"child"]);
         let key = b"snapshot-candidate";
         let hash: [u8; 32] = Sha256::digest(key).into();
         let snapshot = Snapshot {
@@ -7169,14 +10466,16 @@ mod tests {
     /// the nodes actually owed instead of a transitive walk.
     #[test]
     fn a_withheld_root_is_produced_once_its_closure_is_completed() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-repair");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/withheld-repair");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x31];
-        let child = vec![0x32];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = incomplete_manifest(&root, &child, b"not a frame".to_vec());
         register_instructions(state, &manifest);
         proxy
@@ -7209,10 +10508,9 @@ mod tests {
             produced,
             "the closure is whole now, so the root is safe to produce"
         );
-        // Two objects went in, the owed node first and the root only after it:
-        // counted rather than probed because `is_local` answers from the
-        // known-local marks, which only `materialize_manifest` writes, and these
-        // digests are fixtures rather than real content addresses.
+        assert!(state.load_present(&child), "the repaired child is physically present");
+        assert!(state.load_present(&root), "the repaired root is physically present");
+        // Two objects went in, the owed node first and the root only after it.
         assert_eq!(
             state.stats_demand_fetched.load(Ordering::Relaxed),
             2,
@@ -7237,14 +10535,16 @@ mod tests {
     /// proxy even though its closure is whole on disk.
     #[test]
     fn a_completed_closure_clears_an_earlier_withhold() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-cleared");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
         let remote = proxy.remote_for("tuist/withheld-cleared");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x41];
-        let child = vec![0x42];
+        let [root, child] = digests_for([b"root", b"child"]);
         let broken = incomplete_manifest(&root, &child, b"not a frame".to_vec());
         register_instructions(state, &broken);
         proxy
@@ -7331,6 +10631,9 @@ mod tests {
     /// instruction that produces the root and nothing saying it must not.
     #[test]
     fn a_wipe_keeps_the_withheld_roots() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-invalidate");
         let state = path_state_for(&dir.path());
         let root = vec![0x51];
@@ -7364,6 +10667,9 @@ mod tests {
     /// dropping the record alone.
     #[test]
     fn dropping_a_withheld_root_on_overflow_drops_its_instruction_too() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-overflow");
         let state = path_state_for(&dir.path());
         let root = vec![0x61];
@@ -7411,6 +10717,9 @@ mod tests {
     /// is also the order that exposes the window.
     #[test]
     fn enforcing_the_withheld_bound_never_strands_an_instruction() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-bound-race");
         let state = path_state_for(&dir.path());
         let root_at = |index: u32| {
@@ -7472,6 +10781,9 @@ mod tests {
     /// left every error path exactly as exposed as before the guard existed.
     #[test]
     fn a_materialization_that_fails_still_withholds_its_root() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-error");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
@@ -7479,8 +10791,7 @@ mod tests {
         let remote = proxy.remote_for("tuist/failing");
         let observed = state.gen_counter.load(Ordering::SeqCst);
 
-        let root = vec![0x71];
-        let child = vec![0x72];
+        let [root, child] = digests_for([b"root", b"child"]);
         let manifest = vec![
             ManifestEntry {
                 llcas_digest: root.clone(),
@@ -7517,15 +10828,16 @@ mod tests {
     /// poisoning an association this fetch was never about.
     #[test]
     fn a_repair_does_not_produce_a_nested_withheld_root() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-nested");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
 
         // outer owes inner; inner is itself a withheld root owing a node that
         // nothing can produce.
-        let outer = vec![0x81];
-        let inner = vec![0x82];
-        let unobtainable = vec![0x83];
+        let [outer, inner, unobtainable] = digests_for([b"outer", b"inner", b"missing"]);
         {
             let mut withheld = state.withheld_roots.lock().unwrap();
             withheld.insert(outer.clone(), vec![inner.clone()]);
@@ -7533,12 +10845,12 @@ mod tests {
         }
         // Both roots have usable inlined instructions, so only the guard stands
         // between them and the store.
-        for digest in [&outer, &inner] {
+        for (digest, payload) in [(&outer, b"outer".as_slice()), (&inner, b"inner".as_slice())] {
             state.pending_objects.lock().unwrap().insert(
                 digest.clone(),
                 PendingFetch {
                     blob: reapi::Digest { hash: "81".repeat(32), size_bytes: 4 },
-                    contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], b"node"))),
+                    contents: Some(reapi::compress_frame(&reapi::encode_frame(&[], payload))),
                 },
             );
         }
@@ -7564,11 +10876,14 @@ mod tests {
     /// record that points back at itself refuses rather than recursing.
     #[test]
     fn a_withheld_root_that_owes_itself_refuses_instead_of_recursing() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("withheld-root-cycle");
         let state = path_state_for(&dir.path());
         let proxy = test_proxy();
 
-        let root = vec![0x91];
+        let [root] = digests_for([b"node"]);
         state
             .withheld_roots
             .lock()
@@ -7596,6 +10911,9 @@ mod tests {
     // is there that its own live CAS has never seen.
     #[test]
     fn a_demand_fetch_arriving_first_after_a_wipe_does_not_answer_from_the_dead_store() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("wipe-fetch");
         let state = path_state_for(&dir.path());
         let digest = store_probe_object(state, b"present-before-the-wipe");
@@ -7617,6 +10935,8 @@ mod tests {
             "a fetch after a wipe must not report an object the compiler's own CAS \
              cannot see: that is the `missing object` this rebind exists to prevent"
         );
+        assert!(wait_until_serving(proxy, state), "the reopen finishes");
+        assert!(!state.load_present(&digest), "on the live store");
     }
 
     // check_generation is the only caller that rebinds, and it must do so from
@@ -7624,6 +10944,9 @@ mod tests {
     // they get re-learned through still points at the deleted store.
     #[test]
     fn a_wipe_rebinds_the_handle_and_drops_the_marks() {
+        if run_in_cas_subprocess() {
+            return;
+        }
         let dir = TempCasDir::new("wipe-guard");
         let state = path_state_for(&dir.path());
         let digest = store_probe_object(state, b"marked-local-before-the-wipe");
@@ -7632,7 +10955,8 @@ mod tests {
 
         dir.wipe();
         let proxy = test_proxy();
-        proxy.check_generation(state);
+        assert!(!proxy.check_generation(state), "a wipe starts a reopen");
+        assert!(wait_until_serving(proxy, state), "the reopen finishes");
 
         assert!(
             state.gen_counter.load(Ordering::SeqCst) > before,
@@ -7647,6 +10971,291 @@ mod tests {
             "and the probe behind it must now read the live store"
         );
     }
+
+    // An open that does not return must not hold the resolves on its path. They
+    // answer a miss, so the compiler compiles, where queueing behind the open
+    // left every lookup waiting out the plugin's 120s socket timeout.
+    #[test]
+    fn a_blocked_reopen_does_not_park_resolves() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("reopen-blocked");
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel::<()>();
+        let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+        let release_rx = Mutex::new(release_rx);
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |up: &'static Upstream, path: &str| {
+                let _ = entered_tx.send(());
+                let _ = release_rx.lock().unwrap().recv();
+                unsafe { open_cas(up, path) }
+            }),
+        );
+        let digest = store_probe_object(state, b"served-before-the-blocked-reopen");
+        let key = b"reopen-blocked-key".to_vec();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.clone(), Resolution::Hit(digest.clone()));
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/reopen-blocked");
+        let (answered_tx, answered_rx) = std::sync::mpsc::channel();
+        type Answer = Result<Option<Vec<u8>>, String>;
+        let spawn_resolve = |answered: std::sync::mpsc::Sender<Answer>| {
+            let remote = remote.clone();
+            let key = key.clone();
+            std::thread::spawn(move || {
+                let answer = proxy.resolve(&remote, "tuist/reopen-blocked", state, &key, None);
+                let _ = answered.send(answer);
+            });
+        };
+
+        dir.wipe();
+        spawn_resolve(answered_tx.clone());
+        entered_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the resolve that sees the wipe must start a reopen");
+        const QUEUED: usize = 8;
+        for _ in 0..QUEUED {
+            spawn_resolve(answered_tx.clone());
+        }
+        drop(answered_tx);
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut answers = Vec::new();
+        while answers.len() < QUEUED + 1 {
+            let Some(left) = deadline.checked_duration_since(Instant::now()) else {
+                break;
+            };
+            let Ok(answer) = answered_rx.recv_timeout(left) else {
+                break;
+            };
+            answers.push(answer);
+        }
+        let _ = release_tx.send(());
+
+        assert_eq!(
+            answers.len(),
+            QUEUED + 1,
+            "every resolve must answer while the reopen is blocked, not wait for it"
+        );
+        assert!(
+            answers.iter().all(|answer| matches!(answer, Ok(None))),
+            "a store being reopened answers misses: {answers:?}"
+        );
+        assert_eq!(
+            state.stats_reopen_misses.load(Ordering::Relaxed),
+            (QUEUED + 1) as u64
+        );
+        assert!(
+            wait_until_serving(proxy, state),
+            "the path serves again once the open returns"
+        );
+        assert!(
+            !state.load_present(&digest),
+            "and it serves the live store, not the deleted one"
+        );
+    }
+
+    // A failed open leaves the path with no store to answer from. Retrying it
+    // inside every resolve queues each resolve behind the previous attempt, and
+    // serving from the handle it could not replace answers about the deleted
+    // store.
+    #[test]
+    fn a_failed_reopen_answers_misses_without_retrying_per_resolve() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("reopen-failing");
+        let attempts = Arc::new(AtomicU64::new(0));
+        let counted = attempts.clone();
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |_: &'static Upstream, _: &str| {
+                counted.fetch_add(1, Ordering::SeqCst);
+                Err("injected open failure".to_string())
+            }),
+        );
+        let digest = store_probe_object(state, b"served-before-the-failed-reopen");
+        let key = b"reopen-failing-key".to_vec();
+        state
+            .resolved
+            .lock()
+            .unwrap()
+            .insert(key.clone(), Resolution::Hit(digest));
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/reopen-failing");
+
+        dir.wipe();
+        let mut answers = Vec::new();
+        for _ in 0..20 {
+            answers.push(proxy.resolve(&remote, "tuist/reopen-failing", state, &key, None));
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while attempts.load(Ordering::SeqCst) == 0 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+
+        let served = answers
+            .iter()
+            .filter(|answer| !matches!(answer, Ok(None)))
+            .count();
+        assert_eq!(served, 0, "a store that could not be reopened answers misses");
+        assert_eq!(
+            attempts.load(Ordering::SeqCst),
+            1,
+            "a failed reopen is retried on an interval, not by every resolve"
+        );
+    }
+
+    // By the time the fresh handle is opened, the stale one is out of the slot
+    // and the generation has advanced, so nothing probed through the stale
+    // handle can be committed once the fresh one serves.
+    #[test]
+    fn a_reopen_releases_the_stale_handle_before_opening() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("reopen-order");
+        let this: Arc<std::sync::OnceLock<&'static PathState>> = Arc::default();
+        let seen: Arc<Mutex<Vec<(bool, u64)>>> = Arc::default();
+        let (this_in_open, seen_in_open) = (this.clone(), seen.clone());
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |up: &'static Upstream, path: &str| {
+                if let Some(state) = this_in_open.get() {
+                    let slot = state.cas.try_read();
+                    let released = matches!(slot.as_deref(), Ok(None));
+                    drop(slot);
+                    let generation = state.gen_counter.load(Ordering::SeqCst);
+                    seen_in_open.lock().unwrap().push((released, generation));
+                }
+                unsafe { open_cas(up, path) }
+            }),
+        );
+        let _ = this.set(state);
+        let before = state.gen_counter.load(Ordering::SeqCst);
+
+        dir.wipe();
+        state.reopen_cas().unwrap();
+
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1, "one reopen, one open");
+        assert!(seen[0].0, "the stale handle must be released before the fresh open");
+        assert!(
+            seen[0].1 > before,
+            "the generation must advance before the fresh open"
+        );
+    }
+
+    // `check_generation` hands a reopen to its own thread and answers `false`
+    // until that thread finishes.
+    fn wait_until_serving(proxy: &Proxy, state: &'static PathState) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            if proxy.check_generation(state) {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        false
+    }
+
+    #[test]
+    fn a_path_answers_misses_while_its_store_is_reopened_or_failed() {
+        let now = Instant::now();
+        let (g1, g2) = (generation(1, 100), generation(2, 200));
+        let bound = |reopen: Reopen| StoreBinding {
+            generation: Some(g1),
+            reopen,
+        };
+        let in_flight = Reopen::InFlight {
+            since: now,
+            stall_reported: false,
+        };
+        let failed = Reopen::Failed { at: now };
+        let retry_due = now + REOPEN_RETRY_INTERVAL;
+
+        assert_eq!(store_verdict(&bound(Reopen::Idle), Some(g1), now), StoreVerdict::Serve);
+        assert_eq!(
+            store_verdict(&bound(Reopen::Idle), Some(g2), now),
+            StoreVerdict::Reopen(g2)
+        );
+        assert_eq!(
+            store_verdict(&bound(Reopen::Idle), None, now),
+            StoreVerdict::Serve,
+            "a gone directory is left to reclaim_idle"
+        );
+        assert_eq!(
+            store_verdict(&bound(in_flight), Some(g2), retry_due),
+            StoreVerdict::Unavailable
+        );
+        assert_eq!(
+            store_verdict(&bound(failed), Some(g2), now),
+            StoreVerdict::Unavailable
+        );
+        assert_eq!(
+            store_verdict(&bound(failed), Some(g1), retry_due),
+            StoreVerdict::Reopen(g1),
+            "a failed reopen left the slot empty, so it is retried without a further wipe"
+        );
+        assert_eq!(
+            store_verdict(&bound(failed), None, retry_due),
+            StoreVerdict::Unavailable
+        );
+    }
+
+    // Once `REOPEN_RETRY_INTERVAL` has passed, the next check retries a failed
+    // reopen, and a retry that opens puts the path back in service on the live
+    // store.
+    #[test]
+    fn a_failed_reopen_is_retried_after_the_interval() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("reopen-retry");
+        let attempts = Arc::new(AtomicU64::new(0));
+        let counted = attempts.clone();
+        let state = path_state_with_open(
+            &dir.path(),
+            Box::new(move |up: &'static Upstream, path: &str| {
+                if counted.fetch_add(1, Ordering::SeqCst) == 0 {
+                    return Err("injected open failure".to_string());
+                }
+                unsafe { open_cas(up, path) }
+            }),
+        );
+        let digest = store_probe_object(state, b"present-before-the-retried-reopen");
+        let proxy = test_proxy();
+
+        dir.wipe();
+        assert!(!proxy.check_generation(state), "the wipe starts a reopen");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let failed_at = loop {
+            let reopen = state.binding.lock().unwrap().reopen;
+            if let Reopen::Failed { at } = reopen {
+                break at;
+            }
+            assert!(Instant::now() < deadline, "the injected failure is recorded");
+            std::thread::sleep(Duration::from_millis(2));
+        };
+        assert!(!proxy.check_generation(state), "inside the interval nothing retries");
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+
+        state.binding.lock().unwrap().reopen = Reopen::Failed {
+            at: failed_at.checked_sub(REOPEN_RETRY_INTERVAL).unwrap(),
+        };
+        assert!(wait_until_serving(proxy, state), "the retry opens the store");
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert!(
+            !state.load_present(&digest),
+            "and the path serves the live store"
+        );
+    }
+
     include!("proxy_cold_replay_benchmark.rs");
 
 }

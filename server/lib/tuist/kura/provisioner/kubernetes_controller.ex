@@ -13,10 +13,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.EgressLimits
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -29,6 +29,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # below, so a change to any of them moves the base.
   @manifest_revision "2026-09-09-eu-west-region-rename-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
+  @client_endpoint_fields ~w(publicHost privateHost grpcPublicHost clientHostAliases)
   @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
   # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. The ceiling upload
@@ -53,8 +54,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @kura_segment_ring_floor_segments 5
   @kura_segment_ring_floor_bytes @kura_segment_ring_floor_segments * @kura_max_segment_bytes
   @impl true
-  def provision(%{name: handle}, %Regions{} = region, %Server{}) do
-    {:ok, instance_name(handle, region)}
+  def provision(account, %Regions{} = region, %Server{}) do
+    {:ok, instance_name(Identity.tenant_id(account), region)}
   end
 
   @impl true
@@ -70,12 +71,37 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     entitlements = manifest_entitlements(account, region)
     external_peers = self_hosted_peers(account, region, entitlements)
 
-    case apply_manifests(
-           [render_manifest(name, image_tag, account, region, server, external_peers, entitlements)],
-           region
-         ) do
-      :ok -> :ok
-      {:error, reason} -> {:error, reason}
+    manifest = render_manifest(name, image_tag, account, region, server, external_peers, entitlements)
+
+    with {:ok, manifest} <- preserve_paused_endpoints(manifest, account, server, region) do
+      apply_manifests([manifest], region)
+    end
+  end
+
+  # An image/resource update must not migrate hosts as a side effect. Preserve
+  # the actual CR, including intermediate names and aliases from an earlier
+  # opt-in, instead of guessing its endpoints from the immutable tenant.
+  defp preserve_paused_endpoints(manifest, account, server, region) do
+    if Identity.endpoint_migration_paused?(account) and owns_public_endpoints?(server) do
+      case client_get_kura_instance(@namespace, manifest["metadata"]["name"], region) do
+        {:ok, %{"spec" => spec}} when is_map(spec) ->
+          endpoints = Map.take(spec, @client_endpoint_fields)
+          {:ok, update_in(manifest["spec"], &Map.merge(Map.drop(&1, @client_endpoint_fields), endpoints))}
+
+        {:error, :not_found} when is_nil(server.url) ->
+          {:ok, manifest}
+
+        {:error, :not_found} ->
+          {:error, :endpoint_migration_paused}
+
+        {:error, reason} ->
+          {:error, reason}
+
+        {:ok, _} ->
+          {:error, :missing_instance_spec}
+      end
+    else
+      {:ok, manifest}
     end
   end
 
@@ -217,7 +243,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       backfilling_peers: integer_field(health, "backfillingPeers"),
       backfill_degraded: health["backfillDegraded"] == true,
       backfill_budget_exhausted_peers: integer_field(health, "backfillBudgetExhaustedPeers"),
-      outbox_messages: integer_field(health, "outboxMessages"),
       fd_timeout_count: counter_field(health, "fdTimeoutCount"),
       peer_connection_failures: counter_field(health, "peerConnectionFailures"),
       memory_pressure_state: integer_field(health, "memoryPressureState"),
@@ -312,7 +337,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       self_hosted_peers(account, region, entitlements),
       entitlements,
       effective_egress(account, region, entitlements)
-    )
+    ) <> endpoint_identity_revision(account)
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -354,11 +379,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp render_manifest(name, image_tag, account, region, server, external_peers, entitlements) do
-    account_handle = dns_handle(account.name)
+    account_handle = Identity.tenant_id(account)
+    endpoint_handle = Identity.endpoint_handle(account)
     external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
     claim = storage_claim(account, region, server)
     egress = effective_egress(account, region, entitlements)
-    revision = manifest_revision_string(region, claim, external_peers, entitlements, egress)
+
+    revision =
+      manifest_revision_string(region, claim, external_peers, entitlements, egress) <> endpoint_identity_revision(account)
+
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -384,9 +413,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # Only the steady-state (`:none`) server publishes the account's
           # customer endpoints. Warm handoffs remain disabled in production
           # until the peer endpoint has a stable account-region owner.
-          "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
-          "privateHost" => if(owns_public_endpoints?(server), do: private_host(account_handle, region)),
-          "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
+          "publicHost" => if(owns_public_endpoints?(server), do: public_host(endpoint_handle, region)),
+          "privateHost" => if(owns_public_endpoints?(server), do: private_host(endpoint_handle, region)),
+          "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(endpoint_handle, region)),
+          "clientHostAliases" => if(owns_public_endpoints?(server), do: client_host_aliases(account, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
@@ -419,6 +449,42 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
     }
+  end
+
+  defp client_host_aliases(account, region) do
+    if Identity.endpoint_migration_enabled?(account), do: enabled_client_host_aliases(account, region)
+  end
+
+  defp enabled_client_host_aliases(account, region) do
+    hosts =
+      account
+      |> Identity.client_handles()
+      |> Enum.reject(&(&1 == String.downcase(account.name)))
+      |> Enum.map(fn handle ->
+        if Regions.private?(region), do: private_host(handle, region), else: public_host(handle, region)
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    if hosts == [], do: nil, else: hosts
+  end
+
+  defp endpoint_identity_revision(account) do
+    if Identity.endpoint_migration_enabled?(account), do: enabled_endpoint_identity_revision(account), else: ""
+  end
+
+  defp enabled_endpoint_identity_revision(account) do
+    handles = Identity.client_handles(account)
+
+    if Identity.handles(account) == [Identity.tenant_id(account)] do
+      ""
+    else
+      digest =
+        :sha256 |> :crypto.hash(Enum.join([String.downcase(account.name) | handles], "\n")) |> Base.encode16(case: :lower)
+
+      "-endpoints-" <> binary_part(digest, 0, 16)
+    end
   end
 
   defp public_host(handle, %Regions{provisioner_config: %{public_host_template: template} = config}) do
@@ -506,7 +572,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       egress_guaranteed_mbps: egress_guaranteed_mbps,
       memory: memory,
       cpu_ceiling_milli: cpu_ceiling_milli,
-      replication_pull: mesh_enabled?(region) and FeatureFlags.kura_replication_pull_enabled?(account)
+      replication_pull: mesh_enabled?(region)
     }
   end
 
@@ -649,12 +715,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     |> binary_part(0, 12)
   end
 
-  # The flip has to move the revision: the reconciler converges on the
-  # revision alone, so a flag that changed the rendered env without moving it
-  # would sit unapplied until some unrelated input happened to (the
-  # KURA_MESH_PEERS_SYNC lesson below). Suffixed only when on, so every account
-  # the flip has not reached keeps a byte-identical revision and nothing rolls
-  # for it; reverting the flag crosses the same boundary back.
+  # Unconditional for every mesh region since the push path was removed, and
+  # kept for the same reason as the backfill suffix below: dropping it would
+  # move every flipped account's revision and roll it for no behavioural
+  # change. Held constant, flipped accounts are byte-identical (nothing
+  # rolls) and an account the flip never reached crosses the boundary once,
+  # onto pull on its current image. Instances outside a mesh region never
+  # carried it and still do not. Must stay paired with replication_pull_env/1.
   defp replication_pull_revision_suffix(%{replication_pull: true}), do: "+pull"
   defp replication_pull_revision_suffix(_entitlements), do: ""
 
@@ -908,11 +975,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  # The account's pull flag, rendered into the spec so a node boots into the
-  # right mode rather than waiting for its first peer-view fetch to tell it.
-  # Not a CRD field on purpose: a field the deployed CRD schema does not
-  # declare fails every rollout bump until the CRD is upgraded, whereas an env
-  # entry rides in `extraEnv` on any controller. Must stay paired with
+  # A pull-only runtime ignores KURA_REPLICATION_PULL, but the variable is
+  # still rendered for every mesh instance so the server and the runtime can
+  # roll out in either order: a pod still on a pre-removal image boots
+  # straight into pull rather than waiting for its first peer-view fetch to
+  # tell it. Not a CRD field on purpose: a field the deployed CRD schema does
+  # not declare fails every rollout bump until the CRD is upgraded, whereas
+  # an env entry rides in `extraEnv` on any controller. Must stay paired with
   # replication_pull_revision_suffix/1.
   defp replication_pull_env(%{replication_pull: true}), do: [env_var("KURA_REPLICATION_PULL", "true")]
   defp replication_pull_env(_entitlements), do: []

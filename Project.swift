@@ -185,7 +185,7 @@ func schemes() -> [Scheme] {
         // ceiling TuistAcceptanceTests already runs at on the same fleet after the worker cap in
         // cli.yml, against the same EE target and the same cases. tuist/tuist#12512 measured the
         // oversubscription that cap exists to prevent, but it measured the whole 207-test suite at
-        // 16x concurrency; this plan is 14 tests and does not add a worker beyond that ceiling.
+        // 16x concurrency; this plan is 15 tests and does not add a worker beyond that ceiling.
         testAction: .targets(
             [.testableTarget(target: .target(Module.serverAcceptanceTestsTargetName), parallelization: .enabled)]
                 + (
@@ -315,6 +315,22 @@ func schemes() -> [Scheme] {
         }
     )
 
+    schemes.append(.scheme(
+        name: "TuistProcessSchemeIntegration",
+        buildAction: .buildAction(
+            targets: ["TuistProcessSchemeIntegration"],
+            postActions: [.executionAction(
+                title: "Verify process runners in a scheme post-action",
+                scriptText: """
+                if [ -n "$TUIST_PROCESS_TEST_OUTPUT" ]; then
+                    "$BUILT_PRODUCTS_DIR/TuistProcessSchemeIntegration" post-action "$TUIST_PROCESS_TEST_OUTPUT"
+                fi
+                """,
+                target: "TuistProcessSchemeIntegration"
+            )]
+        )
+    ))
+
     return schemes
 }
 
@@ -330,7 +346,15 @@ let project = Project(
             .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
         ]
     ),
-    targets: Module.allTargets(),
+    targets: Module.allTargets() + [.target(
+        name: "TuistProcessSchemeIntegration",
+        destinations: [.mac],
+        product: .commandLineTool,
+        bundleId: "dev.tuist.ProcessSchemeIntegration",
+        deploymentTargets: .macOS("15.0"),
+        buildableFolders: [.folder("cli/Tests/Fixtures/ProcessSchemeIntegration", exceptions: [.exception(excluded: ["*.sh"])])],
+        dependencies: [.target(name: "TuistProcess")]
+    )],
     schemes: schemes(),
     additionalFiles: []
 )

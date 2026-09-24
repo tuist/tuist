@@ -19,9 +19,9 @@ defmodule Tuist.Kura.Mesh do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -81,8 +81,8 @@ defmodule Tuist.Kura.Mesh do
     end)
   end
 
-  defp peer_ca_secret_path(%Account{name: name}) do
-    "/api/v1/namespaces/#{@kura_namespace}/secrets/kura-#{String.downcase(name)}-peer-ca"
+  defp peer_ca_secret_path(%Account{} = account) do
+    "/api/v1/namespaces/#{@kura_namespace}/secrets/kura-#{Identity.tenant_id(account)}-peer-ca"
   end
 
   defp decode_pem(value) when is_binary(value), do: Base.decode64(value)
@@ -101,7 +101,10 @@ defmodule Tuist.Kura.Mesh do
 
       {:ok,
        %{
-         tenant_id: account.name,
+         tenant_id: Identity.tenant_id(account),
+         account_handle: account.name,
+         account_aliases: Identity.handles(account),
+         endpoint_redirects: Identity.endpoint_redirects(account),
          certificate_pem: certificate.certificate_pem,
          ca_certificate_pem: certificate.ca_certificate_pem,
          not_after: certificate.not_after,
@@ -189,7 +192,7 @@ defmodule Tuist.Kura.Mesh do
     |> Kura.server_regions_for_account()
     |> Enum.map(fn region_id ->
       case Regions.get(region_id) do
-        %Regions{} = region -> Regions.peer_public_url(account.name, region)
+        %Regions{} = region -> Regions.peer_public_url(Identity.tenant_id(account), region)
         _ -> nil
       end
     end)
@@ -248,11 +251,13 @@ defmodule Tuist.Kura.Mesh do
   defp published_role(_role, _region_id), do: []
 
   @doc """
-  Whether the account's nodes replicate by pulling (design §5.2). Published in
-  the mesh view so enrolled self-hosted nodes flip with the account's managed
-  pods, which get the same flag rendered into their spec.
+  Every account's nodes replicate by pulling (kura/docs/replication-design.md
+  §5.2): the per-account flip is over and the push path is gone from the
+  runtime. Still published in the mesh view because a self-hosted node on a
+  pre-removal release reads it to decide whether to keep pushing, and the
+  answer for one that can pull is always yes.
   """
-  def replication_pull?(%Account{} = account), do: FeatureFlags.kura_replication_pull_enabled?(account)
+  def replication_pull?(%Account{}), do: true
 
   @doc """
   Records a mesh heartbeat from an enrolled self-hosted node: refreshes the

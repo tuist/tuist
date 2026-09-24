@@ -12,6 +12,9 @@ type KuraInstanceSpec struct {
 	Image         string `json:"image"`
 	Replicas      *int32 `json:"replicas,omitempty"`
 	PublicHost    string `json:"publicHost,omitempty"`
+	// ClientHostAliases retain renamed client endpoints on the same backend.
+	// They affect DNS, ingress and public TLS only, never workload or peer identity.
+	ClientHostAliases []string `json:"clientHostAliases,omitempty"`
 	// Deprecated: the value is ignored. gRPC co-hosts on PublicHost (see
 	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
 	// Retained for backward compatibility.
@@ -209,7 +212,7 @@ type KuraInstanceSpec struct {
 //     (each pod increments its own and resets on restart), so absolute
 //     values are never comparable across pods; the ring size the pods have
 //     converged on is,
-//   - BackfillingPeers and OutboxMessages are sums,
+//   - BackfillingPeers is a sum,
 //   - FDTimeoutCount and PeerConnectionFailures are sums with per-pod reset
 //     clamping, so a pod restart never makes the published counter go
 //     backwards,
@@ -228,7 +231,6 @@ type KuraInstanceRolloutHealth struct {
 	// what says catch-up is failing to progress.
 	BackfillDegraded             bool         `json:"backfillDegraded"`
 	BackfillBudgetExhaustedPeers int64        `json:"backfillBudgetExhaustedPeers"`
-	OutboxMessages               int64        `json:"outboxMessages"`
 	FDTimeoutCount               int64        `json:"fdTimeoutCount"`
 	PeerConnectionFailures       int64        `json:"peerConnectionFailures"`
 	MemoryPressureState          int64        `json:"memoryPressureState"`
@@ -305,7 +307,7 @@ type KuraInstanceStatus struct {
 	NodePortCache int32  `json:"nodePortCache,omitempty"`
 }
 
-// KuraInstanceCPUAutosize retains the highest per-pod CPU seen in each of a
+// KuraInstanceCPUAutosize retains the highest ten-minute mean CPU in each of a
 // ring of fixed-length windows, oldest first, with BucketStartedAt the start
 // of the last. A window that closed with no reading holds -1, which is not
 // the same as a reading of zero. The peak is taken across the instance's pods
@@ -316,6 +318,12 @@ type KuraInstanceStatus struct {
 // shown it will admit, and expires so a box that has since freed up is
 // retried.
 type KuraInstanceCPUAutosize struct {
+	// SamplesMilli contains up to ten consecutive minute observations of the
+	// busiest replica. Missing minutes restart this short window. SampledAt
+	// also distinguishes sustained history from legacy instantaneous peaks.
+	// +kubebuilder:validation:MaxItems=10
+	SamplesMilli     []int32      `json:"samplesMilli,omitempty"`
+	SampledAt        *metav1.Time `json:"sampledAt,omitempty"`
 	RequestMilli     int32        `json:"requestMilli,omitempty"`
 	PeakMilli        int32        `json:"peakMilli,omitempty"`
 	BucketStartedAt  *metav1.Time `json:"bucketStartedAt,omitempty"`

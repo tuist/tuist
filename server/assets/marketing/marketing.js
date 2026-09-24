@@ -41,7 +41,34 @@ const NooraHooks = {
   NooraToggle,
   NooraTooltip,
 };
-const hooks = { ...NooraHooks, ...Hooks, ...colocatedHooks };
+
+// Loads a hook on demand, like the KaTeX hook, so its dependencies land in
+// their own chunk and only the pages that render it download them. Once the
+// module arrives, its callbacks replace this stub on the hook instance.
+function lazyHook(load) {
+  return {
+    mounted() {
+      load().then(({ default: hook }) => {
+        if (this.lazyHookDestroyed || !this.el.isConnected) return;
+        Object.assign(this, hook);
+        this.mounted?.();
+      });
+    },
+    destroyed() {
+      this.lazyHookDestroyed = true;
+    },
+  };
+}
+
+const hooks = {
+  ...NooraHooks,
+  ...Hooks,
+  // Dashboard components embedded in the Bazel announcement post: the chart
+  // bundles ECharts and the build timeline imports the full Noora runtime.
+  NooraChart: lazyHook(() => import("noora/hooks/Chart.js")),
+  BuildTimeline: lazyHook(() => import("../app/js/BuildTimeline.js")),
+  ...colocatedHooks,
+};
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: liveSocketFallbackMs,

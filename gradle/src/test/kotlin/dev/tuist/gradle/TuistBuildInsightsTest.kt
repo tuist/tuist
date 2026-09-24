@@ -37,6 +37,15 @@ class TuistBuildInsightsTest {
     }
 
     @Test
+    fun `downsampling keeps the first and last machine samples`() {
+        val downsampled = downsample((0 until 3602).toList(), maxCount = 3600)
+
+        assertEquals(3600, downsampled.size)
+        assertEquals(0, downsampled.first())
+        assertEquals(3601, downsampled.last())
+    }
+
+    @Test
     fun `URL construction is correct`() {
         val baseUrl = "https://tuist.dev"
         val accountHandle = "my-org"

@@ -7,6 +7,11 @@ defmodule Tuist.Runners.GitLab do
   enqueueing it and hand that exact response to the single-job executor.
   Keep waiting assignments alive, and explicitly fail jobs whose machine
   disappears so GitLab's runner_system_failure retry policy can recover them.
+
+  GitLab starts a job's timeout when it is assigned, so time spent waiting in
+  the queue counts against it. Acquisition pauses while queued assignments
+  take the account's remaining concurrency, and a waiting assignment is only
+  failed once its GitLab timeout has passed.
   """
 
   import Ecto.Query
@@ -16,6 +21,7 @@ defmodule Tuist.Runners.GitLab do
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.GitLab.Client
   alias Tuist.Runners.GitLab.Connection
@@ -31,8 +37,10 @@ defmodule Tuist.Runners.GitLab do
   require Logger
 
   @routing_poll_error "A GitLab job could not be routed. Set exactly one existing Tuist profile in its tags (GitLab 19.3+)."
-  @max_wait_seconds 600
   @max_waiting_jobs 5
+  @payload_retention_seconds 12 * 60 * 60
+  @waiting_statuses ["queued", "claimed"]
+  @waiting_section "tuist_waiting_for_runner"
 
   def list_connections(account_id),
     do: Repo.all(from(c in Connection, where: c.account_id == ^account_id, order_by: c.id))
@@ -109,7 +117,7 @@ defmodule Tuist.Runners.GitLab do
          {:ok, account} <- Accounts.get_account_by_id(current.account_id),
          true <- FeatureFlags.runners_enabled?(account),
          false <- Allowance.exhausted?(account) do
-      if length(waiting) < @max_waiting_jobs do
+      if length(waiting) < @max_waiting_jobs and headroom_left?(current.account_id, waiting) do
         case Client.request_job(current) do
           {:ok, nil} -> {:ok, 0}
           {:ok, payload} -> persist_assignment(current, account, payload)
@@ -142,16 +150,17 @@ defmodule Tuist.Runners.GitLab do
 
     result = store_assignment(connection, account, payload, target, routing_error, project_path, pipeline_id)
 
-    case result do
-      {:ok, job} ->
-        if routing_error do
-          settle_rejected(job, payload)
-          {:error, :invalid_job_tags}
-        else
-          {:ok, 1}
-        end
+    case {result, target} do
+      {{:ok, job}, {:ok, resolved}} ->
+        # Best effort: the executor writes the same bytes before its own log.
+        Client.write_trace(job.url, payload, waiting_trace(job, payload, resolved))
+        {:ok, 1}
 
-      {:error, _} ->
+      {{:ok, job}, {:error, _}} ->
+        settle_rejected(job, payload)
+        {:error, :invalid_job_tags}
+
+      {{:error, _}, _} ->
         Client.update_job(connection.url, payload, "failed", "runner_system_failure")
         {:error, :persistence_failed}
     end
@@ -289,14 +298,36 @@ defmodule Tuist.Runners.GitLab do
         on: w.workflow_job_id == j.workflow_job_id,
         where:
           j.connection_id == ^connection.id and not is_nil(j.payload) and
-            (w.status in ["queued", "claimed"] or not is_nil(j.routing_error)),
-        select: j
+            (w.status in @waiting_statuses or not is_nil(j.routing_error)),
+        select: {j, w}
       )
     )
   end
 
+  # The next assignment's shape is unknown until GitLab hands it over, so
+  # acquisition continues only while each platform's remaining concurrency
+  # fits all of its queued assignments plus one more as large as the largest.
+  defp headroom_left?(account_id, waiting) do
+    waiting
+    |> Enum.flat_map(fn
+      {_job, %WorkflowJob{status: "queued"} = workflow_job} -> [workflow_job]
+      _ -> []
+    end)
+    |> Enum.group_by(& &1.platform)
+    |> Enum.all?(fn {platform, queued} ->
+      vcpus = Enum.map(queued, & &1.vcpus)
+      memory_gb = Enum.map(queued, & &1.memory_gb)
+
+      Concurrency.headroom_jobs(account_id, %{
+        platform: String.to_existing_atom(platform),
+        vcpus: Enum.sum(vcpus) + Enum.max(vcpus),
+        memory_gb: Enum.sum(memory_gb) + Enum.max(memory_gb)
+      }) > 0
+    end)
+  end
+
   defp settle_waiting(connection, disconnecting) do
-    Enum.reject(waiting_jobs(connection), fn job ->
+    Enum.reject(waiting_jobs(connection), fn {job, _workflow_job} ->
       payload = JSON.decode!(job.payload)
 
       result =
@@ -311,7 +342,7 @@ defmodule Tuist.Runners.GitLab do
   end
 
   defp settle_unstarted(job, payload, disconnecting) do
-    timed_out = DateTime.diff(DateTime.utc_now(), job.inserted_at) >= @max_wait_seconds
+    timed_out = DateTime.diff(DateTime.utc_now(), job.inserted_at) >= max_wait_seconds(payload)
     state = if disconnecting or timed_out, do: "failed", else: "running"
 
     case Client.update_job(job.url, payload, state, if(state == "failed", do: "runner_system_failure")) do
@@ -321,6 +352,14 @@ defmodule Tuist.Runners.GitLab do
       _ -> :ok
     end
   end
+
+  # GitLab drops a running job once its timeout has passed since assignment,
+  # so an assignment still waiting by then can no longer finish. Payload
+  # retention bounds the wait for longer timeouts.
+  defp max_wait_seconds(%{"runner_info" => %{"timeout" => timeout}}) when is_integer(timeout) and timeout > 0,
+    do: min(timeout, @payload_retention_seconds)
+
+  defp max_wait_seconds(_payload), do: @payload_retention_seconds
 
   defp complete_unstarted(job, conclusion) do
     Jobs.with_workflow_job_ordering_lock(job.workflow_job_id, fn ->
@@ -332,13 +371,60 @@ defmodule Tuist.Runners.GitLab do
   end
 
   def mint_acquisition(account_id, workflow_job_id) do
-    with %Job{account_id: ^account_id, payload: payload} = job when is_binary(payload) <- get_job(workflow_job_id),
-         {:ok, _} <- Client.update_job(job.url, JSON.decode!(payload), "running", nil) do
-      {:ok, %{url: job.url, payload: JSON.decode!(payload), report_token: JobReportToken.mint(job)}}
+    with {%Job{account_id: ^account_id, payload: encoded} = job, workflow_job} when is_binary(encoded) <-
+           get_job_with_workflow_job(workflow_job_id),
+         payload = JSON.decode!(encoded),
+         {:ok, _} <- Client.update_job(job.url, payload, "running", nil) do
+      {:ok,
+       %{
+         url: job.url,
+         payload: payload,
+         report_token: JobReportToken.mint(job, payload),
+         waiting_trace: waiting_trace(job, payload, workflow_job)
+       }}
     else
       {:error, _} = error -> error
       _ -> {:error, :not_found}
     end
+  end
+
+  defp get_job_with_workflow_job(workflow_job_id) do
+    Repo.one(
+      from(j in Job,
+        join: w in WorkflowJob,
+        on: w.workflow_job_id == j.workflow_job_id,
+        where: j.workflow_job_id == ^workflow_job_id,
+        select: {j, w}
+      )
+    )
+  end
+
+  # GitLab shows an assignment as running from acquisition, so the job log
+  # says what it is waiting for. The executor closes the section when it starts.
+  # GitLab decides from the first line whether a log carries timestamps, so the
+  # line follows the job's FF_TIMESTAMPS the way GitLab Runner resolves it.
+  defp waiting_trace(%Job{inserted_at: inserted_at}, payload, %{
+         requested_dispatch_label: label,
+         vcpus: vcpus,
+         memory_gb: memory_gb
+       }) do
+    header =
+      if timestamped_trace?(payload),
+        do: Calendar.strftime(inserted_at, "%Y-%m-%dT%H:%M:%S") <> ".000000Z 00O ",
+        else: ""
+
+    header <>
+      "section_start:#{DateTime.to_unix(inserted_at)}:#{@waiting_section}\r\e[0K" <>
+      "Waiting for a Tuist runner for #{label} (#{vcpus} vCPU, #{memory_gb} GB)\n"
+  end
+
+  defp timestamped_trace?(payload) do
+    payload
+    |> Map.get("variables", [])
+    |> Enum.filter(&(&1["key"] == "FF_TIMESTAMPS"))
+    |> List.last(%{})
+    |> Map.get("value")
+    |> then(&(&1 not in ~w(0 f F FALSE false False)))
   end
 
   def orphan_status(%{workflow_job_id: id}, evidence) do
@@ -382,9 +468,24 @@ defmodule Tuist.Runners.GitLab do
     :ok
   end
 
+  # Settlement clears the payloads of assignments still waiting for a machine.
   def purge_expired_payloads do
-    threshold = DateTime.add(DateTime.utc_now(), -12 * 60 * 60)
-    Repo.update_all(from(j in Job, where: j.inserted_at < ^threshold and not is_nil(j.payload)), set: [payload: nil])
+    threshold = DateTime.add(DateTime.utc_now(), -@payload_retention_seconds)
+
+    Repo.update_all(
+      from(j in Job,
+        as: :job,
+        where:
+          j.inserted_at < ^threshold and not is_nil(j.payload) and
+            not exists(
+              from(w in WorkflowJob,
+                where: w.workflow_job_id == parent_as(:job).workflow_job_id and w.status in @waiting_statuses
+              )
+            )
+      ),
+      set: [payload: nil]
+    )
+
     :ok
   end
 

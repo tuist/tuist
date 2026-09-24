@@ -4,6 +4,7 @@ defmodule TuistWeb.ProjectsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -37,6 +38,21 @@ defmodule TuistWeb.ProjectsLiveTest do
     project = Projects.get_project_by_account_and_project_handles(account.name, "my-project")
 
     assert project.build_system == :gradle
+  end
+
+  test "seeds the account's cache from where the page was loaded", %{conn: conn, account: account} do
+    conn =
+      conn
+      |> put_req_header("x-forwarded-for", "203.0.113.10, 173.245.48.10")
+      |> put_req_header("cf-ipcountry", "FR")
+
+    {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
+
+    view
+    |> form("#create-project-form", project: %{name: "my-project"})
+    |> render_submit()
+
+    assert_enqueued(worker: SeedProjectCacheDemandWorker, args: %{"account_id" => account.id, "origin" => "FR"})
   end
 
   test "creates a Bazel project", %{conn: conn, account: account} do

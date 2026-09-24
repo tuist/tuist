@@ -25,9 +25,22 @@ import XcodeGraph
 
     enum CacheWarmCommandServiceError: LocalizedError {
         case diskExhausted(scratchDirectory: AbsolutePath, space: VolumeSpace, underlyingError: Error)
+        case uploadsFailed(failures: [CacheUploadFailure], storedCount: Int)
 
         var errorDescription: String? {
             switch self {
+            case let .uploadsFailed(failures, storedCount):
+                let failedTargets = failures
+                    .sorted { $0.item.name < $1.item.name }
+                    .map { "  - \($0.item.name) (\($0.item.hash)): \($0.reason)" }
+                    .joined(separator: "\n")
+                return """
+                \(failures.count) of \(failures.count + storedCount) targets failed to upload to the remote cache:
+                \(failedTargets)
+
+                Warming again uploads them from a machine that doesn't have them in its local cache. On this \
+                machine, run tuist clean binaries first, since targets in the local cache count as cached.
+                """
             case let .diskExhausted(scratchDirectory, space, underlyingError):
                 return """
                 Warming the cache ran out of disk space. The volume holding the build's scratch directory \
@@ -145,7 +158,7 @@ import XcodeGraph
             }
             let scratchDirectoryMode = try await scratchDirectoryPreparer.prepare(path: scratchDirectoryPath)
             let config = try await configLoader.loadConfig(path: path)
-            let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+            let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
@@ -192,7 +205,7 @@ import XcodeGraph
             // Hash
             Logger.current.info("Hashing cacheable targets")
 
-            let cacheableTargets = try await cacheableTargets(
+            let hashedGraph = try await cacheableTargets(
                 for: graph,
                 configuration: requestedConfiguration,
                 config: config,
@@ -200,6 +213,7 @@ import XcodeGraph
                 cacheProfile: profile,
                 cacheStorage: cacheStorage
             )
+            let cacheableTargets = hashedGraph.targetsToBuild
 
             try foreignBuildOutputValidator.validate(
                 targets: cacheableTargets.map(\.0),
@@ -228,7 +242,8 @@ import XcodeGraph
                     config: config,
                     targetsToBinaryCache: targetsToBinaryCache,
                     configuration: configuration,
-                    cacheStorage: cacheStorage
+                    cacheStorage: cacheStorage,
+                    targetHashes: hashedGraph.targetHashes
                 )
                 .generateWithGraph(path: path, options: config.project.generatedProject?.generationOptions)
 
@@ -243,6 +258,7 @@ import XcodeGraph
                 projectPath: projectPath,
                 configuration: configuration,
                 hashesByTargetToBeCached: cacheableTargets,
+                fingerprints: hashedGraph.fingerprints,
                 cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
                 noUpload: noUpload,
                 isReleaseConfiguration: isReleaseConfiguration,
@@ -279,6 +295,7 @@ import XcodeGraph
             projectPath: AbsolutePath,
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
@@ -294,6 +311,7 @@ import XcodeGraph
                             projectPath: projectPath,
                             configuration: configuration,
                             hashesByTargetToBeCached: hashesByTargetToBeCached,
+                            fingerprints: fingerprints,
                             cacheStorage: cacheStorage,
                             isReleaseConfiguration: isReleaseConfiguration,
                             in: temporaryDirectory,
@@ -310,6 +328,7 @@ import XcodeGraph
                         projectPath: projectPath,
                         configuration: configuration,
                         hashesByTargetToBeCached: hashesByTargetToBeCached,
+                        fingerprints: fingerprints,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
                         in: path,
@@ -331,6 +350,7 @@ import XcodeGraph
         ///
         /// Returns nil on a volume that still has room, so an ordinary build failure is reported as itself.
         private func diskExhaustionError(for error: Error, scratchDirectory: AbsolutePath) -> Error? {
+            if case CacheWarmCommandServiceError.uploadsFailed = error { return nil }
             guard let space = VolumeSpace.read(at: scratchDirectory), space.isExhausted else { return nil }
             return CacheWarmCommandServiceError.diskExhausted(
                 scratchDirectory: scratchDirectory,
@@ -345,6 +365,7 @@ import XcodeGraph
             projectPath: AbsolutePath,
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             isReleaseConfiguration: Bool,
             in scratchDirectory: AbsolutePath,
@@ -457,11 +478,21 @@ import XcodeGraph
 
             Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
-            let successfullyStoredTargets = try await store(
-                artifactsToStore,
-                cacheStorage: cacheStorage,
-                scratchDirectory: scratchDirectory
-            )
+            let successfullyStoredTargets: [CacheStorableTarget]
+            do {
+                successfullyStoredTargets = try await store(
+                    artifactsToStore,
+                    fingerprints: fingerprints,
+                    cacheStorage: cacheStorage,
+                    scratchDirectory: scratchDirectory
+                )
+            } catch let error as CacheUploadError {
+                let targets = Set(artifactsToStore.map { CacheStorableItem(name: $0.graphTarget.target.name, hash: $0.hash) })
+                throw CacheWarmCommandServiceError.uploadsFailed(
+                    failures: error.failures,
+                    storedCount: targets.subtracting(error.failures.map(\.item)).count
+                )
+            }
 
             let targetsStored = successfullyStoredTargets.map(\.name).sorted().joined(separator: ", ")
             if successfullyStoredTargets.isEmpty {
@@ -1061,6 +1092,7 @@ import XcodeGraph
 
         private func store(
             _ artifacts: [CacheGraphTargetBuiltArtifact],
+            fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
             scratchDirectory: AbsolutePath
         ) async throws -> [CacheStorableTarget] {
@@ -1068,14 +1100,18 @@ import XcodeGraph
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
                     .reduce(into: [CacheStorableTarget: [AbsolutePath]]()) { acc, next in
-                        acc[CacheStorableTarget(target: next.graphTarget, hash: next.hash)] = [next.path]
+                        acc[CacheStorableTarget(
+                            target: next.graphTarget,
+                            hash: next.hash,
+                            metadata: .init(binaryCacheFingerprints: fingerprints[next.hash] ?? [:])
+                        )] = [next.path]
                     }.concurrentMap { storableTarget, paths in
                         let metadataFilePath = scratchDirectory.appending(
                             components: "Metadatas",
                             "\(storableTarget.name)-\(storableTarget.hash)",
                             "Metadata.plist"
                         )
-                        let metadata = CacheStorableItemMetadata()
+                        let metadata = storableTarget.metadata
                         try await fileSystem.makeDirectory(at: metadataFilePath.parentDirectory)
                         try await fileSystem.writeAsPlist(metadata, at: metadataFilePath)
                         var paths = paths
@@ -1094,7 +1130,7 @@ import XcodeGraph
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,
             cacheStorage: CacheStoring
-        ) async throws -> [(GraphTarget, String)] {
+        ) async throws -> CacheableTargets {
             let graphTraverser = GraphTraverser(graph: graph)
 
             // Apply the same profile-based filtering used by `tuist generate`.
@@ -1115,6 +1151,15 @@ import XcodeGraph
                 excludedTargets: excludedTargets,
                 destination: nil
             )
+
+            // Binary replacement in the warm project runs under `.allPossible` whatever profile warms the
+            // cache, so it asks for hashes this map does not hold as soon as the profile excludes anything,
+            // and it has to hash the graph itself. Widening the hashing above to cover it is not an option:
+            // hashing a target runs its `additionalHashingInputs` scripts, and excluding a target also makes
+            // its dependents unhashable, which is what keeps a warm from storing artifacts the same profile
+            // could never read back.
+            let reusableHashes = excludedTargets.isEmpty ? hashesByCacheableTarget : [:]
+
             let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
             switch CacheWarmTargetGraphSelector.selection(
                 graphTraverser: graphTraverser,
@@ -1128,7 +1173,7 @@ import XcodeGraph
                 )
             case .noNonTestRoots:
                 Logger.current.info("No non-test targets were selected for binary cache warming")
-                return []
+                return CacheableTargets(targetsToBuild: [], hashes: reusableHashes)
             }
 
             let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
@@ -1140,7 +1185,11 @@ import XcodeGraph
             }
 
             let cacheItems = try await cacheStorage.fetch(
-                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(name: $0.key.target.name, hash: $0.value.hash) }),
+                Set(selectedHashesByCacheableTarget.map { CacheStorableItem(
+                    name: $0.key.target.name,
+                    hash: $0.value.hash,
+                    metadata: .init(binaryCacheFingerprints: $0.value.binaryCacheFingerprints)
+                ) }),
                 cacheCategory: .binaries
             )
 
@@ -1166,9 +1215,45 @@ import XcodeGraph
                 cacheItems.map(\.key.hash)
             )
 
-            return cacheableTargets.compactMap {
-                existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
-            }
+            return CacheableTargets(
+                targetsToBuild: cacheableTargets.compactMap {
+                    existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
+                },
+                hashes: reusableHashes,
+                fingerprints: Dictionary(
+                    selectedHashesByCacheableTarget.values.map { ($0.hash, $0.binaryCacheFingerprints) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+            )
+        }
+    }
+
+    /// The outcome of hashing the graph before a warm: what has to be built, and the hashes every
+    /// cacheable target resolved to.
+    struct CacheableTargets {
+        /// Targets whose artifact is missing from the cache, paired with the hash to store it under.
+        let targetsToBuild: [(GraphTarget, String)]
+
+        /// Content hash of every cacheable target in the graph, handed to the warm project's binary
+        /// replacement so it does not hash the same graph a second time. Empty when a cache profile
+        /// narrowed the hashing, since replacement would then need hashes this does not hold. Keyed by
+        /// reference rather than by graph target, because the warm project is a different graph.
+        let targetHashes: [TargetReference: TargetContentHash]
+
+        let fingerprints: [String: [String: String]]
+
+        init(
+            targetsToBuild: [(GraphTarget, String)],
+            hashes: [GraphTarget: TargetContentHash],
+            fingerprints: [String: [String: String]] = [:]
+        ) {
+            self.fingerprints = fingerprints
+            self.targetsToBuild = targetsToBuild
+            targetHashes = Dictionary(
+                uniqueKeysWithValues: hashes.map {
+                    (TargetReference(projectPath: $0.key.path, name: $0.key.target.name), $0.value)
+                }
+            )
         }
     }
 #endif

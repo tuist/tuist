@@ -1,7 +1,51 @@
 defmodule Tuist.ReleaseTest do
   use ExUnit.Case, async: true
+  use Mimic
 
+  alias Tuist.ClickHouse.Parity
   alias Tuist.Release
+
+  describe "check_clickhouse_parity/0" do
+    setup do
+      stub(System, :put_env, fn _key, _value -> :ok end)
+      stub(Tuist.Environment, :migration_database_url, fn -> nil end)
+      :ok
+    end
+
+    defp parity_report(migrations) do
+      %{
+        compared: 2,
+        skipped: [],
+        matching: ["build_runs", "test_case_runs"],
+        differing: [],
+        schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []},
+        migrations: migrations,
+        derived: %{compared: 0, matching: [], differing: []}
+      }
+    end
+
+    test "passes when the migration ledgers hold the same versions" do
+      stub(Parity, :compare, fn -> {:ok, parity_report(%{missing_on_destination: [], only_on_destination: []})} end)
+
+      assert Release.check_clickhouse_parity() == :ok
+    end
+
+    test "raises when the destination's ledger is missing a version" do
+      stub(Parity, :compare, fn ->
+        {:ok, parity_report(%{missing_on_destination: [20_260_910_150_000], only_on_destination: []})}
+      end)
+
+      assert_raise RuntimeError, ~r/schema_migrations.*20260910150000/, fn -> Release.check_clickhouse_parity() end
+    end
+
+    test "raises when the destination's ledger has a version the source does not" do
+      stub(Parity, :compare, fn ->
+        {:ok, parity_report(%{missing_on_destination: [], only_on_destination: [20_260_912_090_000]})}
+      end)
+
+      assert_raise RuntimeError, ~r/schema_migrations.*20260912090000/, fn -> Release.check_clickhouse_parity() end
+    end
+  end
 
   describe "ops_clickhouse_reconciliation_queries/4" do
     test "resets privileges and converges the restricted role and user" do
@@ -25,9 +69,9 @@ defmodule Tuist.ReleaseTest do
                  max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
                  max_rows_to_read = 100000000 MIN 1 MAX 100000000,
                  max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
-                 max_result_rows = 201 MIN 1 MAX 201,
+                 max_result_rows = 10001 MIN 1 MAX 10001,
                  max_result_bytes = 5242880 MIN 1 MAX 5242880,
-                 max_block_size = 201 MIN 1 MAX 201,
+                 max_block_size = 10001 MIN 1 MAX 10001,
                  max_threads = 2 MIN 1 MAX 2
                """,
                "GRANT SELECT ON `tuist`.* TO `tuist_ops_readonly`",

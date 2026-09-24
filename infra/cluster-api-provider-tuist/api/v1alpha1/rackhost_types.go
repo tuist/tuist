@@ -61,6 +61,25 @@ type RackHostSpec struct {
 	// +optional
 	Address string `json:"address,omitempty"`
 
+	// SSHIngressAllowCIDRs are the source addresses a dial to Address arrives
+	// from: the LAN address of every subnet router that advertises it, as a
+	// /32. A router forwards with SNAT (the default on Linux, the only mode on
+	// macOS), so the host sees the router, not the operator. They are added to
+	// the host's SSH ingress guard on top of the fleet-wide
+	// `--ssh-ingress-allow-cidrs`.
+	//
+	// Without them the router path works only while the host still holds its
+	// own tailnet identity. The guard admits :22 from the tailnet, the fleet
+	// list and the last session's source, and that last one is overwritten by
+	// every push, including one over the tailnet fallback. A rented mini keeps
+	// a public path through the fleet list; a rack mini has none, so one that
+	// comes back without its tailnet device is reachable only from its
+	// console. List every router when there is more than one, since a failover
+	// changes the source address.
+	// +optional
+	// +kubebuilder:validation:items:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$`
+	SSHIngressAllowCIDRs []string `json:"sshIngressAllowCIDRs,omitempty"`
+
 	// SSHUser is the account the operator logs in as. On rack hosts this is
 	// the MDM-provisioned service account rather than a provider-issued one,
 	// so it is per-host configurable instead of read back from an API.

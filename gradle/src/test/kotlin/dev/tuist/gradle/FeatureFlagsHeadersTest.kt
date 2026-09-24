@@ -9,30 +9,30 @@ import kotlin.test.assertNull
 class FeatureFlagsHeadersTest {
 
     @Test
-    fun `carries the default enabled flags when no variable is set`() {
-        assertEquals("KURA", FeatureFlagsHeaders.headerValue(emptyMap()))
+    fun `carries no flags when no variable is set`() {
+        assertNull(FeatureFlagsHeaders.headerValue(emptyMap()))
     }
 
     @Test
-    fun `carries the default enabled flags when no flag variable is set`() {
-        assertEquals("KURA", FeatureFlagsHeaders.headerValue(mapOf("TUIST_TOKEN" to "token")))
+    fun `carries no flags when no flag variable is set`() {
+        assertNull(FeatureFlagsHeaders.headerValue(mapOf("TUIST_TOKEN" to "token")))
     }
 
     @ParameterizedTest
     @ValueSource(strings = ["0", "false", "FALSE", "no", "off", "", " 0 "])
-    fun `a falsey value disables a default enabled flag`(value: String) {
-        assertNull(FeatureFlagsHeaders.headerValue(mapOf("TUIST_FEATURE_FLAG_KURA" to value)))
+    fun `a falsey value disables a flag`(value: String) {
+        assertNull(FeatureFlagsHeaders.headerValue(mapOf("TUIST_FEATURE_FLAG_A" to value)))
     }
 
     @ParameterizedTest
     @ValueSource(strings = ["1", "true", "yes", "enabled"])
     fun `a truthy value enables a flag`(value: String) {
-        assertEquals("A,KURA", FeatureFlagsHeaders.headerValue(mapOf("TUIST_FEATURE_FLAG_A" to value)))
+        assertEquals("A", FeatureFlagsHeaders.headerValue(mapOf("TUIST_FEATURE_FLAG_A" to value)))
     }
 
     @Test
-    fun `a falsey value disables a flag declared in lowercase`() {
-        assertNull(FeatureFlagsHeaders.headerValue(mapOf("TUIST_FEATURE_FLAG_kura" to "0")))
+    fun `a flag declared in lowercase is sent uppercased`() {
+        assertEquals("COVERAGE", FeatureFlagsHeaders.headerValue(mapOf("TUIST_FEATURE_FLAG_coverage" to "1")))
     }
 
     @Test
@@ -44,14 +44,14 @@ class FeatureFlagsHeadersTest {
             )
         )
 
-        assertEquals("A,B,KURA", headerValue)
+        assertEquals("A,B", headerValue)
     }
 
     @Test
     fun `a falsey value disables only the flag it names`() {
         val headerValue = FeatureFlagsHeaders.headerValue(
             mapOf(
-                "TUIST_FEATURE_FLAG_KURA" to "0",
+                "TUIST_FEATURE_FLAG_B" to "0",
                 "TUIST_FEATURE_FLAG_A" to "1"
             )
         )
@@ -61,6 +61,6 @@ class FeatureFlagsHeadersTest {
 
     @Test
     fun `ignores a variable that names no flag`() {
-        assertEquals("KURA", FeatureFlagsHeaders.headerValue(mapOf("TUIST_FEATURE_FLAG_" to "1")))
+        assertNull(FeatureFlagsHeaders.headerValue(mapOf("TUIST_FEATURE_FLAG_" to "1")))
     }
 }

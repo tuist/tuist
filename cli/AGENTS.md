@@ -7,6 +7,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Core domain models and shared abstractions live in `cli/Sources/TuistCore`.
 - Common utilities and infra (logging, file system helpers, etc.) live in `cli/Sources/TuistSupport`.
 - Tuist Server client: `cli/Sources/TuistServer`
+- Rosalind app bundle analysis: `cli/Sources/Rosalind/AGENTS.md`
 - Bazel integration and test execution: `cli/Sources/TuistBazelCommand/AGENTS.md`
 - Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`
 - Cache client: `cli/Sources/TuistCache`
@@ -69,6 +70,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Manifest loading: `cli/Sources/TuistLoader/AGENTS.md`
 - Server integration: `cli/Sources/TuistServer/AGENTS.md`
 - Cache integration: `cli/Sources/TuistCache/AGENTS.md`
+- Private binary cache storage and compatibility lookup: `cli/TuistCacheEE/AGENTS.md`
 - Project description models: `cli/Sources/ProjectDescription/AGENTS.md`
 - Project automation: `cli/Sources/ProjectAutomation/AGENTS.md`
 - Tuist automation: `cli/Sources/TuistAutomation/AGENTS.md`
@@ -88,6 +90,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Root directory resolution: `cli/Sources/TuistRootDirectoryLocator/AGENTS.md`
 - Scaffold generation: `cli/Sources/TuistScaffold/AGENTS.md`
 - Simulator integration: `cli/Sources/TuistSimulator/AGENTS.md`
+- Checkout paths and snapshots: `cli/Sources/TuistTestSupport/AGENTS.md`
 - Test helpers: `cli/Sources/TuistTesting/AGENTS.md`
 - XCActivityLog parsing: `cli/Sources/TuistXCActivityLog/AGENTS.md`
 - XCResult handling: `cli/Sources/TuistXCResultService/AGENTS.md`
