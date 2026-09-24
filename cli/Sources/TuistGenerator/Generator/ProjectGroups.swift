@@ -147,6 +147,8 @@ class ProjectGroups {
         let groups = [project.filesGroup] + project.targets.values.map(\.filesGroup)
         let groupNames: [String] = groups.compactMap {
             switch $0 {
+            case .none:
+                return nil  // Skip creating a group when filesGroup is .none
             case let .group(name: groupName):
                 return groupName
             }
