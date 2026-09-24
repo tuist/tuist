@@ -877,7 +877,7 @@ rackLinuxFleet:
     enabled: true
     address: 192.168.50.1
     image:
-      tag: sha-4dc9531aa8b3
+      tag: sha-0c8b663d8559
 
 macosFleet:
   enabled: true

@@ -177,13 +177,13 @@ func TestUserDataRefusesWhatItCannotInstall(t *testing.T) {
 	}
 }
 
-func TestGRUBConfig(t *testing.T) {
-	got := GRUBConfig("http://192.168.50.1:8480/", "38:05:25:38:B5:B5", "ber1-svc")
+func TestIPXEScript(t *testing.T) {
+	got := IPXEScript("http://192.168.50.1:8480/", "38:05:25:38:B5:B5")
 	for _, want := range []string{
-		"set timeout=0\n",
-		`menuentry "Install ber1-svc" {`,
-		`linux /ubuntu/vmlinuz ip=dhcp BOOTIF=01-38-05-25-38-b5-b5 url=http://192.168.50.1:8480/ubuntu/ubuntu.iso cloud-config-url=/dev/null autoinstall ds=nocloud-net\;s=http://192.168.50.1:8480/hosts/38-05-25-38-b5-b5/ ---`,
-		"initrd /ubuntu/initrd\n}",
+		"#!ipxe\n",
+		"kernel http://192.168.50.1:8480/ubuntu/vmlinuz initrd=initrd ip=dhcp BOOTIF=01-38-05-25-38-b5-b5 url=http://192.168.50.1:8480/ubuntu/ubuntu.iso cloud-config-url=/dev/null autoinstall ds=nocloud-net;s=http://192.168.50.1:8480/hosts/38-05-25-38-b5-b5/ ---\n",
+		"initrd --name initrd http://192.168.50.1:8480/ubuntu/initrd\n",
+		"\nboot\n",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("script lacks %q:\n%s", want, got)
