@@ -626,7 +626,9 @@ fn run_segment_file_operation<T>(operation: impl FnOnce() -> T) -> T {
 ///    records the manifest inputs here; inline bodies stage their bytes here
 ///    via [`Store::stage_backfill_inline_apply`] without touching the DB.
 /// 2. Phase 2 — one group-commit fsync covers every staged append (rotation
-///    already fsyncs any segment that sealed mid-batch).
+///    already fsyncs any segment that sealed mid-batch), then the staged
+///    ranges a bounded file-cache policy asked to release drop from the page
+///    cache in coalesced runs.
 /// 3. Phase 3 — staged records commit in groups of up to
 ///    [`BACKFILL_APPLY_GROUP_RECORDS`]: each group re-runs the authoritative
 ///    prechecks under the records' write locks and stages every surviving
@@ -642,6 +644,9 @@ fn run_segment_file_operation<T>(operation: impl FnOnce() -> T) -> T {
 pub(crate) struct BackfillApplyBatch {
     staged: Vec<StagedBackfillApply>,
     max_durability_seq: u64,
+    /// Staged segment ranges whose page cache the policy asked to release;
+    /// released once, after phase 2 made them clean.
+    cached_ranges: Vec<CachedSegmentRange>,
     /// Whether the batch's applies earn arrival-feed rows: yes for a
     /// cross-region link, never for the sibling link (design §3.1).
     feed_rows: bool,
@@ -659,6 +664,12 @@ impl BackfillApplyBatch {
         self.feed_rows = false;
         self
     }
+}
+
+struct CachedSegmentRange {
+    segment_id: String,
+    offset: u64,
+    len: u64,
 }
 
 /// Whether a phase-1 stage call queued the record for a phase-3 group commit
@@ -3090,15 +3101,16 @@ impl Store {
             self.memory.should_reclaim_file_cache(),
             self.memory.foreground_transient_reserved_bytes(),
         );
-        if self.positioned_segment_writes_enabled()
-            && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES
-            && (!drop_cached_pages || durability == ApplyDurability::Sync)
-        {
+        if self.positioned_segment_writes_enabled() && bytes.len() <= SEGMENT_COPY_BUFFER_BYTES {
+            // Dropping dirty pages needs a sync first, so dropping here would
+            // turn a deferred batch back into one fsync per record; a deferred
+            // batch releases its staged ranges once, after its phase-2 fsync.
+            let drop_now = drop_cached_pages && durability == ApplyDurability::Sync;
             return self
                 .append_preloaded_to_reserved_segment(
                     bytes,
                     durability,
-                    drop_cached_pages.then_some(file_cache_policy),
+                    drop_now.then_some(file_cache_policy),
                 )
                 .await;
         }
@@ -5285,6 +5297,16 @@ impl Store {
         };
         self.evict_segments(evicted_segments).await?;
         batch.max_durability_seq = batch.max_durability_seq.max(durability_seq);
+        if staged.file_cache_policy.should_drop(
+            self.memory.should_reclaim_file_cache(),
+            self.memory.foreground_transient_reserved_bytes(),
+        ) {
+            batch.cached_ranges.push(CachedSegmentRange {
+                segment_id: location.segment_id.clone(),
+                offset: location.offset,
+                len: size,
+            });
+        }
         batch
             .staged
             .push(StagedBackfillApply::Segmented(StagedBackfillSegmentApply {
@@ -5300,6 +5322,46 @@ impl Store {
                 content_sha256: content_sha256.map(str::to_owned),
             }));
         Ok(BackfillStageOutcome::Staged)
+    }
+
+    /// Releases the page cache of a deferred batch's staged segment ranges,
+    /// coalescing contiguous ones. Runs after the batch's fsync, when the
+    /// pages are clean and a drop actually frees them. A failure only leaves
+    /// clean, reclaimable pages behind, so it is reported rather than
+    /// failing a batch whose bytes are already durable.
+    async fn drop_backfill_cached_ranges(&self, mut ranges: Vec<CachedSegmentRange>) {
+        ranges.sort_unstable_by(|left, right| {
+            (&left.segment_id, left.offset).cmp(&(&right.segment_id, right.offset))
+        });
+        let mut runs: Vec<CachedSegmentRange> = Vec::new();
+        for range in ranges {
+            if let Some(run) = runs.last_mut()
+                && run.segment_id == range.segment_id
+                && run.offset.saturating_add(run.len) == range.offset
+            {
+                run.len = run.len.saturating_add(range.len);
+            } else {
+                runs.push(range);
+            }
+        }
+        for run in runs {
+            let path = self.segment_path(&run.segment_id);
+            match self.io.drop_cached_pages(&path, run.offset, run.len).await {
+                Ok(()) => self
+                    .io
+                    .metrics()
+                    .record_memory_action("segment_file_cache_drop"),
+                Err(error) => {
+                    self.io
+                        .metrics()
+                        .record_memory_action("segment_file_cache_drop_failed");
+                    tracing::warn!(
+                        path = %path.display(),
+                        "failed to release backfill segment file cache: {error}"
+                    );
+                }
+            }
+        }
     }
 
     /// Phases 2–4 of the deferred backfill batch protocol (see
@@ -5338,6 +5400,7 @@ impl Store {
             // appends durable, and this call covers the rest.
             self.ensure_segment_durable(batch.max_durability_seq)
                 .await?;
+            self.drop_backfill_cached_ranges(batch.cached_ranges).await;
         }
         // Phase 3: group commits — one shared non-sync WriteBatch per up to
         // BACKFILL_APPLY_GROUP_RECORDS staged records.
@@ -13682,6 +13745,74 @@ mod tests {
         let deferred_index = action_cache_index_rows(&deferred_store, "ios");
         assert_eq!(deferred_index, sync_index);
         assert_eq!(sync_index.len(), 1);
+    }
+
+    fn memory_action_count(store: &Store, action: &str) -> u64 {
+        let label = format!("action=\"{action}\"");
+        store
+            .io
+            .metrics()
+            .render()
+            .lines()
+            .find(|line| line.starts_with("kura_memory_actions_total") && line.contains(&label))
+            .and_then(|line| line.rsplit(' ').next())
+            .and_then(|value| value.parse::<f64>().ok())
+            .map_or(0, |value| value as u64)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn deferred_batch_releases_bounded_file_cache_once_after_its_fsync() {
+        let (_temp_dir, config, store) = temp_store();
+        let bodies: Vec<Vec<u8>> = (0..8_u8).map(|index| vec![index; 12 * 1024]).collect();
+
+        let mut batch = BackfillApplyBatch::new();
+        for (index, body) in bodies.iter().enumerate() {
+            let key = format!("bounded-{index}");
+            let path = config.tmp_dir.join("uploads").join(&key);
+            std::fs::write(&path, body).expect("staged source should write");
+            let staged = store
+                .stage_backfill_segmented_apply(
+                    &mut batch,
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    StagedArtifactPath::new(&path, FileCachePolicy::Bounded),
+                    1_000 + index as u64,
+                    None,
+                    None,
+                )
+                .await
+                .expect("segmented record should stage");
+            assert_eq!(staged, BackfillStageOutcome::Staged);
+        }
+        // Releasing a dirty range needs a sync first, so any drop while
+        // staging would be a per-record fsync of the active segment.
+        assert_eq!(memory_action_count(&store, "segment_file_cache_drop"), 0);
+        let fsyncs_before = store.segment_fsync_count.load(Ordering::Relaxed);
+
+        store
+            .commit_backfill_apply_batch(batch, |_| {})
+            .await
+            .expect("deferred batch should commit");
+
+        assert_eq!(
+            store.segment_fsync_count.load(Ordering::Relaxed) - fsyncs_before,
+            1
+        );
+        assert_eq!(
+            memory_action_count(&store, "segment_file_cache_drop"),
+            1,
+            "contiguous staged ranges release in one run"
+        );
+        for (index, body) in bodies.iter().enumerate() {
+            let manifest = store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", &format!("bounded-{index}"))
+                .await
+                .expect("fetch should succeed")
+                .expect("record should exist");
+            assert_eq!(&read_manifest_bytes(&store, &manifest).await, body);
+        }
     }
 
     #[tokio::test]
