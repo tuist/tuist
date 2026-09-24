@@ -625,6 +625,9 @@ fn run_segment_file_operation<T>(operation: impl FnOnce() -> T) -> T {
 ///    Present segmented body to the active segment (no per-record fsync) and
 ///    records the manifest inputs here; inline bodies stage their bytes here
 ///    via [`Store::stage_backfill_inline_apply`] without touching the DB.
+///    Ranges a bounded file-cache policy asked to release are group-fsynced
+///    and dropped every [`FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES`], so a
+///    batch never holds more dirty page cache than that.
 /// 2. Phase 2 — one group-commit fsync covers every staged append (rotation
 ///    already fsyncs any segment that sealed mid-batch), then the staged
 ///    ranges a bounded file-cache policy asked to release drop from the page
@@ -645,8 +648,10 @@ pub(crate) struct BackfillApplyBatch {
     staged: Vec<StagedBackfillApply>,
     max_durability_seq: u64,
     /// Staged segment ranges whose page cache the policy asked to release;
-    /// released once, after phase 2 made them clean.
+    /// released after a group fsync makes them clean.
     cached_ranges: Vec<CachedSegmentRange>,
+    /// Bytes in `cached_ranges`: dirty until the next group fsync.
+    cached_bytes: u64,
     /// Whether the batch's applies earn arrival-feed rows: yes for a
     /// cross-region link, never for the sibling link (design §3.1).
     feed_rows: bool,
@@ -5309,6 +5314,7 @@ impl Store {
                 offset: location.offset,
                 len: size,
             });
+            batch.cached_bytes = batch.cached_bytes.saturating_add(size);
         }
         batch
             .staged
@@ -5324,6 +5330,15 @@ impl Store {
                 origin_region: origin_region.map(str::to_owned),
                 content_sha256: content_sha256.map(str::to_owned),
             }));
+        // Dirty pages count toward the pressure signal, and whichever writer
+        // fsyncs the active segment next inherits their flush.
+        if batch.cached_bytes >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES {
+            self.ensure_segment_durable(batch.max_durability_seq)
+                .await?;
+            self.drop_backfill_cached_ranges(std::mem::take(&mut batch.cached_ranges))
+                .await;
+            batch.cached_bytes = 0;
+        }
         Ok(BackfillStageOutcome::Staged)
     }
 
@@ -13841,6 +13856,76 @@ mod tests {
                 .expect("fetch should succeed")
                 .expect("record should exist");
             assert_eq!(&read_manifest_bytes(&store, &manifest).await, body);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn deferred_batch_releases_bounded_file_cache_every_drop_interval() {
+        let (_temp_dir, config, store) = temp_store();
+        let record_bytes = 200 * 1024;
+        let records = 100;
+        let fsyncs_before = store.segment_fsync_count.load(Ordering::Relaxed);
+
+        let mut batch = BackfillApplyBatch::new();
+        for index in 0..records {
+            let key = format!("interval-{index}");
+            let path = config.tmp_dir.join("uploads").join(&key);
+            std::fs::write(&path, vec![index as u8; record_bytes])
+                .expect("staged source should write");
+            store
+                .stage_backfill_segmented_apply(
+                    &mut batch,
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    StagedArtifactPath::new(&path, FileCachePolicy::Bounded),
+                    1_000 + index as u64,
+                    None,
+                    None,
+                )
+                .await
+                .expect("segmented record should stage");
+        }
+        // 20,000 KiB staged: every 8 MiB crossed flushes once while staging.
+        let intervals = (records * record_bytes) as u64 / FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES;
+        assert_eq!(intervals, 2);
+        assert_eq!(
+            store.segment_fsync_count.load(Ordering::Relaxed) - fsyncs_before,
+            intervals
+        );
+        assert_eq!(
+            memory_action_count(&store, "segment_file_cache_drop"),
+            intervals
+        );
+
+        store
+            .commit_backfill_apply_batch(batch, |_| {})
+            .await
+            .expect("deferred batch should commit");
+
+        assert_eq!(
+            store.segment_fsync_count.load(Ordering::Relaxed) - fsyncs_before,
+            intervals + 1
+        );
+        assert_eq!(
+            memory_action_count(&store, "segment_file_cache_drop"),
+            intervals + 1
+        );
+        for index in [0, records / 2, records - 1] {
+            let manifest = store
+                .fetch_artifact(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    &format!("interval-{index}"),
+                )
+                .await
+                .expect("fetch should succeed")
+                .expect("record should exist");
+            assert_eq!(
+                read_manifest_bytes(&store, &manifest).await,
+                vec![index as u8; record_bytes]
+            );
         }
     }
 
