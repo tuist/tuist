@@ -251,23 +251,23 @@ struct SettingsContentHasherCompilationCacheTests {
         #expect(try await subject.hash(settings: plain) != subject.hash(settings: withRealFlag))
     }
 
-    /// Git worktrees of one repository differ only in the workspace directory that the
+    /// Git worktrees of one repository differ only in the root directory that the
     /// generated prefix mappings reference, and must land on the same hash.
-    @Test func hash_ignoresPrefixMappingWorkspaceDirectory() async throws {
+    @Test func hash_ignoresPrefixMappingRootDirectory() async throws {
         // Given
         let subject = makeSubject()
         let mappings: SettingValue = .array([
             "$(inherited)",
-            "\"$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)/Tuist/.build=/^spm\"",
-            "\"$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace\"",
+            "\"$(TUIST_PREFIX_MAPPING_ROOT_DIR)/Tuist/.build=/^spm\"",
+            "\"$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root\"",
         ])
         let mainCheckout = settings(base: [
-            "TUIST_PREFIX_MAPPING_WORKSPACE_DIR": .string("/Users/dev/app"),
+            "TUIST_PREFIX_MAPPING_ROOT_DIR": .string("/Users/dev/app"),
             "SWIFT_OTHER_PREFIX_MAPPINGS": mappings,
             "CLANG_OTHER_PREFIX_MAPPINGS": mappings,
         ])
         let worktree = settings(base: [
-            "TUIST_PREFIX_MAPPING_WORKSPACE_DIR": .string("/Users/dev/worktrees/feature branch"),
+            "TUIST_PREFIX_MAPPING_ROOT_DIR": .string("/Users/dev/worktrees/feature branch"),
             "SWIFT_OTHER_PREFIX_MAPPINGS": mappings,
             "CLANG_OTHER_PREFIX_MAPPINGS": mappings,
         ])

@@ -6,6 +6,7 @@ import struct TSCUtility.Version
 import TuistConfig
 import TuistConstants
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 import TuistTesting
 import XcodeGraph
@@ -25,15 +26,28 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
             .willReturn(version)
     }
 
-    private func makeSubject(enableCaching: Bool = true) -> XcodeCachePrefixMappingWorkspaceMapper {
-        XcodeCachePrefixMappingWorkspaceMapper(
+    /// `rootDirectory` is what the root directory locator finds from the workspace path.
+    private func makeSubject(
+        enableCaching: Bool = true,
+        rootDirectory: AbsolutePath?
+    ) -> XcodeCachePrefixMappingWorkspaceMapper {
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(rootDirectory)
+        return XcodeCachePrefixMappingWorkspaceMapper(
             tuist: Tuist(
                 project: .generated(.test(generationOptions: .test(enableCaching: enableCaching))),
                 fullHandle: nil,
                 inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
                 url: Constants.URLs.production
-            )
+            ),
+            rootDirectoryLocator: rootDirectoryLocator
         )
+    }
+
+    private func makeSubject(enableCaching: Bool = true) -> XcodeCachePrefixMappingWorkspaceMapper {
+        makeSubject(enableCaching: enableCaching, rootDirectory: repository)
     }
 
     /// A package checked out by SwiftPM, before `ExternalDependencyPathWorkspaceMapper`
@@ -69,8 +83,16 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         Workspace.test(path: repository, xcWorkspacePath: repository.appending(component: "App.xcworkspace"))
     }
 
+    private var rootMappings: SettingValue {
+        .array([
+            "$(inherited)",
+            #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)/Tuist/.build=/^spm""#,
+            #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
+        ])
+    }
+
     @Test(.withMockedXcodeController)
-    func map_whenXcode27_mapsScratchAndWorkspaceDirectoriesInEveryProject() async throws {
+    func map_whenXcode27_mapsScratchAndRootDirectoriesInEveryProject() async throws {
         // Given
         try stubXcodeVersion(Version(27, 0, 0))
         let subject = makeSubject()
@@ -82,22 +104,60 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
 
         // Then
         #expect(sideEffects.isEmpty)
-        let expected: SettingValue = .array([
-            "$(inherited)",
-            #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)/Tuist/.build=/^spm""#,
-            #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#,
-        ])
         for project in mapped.projects {
-            #expect(project.settings.base["TUIST_PREFIX_MAPPING_WORKSPACE_DIR"] == .string("/Users/dev/app"))
-            #expect(project.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"] == expected)
-            #expect(project.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == expected)
+            #expect(project.settings.base["TUIST_PREFIX_MAPPING_ROOT_DIR"] == .string("/Users/dev/app"))
+            #expect(project.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"] == rootMappings)
+            #expect(project.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == rootMappings)
         }
     }
 
-    /// Without packages there is no scratch directory to map, but first-party sources
-    /// outside their own project directory still need the workspace mapping.
+    /// `tuist generate --path App` generates the workspace below the root, while the
+    /// scratch directory is still resolved from the root. Anchoring on the root keeps
+    /// the scratch mapping relative, so it reads the same in every checkout.
     @Test(.withMockedXcodeController)
-    func map_whenNoExternalProjects_mapsOnlyTheWorkspaceDirectory() async throws {
+    func map_whenWorkspaceIsBelowTheRoot_anchorsOnTheRoot() async throws {
+        // Given
+        try stubXcodeVersion(Version(27, 0, 0))
+        let subject = makeSubject()
+        let workspaceDirectory = repository.appending(component: "App")
+        let workspace = Workspace.test(
+            path: workspaceDirectory,
+            xcWorkspacePath: workspaceDirectory.appending(component: "App.xcworkspace")
+        )
+
+        // When
+        let (mapped, _) = try await subject.map(
+            workspace: WorkspaceWithProjects(workspace: workspace, projects: [appProject, externalProject])
+        )
+
+        // Then
+        for project in mapped.projects {
+            #expect(project.settings.base["TUIST_PREFIX_MAPPING_ROOT_DIR"] == .string("/Users/dev/app"))
+            #expect(project.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"] == rootMappings)
+        }
+    }
+
+    @Test(.withMockedXcodeController)
+    func map_whenRootDirectoryIsNotFound_anchorsOnTheWorkspaceDirectory() async throws {
+        // Given
+        try stubXcodeVersion(Version(27, 0, 0))
+        let subject = makeSubject(rootDirectory: nil)
+
+        // When
+        let (mapped, _) = try await subject.map(
+            workspace: WorkspaceWithProjects(workspace: workspace, projects: [externalProject])
+        )
+
+        // Then
+        let base = try #require(mapped.projects.first?.settings.base)
+        #expect(base["TUIST_PREFIX_MAPPING_ROOT_DIR"] == .string("/Users/dev/app"))
+        #expect(base["SWIFT_OTHER_PREFIX_MAPPINGS"] == rootMappings)
+    }
+
+    /// Without packages there is no scratch directory to map, but first-party sources
+    /// outside their own project directory still need the root mapping.
+    @Test(.withMockedXcodeController)
+    func map_whenNoExternalProjects_mapsOnlyTheRootDirectory() async throws {
         // Given
         try stubXcodeVersion(Version(27, 0, 0))
         let subject = makeSubject()
@@ -110,7 +170,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         #expect(
             mapped.projects.first?.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"]
-                == .array(["$(inherited)", #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#])
+                == .array(["$(inherited)", #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#])
         )
     }
 
@@ -132,18 +192,18 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         #expect(
             mapped.projects.first?.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"]
-                == .array(["/opt/shared=/^shared", #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#])
+                == .array(["/opt/shared=/^shared", #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#])
         )
     }
 
-    /// Xcode splits a list element at spaces, so a workspace path with spaces stays in
-    /// the plain workspace directory setting, out of the mapping elements.
+    /// Xcode splits a list element at spaces, so a root path with spaces stays in the
+    /// plain root directory setting, out of the mapping elements.
     @Test(.withMockedXcodeController)
-    func map_whenWorkspaceDirectoryHasSpaces_keepsItOutOfTheMappings() async throws {
+    func map_whenRootDirectoryHasSpaces_keepsItOutOfTheMappings() async throws {
         // Given
         try stubXcodeVersion(Version(27, 0, 0))
-        let subject = makeSubject()
         let repository = try AbsolutePath(validating: "/Users/dev/my app")
+        let subject = makeSubject(rootDirectory: repository)
         let workspace = Workspace.test(path: repository, xcWorkspacePath: repository.appending(component: "App.xcworkspace"))
         let project = externalProject(scratchDirectory: repository.appending(components: "Tuist", ".build"))
 
@@ -154,20 +214,14 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
 
         // Then
         let base = try #require(mapped.projects.first?.settings.base)
-        #expect(base["TUIST_PREFIX_MAPPING_WORKSPACE_DIR"] == .string("/Users/dev/my app"))
-        #expect(
-            base["SWIFT_OTHER_PREFIX_MAPPINGS"] == .array([
-                "$(inherited)",
-                #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)/Tuist/.build=/^spm""#,
-                #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#,
-            ])
-        )
+        #expect(base["TUIST_PREFIX_MAPPING_ROOT_DIR"] == .string("/Users/dev/my app"))
+        #expect(base["SWIFT_OTHER_PREFIX_MAPPINGS"] == rootMappings)
     }
 
-    /// A scratch directory outside the workspace is written as an absolute path, quoted
-    /// and escaped so that spaces and quotes stay inside a single mapping.
+    /// A scratch directory outside the root is written as an absolute path, quoted and
+    /// escaped so that spaces and quotes stay inside a single mapping.
     @Test(.withMockedXcodeController)
-    func map_whenScratchDirectoryIsOutsideTheWorkspace_quotesItsAbsolutePath() async throws {
+    func map_whenScratchDirectoryIsOutsideTheRoot_quotesItsAbsolutePath() async throws {
         // Given
         try stubXcodeVersion(Version(27, 0, 0))
         let subject = makeSubject()
@@ -183,7 +237,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
             mapped.projects.first?.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == .array([
                 "$(inherited)",
                 #""/Volumes/Shared Cache/say \"hi\"/.build=/^spm""#,
-                #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#,
+                #""$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root""#,
             ])
         )
     }

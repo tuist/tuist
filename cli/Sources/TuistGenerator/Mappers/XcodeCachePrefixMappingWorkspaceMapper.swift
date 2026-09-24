@@ -3,6 +3,7 @@ import Logging
 import Path
 import TuistConfig
 import TuistCore
+import TuistRootDirectoryLocator
 import XcodeGraph
 
 /// Maps the directories that `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and
@@ -16,24 +17,30 @@ import XcodeGraph
 /// for first-party sources outside their own project directory, and for the package
 /// headers and module maps a first-party target reads when it imports a package.
 ///
-/// Every project gets the SwiftPM scratch directory mapped to `/^spm` and the
-/// workspace directory mapped to `/^workspace`, through `SWIFT_OTHER_PREFIX_MAPPINGS`
-/// and `CLANG_OTHER_PREFIX_MAPPINGS`. Xcode emits these after the project mappings, and
-/// the scratch directory before the workspace directory that usually contains it, so a
-/// path always resolves to its most specific placeholder.
+/// Every project gets the SwiftPM scratch directory mapped to `/^spm` and the Tuist
+/// root directory mapped to `/^root`, through `SWIFT_OTHER_PREFIX_MAPPINGS` and
+/// `CLANG_OTHER_PREFIX_MAPPINGS`. Xcode emits these after the project mappings, and the
+/// scratch directory before the root directory that usually contains it, so a path
+/// always resolves to its most specific placeholder.
 ///
-/// The workspace directory is written once, to `TUIST_PREFIX_MAPPING_WORKSPACE_DIR`,
-/// and the mappings reference it, so they read the same in every checkout and the
-/// module cache hash can leave out just that one setting. Each mapping is quoted
-/// because Xcode splits a list element at spaces.
+/// The root is the directory the scratch directory is resolved from, not the generated
+/// workspace's, which can sit below it (`tuist generate --path App`). That keeps the
+/// default scratch directory, `Tuist/.build`, inside the root for every workspace.
+///
+/// The root directory is written once, to `TUIST_PREFIX_MAPPING_ROOT_DIR`, and the
+/// mappings reference it, so they read the same in every checkout and the module cache
+/// hash can leave out just that one setting. Each mapping is quoted because Xcode
+/// splits a list element at spaces.
 public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
     static let prefixMappingSettings = ["SWIFT_OTHER_PREFIX_MAPPINGS", "CLANG_OTHER_PREFIX_MAPPINGS"]
-    static let workspaceDirectorySetting = "TUIST_PREFIX_MAPPING_WORKSPACE_DIR"
+    static let rootDirectorySetting = "TUIST_PREFIX_MAPPING_ROOT_DIR"
 
     private let tuist: Tuist
+    private let rootDirectoryLocator: RootDirectoryLocating
 
-    public init(tuist: Tuist) {
+    public init(tuist: Tuist, rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.tuist = tuist
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     public func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
@@ -45,17 +52,18 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
             "Transforming workspace \(workspace.workspace.name): Adding Xcode cache prefix mappings"
         )
 
-        let workspaceDirectory = workspace.workspace.xcWorkspacePath.parentDirectory
+        let rootDirectory = try await rootDirectoryLocator.locate(from: workspace.workspace.path)
+            ?? workspace.workspace.xcWorkspacePath.parentDirectory
         let mappings = Self.prefixMappings(
             scratchDirectories: Set(workspace.projects.compactMap(\.swiftPackageManagerScratchDirectory)),
-            workspaceDirectory: workspaceDirectory
+            rootDirectory: rootDirectory
         )
 
         var workspace = workspace
         workspace.projects = workspace.projects.map { project in
             var project = project
             var base = project.settings.base
-            base[Self.workspaceDirectorySetting] = .string(workspaceDirectory.pathString)
+            base[Self.rootDirectorySetting] = .string(rootDirectory.pathString)
             for setting in Self.prefixMappingSettings {
                 base[setting] = Self.appending(mappings, to: base[setting])
             }
@@ -67,16 +75,16 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
 
     private static func prefixMappings(
         scratchDirectories: Set<AbsolutePath>,
-        workspaceDirectory: AbsolutePath
+        rootDirectory: AbsolutePath
     ) -> [String] {
-        let root = "$(\(workspaceDirectorySetting))"
+        let root = "$(\(rootDirectorySetting))"
         let scratchMappings = scratchDirectories.sorted().enumerated().map { index, directory in
-            let prefix = directory.isDescendant(of: workspaceDirectory)
-                ? "\(root)/\(directory.relative(to: workspaceDirectory).pathString)"
+            let prefix = directory.isDescendant(of: rootDirectory)
+                ? "\(root)/\(directory.relative(to: rootDirectory).pathString)"
                 : directory.pathString
             return quoted("\(prefix)=/^spm\(index == 0 ? "" : "\(index + 1)")")
         }
-        return scratchMappings + [quoted("\(root)=/^workspace")]
+        return scratchMappings + [quoted("\(root)=/^root")]
     }
 
     /// Quotes `value` as a single element of a build setting list.
