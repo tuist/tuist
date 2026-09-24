@@ -1585,6 +1585,121 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_captures_test_modules_skipped_by_selective_testing_in_the_test_run_report() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+            let projectPath = try temporaryPath().appending(component: "Project")
+            let schemeOne = Scheme.test(
+                name: "SchemeOne",
+                testAction: .test(
+                    targets: [.test(target: TargetReference(projectPath: projectPath, name: "TargetA"))]
+                )
+            )
+            let schemeTwo = Scheme.test(name: "SchemeTwo", testAction: .test(targets: []))
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([schemeOne, schemeTwo])
+
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [
+                            .test(name: "TargetA", bundleId: "dev.tuist.TargetA"),
+                            .test(name: "TargetB", bundleId: "dev.tuist.TargetB"),
+                            .test(name: "TargetC", bundleId: "dev.tuist.TargetC"),
+                        ],
+                        schemes: [
+                            .test(
+                                name: "SchemeOne",
+                                testAction: .test(
+                                    targets: [
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                                        .test(target: TargetReference(projectPath: projectPath, name: "TargetB")),
+                                    ]
+                                )
+                            ),
+                            .test(
+                                name: "SchemeTwo",
+                                testAction: .test(
+                                    targets: [.test(target: TargetReference(projectPath: projectPath, name: "TargetC"))]
+                                )
+                            ),
+                        ]
+                    ),
+                ]
+            )
+            environment.targetTestHashes = [
+                projectPath: ["TargetA": "hash-a", "TargetB": "hash-b", "TargetC": "hash-c"],
+            ]
+            environment.targetTestCacheItems = [
+                projectPath: [
+                    "TargetB": .test(source: .local, cacheCategory: .selectiveTests),
+                    "TargetC": .test(source: .remote, cacheCategory: .selectiveTests),
+                ],
+            ]
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPath: .test(
+                                    path: projectPath,
+                                    targets: [.test(name: "TargetA")],
+                                    schemes: [schemeOne, schemeTwo]
+                                ),
+                            ]
+                        ),
+                        environment
+                    )
+                }
+
+            xcResultService.reset()
+            given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(nil)
+            given(xcResultService)
+                .parseTestStatuses(path: .any)
+                .willReturn(
+                    TestResultStatuses(testCases: [
+                        .init(name: "testA", testSuite: "SuiteA", module: "TargetA", status: .passed),
+                        .init(name: "testB", testSuite: "SuiteA", module: "TargetA", status: .skipped),
+                    ])
+                )
+
+            // When
+            try await testRun(path: try temporaryPath())
+
+            // Then
+            XCTAssertEqual(testedSchemes, ["SchemeOne"])
+            let testRunReports = await runMetadataStorage.testRunReports
+            XCTAssertEqual(
+                testRunReports,
+                [
+                    RunReportTestRun(
+                        scheme: "SchemeOne",
+                        totalTests: 2,
+                        skippedTests: 1,
+                        failedTestNames: [],
+                        ranTestModules: 1,
+                        skippedTestModules: 1
+                    ),
+                ]
+            )
+        }
+    }
+
     func test_run_tests_stores_only_test_target_hashes_not_dependency_hashes() async throws {
         try await withMockedDependencies {
             // Given

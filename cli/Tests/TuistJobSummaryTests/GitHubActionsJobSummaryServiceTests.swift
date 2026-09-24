@@ -22,12 +22,21 @@ struct GitHubActionsJobSummaryServiceTests {
     @Test func render_includes_tests_builds_failed_tests_and_link() {
         let markdown = GitHubActionsJobSummaryService.render(
             testRunReports: [
-                RunReportTestRun(scheme: "App", totalTests: 10, skippedTests: 2, failedTestNames: []),
+                RunReportTestRun(
+                    scheme: "App",
+                    totalTests: 10,
+                    skippedTests: 2,
+                    failedTestNames: [],
+                    ranTestModules: 3,
+                    skippedTestModules: nil
+                ),
                 RunReportTestRun(
                     scheme: "AppUITests",
                     totalTests: 4,
                     skippedTests: 0,
-                    failedTestNames: ["CheckoutFlowTests.test_appliesDiscountCode"]
+                    failedTestNames: ["CheckoutFlowTests.test_appliesDiscountCode"],
+                    ranTestModules: 1,
+                    skippedTestModules: nil
                 ),
             ],
             buildRunReports: [
@@ -42,10 +51,10 @@ struct GitHubActionsJobSummaryServiceTests {
 
         #### Tests 🧪
 
-        | Scheme | Status | Tests | Skipped | Ran |
-        |:-:|:-:|:-:|:-:|:-:|
-        | App | ✅ | 10 | 2 | 8 |
-        | AppUITests | ❌ | 4 | 0 | 4 |
+        | Scheme | Status | Test modules | Test cases |
+        |:-:|:-:|:-:|:-:|
+        | App | ✅ | 3 | 10 |
+        | AppUITests | ❌ | 1 | 4 |
 
         #### Failed Tests ❌
 
@@ -64,7 +73,14 @@ struct GitHubActionsJobSummaryServiceTests {
 
     @Test func render_omits_empty_sections() {
         let markdown = GitHubActionsJobSummaryService.render(
-            testRunReports: [RunReportTestRun(scheme: "App", totalTests: 3, skippedTests: 0, failedTestNames: [])],
+            testRunReports: [RunReportTestRun(
+                scheme: "App",
+                totalTests: 3,
+                skippedTests: 0,
+                failedTestNames: [],
+                ranTestModules: 1,
+                skippedTestModules: nil
+            )],
             buildRunReports: [],
             runURL: URL(string: "https://tuist.dev/acme/app/runs/123")!
         )
@@ -74,9 +90,47 @@ struct GitHubActionsJobSummaryServiceTests {
 
         #### Tests 🧪
 
-        | Scheme | Status | Tests | Skipped | Ran |
-        |:-:|:-:|:-:|:-:|:-:|
-        | App | ✅ | 3 | 0 | 3 |
+        | Scheme | Status | Test modules | Test cases |
+        |:-:|:-:|:-:|:-:|
+        | App | ✅ | 1 | 3 |
+
+        [View the full report on Tuist](https://tuist.dev/acme/app/runs/123)
+        """)
+    }
+
+    @Test func render_shows_ran_test_modules_out_of_the_total_when_selective_testing_applied() {
+        let markdown = GitHubActionsJobSummaryService.render(
+            testRunReports: [
+                RunReportTestRun(
+                    scheme: "App",
+                    totalTests: 1802,
+                    skippedTests: 0,
+                    failedTestNames: [],
+                    ranTestModules: 18,
+                    skippedTestModules: 28
+                ),
+                RunReportTestRun(
+                    scheme: "AppUITests",
+                    totalTests: 4,
+                    skippedTests: 0,
+                    failedTestNames: [],
+                    ranTestModules: 1,
+                    skippedTestModules: 0
+                ),
+            ],
+            buildRunReports: [],
+            runURL: URL(string: "https://tuist.dev/acme/app/runs/123")!
+        )
+
+        #expect(markdown == """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Test modules | Test cases |
+        |:-:|:-:|:-:|:-:|
+        | App | ✅ | 18/46 | 1802 |
+        | AppUITests | ✅ | 1/1 | 4 |
 
         [View the full report on Tuist](https://tuist.dev/acme/app/runs/123)
         """)
@@ -92,7 +146,14 @@ struct GitHubActionsJobSummaryServiceTests {
         Environment.mocked?.variables["GITHUB_STEP_SUMMARY"] = summaryPath.pathString
 
         await subject.writeJobSummary(
-            testRunReports: [RunReportTestRun(scheme: "App", totalTests: 3, skippedTests: 0, failedTestNames: [])],
+            testRunReports: [RunReportTestRun(
+                scheme: "App",
+                totalTests: 3,
+                skippedTests: 0,
+                failedTestNames: [],
+                ranTestModules: 1,
+                skippedTestModules: nil
+            )],
             buildRunReports: [],
             runURL: URL(string: "https://tuist.dev/acme/app/runs/123")!
         )
@@ -103,9 +164,9 @@ struct GitHubActionsJobSummaryServiceTests {
 
         #### Tests 🧪
 
-        | Scheme | Status | Tests | Skipped | Ran |
-        |:-:|:-:|:-:|:-:|:-:|
-        | App | ✅ | 3 | 0 | 3 |
+        | Scheme | Status | Test modules | Test cases |
+        |:-:|:-:|:-:|:-:|
+        | App | ✅ | 1 | 3 |
 
         [View the full report on Tuist](https://tuist.dev/acme/app/runs/123)
 
@@ -122,7 +183,14 @@ struct GitHubActionsJobSummaryServiceTests {
         Environment.mocked?.variables["GITHUB_STEP_SUMMARY"] = summaryPath.pathString
 
         await subject.writeJobSummary(
-            testRunReports: [RunReportTestRun(scheme: "App", totalTests: 3, skippedTests: 0, failedTestNames: [])],
+            testRunReports: [RunReportTestRun(
+                scheme: "App",
+                totalTests: 3,
+                skippedTests: 0,
+                failedTestNames: [],
+                ranTestModules: 1,
+                skippedTestModules: nil
+            )],
             buildRunReports: [],
             runURL: URL(string: "https://tuist.dev/acme/app/runs/123")!
         )

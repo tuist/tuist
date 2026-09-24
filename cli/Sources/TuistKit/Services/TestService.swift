@@ -1535,7 +1535,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         config: config,
                         quarantinedTests: quarantinedTests,
                         mode: mode,
-                        stressNewTests: stressNewTests
+                        stressNewTests: stressNewTests,
+                        selectiveTestingTargets: Set(
+                            initialTestTargets(
+                                mapperEnvironment: mapperEnvironment,
+                                schemes: [testScheme],
+                                testPlanConfiguration: testPlanConfiguration,
+                                action: action
+                            )
+                        )
                     )
                 } catch {
                     if error is StressNewTestsError {
@@ -2056,7 +2064,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         config: Tuist,
         quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode = .local,
-        stressNewTests: StressNewTestsMode? = nil
+        stressNewTests: StressNewTestsMode? = nil,
+        selectiveTestingTargets: Set<GraphTarget>
     ) async throws {
         Logger.current.log(
             level: .notice, "\(action.description) scheme \(scheme.name)", metadata: .section
@@ -2227,7 +2236,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 mode: mode,
                 onlyTestIdentifiers: testTargets.map(\.description),
                 skipTestIdentifiers: skipTestTargets.map(\.description),
-                stressNewTests: stressResult
+                stressNewTests: stressResult,
+                selectiveTestingTargets: selectiveTestingTargets
             )
             if let stressResult, stressResult.blocks {
                 throw StressNewTestsError.blocked(stressResult.blockingCandidates)
@@ -2265,7 +2275,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
-            stressNewTests: stressResult
+            stressNewTests: stressResult,
+            selectiveTestingTargets: selectiveTestingTargets
         )
         if let stressResult, stressResult.blocks {
             throw StressNewTestsError.blocked(stressResult.blockingCandidates)
@@ -2341,14 +2352,34 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// Captures a lightweight per-scheme test summary into `RunMetadataStorage` so the GitHub Actions
     /// job summary can be rendered locally, without waiting for the server to finish parsing the
     /// uploaded result bundle. Best-effort: any failure is ignored.
-    private func captureTestRunReport(scheme: String?, resultBundlePath: AbsolutePath?) async {
+    private func captureTestRunReport(
+        scheme: String?,
+        resultBundlePath: AbsolutePath?,
+        selectiveTestingTargets: Set<GraphTarget>?
+    ) async {
         guard let scheme, let resultBundlePath,
               let statuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath)
         else { return }
 
         await RunMetadataStorage.current.add(
-            testRunReport: RunReportTestRun(scheme: scheme, testStatuses: statuses)
+            testRunReport: RunReportTestRun(
+                scheme: scheme,
+                testStatuses: statuses,
+                skippedTestModules: await selectiveTestingSkippedTestModules(in: selectiveTestingTargets)
+            )
         )
+    }
+
+    /// `nil` when selective testing didn't apply. `targets` scopes the count to a scheme's test targets.
+    private func selectiveTestingSkippedTestModules(in targets: Set<GraphTarget>?) async -> Int? {
+        let cacheItems = await RunMetadataStorage.current.selectiveTestingCacheItems
+        let scopedCacheItems = if let targets {
+            targets.compactMap { cacheItems[$0.path]?[$0.target.name] }
+        } else {
+            cacheItems.values.flatMap(\.values)
+        }
+        guard !scopedCacheItems.isEmpty else { return nil }
+        return scopedCacheItems.filter { $0.source != .miss }.count
     }
 
     private func uploadBuildRunIfNeeded(
@@ -2401,12 +2432,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mode: TestProcessingMode = .local,
         onlyTestIdentifiers: [String] = [],
         skipTestIdentifiers: [String] = [],
-        stressNewTests: StressNewTestsResult? = nil
+        stressNewTests: StressNewTestsResult? = nil,
+        selectiveTestingTargets: Set<GraphTarget>? = nil
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
 
-        await captureTestRunReport(scheme: scheme, resultBundlePath: resultBundlePath)
+        await captureTestRunReport(
+            scheme: scheme,
+            resultBundlePath: resultBundlePath,
+            selectiveTestingTargets: selectiveTestingTargets
+        )
 
         do {
             switch mode {
