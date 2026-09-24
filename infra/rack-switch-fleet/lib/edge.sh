@@ -309,7 +309,10 @@ CONF
 # WAN address once the site has them. The standby holds none, so it has no WAN
 # address until it takes over. The first member is preferred and takes the
 # addresses back a minute after it returns. An edge whose switch port has no
-# link never becomes master.
+# link never becomes master. An advert counts only when it comes from the other
+# edge's address and carries the site's password, which the rack-edge chart
+# generates and mounts; only the edges are on the VRRP VLAN, so a device that
+# could reach an edge's address cannot read it.
 fleet_edge_keepalived() {
   local site_file="$1" node="$2" interface edge_address length provisioning machines_gateway wan_address
   local self address priority peers=() member member_address
@@ -335,6 +338,7 @@ fleet_edge_keepalived() {
 global_defs {
   router_id $node
   vrrp_garp_master_refresh 60
+  vrrp_check_unicast_src
 }
 
 vrrp_instance $(basename "$site_file" .json)_edge {
@@ -345,6 +349,7 @@ vrrp_instance $(basename "$site_file" .json)_edge {
   preempt_delay 60
   advert_int 1
   unicast_src_ip $address
+  include /etc/rack-edge-vrrp/authentication.conf
 CONF
   if [ "${#peers[@]}" -gt 0 ]; then
     printf '  unicast_peer {\n'

@@ -103,6 +103,9 @@ spec:
             - name: config
               mountPath: /etc/rack-edge
               readOnly: true
+            - name: vrrp
+              mountPath: /etc/rack-edge-vrrp
+              readOnly: true
         - name: dhcp
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -128,6 +131,10 @@ spec:
         - name: config
           configMap:
             name: rack-edge-{{ $site }}
+        - name: vrrp
+          secret:
+            secretName: rack-edge-{{ $site }}-vrrp
+            defaultMode: 0400
         # On the node, so a restarted pod hands a switch the lease it had.
         - name: leases
           hostPath:

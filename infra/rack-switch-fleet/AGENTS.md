@@ -723,7 +723,12 @@ files no longer match it:
   empty until the data center has them; set, they float the same way, so the
   standby holds no WAN address until it takes over. The first member is
   preferred and takes the addresses back a minute after it returns, and an edge
-  whose switch port has no link never becomes master.
+  whose switch port has no link never becomes master. An advert counts only
+  from the other edge's VRRP address and with the site's password, which the
+  chart generates once into the `rack-edge-<site>-vrrp` Secret and keeps on
+  every upgrade. Only the edges are on the VRRP VLAN, so a device that can send
+  to an edge cannot read it. Delete the Secret and upgrade to rotate it: until
+  both edges restart, each ignores the other and both hold the addresses.
 - `mgmt-path.sh`, what each edge needs whether it is master or not: the VRRP
   VLAN as an active-backup bond (`vrrp0`) over one VLAN interface per uplink,
   so VRRP survives losing either ToR, with this edge's own VRRP address, and

@@ -2124,6 +2124,12 @@ STUB
     [[ "$output" == *"192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
     [[ "$output" != *"192.168.0.11/32"* ]]
     [[ "$output" != *"wan0"* ]]
+    # an advert counts only from the other edge's address and with the site's
+    # password, which the rack-edge chart generates and mounts
+    [[ "$output" == *"vrrp_check_unicast_src"* ]]
+    [[ "$output" == *"
+  include /etc/rack-edge-vrrp/authentication.conf
+"* ]]
     run fleet_edge_keepalived "$SITE_FILE" ber1-edge-b
     [ "$status" -eq 0 ]
     [[ "$output" == *"priority 100"* ]]
