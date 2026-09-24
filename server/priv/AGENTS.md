@@ -3,6 +3,7 @@
 This directory contains database migrations and other private assets.
 
 ## Responsibilities
+- Runner cache-volume usage belongs in `docs/en/guides/features/runners/cache-volumes.md`, linked from the runners overview and provider guides. Keep Docker-specific guidance in the Docker page. The docs sidebar is maintained in `lib/tuist/docs_sidebar.ex`.
 - PostgreSQL migrations: `server/priv/repo/migrations`
 - ClickHouse migrations: `server/priv/ingest_repo/migrations`
 - Marketing changelog entries: `server/priv/marketing/changelog`
