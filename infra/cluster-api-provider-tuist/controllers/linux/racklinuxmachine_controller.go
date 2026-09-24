@@ -102,6 +102,9 @@ type RackLinuxMachineReconciler struct {
 
 	EgressNamespace  string
 	EgressProxyGroup string
+	// EgressProxyTags are the tags the Tailscale operator gives a proxy of its
+	// own, such as a host's kubelet proxy.
+	EgressProxyTags string
 
 	ConvergeInterval time.Duration
 
@@ -681,7 +684,7 @@ func (r *RackLinuxMachineReconciler) deleteNode(ctx context.Context, host *infra
 }
 
 func (r *RackLinuxMachineReconciler) egress() rackEgress {
-	return rackEgress{Namespace: r.EgressNamespace, ProxyGroup: r.EgressProxyGroup}
+	return rackEgress{Namespace: r.EgressNamespace, ProxyGroup: r.EgressProxyGroup, ProxyTags: r.EgressProxyTags}
 }
 
 func rackLinuxProviderID(host *infrav1.RackLinuxHost) string {

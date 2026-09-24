@@ -111,6 +111,7 @@ func main() {
 		egressNamespace      string
 		egressProxyGroup     string
 		egressMagicDNSSuffix string
+		egressProxyTags      string
 
 		defaultAdoptPoolPrefix       string
 		orphanReclaimClaimNamePrefix string
@@ -357,6 +358,13 @@ func main() {
 			"ProxyGroup into. The operator needs `services` get/list/watch/"+
 			"create/update/patch/delete here — granted via a namespaced Role "+
 			"+ RoleBinding rendered by the main tuist chart.")
+	flag.StringVar(&egressProxyTags, "tailscale-egress-proxy-tags",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_PROXY_TAGS", ""),
+		"Comma-separated tags for a proxy the Tailscale operator runs for one "+
+			"Service outside the ProxyGroup, such as a rack Linux host's kubelet "+
+			"proxy: the cluster's own tag (`tag:tuist-k8s-<env>`), which the "+
+			"Tailscale operator's credential can mint. Empty leaves the "+
+			"operator's default, tag:k8s.")
 	flag.StringVar(&egressMagicDNSSuffix, "tailscale-egress-magicdns-suffix",
 		envOrDefault("CAPI_TAILSCALE_EGRESS_MAGICDNS_SUFFIX", ""),
 		"MagicDNS suffix of the tailnet the Mac minis register under "+
@@ -697,6 +705,7 @@ func main() {
 		ControlPlaneVersion: controlPlaneVersion(restConfig),
 		EgressNamespace:     egressNamespace,
 		EgressProxyGroup:    egressProxyGroup,
+		EgressProxyTags:     egressProxyTags,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxMachineReconciler")
 		os.Exit(1)

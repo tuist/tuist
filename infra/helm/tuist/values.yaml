@@ -2063,6 +2063,12 @@ macosFleet:
     # device, e.g. `taild6d7bb.ts.net`. Per-env overlays set the
     # actual value.
     magicDNSSuffix: ""
+    # Tags for a proxy the Tailscale operator runs for one Service
+    # outside the ProxyGroup (a rack Linux host's kubelet proxy): the
+    # cluster's own `tag:tuist-k8s-<env>`, the only tag the
+    # operator's credential mints. Required when enabled; per-env
+    # overlays set it.
+    proxyTags: ""
   # Runner-cache carve-out in the Mac minis' VM egress firewall
   # (infra/macos-host-bootstrap installVMEgressFirewall). By default
   # Tart VMs are blocked from all RFC1918 destinations; these knobs

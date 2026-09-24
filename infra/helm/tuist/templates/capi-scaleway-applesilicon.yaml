@@ -526,6 +526,7 @@ spec:
             - --tailscale-egress-proxy-group={{ .Values.macosFleet.tailscaleEgress.proxyGroup }}
             - --tailscale-egress-namespace={{ .Values.macosFleet.tailscaleEgress.namespace }}
             - --tailscale-egress-magicdns-suffix={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
+            - --tailscale-egress-proxy-tags={{ required "macosFleet.tailscaleEgress.proxyTags is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.proxyTags }}
             {{- end }}
             {{- if .Values.macosFleet.adoptPoolPrefix }}
             # Orphan-reclaim sweep + delete-path pool-prefix fallback.

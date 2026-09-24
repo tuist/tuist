@@ -18,6 +18,7 @@ import (
 type rackEgress struct {
 	Namespace  string
 	ProxyGroup string
+	ProxyTags  string
 }
 
 func (e rackEgress) enabled() bool {
@@ -99,6 +100,11 @@ func (e rackEgress) ensureKubelet(ctx context.Context, c client.Client, host *in
 			svc.Annotations = map[string]string{}
 		}
 		svc.Annotations["tailscale.com/tailnet-ip"] = host.Status.Tailnet.Address
+		if e.ProxyTags != "" {
+			svc.Annotations["tailscale.com/tags"] = e.ProxyTags
+		} else {
+			delete(svc.Annotations, "tailscale.com/tags")
+		}
 		svc.Spec.Type = corev1.ServiceTypeExternalName
 		if svc.Spec.ExternalName == "" {
 			svc.Spec.ExternalName = "placeholder." + e.Namespace + ".svc.cluster.local"

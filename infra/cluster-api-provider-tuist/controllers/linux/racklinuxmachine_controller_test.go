@@ -144,6 +144,7 @@ func newRackMachineHarness(t *testing.T, cpVersion string, objs ...runtime.Objec
 		},
 		EgressNamespace:  "tailscale-operator",
 		EgressProxyGroup: "macmini-egress",
+		EgressProxyTags:  "tag:tuist-k8s-staging",
 		RunScript:        runner.run,
 	}
 	return &rackMachineHarness{r: r, c: c, runner: runner}

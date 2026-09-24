@@ -94,6 +94,11 @@ func TestRackLinuxMachineGivesTheNodeAnAddressTheAPIServerReaches(t *testing.T) 
 	if _, ok := svc.Annotations["tailscale.com/proxy-group"]; ok {
 		t.Error("the kubelet egress is on the ProxyGroup, whose Pods do not listen on the kubelet's port")
 	}
+	// The Tailscale operator tags a proxy of its own with tag:k8s unless told
+	// otherwise, which its credential may not mint.
+	if svc.Annotations["tailscale.com/tags"] != "tag:tuist-k8s-staging" {
+		t.Errorf("tags %q", svc.Annotations["tailscale.com/tags"])
+	}
 	if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != 10250 {
 		t.Errorf("ports %+v", svc.Spec.Ports)
 	}
