@@ -402,6 +402,23 @@ defmodule Atlas.MCP.ProxyTest do
     assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
   end
 
+  test "never sends the workload identity for the Slack agent" do
+    stub(Config, :get, fn -> atlas_identity_proxy_config() end)
+    conn = %{assigns: %{current_user: %User{id: "user-1"}, audit_interface: "slack"}}
+
+    reject(Atlas.TuistServer, :workload_identity_token, 0)
+
+    expect(Req, :post, fn %Req.Request{} = request ->
+      refute Map.has_key?(request.headers, "x-tuist-atlas-identity")
+      initialize_response(request)
+    end)
+
+    expect_initialized_notification()
+    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
+
+    assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
+  end
+
   test "never sends the workload identity to an upstream not configured for it" do
     stub(Config, :get, fn -> read_only_proxy_config() end)
     conn = %{assigns: %{current_user: %User{id: "user-1"}}}

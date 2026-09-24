@@ -644,7 +644,7 @@ defmodule Atlas.MCP.Proxy do
       |> put_default_header("mcp-protocol-version", @protocol_version)
       |> maybe_put_header("mcp-session-id", session_id)
       |> maybe_put_header(server.operator_grant_header, operator_grant_token(server, conn))
-      |> maybe_put_header(server.atlas_identity_header, atlas_identity_token(server))
+      |> maybe_put_header(server.atlas_identity_header, atlas_identity_token(server, conn))
 
     with {:ok, auth_token} <- auth_token(server, conn) do
       request = Req.new(url: server.url, headers: headers, receive_timeout: server.receive_timeout)
@@ -678,9 +678,13 @@ defmodule Atlas.MCP.Proxy do
   # that condition. The token is Atlas' own ServiceAccount token, so it is only
   # sent to upstreams configured for it. Without one (dev, test) the header is
   # left off and the upstream falls back to the user's own access.
-  defp atlas_identity_token(%Server{atlas_identity_header: nil}), do: nil
+  #
+  # The Slack agent runs every conversation as one fixed operator, so sending it
+  # there would let anyone who can talk to the agent read any customer account.
+  defp atlas_identity_token(%Server{atlas_identity_header: nil}, _conn), do: nil
+  defp atlas_identity_token(%Server{}, %{assigns: %{audit_interface: "slack"}}), do: nil
 
-  defp atlas_identity_token(%Server{}) do
+  defp atlas_identity_token(%Server{}, _conn) do
     case TuistServer.workload_identity_token() do
       {:ok, token} -> token
       {:error, _reason} -> nil
