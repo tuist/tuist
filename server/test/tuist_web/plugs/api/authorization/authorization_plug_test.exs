@@ -249,6 +249,41 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
              }
     end
 
+    test "shares a cached decision between tokens of the same account with the same permissions", %{cache: cache} do
+      # Given
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      calls = :counters.new(1, [])
+
+      opts =
+        AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
+
+      stub(Authorization, :authorize, fn :project_cache_create, _, _ ->
+        :counters.add(calls, 1, 1)
+        :ok
+      end)
+
+      conn =
+        :post
+        |> build_conn("/")
+        |> assign(:cache, cache)
+        |> assign(:selected_project, project)
+
+      # When
+      for _ <- 1..3 do
+        token = %AuthenticatedAccount{
+          account: project.account,
+          scopes: ["ci"],
+          all_projects: false,
+          project_ids: [project.id]
+        }
+
+        refute conn |> assign(:current_subject, token) |> AuthorizationPlug.call(opts) |> Map.get(:halted)
+      end
+
+      # Then
+      assert :counters.get(calls, 1) == 1
+    end
+
     test "doesn't share a cached decision between tokens of the same account with different permissions", %{
       cache: cache
     } do
