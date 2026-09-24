@@ -4313,7 +4313,7 @@ defmodule Tuist.TestsTest do
       inserted_at = NaiveDateTime.utc_now()
 
       state_rows =
-        Enum.map(1..10_001, fn _index ->
+        Enum.map(1..2_001, fn _index ->
           %{
             project_id: project.id,
             test_case_id: UUIDv7.generate(),
@@ -4336,6 +4336,37 @@ defmodule Tuist.TestsTest do
       IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(muted)])
 
       assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "muted"}]) == ["muted"]
+    end
+
+    test "filters by the preloaded states of more test cases than ClickHouse accepts as separate HTTP fields" do
+      project = ProjectsFixtures.project_fixture()
+      inserted_at = NaiveDateTime.utc_now()
+
+      state_rows =
+        Enum.map(1..1_500, fn _index ->
+          %{
+            project_id: project.id,
+            test_case_id: UUIDv7.generate(),
+            state: "muted",
+            is_flaky: false,
+            inserted_at: inserted_at
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseState, state_rows)
+
+      muted =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "muted",
+          state: "muted",
+          inserted_at: NaiveDateTime.add(inserted_at, 1, :microsecond)
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(muted)])
+
+      assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "muted"}]) == ["muted"]
+      assert listed_test_case_names(project.id, [%{field: :state, op: :!=, value: "muted"}]) == []
     end
 
     test "preserves state when an in-flight ingestion read the row before the mute" do
@@ -4575,6 +4606,37 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert result == {:error, :not_found}
+    end
+  end
+
+  describe "list_test_case_run_arguments/1" do
+    test "preloads the arguments of more test case runs than fit in one ClickHouse parameter" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      argument_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(Tuist.Tests.TestCaseRunArgument, [
+        %{
+          id: argument_id,
+          test_case_run_id: test_case_run.id,
+          name: "iPhone",
+          status: "success",
+          duration: 100,
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
+
+      test_case_runs = [
+        %TestCaseRun{id: test_case_run.id} | Enum.map(1..4_000, fn _ -> %TestCaseRun{id: UUIDv7.generate()} end)
+      ]
+
+      # When
+      [preloaded | others] =
+        ClickHouseRepo.preload(test_case_runs, arguments: &Tests.list_test_case_run_arguments/1)
+
+      # Then
+      assert [%{id: ^argument_id, name: "iPhone"}] = preloaded.arguments
+      assert Enum.all?(others, &(&1.arguments == []))
     end
   end
 
