@@ -98,7 +98,7 @@ public struct GitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing {
         return """
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Test cases |
+        | Scheme | Status | Ran test modules | Test cases |
         |:-:|:-:|:-:|:-:|
         \(rows.joined(separator: "\n"))
         """

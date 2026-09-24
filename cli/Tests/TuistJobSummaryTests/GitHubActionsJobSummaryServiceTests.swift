@@ -51,7 +51,7 @@ struct GitHubActionsJobSummaryServiceTests {
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Test cases |
+        | Scheme | Status | Ran test modules | Test cases |
         |:-:|:-:|:-:|:-:|
         | App | ✅ | 3 | 10 |
         | AppUITests | ❌ | 1 | 4 |
@@ -90,7 +90,7 @@ struct GitHubActionsJobSummaryServiceTests {
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Test cases |
+        | Scheme | Status | Ran test modules | Test cases |
         |:-:|:-:|:-:|:-:|
         | App | ✅ | 1 | 3 |
 
@@ -117,6 +117,14 @@ struct GitHubActionsJobSummaryServiceTests {
                     ranTestModules: 1,
                     skippedTestModules: 0
                 ),
+                RunReportTestRun(
+                    scheme: "AppSnapshotTests",
+                    totalTests: 0,
+                    skippedTests: 0,
+                    failedTestNames: [],
+                    ranTestModules: 0,
+                    skippedTestModules: 12
+                ),
             ],
             buildRunReports: [],
             runURL: URL(string: "https://tuist.dev/acme/app/runs/123")!
@@ -127,10 +135,11 @@ struct GitHubActionsJobSummaryServiceTests {
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Test cases |
+        | Scheme | Status | Ran test modules | Test cases |
         |:-:|:-:|:-:|:-:|
         | App | ✅ | 18/46 | 1802 |
         | AppUITests | ✅ | 1/1 | 4 |
+        | AppSnapshotTests | ✅ | 0/12 | 0 |
 
         [View the full report on Tuist](https://tuist.dev/acme/app/runs/123)
         """)
@@ -164,7 +173,7 @@ struct GitHubActionsJobSummaryServiceTests {
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Test cases |
+        | Scheme | Status | Ran test modules | Test cases |
         |:-:|:-:|:-:|:-:|
         | App | ✅ | 1 | 3 |
 

@@ -441,6 +441,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     try await finishSkippedTests(
                         schemes: [scheme],
                         mapperEnvironment: mapperEnvironment,
+                        testPlanConfiguration: testPlanConfiguration,
                         config: config,
                         action: action,
                         isSharding: isSharding
@@ -476,6 +477,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 try await finishSkippedTests(
                     schemes: [scheme],
                     mapperEnvironment: mapperEnvironment,
+                    testPlanConfiguration: testPlanConfiguration,
                     config: config,
                     action: action,
                     isSharding: isSharding
@@ -489,6 +491,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 try await finishSkippedTests(
                     schemes: [scheme],
                     mapperEnvironment: mapperEnvironment,
+                    testPlanConfiguration: testPlanConfiguration,
                     config: config,
                     action: action,
                     isSharding: isSharding
@@ -503,7 +506,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             schemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
             await updateTestServiceAnalytics(
                 mapperEnvironment: mapperEnvironment,
-                schemes: schemes,
+                schemes: mapperEnvironment.initialGraph.map {
+                    buildGraphInspector.workspaceSchemes(graphTraverser: GraphTraverser(graph: $0))
+                } ?? schemes,
                 testPlanConfiguration: testPlanConfiguration,
                 action: action
             )
@@ -521,6 +526,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await finishSkippedTests(
                 schemes: schemes,
                 mapperEnvironment: mapperEnvironment,
+                testPlanConfiguration: testPlanConfiguration,
                 config: config,
                 action: action,
                 isSharding: isSharding
@@ -569,6 +575,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 try await finishSkippedTests(
                     schemes: schemes,
                     mapperEnvironment: mapperEnvironment,
+                    testPlanConfiguration: testPlanConfiguration,
                     config: config,
                     action: action,
                     isSharding: isSharding
@@ -1715,6 +1722,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func finishSkippedTests(
         schemes: [Scheme],
         mapperEnvironment: MapperEnvironment,
+        testPlanConfiguration: TestPlanConfiguration?,
         config: Tuist,
         action: XcodeBuildTestAction,
         isSharding: Bool
@@ -1735,7 +1743,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await uploadSkippedTestSummary(
                 schemeName: scheme.name,
                 config: config,
-                timer: clock.startTimer()
+                timer: clock.startTimer(),
+                selectiveTestingTargets: Set(
+                    initialTestTargets(
+                        mapperEnvironment: mapperEnvironment,
+                        schemes: [scheme],
+                        testPlanConfiguration: testPlanConfiguration,
+                        action: action
+                    )
+                )
             )
         }
     }
@@ -2535,9 +2551,23 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func uploadSkippedTestSummary(
         schemeName: String?,
         config: Tuist,
-        timer: any ClockTimer
+        timer: any ClockTimer,
+        selectiveTestingTargets: Set<GraphTarget>? = nil
     ) async throws {
         guard let fullHandle = config.fullHandle else { return }
+
+        if let schemeName {
+            await RunMetadataStorage.current.add(
+                testRunReport: RunReportTestRun(
+                    scheme: schemeName,
+                    totalTests: 0,
+                    skippedTests: 0,
+                    failedTestNames: [],
+                    ranTestModules: 0,
+                    skippedTestModules: await selectiveTestingSkippedTestModules(in: selectiveTestingTargets)
+                )
+            )
+        }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
         let rootDirectory = try await rootDirectory()
