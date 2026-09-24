@@ -1,0 +1,49 @@
+name: DMG diagnose (temporary)
+
+on:
+  push:
+    branches:
+      - claude/riverside-create-dmg-macos-f46f2e
+
+jobs:
+  diagnose:
+    runs-on: tuist-macos
+    timeout-minutes: 20
+    steps:
+      - name: Session state
+        run: |
+          sw_vers
+          echo "console owner: $(stat -f %Su /dev/console)"
+          echo "managername: $(launchctl managername 2>&1)"
+          echo "--- displays"
+          system_profiler SPDisplaysDataType 2>&1 | sed -n '1,40p'
+          echo "--- GUI processes"
+          pgrep -l -f 'Finder|Dock|Setup Assistant|loginwindow|WindowServer|SystemUIServer|UserNotificationCenter|ScreenSaver' || true
+          echo "--- ancestry of this step"
+          p=$$; while [ "$p" -gt 1 ]; do ps -o pid=,ppid=,comm= -p "$p"; p=$(ps -o ppid= -p "$p" | tr -d ' '); done
+
+      - name: Finder without a window
+        run: |
+          start=$(date +%s)
+          osascript -e 'with timeout of 30 seconds' -e 'tell application "Finder" to get name of startup disk' -e 'end timeout' \
+            || echo "FAILED after $(( $(date +%s) - start ))s"
+
+      - name: Finder window on a mounted DMG (the create-dmg path)
+        run: |
+          mkdir -p /tmp/dmgsrc && echo hi > /tmp/dmgsrc/file.txt
+          hdiutil create -quiet -srcfolder /tmp/dmgsrc -volname diagvol -format UDRW -ov /tmp/diag.dmg
+          hdiutil attach -readwrite -noverify -noautoopen /tmp/diag.dmg
+          sleep 3
+          for stmt in 'open' 'set current view of container window to icon view' 'get bounds of container window'; do
+            start=$(date +%s)
+            echo "--- $stmt"
+            osascript -e 'with timeout of 30 seconds' -e 'tell application "Finder"' -e 'tell disk "diagvol"' -e "$stmt" -e 'end tell' -e 'end tell' -e 'end timeout' \
+              || echo "FAILED after $(( $(date +%s) - start ))s"
+          done
+          pgrep -l -f 'Finder|Setup Assistant|UserNotificationCenter' || true
+          hdiutil detach /Volumes/diagvol -force || true
+
+      - name: Finder and window server logs
+        if: always()
+        run: |
+          log show --last 5m --style compact --predicate 'process == "Finder" OR process == "WindowServer" OR process == "loginwindow"' 2>/dev/null | tail -80 || true
