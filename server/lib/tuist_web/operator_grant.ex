@@ -384,6 +384,13 @@ defmodule TuistWeb.OperatorGrant do
   keeps needing a grant. Reads only: `Tuist.MCP.Authorization` consults
   `:atlas_operator` for `:read` actions and nothing else.
 
+  Trust model: the header proves the caller holds Atlas' credential, not that
+  this particular request went through Atlas or produced an audit record there.
+  Atlas is a trusted credential holder, and the token also authenticates the
+  internal Atlas API, so it has to be protected as such. Use outside the proxy
+  is detected by reconciling the `atlas_operator_*` log fields set here and in
+  `Tuist.MCP.Authorization` against Atlas' audit log (`infra/log-review.md`).
+
   A header that fails verification rejects the request, as a rejected grant
   does. A verifier that is not configured is not the caller's fault, so the
   request continues without the elevation.

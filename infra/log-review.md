@@ -87,7 +87,11 @@ that used operator access, as structured metadata:
 ```
 
 Atlas records the tool and arguments of each of these calls as
-`mcp.tool_called` in its audit log, so the two should agree.
+`mcp.tool_called` in its audit log, so the two should agree. They are not
+guaranteed to: the server trusts any request carrying Atlas' ServiceAccount
+token, so someone holding that token and an operator's OAuth token could call
+the server directly and skip Atlas' audit. That token also authenticates the
+internal Atlas database API. This reconciliation is how such use is found.
 
 **From the tuist-ops database**, the grants that were issued and why.
 
