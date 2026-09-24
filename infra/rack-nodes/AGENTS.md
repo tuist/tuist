@@ -37,17 +37,17 @@ controller scales it up as the pool's hosts come onto the tailnet.
 For a host with a `bootMAC` that is not on the tailnet, or that carries
 `tuist.dev/reinstall=true`, the host controller mints a join key and writes three
 files under the MAC to the `<fleet>-boot` Secret: the autoinstall `user-data`
-and `meta-data`, and a GRUB menu. The boot server mirrors the Secret within a
+and `meta-data`, and an iPXE script. The boot server mirrors the Secret within a
 minute or two. The chain a netbooting host goes through:
 
 1. The firmware's PXE asks the edge node's dnsmasq for an address and gets one
-   in the provisioning range, with `bootx64.efi` from the provisioning address.
-2. The shim (the installer ISO's own, signed by Microsoft) loads Ubuntu's signed
-   network GRUB, which reads `grub.cfg-01-<mac>`, or `grub.cfg`, which looks for
-   `hosts/<mac>.cfg`. A host with no install published finds neither and goes
-   back to its firmware's next boot entry.
-3. GRUB loads the installer's kernel and initrd over TFTP; the kernel downloads
-   the ISO into memory over HTTP (`url=`), keeps its DHCP on the NIC that
+   in the provisioning range, with iPXE (`snponly.efi`) from the provisioning
+   address over TFTP.
+2. iPXE asks for an address again, is told to run `boot.ipxe`, and fetches
+   `hosts/<mac>.ipxe` over HTTP. A host with no install published finds nothing
+   and goes back to its firmware's next boot entry.
+3. The host's script loads the installer's kernel and initrd over HTTP; the
+   kernel downloads the ISO into memory (`url=`), keeps its DHCP on the NIC that
    netbooted (`BOOTIF`), and reads the seed from `/hosts/<mac>/`.
 4. The install is the same as a stick's: Ubuntu with network configuration for
    the SFP+ uplinks only, the fleet key, and a first-boot unit that joins the
@@ -56,12 +56,24 @@ minute or two. The chain a netbooting host goes through:
    host controller withdraws the install, so the key stops being served, and
    removes the annotation.
 
-The chain is signed end to end, so it boots with Secure Boot on: Microsoft's
-signature on the shim, Canonical's on GRUB and the kernel.
+iPXE is not signed, so a netbooting host runs with Secure Boot off. Ubuntu's
+signed chain (shim, then network GRUB) cannot be used on the MS-01: GRUB's UEFI
+network driver cannot send a packet through its Intel network driver ("couldn't
+send network packet" on both i226 ports), so it never reads its menu.
+
+The edge node serves the segment from its i226-V (ber1-mgmt port 48), not its
+i226-LM: an i226-LM with vPro never puts a DHCP offer it sends on the wire,
+while the daemon logs it and a capture on the host shows it. The i226-LM
+(port 1) carries only AMT, and the host leaves it down.
 
 The installer can get its default route from its provisioning lease, through
 the edge node, as well as from the uplinks' DHCP, so the edge node translates the
 provisioning range onto its uplinks as well as into the tailnet.
+
+**Racking an MS-01.** Its firmware ships with the network stack off, so it never
+netboots. Once, in Setup: Advanced → Network Stack Configuration → Network
+Stack and IPv4 PXE Support enabled; Security → Secure Boot disabled. Then it
+netboots whenever its disk does not boot, and the operator's reinstalls work.
 
 **A fresh box** installs itself when powered on with its disk empty: the disk has
 no boot entry, so the firmware falls through to PXE. A disk that already boots
@@ -195,5 +207,5 @@ the operator refuses to join the node until it does.
 `mise run rack:nodes-test` renders the stick's seed against fake `op` and
 `curl`, and runs the boot server's script against a fake Secret and ISO
 (`tests/boot.bats`); it runs in the Rack Switches workflow. The netboot seed,
-the GRUB menu and the install lifecycle are Go tests in the operator
+the iPXE script and the install lifecycle are Go tests in the operator
 (`internal/rackinstall`, `controllers/linux/racklinuxhost_install_test.go`).

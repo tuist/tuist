@@ -1767,7 +1767,7 @@ rackLinuxFleet:
     address: ""
     httpPort: 8480
     image:
-      # The rack-edge image, which carries Ubuntu's signed network GRUB.
+      # The rack-edge image, which carries iPXE.
       repository: ghcr.io/tuist/rack-edge
       tag: ""
     iso:

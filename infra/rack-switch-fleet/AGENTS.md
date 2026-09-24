@@ -722,17 +722,19 @@ files no longer match it:
   provisioning range, and both get the controller's tailnet address in option
   138. That option is what makes a factory switch zero touch.
 - With `management.edge.netboot`, x86-64 UEFI firmware on the provisioning
-  range also gets `bootx64.efi` from the provisioning address, where the rack
-  boot server (`rackLinuxFleet.boot` in the tuist chart) serves the installs
-  the operator publishes, and the path translates the provisioning range onto
-  the node's uplinks, since a netbooting installer can route through either.
+  range also gets iPXE (`snponly.efi`), and iPXE its script, from the
+  provisioning address, where the rack boot server (`rackLinuxFleet.boot` in
+  the tuist chart) serves the installs the operator publishes, and the path
+  translates the provisioning range onto the node's uplinks, since a netbooting
+  installer can route through either. The node serves the segment from its
+  i226-V: an i226-LM with vPro never puts a DHCP offer it sends on the wire.
   See [`infra/rack-nodes`](../rack-nodes/AGENTS.md).
 
 The pod uses host networking, with NET_ADMIN (and NET_RAW and
 NET_BIND_SERVICE for dnsmasq) rather than privileged. Its image
 (`edge/Dockerfile`, built by `rack-edge-image.yml`) carries only dnsmasq,
 iproute2 and nftables, plus what the boot server runs from the same image:
-busybox's httpd, curl, bsdtar and Ubuntu's signed network GRUB.
+busybox's httpd, curl, bsdtar and Ubuntu's build of iPXE.
 
 A new edge node is declared in `rackLinuxFleet.hosts` of the tuist chart's
 values for the rack's environment, with the `edge` role, whose

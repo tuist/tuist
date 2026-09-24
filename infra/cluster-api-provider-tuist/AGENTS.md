@@ -614,13 +614,13 @@ rendered by `internal/rackinstall`) when `--rack-linux-fleet-name` and
 `--rack-linux-install-server-url` are set. For a host with `spec.bootMAC` that
 is not on the tailnet, or that carries `tuist.dev/reinstall=true`, it mints a
 join key for the host's tags (a day's lifetime, renewed six hours before it
-expires), and writes the autoinstall seed and a GRUB menu under the MAC to the
-`<fleet>-boot` Secret, which the rack boot server serves; `status.install`
-records the key, the MAC and the device the install replaces. The fleet key's
-public half and `--rack-linux-authorized-key` are authorized, and the console
-password is minted once per host into `<fleet>-console`. A reinstall of a
-connected host sets `BootNext` to its PXE entry for the MAC over SSH, two
-minutes after publishing, and reboots it, once. A new device other than the
+expires), and writes the autoinstall seed and an iPXE script under the MAC to
+the `<fleet>-boot` Secret, which the rack boot server serves, again whenever the
+Secret lost them; `status.install` records the key, the MAC and the device the
+install replaces. The fleet key's public half and `--rack-linux-authorized-key`
+are authorized, and the console password is minted once per host into
+`<fleet>-console`. A reinstall of a connected host sets `BootNext` to its PXE
+entry for the MAC over SSH, two minutes after publishing, and reboots it, once. A new device other than the
 replaced one withdraws the install and removes the annotation. `edge` hosts run
 the boot server and get no install; `storage` has no layout yet. The `Installed`
 condition says which step a host is on. The same controller scales the
