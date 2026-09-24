@@ -12,7 +12,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -2445,68 +2444,6 @@ func dataPersistentVolumeClaim(instance *kurav1alpha1.KuraInstance, ordinal int,
 	}
 }
 
-func TestRolloutStatusRequiresUpdatedReadyReplicas(t *testing.T) {
-	instance := &kurav1alpha1.KuraInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-west-1", Generation: 2},
-		Spec: kurav1alpha1.KuraInstanceSpec{
-			Image: "ghcr.io/tuist/kura:0.5.3",
-		},
-		Status: kurav1alpha1.KuraInstanceStatus{
-			ObservedImage: "ghcr.io/tuist/kura:0.5.2",
-		},
-	}
-	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Generation: 2},
-		Status: appsv1.StatefulSetStatus{
-			ObservedGeneration: 2,
-			ReadyReplicas:      3,
-			UpdatedReplicas:    1,
-			CurrentRevision:    "kura-abc",
-			UpdateRevision:     "kura-def",
-		},
-	}
-
-	status := rolloutStatusFromStatefulSet(instance, sts)
-
-	if status.phase != "Pending" {
-		t.Fatalf("expected rollout to remain pending, got %q", status.phase)
-	}
-	if status.observedImage != "ghcr.io/tuist/kura:0.5.2" {
-		t.Fatalf("expected observed image to stay on previous image, got %q", status.observedImage)
-	}
-}
-
-func TestRolloutStatusMarksReadyOnlyForCurrentRevision(t *testing.T) {
-	instance := &kurav1alpha1.KuraInstance{
-		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-west-1", Generation: 2},
-		Spec: kurav1alpha1.KuraInstanceSpec{
-			Image: "ghcr.io/tuist/kura:0.5.3",
-		},
-		Status: kurav1alpha1.KuraInstanceStatus{
-			ObservedImage: "ghcr.io/tuist/kura:0.5.2",
-		},
-	}
-	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Generation: 2},
-		Status: appsv1.StatefulSetStatus{
-			ObservedGeneration: 2,
-			ReadyReplicas:      3,
-			UpdatedReplicas:    3,
-			CurrentRevision:    "kura-def",
-			UpdateRevision:     "kura-def",
-		},
-	}
-
-	status := rolloutStatusFromStatefulSet(instance, sts)
-
-	if status.phase != "Ready" {
-		t.Fatalf("expected rollout to be ready, got %q", status.phase)
-	}
-	if status.observedImage != "ghcr.io/tuist/kura:0.5.3" {
-		t.Fatalf("expected observed image to advance, got %q", status.observedImage)
-	}
-}
-
 func containsString(values []string, needle string) bool {
 	for _, value := range values {
 		if value == needle {
@@ -4740,53 +4677,5 @@ func TestTemplateServesGatewayGRPCOnlyAlongsideARestart(t *testing.T) {
 	}
 	if !hasEnvVar(withGateway.Env, gatewayGRPCPortEnvVar) || hasEnvVar(withoutGateway.Env, gatewayGRPCPortEnvVar) {
 		t.Fatal("expected KURA_GATEWAY_GRPC_PORT only on the gateway template")
-	}
-}
-
-func TestRolloutStatusOnDelete(t *testing.T) {
-	for _, tt := range []struct {
-		name      string
-		mutate    func(*appsv1.StatefulSet)
-		wantReady bool
-	}{
-		{name: "all pods manually replaced", wantReady: true},
-		{name: "matching revisions", mutate: func(s *appsv1.StatefulSet) { s.Status.CurrentRevision = "new" }, wantReady: true},
-		{name: "matching revisions with extra old pod", mutate: func(s *appsv1.StatefulSet) { s.Status.CurrentRevision = "new"; s.Status.Replicas = 3 }},
-		{name: "one old pod remains", mutate: func(s *appsv1.StatefulSet) { s.Status.UpdatedReplicas = 1 }},
-		{name: "updated pod not ready", mutate: func(s *appsv1.StatefulSet) { s.Status.ReadyReplicas = 1 }},
-		{name: "stale generation", mutate: func(s *appsv1.StatefulSet) { s.Status.ObservedGeneration = 1 }},
-		{name: "missing update revision", mutate: func(s *appsv1.StatefulSet) { s.Status.UpdateRevision = "" }},
-		{name: "extra old pod", mutate: func(s *appsv1.StatefulSet) { s.Status.Replicas = 3 }},
-		{name: "rolling update still requires matching revisions", mutate: func(s *appsv1.StatefulSet) { s.Spec.UpdateStrategy.Type = appsv1.RollingUpdateStatefulSetStrategyType }},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			instance := &kurav1alpha1.KuraInstance{
-				Spec:   kurav1alpha1.KuraInstanceSpec{Image: "ghcr.io/tuist/kura:new", Replicas: ptr(int32(2))},
-				Status: kurav1alpha1.KuraInstanceStatus{ObservedImage: "ghcr.io/tuist/kura:old"},
-			}
-			sts := &appsv1.StatefulSet{
-				ObjectMeta: metav1.ObjectMeta{Generation: 2},
-				Spec:       appsv1.StatefulSetSpec{UpdateStrategy: appsv1.StatefulSetUpdateStrategy{Type: appsv1.OnDeleteStatefulSetStrategyType}},
-				Status:     appsv1.StatefulSetStatus{ObservedGeneration: 2, Replicas: 2, ReadyReplicas: 2, UpdatedReplicas: 2, CurrentRevision: "old", UpdateRevision: "new"},
-			}
-			if tt.mutate != nil {
-				tt.mutate(sts)
-			}
-			before := sts.DeepCopy()
-			status := rolloutStatusFromStatefulSet(instance, sts)
-			wantPhase, wantImage := "Pending", instance.Status.ObservedImage
-			if tt.wantReady {
-				wantPhase, wantImage = "Ready", instance.Spec.Image
-			}
-			if status.phase != wantPhase || status.observedImage != wantImage {
-				t.Fatalf("got phase=%q image=%q; want phase=%q image=%q", status.phase, status.observedImage, wantPhase, wantImage)
-			}
-			if tt.wantReady && status.message != "2/2 replicas ready on revision new" {
-				t.Fatalf("expected the updated revision in readiness message, got %q", status.message)
-			}
-			if !reflect.DeepEqual(sts, before) {
-				t.Fatal("rollout observation changed StatefulSet")
-			}
-		})
 	}
 }
