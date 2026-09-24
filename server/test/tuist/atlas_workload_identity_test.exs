@@ -152,6 +152,12 @@ defmodule Tuist.AtlasWorkloadIdentityTest do
     assert {:error, :not_configured} = AtlasWorkloadIdentity.verify("token", policy)
   end
 
+  test "fails closed when the issuer is not configured", %{policy: policy, signer: signer} do
+    policy = %{policy | issuer: nil}
+
+    assert {:error, :not_configured} = AtlasWorkloadIdentity.verify(token(%{}, signer), policy)
+  end
+
   test "rejects tokens signed by another key", %{policy: policy} do
     token =
       token(
