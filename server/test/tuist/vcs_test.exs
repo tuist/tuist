@@ -346,7 +346,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Module cache hit rate | Xcode cache hit rate | Test modules | Commit |
+        | Scheme | Status | Module cache hit rate | Xcode cache hit rate | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | - | - | 0 | #{commit_link} |
         | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 80 % | 1/3 | #{commit_link} |
@@ -1562,7 +1562,7 @@ defmodule Tuist.VCSTest do
 
         ##### Xcode
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 1 | #{commit_link} |
 
@@ -1633,7 +1633,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 | #{commit_link} |
 
@@ -1756,7 +1756,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 | #{commit_link} |
 
@@ -1994,7 +1994,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
@@ -2103,7 +2103,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
@@ -2365,7 +2365,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
@@ -2509,7 +2509,7 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Test modules | Commit |
+        | Scheme | Status | Ran test modules | Commit |
         |:-:|:-:|:-:|:-:|
         | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
