@@ -155,7 +155,7 @@ type OSUpdateStatus struct {
 	// +optional
 	FromVersion string `json:"fromVersion,omitempty"`
 
-	// Phase is one of Preparing, Downloading, Draining, Installing, Converging,
+	// Phase is one of Preparing, Draining, Downloading, Installing, Converging,
 	// Succeeded or Failed.
 	// +optional
 	Phase string `json:"phase,omitempty"`

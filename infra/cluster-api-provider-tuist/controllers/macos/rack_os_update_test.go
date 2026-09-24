@@ -222,30 +222,33 @@ func TestOSUpdateRunsTheWholeWave(t *testing.T) {
 		runnerPod("job-1", corev1.PodRunning), runnerPod("job-0", corev1.PodSucceeded))
 
 	f.step()
-	f.wantPhase(OSUpdatePhaseDownloading)
+	f.wantPhase(OSUpdatePhaseDraining)
 	if st := f.status(); st.Label != osUpdateTestLabel || st.FromVersion != "26.6" {
 		t.Fatalf("label %q from %q", st.Label, st.FromVersion)
 	}
-	if f.cordoned() {
-		t.Fatal("cordoned while the download can run with the host still serving")
-	}
-
-	f.host.jobs[bootstrap.OSUpdateJobDownload] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited}
-	f.step()
-	f.wantPhase(OSUpdatePhaseDraining)
 	if !f.cordoned() {
-		t.Fatal("the Node was not cordoned once the download finished")
+		t.Fatal("the Node was not cordoned before anything else")
 	}
 	if !strings.Contains(f.status().Message, "tuist-runners/job-1") || strings.Contains(f.status().Message, "job-0") {
 		t.Fatalf("drain message %q should name only the running pod", f.status().Message)
 	}
-	if len(f.host.installs) != 0 || f.remediationSkipped() {
-		t.Fatal("the install started while a job was still running")
+	if len(f.host.downloads) != 0 {
+		t.Fatal("downloaded the update while a job was still running")
 	}
 
 	if err := f.r.Delete(context.Background(), runnerPod("job-1", corev1.PodRunning)); err != nil {
 		t.Fatal(err)
 	}
+	f.step()
+	f.wantPhase(OSUpdatePhaseDownloading)
+	if len(f.host.downloads) != 1 || f.host.downloads[0] != osUpdateTestLabel {
+		t.Fatalf("downloads = %v", f.host.downloads)
+	}
+	if len(f.host.installs) != 0 || f.remediationSkipped() {
+		t.Fatal("the install started before the download finished")
+	}
+
+	f.host.jobs[bootstrap.OSUpdateJobDownload] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited}
 	f.step()
 	f.wantPhase(OSUpdatePhaseInstalling)
 	if want := []fakeInstall{{osUpdateTestLabel, "tuist", "hunter2"}}; len(f.host.installs) != 1 || f.host.installs[0] != want[0] {
@@ -377,21 +380,36 @@ func TestOSUpdateWaitsOutAnUnreachableHostBeforeStarting(t *testing.T) {
 	f.wantPhase(OSUpdatePhaseDownloading)
 }
 
-func TestOSUpdateFailedDownloadLeavesTheHostServing(t *testing.T) {
+func TestOSUpdateFailedDownloadHandsTheNodeBack(t *testing.T) {
 	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
 	f.step()
+	f.wantPhase(OSUpdatePhaseDownloading)
+	if !f.cordoned() {
+		t.Fatal("downloading on a Node that can still take jobs")
+	}
 	f.host.jobs[bootstrap.OSUpdateJobDownload] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited, ExitCode: 1, LogTail: "Error downloading updates."}
 	f.step()
 	f.wantFailed("DownloadFailed")
-	if f.cordoned() {
-		t.Fatal("a failed download cordoned the Node")
+	if f.cordoned() || f.remediationSkipped() {
+		t.Fatal("a failed download left the unchanged host out of service")
+	}
+}
+
+func TestOSUpdateCancelledWhileDownloadingUncordons(t *testing.T) {
+	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode())
+	f.step()
+	f.wantPhase(OSUpdatePhaseDownloading)
+
+	delete(f.oc.machine.Annotations, OSUpdateAnnotation)
+	f.step()
+	f.wantFailed("Cancelled")
+	if f.cordoned() || len(f.host.installs) != 0 {
+		t.Fatal("cancelling a download left the Node cordoned or installed anyway")
 	}
 }
 
 func TestOSUpdateCancelledWhileDrainingUncordons(t *testing.T) {
 	f := newOSUpdateFixture(t, updatingMachine("26.7"), ownerMachine(), updatingNode(), runnerPod("job-1", corev1.PodRunning))
-	f.step()
-	f.host.jobs[bootstrap.OSUpdateJobDownload] = bootstrap.OSUpdateJob{State: bootstrap.OSUpdateJobExited}
 	f.step()
 	f.wantPhase(OSUpdatePhaseDraining)
 

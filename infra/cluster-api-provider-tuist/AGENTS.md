@@ -661,8 +661,8 @@ The controller moves `status.osUpdate.phase` through:
 | Phase | What happens |
 |---|---|
 | `Preparing` | Checks the host is bootstrapped, reads its version, resolves the `softwareupdate` label for the target |
-| `Downloading` | Downloads the update while the Node keeps taking work |
 | `Draining` | Cordons the Node and waits for every pod on it to finish. The runners controller retires idle warm runners on a cordoned Node, so what is left are pods running jobs, which are never evicted |
+| `Downloading` | Downloads the update on the drained host, so it never competes with a job for the uplink or the disk |
 | `Installing` | Sets `cluster.x-k8s.io/skip-remediation` on the CAPI Machine, installs, and waits for the host to restart on the target version. The drift loop does not dial the host in this phase |
 | `Converging` | Pushes the whole host config again, because the installer resets files it owns such as `/etc/pf.conf`. Waits for the push, a Ready Node and the auto-login console session |
 | `Succeeded` | Uncordons, removes `skip-remediation`, clears the annotation |
@@ -681,9 +681,9 @@ owner is the MDM bootstrap token until that user first logs in at the login
 window. Bootstrap configures auto-login, so restart the host once after its
 first bootstrap and `sysadminctl -secureTokenStatus <sshUser>` reads ENABLED.
 
-**Cancel** by removing the annotation during `Preparing`, `Downloading` or
-`Draining`; the Node is uncordoned. Once `Installing` starts, the update runs to
-the end.
+**Cancel** by removing the annotation during `Preparing`, `Draining` or
+`Downloading`; the Node is uncordoned. Once `Installing` starts, the update runs
+to the end.
 
 **Failures** are `phase: Failed` with a `reason` and a Warning event. Every
 failure removes `skip-remediation`. What happens to the Node depends on whether
@@ -691,8 +691,7 @@ the host changed:
 
 | Reason | Node |
 |---|---|
-| `DownloadFailed`, `DownloadTimedOut`, `DownloadLost` | Never cordoned |
-| `InstallFailed` (exited before restarting) | Uncordoned: the host is unchanged |
+| `DownloadFailed`, `DownloadTimedOut`, `DownloadLost`, `InstallFailed` (exited before restarting) | Uncordoned: the host is unchanged |
 | `InstallTimedOut`, `VersionMismatch`, `ConvergeFailed`, `ConvergeTimedOut` | Stays cordoned for a human; a NotReady Node goes back to the MachineHealthCheck |
 
 Reading the outcome on the host: the jobs log to `/Users/Shared/tuist-os-update/`, which survives the install. `/private/var/tmp` does not.

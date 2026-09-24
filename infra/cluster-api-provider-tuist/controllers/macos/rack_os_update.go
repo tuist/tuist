@@ -31,8 +31,8 @@ const OSUpdateAnnotation = "tuist.dev/os-update"
 
 const (
 	OSUpdatePhasePreparing   = "Preparing"
-	OSUpdatePhaseDownloading = "Downloading"
 	OSUpdatePhaseDraining    = "Draining"
+	OSUpdatePhaseDownloading = "Downloading"
 	OSUpdatePhaseInstalling  = "Installing"
 	OSUpdatePhaseConverging  = "Converging"
 	OSUpdatePhaseSucceeded   = "Succeeded"
@@ -41,7 +41,7 @@ const (
 
 const (
 	osUpdatePollInterval    = 30 * time.Second
-	osUpdateDownloadTimeout = 2 * time.Hour
+	osUpdateDownloadTimeout = time.Hour
 	osUpdateInstallTimeout  = time.Hour
 	osUpdateConvergeTimeout = 30 * time.Minute
 )
@@ -220,49 +220,13 @@ func (r *RackAppleSiliconMachineReconciler) startOSUpdate(ctx context.Context, o
 			fmt.Sprintf("macOS %s is not offered to this host (offered: %s)", target, strings.Join(offered, ", ")), false)
 	}
 
-	if err := host.StartDownload(ctx, label); err != nil {
-		return osUpdateWait(st, "could not start the download: %v", err)
+	cordoned, err := r.setNodeUnschedulable(ctx, machine.Name, true)
+	if err != nil {
+		return osUpdateWait(st, "could not cordon Node %s: %v", machine.Name, err)
 	}
 	st.Label = label
-	r.setOSUpdatePhase(machine, OSUpdatePhaseDownloading,
-		fmt.Sprintf("downloading %s while the host keeps serving", label))
-	return ctrl.Result{RequeueAfter: osUpdatePollInterval}, nil
-}
-
-func (r *RackAppleSiliconMachineReconciler) osUpdateDownloading(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
-	st := oc.machine.Status.OSUpdate
-	if osUpdatePhaseOlderThan(st, osUpdateDownloadTimeout) {
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "DownloadTimedOut",
-			fmt.Sprintf("the download did not finish within %s", osUpdateDownloadTimeout), false)
-	}
-
-	host, err := r.openOSUpdateHost(ctx, oc)
-	if err != nil {
-		return osUpdateWait(st, "could not reach the host: %v", err)
-	}
-	defer host.Close()
-
-	job, err := host.Job(ctx, bootstrap.OSUpdateJobDownload)
-	if err != nil {
-		return osUpdateWait(st, "could not read the download: %v", err)
-	}
-	switch {
-	case job.State == bootstrap.OSUpdateJobRunning:
-		return osUpdateWait(st, "downloading: %s", job.LogTail)
-	case job.State == bootstrap.OSUpdateJobAbsent:
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "DownloadLost",
-			"the download stopped without recording an exit code", false)
-	case job.ExitCode != 0:
-		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "DownloadFailed",
-			fmt.Sprintf("softwareupdate --download exited %d: %s", job.ExitCode, job.LogTail), false)
-	}
-
-	cordoned, err := r.setNodeUnschedulable(ctx, oc.machine.Name, true)
-	if err != nil {
-		return osUpdateWait(st, "could not cordon Node %s: %v", oc.machine.Name, err)
-	}
 	st.Cordoned = st.Cordoned || cordoned
-	r.setOSUpdatePhase(oc.machine, OSUpdatePhaseDraining, "cordoned; waiting for running pods to finish")
+	r.setOSUpdatePhase(machine, OSUpdatePhaseDraining, "cordoned; waiting for running pods to finish")
 	return r.osUpdateDraining(ctx, oc)
 }
 
@@ -286,6 +250,47 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateDraining(ctx context.Context
 	}
 	defer host.Close()
 
+	job, err := host.Job(ctx, bootstrap.OSUpdateJobDownload)
+	if err != nil {
+		return osUpdateWait(st, "could not read the download: %v", err)
+	}
+	if job.State != bootstrap.OSUpdateJobRunning {
+		if err := host.StartDownload(ctx, st.Label); err != nil {
+			return osUpdateWait(st, "could not start the download: %v", err)
+		}
+	}
+	r.setOSUpdatePhase(oc.machine, OSUpdatePhaseDownloading, fmt.Sprintf("downloading %s", st.Label))
+	return ctrl.Result{RequeueAfter: osUpdatePollInterval}, nil
+}
+
+func (r *RackAppleSiliconMachineReconciler) osUpdateDownloading(ctx context.Context, oc *osUpdateContext) (ctrl.Result, error) {
+	st := oc.machine.Status.OSUpdate
+	if osUpdatePhaseOlderThan(st, osUpdateDownloadTimeout) {
+		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "DownloadTimedOut",
+			fmt.Sprintf("the download did not finish within %s", osUpdateDownloadTimeout), true)
+	}
+
+	host, err := r.openOSUpdateHost(ctx, oc)
+	if err != nil {
+		return osUpdateWait(st, "could not reach the host: %v", err)
+	}
+	defer host.Close()
+
+	job, err := host.Job(ctx, bootstrap.OSUpdateJobDownload)
+	if err != nil {
+		return osUpdateWait(st, "could not read the download: %v", err)
+	}
+	switch {
+	case job.State == bootstrap.OSUpdateJobRunning:
+		return osUpdateWait(st, "downloading: %s", job.LogTail)
+	case job.State == bootstrap.OSUpdateJobAbsent:
+		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "DownloadLost",
+			"the download stopped without recording an exit code", true)
+	case job.ExitCode != 0:
+		return r.finishOSUpdate(ctx, oc, OSUpdatePhaseFailed, "DownloadFailed",
+			fmt.Sprintf("softwareupdate --download exited %d: %s", job.ExitCode, job.LogTail), true)
+	}
+
 	if !st.RemediationSuspended {
 		suspended, err := r.setSkipRemediation(ctx, oc.machine, true)
 		if err != nil {
@@ -294,7 +299,7 @@ func (r *RackAppleSiliconMachineReconciler) osUpdateDraining(ctx context.Context
 		st.RemediationSuspended = suspended
 	}
 
-	job, err := host.Job(ctx, bootstrap.OSUpdateJobInstall)
+	job, err = host.Job(ctx, bootstrap.OSUpdateJobInstall)
 	if err != nil {
 		return osUpdateWait(st, "could not read the install: %v", err)
 	}

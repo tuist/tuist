@@ -331,7 +331,7 @@ spec:
                       type: string
                     phase:
                       description: |-
-                        Phase is one of Preparing, Downloading, Draining, Installing, Converging,
+                        Phase is one of Preparing, Draining, Downloading, Installing, Converging,
                         Succeeded or Failed.
                       type: string
                     phaseStartedAt:
