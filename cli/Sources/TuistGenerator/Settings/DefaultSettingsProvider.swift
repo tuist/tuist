@@ -50,6 +50,9 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
     private static let essentialTargetSettings: Set<String> = [
         "SDKROOT",
         "CODE_SIGN_IDENTITY",
+        "CODE_SIGNING_REQUIRED",
+        "CODE_SIGNING_ALLOWED",
+        "PROVISIONING_PROFILE",
         "LD_RUNPATH_SEARCH_PATHS",
         "ONLY_ACTIVE_ARCH",
         "SWIFT_OPTIMIZATION_LEVEL",
@@ -290,6 +293,10 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
             return [
                 "ONLY_ACTIVE_ARCH": "YES",
                 "SKIP_INSTALL": "YES",
+                "CODE_SIGN_IDENTITY": "",
+                "PROVISIONING_PROFILE": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+                "CODE_SIGNING_ALLOWED": "NO",
             ]
         } else {
             return [:]
