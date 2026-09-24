@@ -87,8 +87,6 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > **Prefix mapping on Xcode 27 and later**
 >
 > On Xcode 27 and later, `tuist setup cache` also prints `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. They make compilation cache keys independent of where the project and `DerivedData` live. Add them as user-defined build settings. Enabling them changes every cache key, so the next build populates the cache again. `tuist generate` sets them for you when `enableCaching` is on.
->
-> `tuist generate` also sets `SWIFT_OTHER_PREFIX_MAPPINGS` and `CLANG_OTHER_PREFIX_MAPPINGS`. They map the directory that contains your workspace and the Swift package manager directory that holds your external dependencies, `Tuist/.build` by default. Checkouts of the same repository at different paths, such as git worktrees, then share cache keys for external packages and for sources outside a project's own directory.
 
 > [!NOTE]
 > **Generated Projects**
@@ -180,7 +178,7 @@ Compilation cache settings aren't part of <.localized_link href="/guides/feature
 > [!NOTE]
 > **Prefix mapping settings are hashed**
 >
-> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes. `SWIFT_OTHER_PREFIX_MAPPINGS` and `CLANG_OTHER_PREFIX_MAPPINGS` are hashed too. The workspace directory they refer to is kept in `TUIST_PREFIX_MAPPING_WORKSPACE_DIR`, which isn't hashed, so checkouts of the same repository at different paths keep the same hashes.
+> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
 
 ### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
 
