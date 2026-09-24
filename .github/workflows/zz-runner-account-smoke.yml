@@ -57,3 +57,14 @@ jobs:
           osascript -e 'with timeout of 20 seconds' -e 'tell application "Finder" to get name of startup disk' -e 'end timeout' || echo "FAILED"
           sleep 1; kill $stream || true
           grep -a -E 'Prompting|AUTHREQ_ATTRIBUTION.*Finder|responsible_path|access request result|indirect object|csreq|failed|error' /tmp/tcc.log | grep -v -E 'ListenEvent|ScreenCapture' | cut -c1-330 | head -20
+
+      - name: create-dmg end to end
+        run: |
+          set -euo pipefail
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg >/dev/null 2>&1
+          mkdir -p /tmp/app/Diag.app/Contents/MacOS
+          printf '#!/bin/sh\n' > /tmp/app/Diag.app/Contents/MacOS/Diag && chmod +x /tmp/app/Diag.app/Contents/MacOS/Diag
+          rm -f /tmp/Diag-out.dmg
+          start=$(date +%s)
+          create-dmg --window-size 605 363 --icon Diag.app 139 161 --app-drop-link 467 161 --volname Diag /tmp/Diag-out.dmg /tmp/app
+          echo "create-dmg took $(( $(date +%s) - start ))s"
