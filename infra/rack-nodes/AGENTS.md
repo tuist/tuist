@@ -109,6 +109,15 @@ kubectl get racklinuxhost -o wide -w
 kubectl describe racklinuxhost ber1-edge-b
 ```
 
+**Retiring a host**, or renaming one, is removing it from `rackLinuxFleet.hosts`
+and then deleting what the chart keeps (`helm.sh/resource-policy: keep`), in
+this order: scale its role's MachineDeployment down once the host is off the
+tailnet (the host controller scales a pool back up while a host is connected),
+which deletes its Machine and Node; delete its `RackLinuxHost`; then delete its
+tailnet device. While the device exists the host reads as installed; without
+it, a `RackLinuxHost` still carrying the `bootMAC` would publish an install for
+a box that may now be another host. Its key in `<fleet>-console` goes last.
+
 **The console password** of each host is in the `<fleet>-console` Secret, under
 the host's name, minted with its first netboot install and kept across
 reinstalls.
