@@ -74,8 +74,8 @@
   }
   & [data-part="table-toolbar"] {
     display: flex;
-    align-items: center;
     flex-wrap: wrap;
+    align-items: center;
     gap: var(--noora-spacing-6);
   }
   & [data-part="filters"] {
