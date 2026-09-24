@@ -1,12 +1,14 @@
 # Tuist Elixir integration
 
 This independently published Hex package provides `mix tuist.login` with browser,
-email/password, and continuous integration authentication, and `mix tuist.test`
+email/password, and continuous integration authentication, `mix tuist.test`
 which installs an ExUnit formatter and posts a test-run payload to
-`POST /api/projects/:acc/:proj/tests` with `build_system: "elixir"`. It shares
-the Tuist credential file and uses the command line tool's refresh lock path.
-Compile analytics (`mix tuist.compile`) land in a separate release. Server
-ingestion and dashboard presentation belong in `server/`.
+`POST /api/projects/:acc/:proj/tests` with `build_system: "mix"`, and
+`mix tuist.compile` which attaches an after-compiler hook to Mix's Elixir and
+app compilers and posts a compile record with per-diagnostic granularity to
+`POST /api/projects/:acc/:proj/mix/builds`. It shares the Tuist credential
+file and uses the command line tool's refresh lock path. Server ingestion and
+dashboard presentation belong in `server/`.
 
 - `lib/tuist_ex/analytics/contract.ex` carries the wire contract version the
   plugin was built against. Bump it whenever the payload gains a required field

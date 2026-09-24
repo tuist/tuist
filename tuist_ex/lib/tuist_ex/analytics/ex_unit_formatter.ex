@@ -40,14 +40,22 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
 
   def handle_cast({:suite_finished, times}, state) do
     duration_ms = suite_duration_ms(times, state.monotonic_start_ns)
-    payload = build_payload(Enum.reverse(state.tests), duration_ms, state.ran_at)
 
-    case state.submit.(payload, state.opts) do
-      :ok ->
-        :ok
+    try do
+      payload = build_payload(Enum.reverse(state.tests), duration_ms, state.ran_at)
 
-      {:error, reason} ->
-        state.shell.("tuist analytics: failed to submit test run: #{inspect(reason)}")
+      case state.submit.(payload, state.opts) do
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          state.shell.("tuist analytics: failed to submit test run: #{inspect(reason)}")
+      end
+    rescue
+      exception ->
+        state.shell.(
+          "tuist analytics: failed to build test payload: #{Exception.message(exception)}"
+        )
     end
 
     {:noreply, state}
@@ -182,7 +190,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     %{
       id: uuidv4(),
       contract_version: Contract.version(),
-      build_system: "elixir",
+      build_system: "mix",
       duration: duration_ms,
       ran_at: DateTime.to_iso8601(ran_at),
       is_ci: Env.ci?(),

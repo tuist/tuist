@@ -102,8 +102,8 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
 
     send_lifecycle(pid, events)
 
-    assert_receive {:submitted, payload}
-    assert payload.build_system == "elixir"
+    assert_receive {:submitted, payload}, 2000
+    assert payload.build_system == "mix"
     assert payload.contract_version
     assert payload.duration == 5
     assert payload.status == "failure"
@@ -154,7 +154,7 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
 
     Enum.each(events, &GenServer.cast(pid, &1))
 
-    assert_receive {:submitted, payload}
+    assert_receive {:submitted, payload}, 2000
     assert [module] = payload.test_modules
     assert module.status == "success"
 
@@ -177,7 +177,7 @@ defmodule TuistEx.Analytics.ExUnitFormatterTest do
     GenServer.cast(pid, {:test_finished, new_test([])})
     GenServer.cast(pid, {:suite_finished, %{run: 1_000}})
 
-    assert_receive {:shell, message}
+    assert_receive {:shell, message}, 2000
     assert message =~ "failed to submit"
 
     :ok = GenServer.stop(pid)
