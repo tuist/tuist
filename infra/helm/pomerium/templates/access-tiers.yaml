@@ -408,6 +408,12 @@ subjects:
 #   * rackapplesiliconmachines + rackhosts update/patch: set the one-shot
 #     tuist.dev/os-update and tuist.dev/power-action annotations. Not /status:
 #     a rack host's quarantine clears by expiring.
+#   * racklinuxhosts update/patch — set the tuist.dev/reinstall annotation that
+#     netboots a rack Linux host into a fresh install, and correct a host's
+#     bootMAC. delete — retire a host the chart no longer declares: the chart
+#     keeps a RackLinuxHost it drops (helm.sh/resource-policy: keep), so
+#     without it a retired box's inventory stays behind, still claiming its
+#     bootMAC. No create: which boxes a rack has is the chart's.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -430,6 +436,9 @@ rules:
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["rackapplesiliconmachines", "rackhosts"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["racklinuxhosts"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch", "update", "patch", "delete"]
