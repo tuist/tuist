@@ -334,7 +334,6 @@ defmodule AtlasWeb.Router do
     # move.
     get "/mcps/:server_name/authorize", MCPOAuthController, :authorize
     get "/mcps/:server_name/callback", MCPOAuthController, :callback
-    get "/mcps/:server_name/operator-grant", MCPOAuthController, :operator_grant
     get "/slack/install", SlackInstallController, :new
     get "/slack/install/callback", SlackInstallController, :callback
     delete "/logout", AuthController, :delete

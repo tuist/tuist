@@ -226,7 +226,6 @@ defmodule Atlas.MCP.Proxy do
           headers: normalize_headers(get_config(raw, :headers, [])),
           read_only: truthy?(get_config(raw, :read_only, false)),
           tool_allowlist: normalize_scopes(get_config(raw, :tool_allowlist, [])),
-          operator_grant_header: get_config(raw, :operator_grant_header),
           atlas_identity_header: get_config(raw, :atlas_identity_header),
           bearer_token: bearer_token,
           receive_timeout: normalize_timeout(get_config(raw, :receive_timeout, 15_000))
@@ -355,129 +354,6 @@ defmodule Atlas.MCP.Proxy do
         })
       end
     end)
-    |> offer_operator_grant(server, conn)
-  end
-
-  # A refusal nobody can act on is a dead end. The upstream knows which account
-  # owns the record and says so; the operator knows why they are looking. This
-  # is the only place both are in hand, so it is where the refusal becomes the
-  # request that would lift it.
-  #
-  # Only when the user holds no usable grant — someone whose grant is for
-  # another account, or whose call failed for an unrelated reason, is told
-  # nothing new.
-  defp offer_operator_grant({:ok, %{"isError" => true} = result}, %Server{operator_grant_header: header} = server, %{
-         assigns: %{current_user: user}
-       })
-       when is_binary(header) do
-    with {:ok, account_handle} <- refused_account(result),
-         true <- offer_needed?(user, server.name, account_handle),
-         {:ok, offer} <- MCPContext.start_operator_grant_request(user, server.name, account_handle) do
-      {:ok,
-       result
-       |> append_text(grant_offer(account_handle, offer.url))
-       |> put_grant_meta(server, account_handle, offer)}
-    else
-      _ -> {:ok, result}
-    end
-  end
-
-  defp offer_operator_grant(result, _server, _conn), do: result
-
-  # Holding a grant is not the same as holding the right one. Grants name a
-  # single account, so an operator part-way through a shift that touches two
-  # customers has a live grant and still cannot read the second — asking
-  # whether one exists at all would leave exactly that person at the dead end
-  # this offer removes. One grant per user per server already treats moving
-  # accounts as a replacement, so offering here matches what storing it does.
-  defp offer_needed?(user, server_name, refused_handle) do
-    case MCPContext.proxyable_operator_grant(user, server_name) do
-      nil -> true
-      %{account_handle: held} -> String.downcase(held) != String.downcase(refused_handle)
-    end
-  end
-
-  # The wording is the upstream's, pinned by a test on its side. Failing to
-  # match costs the link, not the refusal.
-  @refused_account ~r/It belongs to the account "([a-zA-Z0-9-]+)"\./
-
-  defp refused_account(%{"content" => content}) when is_list(content) do
-    content
-    |> Enum.find_value(fn
-      %{"type" => "text", "text" => text} when is_binary(text) ->
-        case Regex.run(@refused_account, text) do
-          [_full, handle] -> handle
-          _ -> nil
-        end
-
-      _ ->
-        nil
-    end)
-    |> case do
-      nil -> :error
-      handle -> {:ok, handle}
-    end
-  end
-
-  defp refused_account(_result), do: :error
-
-  defp append_text(%{"content" => content} = result, text) when is_list(content) do
-    %{result | "content" => content ++ [%{"type" => "text", "text" => text}]}
-  end
-
-  defp append_text(result, _text), do: result
-
-  # The account is stated rather than assumed: this text is reached by way of
-  # customer data, so the handle is named for a person to check before they
-  # justify anything.
-  defp grant_offer(account_handle, url) do
-    "No operator grant for #{account_handle} is stored for this session. " <>
-      "To investigate this account, open #{url} and state why access is needed. " <>
-      "The grant is stored on return and this call will then succeed. " <>
-      "Confirm the account named on that form is the customer you mean to look at."
-  end
-
-  # The sentence above addresses whoever reads the transcript; this addresses
-  # whatever renders it. Relaying a link is left to a model noticing prose,
-  # which is the part of this hand-off that fails quietly, so the same offer
-  # goes out in a shape a client can act on: show the round trip as an
-  # affordance, then retry the call the person was already making.
-  #
-  # `_meta` is the specification's extension point and unknown keys are ignored,
-  # so a client that does not read this is no worse off than before. The prose
-  # therefore stays rather than being replaced by it.
-  #
-  # This stands in for `URLElicitationRequiredError` (-32042), which the
-  # 2025-11-25 revision added for this exact hand-off: a `url` to send someone
-  # to, an `elicitationId` tying the return to the request that caused it, and a
-  # `notifications/elicitation/complete` telling the client the out-of-band step
-  # finished. `requestUrl` and `state` below are the first two under other
-  # names; nothing here replaces the third, so a client still learns the grant
-  # landed by retrying. Atlas negotiates 2025-06-18 and emcp implements neither
-  # elicitation nor any server-to-client message, so this cannot be sent yet.
-  # When it can, this function is a deletion rather than a migration.
-  #
-  # Step-up authorization (SEP-835) is the wrong tool for this and worth not
-  # reaching for: it challenges the scopes of the client's own token at this
-  # server, whereas what is missing here is Atlas' credential to an upstream.
-  @grant_meta_key "atlas/operatorGrant"
-  @grant_required_code "operator_grant_required"
-
-  defp put_grant_meta(result, %Server{} = server, account_handle, offer) do
-    grant = %{
-      "code" => @grant_required_code,
-      "server" => server.name,
-      "account" => account_handle,
-      "requestUrl" => offer.url,
-      "state" => offer.state,
-      "expiresAt" => DateTime.to_iso8601(offer.expires_at),
-      # Nothing about the call was wrong, only the credential behind it, so the
-      # same arguments succeed once the grant is stored. A client that retries
-      # on its own needs to be told that much.
-      "retryable" => true
-    }
-
-    Map.put(result, "_meta", Map.put(result["_meta"] || %{}, @grant_meta_key, grant))
   end
 
   # Two independent filters, both fail-closed.
@@ -643,7 +519,6 @@ defmodule Atlas.MCP.Proxy do
       |> put_default_header("accept", "application/json, text/event-stream")
       |> put_default_header("mcp-protocol-version", @protocol_version)
       |> maybe_put_header("mcp-session-id", session_id)
-      |> maybe_put_header(server.operator_grant_header, operator_grant_token(server, conn))
       |> maybe_put_header(server.atlas_identity_header, atlas_identity_token(server, conn))
 
     with {:ok, auth_token} <- auth_token(server, conn) do
@@ -651,27 +526,6 @@ defmodule Atlas.MCP.Proxy do
       {:ok, maybe_put_auth(request, auth_token)}
     end
   end
-
-  # An operator grant elevates the upstream session beyond the user's own
-  # memberships, so it travels per user and per request — never from static
-  # config, which every session would share. Its absence is not an error: most
-  # requests are for data the user can already read, and the upstream refuses
-  # anything else on its own.
-  #
-  # Only a read-tier grant is forwarded, so what the upstream will do for this
-  # request is bounded by the credential rather than by which tools this proxy
-  # happens to expose. Dropping an admin grant degrades the request to the
-  # user's own memberships, which is the direction worth failing in.
-  defp operator_grant_token(%Server{operator_grant_header: nil}, _conn), do: nil
-
-  defp operator_grant_token(%Server{} = server, %{assigns: %{current_user: user}}) do
-    case MCPContext.proxyable_operator_grant(user, server.name) do
-      %{token: token} -> token
-      nil -> nil
-    end
-  end
-
-  defp operator_grant_token(_server, _conn), do: nil
 
   # Tells the upstream the call came through Atlas, which audits every proxied
   # tool call; the Tuist server lets operators read customer accounts only on
