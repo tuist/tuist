@@ -2662,15 +2662,17 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 # path at once.
 #
 # pf is first-match-wins across 'quick' rules, so the pass lines
-# MUST stay above the block.
+# MUST stay above the block. They use 'flags any' so a session that
+# was already open when pf was enabled gets state instead of hitting
+# the block; the default 'flags S/SA' only admits a new SYN.
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
 table <vm_ssh_sources> persist { 192.168.64.0/22 }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
-pass in quick on lo0 proto tcp to any port 22 keep state
-pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+pass in quick on lo0 proto tcp to any port 22 flags any keep state
+pass in quick proto tcp from <ssh_allowed> to any port 22 flags any keep state
 
 # A Tart VM's egress arrives inbound on the vmnet bridge before it is
 # routed and NAT'd out, so the catch-all block below also swallows every
@@ -2678,7 +2680,7 @@ pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
 # listener, not the workload's outbound reach: VMs keep :22 to the
 # internet, but not to the host or a sibling VM.
 block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
-pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state
+pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state
 
 block drop in quick proto tcp to any port 22
 PFCONF
