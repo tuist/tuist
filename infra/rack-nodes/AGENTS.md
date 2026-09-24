@@ -64,7 +64,7 @@ signed chain (shim, then network GRUB) cannot be used on the MS-01: GRUB's UEFI
 network driver cannot send a packet through its Intel network driver ("couldn't
 send network packet" on both i226 ports), so it never reads its menu.
 
-An edge serves the segment from its i226-V (ber1-mgmt port 48 for `ber1-edge`,
+An edge serves the segment from its i226-V (ber1-mgmt port 48 for `ber1-edge-a`,
 47 for `ber1-edge-b`), not its i226-LM: an i226-LM with vPro never puts a DHCP
 offer it sends on the wire, while the daemon logs it and a capture on the host
 shows it. An edge's i226-LM carries only AMT, and the host leaves it down.
@@ -135,8 +135,8 @@ a site has no other edge, so it is installed from a stick, and so is any host
 when both edges are down:
 
 ```
-mise run rack:write-install-usb /dev/disk4 --host ber1-edge
-mise run rack:write-install-usb --host ber1-edge --output ber1-edge.iso
+mise run rack:write-install-usb /dev/disk4 --host ber1-edge-a
+mise run rack:write-install-usb --host ber1-edge-a --output ber1-edge-a.iso
 ```
 
 It needs `op` signed in (it reads the vault `tuist-k8s-<env>`), `xorriso`, and
@@ -209,7 +209,7 @@ The rack moves to production by moving its inventory: the hosts and
 `rackLinuxFleet.boot` go from `values-managed-staging.yaml` to
 `values-managed-production.yaml`, the `TAILSCALE_RACK_NODES` item goes to the
 `tuist-k8s-production` vault, the ACL grants `tag:tuist-k8s-production` what it
-grants `tag:tuist-k8s-staging` for the rack tags, `ber1-edge` is reinstalled from
+grants `tag:tuist-k8s-staging` for the rack tags, `ber1-edge-a` is reinstalled from
 a stick written with `--env production`, and the other hosts, `ber1-edge-b`
 included, are reinstalled by annotation once it is up. Production's Cilium must exclude
 `cilium.io/no-schedule=true` first (`infra/k8s/mgmt/bootstrap/cilium-values.yaml`);

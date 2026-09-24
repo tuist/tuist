@@ -11,7 +11,7 @@ if [ "$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
 fi
 ip link set enp87s0 up
 case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
-  ber1-edge) vrrp_address=10.255.255.1/29 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
+  ber1-edge-a) vrrp_address=10.255.255.1/29 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
   ber1-edge-b) vrrp_address=10.255.255.2/29 uplinks="enp2s0f1np1 enp2s0f0np0" ;;
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac

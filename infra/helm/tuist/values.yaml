@@ -1742,7 +1742,7 @@ rackLinuxFleet:
   #       - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
   roles: {}
 
-  #   - name: ber1-edge        # hostname, tailnet name and Node name
+  #   - name: ber1-edge-a        # hostname, tailnet name and Node name
   #     role: edge             # edge | services | storage
   #     tailnetTags: [tag:tuist-rack-edge]
   #     site: ber1

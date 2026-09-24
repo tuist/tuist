@@ -195,7 +195,7 @@ spec:
   ports:
     - port: 25
       purpose: data
-      peer: ber1-edge
+      peer: ber1-edge-a
       detail: edge/sfp28-1
     - port: 26
       purpose: data

@@ -376,7 +376,7 @@ STUB
 
 @test "the port map merges node links with the switch's own ports" {
     run fleet_port_map "$SITE_FILE" ber1-tor-b
-    [[ "$output" == *"25"*"data"*"ber1-edge"*"edge/sfp28-1"* ]]
+    [[ "$output" == *"25"*"data"*"ber1-edge-a"*"edge/sfp28-1"* ]]
     [[ "$output" == *"32"*"isl"*"ber1-tor-a"* ]]
 }
 
@@ -414,7 +414,7 @@ STUB
 @test "the model expresses a dual-homed node and a single-homed one" {
     # Data links only: every x86 node also has a management link, and being
     # dual-homed is about which ToRs carry its traffic.
-    for edge in ber1-edge ber1-edge-b; do
+    for edge in ber1-edge-a ber1-edge-b; do
         run jq -r --arg n "$edge" '[.nodes[] | select(.name == $n) | .links[] | select(.purpose == "data") | .switch] | sort | join(",")' "$SITE_FILE"
         [ "$output" = "ber1-tor-a,ber1-tor-b" ]
     done
@@ -460,7 +460,7 @@ STUB
     # AMT. Recording a management link on it is how a node ends up patched into
     # the wrong hole with nothing to show for it until the node needs recovering.
     site="$BATS_TEST_TMPDIR/wrongnic.json"
-    jq '(.nodes[] | select(.name == "ber1-edge") | .links[] | select(.purpose == "management") | .nic) = "i226-v"' \
+    jq '(.nodes[] | select(.name == "ber1-edge-a") | .links[] | select(.purpose == "management") | .nic) = "i226-v"' \
         "$SITE_FILE" > "$site"
     run fleet_check_node_interfaces "$site"
     [ "$status" -ne 0 ]
@@ -470,7 +470,7 @@ STUB
 
 @test "a link on an interface the hardware does not have is rejected" {
     site="$BATS_TEST_TMPDIR/ghostnic.json"
-    jq '(.nodes[] | select(.name == "ber1-edge") | .links[0].nic) = "sfp28-9"' "$SITE_FILE" > "$site"
+    jq '(.nodes[] | select(.name == "ber1-edge-a") | .links[0].nic) = "sfp28-9"' "$SITE_FILE" > "$site"
     run fleet_check_node_interfaces "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"sfp28-9"* ]]
@@ -482,7 +482,7 @@ STUB
 }
 
 @test "an out-of-band path through a ToR is rejected" {
-    # ber1-mgmt uplinks to ber1-edge directly and never through a ToR, so a
+    # ber1-mgmt uplinks to ber1-edge-a directly and never through a ToR, so a
     # management link landing on a ToR would put out-of-band access behind the
     # thing it exists to recover.
     site="$BATS_TEST_TMPDIR/oobviator.json"
@@ -513,7 +513,7 @@ STUB
 @test "only the edges have a second copper link to the management switch, from their i226-V" {
     run jq -c '[.nodes[] | {name, link: (.links[] | select(.switch == "ber1-mgmt" and .purpose != "management"))} |
         {name, nic: .link.nic, port: .link.port, purpose: .link.purpose}]' "$SITE_FILE"
-    [ "$output" = '[{"name":"ber1-edge","nic":"i226-v","port":48,"purpose":"edge"},{"name":"ber1-edge-b","nic":"i226-v","port":47,"purpose":"edge"}]' ]
+    [ "$output" = '[{"name":"ber1-edge-a","nic":"i226-v","port":48,"purpose":"edge"},{"name":"ber1-edge-b","nic":"i226-v","port":47,"purpose":"edge"}]' ]
 }
 
 @test "the cable schedule has a row for every cable, power included, with the ones still to plug planned" {
@@ -1080,7 +1080,7 @@ mini_referencing() {
 @test "the object carries the port map, so the cluster sees what is plugged in" {
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-tor-b"
     [[ "$output" == *"port: 25"* ]]
-    [[ "$output" == *"peer: ber1-edge"* ]]
+    [[ "$output" == *"peer: ber1-edge-a"* ]]
     [[ "$output" == *"purpose: isl"* ]]
 }
 
@@ -2047,13 +2047,13 @@ ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
 
 @test "the jump comes from the site definition, for the devices behind the edge" {
     run jq -r '.management.edge.ssh as $j | .devices[] | select(.behind_edge and $j) | "\(.mgmt_address) \($j)"' "$SITE_FILE"
-    [ "$output" = "192.168.0.13 tuist@ber1-edge" ]
+    [ "$output" = "192.168.0.13 tuist@ber1-edge-a" ]
 }
 
 # --- the edge node's files for the rack-edge chart ---------------------------
 
 # The rendered management path run under sh, the way the pod runs it, against an
-# `ip` shaped like ber1-edge's (two uplinks carrying default routes) and an nft
+# `ip` shaped like ber1-edge-a's (two uplinks carrying default routes) and an nft
 # that keeps what it loads. FAKE_DEFAULT_DEV adds a default route on another
 # device; FAKE_FORWARD is what /proc/sys/net/ipv4/ip_forward reads; FAKE_ADDRS
 # is what `ip -o -4 addr show` lists; FAKE_LINKS names the links `ip link show`
@@ -2104,11 +2104,11 @@ STUB
     [[ "$output" != *"ip route replace"* ]]
 }
 
-@test "each edge's keepalived holds every floating address, prefers ber1-edge, and talks to the other edge alone" {
+@test "each edge's keepalived holds every floating address, prefers ber1-edge-a, and talks to the other edge alone" {
     source "$FLEET_ROOT/lib/edge.sh"
-    run fleet_edge_keepalived "$SITE_FILE" ber1-edge
+    run fleet_edge_keepalived "$SITE_FILE" ber1-edge-a
     [ "$status" -eq 0 ]
-    [[ "$output" == *"router_id ber1-edge"* ]]
+    [[ "$output" == *"router_id ber1-edge-a"* ]]
     [[ "$output" == *"interface vrrp0"* ]]
     [[ "$output" == *"priority 150"* ]]
     [[ "$output" == *"unicast_src_ip 10.255.255.1"* ]]
@@ -2175,7 +2175,7 @@ STUB
     jq '.management.edge.vrrp.members |= map(select(.node != "ber1-edge-b"))' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"members are ber1-edge, but the site's edges are ber1-edge, ber1-edge-b"* ]]
+    [[ "$output" == *"members are ber1-edge-a, but the site's edges are ber1-edge-a, ber1-edge-b"* ]]
     jq '.management.edge.vrrp.members[1].address = "10.255.254.2"' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
@@ -2192,7 +2192,7 @@ STUB
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"management.edge.wan has an address but no vlan"* ]]
-    jq '.management.edge.vrrp.members[0].node = "ber1-edge;reboot"' "$SITE_FILE" > "$site"
+    jq '.management.edge.vrrp.members[0].node = "ber1-edge-a;reboot"' "$SITE_FILE" > "$site"
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
 }
@@ -2239,7 +2239,7 @@ STUB
     bin="$BATS_TEST_TMPDIR/edge-run"
     edge_run_stub "$bin"
     fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge sh "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
     run cat "$bin/log"
     [[ "${lines[0]}" == "ip link set enp87s0 up" ]]
@@ -2289,7 +2289,7 @@ STUB
     [[ "$output" == *"enp87s0 carries this node's default route"* ]]
     [ ! -s "$bin/log" ]
     # a route on a VLAN of the port is not the port itself
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0.10 NODE_NAME=ber1-edge sh "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0.10 NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
 }
 
@@ -2313,7 +2313,7 @@ STUB
 5: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0
 2: enp2s0f0np0    inet 192.168.0.157/24 brd 192.168.0.255 scope global dynamic enp2s0f0np0
 3: enp87s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp87s0'
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_ADDRS="$addrs" NODE_NAME=ber1-edge sh "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_ADDRS="$addrs" NODE_NAME=ber1-edge-a sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
     run cat "$bin/log"
     [[ "$output" == *"ip addr del 192.168.0.10/24 dev enp89s0"* ]]
@@ -2893,7 +2893,7 @@ STUB
 }
 
 # --via: serving from a Linux machine over SSH. The ssh stub runs the remote
-# command here, against an `ip` shaped like ber1-edge: two default routes on its
+# command here, against an `ip` shaped like ber1-edge-a: two default routes on its
 # SFP+ ports, and enp89s0 addressed on the isolated segment.
 ztp_via_stub() {
     local dir="$1"
@@ -2915,7 +2915,7 @@ case "$*" in
     "link show dev enp89s0"|"link show dev enp2s0f1np1") echo "5: $4: <BROADCAST,UP>";;
     "link show dev "*) exit 1;;
     "-4 -o addr show dev enp89s0")
-        # the switch-side /32 first, as ber1-edge lists them
+        # the switch-side /32 first, as ber1-edge-a lists them
         echo "5: enp89s0    inet 192.168.0.10/32 scope global enp89s0"
         echo "5: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0";;
 esac
@@ -2952,7 +2952,7 @@ STUB
 
 @test "the edge node hands the switches behind it their site address and their controller" {
     source "$FLEET_ROOT/lib/edge.sh"
-    run fleet_edge_keepalived "$SITE_FILE" ber1-edge
+    run fleet_edge_keepalived "$SITE_FILE" ber1-edge-a
     [[ "$output" == *"192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
     run fleet_edge_path "$SITE_FILE"
     # replies to a known switch go to its MAC, since the SG3452 ignores broadcast ones
@@ -3047,7 +3047,7 @@ STUB
 }
 
 @test "--via stops dnsmasq and removes the files on the server when this end is killed outright" {
-    # What happened on ber1-edge: this end was killed, no trap ran, and dnsmasq
+    # What happened on ber1-edge-a: this end was killed, no trap ran, and dnsmasq
     # kept serving with the password still on disk.
     bin="$BATS_TEST_TMPDIR/via4"
     ztp_via_stub "$bin"

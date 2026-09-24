@@ -13,7 +13,7 @@
     "netmask": "255.255.255.0",
     "gateway": "192.168.0.1",
     "edge": {
-      "ssh": "tuist@ber1-edge",
+      "ssh": "tuist@ber1-edge-a",
       "interface": "enp87s0",
       "address": "192.168.0.10",
       "provisioning": "192.168.50.1/24",
@@ -23,7 +23,7 @@
         "prefix": "10.255.255.0/29",
         "members": [
           {
-            "node": "ber1-edge",
+            "node": "ber1-edge-a",
             "address": "10.255.255.1"
           },
           {
@@ -115,7 +115,7 @@
       "credential_item": "ber1-mgmt switch admin",
       "console_baud": 38400,
       "apply_order": 3,
-      "apply_note": "There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.",
+      "apply_note": "There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to the edges and never through a ToR, so a ToR change cannot isolate it.",
       "ports": {},
       "mac": "a8:29:48:fe:b4:be",
       "behind_edge": true,
@@ -144,7 +144,7 @@
   },
   "nodes": [
     {
-      "name": "ber1-edge",
+      "name": "ber1-edge-a",
       "role": "edge",
       "note": "Dual-homed, one SFP+ DAC to each ToR, on an Intel X710 that takes TL-SM5220 DACs. The preferred of the two edges: it holds the floating addresses whenever it is up.",
       "links": [
@@ -207,7 +207,7 @@
     {
       "name": "ber1-edge-b",
       "role": "edge",
-      "note": "The second edge, standby to ber1-edge, on the other ATS chain. Dual-homed like it: the ToR A DAC is the one bought for ber1-store-b, lent until that node arrives in November, when a replacement has to come with it.",
+      "note": "The second edge, standby to ber1-edge-a, on the other ATS chain. Dual-homed like it: the ToR A DAC is the one bought for ber1-store-b, lent until that node arrives in November, when a replacement has to come with it.",
       "links": [
         {
           "switch": "ber1-tor-b",
@@ -426,7 +426,7 @@
     "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band.",
     "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs, one Mindfactory order not yet placed, so every power appliance is planned. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
     "sensors": "Environmental probes are not on the network. They chain off a PDU's USB port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links.",
-    "ports": "On each ToR, ports 1-23 are for Mac minis, 24 is ber1-tor-a's router uplink, 25-31 are for the x86 nodes and 32 is the ISL. An x86 node takes the same port number on every ToR it reaches: ber1-edge 25, ber1-edge-b 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1, and the edges' i226-V ports come last, ber1-edge on 48 and ber1-edge-b on 47. Those serve the segment from whichever edge holds its floating addresses: its DHCP, the netboot and the switches' path to the controller. They are ports of their own because an i226-LM with vPro never puts a DHCP offer it sends on the wire (measured on ber1-edge on 2026-09-24, and a known Intel defect), so an edge cannot serve from the socket that carries its AMT."
+    "ports": "On each ToR, ports 1-23 are for Mac minis, 24 is ber1-tor-a's router uplink, 25-31 are for the x86 nodes and 32 is the ISL. An x86 node takes the same port number on every ToR it reaches: ber1-edge-a 25, ber1-edge-b 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1, and the edges' i226-V ports come last, ber1-edge-a on 48 and ber1-edge-b on 47. Those serve the segment from whichever edge holds its floating addresses: its DHCP, the netboot and the switches' path to the controller. They are ports of their own because an i226-LM with vPro never puts a DHCP offer it sends on the wire (measured on ber1-edge on 2026-09-24, and a known Intel defect), so an edge cannot serve from the socket that carries its AMT."
   },
   "kubernetes": {
     "namespace": "tuist-staging"

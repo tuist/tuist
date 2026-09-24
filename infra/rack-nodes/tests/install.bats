@@ -38,7 +38,7 @@ EOF
   chmod +x "$BIN/op" "$BIN/curl"
   PATH="$BIN:$PATH"
 
-  HOST_JSON='{"name":"ber1-edge","role":"edge","sshUser":"tuist","tailnetTags":["tag:tuist-rack-edge"],"vault":"tuist-k8s-staging","sshItem":"BER1_FLEET_SSH","tailscaleItem":"TAILSCALE_RACK_NODES"}'
+  HOST_JSON='{"name":"ber1-edge-a","role":"edge","sshUser":"tuist","tailnetTags":["tag:tuist-rack-edge"],"vault":"tuist-k8s-staging","sshItem":"BER1_FLEET_SSH","tailscaleItem":"TAILSCALE_RACK_NODES"}'
   printf 'ssh-ed25519 AAAAFLEET fleet\nssh-ed25519 AAAAHUMAN human\n' >"$BATS_TEST_TMPDIR/keys"
   printf 'tskey-auth-kTEST1CNTRL-abc\n' >"$BATS_TEST_TMPDIR/tailnet-key"
   printf 'console-password\n' >"$BATS_TEST_TMPDIR/password"
@@ -49,7 +49,7 @@ render() {
 }
 
 @test "the host comes from the env's chart values" {
-  run rack_host_json staging ber1-edge
+  run rack_host_json staging ber1-edge-a
   [ "$status" -eq 0 ]
   [ "$(jq -r '.role' <<<"$output")" = edge ]
   [ "$(jq -c '.tailnetTags' <<<"$output")" = '["tag:tuist-rack-edge"]' ]
@@ -65,7 +65,7 @@ render() {
 }
 
 @test "the join key is single-use, pre-authorized, persistent and tagged" {
-  run mint_tailnet_key tuist-k8s-staging TAILSCALE_RACK_NODES '["tag:tuist-rack-edge"]' 24 ber1-edge
+  run mint_tailnet_key tuist-k8s-staging TAILSCALE_RACK_NODES '["tag:tuist-rack-edge"]' 24 ber1-edge-a
   [ "$status" -eq 0 ]
   [ "$output" = "$(printf 'kTEST1CNTRL\ttskey-auth-kTEST1CNTRL-abc')" ]
   body="$(grep -o '{"capabilities".*}' "$CURL_LOG")"
@@ -74,7 +74,7 @@ render() {
 }
 
 @test "the OAuth secret and the bearer token never reach curl's arguments" {
-  run mint_tailnet_key tuist-k8s-staging TAILSCALE_RACK_NODES '["tag:tuist-rack-edge"]' 24 ber1-edge
+  run mint_tailnet_key tuist-k8s-staging TAILSCALE_RACK_NODES '["tag:tuist-rack-edge"]' 24 ber1-edge-a
   [ "$status" -eq 0 ]
   if grep '^ARGS' "$CURL_LOG" | grep -qE 'very-secret|tok-1'; then false; fi
   grep '^STDIN' "$CURL_LOG" | grep -q 'very-secret'
@@ -84,7 +84,7 @@ render() {
   run render
   [ "$status" -eq 0 ]
   seed="$BATS_TEST_TMPDIR/seed/user-data"
-  [ "$(yq -r '.autoinstall.identity.hostname' "$seed")" = ber1-edge ]
+  [ "$(yq -r '.autoinstall.identity.hostname' "$seed")" = ber1-edge-a ]
   [ "$(yq -r '.autoinstall.identity.username' "$seed")" = tuist ]
   [ "$(yq -r '.autoinstall.ssh.allow-pw' "$seed")" = false ]
   [ "$(yq -r '.autoinstall.ssh.authorized-keys | length' "$seed")" = 2 ]
@@ -158,6 +158,6 @@ render() {
   seed="$BATS_TEST_TMPDIR/seed/user-data"
   [[ "$(yq -r '.autoinstall.identity.password' "$seed")" == '$6$'* ]]
   if grep -q console-password "$seed"; then false; fi
-  [ "$(cat "$BATS_TEST_TMPDIR/seed/meta-data")" = "$(printf 'instance-id: ber1-edge-ktest1cntrl\nlocal-hostname: ber1-edge')" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/seed/meta-data")" = "$(printf 'instance-id: ber1-edge-a-ktest1cntrl\nlocal-hostname: ber1-edge-a')" ]
   [ -f "$BATS_TEST_TMPDIR/seed/vendor-data" ]
 }

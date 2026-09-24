@@ -320,7 +320,7 @@ whoever edits the site next:
   management link, and it goes to `ber1-mgmt`; a node whose hardware declares
   none has zero
 
-The third matters because `ber1-mgmt` uplinks to `ber1-edge` directly and never
+The third matters because `ber1-mgmt` uplinks to the edges directly and never
 through a ToR. A management link landing on a ToR would put out-of-band access
 behind the thing it exists to recover.
 
@@ -370,7 +370,7 @@ have, and no port may exceed what the model has. All three are checked on every
 render, because a rack grows by editing this data.
 
 The model expresses a node's links individually rather than as "which ToR", so
-dual-homing is just a second link. The two edges, `ber1-edge` and `ber1-edge-b`,
+dual-homing is just a second link. The two edges, `ber1-edge-a` and `ber1-edge-b`,
 each have one DAC to each ToR. `ber1-edge-b`'s ToR A DAC is the one bought for
 `ber1-store-b`, lent until that node arrives in November, when a replacement
 has to come with it.
@@ -696,16 +696,16 @@ is in the data center. Where that stands on 2026-09-23:
   switch whose MAC an object names, writes the management address and the
   rest of the render through the Open API, and reports status. Deployed by
   `omada-deployment.yml`. All three objects now say `managedBy: controller`.
-- **The edge node is a node.** `ber1-edge` is a `RackLinuxMachine` of staging:
-  installed from a stick, on the tailnet by itself, joined and kept converged
-  by the operator ([`infra/rack-nodes`](../rack-nodes/AGENTS.md)). The
+- **The edge nodes are nodes.** `ber1-edge-a` and `ber1-edge-b` are
+  `RackLinuxMachine`s of staging, each netbooted from the other, on the tailnet
+  by themselves, joined and kept converged by the operator ([`infra/rack-nodes`](../rack-nodes/AGENTS.md)). The
   switches' path and their DHCP run there as the rack-edge DaemonSet; see "The
-  edge node" below. A reboot of `ber1-edge` brought the path and DHCP back from
-  the pod within half a minute of boot.
+  edge nodes" below. A reboot of the first edge brought the path and DHCP back
+  from the pod within half a minute of boot.
 
 ## The edge nodes
 
-A site has two edge nodes, active and standby: `ber1-edge`, which is preferred,
+A site has two edge nodes, active and standby: `ber1-edge-a`, which is preferred,
 and `ber1-edge-b`. Each is a node of the rack's cluster that runs one pod: the
 rack-edge DaemonSet ([`infra/helm/rack-edge`](../helm/rack-edge)), deployed with
 the Omada controller by `omada-deployment.yml`. The pod runs what
@@ -819,9 +819,9 @@ node, which is the rack-edge pod. To serve Auto Install from there, take the
 pod off the node and put it back afterwards:
 
 ```
-kubectl label node ber1-edge tuist.dev/rack-edge-
-mise run rack:ztp ber1-mgmt --via tuist@ber1-edge --interface enp89s0
-kubectl label node ber1-edge tuist.dev/rack-edge=ber1
+kubectl label node ber1-edge-a tuist.dev/rack-edge-
+mise run rack:ztp ber1-mgmt --via tuist@ber1-edge-a --interface enp89s0
+kubectl label node ber1-edge-a tuist.dev/rack-edge=ber1
 ```
 
 The provisioning address stays on the port while the pod is away.
@@ -892,7 +892,7 @@ Switches are applied one at a time, in the order `apply_order` gives:
    it.
 3. `ber1-mgmt`, alone and last. There is one management switch and it is the
    path to JetKVM, AMT and ATS monitoring at once. Its uplinks go straight to
-   `ber1-edge` and never through a ToR, so a ToR change cannot isolate it.
+   the edges and never through a ToR, so a ToR change cannot isolate it.
 
 This is a property of the rack's roles, not of a runbook, so it lives in the
 site definition. `apply` reads it and refuses a switch whose predecessors have
@@ -939,8 +939,8 @@ and `rack:fleet drift` is what enforces it: it re-reads every switch, compares
 against the render, and exits non-zero when they disagree.
 
 It is not wired to a scheduler yet. The only sensible host is one with
-management-VLAN reach that runs repo-checked-out jobs, which today means
-`ber1-edge`, and the x86 nodes are out of scope for this change. Until then it
+management-VLAN reach that runs repo-checked-out jobs, which today means an
+edge node, and the x86 nodes are out of scope for this change. Until then it
 is a command to run.
 
 ## What the render deliberately does not own
@@ -1141,7 +1141,7 @@ arbitrary line into its negation is the same class of guess.
   2006-01-01 after a reboot while NTP is not syncing, so `at <time>` fires at the
   wrong moment.
 - **A switch behind the edge node is reached through it.** `ber1-mgmt`'s only
-  uplink is `ber1-edge`'s port, so `management.edge` in the site definition
+  uplinks are the edges' ports, so `management.edge` in the site definition
   names the edge node and every fleet command dials the switch with a
   `ProxyCommand` through it; the switch key never leaves the operator's
   machine. The switch prints static routes after `lldp`, which is where the
