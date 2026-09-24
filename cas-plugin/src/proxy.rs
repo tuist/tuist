@@ -1007,6 +1007,22 @@ struct PendingFetch {
     contents: Option<Vec<u8>>,
 }
 
+/// Removes a running materialization's entry when it ends, including when it
+/// panics.
+struct RunningJob<'a> {
+    jobs: &'a Mutex<HashMap<u64, MaterializeJob>>,
+    id: u64,
+}
+
+impl Drop for RunningJob<'_> {
+    fn drop(&mut self) {
+        self.jobs
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(&self.id);
+    }
+}
+
 /// A value graph whose Hit was already answered; the fetch+store work runs on
 /// the materializer pool.
 struct MaterializeJob {
@@ -1374,19 +1390,21 @@ impl PathState {
         }
     }
 
-    /// Claims the store to release its handle, or `false` when a reopen or a
-    /// prune owns it or it is already released. A failed reopen's empty slot
-    /// can be claimed, so a store that is gone stops retrying its open.
-    fn claim_for_release(&self) -> bool {
+    /// Claims the store to release its handle, returning the state the claim
+    /// replaced, or `None` when a reopen or a prune owns it or it is already
+    /// released. A failed reopen's empty slot can be claimed, so a store that
+    /// is gone stops retrying its open.
+    fn claim_for_release(&self) -> Option<Reopen> {
         let mut binding = self.binding.lock().unwrap();
-        if !matches!(binding.reopen, Reopen::Idle | Reopen::Failed { .. }) {
-            return false;
+        let previous = binding.reopen;
+        if !matches!(previous, Reopen::Idle | Reopen::Failed { .. }) {
+            return None;
         }
         binding.reopen = Reopen::InFlight {
             since: Instant::now(),
             stall_reported: false,
         };
-        true
+        Some(previous)
     }
 
     /// Disposes the handle the caller claimed with `claim_for_release`, leaving
@@ -1409,11 +1427,23 @@ impl PathState {
     }
 
     /// Releases the handle on a `cas-release` thread, unless something else
-    /// owns the slot or it is already released. The claim is taken here, so
-    /// resolves answer misses from now until the dispose ends, and the
-    /// maintenance loop never waits for a dispose that blocks.
-    fn start_release(&'static self, reason: String) {
-        if !self.claim_for_release() {
+    /// owns the slot, it is already released, or `busy` says work still needs
+    /// the store. The claim is taken here, so resolves answer misses from now
+    /// until the dispose ends, and the maintenance loop never waits for a
+    /// dispose that blocks.
+    ///
+    /// `busy` is asked again once the store is claimed. Work that starts after
+    /// that finds the store out of service and waits for its reopen, so nothing
+    /// can start between the answer and the dispose.
+    fn start_release(&'static self, reason: String, busy: impl Fn() -> bool) {
+        if busy() {
+            return;
+        }
+        let Some(previous) = self.claim_for_release() else {
+            return;
+        };
+        if busy() {
+            self.binding.lock().unwrap().reopen = previous;
             return;
         }
         let spawned = std::thread::Builder::new().name("cas-release".into()).spawn({
@@ -2392,8 +2422,10 @@ impl Proxy {
         }
         for cas_path in forgotten {
             let state = self.paths.lock().unwrap().get(&cas_path).copied();
+            // Its spool is empty, or it would not have been forgotten. A store
+            // still materializing is released by `reclaim_idle` once that ends.
             if let Some(state) = state {
-                state.start_release("the registry forgot it".into());
+                state.start_release("the registry forgot it".into(), || self.warming(&cas_path));
             }
         }
     }
@@ -3102,24 +3134,33 @@ impl Proxy {
         let Ok(id_bytes) = <[u8; 8]>::try_from(item) else {
             return;
         };
-        let job = self
-            .materialize_jobs
-            .lock()
-            .unwrap()
-            .remove(&u64::from_be_bytes(id_bytes));
-        let Some(job) = job else { return };
-        let Ok(state) = self.path_state(&job.cas_path) else {
+        let id = u64::from_be_bytes(id_bytes);
+        // The entry stays until the job ends, which is what keeps
+        // `reclaim_idle` from releasing the store while the job writes to it.
+        let taken = self.materialize_jobs.lock().unwrap().get_mut(&id).map(|job| {
+            let manifest = std::mem::take(&mut job.manifest);
+            (job.cas_path.clone(), job.remote.clone(), manifest, job.observed)
+        });
+        let Some((cas_path, remote, manifest, observed)) = taken else {
             return;
         };
-        // Its fetches would be stored nowhere. A store released because its
-        // directory went away or the registry forgot it drops the jobs still
-        // queued for it here.
-        if state.cas.read().unwrap().is_none() {
+        let _running = RunningJob {
+            jobs: &self.materialize_jobs,
+            id,
+        };
+        let Ok(state) = self.path_state(&cas_path) else {
             return;
+        };
+        // A store released while idle reopens for its queued work. One whose
+        // directory is gone, or that the registry forgot, drops it: its fetches
+        // would be stored nowhere.
+        if !self.check_generation(state) {
+            let registered = self.path_instance.lock().unwrap().contains_key(&cas_path);
+            if !registered || !self.await_service(state) {
+                return;
+            }
         }
-        if let Err(message) =
-            self.materialize_manifest(&job.remote, state, &job.manifest, job.observed)
-        {
+        if let Err(message) = self.materialize_manifest(&remote, state, &manifest, observed) {
             crate::log_line(&format!("background materialize failed: {message}"));
         }
     }
@@ -4020,8 +4061,9 @@ impl Proxy {
     /// proxy's lifetime ends up pinning one per leaf of the store, and a machine
     /// with enough stores runs out of vnodes, which the kernel reports as "Too
     /// many open files in system". An idle store keeps its handle while its
-    /// spool owes publications, which the sweep reads from it, or while a warm
-    /// still has jobs queued for it; a store whose directory is gone never does.
+    /// spool owes publications, which the sweep reads from it, or while
+    /// materialization jobs are queued or running for it; a store whose
+    /// directory is gone never does.
     /// The PathState shell (now-empty maps and fetch instructions) is retained,
     /// and the next use of the path reopens the store.
     pub fn reclaim_idle(&self) {
@@ -4047,14 +4089,17 @@ impl Proxy {
             state.invalidate();
             state.publish_cache.lock().unwrap().clear();
             if cas_dir_gone {
-                state.start_release("its store directory is gone".into());
-            } else if spool_records(&cas_path) == 0 && !self.warming(&cas_path) {
-                state.start_release(format!("unused for {}m", idle.as_secs() / 60));
+                state.start_release("its store directory is gone".into(), || false);
+            } else {
+                state.start_release(format!("unused for {}m", idle.as_secs() / 60), || {
+                    spool_records(&cas_path) > 0 || self.warming(&cas_path)
+                });
             }
         }
     }
 
-    /// Whether materialization jobs are queued for the store at `cas_path`.
+    /// Whether materialization jobs are queued or running for the store at
+    /// `cas_path`.
     fn warming(&self, cas_path: &str) -> bool {
         self.materialize_jobs
             .lock()
@@ -11694,6 +11739,46 @@ mod tests {
             assert!(Instant::now() < deadline, "the warm reopens the store and drains");
             std::thread::sleep(Duration::from_millis(2));
         }
+    }
+
+    // A warm stamps no use, so a store that went idle before its warm started
+    // is idle for the whole of it. Its running jobs write through the handle.
+    #[test]
+    fn an_idle_store_keeps_its_handle_while_a_materialization_runs() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("release-materializing");
+        let store = store_in(&dir, "store");
+        // Accepts the connection and never answers, so the job's blob read
+        // stays in flight for the rest of the test.
+        let silent = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let proxy = Proxy::new(
+            format!("http://{}", silent.local_addr().unwrap()),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.0.join("registry")),
+            None,
+        );
+        let state = proxy.path_state(&store).unwrap();
+        let [absent] = digests_for([b"materialized-while-idle"]);
+        let remote = proxy.remote_for("tuist/app");
+        let manifest = vec![ManifestEntry {
+            llcas_digest: absent,
+            blob: reapi::Digest {
+                hash: "0".repeat(64),
+                size_bytes: 1,
+            },
+            contents: None,
+        }];
+
+        proxy.enqueue_materialize(state, &remote, manifest, state.gen_counter.load(Ordering::SeqCst));
+        let _connection = silent.accept().expect("the job reads its blob");
+        proxy.reclaim_idle_at(IDLE_RECLAIM + Duration::from_secs(1));
+
+        assert_eq!(state.binding.lock().unwrap().reopen, Reopen::Idle);
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(!store_is_unheld(&store), "the running job's store stays open");
     }
 
     // Pruning with no handle of ours on the store is what rotates it best, so
