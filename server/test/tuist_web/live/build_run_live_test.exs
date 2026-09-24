@@ -13,6 +13,7 @@ defmodule TuistWeb.BuildRunLiveTest do
   alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
@@ -367,6 +368,24 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     # Then
     assert has_element?(lv, "h1", "App")
+  end
+
+  test "links the build run to its pull request", %{conn: conn, organization: organization} do
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: organization.account.id,
+        vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+      )
+
+    {:ok, build_run} = RunsFixtures.build_fixture(project_id: project.id, git_ref: "refs/pull/23958/merge")
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    assert has_element?(
+             lv,
+             ~s(a[data-part="pull-request-button"][href="https://github.com/tuist/tuist/pull/23958"]),
+             "PR #23958"
+           )
   end
 
   test "shows download button when build run has result bundle", %{
