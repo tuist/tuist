@@ -381,6 +381,7 @@ defmodule Tuist.Kura.Regions do
     # account settings via `selectable/0`, or through a placement proposal.
     %{
       id: "sa-west",
+      aws_region: "sa-east-1",
       display_name: "South America West",
       cluster_id: "sa-west-1",
       ingress_class_name: "kura-sa-west",
@@ -418,6 +419,7 @@ defmodule Tuist.Kura.Regions do
     # available.
     %{
       id: "eu-east",
+      aws_region: "eu-central-1",
       display_name: "EU East",
       cluster_id: "eu-east-1",
       ingress_class_name: "kura-eu-east",
@@ -447,6 +449,7 @@ defmodule Tuist.Kura.Regions do
     # Hillsboro reaches it well.
     %{
       id: "us-central",
+      aws_region: "us-east-2",
       display_name: "US Central",
       cluster_id: "us-central-1",
       ingress_class_name: "kura-us-central",

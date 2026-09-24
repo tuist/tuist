@@ -132,8 +132,8 @@ defmodule Tuist.Kura.StableEndpoint do
   def retirement_ready?(server, account) do
     stable_host = host(account)
 
-    if enabled_for_account?(account) and stable_host != nil and supported?(Regions.get(server.region)) do
-      ready?(server, stable_host)
+    if enabled_for_account?(account) and stable_host != nil do
+      supported?(Regions.get(server.region)) and ready?(server, stable_host)
     else
       true
     end

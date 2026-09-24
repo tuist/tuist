@@ -115,6 +115,25 @@ not consult the flag; reverting canary requires a code/configuration rollback.
 
 ## Lifetimes and failure behavior
 
+All eight managed public metros have distinct AWS latency-region mappings:
+
+| Managed region | AWS latency region |
+| --- | --- |
+| `eu-west` | `eu-west-3` |
+| `eu-east` | `eu-central-1` |
+| `us-east` | `us-east-1` |
+| `us-central` | `us-east-2` |
+| `us-west` | `us-west-2` |
+| `ca-east` | `ca-central-1` |
+| `ap-southeast` | `ap-southeast-1` |
+| `sa-west` | `sa-east-1` |
+
+These are steering approximations for the external metros, not measurements of
+their actual latency. [AWS documents this limitation](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html);
+compare steering with client measurements before global rollout. Catalog tests
+require every public host-network region to have a distinct mapping. Private
+runner regions remain excluded.
+
 The CR keeps the regional host, stable host, and advertising intent separate.
 The controller probes `/ready` by connecting directly to the primary's box on
 443 with the stable SNI and normal public certificate verification. Only then
@@ -126,7 +145,8 @@ reuse expired data.
 
 Placement role changes do not enter this intent: demotion leaves records alone.
 A retiring instance keeps advertising until the lifecycle can start its drain,
-which waits for a surviving stable endpoint. Drain-pending instances withdraw
+which waits for a supported, fresh stable-ready survivor. An unsupported region
+cannot authorize retirement for a stable-enabled account. Drain-pending instances withdraw
 immediately on the next intent sync, while ingress and certificate rendering
 continue. The CR finalizer covers deletion as well as ordinary retirement.
 

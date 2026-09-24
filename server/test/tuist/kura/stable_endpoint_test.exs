@@ -108,14 +108,23 @@ defmodule Tuist.Kura.StableEndpointTest do
     assert StableEndpoint.host(%Account{name: "acme"}) == nil
   end
 
-  test "all five managed metros have distinct AWS tags; private regions opt out" do
+  test "every managed public metro has a distinct AWS tag; private regions opt out" do
     mapping = %{
       "eu-west" => "eu-west-3",
       "us-east" => "us-east-1",
       "us-west" => "us-west-2",
       "ca-east" => "ca-central-1",
-      "ap-southeast" => "ap-southeast-1"
+      "ap-southeast" => "ap-southeast-1",
+      "sa-west" => "sa-east-1",
+      "eu-east" => "eu-central-1",
+      "us-central" => "us-east-2"
     }
+
+    public_regions =
+      Enum.filter(Regions.all(), &(not Regions.private?(&1) and &1.provisioner_config[:gateway] == :host_network))
+
+    assert Enum.sort(Enum.map(public_regions, & &1.id)) == Enum.sort(Map.keys(mapping))
+    assert length(Enum.uniq(Map.values(mapping))) == map_size(mapping)
 
     for {id, aws} <- mapping do
       assert StableEndpoint.supported?(Regions.get(id))
@@ -125,6 +134,35 @@ defmodule Tuist.Kura.StableEndpointTest do
     for region <- Enum.filter(Regions.all(), &Regions.private?/1) do
       refute StableEndpoint.supported?(region)
     end
+  end
+
+  for region <- ["sa-west", "eu-east", "us-central"] do
+    test "stable hand-out includes ready placements in #{region}" do
+      region = unquote(region)
+      account = AccountsFixtures.user_fixture().account
+      {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+      {:ok, _} = PlacerRegions.put_secondary(account, region)
+      source = KuraFixtures.active_server_fixture(account, region: "eu-west")
+      destination = %{KuraFixtures.active_server_fixture(account, region: region) | account: account}
+      urls = [source.url, destination.url]
+      observe(source, account)
+      assert StableEndpoint.resolve(account, urls) == urls
+
+      observe(destination, account)
+      assert StableEndpoint.resolve(account, urls) == ["https://#{account.name}.cache.tuist.dev"]
+      assert StableEndpoint.intent(destination, Regions.get(region))["stableAdvertise"]
+    end
+  end
+
+  test "unsupported survivors cannot authorize retirement of a stable endpoint" do
+    account = AccountsFixtures.user_fixture().account
+    private_region = Enum.find(Regions.all(), &Regions.private?/1)
+    server = %Server{region: private_region.id}
+
+    refute StableEndpoint.retirement_ready?(server, account)
+
+    stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, [for: ^account] -> false end)
+    assert StableEndpoint.retirement_ready?(server, account)
   end
 
   test "collapse waits for every desired region and keeps custom URLs" do

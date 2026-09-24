@@ -1554,6 +1554,43 @@ defmodule Tuist.Kura.LifecycleTest do
       assert reload(destination).status == :active
     end
 
+    for region <- ["sa-west", "eu-east", "us-central"] do
+      test "moving a stable account to #{region} retains the source until DNS is ready" do
+        region = unquote(region)
+        stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> true end)
+        account = account(plan: :enterprise)
+        source = active_instance_in(account, "eu-west")
+        destination = active_instance_in(account, region)
+        {:ok, _} = PlacerRegions.put_primary(account, "eu-west")
+        {:ok, _} = PlacerRegions.put_primary(account, region)
+        {:ok, _} = PlacerRegions.mark_retiring(account, "eu-west")
+
+        Lifecycle.reconcile_placement_retirements()
+        assert reload(source).status == :active
+        assert StableEndpoint.intent(%{source | account: account}, Regions.get("eu-west"))["stableAdvertise"]
+
+        host = StableEndpoint.host(account)
+
+        StableEndpoint.observe(destination.region, destination.provisioner_node_ref, %{
+          "metadata" => %{"generation" => 1},
+          "spec" => %{"stableHost" => host, "stableAdvertise" => true},
+          "status" => %{
+            "stableEndpoint" => %{
+              "host" => host,
+              "ready" => true,
+              "observedGeneration" => 1,
+              "lastCheckedAt" => DateTime.to_iso8601(DateTime.utc_now())
+            }
+          }
+        })
+
+        Lifecycle.reconcile_placement_retirements()
+        assert reload(source).status == :drain_pending
+        assert reload(destination).status == :active
+        assert StableEndpoint.intent(%{destination | account: account}, Regions.get(region))["stableAdvertise"]
+      end
+    end
+
     test "skips a retiring region the catalog does not name" do
       # The rows can name a region this code has never heard of for the length
       # of a deploy that renames one. The instance there is still serving, and
