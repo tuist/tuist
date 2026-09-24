@@ -66,6 +66,13 @@ defmodule TuistWeb.OperatorGrant do
   @grant_header "x-tuist-operator-grant"
   @atlas_identity_header "x-tuist-atlas-identity"
 
+  @doc """
+  Request headers that carry live credentials: an operator grant, and Atlas'
+  ServiceAccount token (which also authenticates the internal Atlas API). Keep
+  them out of anything that records request headers.
+  """
+  def credential_headers, do: [@grant_header, @atlas_identity_header]
+
   # --- verification ------------------------------------------------------
 
   @doc """

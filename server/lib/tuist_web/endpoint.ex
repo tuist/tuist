@@ -161,14 +161,10 @@ defmodule TuistWeb.Endpoint do
   plug Plug.Session, @session_options
   plug TuistWeb.Router
 
-  # Sentry only scrubs authorization, authentication and cookie by default. These
-  # carry live credentials: an operator grant, and Atlas' ServiceAccount token,
-  # which also authenticates the internal Atlas API.
-  @sentry_scrubbed_headers ["x-tuist-operator-grant", "x-tuist-atlas-identity"]
-
+  # Sentry only scrubs authorization, authentication and cookie by default.
   def scrub_sentry_headers(conn) do
     conn
     |> Sentry.PlugContext.default_header_scrubber()
-    |> Map.drop(@sentry_scrubbed_headers)
+    |> Map.drop(TuistWeb.OperatorGrant.credential_headers())
   end
 end
