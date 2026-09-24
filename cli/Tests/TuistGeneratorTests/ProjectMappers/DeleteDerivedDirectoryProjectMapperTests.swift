@@ -1,54 +1,69 @@
-import Foundation
+import FileSystem
+import FileSystemTesting
+import Testing
 import TuistConstants
 import TuistCore
-import TuistSupport
 import XcodeGraph
-import XCTest
 @testable import TuistGenerator
-@testable import TuistTesting
 
-public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
-    var subject: DeleteDerivedDirectoryProjectMapper!
-
-    override public func setUp() {
-        super.setUp()
-        subject = DeleteDerivedDirectoryProjectMapper()
-    }
-
-    override public func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_map_returns_sideEffectsToDeleteDerivedDirectories() async throws {
-        // Given
-        let projectPath = try temporaryPath()
+struct DeleteDerivedDirectoryProjectMapperTests {
+    @Test(.inTemporaryDirectory) func map_preservesGeneratedInputsDuringEarlyCleanup() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)
-        let moduleMapsDirectory = derivedDirectory.appending(component: Constants.DerivedDirectory.moduleMaps)
-        let frameworkSearchPathsDirectory = derivedDirectory.appending(component: Constants.DerivedDirectory.frameworkSearchPaths)
-        let testPlansDirectory = derivedDirectory.appending(component: Constants.DerivedDirectory.testPlans)
-        let projectA = Project.test(path: projectPath)
-        try await fileSystem.makeDirectory(at: derivedDirectory)
-        try await fileSystem.makeDirectory(at: derivedDirectory.appending(component: "InfoPlists"))
-        try await fileSystem.makeDirectory(at: moduleMapsDirectory)
-        try await fileSystem.makeDirectory(at: frameworkSearchPathsDirectory)
-        try await fileSystem.makeDirectory(at: testPlansDirectory)
-        try await fileSystem.touch(testPlansDirectory.appending(component: "UnitTests.xctestplan"))
-        try await fileSystem.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
-        try await fileSystem.touch(moduleMapsDirectory.appending(component: "TargetA-deps.modulemap"))
-        try await fileSystem.touch(moduleMapsDirectory.appending(component: "StaleTarget-deps.modulemap"))
-        try await fileSystem.touch(frameworkSearchPathsDirectory.appending(component: "TargetA.resp"))
-        try await fileSystem.touch(frameworkSearchPathsDirectory.appending(component: "StaleTarget.resp"))
-
-        // When
-        let (_, sideEffects) = try await subject.map(project: projectA)
-
-        // Then
-        XCTAssertBetterEqual(
-            sideEffects.sorted(by: { $0.description < $1.description }),
-            [
-                .directory(.init(path: derivedDirectory.appending(component: "InfoPlists"), state: .absent)),
-            ].sorted(by: { $0.description < $1.description })
+        let fileSystem = FileSystem()
+        let preservedDirectories = [
+            Constants.DerivedDirectory.moduleMaps,
+            Constants.DerivedDirectory.frameworkSearchPaths,
+            Constants.DerivedDirectory.sources,
+            Constants.DerivedDirectory.infoPlists,
+            Constants.DerivedDirectory.entitlements,
+            Constants.DerivedDirectory.testPlans,
+        ]
+        for directory in preservedDirectories {
+            try await fileSystem.makeDirectory(at: derivedDirectory.appending(component: directory))
+        }
+        try await fileSystem.touch(
+            derivedDirectory
+                .appending(component: Constants.DerivedDirectory.testPlans)
+                .appending(component: "UnitTests.xctestplan")
         )
+        try await fileSystem.touch(derivedDirectory.appending(component: "TargetA.modulemap"))
+        let obsoleteDirectory = derivedDirectory.appending(component: "Obsolete")
+        try await fileSystem.makeDirectory(at: obsoleteDirectory)
+        let obsoleteFile = derivedDirectory.appending(component: "obsolete.txt")
+        try await fileSystem.touch(obsoleteFile)
+
+        let (_, sideEffects) = try await DeleteDerivedDirectoryProjectMapper().map(project: .test(path: projectPath))
+
+        #expect(sideEffects.count == 2)
+        #expect(sideEffects.contains(.directory(.init(path: obsoleteDirectory, state: .absent))))
+        #expect(sideEffects.contains(.file(.init(path: obsoleteFile, state: .absent))))
+    }
+
+    @Test(.inTemporaryDirectory, arguments: ["Sources", "InfoPlists", "Entitlements"], [false, true])
+    func map_unlinksPreservedDirectorySymlinks(directoryName: String, destinationExists: Bool) async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDirectory = projectPath.appending(component: Constants.DerivedDirectory.name)
+        let link = derivedDirectory.appending(component: directoryName)
+        let destination = projectPath.appending(component: "External")
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: derivedDirectory)
+        if destinationExists {
+            try await fileSystem.makeDirectory(at: destination)
+        }
+        try await fileSystem.createSymbolicLink(from: link, to: destination)
+
+        let (_, sideEffects) = try await DeleteDerivedDirectoryProjectMapper().map(project: .test(path: projectPath))
+
+        #expect(sideEffects == [.symbolicLink(.init(path: link, destination: destination, state: .absent))])
+        #expect(try await fileSystem.contentsOfDirectory(derivedDirectory).contains(link))
+    }
+
+    @Test(.inTemporaryDirectory) func map_withoutDerivedDirectoryHasNoSideEffects() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+
+        let (_, sideEffects) = try await DeleteDerivedDirectoryProjectMapper().map(project: .test(path: projectPath))
+
+        #expect(sideEffects.isEmpty)
     }
 }

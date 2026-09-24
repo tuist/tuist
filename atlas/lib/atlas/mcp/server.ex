@@ -1,7 +1,7 @@
 defmodule Atlas.MCP.Server do
   @moduledoc """
   Atlas MCP server. Exposes a set of tools that surface account
-  context (timeline events, contacts, invoices, account attention, overview summary) so
+  context (timeline events, contacts, invoices, nudges, overview summary) so
   external agents can compose follow-ups and draft emails locally with
   full context.
   """
@@ -11,10 +11,11 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.ActivateInsurancePolicy
-  alias Atlas.MCP.Tools.ActOnAccountAttentionSuggestion
   alias Atlas.MCP.Tools.ActOnBriefItem
   alias Atlas.MCP.Tools.AddAssetToInsurance
   alias Atlas.MCP.Tools.AddEmailAudienceSubscriber
+  alias Atlas.MCP.Tools.AddPOCScopeFeature
+  alias Atlas.MCP.Tools.AddPOCTimelineEntry
   alias Atlas.MCP.Tools.AddSpecComment
   alias Atlas.MCP.Tools.AddSupportThreadNote
   alias Atlas.MCP.Tools.AssignAsset
@@ -25,7 +26,9 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CancelInsurancePolicy
   alias Atlas.MCP.Tools.CheckLetterDelivery
   alias Atlas.MCP.Tools.CheckOutAirGappedLicense
+  alias Atlas.MCP.Tools.ClaimNudge
   alias Atlas.MCP.Tools.CompleteOutreachNextStep
+  alias Atlas.MCP.Tools.CompleteTask
   alias Atlas.MCP.Tools.ConfirmTaxCertificateDelivery
   alias Atlas.MCP.Tools.ConvertGTMOpportunity
   alias Atlas.MCP.Tools.CreateAccount
@@ -48,12 +51,14 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
   alias Atlas.MCP.Tools.CreateNote
+  alias Atlas.MCP.Tools.CreatePOC
   alias Atlas.MCP.Tools.CreatePostmortem
   alias Atlas.MCP.Tools.CreatePostmortemActionItem
   alias Atlas.MCP.Tools.CreateSocialChannelIdea
   alias Atlas.MCP.Tools.CreateSocialPostRevision
   alias Atlas.MCP.Tools.CreateSpec
   alias Atlas.MCP.Tools.CreateStripeDraftInvoice
+  alias Atlas.MCP.Tools.CreateTask
   alias Atlas.MCP.Tools.DecommissionDataCenter
   alias Atlas.MCP.Tools.DeleteAccountTerm
   alias Atlas.MCP.Tools.DeleteAsset
@@ -63,6 +68,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
+  alias Atlas.MCP.Tools.DeletePOC
+  alias Atlas.MCP.Tools.DeletePOCTimelineEntry
   alias Atlas.MCP.Tools.DeletePostmortem
   alias Atlas.MCP.Tools.DeletePostmortemActionItem
   alias Atlas.MCP.Tools.DeleteSocialChannelIdea
@@ -74,6 +81,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DetachDocumentFromFinancing
   alias Atlas.MCP.Tools.DetachDocumentFromInsuranceClaim
   alias Atlas.MCP.Tools.DetachDocumentFromInsurancePolicy
+  alias Atlas.MCP.Tools.DismissNudge
   alias Atlas.MCP.Tools.DismissOutreachNextStep
   alias Atlas.MCP.Tools.DisposeAsset
   alias Atlas.MCP.Tools.EditAssetMetadata
@@ -95,7 +103,6 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.FinanceDeleteTransactionAttachment
   alias Atlas.MCP.Tools.FinanceGetTransaction
   alias Atlas.MCP.Tools.FinanceListTransactionAttachments
-  alias Atlas.MCP.Tools.GenerateAccountAttentionSuggestions
   alias Atlas.MCP.Tools.GenerateEnterpriseContract
   alias Atlas.MCP.Tools.GenerateLeadershipBrief
   alias Atlas.MCP.Tools.GenerateOutreachNextStep
@@ -122,12 +129,16 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetFinancing
   alias Atlas.MCP.Tools.GetGTMOpportunity
   alias Atlas.MCP.Tools.GetInsurancePolicy
+  alias Atlas.MCP.Tools.GetMCPConnectionStatus
   alias Atlas.MCP.Tools.GetNote
+  alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
   alias Atlas.MCP.Tools.GetOutreachContact
   alias Atlas.MCP.Tools.GetOutreachNextStep
+  alias Atlas.MCP.Tools.GetPOC
   alias Atlas.MCP.Tools.GetPostmortem
   alias Atlas.MCP.Tools.GetPostmortemActionItem
   alias Atlas.MCP.Tools.GetProjectErrorDsn
+  alias Atlas.MCP.Tools.GetSentEmail
   alias Atlas.MCP.Tools.GetSocialChannelIdea
   alias Atlas.MCP.Tools.GetSocialPostRevision
   alias Atlas.MCP.Tools.GetSpec
@@ -138,7 +149,6 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.LinkAssetToInsuranceClaim
   alias Atlas.MCP.Tools.LinkProjectDomain
   alias Atlas.MCP.Tools.LinkProjectRepository
-  alias Atlas.MCP.Tools.ListAccountAttentionSuggestions
   alias Atlas.MCP.Tools.ListAccountContacts
   alias Atlas.MCP.Tools.ListAccountEvents
   alias Atlas.MCP.Tools.ListAccountFeatureInterests
@@ -146,6 +156,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListAccountIncidentContacts
   alias Atlas.MCP.Tools.ListAccountInvoices
   alias Atlas.MCP.Tools.ListAccountLetters
+  alias Atlas.MCP.Tools.ListAccountNudges
   alias Atlas.MCP.Tools.ListAccounts
   alias Atlas.MCP.Tools.ListAccountServiceLevels
   alias Atlas.MCP.Tools.ListAccountTerms
@@ -161,6 +172,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListDataCenters
   alias Atlas.MCP.Tools.ListDocuments
   alias Atlas.MCP.Tools.ListEmailAudiences
+  alias Atlas.MCP.Tools.ListEmailInbox
+  alias Atlas.MCP.Tools.ListEmailOutbox
   alias Atlas.MCP.Tools.ListEmailSubscribers
   alias Atlas.MCP.Tools.ListEngineeringDomains
   alias Atlas.MCP.Tools.ListEngineeringProjects
@@ -180,6 +193,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
+  alias Atlas.MCP.Tools.ListPOCs
   alias Atlas.MCP.Tools.ListPostmortemActionItems
   alias Atlas.MCP.Tools.ListPostmortems
   alias Atlas.MCP.Tools.ListProductTraces
@@ -188,6 +202,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListSpecComments
   alias Atlas.MCP.Tools.ListSpecs
   alias Atlas.MCP.Tools.ListSupportThreads
+  alias Atlas.MCP.Tools.ListTasks
   alias Atlas.MCP.Tools.ListTuistClickhouseTables
   alias Atlas.MCP.Tools.ListTuistPostgresTables
   alias Atlas.MCP.Tools.ListUpcomingRenewals
@@ -201,6 +216,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.NotifyGTMOpportunity
   alias Atlas.MCP.Tools.PlaceAssetInService
   alias Atlas.MCP.Tools.PrepareGTMOpportunityOutreach
+  alias Atlas.MCP.Tools.PublishPOC
   alias Atlas.MCP.Tools.QueryTuistClickhouse
   alias Atlas.MCP.Tools.QueryTuistPostgres
   alias Atlas.MCP.Tools.RecallMemory
@@ -213,7 +229,9 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RecordOutreachEvent
   alias Atlas.MCP.Tools.RecoverAsset
   alias Atlas.MCP.Tools.RejectOutreachCandidate
+  alias Atlas.MCP.Tools.ReleaseNudge
   alias Atlas.MCP.Tools.RemoveAssetFromInsurance
+  alias Atlas.MCP.Tools.RemovePOCScopeFeature
   alias Atlas.MCP.Tools.ReplyToSupportThread
   alias Atlas.MCP.Tools.RequestSpecReview
   alias Atlas.MCP.Tools.RequestTaxCertificateLetter
@@ -231,13 +249,17 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SearchDocuments
   alias Atlas.MCP.Tools.SearchNotes
   alias Atlas.MCP.Tools.SearchWeb
+  alias Atlas.MCP.Tools.SendAccountEmail
   alias Atlas.MCP.Tools.SendEmailBroadcast
+  alias Atlas.MCP.Tools.SendNudge
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
   alias Atlas.MCP.Tools.SetFinancingLines
+  alias Atlas.MCP.Tools.SetPOCContext
   alias Atlas.MCP.Tools.TerminateFinancing
   alias Atlas.MCP.Tools.UnlinkAssetFromInsuranceClaim
   alias Atlas.MCP.Tools.UnlinkProjectDomain
   alias Atlas.MCP.Tools.UnlinkProjectRepository
+  alias Atlas.MCP.Tools.UnpublishPOC
   alias Atlas.MCP.Tools.UnsubscribeEmailAudienceSubscriber
   alias Atlas.MCP.Tools.UpdateAccount
   alias Atlas.MCP.Tools.UpdateAccountTerm
@@ -248,6 +270,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateFeatureInterestAccountContext
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
   alias Atlas.MCP.Tools.UpdateNote
+  alias Atlas.MCP.Tools.UpdatePOC
+  alias Atlas.MCP.Tools.UpdatePOCTimelineEntry
   alias Atlas.MCP.Tools.UpdatePostmortem
   alias Atlas.MCP.Tools.UpdatePostmortemActionItem
   alias Atlas.MCP.Tools.UpdateSocialChannelIdea
@@ -255,6 +279,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateSpec
   alias Atlas.MCP.Tools.UpdateSpecComment
   alias Atlas.MCP.Tools.UpdateSupportThread
+  alias Atlas.MCP.Tools.UpdateTask
   alias Atlas.MCP.Tools.UploadPostalLetter
 
   @name "atlas"
@@ -286,15 +311,17 @@ defmodule Atlas.MCP.Server do
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.
   2. Call `get_account` to retrieve the customer identity, legal, billing, signatory, and commercial term fields. Prefer explicit values in the user's current request over pasted conversation context, and prefer both over older values stored on the account.
-  3. Call `list_contract_templates`, then `get_contract_template` for the appropriate official Word template. The latter attaches the binary template directly, so use that embedded resource instead of trying browser, desktop-control, or terminal hand-offs. Never create a substitute document from scratch.
+  3. Call `list_contract_templates`, then `get_contract_template` for the appropriate official Word template. The latter returns a signed `download_url` for the template; download the file from it before its `expires_at` rather than trying browser or desktop-control hand-offs. Never create a substitute document from scratch.
   4. If the user asks only for an order form, fetch only the appropriate order form rather than the full contract package. Use `order-form-tuist-hosted.docx` for a hosted deal and `order-form-self-hosted.docx` for a self-hosted deal. Ask the user when the hosting model cannot be determined from their request, conversation context, or the latest commercial term.
   5. Do not invent missing legal, billing, signatory, date, or renewal fields. Ask the user for required values that are absent from both their request and Atlas.
 
-  When account evidence may imply a useful next follow-up, call `generate_account_attention_suggestions`. Treat the result as a suggestion for review and use `list_account_attention_suggestions` to avoid repeating an unresolved or dismissed suggestion. Use `act_on_account_attention_suggestion` only after the user explicitly chooses to mark a suggestion done, snooze it, or dismiss it. Use `update_account` with `attention_context` when the user provides strategic account guidance, such as why a product capability is important to the relationship.
+  Signals detect the moments worth reaching out about (see the nudges pipeline in `Atlas.Nudges`) and drop cards into Slack for a human to claim. Use `list_account_nudges` to see the account's open and historical nudges, `claim_nudge` to take ownership of an open card, `send_nudge` to queue the drafted email, `release_nudge` to hand ownership back, and `dismiss_nudge` (with a required reason and optional `mute_days`) to close one out.
 
   For outbound prospecting, Apollo is only a search provider and Atlas is the source of truth. Use `search_apollo_outreach` to discover people, `list_outreach_candidates` to review the Atlas-owned queue, and `enroll_outreach_candidate` or `reject_outreach_candidate` to make an explicit decision. Do not treat Apollo saved contacts as outreach state. Use `get_outreach_next_step` to read Atlas's guided suggestion. Use `generate_outreach_next_step` when the user asks for a fresh analysis. Only call `complete_outreach_next_step` after the user confirms the action happened, and use `dismiss_outreach_next_step` with specific feedback when the suggestion is not useful. Atlas never sends LinkedIn invitations or messages automatically.
 
   For group email, Atlas owns subscribers, audiences, and delivery history. Use the email subscriber and audience tools to inspect or prepare recipients. Only call `send_email_broadcast` when the user explicitly asks to send or queue the broadcast, because it immediately snapshots current subscribed recipients and queues delivery.
+
+  For email to one person, use `send_account_email` rather than building an audience of one. It addresses a single recipient, either by `email` or through the account whose billing contact should receive it, and it is the only correct path for transactional mail such as a billing, pricing, or contract notice: it adds no unsubscribe footer and does not skip a recipient who left a marketing audience. It also queues delivery immediately, so only call it when the user explicitly asks to send.
 
   Use `list_briefs` and `get_brief` to understand leadership attention across domains. Treat brief items as suggested coordination moves, not authoritative facts; inspect their evidence classes. Use `act_on_brief_item` only when the user explicitly asks to own, acknowledge, resolve, rate, or suppress an item. Cross-domain claims require exact or explicitly verified links and at least two supporting domain records.
   """
@@ -432,6 +459,8 @@ defmodule Atlas.MCP.Server do
     DescribeTuistClickhouseTable
   ]
   @static_tools [
+    GetMCPConnectionStatus,
+    GetNudgeAnalyticsStatus,
     ListEngineeringProjects,
     GetEngineeringProject,
     CreateEngineeringProject,
@@ -506,6 +535,10 @@ defmodule Atlas.MCP.Server do
     AddEmailAudienceSubscriber,
     UnsubscribeEmailAudienceSubscriber,
     SendEmailBroadcast,
+    SendAccountEmail,
+    ListEmailInbox,
+    ListEmailOutbox,
+    GetSentEmail,
     FinanceAddTransactionAttachment,
     FinanceDeleteTransactionAttachment,
     FinanceGetTransaction,
@@ -517,6 +550,10 @@ defmodule Atlas.MCP.Server do
     AddSupportThreadNote,
     UpdateSupportThread,
     ListAccounts,
+    ListTasks,
+    CreateTask,
+    UpdateTask,
+    CompleteTask,
     ListUpcomingRenewals,
     CreateAccount,
     GetAccount,
@@ -541,8 +578,11 @@ defmodule Atlas.MCP.Server do
     ListAccountInvoices,
     CreateStripeDraftInvoice,
     EditStripeDraftInvoice,
-    ActOnAccountAttentionSuggestion,
-    ListAccountAttentionSuggestions,
+    ClaimNudge,
+    DismissNudge,
+    ReleaseNudge,
+    SendNudge,
+    ListAccountNudges,
     ListAccountServiceLevels,
     ListDocuments,
     GetDocument,
@@ -556,7 +596,6 @@ defmodule Atlas.MCP.Server do
     UpdateNote,
     UpdateAccount,
     MarkAccountNotAccount,
-    GenerateAccountAttentionSuggestions,
     CreateAccountNote,
     CreateContact,
     UpdateContact,
@@ -680,7 +719,20 @@ defmodule Atlas.MCP.Server do
     MarkFinancingPaidOff,
     ExercisePurchaseOption,
     ReturnFinancing,
-    TerminateFinancing
+    TerminateFinancing,
+    ListPOCs,
+    GetPOC,
+    CreatePOC,
+    UpdatePOC,
+    DeletePOC,
+    SetPOCContext,
+    AddPOCScopeFeature,
+    RemovePOCScopeFeature,
+    AddPOCTimelineEntry,
+    UpdatePOCTimelineEntry,
+    DeletePOCTimelineEntry,
+    PublishPOC,
+    UnpublishPOC
   ]
 
   def server do

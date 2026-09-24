@@ -95,6 +95,12 @@ env:
   # Customer-support activity belongs in its own channel, separate from the
   # operational notification stream. Add the Atlas Slack bot to this channel.
   ATLAS_SUPPORT_SLACK_CHANNEL_ID: "C0BSD8790F5"
+  # POC access request pings go to #customers. The default in
+  # Atlas.Accounts.POCs.Notifier is a by-name lookup, but that relies on the
+  # channel being tracked in Atlas' slack_channels table; the escape hatch is
+  # this explicit channel id, which we set so the ping doesn't depend on the
+  # bot having already seen the channel.
+  ATLAS_POC_ACCESS_SLACK_CHANNEL_ID: "C0B8KR3TRDW"
   # Default Slack channel for engineering error-issue alerts (new issue and
   # regression transitions from the issue coalescer, plus drop alerts).
   # Matches Hive prod's HIVE_ALERTS_SLACK_CHANNEL_ID so the alert stream
@@ -358,7 +364,10 @@ vector:
 # and configures per-environment resources and backups.
 clickhouse:
   enabled: true
-  replicaCount: 2
+  # Must stay 1: the pods do not replicate (no Keeper, plain MergeTree
+  # tables) and the headless Service spreads reads and writes across
+  # them, so a second pod splits the data. The template enforces this.
+  replicaCount: 1
   image:
     repository: clickhouse/clickhouse-server
     tag: "26.1.2.11"

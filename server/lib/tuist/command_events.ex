@@ -215,6 +215,13 @@ defmodule Tuist.CommandEvents do
   end
 
   def create_command_event(event, _opts \\ []) do
+    case Repo.one(from(p in Project, where: p.id == ^event.project_id, preload: :account)) do
+      nil -> {:error, :not_found}
+      project -> {:ok, insert_command_event(event, project)}
+    end
+  end
+
+  defp insert_command_event(event, project) do
     # Process the command arguments to be a string for both databases
     processed_event =
       Map.merge(event, %{
@@ -231,12 +238,9 @@ defmodule Tuist.CommandEvents do
     command_event = struct(Event, event_attrs)
     {:ok, _} = Event.Buffer.insert(command_event)
 
-    project = Repo.get!(Project, command_event.project_id)
-    account = Repo.get!(Account, project.account_id)
-
     Tuist.PubSub.broadcast(
       command_event,
-      "#{account.name}/#{project.name}",
+      "#{project.account.name}/#{project.name}",
       :command_event_created
     )
 

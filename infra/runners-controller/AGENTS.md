@@ -1263,3 +1263,37 @@ catalog from two sides.
 
 Follow-up: bake `e2fsprogs` into a custom `tuist-dind` image so
 the `apk add` on every Pod startup goes away.
+
+## Linux cache volumes
+
+Local reflink image clones are implemented in
+[`internal/cachevolumes`](internal/cachevolumes/AGENTS.md) and `cmd/cache-volumes`.
+They reuse macOS HEAD arbitration and object storage; custom volumes remain
+Linux-only. The agent image includes ext4/loop tooling, with no Ceph dependency.
+See [host setup and rollout](cache-volumes.md).
+RunnerPool `cacheVolumeRoot`/`cacheVolumeURL` enable UID-scoped host mounts in
+runner and DinD, guarded by Kata. Prefer the storage-readiness node label without
+requiring it: unavailable cache storage must not block ordinary Linux jobs. Incoming
+mount propagation must work through Kata. Staging has verified GitHub native and
+ordinary Docker jobs, Buildkite native commands, and GitLab shell jobs. Keep
+the remaining operational validation limits explicit in the rollout guide.
+Mount revision changes use the existing bounded idle rollout. No account-wide
+cache root or infrastructure credential crosses into workflow containers.
+
+Managed production enables custom volumes on normal deployment. The agent image
+ships the bounded filesystem provisioning script, invoked by an opt-in privileged
+init container in the host mount namespace. Existing/replacement nodes converge
+before the agent can advertise readiness. Provisioning reserves 200 GB, retains
+40 GB host headroom, and refuses nonempty paths, foreign mounts, symlinks, and
+size changes. Controller and agent share a release version; the component release
+tag is published only after both images exist.
+
+- Cache volume action distribution and implemented Buildkite/GitLab adapters are
+  documented in [cache-volume-integrations.md](cache-volume-integrations.md).
+  Do not enable provider allocation by removing the GitHub filter alone; require
+  verified provider/instance identity and publication policy first.
+
+The real cache-filesystem CI job runs on `ubuntu-latest`, outside Kata's minimal
+kernel, because the node agent is a host workload. Keep it a required image-build
+dependency. Manual branch image builds publish only commit tags; `latest` is
+reserved for main.

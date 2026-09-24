@@ -69,6 +69,7 @@ pub struct MetricsInner {
     action_cache_cascade_removed: Counter,
     reapi_chunking_events: Family<ReapiChunkingEventLabels, Counter>,
     reapi_chunking_bytes: Family<ReapiChunkingBytesLabels, Counter>,
+    reapi_inline_fallbacks: Counter,
     // Cumulative segment fsyncs (group-commit durability + rotation). Compared
     // against kura_artifact_writes_total, its rate shows how hard concurrent
     // writes batch their durability fsyncs (≪ 1 fsync per write under load).
@@ -148,6 +149,7 @@ pub struct MetricsInner {
     analytics_batch_duration: Family<AnalyticsRouteLabels, Histogram>,
     analytics_queue_depth: Gauge,
     analytics_queue_capacity: Gauge,
+    analytics_outbox_depth_entries: Gauge,
     analytics_circuit_state: Family<AnalyticsRouteLabels, Gauge>,
     analytics_circuit_transitions: Family<AnalyticsCircuitTransitionLabels, Counter>,
     segment_generation_counts: Family<SegmentGenerationLabels, Gauge>,
@@ -594,6 +596,7 @@ impl Metrics {
         let action_cache_cascade_removed = Counter::default();
         let reapi_chunking_events = Family::<ReapiChunkingEventLabels, Counter>::default();
         let reapi_chunking_bytes = Family::<ReapiChunkingBytesLabels, Counter>::default();
+        let reapi_inline_fallbacks = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_size_bytes =
@@ -724,6 +727,7 @@ impl Metrics {
             });
         let analytics_queue_depth = Gauge::default();
         let analytics_queue_capacity = Gauge::default();
+        let analytics_outbox_depth_entries = Gauge::default();
         let analytics_circuit_state = Family::<AnalyticsRouteLabels, Gauge>::default();
         let analytics_circuit_transitions =
             Family::<AnalyticsCircuitTransitionLabels, Counter>::default();
@@ -986,6 +990,11 @@ impl Metrics {
             "kura_reapi_chunking_events_total",
             "Content-defined chunking events by operation and bounded outcome",
             reapi_chunking_events.clone(),
+        );
+        registry.register(
+            "kura_reapi_inline_fallbacks_total",
+            "Optional output files left un-inlined because response materialization admission was refused",
+            reapi_inline_fallbacks.clone(),
         );
         registry.register(
             "kura_reapi_chunking_bytes_total",
@@ -1426,6 +1435,11 @@ impl Metrics {
             "kura_analytics_queue_capacity",
             "Configured capacity of the in-memory analytics queue",
             analytics_queue_capacity.clone(),
+        );
+        registry.register(
+            "kura_analytics_outbox_depth_entries",
+            "Analytics-outbox RocksDB column family entry count. Empty for the life of the release that declares the column family; goes non-zero when the follow-up producer PR routes cache analytics through it.",
+            analytics_outbox_depth_entries.clone(),
         );
         registry.register(
             "kura_analytics_circuit_state",
@@ -1872,6 +1886,7 @@ impl Metrics {
                 action_cache_cascade_removed,
                 reapi_chunking_events,
                 reapi_chunking_bytes,
+                reapi_inline_fallbacks,
                 artifact_read_bytes,
                 artifact_write_bytes,
                 artifact_write_size_bytes,
@@ -1961,6 +1976,7 @@ impl Metrics {
                 analytics_batch_duration,
                 analytics_queue_depth,
                 analytics_queue_capacity,
+                analytics_outbox_depth_entries,
                 analytics_circuit_state,
                 analytics_circuit_transitions,
                 segment_generation_counts,
@@ -2375,6 +2391,10 @@ impl Metrics {
                 outcome: outcome.to_owned(),
             })
             .inc();
+    }
+
+    pub fn record_reapi_inline_fallback(&self) {
+        self.reapi_inline_fallbacks.inc();
     }
 
     pub fn record_reapi_chunking_bytes(&self, kind: &str, bytes: u64) {
@@ -2918,6 +2938,14 @@ impl Metrics {
     pub fn update_analytics_queue(&self, capacity: usize, depth: usize) {
         self.analytics_queue_capacity.set(capacity as i64);
         self.analytics_queue_depth.set(depth as i64);
+    }
+
+    /// Publish the current number of entries sitting in the analytics
+    /// outbox column family. Called once at startup for now; the follow-up
+    /// outbox forwarder task refreshes it on every drain tick.
+    pub fn update_analytics_outbox_depth(&self, entries: usize) {
+        self.analytics_outbox_depth_entries
+            .set(i64::try_from(entries).unwrap_or(i64::MAX));
     }
 
     pub fn update_analytics_circuit_state(&self, pipeline: &str, state: i64) {
@@ -4567,6 +4595,7 @@ mod tests {
         metrics.record_analytics_batch("xcode", "ok", Duration::from_millis(7));
         metrics.update_analytics_circuit_state("xcode", 1);
         metrics.record_analytics_circuit_transition("xcode", "closed", "open");
+        metrics.update_analytics_outbox_depth(0);
         metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_process_resident_breakdown(768, 256);
@@ -4698,6 +4727,7 @@ mod tests {
         assert!(rendered.contains("kura_analytics_queue_capacity"));
         assert!(rendered.contains("kura_analytics_circuit_state"));
         assert!(rendered.contains("kura_analytics_circuit_transitions_total"));
+        assert!(rendered.contains("kura_analytics_outbox_depth_entries 0"));
         assert!(rendered.contains("kura_segment_generation_count"));
         assert!(rendered.contains("kura_process_resident_memory_bytes"));
         assert!(rendered.contains("kura_process_resident_anon_bytes"));

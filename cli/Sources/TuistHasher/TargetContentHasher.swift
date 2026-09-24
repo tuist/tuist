@@ -19,6 +19,7 @@ public protocol TargetContentHashing {
 }
 
 public struct TargetContentHash: Equatable {
+    public var binaryCacheFingerprints: [String: String] = [:]
     public let hash: String
     public let hashedPaths: [AbsolutePath: String]
     public let subhashes: TargetContentHashSubhashes
@@ -157,17 +158,16 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         )
 
         if let projectHash {
-            let stringsToHash =
-                [
-                    projectHash,
-                    graphTarget.target.name,
-                    graphTarget.target.product.rawValue,
-                    projectSettingsHash,
-                    settingsHash,
-                    dependenciesHash.hash,
-                    embeddedProductReferencesHash,
-                ].compactMap { $0 } + destinations + additionalStrings
-            let hash = try contentHasher.hash(stringsToHash)
+            let subhashes = TargetContentHashSubhashes(
+                dependencies: dependenciesHash.hash,
+                projectSettings: projectSettingsHash,
+                targetSettings: settingsHash,
+                additionalStrings: additionalStrings,
+                external: projectHash,
+                embeddedProductReferences: embeddedProductReferencesHash,
+                destinations: destinations
+            )
+            let hash = try hash(for: graphTarget, subhashes: subhashes)
 
             Logger.current.debug("""
             Target content hash for \(graphTarget.target.name) (external project): \(hash)
@@ -182,16 +182,6 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                 destinations: \(destinations.joined(separator: ", "))
                 additionalStrings: \(additionalStrings.joined(separator: ", "))
             """)
-
-            let subhashes = TargetContentHashSubhashes(
-                dependencies: dependenciesHash.hash,
-                projectSettings: projectSettingsHash,
-                targetSettings: settingsHash,
-                additionalStrings: additionalStrings,
-                external: projectHash,
-                embeddedProductReferences: embeddedProductReferencesHash,
-                destinations: destinations
-            )
 
             return TargetContentHash(
                 hash: hash,
@@ -314,35 +304,9 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
             ? nil
             : try contentHasher.hash(combinedBuildableFolderHashes)
 
-        var stringsToHash =
-            [
-                graphTarget.target.name,
-                graphTarget.target.product.rawValue,
-                graphTarget.target.bundleId,
-                graphTarget.target.productName,
-                dependenciesHash.hash,
-                sourcesHash,
-                resourcesHash,
-                copyFilesHash,
-                coreDataModelHash,
-                targetScriptsHash,
-                environmentHash,
-            ] + destinations + additionalStrings + destinationHashes
-
-        if let buildableFoldersHash {
-            stringsToHash.append(buildableFoldersHash)
-        }
-
-        if let additionalHashingInputsHash = additionalHashingInputsResult.hash {
-            stringsToHash.append(additionalHashingInputsHash)
-        }
-
-        stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
-
         let headersHash: String?
         if let headers = graphTarget.target.headers {
             headersHash = try await headersContentHasher.hash(headers: headers)
-            stringsToHash.append(headersHash!)
         } else {
             headersHash = nil
         }
@@ -350,12 +314,10 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         let deploymentTargetHash = try deploymentTargetContentHasher.hash(
             deploymentTargets: graphTarget.target.deploymentTargets
         )
-        stringsToHash.append(deploymentTargetHash)
 
         let infoPlistHash: String?
         if let infoPlist = graphTarget.target.infoPlist {
             infoPlistHash = try await plistContentHasher.hash(plist: .infoPlist(infoPlist))
-            stringsToHash.append(infoPlistHash!)
         } else {
             infoPlistHash = nil
         }
@@ -365,15 +327,8 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
             entitlementsHash = try await plistContentHasher.hash(
                 plist: .entitlements(entitlements)
             )
-            stringsToHash.append(entitlementsHash!)
         } else {
             entitlementsHash = nil
-        }
-
-        stringsToHash.append(projectSettingsHash)
-
-        if let settingsHash {
-            stringsToHash.append(settingsHash)
         }
 
         let foreignBuildHash: String?
@@ -389,15 +344,30 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         } else {
             foreignBuildHash = nil
         }
-        if let foreignBuildHash {
-            stringsToHash.append(foreignBuildHash)
-        }
-
-        if let embeddedProductReferencesHash {
-            stringsToHash.append(embeddedProductReferencesHash)
-        }
-
-        let hash = try contentHasher.hash(stringsToHash)
+        let subhashes = TargetContentHashSubhashes(
+            sources: sourcesHash,
+            resources: resourcesHash,
+            copyFiles: copyFilesHash,
+            coreDataModels: coreDataModelHash,
+            targetScripts: targetScriptsHash,
+            dependencies: dependenciesHash.hash,
+            environment: environmentHash,
+            headers: headersHash,
+            deploymentTarget: deploymentTargetHash,
+            infoPlist: infoPlistHash,
+            entitlements: entitlementsHash,
+            projectSettings: projectSettingsHash,
+            targetSettings: settingsHash,
+            buildableFolders: buildableFoldersHash,
+            additionalHashingInputs: additionalHashingInputsResult.hash,
+            additionalStrings: additionalStrings,
+            embeddedProductReferences: embeddedProductReferencesHash,
+            destinations: destinations,
+            foreignBuild: foreignBuildHash,
+            testDevice: destinationHashes.first,
+            testRuntime: destinationHashes.last
+        )
+        let hash = try hash(for: graphTarget, subhashes: subhashes)
 
         Logger.current.debug("""
         Target content hash for \(graphTarget.target.name): \(hash)
@@ -427,34 +397,68 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
             embeddedProductReferences: \(embeddedProductReferencesHash ?? "nil")
         """)
 
-        let subhashes = TargetContentHashSubhashes(
-            sources: sourcesHash,
-            resources: resourcesHash,
-            copyFiles: copyFilesHash,
-            coreDataModels: coreDataModelHash,
-            targetScripts: targetScriptsHash,
-            dependencies: dependenciesHash.hash,
-            environment: environmentHash,
-            headers: headersHash,
-            deploymentTarget: deploymentTargetHash,
-            infoPlist: infoPlistHash,
-            entitlements: entitlementsHash,
-            projectSettings: projectSettingsHash,
-            targetSettings: settingsHash,
-            buildableFolders: buildableFoldersHash,
-            additionalHashingInputs: additionalHashingInputsResult.hash,
-            additionalStrings: additionalStrings,
-            embeddedProductReferences: embeddedProductReferencesHash,
-            destinations: destinations,
-            foreignBuild: foreignBuildHash,
-            testDevice: destinationHashes.first,
-            testRuntime: destinationHashes.last
-        )
-
         return TargetContentHash(
             hash: hash,
             hashedPaths: hashedPaths,
             subhashes: subhashes
         )
+    }
+
+    /// Reuses components from the same target and graph, replacing only SDK-dependent inputs.
+    func fingerprint(
+        for graphTarget: GraphTarget,
+        reusing subhashes: TargetContentHashSubhashes,
+        hashedTargets: [GraphHashedTarget: String],
+        hashedPaths: [AbsolutePath: String],
+        additionalStrings: [String]
+    ) async throws -> (hash: String, hashedPaths: [AbsolutePath: String]) {
+        let dependencies = try await dependenciesContentHasher.hash(
+            graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths
+        )
+        let deploymentTarget = try subhashes.external == nil
+            ? deploymentTargetContentHasher.hash(deploymentTargets: graphTarget.target.deploymentTargets)
+            : nil
+        let hash = try hash(
+            for: graphTarget, subhashes: subhashes,
+            dependencies: dependencies.hash, deploymentTarget: deploymentTarget,
+            additionalStrings: additionalStrings, destinationHashes: []
+        )
+        return (hash, dependencies.hashedPaths)
+    }
+
+    private func hash(
+        for graphTarget: GraphTarget,
+        subhashes: TargetContentHashSubhashes,
+        dependencies: String? = nil,
+        deploymentTarget: String? = nil,
+        additionalStrings: [String]? = nil,
+        destinationHashes: [String]? = nil
+    ) throws -> String {
+        let target = graphTarget.target
+        let destinations = target.destinations.map(\.rawValue).sorted()
+        let additionalStrings = additionalStrings ?? subhashes.additionalStrings
+        if let projectHash = subhashes.external {
+            return try contentHasher.hash([
+                projectHash, target.name, target.product.rawValue,
+                subhashes.projectSettings, subhashes.targetSettings,
+                dependencies ?? subhashes.dependencies, subhashes.embeddedProductReferences,
+            ].compactMap { $0 } + destinations + additionalStrings)
+        }
+        var strings = [
+            target.name, target.product.rawValue, target.bundleId, target.productName,
+            dependencies ?? subhashes.dependencies,
+            subhashes.sources, subhashes.resources, subhashes.copyFiles,
+            subhashes.coreDataModels, subhashes.targetScripts, subhashes.environment,
+        ].compactMap { $0 } + destinations + additionalStrings
+        strings += destinationHashes ?? [subhashes.testDevice, subhashes.testRuntime].compactMap { $0 }
+        strings += [subhashes.buildableFolders, subhashes.additionalHashingInputs].compactMap { $0 }
+        // Destinations occur twice in existing local-target hashes; preserve cache compatibility.
+        strings += destinations
+        strings += [
+            subhashes.headers, deploymentTarget ?? subhashes.deploymentTarget,
+            subhashes.infoPlist, subhashes.entitlements, subhashes.projectSettings,
+            subhashes.targetSettings, subhashes.foreignBuild, subhashes.embeddedProductReferences,
+        ].compactMap { $0 }
+        return try contentHasher.hash(strings)
     }
 }

@@ -21,6 +21,9 @@ public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
         preservedDerivedDirectories: Set<String> = [
             Constants.DerivedDirectory.moduleMaps,
             Constants.DerivedDirectory.frameworkSearchPaths,
+            Constants.DerivedDirectory.sources,
+            Constants.DerivedDirectory.infoPlists,
+            Constants.DerivedDirectory.entitlements,
             Constants.DerivedDirectory.testPlans,
         ],
         fileSystem: FileSysteming = FileSystem()
@@ -41,23 +44,34 @@ public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
             return (project, [])
         }
 
-        let contents = try await fileSystem.glob(directory: derivedDirectoryPath, include: ["*"]).collect()
+        let contents = try await fileSystem.contentsOfDirectory(derivedDirectoryPath)
         var sideEffects: [SideEffectDescriptor] = []
-        for item in contents {
-            guard shouldDeleteDerivedItem(item) else { continue }
-            if try await fileSystem.exists(item, isDirectory: true) {
-                sideEffects.append(.directory(DirectoryDescriptor(path: item, state: .absent)))
-            } else {
-                sideEffects.append(.file(FileDescriptor(path: item, state: .absent)))
+        for item in contents where !item.basename.hasPrefix(".") {
+            if let sideEffect = try await deletionSideEffect(for: item) {
+                sideEffects.append(sideEffect)
             }
         }
 
         return (project, sideEffects)
     }
 
-    private func shouldDeleteDerivedItem(_ item: AbsolutePath) -> Bool {
-        guard item.extension != "modulemap" else { return false }
-        guard !preservedDerivedDirectories.contains(item.basename) else { return false }
-        return true
+    private func deletionSideEffect(for item: AbsolutePath) async throws -> SideEffectDescriptor? {
+        guard item.extension != "modulemap" else { return nil }
+        if let sideEffect = try symbolicLinkDeletion(at: item) { return sideEffect }
+        guard try await fileSystem.exists(item, isDirectory: true) else {
+            return .file(FileDescriptor(path: item, state: .absent))
+        }
+        guard !preservedDerivedDirectories.contains(item.basename) else { return nil }
+        return .directory(DirectoryDescriptor(path: item, state: .absent))
+    }
+
+    private func symbolicLinkDeletion(at path: AbsolutePath) throws -> SideEffectDescriptor? {
+        // Unlike resolveSymbolicLink, this also recognizes links whose destinations no longer exist.
+        guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: path.pathString) else { return nil }
+        return .symbolicLink(SymbolicLinkDescriptor(
+            path: path,
+            destination: try AbsolutePath(validating: destination, relativeTo: path.parentDirectory),
+            state: .absent
+        ))
     }
 }

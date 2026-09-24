@@ -25,6 +25,7 @@ defmodule Atlas.Engineering.Alerts do
 
   import Ecto.Query
 
+  alias Atlas.Audit
   alias Atlas.Engineering.Alerts.Notification
   alias Atlas.Engineering.Alerts.Rule
   alias Atlas.Engineering.Alerts.Workers.DeliverRule
@@ -58,15 +59,44 @@ defmodule Atlas.Engineering.Alerts do
     |> Map.put("project_id", project_id)
     |> then(&Rule.changeset(%Rule{}, &1))
     |> Repo.insert()
+    |> tap(fn
+      {:ok, rule} -> audit_rule("alert_rule.created", rule)
+      _ -> :ok
+    end)
   end
 
   def update_rule(%Rule{} = rule, attrs) do
-    rule
-    |> Rule.changeset(attrs)
+    changeset = Rule.changeset(rule, attrs)
+
+    changeset
     |> Repo.update()
+    |> tap(fn
+      {:ok, updated} -> audit_rule("alert_rule.updated", updated, Audit.changeset_changes(changeset))
+      _ -> :ok
+    end)
   end
 
-  def delete_rule(%Rule{} = rule), do: Repo.delete(rule)
+  def delete_rule(%Rule{} = rule) do
+    rule
+    |> Repo.delete()
+    |> tap(fn
+      {:ok, deleted} -> audit_rule("alert_rule.deleted", deleted)
+      _ -> :ok
+    end)
+  end
+
+  defp audit_rule(action, %Rule{} = rule, extra_metadata \\ %{}) do
+    metadata =
+      %{"project_id" => rule.project_id, "source" => rule.source, "trigger" => rule.trigger}
+      |> Map.merge(extra_metadata)
+
+    Audit.record(action, %{
+      target_type: "alert_rule",
+      target_id: rule.id,
+      target_label: rule.name,
+      metadata: metadata
+    })
+  end
 
   @doc """
   Called from `Atlas.Engineering.Errors.IssueCoalescer` after an issue

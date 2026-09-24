@@ -50,6 +50,10 @@ spec:
               type: object
               required: [image, fleetSelector, dispatchLabel, runnerLabels]
               properties:
+                cacheVolumeRoot:
+                  type: string
+                cacheVolumeURL:
+                  type: string
                 labels:
                   type: array
                   items:

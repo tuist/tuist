@@ -159,6 +159,13 @@ type Config struct {
 	// one env advertises (see the tailscale-operator chart values).
 	TailscaleAcceptRoutes bool
 
+	// TailscalePersistentDevice joins the host as a standard tagged device
+	// instead of an ephemeral one. The rack kind sets it and the rented
+	// fleet does not; renderTailscaleScript has the reasoning. Only an
+	// OAuth-client credential is affected: a legacy pre-auth key carries
+	// its own ephemerality and takes no parameters.
+	TailscalePersistentDevice bool
+
 	// SkipTailscaleInstall skips the installTailscale step in
 	// UpdateTartKubelet. It exists for one caller: a drift update that
 	// SSHes over the tailnet (the fallback when the mini's public :22 is
@@ -221,6 +228,10 @@ type Config struct {
 	// parse as an IPv4 CIDR and bootstrap fails closed otherwise.
 	// Empty installs the guard with just the tailnet and loopback
 	// allowances plus the live session's source address.
+	//
+	// The rack kind appends the host's subnet routers, the source its
+	// LAN dial arrives from. A rack host has no public address, so that
+	// path is its only way in without its own tailnet identity.
 	SSHIngressAllowCIDRs []string
 
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary
@@ -2123,9 +2134,8 @@ sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -
 //     tailscaled` on Linux. Idempotent on re-runs (we bootout the old
 //     job first so new binaries aren't held open).
 //  3. `tailscale up` with the per-fleet credential. Every Mac mini in
-//     the fleet uses the same one, and the key it mints is ephemeral
-//     so stale node records age out automatically: the right shape
-//     for a CAPI-managed fleet where machines come and go.
+//     the fleet uses the same one. The key it mints is ephemeral on a
+//     rented mini and standard on a rack mini; see renderTailscaleScript.
 //
 // No-op when TailscaleBinaries or TailscaleAuthKey is empty: the
 // chart's per-env values gate the tailnet end-to-end, and a partial
@@ -2183,6 +2193,24 @@ func validateTailscaleCredential(cfg Config) error {
 // fleet-wide tags / accept-routes and the per-host hostname vary. Folded
 // into the host config hash; the canonical config leaves NodeName empty,
 // so the hostname arg drops out and the hash stays host-independent.
+//
+// Tailscale removes an ephemeral device 30 to 60 minutes after it was last
+// active, however long it had been online. Its docs also say an ephemeral
+// device present for four hours "will count as a standard tagged device",
+// but that sentence is about billing (it stops drawing on the ephemeral
+// minutes allowance), not about removal. Only an explicit ephemeral=false
+// makes a device standard, because a key minted from an OAuth client
+// defaults to ephemeral=true.
+//
+// A rented mini joins ephemeral. It is wiped when released, so its record
+// should go with it, and it keeps an allow-listed public :22 that a
+// re-bootstrap can re-join the tailnet over.
+//
+// A rack mini joins standard (TailscalePersistentDevice). It is hardware we
+// keep and can sit powered off for days, and it has no public address, so
+// an ephemeral registration strands it: on 2026-09-18 the BER1 prototype came
+// back from a few days unpowered with its device deleted. Retiring one for
+// good means deleting its device by hand.
 func renderTailscaleScript(cfg Config) string {
 	tagsArg := ""
 	if len(cfg.TailscaleTags) > 0 {
@@ -2202,6 +2230,10 @@ func renderTailscaleScript(cfg Config) string {
 		// are VM routes: vmnet NATs VM egress through the host's
 		// routing table.
 		acceptRoutesArg = " --accept-routes"
+	}
+	ephemeral := "true"
+	if cfg.TailscalePersistentDevice {
+		ephemeral = "false"
 	}
 
 	// Stage 2: extract binaries, register daemon, bring up.
@@ -2324,22 +2356,16 @@ fi
 # false, and a host parked in manual-approval limbo fails this join
 # exactly the way an expired credential would.
 #
-# ephemeral=true carries its weight only for the first four hours of a
-# host's life: Tailscale converts a device that stays online that long
-# into a standard tagged one, so a mini that ran for weeks is no longer
-# ephemeral by the time CAPI replaces it and its record outlives the
-# machine either way. It is set to preserve the behaviour the fleet
-# already had, NOT because it cleans up after the fleet. Nothing deletes
-# a mini's tailnet device today (reconcileDelete revokes the kubelet
-# identity and stops there); a reaper is the tracked follow-up, and
-# ephemeral should go once one exists.
+# ephemeral is explicit because the minted key defaults to true. It is
+# true on rented minis and false on rack minis, whose device must
+# survive the host being powered off (see renderTailscaleScript).
 #
 # The prefix test leaves a legacy pre-auth key working untouched:
 # appending these parameters to one would corrupt it, and bootstrap
 # has to succeed against either credential while envs migrate.
 TS_AUTH_KEY="$(sudo cat /etc/tuist/tailscale-auth-key)"
 case "$TS_AUTH_KEY" in
-  tskey-client-*) TS_AUTH_KEY="${TS_AUTH_KEY}?ephemeral=true&preauthorized=true" ;;
+  tskey-client-*) TS_AUTH_KEY="${TS_AUTH_KEY}?ephemeral=%[4]s&preauthorized=true" ;;
 esac
 
 # Capture up's combined stdout+stderr so a failure surfaces
@@ -2370,7 +2396,7 @@ done
 echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
-`, hostnameArg, tagsArg, acceptRoutesArg)
+`, hostnameArg, tagsArg, acceptRoutesArg, ephemeral)
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,
@@ -2578,15 +2604,28 @@ func installSSHIngressGuard(ctx context.Context, client *ssh.Client, cfg Config)
 // rather than a refusal. The `tuist.runners` anchor cannot compensate:
 // its VM rules are all `out`, and `com.apple/*` is evaluated ahead of
 // anything appended to the end of /etc/pf.conf. So the VM sources get an
-// explicit pass, preceded by a block that still denies them the host's
-// and a sibling's :22.
+// explicit pass, preceded by blocks that still deny them a sibling's :22
+// and every one of the host's own addresses.
+//
+// The vmnet range alone is not enough for the host. A VM that dials the
+// host's en0, LAN or tailnet address is routed to the host itself and
+// delivered to the same *:22 listener, so the flood the guard exists to
+// stop could come from a customer workload. The host block uses pf's
+// static `self`, which pfctl expands to the host's addresses on every
+// load; the 60s re-arm reloads the file, so a new address is covered
+// within a minute. The dynamic `(self)` form looks like the better fit
+// and is not: xnu has no interface groups, so it resolves to the `ALL`
+// kif, whose table stays empty. It loads cleanly and matches nothing.
 //
 // The live session's own source address is folded into the table on the
 // host at render time, so a roll can never sever the connection
 // carrying it. That also makes the guard self-correcting: if the
 // operator's egress address changes and the configured list goes stale,
 // the public dial is dropped, the drift loop falls back to the tailnet,
-// and that push rewrites the table with the new address.
+// and that push rewrites the table with the new address. It is not
+// durable: each push replaces the previous session's source, so a path
+// that has to keep working after the host loses its tailnet identity
+// must be in cfg.SSHIngressAllowCIDRs.
 //
 // The rules load into the `com.apple/tuist.sshguard` sub-anchor, the same
 // trick renderVMNATScript uses and for the same reason. A top-level
@@ -2633,23 +2672,31 @@ sudo tee /etc/pf.anchors/tuist.sshguard >/dev/null <<PFCONF
 # path at once.
 #
 # pf is first-match-wins across 'quick' rules, so the pass lines
-# MUST stay above the block.
+# MUST stay above the block. They use 'flags any' so a session that
+# was already open when pf was enabled gets state instead of hitting
+# the block; the default 'flags S/SA' only admits a new SYN.
 
 table <ssh_allowed> persist { 100.64.0.0/10${SESSION_ENTRY}%s }
 table <vm_ssh_sources> persist { 192.168.64.0/22 }
 
 # The reachability watchdog probes 127.0.0.1:22 every minute; a
 # blocked loopback reads as a permanent wedge to it.
-pass in quick on lo0 proto tcp to any port 22 keep state
-pass in quick proto tcp from <ssh_allowed> to any port 22 keep state
+pass in quick on lo0 proto tcp to any port 22 flags any keep state
+pass in quick proto tcp from <ssh_allowed> to any port 22 flags any keep state
 
 # A Tart VM's egress arrives inbound on the vmnet bridge before it is
 # routed and NAT'd out, so the catch-all block below also swallows every
 # SSH the customer workload makes. The guard protects the host's own
 # listener, not the workload's outbound reach: VMs keep :22 to the
-# internet, but not to the host or a sibling VM.
+# internet, but not to a sibling VM or to any of the host's addresses.
+# A VM that dials the host's LAN, public or tailnet address reaches the
+# same listener as one that dials the bridge. 'self' is expanded on
+# every load, and the re-arm reloads this file every minute, so a new
+# host address is covered within a minute. The dynamic '(self)' form
+# resolves to an empty table on macOS and would match nothing.
 block drop in quick proto tcp from <vm_ssh_sources> to <vm_ssh_sources> port 22
-pass in quick proto tcp from <vm_ssh_sources> to any port 22 keep state
+block drop in quick proto tcp from <vm_ssh_sources> to self port 22
+pass in quick proto tcp from <vm_ssh_sources> to any port 22 flags any keep state
 
 block drop in quick proto tcp to any port 22
 PFCONF
@@ -2661,7 +2708,9 @@ sudo tee /usr/local/bin/tuist-pf-sshguard >/dev/null <<'SSHGUARD'
 # anchor file is the source of truth, so this needs no SSH session and
 # re-converges after a reboot or an external ruleset flush. pfctl swaps
 # anchor contents atomically, so re-running is cheap and never leaves a
-# window with no rules.
+# window with no rules. Every run re-expands 'self' in the VM block to
+# the host's current addresses, so it must reload even when the file is
+# unchanged.
 set -u
 [ -f /etc/pf.anchors/tuist.sshguard ] || exit 0
 pfctl -a "com.apple/tuist.sshguard" -f /etc/pf.anchors/tuist.sshguard

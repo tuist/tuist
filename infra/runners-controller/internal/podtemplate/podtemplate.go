@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -145,6 +146,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	}
 
 	linuxPod := pool.Spec.OS == "linux"
+	cacheVolumes := pool.Spec.CacheVolumeRoot != ""
+	if cacheVolumes && (!linuxPod || pool.Spec.RuntimeClass != "kata-qemu" || !filepath.IsAbs(pool.Spec.CacheVolumeRoot) || filepath.Clean(pool.Spec.CacheVolumeRoot) == "/" || pool.Spec.CacheVolumeURL == "" || dindImage == "") {
+		return nil, fmt.Errorf("cache volumes require a Linux Kata pool, dind, an absolute dedicated root and an agent URL")
+	}
 
 	// Env consumed by the dispatch poll loop. On macOS the loop runs
 	// inside the Tart VM, so this is the runner container's env. On
@@ -523,7 +528,27 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// effective uid). The loop-mounted ext4 above sidesteps the
 	// problem entirely by giving dockerd a real kernel-native
 	// filesystem.
+
+	if cacheVolumes {
+		// SubPathExpr is resolved by kubelet, not a guest-supplied path. Only this
+		// pod's directory crosses virtiofs; slots and other tenants never do.
+		volumes = append(volumes, corev1.Volume{Name: "cache-volumes", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: filepath.Join(pool.Spec.CacheVolumeRoot, "pods"), Type: ptr(corev1.HostPathDirectoryOrCreate)}}})
+		mount := corev1.VolumeMount{Name: "cache-volumes", MountPath: workPath + "/_tuist_cache", SubPathExpr: "$(TUIST_CACHE_VOLUME_UID)", MountPropagation: ptr(corev1.MountPropagationHostToContainer)}
+		uidEnv := corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_UID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}}
+		runnerMounts = append(runnerMounts, mount)
+		runnerEnv = append(runnerEnv, uidEnv, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_URL", Value: pool.Spec.CacheVolumeURL}, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_POD", Value: podName})
+		for i := range initContainers {
+			if initContainers[i].Name == "dind" {
+				initContainers[i].VolumeMounts = append(initContainers[i].VolumeMounts, mount)
+				initContainers[i].Env = append(initContainers[i].Env, uidEnv)
+			}
+		}
+	}
+
 	annotations := map[string]string{}
+	if linuxPod {
+		annotations["tuist.dev/cache-volume-revision"] = CacheVolumeRevision(pool)
+	}
 	if linuxPod && pool.Spec.RuntimeClass == "kata-qemu" {
 		// Enable PSI (/proc/pressure/*) in the kata guest so the runner
 		// vitals probe can report CPU/memory pressure. The stock kata
@@ -583,7 +608,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// container only — see the Linux branch above.
 			AutomountServiceAccountToken: ptr(automount),
 			NodeSelector:                 nodeSelector,
-			Affinity:                     goldenAffinity(pool),
+			Affinity:                     runnerAffinity(pool),
 			Tolerations:                  tolerations,
 			Volumes:                      volumes,
 			InitContainers:               initContainers,
@@ -677,18 +702,27 @@ func goldenNodeAffinityKey(image string) string {
 	return goldenNodeLabelPrefix + hex.EncodeToString(sum[:8])
 }
 
-// goldenAffinity returns soft node-affinity steering a pool's Pods toward
+// runnerAffinity returns soft node-affinity steering a pool's Pods toward
 // hosts that already hold the golden base for its image, so a recycle is a
 // local APFS clonefile instead of a multi-GB cold pull. Preferred, not
 // required: when no warm host has a free slot the Pod still schedules onto
 // a cold host (and pays the one-time materialize) rather than going Pending.
 //
-// macOS only — Linux runners are kata microVMs with no golden-base concept,
-// and `image` re-pull there is a different (much smaller) story. Returns nil
-// for Linux so their Pods keep memory-bin-packed placement untouched.
-func goldenAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
+// Linux prefers cache-ready hosts but still schedules when provisioning fails.
+// Cache availability must never gate jobs that can use job-local directories.
+func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
 	if pool.Spec.OS == "linux" {
-		return nil
+		if pool.Spec.CacheVolumeRoot == "" || pool.Spec.CacheVolumeURL == "" {
+			return nil
+		}
+		return &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+				Weight: 100,
+				Preference: corev1.NodeSelectorTerm{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: "tuist.dev/linux-cache-volumes", Operator: corev1.NodeSelectorOpIn, Values: []string{"local-images-v1"},
+				}}},
+			}},
+		}}
 	}
 	return &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{
@@ -786,3 +820,9 @@ func ReservationValue(poolName string) string {
 }
 
 var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
+
+// CacheVolumeRevision lets the existing bounded idle rollout converge mounts.
+func CacheVolumeRevision(pool *tuistv1.RunnerPool) string {
+	h := sha256.Sum256([]byte("local-images-v2\n" + pool.Spec.CacheVolumeRoot + "\n" + pool.Spec.CacheVolumeURL))
+	return hex.EncodeToString(h[:])
+}

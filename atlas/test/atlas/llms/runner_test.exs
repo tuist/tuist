@@ -61,7 +61,12 @@ defmodule Atlas.LLMs.RunnerTest do
       assert %{id: "atlas-default", provider: :openai} = opts[:model]
       assert opts[:api_key] == "local"
       assert opts[:retry] == false
-      assert opts[:req_http_options] == [plug: {LocalTransport, []}]
+      # The plug must live under `llm_request_options`: Condukt only threads
+      # `req_http_options` through to ReqLLM when it arrives nested there. A
+      # top-level `req_http_options` is silently dropped, which sends every
+      # local-mode agent call to the sentinel host instead of the plug.
+      assert opts[:llm_request_options] == [req_http_options: [plug: {LocalTransport, []}]]
+      refute Keyword.has_key?(opts, :req_http_options)
       # Base URL is a sentinel that Req uses to construct a valid URL before
       # the plug intercepts. It should never leave the process.
       assert opts[:base_url] == "http://atlas-local"

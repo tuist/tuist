@@ -7,19 +7,20 @@ defmodule AtlasWeb.AccountLiveTest do
 
   alias Atlas.Accounts
   alias Atlas.Accounts.Account
-  alias Atlas.Accounts.AccountAttentionSuggestion
   alias Atlas.Accounts.AccountHandle
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.Event
   alias Atlas.Accounts.Invoice
   alias Atlas.Accounts.Outcome
   alias Atlas.Accounts.OutcomeProposal
+  alias Atlas.Accounts.POCs
   alias Atlas.Accounts.ServiceLevel
   alias Atlas.Accounts.ServiceLevelExtractionCheck
   alias Atlas.Authorization.Roles
   alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Document
   alias Atlas.Letters
+  alias Atlas.Nudges.Proposal
   alias Atlas.Repo
   alias Atlas.Slack
   alias Atlas.Slack.Message, as: SlackMessage
@@ -27,6 +28,35 @@ defmodule AtlasWeb.AccountLiveTest do
   alias Atlas.Users.User
 
   setup :verify_on_exit!
+
+  test "shows evaluations for this account", %{conn: conn} do
+    user = insert_user!("poc-account-#{System.unique_integer([:positive])}@tuist.dev")
+    account = insert_account!(%{name: "Evaluation account"})
+    other_account = insert_account!(%{name: "Another account"})
+
+    {:ok, poc} = POCs.create_poc(%{"account_id" => account.id, "title" => "Mobile evaluation"}, user)
+
+    {:ok, other_poc} =
+      POCs.create_poc(%{"account_id" => other_account.id, "title" => "Other evaluation"}, user)
+
+    conn = init_test_session(conn, %{"user_id" => user.id})
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
+
+    assert has_element?(view, "#account-poc-#{poc.id}", poc.title)
+    assert has_element?(view, "#account-pocs-table")
+    refute has_element?(view, "#account-poc-#{other_poc.id}")
+    refute has_element?(view, "#account-pocs-empty")
+  end
+
+  test "shows an empty evaluation state for accounts without one", %{conn: conn} do
+    {conn, _user} = log_in_user(conn)
+    account = insert_account!(%{})
+
+    {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
+
+    assert has_element?(view, "#account-pocs-empty")
+    refute has_element?(view, "#account-pocs-table")
+  end
 
   test "shows the tax certificate request action only to leadership", %{conn: conn} do
     suffix = System.unique_integer([:positive])
@@ -156,37 +186,38 @@ defmodule AtlasWeb.AccountLiveTest do
     _ = upcoming_invoice
   end
 
-  test "renders the account attention queue", %{conn: conn} do
-    user = insert_user!("account-attention@example.com")
-    account = insert_account!(%{name: "Attention Customer", segment: :customer})
+  test "renders the account nudges card empty by default", %{conn: conn} do
+    user = insert_user!("account-nudges-empty@example.com")
+    account = insert_account!(%{name: "No Nudges Yet", segment: :customer})
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
     {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
-    assert has_element?(view, "[data-part='account-attention-card']")
-    assert has_element?(view, "#generate-attention-suggestions-button")
-    assert has_element?(view, "#account-attention-empty")
+    assert has_element?(view, "[data-part='account-nudges-card']")
+    assert has_element?(view, "#account-nudges-empty")
   end
 
-  test "acts on an account attention suggestion", %{conn: conn} do
-    user = insert_user!("account-attention-actions@example.com")
-    account = insert_account!(%{name: "Attention Customer", segment: :customer})
-    suggestion = insert_account_attention_suggestion!(account)
+  test "renders open nudges on the account page", %{conn: conn} do
+    user = insert_user!("account-nudges@example.com")
+    account = insert_account!(%{name: "Nudged Customer", segment: :customer, plan_tier: "pro"})
+
+    {:ok, nudge} =
+      Atlas.Nudges.propose(account, "invited_teammates_sso", %Proposal{
+        dedup_key: "invited_teammates_sso:test",
+        title: "Nudged Customer: SSO conversation (5 members)",
+        rationale: "SSO not yet configured; team crossed the threshold.",
+        draft_subject: "SSO setup for Nudged Customer",
+        draft_body: "Hi,",
+        evidence: %{"member_count" => 5}
+      })
 
     conn = init_test_session(conn, %{"user_id" => user.id})
 
     {:ok, view, _html} = live(conn, ~p"/commercial/sales/accounts/#{account.id}")
 
-    assert has_element?(view, "#account-attention-suggestion-actions-#{suggestion.id}")
-    assert has_element?(view, "#account-attention-suggestion-actions-#{suggestion.id}-button")
-
-    view
-    |> element("#account-attention-suggestion-actions-#{suggestion.id}-button")
-    |> render_click()
-
-    refute has_element?(view, "#account-attention-suggestion-#{suggestion.id}")
-    assert Repo.get!(AccountAttentionSuggestion, suggestion.id).status == "actioned"
+    assert has_element?(view, "#nudge-row-#{nudge.id}", "Nudged Customer: SSO conversation")
+    refute has_element?(view, "#account-nudges-empty")
   end
 
   test "renders extracted service levels from signed documents", %{conn: conn} do
@@ -1419,30 +1450,6 @@ defmodule AtlasWeb.AccountLiveTest do
       service_level_extraction_check_id: check.id
     }
     |> ServiceLevel.changeset(Map.merge(defaults, attrs))
-    |> Repo.insert!()
-  end
-
-  defp insert_account_attention_suggestion!(account) do
-    %AccountAttentionSuggestion{account_id: account.id}
-    |> AccountAttentionSuggestion.changeset(%{
-      status: "pending",
-      kind: "follow_up",
-      suggestion_key: "follow_up:account-live-#{System.unique_integer([:positive])}",
-      title: "Send the customer follow-up",
-      rationale: "The account has an open follow-up to complete.",
-      suggested_action: "Send a short status update.",
-      evidence: %{
-        "items" => [
-          %{
-            "source_type" => "account",
-            "source_id" => account.id,
-            "observation" => "The account has a current follow-up."
-          }
-        ]
-      },
-      confidence: Decimal.new("0.90"),
-      generated_by_agent: "account_attention_agent"
-    })
     |> Repo.insert!()
   end
 

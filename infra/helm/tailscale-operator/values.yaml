@@ -140,7 +140,8 @@ connector:
   # be co-located with the workloads it fronts — e.g. staging pins it
   # to the `kura-scw-fr-par` pool so the Mac mini -> router -> kura
   # path stays inside Scaleway fr-par instead of hairpinning through
-  # the Hetzner nodes.
+  # the Hetzner nodes. A tainted pool also needs a matching entry in
+  # `tolerations`, or the router never schedules.
   proxyClass:
     enabled: false
     name: tuist-connector

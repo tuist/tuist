@@ -180,6 +180,50 @@ defmodule Atlas.MCP.Serializers.GTMEmail do
     }
   end
 
+  def delivery(delivery) do
+    metadata = delivery.metadata || %{}
+
+    %{
+      id: delivery.id,
+      kind: delivery.kind,
+      recipient_email: delivery.recipient_email,
+      recipient_name: delivery.recipient_name,
+      subject: delivery.subject,
+      status: delivery.status,
+      account_id: metadata["account_id"],
+      account_key: metadata["account_key"],
+      provider_message_id: delivery.provider_message_id,
+      error: delivery.error,
+      attempts: delivery.attempts,
+      delivered_at: Tool.iso8601(delivery.delivered_at),
+      inserted_at: Tool.iso8601(delivery.inserted_at)
+    }
+  end
+
+  def delivery_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "string"},
+        "kind" => %{"type" => "string"},
+        "recipient_email" => %{"type" => "string"},
+        "recipient_name" => nullable_string(),
+        "subject" => %{"type" => "string"},
+        "status" => %{"type" => "string"},
+        "account_id" => nullable_string(),
+        "account_key" => nullable_string(),
+        "provider_message_id" => nullable_string(),
+        "error" => nullable_string(),
+        "attempts" => %{"type" => "integer"},
+        "delivered_at" => nullable_string(),
+        "inserted_at" => nullable_string()
+      },
+      "required" =>
+        ~w(id kind recipient_email recipient_name subject status account_id account_key provider_message_id error attempts delivered_at inserted_at),
+      "additionalProperties" => false
+    }
+  end
+
   def list_schema(key, item_schema, include_total_count \\ false) do
     properties = %{
       to_string(key) => %{"type" => "array", "items" => item_schema},

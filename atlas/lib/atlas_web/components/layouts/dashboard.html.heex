@@ -65,6 +65,12 @@
           navigate={~p"/"}
           selected={@current_path == ~p"/"}
         />
+        <.sidebar_item
+          label={gettext("Tasks")}
+          icon="circle_check"
+          navigate={~p"/tasks"}
+          selected={@current_path == ~p"/tasks"}
+        />
       </.sidebar_group>
       <.sidebar_group
         id="sidebar-commercial"
@@ -274,12 +280,6 @@
           icon="history"
           navigate={~p"/admin/audit"}
           selected={@current_path == ~p"/admin/audit"}
-        />
-        <.sidebar_item
-          label={gettext("Identities")}
-          icon="user"
-          navigate={~p"/admin/identities"}
-          selected={@current_path == ~p"/admin/identities"}
         />
         <.sidebar_item
           label={gettext("Users")}

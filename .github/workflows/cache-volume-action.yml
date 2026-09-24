@@ -1,0 +1,165 @@
+name: Cache Volume Integrations
+
+on:
+  pull_request:
+    paths:
+      - .github/actions/cache-volume/**
+      - ci/cache-volume/**
+      - .github/workflows/cache-volume-action.yml
+      - mise/tasks/release/components.json
+  push:
+    branches: [main]
+    paths:
+      - .github/actions/cache-volume/**
+      - ci/cache-volume/**
+      - .github/workflows/cache-volume-action.yml
+      - mise/tasks/release/components.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-volume-action-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+      - run: bash .github/actions/cache-volume/action_test.sh
+      - run: bash ci/cache-volume/integrations_test.sh
+      - run: bash ci/cache-volume/publish_test.sh
+      - run: bash ci/cache-volume/release_check_test.sh
+      - run: bash ci/cache-volume/prepare-release_test.sh
+      - name: Install test client
+        run: |
+          mkdir "$RUNNER_TEMP/action-test-bin"
+          cat > "$RUNNER_TEMP/action-test-bin/tuist-cache-volume" <<'CLIENT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          [[ "$1" == --key && "$2" == gradle-caches && "$3" == --path && "$4" == 'cache directory' ]]
+          printf 'cache-hit=true\n' >> "$GITHUB_OUTPUT"
+          CLIENT
+          chmod +x "$RUNNER_TEMP/action-test-bin/tuist-cache-volume"
+          echo "$RUNNER_TEMP/action-test-bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/cache-volume
+        id: action
+        with:
+          key: gradle-caches
+          path: cache directory
+      - name: Verify composite output
+        env:
+          CACHE_HIT: ${{ steps.action.outputs.cache-hit }}
+        run: test "$CACHE_HIT" = true
+      - name: Package standalone action
+        run: bash .github/actions/cache-volume/scripts/package.sh "$RUNNER_TEMP/cache-volume-action"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cache-volume-action
+          path: ${{ runner.temp }}/cache-volume-action/
+
+      - name: Package Buildkite plugin and GitLab template
+        run: |
+          bash ci/cache-volume/buildkite/package.sh "$RUNNER_TEMP/cache-volume-buildkite"
+          bash ci/cache-volume/gitlab/package.sh "$RUNNER_TEMP/cache-volume-gitlab"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cache-volume-buildkite
+          path: ${{ runner.temp }}/cache-volume-buildkite/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cache-volume-gitlab
+          path: ${{ runner.temp }}/cache-volume-gitlab/
+
+  release:
+    if: github.event_name != 'pull_request' && github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+      - name: Reject stale release runs
+        run: |
+          latest=$(git tag -l 'cache-volume@*' --sort=-version:refname | head -n1)
+          if [[ -n "$latest" ]]; then
+            git merge-base --is-ancestor "$latest" HEAD
+          fi
+      - id: check
+        run: mise run --skip-tools release:check cache-volume
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        with:
+          repository: tuist/cache-volume
+          ref: main
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          path: distributions/github
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        with:
+          repository: tuist/cache-volume-buildkite-plugin
+          ref: main
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          path: distributions/buildkite
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        with:
+          repository: tuist/cache-volume-gitlab
+          ref: main
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          path: distributions/gitlab
+          fetch-depth: 0
+      - name: Prepare or recover coordinated release
+        id: prepare
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        env:
+          VERSION: v${{ steps.check.outputs.cache-volume-next-version-number }}
+        run: bash ci/cache-volume/prepare-release.sh "$VERSION" distributions packages
+      - name: Publish all provider integrations
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.prepare.outputs.source-commit }}
+        run: |
+          bash ci/cache-volume/publish.sh packages/cache-volume-action distributions/github "$VERSION" "$SOURCE_COMMIT"
+          bash ci/cache-volume/publish.sh packages/cache-volume-buildkite distributions/buildkite "$VERSION" "$SOURCE_COMMIT"
+          bash ci/cache-volume/publish.sh packages/cache-volume-gitlab distributions/gitlab "$VERSION" "$SOURCE_COMMIT"
+      - name: Record coordinated release
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ github.token }}
+          target_commitish: ${{ steps.prepare.outputs.source-commit }}
+          tag_name: ${{ steps.prepare.outputs.tag }}
+          name: Cache Volume Integrations ${{ steps.prepare.outputs.version }}
+          body: |
+            Linux cache-volume integrations, released together from ${{ steps.prepare.outputs.source-commit }}.
+
+            - [GitHub action](https://github.com/tuist/cache-volume/tree/${{ steps.prepare.outputs.version }})
+            - [Buildkite plugin](https://github.com/tuist/cache-volume-buildkite-plugin/tree/${{ steps.prepare.outputs.version }})
+            - [GitLab CI template](https://github.com/tuist/cache-volume-gitlab/tree/${{ steps.prepare.outputs.version }})
+
+            Immutable version tags and moving major tags are available in each distribution repository.
+      - name: Release changes queued behind recovery
+        if: steps.prepare.outputs.source-commit != '' && steps.prepare.outputs.source-commit != github.sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run cache-volume-action.yml --ref main

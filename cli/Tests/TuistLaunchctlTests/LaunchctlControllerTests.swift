@@ -1,8 +1,8 @@
-import Command
 import Foundation
 import Mockable
 import Path
 import Testing
+import TuistProcess
 
 @testable import TuistLaunchctl
 
@@ -273,6 +273,34 @@ struct LaunchctlControllerTests {
 
         // Then
         #expect(job == LaunchAgentJob(processIdentifier: nil))
+    }
+
+    @Test func job_readsTheExitTimeoutLaunchdGivesTheProcess() async throws {
+        let label = "tuist.cas-proxy"
+        given(commandRunner)
+            .run(
+                arguments: .any,
+                environment: .any,
+                workingDirectory: .any
+            )
+            .willReturn(AsyncThrowingStream { continuation in
+                continuation.yield(.standardOutput(Array("""
+                gui/501/\(label) = {
+                \tactive count = 1
+                \tstate = running
+                \tdomain = gui/501 [100022]
+                \tminimum runtime = 10
+                \texit timeout = 5
+                \truns = 1
+                \tpid = 4242
+                }
+                """.utf8)))
+                continuation.finish()
+            })
+
+        let job = try await subject.job(label: label)
+
+        #expect(job == LaunchAgentJob(processIdentifier: 4242, exitTimeout: .seconds(5)))
     }
 
     @Test func job_readsTheJobsOwnProcessAndNotANestedOne() async throws {

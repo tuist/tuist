@@ -16,9 +16,11 @@ defmodule AtlasWeb.AccountLive do
   alias Atlas.Accounts.DealStage
   alias Atlas.Accounts.Outcome
   alias Atlas.Accounts.OutcomeProposal
+  alias Atlas.Accounts.POCs
   alias Atlas.Audit
   alias Atlas.Letters
   alias Atlas.LLMs
+  alias Atlas.Nudges
   alias Atlas.Slack
   alias Atlas.Users
   alias AtlasWeb.AccountLive.FeatureUsageView
@@ -52,8 +54,8 @@ defmodule AtlasWeb.AccountLive do
          |> assign(:staged_screenshots, [])
          |> assign(:overview_summary_processing, false)
          |> assign(:overview_summary_error, nil)
-         |> assign(:attention_suggestions_processing, false)
-         |> assign(:attention_suggestions_error, nil)
+         |> assign(:dismiss_nudge_id, nil)
+         |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
          |> assign(:outcome_proposals_processing, false)
          |> assign(:outcome_proposals_error, nil)
          |> assign_favicon(account)
@@ -473,52 +475,99 @@ defmodule AtlasWeb.AccountLive do
     end
   end
 
-  def handle_event("generate_attention_suggestions", _params, socket) do
-    cond do
-      socket.assigns.attention_suggestions_processing ->
-        {:noreply, socket}
+  def handle_event("claim_nudge", %{"id" => id}, socket) do
+    case Nudges.claim(id, socket.assigns.current_user) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("You now own this nudge."))}
 
-      is_nil(LLMs.config()) ->
-        {:noreply,
-         assign(
-           socket,
-           :attention_suggestions_error,
-           gettext("Language model is not configured. Set LLM_API_KEY and LLM_MODEL on the server.")
-         )}
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
 
-      true ->
-        account_id = socket.assigns.account.id
-        audit_context = Audit.current_context()
-
-        {:noreply,
-         socket
-         |> assign(:attention_suggestions_processing, true)
-         |> assign(:attention_suggestions_error, nil)
-         |> start_async(:attention_suggestions_generation, fn ->
-           Audit.with_context(audit_context, fn ->
-             Accounts.generate_account_attention_suggestions(account_id)
-           end)
-         end)}
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not claim the nudge."))}
     end
   end
 
-  def handle_event("act_on_account_attention_suggestion", %{"id" => id, "action" => action}, socket) do
-    case Accounts.get_account_attention_suggestion(socket.assigns.account, id) do
-      nil ->
-        {:noreply, put_flash(socket, :error, gettext("Account suggestion not found."))}
+  def handle_event("send_nudge", %{"id" => id}, socket) do
+    handle_send_result(Nudges.send(id, socket.assigns.current_user), socket)
+  end
 
-      suggestion ->
-        case apply_account_attention_action(action, suggestion) do
-          {:ok, _suggestion} ->
-            account = Accounts.get_account(socket.assigns.account.id)
+  def handle_event("retry_nudge", %{"id" => id}, socket) do
+    case Nudges.retry(id) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("Ready to send again."))}
 
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+      {:error, {:retry_not_allowed, stage}} ->
+        {:noreply, put_flash(socket, :error, gettext("Retry not allowed while delivery is %{s}.", s: to_string(stage)))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not retry the nudge."))}
+    end
+  end
+
+  def handle_event("release_nudge", %{"id" => id}, socket) do
+    case Nudges.release(id) do
+      {:ok, _nudge} ->
+        {:noreply, refresh_nudges(socket, gettext("Nudge released."))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not release the nudge."))}
+    end
+  end
+
+  def handle_event("open_dismiss_nudge_modal", %{"id" => id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:dismiss_nudge_id, id)
+     |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+     |> push_event("open-modal", %{id: "dismiss-nudge-modal"})}
+  end
+
+  def handle_event("close_dismiss_nudge_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:dismiss_nudge_id, nil)
+     |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+     |> push_event("close-modal", %{id: "dismiss-nudge-modal"})}
+  end
+
+  def handle_event("dismiss_nudge", %{"dismiss_nudge" => %{"reason" => reason}}, socket) do
+    nudge_id = socket.assigns.dismiss_nudge_id
+    trimmed = String.trim(reason || "")
+
+    cond do
+      is_nil(nudge_id) ->
+        {:noreply, put_flash(socket, :error, gettext("No nudge selected."))}
+
+      trimmed == "" ->
+        {:noreply,
+         assign(
+           socket,
+           :dismiss_nudge_form,
+           to_form(%{"reason" => reason}, as: "dismiss_nudge", errors: [reason: {"can't be blank", []}])
+         )}
+
+      true ->
+        case Nudges.dismiss(nudge_id, %{dismissed_reason: trimmed}) do
+          {:ok, _nudge} ->
             {:noreply,
              socket
-             |> assign_account(account)
-             |> put_flash(:info, account_attention_action_message(action))}
+             |> assign(:dismiss_nudge_id, nil)
+             |> assign(:dismiss_nudge_form, to_form(%{"reason" => ""}, as: "dismiss_nudge"))
+             |> push_event("close-modal", %{id: "dismiss-nudge-modal"})
+             |> refresh_nudges(gettext("Nudge dismissed."))}
+
+          {:error, :not_found} ->
+            {:noreply, put_flash(socket, :error, gettext("Nudge not found."))}
 
           {:error, _reason} ->
-            {:noreply, put_flash(socket, :error, gettext("Could not update the account suggestion."))}
+            {:noreply, put_flash(socket, :error, gettext("Could not dismiss the nudge."))}
         end
     end
   end
@@ -990,44 +1039,6 @@ defmodule AtlasWeb.AccountLive do
       end
 
     {:noreply, socket}
-  end
-
-  def handle_async(:attention_suggestions_generation, {:ok, {:ok, _suggestions}}, socket) do
-    account = Accounts.get_account(socket.assigns.account.id)
-
-    {:noreply,
-     socket
-     |> assign(:attention_suggestions_processing, false)
-     |> assign(:attention_suggestions_error, nil)
-     |> assign_account(account)}
-  end
-
-  def handle_async(:attention_suggestions_generation, {:ok, {:error, :llm_not_configured}}, socket) do
-    {:noreply,
-     socket
-     |> assign(:attention_suggestions_processing, false)
-     |> assign(
-       :attention_suggestions_error,
-       gettext("Language model is not configured. Set LLM_API_KEY and LLM_MODEL on the server.")
-     )}
-  end
-
-  def handle_async(:attention_suggestions_generation, {:ok, {:error, reason}}, socket) do
-    Logger.error("Account attention suggestion generation failed: #{inspect(reason)}")
-
-    {:noreply,
-     socket
-     |> assign(:attention_suggestions_processing, false)
-     |> assign(:attention_suggestions_error, gettext("Could not generate account suggestions. Please try again."))}
-  end
-
-  def handle_async(:attention_suggestions_generation, {:exit, reason}, socket) do
-    Logger.error("Account attention suggestion generation crashed: #{inspect(reason)}")
-
-    {:noreply,
-     socket
-     |> assign(:attention_suggestions_processing, false)
-     |> assign(:attention_suggestions_error, gettext("Could not generate account suggestions. Please try again."))}
   end
 
   def handle_async(:outcome_proposals_generation, {:ok, {:error, :llm_not_configured}}, socket) do
@@ -1519,25 +1530,6 @@ defmodule AtlasWeb.AccountLive do
                             }
                             rows={3}
                             max_length={600}
-                          />
-                        </div>
-                        <div data-part="account-settings-grid-full">
-                          <.text_area
-                            id="account-attention-context-input"
-                            field={@account_form[:attention_context]}
-                            label={gettext("Agent guidance")}
-                            placeholder={
-                              gettext(
-                                "Explain what makes this account strategically important and which usage patterns matter."
-                              )
-                            }
-                            hint={
-                              gettext(
-                                "For example: test sharding, automations, and test selections are central to this customer's delivery workflow."
-                              )
-                            }
-                            rows={4}
-                            max_length={2_000}
                           />
                         </div>
                         <div data-part="account-settings-grid-full">
@@ -2035,6 +2027,41 @@ defmodule AtlasWeb.AccountLive do
             id="account-feature-interests-empty"
             title={gettext("No feature interest recorded")}
             subtitle={gettext("Record requests from timeline events to see them here.")}
+          />
+        </.card_section>
+      </.card>
+
+      <.card title={gettext("Evaluations")} icon="checkup_list" data-part="account-pocs-card">
+        <.card_section data-part="account-pocs-section">
+          <.table
+            :if={@pocs != []}
+            id="account-pocs-table"
+            rows={@pocs}
+            row_key={fn poc -> "account-poc-#{poc.id}" end}
+            row_navigate={fn poc -> ~p"/commercial/sales/pocs/#{poc.id}" end}
+          >
+            <:col :let={poc} label={gettext("Evaluation")}>
+              <.text_cell label={poc.title} />
+            </:col>
+            <:col :let={poc} label={gettext("Status")}>
+              <.badge_cell
+                label={Phoenix.Naming.humanize(poc.status)}
+                color={evaluation_status_color(poc.status)}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={poc} label={gettext("Hosting")}>
+              <.text_cell label={Phoenix.Naming.humanize(poc.hosting)} />
+            </:col>
+            <:col :let={poc} label={gettext("Started")}>
+              <.text_cell label={format_date(poc.starts_on)} />
+            </:col>
+          </.table>
+          <.account_empty_state
+            :if={@pocs == []}
+            id="account-pocs-empty"
+            title={gettext("No evaluations yet")}
+            subtitle={gettext("Evaluations for this account will appear here.")}
           />
         </.card_section>
       </.card>
@@ -2901,133 +2928,181 @@ defmodule AtlasWeb.AccountLive do
       </.card>
 
       <.card
-        title={gettext("Account attention")}
-        icon="bulb"
-        data-part="account-attention-card"
+        title={gettext("Account nudges")}
+        icon="bell"
+        data-part="account-nudges-card"
       >
-        <:actions>
-          <.button
-            id="generate-attention-suggestions-button"
-            label={
-              if @attention_suggestions_processing,
-                do: gettext("Reviewing account…"),
-                else: gettext("Refresh suggestions")
-            }
-            variant="secondary"
-            size="small"
-            type="button"
-            phx-click="generate_attention_suggestions"
-            disabled={@attention_suggestions_processing}
-          />
-        </:actions>
-        <.card_section data-part="account-attention-section">
-          <p data-part="account-attention-description">
-            {gettext(
-              "Atlas watches account context, customer activity, and product usage, then posts the next useful follow-up to Slack."
-            )}
-          </p>
-
-          <div
-            :if={pending_attention_suggestions(@account) != []}
-            id="account-attention-suggestions"
-            data-part="account-attention-suggestions"
-          >
-            <div
-              :for={suggestion <- pending_attention_suggestions(@account)}
-              id={"account-attention-suggestion-#{suggestion.id}"}
-              data-part="account-attention-suggestion"
-            >
-              <div data-part="account-attention-suggestion-content">
-                <div data-part="account-attention-suggestion-heading">
-                  <span data-part="account-attention-suggestion-title">{suggestion.title}</span>
-                  <.badge
-                    label={account_attention_kind_label(suggestion.kind)}
-                    color="information"
-                    style="light-fill"
-                  />
-                  <span data-part="account-attention-suggestion-confidence">
-                    {account_attention_confidence(suggestion.confidence)}
-                  </span>
-                </div>
-                <p data-part="account-attention-suggestion-rationale">{suggestion.rationale}</p>
-                <p data-part="account-attention-suggestion-action">
-                  <span>{gettext("Suggested next step:")}</span>
-                  {suggestion.suggested_action}
-                </p>
-              </div>
-              <div data-part="account-attention-suggestion-controls">
-                <.badge
-                  label={account_attention_status_label(suggestion.status)}
-                  color={account_attention_status_color(suggestion.status)}
+        <.card_section data-part="account-nudges-section">
+          <div :if={@nudges != []} id="account-nudges-table" data-part="account-nudges-table">
+            <.table id="account-nudges" rows={@nudges} row_key={fn n -> "nudge-row-#{n.id}" end}>
+              <:col :let={nudge} label={gettext("Nudge")}>
+                <.text_and_description_cell
+                  label={nudge.title}
+                  description={nudge.rationale}
+                />
+              </:col>
+              <:col :let={nudge} label={gettext("Signal")}>
+                <.badge_cell label={nudge.signal} color="information" style="light-fill" />
+              </:col>
+              <:col :let={nudge} label={gettext("State")}>
+                <.badge_cell
+                  label={nudge_state_label(nudge, nudge_stage(nudge))}
+                  color={nudge_state_color(nudge, nudge_stage(nudge))}
                   style="light-fill"
                 />
-                <div data-part="account-attention-suggestion-actions">
-                  <.button_dropdown
-                    id={"account-attention-suggestion-actions-#{suggestion.id}"}
-                    label={gettext("Done")}
-                    size="medium"
-                    align="end"
-                    phx-click="act_on_account_attention_suggestion"
-                    phx-value-id={suggestion.id}
-                    phx-value-action="done"
-                  >
-                    <.dropdown_item
-                      id={"snooze-account-attention-suggestion-#{suggestion.id}"}
-                      value="snooze"
-                      label={gettext("Next week")}
-                      on_click="act_on_account_attention_suggestion"
-                      phx-value-id={suggestion.id}
-                      phx-value-action="snooze"
+              </:col>
+              <:col :let={nudge} label={gettext("Opened")}>
+                <.text_cell label={format_nudge_timestamp(nudge.inserted_at)} />
+              </:col>
+              <:col :let={nudge} label="">
+                <.button_cell :if={nudge.state == "proposed"}>
+                  <:button>
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
+                      label={gettext("Claim")}
+                      size="medium"
+                      align="end"
+                      phx-click="claim_nudge"
+                      phx-value-id={nudge.id}
                     >
-                      <:left_icon><.calendar_week /></:left_icon>
-                    </.dropdown_item>
-                    <.dropdown_item
-                      id={"dismiss-account-attention-suggestion-#{suggestion.id}"}
-                      value="dismiss"
-                      label={gettext("Not relevant")}
-                      on_click="act_on_account_attention_suggestion"
-                      phx-value-id={suggestion.id}
-                      phx-value-action="dismiss"
+                      <.dropdown_item
+                        id={"dismiss-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
+                  </:button>
+                </.button_cell>
+                <.button_cell :if={nudge.state == "claimed"}>
+                  <:button>
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
+                      label={gettext("Send")}
+                      size="medium"
+                      align="end"
+                      phx-click="send_nudge"
+                      phx-value-id={nudge.id}
                     >
-                      <:left_icon><.circle_x /></:left_icon>
-                    </.dropdown_item>
-                  </.button_dropdown>
-                </div>
-              </div>
-            </div>
+                      <.dropdown_item
+                        id={"release-nudge-#{nudge.id}"}
+                        value="release"
+                        label={gettext("Release")}
+                        on_click="release_nudge"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.reload /></:left_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
+                        id={"dismiss-claimed-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
+                  </:button>
+                </.button_cell>
+                <.button_cell :if={nudge.state == "sent" and nudge_stage(nudge) == :failed}>
+                  <:button>
+                    <.button_dropdown
+                      id={"nudge-actions-#{nudge.id}"}
+                      label={gettext("Retry")}
+                      size="medium"
+                      align="end"
+                      phx-click="retry_nudge"
+                      phx-value-id={nudge.id}
+                    >
+                      <.dropdown_item
+                        id={"dismiss-sent-nudge-#{nudge.id}"}
+                        value="dismiss"
+                        label={gettext("Dismiss")}
+                        on_click="open_dismiss_nudge_modal"
+                        phx-value-id={nudge.id}
+                      >
+                        <:left_icon><.circle_x /></:left_icon>
+                      </.dropdown_item>
+                    </.button_dropdown>
+                  </:button>
+                </.button_cell>
+              </:col>
+            </.table>
           </div>
 
           <.account_empty_state
-            :if={
-              pending_attention_suggestions(@account) == [] and not @attention_suggestions_processing
-            }
-            id="account-attention-empty"
-            title={gettext("No follow-up needs attention right now")}
+            :if={@nudges == []}
+            id="account-nudges-empty"
+            title={gettext("No nudges yet")}
             subtitle={
               gettext(
-                "Add agent guidance when a customer has strategic usage patterns Atlas should watch."
+                "Signals will drop a card here (and in Slack) when the account crosses a threshold worth reaching out about."
               )
             }
           />
 
-          <div
-            :if={@attention_suggestions_processing}
-            id="account-attention-processing"
-            data-part="account-attention-processing"
-            aria-live="polite"
+          <.modal
+            id="dismiss-nudge-modal"
+            title={gettext("Dismiss nudge")}
+            description={
+              gettext("Add a short reason. This helps tune thresholds and shows on the account.")
+            }
+            header_type="icon"
+            header_size="small"
+            on_dismiss="close_dismiss_nudge_modal"
           >
-            <span data-part="account-attention-spinner" aria-hidden="true"></span>
-            <span>{gettext("Reviewing account evidence…")}</span>
-          </div>
+            <:header_icon><.circle_x /></:header_icon>
+            <:trigger :let={modal_attrs}>
+              <button id="dismiss-nudge-modal-trigger" type="button" hidden {modal_attrs}></button>
+            </:trigger>
 
-          <div
-            :if={@attention_suggestions_error}
-            id="account-attention-error"
-            data-part="account-attention-error"
-            role="alert"
-          >
-            {@attention_suggestions_error}
-          </div>
+            <div data-part="dismiss-nudge-modal-content">
+              <.form
+                id="dismiss-nudge-form"
+                for={@dismiss_nudge_form}
+                phx-submit="dismiss_nudge"
+              >
+                <.text_area
+                  id="dismiss-nudge-reason-input"
+                  field={@dismiss_nudge_form[:reason]}
+                  label={gettext("Reason")}
+                  placeholder={gettext("Not the right moment; team already knows; ...")}
+                  rows={4}
+                  max_length={500}
+                  required
+                />
+              </.form>
+            </div>
+
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    id="cancel-dismiss-nudge-button"
+                    label={gettext("Cancel")}
+                    variant="secondary"
+                    size="small"
+                    type="button"
+                    phx-click="close_dismiss_nudge_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    id="confirm-dismiss-nudge-button"
+                    label={gettext("Dismiss")}
+                    variant="destructive"
+                    size="small"
+                    type="submit"
+                    form="dismiss-nudge-form"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
         </.card_section>
       </.card>
 
@@ -4115,6 +4190,8 @@ defmodule AtlasWeb.AccountLive do
     |> assign(:account, account)
     |> assign(:ready_to_sign_tax_certificate_requests, ready_to_sign_tax_certificate_requests(account))
     |> assign(:feature_interests, Accounts.list_feature_interests_for_account(account))
+    |> assign(:pocs, POCs.list_pocs(account_id: account.id))
+    |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
     |> clear_feature_interest_modal()
     |> clear_feature_interest_notes_modal()
     |> assign(:linked_slack_channel, linked_slack_channel)
@@ -4135,6 +4212,11 @@ defmodule AtlasWeb.AccountLive do
     |> assign_tax_certificate_request_form(account)
     |> assign(:signed_tax_certificate_upload_form, to_form(%{}, as: "signed_tax_certificate"))
   end
+
+  defp evaluation_status_color("active"), do: "information"
+  defp evaluation_status_color("closed_won"), do: "success"
+  defp evaluation_status_color("closed_lost"), do: "destructive"
+  defp evaluation_status_color(_status), do: "neutral"
 
   defp slack_threads_for(account) do
     account.events
@@ -4313,52 +4395,66 @@ defmodule AtlasWeb.AccountLive do
 
   defp pending_outcome_proposals(_account), do: []
 
-  defp pending_attention_suggestions(%{attention_suggestions: suggestions}) when is_list(suggestions) do
-    Enum.filter(suggestions, &(&1.status in ["pending", "snoozed"]))
+  defp refresh_nudges(socket, message) do
+    account = socket.assigns.account
+
+    socket
+    |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
+    |> put_flash(:info, message)
   end
 
-  defp pending_attention_suggestions(_account), do: []
+  defp handle_send_result({:ok, %{duplicate: true}}, socket),
+    do: {:noreply, refresh_nudges(socket, gettext("Email already queued in the last 15 minutes."))}
 
-  defp apply_account_attention_action("done", suggestion) do
-    Accounts.action_account_attention_suggestion(suggestion)
-  end
+  defp handle_send_result({:ok, _nudge}, socket), do: {:noreply, refresh_nudges(socket, gettext("Email queued."))}
 
-  defp apply_account_attention_action("snooze", suggestion) do
-    until = DateTime.utc_now() |> DateTime.add(7, :day) |> DateTime.truncate(:second)
-    Accounts.snooze_account_attention_suggestion(suggestion, until)
-  end
+  defp handle_send_result({:error, reason}, socket),
+    do: {:noreply, put_flash(socket, :error, send_error_message(reason))}
 
-  defp apply_account_attention_action("dismiss", suggestion) do
-    Accounts.dismiss_account_attention_suggestion(suggestion)
-  end
+  defp send_error_message(:not_found), do: gettext("Nudge not found.")
 
-  defp apply_account_attention_action(_action, _suggestion), do: {:error, :unsupported_account_attention_action}
+  defp send_error_message(:not_authorized),
+    do: gettext("You must be the claimant or hold admin:write to send this nudge.")
 
-  defp account_attention_action_message("done"), do: gettext("Suggestion marked done.")
-  defp account_attention_action_message("snooze"), do: gettext("Suggestion snoozed until next week.")
-  defp account_attention_action_message("dismiss"), do: gettext("Suggestion marked not relevant.")
+  defp send_error_message({:invalid_state, state}),
+    do: gettext("Nudge is in state %{s}; only claimed nudges can be sent.", s: state)
 
-  defp account_attention_kind_label("follow_up"), do: gettext("Follow-up")
-  defp account_attention_kind_label("usage_change"), do: gettext("Usage change")
-  defp account_attention_kind_label("renewal"), do: gettext("Renewal")
-  defp account_attention_kind_label("adoption"), do: gettext("Adoption")
-  defp account_attention_kind_label("value_proof"), do: gettext("Value proof")
-  defp account_attention_kind_label("relationship"), do: gettext("Relationship")
-  defp account_attention_kind_label(_kind), do: gettext("Follow-up")
+  defp send_error_message(:contact_missing), do: gettext("This nudge has no contact. Add or edit a contact first.")
 
-  defp account_attention_status_label("pending"), do: gettext("Ready")
-  defp account_attention_status_label("snoozed"), do: gettext("Snoozed")
-  defp account_attention_status_label(_status), do: gettext("Ready")
+  defp send_error_message(:contact_email_missing), do: gettext("The nudge's contact has no email address.")
 
-  defp account_attention_status_color("snoozed"), do: "neutral"
-  defp account_attention_status_color(_status), do: "information"
+  defp send_error_message(:contact_bounced), do: gettext("The nudge's contact is marked as bounced.")
 
-  defp account_attention_confidence(%Decimal{} = confidence) do
-    percentage = confidence |> Decimal.mult(100) |> Decimal.round(0) |> Decimal.to_integer()
-    gettext("%{percentage}%", percentage: percentage)
-  end
+  defp send_error_message(:contact_opted_out), do: gettext("The nudge's contact has opted out of outreach.")
 
-  defp account_attention_confidence(_confidence), do: gettext("Unknown confidence")
+  defp send_error_message(_reason), do: gettext("Could not send the nudge.")
+
+  defp nudge_stage(nudge), do: Nudges.stage_for(nudge)
+
+  defp nudge_state_label(%{state: "pending_post"}, _stage), do: gettext("Posting to Slack…")
+  defp nudge_state_label(%{state: "proposed"}, _stage), do: gettext("Open")
+  defp nudge_state_label(%{state: "claimed"}, _stage), do: gettext("Claimed")
+  defp nudge_state_label(%{state: "sent"}, :delivered), do: gettext("Sent")
+  defp nudge_state_label(%{state: "sent"}, :failed), do: gettext("Send failed")
+  defp nudge_state_label(%{state: "sent"}, :retrying), do: gettext("Sent (retrying)")
+  defp nudge_state_label(%{state: "sent"}, _stage), do: gettext("Sent (queued)")
+  defp nudge_state_label(%{state: "dismissed"}, _stage), do: gettext("Dismissed")
+  defp nudge_state_label(%{state: "expired"}, _stage), do: gettext("Expired")
+  defp nudge_state_label(%{state: state}, _stage), do: state
+
+  defp nudge_state_color(%{state: "pending_post"}, _stage), do: "neutral"
+  defp nudge_state_color(%{state: "proposed"}, _stage), do: "information"
+  defp nudge_state_color(%{state: "claimed"}, _stage), do: "success"
+  defp nudge_state_color(%{state: "sent"}, :delivered), do: "success"
+  defp nudge_state_color(%{state: "sent"}, :failed), do: "destructive"
+  defp nudge_state_color(%{state: "sent"}, _stage), do: "attention"
+  defp nudge_state_color(%{state: "dismissed"}, _stage), do: "neutral"
+  defp nudge_state_color(%{state: "expired"}, _stage), do: "neutral"
+  defp nudge_state_color(_nudge, _stage), do: "neutral"
+
+  defp format_nudge_timestamp(nil), do: "-"
+  defp format_nudge_timestamp(%DateTime{} = dt), do: Calendar.strftime(dt, "%b %d, %Y")
+  defp format_nudge_timestamp(%NaiveDateTime{} = ndt), do: Calendar.strftime(ndt, "%b %d, %Y")
 
   defp outcome_proposal_subject(%OutcomeProposal{proposal_type: "new_outcome", title: title}), do: title
 

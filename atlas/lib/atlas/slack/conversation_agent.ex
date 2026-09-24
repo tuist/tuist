@@ -15,7 +15,6 @@ defmodule Atlas.Slack.ConversationAgent do
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.Amounts
   alias Atlas.Accounts.Outcome
-  alias Atlas.Agents.Identity
   alias Atlas.Agents.StyleGuide
   alias Atlas.Audit
   alias Atlas.ChangesetErrors
@@ -28,7 +27,6 @@ defmodule Atlas.Slack.ConversationAgent do
   alias Atlas.Repo
   alias Atlas.Search.Federated, as: FederatedSearch
   alias Atlas.Slack.AgentConfig
-  alias Atlas.Slack.AgentIdentities
   alias Atlas.Slack.Channel
   alias Atlas.Slack.MCPTools
   alias Atlas.Slack.URLContent
@@ -41,6 +39,12 @@ defmodule Atlas.Slack.ConversationAgent do
   @tool_result_limit 12
   @service_level_result_limit 50
   @default_mcp_user_email "pedro@tuist.dev"
+
+  # Tool groups reachable through the systems_investigator subagent. Finance
+  # and documents are intentionally omitted for now: they were previously
+  # routed to the direct conversation agent via per-channel identities, and
+  # will be reintroduced when the Slack bridge story is redesigned.
+  @systems_investigator_tool_groups ["contracts", "admin", "hardware", "observability"]
 
   @impl true
   def tools do
@@ -112,22 +116,14 @@ defmodule Atlas.Slack.ConversationAgent do
     end
   end
 
-  def slack_session_options(app_key, channel) do
-    slack_session_options(app_key, channel, AgentIdentities.for_channel(app_key, channel))
-  end
-
-  def slack_session_options(app_key, channel, %Identity{} = identity, opts \\ []) do
-    conversation_tools =
-      mcp_tools_for_agent(app_key, channel, identity, :conversation, opts)
-
-    systems_tools =
-      mcp_tools_for_agent(app_key, channel, identity, :systems_investigator, opts)
-
-    memory_tools = memory_tools_for(app_key, channel, identity, opts)
+  def slack_session_options(app_key, channel, opts \\ []) do
+    conversation_tools = mcp_tools_for_agent(app_key, channel, :conversation, opts)
+    systems_tools = mcp_tools_for_agent(app_key, channel, :systems_investigator, opts)
+    memory_tools = memory_tools_for(app_key, channel, opts)
     atlas_search_tools = atlas_search_tools_for(app_key, channel, conversation_tools)
 
     [
-      assigns: slack_session_assigns(identity, opts),
+      assigns: slack_session_assigns(opts),
       tools: unique_tools_by_name(tools() ++ atlas_search_tools ++ conversation_tools ++ memory_tools),
       subagents: subagents(systems_tools, opts)
     ]
@@ -143,24 +139,19 @@ defmodule Atlas.Slack.ConversationAgent do
 
   def internal_company_channel?(_app_key, _channel), do: false
 
-  defp slack_session_assigns(%Identity{} = identity, opts) do
-    %{
-      requester_slack_user: Keyword.get(opts, :requester_slack_user),
-      agent_identity_id: identity.id,
-      agent_identity_key: identity.key,
-      agent_identity_display_name: identity.display_name
-    }
+  defp slack_session_assigns(opts) do
+    %{requester_slack_user: Keyword.get(opts, :requester_slack_user)}
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Map.new()
   end
 
-  defp memory_tools_for(app_key, channel, %Identity{} = identity, opts) do
-    if internal_company_channel?(app_key, channel) and identity.memory_scope != :disabled do
+  defp memory_tools_for(app_key, channel, opts) do
+    if internal_company_channel?(app_key, channel) do
       MemoryTools.tools(
         channel,
         Keyword.get(opts, :requester_slack_user),
         Keyword.get(opts, :thread_ts),
-        scope: identity.memory_scope
+        scope: :global
       )
     else
       []
@@ -193,26 +184,21 @@ defmodule Atlas.Slack.ConversationAgent do
     Enum.uniq_by(tools, &Condukt.Tool.name/1)
   end
 
-  defp mcp_tools_for_agent(app_key, channel, %Identity{} = identity, agent, opts) do
-    tool_groups =
-      identity
-      |> Identity.tool_groups_for_agent(agent)
-      |> effective_mcp_tool_groups(app_key, channel, agent, opts)
-      |> requester_allowed_tool_groups(identity, opts)
+  defp mcp_tools_for_agent(app_key, channel, agent, opts) do
+    tool_groups = tool_groups_for_agent(agent)
 
     should_mount? =
       agent == :systems_investigator or tool_groups != []
 
-    if mcp_tools_allowed?(app_key, channel, opts) do
-      if should_mount? do
-        build_mcp_tools(app_key, channel, identity, agent, tool_groups, opts)
-      else
-        []
-      end
+    if mcp_tools_allowed?(app_key, channel, opts) and should_mount? do
+      build_mcp_tools(app_key, channel, agent, tool_groups, opts)
     else
       []
     end
   end
+
+  defp tool_groups_for_agent(:systems_investigator), do: @systems_investigator_tool_groups
+  defp tool_groups_for_agent(_agent), do: []
 
   def mcp_tools_allowed?(app_key, channel), do: mcp_tools_allowed?(app_key, channel, [])
 
@@ -238,22 +224,6 @@ defmodule Atlas.Slack.ConversationAgent do
   defp account_linked_channel?(%Channel{account_id: account_id}) when not is_nil(account_id), do: true
   defp account_linked_channel?(_channel), do: false
 
-  defp effective_mcp_tool_groups(tool_groups, app_key, channel, :conversation, opts) do
-    if app_key == :company and not externally_shared_channel?(channel) and requester_executive?(opts) do
-      Enum.uniq(["finance" | tool_groups])
-    else
-      tool_groups
-    end
-  end
-
-  defp effective_mcp_tool_groups(tool_groups, _app_key, channel, _agent, opts) do
-    if account_linked_channel?(channel) and not requester_executive?(opts) do
-      List.delete(tool_groups, "finance")
-    else
-      tool_groups
-    end
-  end
-
   defp requester_executive?(opts) do
     opts
     |> requester_atlas_user()
@@ -278,18 +248,6 @@ defmodule Atlas.Slack.ConversationAgent do
 
   defp requester_slack_email(%User{email: email}) when is_binary(email), do: email
   defp requester_slack_email(_slack_user), do: nil
-
-  defp requester_allowed_tool_groups(tool_groups, %Identity{requester_rules: rules}, opts) do
-    Enum.filter(tool_groups, &requester_allowed_for_group?(&1, rules || %{}, opts))
-  end
-
-  defp requester_allowed_for_group?(group, rules, opts) do
-    case Map.get(rules, group) || Map.get(rules, to_string(group)) do
-      "executive" -> requester_executive?(opts)
-      :executive -> requester_executive?(opts)
-      _rule -> true
-    end
-  end
 
   @impl true
   def system_prompt do
@@ -395,10 +353,8 @@ defmodule Atlas.Slack.ConversationAgent do
     """
   end
 
-  def agent_identity(app_key, channel), do: AgentIdentities.for_channel(app_key, channel)
-
-  defp build_mcp_tools(app_key, channel, %Identity{} = identity, agent, tool_groups, opts) do
-    case mcp_user_and_claims(app_key, channel, identity, agent, tool_groups, opts) do
+  defp build_mcp_tools(app_key, channel, agent, tool_groups, opts) do
+    case mcp_user_and_claims(app_key, channel, agent, tool_groups, opts) do
       {:ok, user, claims} ->
         case MCPTools.tools_for(user, claims) do
           tools when is_list(tools) ->
@@ -415,55 +371,35 @@ defmodule Atlas.Slack.ConversationAgent do
     end
   end
 
-  defp mcp_user_and_claims(app_key, %Channel{} = channel, %Identity{} = identity, agent, tool_groups, opts) do
-    email = Keyword.get(opts, :mcp_user_email) || identity.service_user_email || slack_agent_mcp_user_email()
+  defp mcp_user_and_claims(app_key, %Channel{} = channel, agent, tool_groups, opts) do
+    email = Keyword.get(opts, :mcp_user_email) || slack_agent_mcp_user_email()
 
     case Users.get_user_by_email(email) do
       %Atlas.Users.User{} = mcp_user ->
-        user = effective_mcp_user(mcp_user, tool_groups, opts)
+        claims = %{
+          "scopes" => ["mcp"],
+          "mcp_tool_groups" => tool_groups,
+          "slack_app" => Atom.to_string(app_key),
+          "slack_channel_id" => channel.channel_id,
+          "slack_agent" => Atom.to_string(agent)
+        }
 
-        claims =
-          %{
-            "scopes" => ["mcp"],
-            "mcp_tool_groups" => tool_groups,
-            "slack_app" => Atom.to_string(app_key),
-            "slack_channel_id" => channel.channel_id,
-            "slack_agent" => Atom.to_string(agent),
-            "agent_identity_id" => identity.id,
-            "agent_identity_key" => identity.key,
-            "agent_identity_display_name" => identity.display_name
-          }
-          |> maybe_put_persona(identity.persona)
-
-        {:ok, user, claims}
+        {:ok, mcp_user, claims}
 
       nil ->
         {:error, {:mcp_user_not_found, email}}
     end
   end
 
-  defp effective_mcp_user(%Atlas.Users.User{} = mcp_user, tool_groups, opts) do
-    requester = requester_atlas_user(opts)
-
-    if "finance" in tool_groups and Users.has_scope?(requester, "finance:write") do
-      requester
-    else
-      mcp_user
-    end
-  end
-
-  defp maybe_put_persona(claims, :default), do: claims
-  defp maybe_put_persona(claims, persona), do: Map.put(claims, "slack_agent_persona", Atom.to_string(persona))
-
   defp slack_agent_mcp_user_email do
     AgentConfig.mcp_user_email(@default_mcp_user_email)
   end
 
-  def build_prompt(event, channel, slack_user, thread_messages \\ [], identity \\ Identity.default())
+  def build_prompt(event, channel, slack_user, thread_messages \\ [])
 
-  def build_prompt(event, %Channel{} = channel, slack_user, thread_messages, %Identity{} = identity) do
+  def build_prompt(event, %Channel{} = channel, slack_user, thread_messages) do
     """
-    #{memory_bulletin_block(channel.slack_app, channel, identity)}Slack conversation received.
+    #{memory_bulletin_block(channel.slack_app, channel)}Slack conversation received.
 
     Conversation:
     - Workspace: #{channel.slack_app}
@@ -473,14 +409,12 @@ defmodule Atlas.Slack.ConversationAgent do
     - User: #{user_display(slack_user, event["user"])}
     - Channel-linked account ID: #{channel.account_id || "-"}
 
-    #{persona_context(identity)}
-
     Thread transcript:
     #{format_thread_transcript(event, thread_messages, slack_user)}
     """
   end
 
-  def build_prompt(event, nil, slack_user, thread_messages, %Identity{} = identity) do
+  def build_prompt(event, nil, slack_user, thread_messages) do
     """
     Slack conversation received.
 
@@ -491,53 +425,19 @@ defmodule Atlas.Slack.ConversationAgent do
     - User: #{user_display(slack_user, event["user"])}
     - Channel-linked account ID: -
 
-    #{persona_context(identity)}
-
     Thread transcript:
     #{format_thread_transcript(event, thread_messages, slack_user)}
     """
   end
 
-  defp memory_bulletin_block(_app_key, _channel, %Identity{memory_scope: :disabled}), do: ""
-
-  defp memory_bulletin_block(app_key, %Channel{} = channel, %Identity{} = identity) do
+  defp memory_bulletin_block(app_key, %Channel{} = channel) do
     with true <- internal_company_channel?(app_key, channel),
-         true <- identity.memory_scope == :global,
          %Bulletin{body: body} <- Memory.get_bulletin(:global),
          trimmed when trimmed != "" <- String.trim(body) do
       "Workspace memory bulletin:\n#{trimmed}\n\n"
     else
       _ -> ""
     end
-  end
-
-  defp persona_context(%Identity{} = identity) do
-    [
-      identity_context(identity),
-      Identity.persona_instructions(identity) || "Channel persona: default Atlas Slack assistant.",
-      tool_group_context(identity)
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join("\n")
-  end
-
-  defp identity_context(%Identity{key: key}) when key in [nil, "default"], do: nil
-
-  defp identity_context(%Identity{} = identity) do
-    "Atlas identity: #{identity.display_name} (#{identity.key})."
-  end
-
-  defp tool_group_context(%Identity{} = identity) do
-    groups = Identity.tool_groups_for_agent(identity, :conversation)
-
-    context =
-      [
-        if("finance" in groups, do: "Channel tool access: finance tools are available directly to the Slack agent."),
-        if("documents" in groups, do: "Channel tool access: document tools are available directly to the Slack agent.")
-      ]
-      |> Enum.reject(&is_nil/1)
-
-    if context != [], do: Enum.join(context, "\n")
   end
 
   def blocks_for_text(text, opts \\ []) when is_binary(text) do
@@ -1296,22 +1196,11 @@ defmodule Atlas.Slack.ConversationAgent do
 
   defp slack_audit_context(assigns) when is_map(assigns) do
     slack_user = Map.get(assigns, :requester_slack_user) || Map.get(assigns, "requester_slack_user")
-    identity_id = Map.get(assigns, :agent_identity_id) || Map.get(assigns, "agent_identity_id")
-    identity_key = Map.get(assigns, :agent_identity_key) || Map.get(assigns, "agent_identity_key")
-
-    identity_display_name =
-      Map.get(assigns, :agent_identity_display_name) ||
-        Map.get(assigns, "agent_identity_display_name")
 
     %{
       interface: "slack",
       actor_email: slack_user && slack_user.email,
-      actor_name: slack_user && User.best_display_name(slack_user),
-      metadata:
-        %{}
-        |> map_put_some("agent_identity_id", identity_id)
-        |> map_put_some("agent_identity_key", identity_key)
-        |> map_put_some("agent_identity_display_name", identity_display_name)
+      actor_name: slack_user && User.best_display_name(slack_user)
     }
   end
 
@@ -1395,10 +1284,6 @@ defmodule Atlas.Slack.ConversationAgent do
   defp maybe_put(opts, _key, ""), do: opts
   defp maybe_put(opts, _key, []), do: opts
   defp maybe_put(opts, key, value), do: Keyword.put(opts, key, value)
-
-  defp map_put_some(map, _key, nil), do: map
-  defp map_put_some(map, _key, ""), do: map
-  defp map_put_some(map, key, value), do: Map.put(map, key, value)
 
   defp normalize_domain(value) when is_binary(value) do
     value

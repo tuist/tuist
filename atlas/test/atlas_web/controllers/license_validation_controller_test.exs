@@ -63,7 +63,7 @@ defmodule AtlasWeb.LicenseValidationControllerTest do
 
     assert license_id == license.id
     activity = Repo.get_by!(Activity, action: "license.validated", target_id: license.id)
-    assert activity.metadata["valid"] == "false"
+    assert activity.metadata["valid"] == false
   end
 
   test "requires the online key", %{conn: conn} do

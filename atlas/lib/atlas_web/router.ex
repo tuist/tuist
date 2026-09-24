@@ -162,6 +162,15 @@ defmodule AtlasWeb.Router do
     live_session :public_postmortem, layout: false do
       live "/p/postmortems/:share_token", PostmortemLive.Public
     end
+
+    live_session :public_poc,
+      layout: false,
+      root_layout: {AtlasWeb.Layouts, :poc_public} do
+      live "/p/pocs/:public_token", POCLive.Public
+    end
+
+    get "/p/pocs/:public_token/verify", POCPublicController, :verify
+    get "/p/pocs/:public_token/session/:request_id", POCPublicController, :session
   end
 
   scope "/", AtlasWeb do
@@ -200,6 +209,7 @@ defmodule AtlasWeb.Router do
       on_mount: [{AtlasWeb.LayoutLive, :default}],
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/", OverviewLive, :index
+      live "/tasks", TasksLive, :index
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show
@@ -215,6 +225,9 @@ defmodule AtlasWeb.Router do
       live "/commercial/support/:id", SupportLive, :show
       live "/outbound/email", GTMEmailLive, :index
       live "/outbound/email/audiences/:id", GTMEmailLive, :audience
+      live "/outbound/email/inbox", EmailMailboxLive, :inbox
+      live "/outbound/email/outbox", EmailMailboxLive, :outbox
+      live "/outbound/email/outbox/:id", EmailMailboxLive, :sent_email
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show
@@ -233,6 +246,10 @@ defmodule AtlasWeb.Router do
       live "/engineering/specs/new", SpecLive.Form, :new
       live "/engineering/specs/:number", SpecLive.Show
       live "/engineering/specs/:number/edit", SpecLive.Form, :edit
+      live "/commercial/sales/pocs", POCLive.Index, :index
+      live "/commercial/sales/pocs/new", POCLive.Form, :new
+      live "/commercial/sales/pocs/:id", POCLive.Show, :show
+      live "/commercial/sales/pocs/:id/edit", POCLive.Form, :edit
     end
 
     live_session :scoped_finance,
@@ -290,7 +307,6 @@ defmodule AtlasWeb.Router do
 
       scope "/admin", Admin do
         live "/audit", AuditLive, :index
-        live "/identities", IdentitiesLive, :index
         live "/users", UsersLive, :index
         live "/roles", RolesLive, :index
         live "/roles/new", RolesLive, :new

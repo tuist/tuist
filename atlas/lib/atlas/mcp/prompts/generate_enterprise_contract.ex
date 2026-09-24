@@ -130,7 +130,7 @@ defmodule Atlas.MCP.Prompts.GenerateEnterpriseContract do
     # Source of truth
     - Customer commercial data lives in Atlas. Call `get_account` for the full bundle (legal name, billing address, signatory, currency, current_value, next_renewal_date, contacts, etc.). Use what is on the account; ask the user for anything missing rather than inventing legal or billing data.
     - Explicit values in the user's current request override pasted conversation context. Both override older values stored in Atlas.
-    - Templates are served by Atlas. Call `list_contract_templates` (template_set = `#{template_set}`) to see the available files, then call `get_contract_template` for each one you need. That tool attaches the official Word template directly as an embedded resource. Use the attached resource rather than browser, desktop-control, or terminal hand-offs. Its signed `download_url` is only a fallback for clients with local file access.
+    - Templates are served by Atlas. Call `list_contract_templates` (template_set = `#{template_set}`) to see the available files, then call `get_contract_template` for each one you need. That tool returns a signed `download_url` for the official Word template. Download the file from it; do not ask the user to hand the template over through a browser or desktop control.
 
     # Templates to fetch (template_set = `#{template_set}`)
     #{templates_to_fetch(document_scope)}
@@ -214,7 +214,7 @@ defmodule Atlas.MCP.Prompts.GenerateEnterpriseContract do
     1. Call `get_account` and reconcile its fields with the user's current request.
     2. Call `list_contract_templates` to confirm the available files.
     3. Determine the hosting model, then call `get_contract_template` for exactly one order-form template.
-    4. Fill the attached template using the rules in "Order form fills" while preserving its layout.
+    4. Download it from its `download_url` and fill it using the rules in "Order form fills" while preserving its layout.
     5. Do a final placeholder sweep and return the filled Word document as an output.
     """
   end
@@ -223,7 +223,7 @@ defmodule Atlas.MCP.Prompts.GenerateEnterpriseContract do
     """
     1. Call `get_account` and reconcile its fields with the user's current request.
     2. Call `list_contract_templates` to confirm the available files.
-    3. Call `get_contract_template` for each file you need and use each attached Word resource directly.
+    3. Call `get_contract_template` for each file you need and download each Word template from its `download_url`.
     4. Fill the MSA (see "MSA edits").
     5. Copy the DPA, DAA, and SLA verbatim. Only edit them when the user explicitly asks for negotiated deviations.
     6. Fill the chosen order form using the rules in "Order form fills".

@@ -136,3 +136,7 @@ cli/Tests/Fixtures/*.xcresult/database.sqlite3
 # GitHub App private key the same runbook creates for `flux bootstrap`.
 *.kubeconfig
 flux-app.pem
+
+# Python bytecode (the switch fleet tooling under infra/ is plain python3)
+__pycache__/
+*.pyc

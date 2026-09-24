@@ -83,6 +83,7 @@ defmodule Tuist do
       Kura.SelfHostedClient,
       Kura.SelfHostedClients,
       Kura.Mesh,
+      Kura.Identity,
       Kura.Registrations,
       Kura.RegisteredEndpoint,
       Gradle,
@@ -152,6 +153,8 @@ defmodule Tuist do
       Billing.Entitlements,
       Billing.Workers.CreateRunnerPrepaidGrantWorker,
       Billing.Subscription,
+      Billing.UsagePricing,
+      Billing.UsageMeterProvisioning,
       AppBuilds,
       AppBuilds.Preview,
       AppBuilds.AppBuild,
@@ -231,6 +234,9 @@ defmodule Tuist do
       # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
+      Runners.CacheVolumes,
+      Runners.CacheVolumes.Query,
+      Runners.CacheVolumes.Schemas,
       Runners.Analytics,
       Runners.Billing,
       Runners.Catalog,

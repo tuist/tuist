@@ -26,6 +26,10 @@ use uuid::Uuid;
 
 use crate::{
     action_cache_refs::referenced_blob_keys,
+    action_cache_removals::{
+        ACTION_CACHE_REMOVAL_LOG_MAX, ActionCacheRemoval, ActionCacheRemovalLog,
+        ActionCacheRemovals,
+    },
     artifact::{
         manifest::{ArtifactManifest, PersistedManifestRecord},
         producer::ArtifactProducer,
@@ -38,11 +42,12 @@ use crate::{
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
         MAX_PEER_PAGE_ITEMS, MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
-        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE,
-        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
-        ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
-        ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
+        ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_ANALYTICS_OUTBOX,
+        ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS,
+        ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
+        ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
+        ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
+        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS,
         ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
         SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
         SYNC_FEED_TRIM_BATCH_ROWS,
@@ -180,6 +185,15 @@ pub struct Store {
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
     multipart_uploads: Arc<AtomicUsize>,
+    /// In-memory approximate count of durable entries in the analytics
+    /// outbox column family. Hydrated once at [`Self::open`] by scanning
+    /// the CF; every subsequent [`Self::append_analytics_outbox_entry`]
+    /// increments and every [`Self::delete_analytics_outbox_entries`]
+    /// decrements. Kept precise as long as callers only mutate the CF
+    /// through those two methods, which the producer and forwarder do.
+    /// Used by the producer's depth-cap admission so it does not have
+    /// to scan the CF on every event.
+    analytics_outbox_entries: AtomicUsize,
     multipart_admission_waiters: AtomicUsize,
     multipart_admission_turn: Mutex<()>,
     multipart_slots_changed: Arc<Notify>,
@@ -224,6 +238,10 @@ pub struct Store {
     /// per node: it only ever gates a local cache, a fresh process rebuilds once,
     /// and the apply path bumps it too so a peer's write is not missed.
     action_cache_generations: StdMutex<HashMap<String, u64>>,
+    /// Entries and blobs removed per namespace, so a cached snapshot index can
+    /// drop what it advertises before its next reconcile (see
+    /// `action_cache_removals`).
+    action_cache_removals: Arc<StdMutex<ActionCacheRemovalLog>>,
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
@@ -402,6 +420,15 @@ const MAX_PENDING_PROMOTIONS: usize = 262_144;
 /// queue ahead of one. Reserving a slice rather than raising the ceiling keeps
 /// the queue's total memory bound unchanged.
 const VOUCHED_PROMOTION_RESERVE: usize = 65_536;
+
+/// Snapshot returned by [`Store::analytics_outbox_stats`]. `entries` is
+/// the precise in-memory counter and `bytes` is RocksDB's live-data-size
+/// estimate for the analytics outbox column family.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct AnalyticsOutboxStats {
+    pub entries: usize,
+    pub bytes: u64,
+}
 
 pub struct StoreSnapshot {
     pub multipart_uploads: usize,
@@ -1125,6 +1152,9 @@ struct CascadeProgress {
     seen_recipes: HashSet<String>,
     pending_entries: Vec<String>,
     pending_namespaces: HashSet<String>,
+    /// Entries and blobs staged for deletion in the current chunk, recorded for
+    /// cached snapshot indexes when the chunk commits.
+    removals: Vec<(String, ActionCacheRemoval)>,
     total: usize,
     recipe_total: usize,
 }
@@ -1234,6 +1264,19 @@ impl Store {
                     &rocksdb_write_buffer_manager,
                 ),
             ),
+            // Analytics outbox declaration lands before any producer exists.
+            // See `constants::ROCKSDB_CF_ANALYTICS_OUTBOX` for the rollout
+            // sequence rationale. Uses the same options as every other CF so
+            // no per-family tuning surface is exposed until a producer knows
+            // what it needs.
+            ColumnFamilyDescriptor::new(
+                ROCKSDB_CF_ANALYTICS_OUTBOX,
+                rocksdb_column_family_options(
+                    config,
+                    &rocksdb_block_cache,
+                    &rocksdb_write_buffer_manager,
+                ),
+            ),
             ColumnFamilyDescriptor::new(
                 ROCKSDB_CF_SEGMENT_ARTIFACTS,
                 rocksdb_column_family_options(
@@ -1265,6 +1308,17 @@ impl Store {
             DB::open_cf_descriptors(&options, db_path, cfs)
                 .map_err(|error| format!("failed to open RocksDB: {error}"))?,
         );
+        // The option has no setter in the Rust bindings, so it is applied once
+        // open; it takes effect from the next memtable, not the one live now.
+        let key_value = db
+            .cf_handle(ROCKSDB_CF_KEY_VALUE)
+            .ok_or_else(|| "missing key_value column family".to_string())?;
+        let max_range_deletions = ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS.to_string();
+        db.set_options_cf(
+            &key_value,
+            &[("memtable_max_range_deletions", max_range_deletions.as_str())],
+        )
+        .map_err(|error| format!("failed to cap memtable range deletions: {error}"))?;
         io.metrics()
             .update_manifest_cache_capacity_bytes(config.manifest_cache_max_bytes);
         io.metrics().update_manifest_index_entries(0);
@@ -1308,6 +1362,7 @@ impl Store {
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
             multipart_uploads: Arc::new(AtomicUsize::new(0)),
+            analytics_outbox_entries: AtomicUsize::new(0),
             multipart_admission_waiters: AtomicUsize::new(0),
             multipart_admission_turn: Mutex::new(()),
             multipart_slots_changed: Arc::new(Notify::new()),
@@ -1330,6 +1385,9 @@ impl Store {
             #[cfg(test)]
             write_thread_observer: Arc::new(StdMutex::new(None)),
             action_cache_generations: StdMutex::new(HashMap::new()),
+            action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
+                ACTION_CACHE_REMOVAL_LOG_MAX,
+            ))),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
             durable_seq: AtomicU64::new(0),
@@ -1372,6 +1430,13 @@ impl Store {
         store.rederive_active_segment_max_version()?;
         store.init_backfill_index_state()?;
         store.sweep_legacy_outbox()?;
+        // Hydrate the analytics outbox entry counter once at open. From
+        // here on every append/delete keeps it precise; the producer
+        // admission check reads this counter instead of scanning the CF.
+        let analytics_outbox_entries = store.count_cf_entries(ROCKSDB_CF_ANALYTICS_OUTBOX)?;
+        store
+            .analytics_outbox_entries
+            .store(analytics_outbox_entries, Ordering::Release);
         let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
         store
             .multipart_uploads
@@ -4129,6 +4194,14 @@ impl Store {
                         );
                         batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
                         self.stage_backfill_index_delete(&mut batch, &manifest);
+                        if manifest.producer == ArtifactProducer::Reapi
+                            && let Some(removal) =
+                                ActionCacheRemoval::for_artifact_key(&manifest.key)
+                        {
+                            cascade
+                                .removals
+                                .push((manifest.namespace_id.clone(), removal));
+                        }
                         *removed_artifacts.entry(manifest.producer).or_default() += 1;
                         removed_artifact_ids.push(artifact_id);
                     }
@@ -4217,6 +4290,13 @@ impl Store {
         // there, and it costs only a re-read if the commit then fails.
         self.invalidate_committed_eviction(removed_artifact_ids, cascade);
         let db = Arc::clone(&self.db);
+        // Removals are recorded for cached snapshot indexes only once the write
+        // has landed, and from the blocking task, which runs to completion even
+        // when the future awaiting it is dropped. Recording earlier would let a
+        // concurrent rebuild stamp the new sequence over rows still present,
+        // and nothing would record them again once the commit removed them.
+        let removals = std::mem::take(&mut cascade.removals);
+        let removal_log = Arc::clone(&self.action_cache_removals);
         #[cfg(test)]
         let commits = Arc::clone(&self.eviction_commits);
         #[cfg(test)]
@@ -4242,6 +4322,14 @@ impl Store {
                 }
             }
             let result = db.write(batch);
+            if result.is_ok() {
+                let mut log = removal_log
+                    .lock()
+                    .expect("action-cache removal log lock poisoned");
+                for (namespace_id, removal) in removals {
+                    log.record(&namespace_id, removal);
+                }
+            }
             #[cfg(test)]
             if result.is_ok() {
                 let hook = commits
@@ -4376,6 +4464,11 @@ impl Store {
                     continue;
                 }
                 self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
+                if let Some(removal) = ActionCacheRemoval::for_artifact_key(&entry_manifest.key) {
+                    cascade
+                        .removals
+                        .push((entry_manifest.namespace_id.clone(), removal));
+                }
                 cascade.record(&entry_manifest.namespace_id, entry_id);
                 // Bound the batch inside the cascade, not just between blobs. The
                 // caller stages this blob's own rows only after this returns, so
@@ -4481,6 +4574,11 @@ impl Store {
                     // representation. Removing the recipe cannot strand them when
                     // the complete blob remains on another segment.
                     if !canonical_blob_survives {
+                        if let Some(removal) = ActionCacheRemoval::for_artifact_key(&blob_key) {
+                            cascade
+                                .removals
+                                .push((recipe_manifest.namespace_id.clone(), removal));
+                        }
                         self.stage_action_cache_cascade_for_blob(
                             batch,
                             &blob_id,
@@ -6364,6 +6462,225 @@ impl Store {
         self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
     }
 
+    /// Depth of the analytics outbox in entries. Reads the in-memory
+    /// counter that is hydrated at [`Self::open`] and maintained by
+    /// [`Self::append_analytics_outbox_entry`] and
+    /// [`Self::delete_analytics_outbox_entries`]. Result is always `Ok`
+    /// so the signature can stay the same as when the count required a
+    /// scan; the `Result` shape is preserved for callers.
+    pub fn analytics_outbox_entry_count(&self) -> Result<usize, String> {
+        Ok(self.analytics_outbox_entries.load(Ordering::Acquire))
+    }
+
+    /// Approximate depth signal for the producer's admission check.
+    /// `entries` is precise (the in-memory counter). `bytes` is the
+    /// RocksDB estimate for live data in the column family, which lags
+    /// behind flushes and compactions but is O(1) to read and never
+    /// blocks the drain. The producer treats both as soft ceilings and
+    /// drops new batches once either is exceeded, matching the
+    /// dual-cap pattern the Sentry SDK, OpenTelemetry BatchSpan
+    /// exporter, and Vector's disk buffers use for telemetry outboxes.
+    pub fn analytics_outbox_stats(&self) -> AnalyticsOutboxStats {
+        let entries = self.analytics_outbox_entries.load(Ordering::Acquire);
+        let bytes = self
+            .db
+            .property_int_value_cf(
+                self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX),
+                "rocksdb.estimate-live-data-size",
+            )
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+        AnalyticsOutboxStats { entries, bytes }
+    }
+
+    /// Append one encoded outbox entry, durably.
+    ///
+    /// Runs through the off-runtime write path so the fsync does not park
+    /// a Tokio worker. `queued_at_ms` and `event_id` become the key; the
+    /// caller owns them so the value's `encoded_at_ms` (which lands
+    /// inside the encoded payload before this method sees it) can share
+    /// the same wall-clock read.
+    ///
+    /// This method is deliberately unopinionated about admission so the
+    /// forwarder can also use it, for example when moving a decoded
+    /// entry back to the live prefix after a version-skew fix. The
+    /// producer's admission (depth caps, byte caps, memory pressure)
+    /// lives in [`crate::analytics`].
+    ///
+    /// Bumps the in-memory entry counter on success. A failed write
+    /// leaves the counter untouched.
+    pub async fn append_analytics_outbox_entry(
+        &self,
+        pipeline: crate::analytics_outbox::Pipeline,
+        queued_at_ms: u64,
+        event_id: Uuid,
+        encoded_value: &[u8],
+    ) -> Result<(), String> {
+        let key = crate::analytics_outbox::build_key(pipeline, queued_at_ms, event_id);
+        let mut batch = WriteBatch::default();
+        batch.put_cf(self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX), key, encoded_value);
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "analytics outbox append",
+            ApplyDurability::Sync,
+        )
+        .await?;
+        self.analytics_outbox_entries.fetch_add(1, Ordering::AcqRel);
+        Ok(())
+    }
+
+    /// Read the oldest entries for one pipeline, bounded by count and
+    /// bytes. FIFO by key order (see the layout in
+    /// `crate::analytics_outbox` for why lexicographic key order equals
+    /// enqueue order). Returns fewer entries than `max_entries` if the
+    /// pipeline is empty or the byte budget was reached first.
+    ///
+    /// The iterator uses `IteratorMode::From(prefix, Forward)` and stops
+    /// as soon as a key steps outside the pipeline's prefix, so a
+    /// forwarder scanning one pipeline never observes another pipeline's
+    /// rows.
+    ///
+    /// Return values other than [`crate::analytics_outbox::NextBatch::Batch`]
+    /// are the forwarder's cue to quarantine the head before draining
+    /// again:
+    ///
+    /// - [`crate::analytics_outbox::NextBatch::HeadTooLarge`] fires when
+    ///   the head entry alone exceeds `max_bytes`. An earlier revision
+    ///   of this method silently bypassed the byte budget for the first
+    ///   record; Codex flagged that as a permanent retry loop against
+    ///   HTTP 413 because adaptive batch reduction cannot help when a
+    ///   single record is oversized.
+    /// - [`crate::analytics_outbox::NextBatch::HeadMalformed`] fires
+    ///   when the head does not decode. The raw key and value are
+    ///   returned so the forwarder can copy them into a quarantine
+    ///   column family in the follow-up PR and/or delete the head with
+    ///   [`Self::delete_analytics_outbox_entries`]. An earlier revision
+    ///   collapsed the decode failure to a `String`, which left the
+    ///   forwarder without the key it needed to unblock the pipeline.
+    ///
+    /// Marked `dead_code`-allowed for the same reason as the append: the
+    /// follow-up outbox forwarder is the first production caller.
+    #[allow(dead_code)]
+    pub fn next_analytics_outbox_batch(
+        &self,
+        pipeline: crate::analytics_outbox::Pipeline,
+        max_entries: usize,
+        max_bytes: usize,
+    ) -> Result<crate::analytics_outbox::NextBatch, String> {
+        if max_entries == 0 {
+            return Ok(crate::analytics_outbox::NextBatch::Batch(Vec::new()));
+        }
+        let prefix = crate::analytics_outbox::pipeline_prefix(pipeline);
+        let cf = self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX);
+        let iter = self
+            .db
+            .iterator_cf(cf, IteratorMode::From(&prefix, rocksdb::Direction::Forward));
+
+        let mut entries: Vec<crate::analytics_outbox::OutboxEntry> = Vec::new();
+        let mut total_bytes = 0_usize;
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate analytics outbox: {error}"))?;
+            if key.len() < 2 || key[0..2] != prefix {
+                // Left the pipeline's prefix; the shared column family is
+                // ordered so nothing further in this scan belongs to us.
+                break;
+            }
+            let entry_size = key.len() + value.len();
+            match crate::analytics_outbox::decode_entry(&key, &value) {
+                Ok(entry) => {
+                    if entries.is_empty() && entry_size > max_bytes {
+                        // Head-of-line entry alone busts the caller's byte
+                        // budget. Return a distinct signal so the
+                        // forwarder can quarantine it instead of looping.
+                        return Ok(crate::analytics_outbox::NextBatch::HeadTooLarge {
+                            entry,
+                            size_bytes: entry_size,
+                        });
+                    }
+                    if !entries.is_empty() && total_bytes.saturating_add(entry_size) > max_bytes {
+                        // Later entries respect the byte budget strictly.
+                        // The forwarder already has at least one row that
+                        // fits, so stopping here is not a stall.
+                        break;
+                    }
+                    total_bytes = total_bytes.saturating_add(entry_size);
+                    entries.push(entry);
+                    if entries.len() >= max_entries {
+                        break;
+                    }
+                }
+                Err(error) => {
+                    if entries.is_empty() {
+                        // The head cannot decode. Hand the raw key and
+                        // value back so the forwarder can quarantine and
+                        // delete without a second read.
+                        return Ok(crate::analytics_outbox::NextBatch::HeadMalformed {
+                            key: key.to_vec(),
+                            value: value.to_vec(),
+                            error,
+                        });
+                    }
+                    // A malformed entry mid-batch is not blocking the
+                    // pipeline: the head decoded and the forwarder can
+                    // process it, then rescan and see this row become the
+                    // new head. Stop here so we do not silently skip past
+                    // an unhealthy row on this call.
+                    break;
+                }
+            }
+        }
+        Ok(crate::analytics_outbox::NextBatch::Batch(entries))
+    }
+
+    /// Delete an acknowledged batch. The keys must have been produced by
+    /// [`Self::next_analytics_outbox_batch`] or by another store method
+    /// that respects the outbox layout; passing arbitrary bytes here
+    /// removes nothing (RocksDB tolerates deletes of nonexistent keys).
+    /// Runs through the off-runtime write path for the same reason
+    /// [`Self::append_analytics_outbox_entry`] does.
+    ///
+    /// Decrements the in-memory entry counter by `keys.len()` on
+    /// success. Because the caller is expected to pass keys that
+    /// actually existed (from a prior read of the CF), the counter
+    /// stays consistent with the CF; a stray delete of a non-existent
+    /// key would drift the counter one below reality until the next
+    /// process restart re-hydrates it from a scan.
+    pub async fn delete_analytics_outbox_entries(&self, keys: &[Vec<u8>]) -> Result<(), String> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+        let count = keys.len();
+        let mut batch = WriteBatch::default();
+        for key in keys {
+            batch.delete_cf(self.cf(ROCKSDB_CF_ANALYTICS_OUTBOX), key);
+        }
+        self.write_batch_with_durability_off_runtime(
+            batch,
+            "analytics outbox delete",
+            ApplyDurability::Sync,
+        )
+        .await?;
+        // fetch_update-style saturating subtract: a delete never wraps
+        // the counter around, even if the caller passes keys that
+        // predate the last open.
+        let mut current = self.analytics_outbox_entries.load(Ordering::Acquire);
+        loop {
+            let next = current.saturating_sub(count);
+            match self.analytics_outbox_entries.compare_exchange_weak(
+                current,
+                next,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(observed) => current = observed,
+            }
+        }
+        Ok(())
+    }
+
     pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {
         if keys.is_empty() {
             return Ok(());
@@ -6488,6 +6805,15 @@ impl Store {
         }
         self.write_batch_sync(batch, "artifact metadata deletes")?;
         self.remove_manifest_cache_keys(&ids);
+        self.record_action_cache_removals(
+            manifests
+                .iter()
+                .filter(|manifest| manifest.producer == ArtifactProducer::Reapi)
+                .filter_map(|manifest| {
+                    ActionCacheRemoval::for_artifact_key(&manifest.key)
+                        .map(|removal| (manifest.namespace_id.clone(), removal))
+                }),
+        );
         Ok(())
     }
 
@@ -6736,6 +7062,41 @@ impl Store {
             .get(namespace_id)
             .copied()
             .unwrap_or(0)
+    }
+
+    /// The removal sequence a snapshot index built from the store now resumes
+    /// from.
+    pub fn action_cache_removal_seq(&self) -> u64 {
+        self.action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned")
+            .last()
+    }
+
+    /// The entries and blobs removed from the namespace after `after`, or `None`
+    /// when the log no longer retains all of them and the index has to rebuild.
+    pub fn action_cache_removals_since(
+        &self,
+        namespace_id: &str,
+        after: u64,
+    ) -> Option<ActionCacheRemovals> {
+        self.action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned")
+            .since(namespace_id, after)
+    }
+
+    fn record_action_cache_removals(
+        &self,
+        removals: impl IntoIterator<Item = (String, ActionCacheRemoval)>,
+    ) {
+        let mut log = self
+            .action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned");
+        for (namespace_id, removal) in removals {
+            log.record(&namespace_id, removal);
+        }
     }
 
     fn bump_action_cache_generation(&self, namespace_id: &str) {
@@ -7572,7 +7933,10 @@ impl Store {
         );
         let floor = self.sync_feed.floor();
         let cap = self.sync_feed.cap();
-        if ticket.seq().saturating_sub(floor) > cap {
+        // Overshoot by a batch before trimming back: every trim is a range
+        // delete from key 0, so a trim per write under a pinned cap stacks
+        // nested tombstones that RocksDB fragments quadratically.
+        if ticket.seq().saturating_sub(floor) > cap.saturating_add(sync_feed_cap_trim_slack(cap)) {
             let new_floor = ticket.seq() - cap;
             self.stage_sync_feed_trim(batch, new_floor);
             self.sync_feed.raise_floor(new_floor);
@@ -9916,6 +10280,13 @@ fn load_sync_feed_state(db: &DB, cap: u64) -> Result<SyncFeedState, String> {
     ))
 }
 
+/// Rows the feed may hold past its cap before a cap trim drops back to it:
+/// the consumer trim's batch, shrunk for caps smaller than a batch so a tiny
+/// test cap still bounds the feed to twice itself.
+fn sync_feed_cap_trim_slack(cap: u64) -> u64 {
+    SYNC_FEED_TRIM_BATCH_ROWS.min(cap)
+}
+
 /// Marks every staged feed row of a landed batch committed, in one place so
 /// no commit path forgets it.
 fn commit_sync_feed_tickets(tickets: Vec<SyncFeedTicket>) {
@@ -10032,6 +10403,40 @@ mod tests {
     };
 
     const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn key_value_memtable_switches_once_it_holds_the_range_delete_cap() {
+        let (_temp_dir, _config, store) = temp_store();
+        let cf = store.cf(ROCKSDB_CF_KEY_VALUE);
+        let active_entries = || {
+            store
+                .db
+                .property_int_value_cf(cf, "rocksdb.num-entries-active-mem-table")
+                .expect("read memtable property")
+                .expect("memtable property is present")
+        };
+        // The cap is applied after open, so it reaches the next memtable.
+        store.db.put_cf(cf, b"test/seed", b"v").expect("seed");
+        store.db.flush_cf(cf).expect("switch memtable");
+
+        for index in 0..ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS {
+            store
+                .db
+                .delete_range_cf(cf, format!("test/{index:05}"), format!("test/{index:05}~"))
+                .expect("range delete");
+        }
+        assert_eq!(
+            active_entries(),
+            u64::from(ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS)
+        );
+        // RocksDB switches the full memtable at the start of the next write.
+        store.db.put_cf(cf, b"test/next", b"v").expect("next write");
+        assert_eq!(
+            active_entries(),
+            1,
+            "the memtable holding the cap's worth of range deletes was switched out"
+        );
+    }
 
     #[test]
     fn read_bytes_at_returns_exact_requested_range() {
@@ -12594,6 +12999,488 @@ mod tests {
             read_manifest_bytes(&reopened, &rebuilt).await,
             b"module-bytes"
         );
+    }
+
+    #[test]
+    fn a_freshly_opened_store_reports_zero_analytics_outbox_entries() {
+        // The column family exists from the day it is declared, but the
+        // release that declares it ships no producer. A fresh store must
+        // still be able to read the (empty) count without erroring, so the
+        // startup metric wire-up in app.rs and the follow-up outbox
+        // module's periodic refresh both have a stable contract from day
+        // one.
+        let (_temp, _config, store) = temp_store();
+        let count = store
+            .analytics_outbox_entry_count()
+            .expect("counting the empty analytics outbox should succeed");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn upgrading_a_predecessor_database_creates_the_analytics_outbox_and_preserves_existing_data() {
+        // Simulates the actual production upgrade path: an existing pod's
+        // data volume was written by a predecessor binary whose descriptor
+        // list lacked `analytics_outbox`. The new binary must open the
+        // database, add the missing column family via
+        // `create_missing_column_families(true)`, and leave every other
+        // column family's contents intact. This is the risky transition
+        // the entry-count tests do not exercise, so it is the one that
+        // needs to fail loud if the descriptor list, options, or open path
+        // ever regresses.
+        //
+        // Reuse `temp_store` for its config-building side, then wipe the
+        // rocksdb directory the fresh open left behind so the predecessor
+        // path below starts from an empty on-disk state, exactly as it
+        // would on a fresh volume created by the predecessor release.
+        let (_temp, config, initial_store) = temp_store();
+        drop(initial_store);
+        std::fs::remove_dir_all(config.data_dir.join("rocksdb"))
+            .expect("failed to reset rocksdb dir");
+
+        // Predecessor binary writes a canary into an unrelated column
+        // family so the upgrade path has real state to preserve.
+        {
+            let db = open_predecessor_db(&config).expect("predecessor open should succeed");
+            let cf = db
+                .cf_handle(ROCKSDB_CF_MANIFESTS)
+                .expect("manifests handle should exist");
+            db.put_cf(cf, b"canary/key", b"canary-value")
+                .expect("canary write should succeed");
+        }
+
+        // New binary opens the same database. This is the manifest touch
+        // that the release-notes call irreversible.
+        let store = reopen_store(&config);
+
+        assert_eq!(
+            store
+                .analytics_outbox_entry_count()
+                .expect("counting the upgraded analytics outbox should succeed"),
+            0,
+            "the newly-added column family should be present and empty",
+        );
+
+        let cf = store
+            .db
+            .cf_handle(ROCKSDB_CF_MANIFESTS)
+            .expect("manifests handle should still exist");
+        assert_eq!(
+            store
+                .db
+                .get_cf(cf, b"canary/key")
+                .expect("canary read should succeed"),
+            Some(b"canary-value".to_vec()),
+            "existing column families must survive the upgrade",
+        );
+        drop(store);
+
+        // The predecessor descriptor list no longer covers the database.
+        // Rolling back is expected to fail — this is the one-way boundary
+        // the release notes warn about, pinned here so a future refactor
+        // that softens that boundary (for example, by adding the new
+        // family to the predecessor's open path) fails this test instead
+        // of silently changing rollout semantics.
+        let error = open_predecessor_db(&config)
+            .expect_err("predecessor should not be able to reopen the upgraded database");
+        let message = error.to_string();
+        assert!(
+            message.contains("analytics_outbox") || message.contains("Column families"),
+            "predecessor open error should identify the missing column family, got {message}",
+        );
+    }
+
+    #[tokio::test]
+    async fn append_and_read_analytics_outbox_round_trips_the_entry() {
+        // The store methods and the entry-schema module have to agree on
+        // exactly one wire shape; this test is the sole place where the
+        // agreement is exercised end-to-end. A future change that
+        // silently mangles the encoding would fail this round-trip
+        // before it reaches production.
+        let (_temp, _config, store) = temp_store();
+        let event_id = Uuid::from_u128(0x0000_0000_0000_0001);
+        let payload = b"{\"events\":[1,2,3]}";
+        let value = crate::analytics_outbox::encode_value(
+            0,
+            1_760_000_000_500,
+            crate::analytics_outbox::ContentType::Json,
+            payload,
+        )
+        .expect("payload fits the value header");
+
+        store
+            .append_analytics_outbox_entry(
+                crate::analytics_outbox::Pipeline::GradleCache,
+                1_760_000_000_500,
+                event_id,
+                &value,
+            )
+            .await
+            .expect("append should succeed on a fresh outbox");
+
+        assert_eq!(
+            store
+                .analytics_outbox_entry_count()
+                .expect("counting after one append should succeed"),
+            1,
+        );
+
+        let entries = match store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::GradleCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read after append should succeed")
+        {
+            crate::analytics_outbox::NextBatch::Batch(entries) => entries,
+            other => panic!("expected NextBatch::Batch, got {other:?}"),
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].event_id, event_id);
+        assert_eq!(entries[0].payload, payload);
+        assert_eq!(entries[0].queued_at_ms, 1_760_000_000_500);
+        assert_eq!(
+            entries[0].content_type,
+            crate::analytics_outbox::ContentType::Json,
+        );
+    }
+
+    #[tokio::test]
+    async fn next_analytics_outbox_batch_returns_entries_in_fifo_order() {
+        let (_temp, _config, store) = temp_store();
+        // Append three entries out of order in insertion sequence: the
+        // one with the smallest `queued_at_ms` last, to prove that the
+        // FIFO guarantee comes from the key layout and not from the
+        // order the appends happened.
+        for &(ts, uuid_seed) in &[(300_u64, 30_u128), (100, 10), (200, 20)] {
+            let value = crate::analytics_outbox::encode_value(
+                0,
+                ts,
+                crate::analytics_outbox::ContentType::Json,
+                b"payload",
+            )
+            .expect("short payload encodes");
+            store
+                .append_analytics_outbox_entry(
+                    crate::analytics_outbox::Pipeline::ReapiCache,
+                    ts,
+                    Uuid::from_u128(uuid_seed),
+                    &value,
+                )
+                .await
+                .expect("append should succeed");
+        }
+
+        let entries = match store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::ReapiCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read should succeed")
+        {
+            crate::analytics_outbox::NextBatch::Batch(entries) => entries,
+            other => panic!("expected NextBatch::Batch, got {other:?}"),
+        };
+        assert_eq!(
+            entries.iter().map(|e| e.queued_at_ms).collect::<Vec<_>>(),
+            vec![100, 200, 300],
+        );
+    }
+
+    #[tokio::test]
+    async fn next_analytics_outbox_batch_surfaces_a_head_that_exceeds_the_byte_budget() {
+        let (_temp, _config, store) = temp_store();
+        // Three ~2KB entries. A tiny byte budget must surface the head
+        // as `HeadTooLarge` so the forwarder can quarantine it, rather
+        // than silently bypassing the budget as the earlier revision
+        // did (that produced a permanent HTTP 413 loop when the head
+        // exceeded the server's max body).
+        let large_payload = vec![b'x'; 2_000];
+        for i in 0..3 {
+            let value = crate::analytics_outbox::encode_value(
+                0,
+                i as u64,
+                crate::analytics_outbox::ContentType::Json,
+                &large_payload,
+            )
+            .expect("kilobyte payload encodes");
+            store
+                .append_analytics_outbox_entry(
+                    crate::analytics_outbox::Pipeline::XcodeCache,
+                    i as u64,
+                    Uuid::from_u128(i as u128 + 1),
+                    &value,
+                )
+                .await
+                .expect("append should succeed");
+        }
+
+        match store
+            .next_analytics_outbox_batch(crate::analytics_outbox::Pipeline::XcodeCache, 10, 100)
+            .expect("read should succeed")
+        {
+            crate::analytics_outbox::NextBatch::HeadTooLarge { entry, size_bytes } => {
+                assert!(
+                    size_bytes > 100,
+                    "reported head size ({size_bytes}) should exceed the byte budget (100)",
+                );
+                assert_eq!(entry.queued_at_ms, 0);
+                // The forwarder must have access to the raw key to
+                // delete the entry after quarantine.
+                assert_eq!(entry.key.len(), crate::analytics_outbox::KEY_LEN);
+            }
+            other => panic!("expected NextBatch::HeadTooLarge, got {other:?}"),
+        }
+
+        let three_fits = match store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::XcodeCache,
+                10,
+                3 * 3_000,
+            )
+            .expect("read should succeed")
+        {
+            crate::analytics_outbox::NextBatch::Batch(entries) => entries,
+            other => panic!("expected NextBatch::Batch, got {other:?}"),
+        };
+        assert_eq!(three_fits.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn next_analytics_outbox_batch_surfaces_a_malformed_head_for_quarantine() {
+        // Codex adversarial review on #13470: an on-disk decode failure
+        // used to collapse to a `String` error, dropping the raw key and
+        // value. The forwarder therefore had no way to move the row to
+        // quarantine or to call `delete_analytics_outbox_entries` on it,
+        // so the same row would fail on every scan. The store method now
+        // hands the raw bytes back through `HeadMalformed`.
+        let (_temp, _config, store) = temp_store();
+
+        // Write a legitimate entry first, then corrupt the value in
+        // place by seeking behind the schema-version byte through a raw
+        // `analytics_outbox::build_key` and `put_cf` shim. We reuse the
+        // public append path with an intentionally malformed value so
+        // the RocksDB CF descriptor is exercised the same way the
+        // production producer will exercise it.
+        let key = crate::analytics_outbox::build_key(
+            crate::analytics_outbox::Pipeline::ReapiCache,
+            123,
+            Uuid::from_u128(1),
+        );
+        let mut malformed = crate::analytics_outbox::encode_value(
+            0,
+            123,
+            crate::analytics_outbox::ContentType::Json,
+            b"payload",
+        )
+        .expect("short payload encodes");
+        // Corrupt the schema version so `decode_entry` returns
+        // `UnknownVersion` — the failure mode a rolled-back binary would
+        // encounter first.
+        malformed[0] = 99;
+        store
+            .append_analytics_outbox_entry(
+                crate::analytics_outbox::Pipeline::ReapiCache,
+                123,
+                Uuid::from_u128(1),
+                &malformed,
+            )
+            .await
+            .expect("append with corrupted schema version should still write");
+
+        match store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::ReapiCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read should succeed")
+        {
+            crate::analytics_outbox::NextBatch::HeadMalformed {
+                key: reported_key,
+                value: reported_value,
+                error,
+            } => {
+                assert_eq!(reported_key, key.to_vec());
+                assert_eq!(reported_value, malformed);
+                assert!(
+                    matches!(
+                        error,
+                        crate::analytics_outbox::DecodeError::UnknownVersion { got: 99, .. }
+                    ),
+                    "expected UnknownVersion error, got {error:?}",
+                );
+            }
+            other => panic!("expected NextBatch::HeadMalformed, got {other:?}"),
+        }
+
+        // The forwarder can then delete the malformed row (using the key
+        // returned above) and drain the rest of the pipeline. Simulate
+        // that follow-up so we prove the raw key is actually the right
+        // one to unblock the pipeline.
+        store
+            .delete_analytics_outbox_entries(&[key.to_vec()])
+            .await
+            .expect("quarantine delete should succeed");
+
+        let after = match store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::ReapiCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read after quarantine should succeed")
+        {
+            crate::analytics_outbox::NextBatch::Batch(entries) => entries,
+            other => panic!("expected NextBatch::Batch after quarantine, got {other:?}"),
+        };
+        assert!(after.is_empty());
+    }
+
+    #[tokio::test]
+    async fn next_analytics_outbox_batch_isolates_pipelines_via_prefix() {
+        // The shared column family holds every pipeline's entries. A
+        // read for one pipeline must never yield another's rows — that
+        // is the property Codex's "one CF with pipeline-prefixed keys"
+        // recommendation trades off physical isolation for. Prove it.
+        let (_temp, _config, store) = temp_store();
+        for (pipeline, seed) in [
+            (crate::analytics_outbox::Pipeline::GradleCache, 1_u128),
+            (crate::analytics_outbox::Pipeline::XcodeCache, 2),
+            (crate::analytics_outbox::Pipeline::ReapiCache, 3),
+        ] {
+            let value = crate::analytics_outbox::encode_value(
+                0,
+                42,
+                crate::analytics_outbox::ContentType::Json,
+                b"payload",
+            )
+            .expect("short payload encodes");
+            store
+                .append_analytics_outbox_entry(pipeline, 42, Uuid::from_u128(seed), &value)
+                .await
+                .expect("append should succeed");
+        }
+
+        for pipeline in [
+            crate::analytics_outbox::Pipeline::GradleCache,
+            crate::analytics_outbox::Pipeline::XcodeCache,
+            crate::analytics_outbox::Pipeline::ReapiCache,
+        ] {
+            let entries = match store
+                .next_analytics_outbox_batch(pipeline, 10, usize::MAX)
+                .expect("read should succeed")
+            {
+                crate::analytics_outbox::NextBatch::Batch(entries) => entries,
+                other => panic!("expected NextBatch::Batch, got {other:?}"),
+            };
+            assert_eq!(
+                entries.len(),
+                1,
+                "each pipeline scan is scoped to its own prefix"
+            );
+            assert_eq!(entries[0].pipeline, pipeline);
+        }
+    }
+
+    #[tokio::test]
+    async fn delete_analytics_outbox_entries_removes_only_named_keys() {
+        let (_temp, _config, store) = temp_store();
+        for i in 0..3_u64 {
+            let value = crate::analytics_outbox::encode_value(
+                0,
+                i,
+                crate::analytics_outbox::ContentType::Json,
+                b"payload",
+            )
+            .expect("short payload encodes");
+            store
+                .append_analytics_outbox_entry(
+                    crate::analytics_outbox::Pipeline::GradleCache,
+                    i,
+                    Uuid::from_u128(u128::from(i) + 1),
+                    &value,
+                )
+                .await
+                .expect("append should succeed");
+        }
+
+        let entries = match store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::GradleCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read should succeed")
+        {
+            crate::analytics_outbox::NextBatch::Batch(entries) => entries,
+            other => panic!("expected NextBatch::Batch, got {other:?}"),
+        };
+        assert_eq!(entries.len(), 3);
+
+        // Delete the middle one. Must leave the earliest and latest.
+        let middle_key = entries[1].key.clone();
+        store
+            .delete_analytics_outbox_entries(&[middle_key])
+            .await
+            .expect("delete should succeed");
+
+        let remaining = match store
+            .next_analytics_outbox_batch(
+                crate::analytics_outbox::Pipeline::GradleCache,
+                10,
+                usize::MAX,
+            )
+            .expect("read should succeed")
+        {
+            crate::analytics_outbox::NextBatch::Batch(entries) => entries,
+            other => panic!("expected NextBatch::Batch, got {other:?}"),
+        };
+        assert_eq!(
+            remaining.iter().map(|e| e.queued_at_ms).collect::<Vec<_>>(),
+            vec![0, 2],
+        );
+        assert_eq!(
+            store
+                .analytics_outbox_entry_count()
+                .expect("count after delete should succeed"),
+            2,
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_analytics_outbox_entries_tolerates_an_empty_batch() {
+        // The forwarder will call delete after a successful POST. On a
+        // batch whose POST returned no rows to ack (e.g., a shed batch),
+        // the call must be a no-op rather than an error, so the drain
+        // loop does not have to special-case an empty ack list.
+        let (_temp, _config, store) = temp_store();
+        store
+            .delete_analytics_outbox_entries(&[])
+            .await
+            .expect("empty delete should succeed");
+    }
+
+    #[test]
+    fn a_reopened_store_still_reports_zero_analytics_outbox_entries() {
+        // Round-trip through close/open to prove the CF descriptor is
+        // registered on both the initial open and the subsequent one, and
+        // that neither path errors on the empty column family. A binary
+        // that shipped this declaration and got rolled back to a
+        // predecessor would fail to open its database, which is the whole
+        // reason this PR ships without a producer.
+        let (temp, config, store) = temp_store();
+        drop(store);
+        let reopened = reopen_store(&config);
+        assert_eq!(
+            reopened
+                .analytics_outbox_entry_count()
+                .expect("counting the empty analytics outbox should succeed after reopen"),
+            0
+        );
+        drop(reopened);
+        drop(temp);
     }
 
     fn reopen_store(config: &Config) -> Store {
@@ -16647,6 +17534,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn segment_eviction_records_its_removals_for_cached_snapshots() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+        let before = store.action_cache_removal_seq();
+        let seen_before_commit = Arc::new(AtomicU64::new(u64::MAX));
+        {
+            let seen = seen_before_commit.clone();
+            let log = store.action_cache_removals.clone();
+            store.eviction_commits.lock().unwrap().before_commit = Some(Arc::new(move || {
+                seen.store(log.lock().unwrap().last(), Ordering::SeqCst);
+            }));
+        }
+
+        store
+            .evict_segment(blob.segment_id.as_deref().expect("segment-backed blob"))
+            .await
+            .expect("failed to evict segment");
+
+        assert_eq!(
+            seen_before_commit.load(Ordering::SeqCst),
+            before,
+            "a rebuild during the commit must not see the removals as applied yet"
+        );
+
+        let removals = store
+            .action_cache_removals_since("acme", before)
+            .expect("the log retains this eviction");
+        let Some(ActionCacheRemoval::Entry(entry_hash)) =
+            ActionCacheRemoval::for_artifact_key(&entry.key)
+        else {
+            panic!("the entry key should name an action hash");
+        };
+        let Some(ActionCacheRemoval::Blob { hash, size }) =
+            ActionCacheRemoval::for_artifact_key(&blob.key)
+        else {
+            panic!("the blob key should name a digest");
+        };
+        assert!(removals.entries.contains(&entry_hash));
+        assert!(removals.blobs.contains(&(hash, size)));
+        assert_eq!(removals.through, store.action_cache_removal_seq());
+    }
+
+    #[tokio::test]
     async fn cascade_runs_without_the_backfill_having_completed() {
         // Production regression: the cascade used to wait on the one-time
         // blob-refs backfill, which waits on background headroom, which a warm
@@ -17168,6 +18107,7 @@ mod tests {
             ROCKSDB_CF_MULTIPART_UPLOADS,
             ROCKSDB_CF_OUTBOX,
             ROCKSDB_CF_USAGE_OUTBOX,
+            ROCKSDB_CF_ANALYTICS_OUTBOX,
             ROCKSDB_CF_SEGMENT_ARTIFACTS,
             ROCKSDB_CF_SEGMENT_STATE,
             ROCKSDB_CF_ACTION_CACHE_INDEX,
@@ -17175,6 +18115,40 @@ mod tests {
         .map(|name| ColumnFamilyDescriptor::new(name, Options::default()));
         DB::open_cf_descriptors(&Options::default(), config.data_dir.join("rocksdb"), cfs)
             .expect("failed to open data dir as a foreign binary")
+    }
+
+    /// Opens the data dir the way the release predecessor to the one that
+    /// declared `analytics_outbox` would: raw RocksDB, no maintenance stamps,
+    /// and no descriptor for the new column family. Used by the upgrade-
+    /// transition test to prove that a fresh binary's `Store::open` can
+    /// take over a database whose manifest lacks the new family, and that
+    /// the predecessor cannot reopen the database after the upgrade.
+    fn open_predecessor_db(config: &Config) -> Result<DB, rocksdb::Error> {
+        let cfs = [
+            ROCKSDB_CF_MANIFESTS,
+            ROCKSDB_CF_KEY_VALUE,
+            ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+            ROCKSDB_CF_NAMESPACE_TOMBSTONES,
+            ROCKSDB_CF_MULTIPART_UPLOADS,
+            ROCKSDB_CF_OUTBOX,
+            ROCKSDB_CF_USAGE_OUTBOX,
+            ROCKSDB_CF_SEGMENT_ARTIFACTS,
+            ROCKSDB_CF_SEGMENT_STATE,
+            ROCKSDB_CF_ACTION_CACHE_INDEX,
+        ]
+        .map(|name| ColumnFamilyDescriptor::new(name, Options::default()));
+        // The predecessor binary's `Store::open` sets both
+        // `create_if_missing` and `create_missing_column_families`, so the
+        // first open on a fresh volume brings every family it declares
+        // into existence. Matching that behaviour here lets the same
+        // helper act as the "predecessor creates a fresh volume" path in
+        // the upgrade-transition test and, after the new binary has run
+        // once, as the "predecessor reopens the upgraded volume" check
+        // that pins the one-way boundary.
+        let mut options = Options::default();
+        options.create_if_missing(true);
+        options.create_missing_column_families(true);
+        DB::open_cf_descriptors(&options, config.data_dir.join("rocksdb"), cfs)
     }
 
     fn inline_manifest_record(

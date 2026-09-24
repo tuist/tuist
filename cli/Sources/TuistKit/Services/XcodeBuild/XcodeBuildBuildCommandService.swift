@@ -159,6 +159,7 @@ struct XcodeBuildBuildCommandService {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 buildRunId: buildRunId,
+                requestedTestIdentifiers: [],
                 skipUpload: shardSkipUpload,
                 archivePath: shardArchivePath
             )

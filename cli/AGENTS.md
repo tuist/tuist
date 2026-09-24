@@ -16,6 +16,8 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Manifest loading: `cli/Sources/TuistLoader`
 - Embedded graph packages: `cli/Sources/XcodeGraph`
 
+- Runner shells and volume management: `cli/Sources/TuistRunnerCommand/AGENTS.md`
+
 ## Legacy Modules (avoid adding new code)
 - `cli/Sources/TuistKit` - Monolithic command wiring; new commands should be added to feature-specific modules.
 - `cli/Sources/TuistGenerator` - Monolithic generation pipeline; new generation logic should be added to smaller, focused modules.
@@ -70,6 +72,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Manifest loading: `cli/Sources/TuistLoader/AGENTS.md`
 - Server integration: `cli/Sources/TuistServer/AGENTS.md`
 - Cache integration: `cli/Sources/TuistCache/AGENTS.md`
+- Private binary cache storage and compatibility lookup: `cli/TuistCacheEE/AGENTS.md`
 - Project description models: `cli/Sources/ProjectDescription/AGENTS.md`
 - Project automation: `cli/Sources/ProjectAutomation/AGENTS.md`
 - Tuist automation: `cli/Sources/TuistAutomation/AGENTS.md`

@@ -6,7 +6,6 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
 
   import AtlasWeb.CoreComponents, only: []
 
-  alias Atlas.Audit
   alias Atlas.Inference
   alias Atlas.Inference.Provider
 
@@ -43,9 +42,7 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
 
   def handle_event("create_provider", %{"provider" => params}, socket) do
     case Inference.create_provider(params) do
-      {:ok, provider} ->
-        record_provider_audit(:"inference_provider.created", provider)
-
+      {:ok, _provider} ->
         {:noreply,
          socket
          |> put_flash(:info, gettext("Provider created."))
@@ -276,19 +273,5 @@ defmodule AtlasWeb.Admin.InferenceProvidersLive do
 
   defp assign_provider_form(socket, changeset) do
     assign(socket, :provider_form, to_form(changeset, as: :provider))
-  end
-
-  defp record_provider_audit(action, %Provider{} = provider) do
-    Audit.record(action, %{
-      target_type: "inference_provider",
-      target_id: provider.id,
-      target_label: provider.key,
-      metadata: %{
-        "base_url" => provider.base_url,
-        "credential_configured" => Provider.credential_configured?(provider),
-        "path" => "/admin/inference/providers",
-        "timeout" => provider.timeout
-      }
-    })
   end
 end
