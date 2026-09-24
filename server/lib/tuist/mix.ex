@@ -8,6 +8,7 @@ defmodule Tuist.Mix do
   """
 
   alias Tuist.Builds.Build, as: BuildRun
+  alias Tuist.Builds.BuildMachineMetric
   alias Tuist.Mix.Build
   alias Tuist.Mix.Diagnostic
 
@@ -57,6 +58,7 @@ defmodule Tuist.Mix do
       Build.Buffer.insert(build_entry)
 
       insert_diagnostics(build_id, attrs.project_id, diagnostics, now)
+      insert_machine_metrics(build_id, Map.get(attrs, :machine_metrics, []), now)
 
       {:ok, build_id}
     end
@@ -80,6 +82,7 @@ defmodule Tuist.Mix do
       ci_provider: Map.get(attrs, :ci_provider) || "",
       ci_run_id: Map.get(attrs, :ci_run_id) || "",
       ci_project_handle: Map.get(attrs, :ci_project_handle) || "",
+      ci_host: Map.get(attrs, :ci_host) || "",
       custom_tags: Map.get(attrs, :custom_tags, []),
       custom_values: Map.get(attrs, :custom_values, %{}),
       contract_version: Map.get(attrs, :contract_version) || "",
@@ -97,6 +100,46 @@ defmodule Tuist.Mix do
         _ -> Map.update!(acc, :warnings, &(&1 + 1))
       end
     end)
+  end
+
+  defp insert_machine_metrics(_build_id, [], _now), do: :ok
+
+  defp insert_machine_metrics(build_id, machine_metrics, now) do
+    rows =
+      Enum.map(machine_metrics, fn sample ->
+        %{
+          build_run_id: nil,
+          gradle_build_id: nil,
+          mix_build_id: build_id,
+          timestamp: number(sample, :timestamp) || 0.0,
+          offset_ms: number(sample, :offset_ms),
+          cpu_usage_percent: number(sample, :cpu_usage_percent) || 0.0,
+          memory_used_bytes: integer_value(sample, :memory_used_bytes) || 0,
+          memory_total_bytes: integer_value(sample, :memory_total_bytes) || 0,
+          network_bytes_in: integer_value(sample, :network_bytes_in) || 0,
+          network_bytes_out: integer_value(sample, :network_bytes_out) || 0,
+          disk_bytes_read: integer_value(sample, :disk_bytes_read) || 0,
+          disk_bytes_written: integer_value(sample, :disk_bytes_written) || 0,
+          inserted_at: now
+        }
+      end)
+
+    BuildMachineMetric.Buffer.insert_all(rows)
+    :ok
+  end
+
+  defp number(sample, key) do
+    case Map.get(sample, key) || Map.get(sample, Atom.to_string(key)) do
+      value when is_number(value) -> value
+      _ -> nil
+    end
+  end
+
+  defp integer_value(sample, key) do
+    case Map.get(sample, key) || Map.get(sample, Atom.to_string(key)) do
+      value when is_integer(value) -> value
+      _ -> nil
+    end
   end
 
   defp insert_diagnostics(_build_id, _project_id, [], _now), do: :ok

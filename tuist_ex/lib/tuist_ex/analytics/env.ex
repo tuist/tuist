@@ -74,6 +74,18 @@ defmodule TuistEx.Analytics.Env do
     end
   end
 
+  # Origin of the CI provider, primarily useful when a customer runs a
+  # self-hosted instance (GitHub Enterprise, self-managed GitLab, or a
+  # Buildkite agent behind their own hostname).
+  def ci_host(environment \\ &System.get_env/1) do
+    case ci_provider(environment) do
+      "github" -> environment.("GITHUB_SERVER_URL")
+      "gitlab" -> environment.("CI_SERVER_URL")
+      "buildkite" -> environment.("BUILDKITE_SERVER_URL")
+      _ -> nil
+    end
+  end
+
   def git_branch(environment \\ &System.get_env/1),
     do: environment.("GIT_BRANCH") || git("rev-parse", ["--abbrev-ref", "HEAD"])
 

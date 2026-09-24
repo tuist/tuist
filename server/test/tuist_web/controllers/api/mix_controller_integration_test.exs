@@ -8,10 +8,12 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
   import Ecto.Query
   import Phoenix.ConnTest
 
+  alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
   alias Tuist.Mix.Build
   alias Tuist.Mix.Diagnostic
   alias TuistEx.Analytics.CompileReporter
+  alias TuistEx.Analytics.MachineMetrics
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
@@ -132,5 +134,57 @@ defmodule TuistWeb.API.MixControllerIntegrationTest do
     assert error.file == "lib/greeter.ex"
     assert error.message == "undefined function greet/1"
     assert error.line == 20
+  end
+
+  test "persists ci_host, custom_metadata, and machine_metrics rows", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    submit = submit_via_controller(conn, user.account.name, project.name)
+    parent = self()
+    shell = fn message -> send(parent, {:shell, message}); :ok end
+
+    environment = fn
+      "TUIST_TAGS" -> "nightly"
+      "TUIST_VALUES" -> "ticket=PROJ-42"
+      "GITHUB_ACTIONS" -> "true"
+      "GITHUB_SERVER_URL" -> "https://github.acme.example"
+      _ -> nil
+    end
+
+    # `sampler: nil` disables the periodic sampler so the test injects a known
+    # machine-metric sample directly.
+    {:ok, pid} =
+      CompileReporter.start_link(
+        submit: submit,
+        shell: shell,
+        sampler: nil,
+        environment: environment,
+        tag: "release"
+      )
+
+    send(pid, {:machine_metric, MachineMetrics.sample(fn -> 1_700_000_000.0 end)})
+    CompileReporter.record(:elixir, {:ok, []})
+    :ok = CompileReporter.finish()
+
+    refute_receive {:shell, _}, 500
+
+    assert [build] =
+             ClickHouseRepo.all(from(b in Build, where: b.project_id == ^project.id))
+
+    assert build.ci_host == "https://github.acme.example"
+    assert "nightly" in build.custom_tags
+    assert "release" in build.custom_tags
+    assert build.custom_values["ticket"] == "PROJ-42"
+
+    metrics =
+      ClickHouseRepo.all(
+        from(m in BuildMachineMetric, where: m.mix_build_id == ^build.id)
+      )
+
+    assert length(metrics) == 1
+    [metric] = metrics
+    assert metric.timestamp == 1_700_000_000.0
   end
 end

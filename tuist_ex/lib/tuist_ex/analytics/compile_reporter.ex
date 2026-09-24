@@ -12,6 +12,8 @@ defmodule TuistEx.Analytics.CompileReporter do
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.MachineMetrics
+  alias TuistEx.Analytics.Metadata
 
   @spec start_link(keyword) :: GenServer.on_start()
   def start_link(opts \\ []) do
@@ -38,12 +40,34 @@ defmodule TuistEx.Analytics.CompileReporter do
 
   @impl true
   def init(opts) do
+    parent = self()
+    sampler_opts = Keyword.get(opts, :sampler_opts, [])
+
+    sampler_pid =
+      case Keyword.get(opts, :sampler, :auto) do
+        :auto ->
+          case MachineMetrics.start_link(
+                 Keyword.merge([sink: {parent, :machine_metric}], sampler_opts)
+               ) do
+            {:ok, pid} -> pid
+            _ -> nil
+          end
+
+        nil ->
+          nil
+
+        pid when is_pid(pid) ->
+          pid
+      end
+
     {:ok,
      %{
        diagnostics: [],
        statuses: [],
+       machine_metrics: [],
        started_at: DateTime.utc_now(),
        monotonic_start_ns: System.monotonic_time(),
+       sampler_pid: sampler_pid,
        opts: opts,
        submit: Keyword.get(opts, :submit, &HTTP.submit_mix_build/2),
        shell: Keyword.get(opts, :shell, &default_shell/1)
@@ -67,6 +91,8 @@ defmodule TuistEx.Analytics.CompileReporter do
 
   @impl true
   def handle_call(:finish, _from, state) do
+    if state.sampler_pid, do: MachineMetrics.stop(state.sampler_pid)
+
     duration_ms =
       System.convert_time_unit(
         System.monotonic_time() - state.monotonic_start_ns,
@@ -84,10 +110,14 @@ defmodule TuistEx.Analytics.CompileReporter do
         state.shell.("tuist analytics: failed to submit compile run: #{inspect(reason)}")
     end
 
-    {:reply, :ok, state}
+    {:reply, :ok, %{state | sampler_pid: nil}}
   end
 
   @impl true
+  def handle_info({:machine_metric, sample}, state) do
+    {:noreply, %{state | machine_metrics: [sample | state.machine_metrics]}}
+  end
+
   def handle_info(_message, state), do: {:noreply, state}
 
   defp normalize_diagnostic(%{__struct__: _} = diagnostic, compiler) do
@@ -161,6 +191,7 @@ defmodule TuistEx.Analytics.CompileReporter do
   end
 
   defp build_payload(state, duration_ms) do
+    environment = Keyword.get(state.opts, :environment, &System.get_env/1)
     status =
       cond do
         Enum.any?(state.statuses, &(&1 == :error)) -> "failure"
@@ -173,18 +204,21 @@ defmodule TuistEx.Analytics.CompileReporter do
       contract_version: Contract.version(),
       duration_ms: duration_ms,
       status: status,
-      is_ci: Env.ci?(),
+      is_ci: Env.ci?(environment),
       started_at: DateTime.to_iso8601(state.started_at),
       elixir_version: Env.elixir_version(),
       otp_version: Env.otp_version(),
       mix_env: Env.mix_env(),
-      git_branch: Env.git_branch(),
-      git_commit_sha: Env.git_commit_sha(),
-      git_ref: Env.git_ref(),
-      git_remote_url_origin: Env.git_remote_url_origin(),
-      ci_provider: Env.ci_provider(),
-      ci_run_id: Env.ci_run_id(),
-      ci_project_handle: Env.ci_project_handle(),
+      git_branch: Env.git_branch(environment),
+      git_commit_sha: Env.git_commit_sha(environment),
+      git_ref: Env.git_ref(environment),
+      git_remote_url_origin: Env.git_remote_url_origin(environment),
+      ci_provider: Env.ci_provider(environment),
+      ci_run_id: Env.ci_run_id(environment),
+      ci_project_handle: Env.ci_project_handle(environment),
+      ci_host: Env.ci_host(environment),
+      custom_metadata: Metadata.collect(state.opts),
+      machine_metrics: Enum.reverse(state.machine_metrics),
       diagnostics: state.diagnostics
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)

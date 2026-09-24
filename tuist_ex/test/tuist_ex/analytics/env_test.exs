@@ -51,6 +51,28 @@ defmodule TuistEx.Analytics.EnvTest do
     assert Env.ci_run_id(environment) == "abc-123"
   end
 
+  test "detects the CI host for self-hosted providers" do
+    for {provider, host_var, host} <- [
+          {"github", "GITHUB_SERVER_URL", "https://github.acme.example"},
+          {"gitlab", "CI_SERVER_URL", "https://gitlab.acme.example"},
+          {"buildkite", "BUILDKITE_SERVER_URL", "https://buildkite.acme.example"}
+        ] do
+      environment = fn key ->
+        cond do
+          key == provider_env_var(provider) -> "true"
+          key == host_var -> host
+          true -> nil
+        end
+      end
+
+      assert Env.ci_host(environment) == host
+    end
+  end
+
+  defp provider_env_var("github"), do: "GITHUB_ACTIONS"
+  defp provider_env_var("gitlab"), do: "GITLAB_CI"
+  defp provider_env_var("buildkite"), do: "BUILDKITE"
+
   test "prefers explicit git env overrides over shelling out" do
     environment = fn
       "GIT_BRANCH" -> "main"

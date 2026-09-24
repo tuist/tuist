@@ -94,6 +94,31 @@ defmodule TuistWeb.API.MixController do
              enum: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"],
              description: "The CI provider."
            },
+           ci_host: %Schema{
+             type: :string,
+             description: "The CI host URL, useful for self-hosted providers."
+           },
+           machine_metrics: %Schema{
+             type: :array,
+             description: "Machine performance samples collected during the compile.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 timestamp: %Schema{type: :number, description: "Unix timestamp in seconds."},
+                 cpu_usage_percent: %Schema{
+                   type: :number,
+                   description: "CPU usage percentage (0-100)."
+                 },
+                 memory_used_bytes: %Schema{type: :integer},
+                 memory_total_bytes: %Schema{type: :integer},
+                 network_bytes_in: %Schema{type: :integer},
+                 network_bytes_out: %Schema{type: :integer},
+                 disk_bytes_read: %Schema{type: :integer},
+                 disk_bytes_written: %Schema{type: :integer}
+               },
+               required: [:timestamp, :cpu_usage_percent, :memory_used_bytes, :memory_total_bytes]
+             }
+           },
            custom_metadata: %Schema{
              type: :object,
              description: "Custom metadata for the build run.",
@@ -186,10 +211,12 @@ defmodule TuistWeb.API.MixController do
       ci_provider: body[:ci_provider],
       ci_run_id: body[:ci_run_id],
       ci_project_handle: body[:ci_project_handle],
+      ci_host: body[:ci_host],
       contract_version: body[:contract_version],
       custom_tags: Map.get(metadata, :tags, []),
       custom_values: Map.get(metadata, :values, %{}),
-      diagnostics: body[:diagnostics] || []
+      diagnostics: body[:diagnostics] || [],
+      machine_metrics: body[:machine_metrics] || []
     }
   end
 end

@@ -71,6 +71,29 @@ fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication
 reuses the credentials from `mix tuist.login`, or the `TUIST_TOKEN` environment
 variable if set.
 
+## Tag runs with custom metadata
+
+Every submitted run can carry customer-supplied tags (labels for filtering)
+and values (key/value pairs). Sources merge with the environment last:
+
+```elixir
+def project do
+  [
+    app: :my_app,
+    tuist: [
+      url: "https://tuist.example.com",
+      project: "your-account/your-project",
+      tags: ["nightly"],
+      values: %{"team" => "platform"}
+    ]
+  ]
+end
+```
+
+`TUIST_TAGS` (comma-separated) and `TUIST_VALUES` (`key=value` pairs,
+comma-separated) override the mix.exs config. The Tuist dashboards use
+those labels to group and filter runs across ecosystems.
+
 ## Compile with analytics
 
 ```sh

@@ -49,6 +49,7 @@ defmodule Tuist.Mix.Build do
     field :ci_provider, Ch, type: "LowCardinality(String)"
     field :ci_run_id, Ch, type: "String"
     field :ci_project_handle, Ch, type: "String"
+    field :ci_host, Ch, type: "String"
     field :custom_tags, {:array, Ch}, type: "String", default: []
     field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :contract_version, Ch, type: "LowCardinality(String)"
@@ -56,5 +57,6 @@ defmodule Tuist.Mix.Build do
     field :diagnostics_error_count, Ch, type: "UInt32"
     field :diagnostics_warning_count, Ch, type: "UInt32"
     field :inserted_at, Ch, type: "DateTime"
+    has_many :machine_metrics, Tuist.Builds.BuildMachineMetric, foreign_key: :mix_build_id, references: :id
   end
 end

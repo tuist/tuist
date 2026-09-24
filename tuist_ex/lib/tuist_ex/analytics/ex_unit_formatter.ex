@@ -14,6 +14,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
   alias TuistEx.Analytics.Contract
   alias TuistEx.Analytics.Env
   alias TuistEx.Analytics.HTTP
+  alias TuistEx.Analytics.Metadata
 
   def init(opts) do
     analytics_opts = Application.get_env(:tuist_ex, :analytics_options, [])
@@ -42,7 +43,7 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     duration_ms = suite_duration_ms(times, state.monotonic_start_ns)
 
     try do
-      payload = build_payload(Enum.reverse(state.tests), duration_ms, state.ran_at)
+      payload = build_payload(Enum.reverse(state.tests), duration_ms, state.ran_at, state.opts)
 
       case state.submit.(payload, state.opts) do
         :ok ->
@@ -184,8 +185,9 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
     end
   end
 
-  defp build_payload(tests, duration_ms, ran_at) do
+  defp build_payload(tests, duration_ms, ran_at, opts) do
     modules = tests |> Enum.group_by(& &1.module) |> Enum.map(&build_module/1)
+    environment = Keyword.get(opts, :environment, &System.get_env/1)
 
     %{
       id: uuidv4(),
@@ -193,18 +195,20 @@ defmodule TuistEx.Analytics.ExUnitFormatter do
       build_system: "mix",
       duration: duration_ms,
       ran_at: DateTime.to_iso8601(ran_at),
-      is_ci: Env.ci?(),
+      is_ci: Env.ci?(environment),
       status: aggregate_status(modules),
       elixir_version: Env.elixir_version(),
       otp_version: Env.otp_version(),
       mix_env: Env.mix_env(),
-      git_branch: Env.git_branch(),
-      git_commit_sha: Env.git_commit_sha(),
-      git_ref: Env.git_ref(),
-      git_remote_url_origin: Env.git_remote_url_origin(),
-      ci_provider: Env.ci_provider(),
-      ci_run_id: Env.ci_run_id(),
-      ci_project_handle: Env.ci_project_handle(),
+      git_branch: Env.git_branch(environment),
+      git_commit_sha: Env.git_commit_sha(environment),
+      git_ref: Env.git_ref(environment),
+      git_remote_url_origin: Env.git_remote_url_origin(environment),
+      ci_provider: Env.ci_provider(environment),
+      ci_run_id: Env.ci_run_id(environment),
+      ci_project_handle: Env.ci_project_handle(environment),
+      ci_host: Env.ci_host(environment),
+      custom_metadata: Metadata.collect(opts),
       test_modules: modules
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)
