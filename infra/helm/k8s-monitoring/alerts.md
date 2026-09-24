@@ -152,7 +152,7 @@ max by (cluster, node, pool) (
 # kura:pool_region
 # One series per pool that Kura serves a region from.
 max by (cluster, pool, region) (
-  (kube_pod_info{namespace="kura"} * on (cluster, pod) group_left(region) kura:pod_region)
+  (kube_pod_info{namespace="kura"} * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region))))
   * on (cluster, node) group_left(pool) kura:node_pool
 )
 ```
@@ -161,7 +161,7 @@ max by (cluster, pool, region) (
 # kura:node_region
 # One series per node of a pool that Kura serves a region from.
 max by (cluster, node, region) (
-  kura:node_pool * on (cluster, pool) group_left(region) kura:pool_region
+  kura:node_pool * on (cluster, pool) group_left(region) sgn(topk by (cluster, pool) (1, timestamp(kura:pool_region)))
 )
 ```
 
@@ -171,12 +171,29 @@ derived from cache pods alone, so every rule that joins through it is unchanged.
 Usage, for a per-pod and a per-node series respectively:
 
 ```promql
-sum by (cluster, region) (<per-pod expr>  * on (cluster, pod)  group_left(region) kura:pod_region)
-sum by (cluster, region) (<per-node expr> * on (cluster, node) group_left(region) kura:node_region)
+sum by (cluster, region) (<per-pod expr>  * on (cluster, pod)  group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region))))
+sum by (cluster, region) (<per-node expr> * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region))))
 ```
 
 node-exporter series carry the node name as `instance`, not `node`; join those
-through `label_replace(kura:node_region, "instance", "$1", "node", "(.*)")`.
+through `label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region))), "instance", "$1", "node", "(.*)")`.
+
+**Never join on a region series directly.** Always use the
+`sgn(topk by (cluster, <key>) (1, timestamp(...)))` form above. Grafana-managed
+recording rules write no staleness markers, so when a pod's `region` changes
+the series it stops writing stays readable for the five-minute lookback next
+to the new one. `group_left(region)` then finds two matches for the pod and
+fails with `found duplicate series for the match group`, and every rule on the
+join goes to Error, which is Alerting. On 2026-09-10 the `eu-central` pods moved
+to `eu-west`: the raw `kura_node_geo_info` overlapped for one minute, the
+recorded `kura:pod_region` for five, with 51 production pods duplicated at
+once. Canary and staging had the same on `kura:node_region` for two minutes.
+`timestamp()` returns each series' last written sample, so `topk by (cluster,
+<key>) (1, ...)` keeps the region that is still being written and `sgn` turns
+it back into the `1` the multiplication expects. With one series per key it
+returns exactly the recorded series, so the result of a rule does not change.
+The recording rules that join on each other (`kura:pool_region` on
+`kura:pod_region`, `kura:node_region` on `kura:pool_region`) use the same form.
 
 The recording rules cover every cluster so dashboards can use them, and the
 alert rules that join through them are scoped to production by matching on the
@@ -196,15 +213,20 @@ Two limits to keep in mind:
   An empty node in a pool that runs a cache pod on another node does count, so
   a node added to a live region contributes its capacity immediately.
 - Grafana Cloud Adaptive Metrics can aggregate a label away without the series
-  disappearing. It has already done so for `tuist_kura_capacity_reserved_gibibytes`
-  and `tuist_kura_capacity_allocatable_gibibytes` (`cluster`, `region` and
-  `pod` are gone; only a fleet-wide sum is queryable), which is why no rule
-  below reads them. A rule that selects on `region` then **errors** rather than
-  returning nothing, so set **Error** to **Alerting** on the region rules and
-  check the Adaptive Metrics recommendations before trusting a new one. The
-  same applies to `label_node_cluster_x_k8s_io_pool` on `kube_node_labels`:
-  if it is aggregated away, `kura:node_pool` empties and every region rollup
-  goes with it.
+  disappearing, and its recommendations are applied automatically, so a label
+  that no query reads can disappear and come back later. `region` has come and
+  gone this way on the `tuist_kura_*` series: on 2026-09-17 the
+  `tuist_kura_capacity_*` gauges carry `cluster` and `region` (only `pod` and
+  `instance` are aggregated, by the `tuist_` prefix rule, which stores `sum`,
+  `count` and `max`), while `tuist_kura_lifecycle_claim_apply_refused_count`
+  lost `region` and got it back within the same day. A query over an
+  aggregated label either **errors** or returns a single
+  `region="<aggregated>"` row, never nothing, so set **Error** to **Alerting**
+  on the region rules and check the Adaptive Metrics recommendations
+  (`/aggregations/recommendations`) before trusting a new one. The same
+  applies to `label_node_cluster_x_k8s_io_pool` on `kube_node_labels`: if it
+  is aggregated away, `kura:node_pool` empties and every region rollup goes
+  with it.
 
 ## Critical alerts
 
@@ -851,6 +873,18 @@ Before concluding a Mac mini is mis-sourced, check that the drops are confined t
 **one** node. A runner VM talks to a single regional cache, so simultaneous drops
 across regions are never a mis-sourced host.
 
+Also rule out a full BPF map on the Cilium agent. An overflowing policy map drops
+as `Policy denied` too, with no traffic spike and no misconfigured client:
+
+```promql
+max by (cluster, pod, map_name) (cilium_bpf_map_pressure{job="cilium-agent"})
+```
+
+`map_name="cilium_policy_v2*"` is the fullest endpoint policy map on that agent
+and only exists while it is over 10% full, so an absent series means low
+pressure, not missing data. Values near 1 on the kura node's agent (`pod` from
+`kube_pod_info{node=...}`) point at Cilium, not at a runner host.
+
 A per-instance kura NetworkPolicy admits `http` only from `namespaceSelector: {}`
 and `ipBlock 172.16.0.0/22` (the Private Network). A macOS runner VM whose egress
 is not masqueraded to its host's PN VLAN address arrives from outside that block,
@@ -961,6 +995,46 @@ every public route, holds for 250. It also surfaces something the original could
 not see: 20 minutes of 5xx on `/api/cache/module/start`, a write route, on a pod
 the old rule never looked at.
 
+#### Upload-body failures and misleading 500s
+
+In Kura `0.41.2`, `read_request_to_temp` classified errors from the incoming
+body stream as storage I/O, and the upload handler converted them to 500.
+The handler completion log also discarded the error cause. Thus the alert's
+"client aborts are 499" description did not cover uploads.
+
+Correlate Kura and ingress logs by request ID before attributing these failures.
+An ingress 400 with no upstream response does not establish why the request
+body was rejected or mean the uploader received Kura's recorded 500. Check pod
+readiness, restarts, auth-unavailable and capacity-shed counters, and successful
+upload traffic. An alert clearing after traffic stops does not demonstrate
+recovery under load.
+
+The corrected staging path distinguishes typed premature EOF/reset/cancellation
+(499, `client_aborted`), invalid bodies (400, `invalid_request_body`), and
+incoming-body timeouts (408, `request_timeout`) from unknown body failures
+(500, `request_body_error`) and local disk failures
+(their existing 5xx/capacity response). It covers CAS, Gradle, Nx, Metro,
+multipart parts, key-value uploads, and inline/file-backed peer replication.
+Rejected body reads increment the existing domain failure counters
+(`result="error"` for writes/parts, `outcome="error"` for replication apply).
+Completion events carry the cause through upload-specific response extensions;
+client-body failures use a separate warning limiter from server faults.
+The HTTP/2 adapter also rejects EOF without END_STREAM because Hyper suppresses
+some reset errors. If the transport cancels the handler entirely, no completion
+status is emitted. Match `http.request.id` against ingress before attributing
+an upload alert.
+
+Roll out through the normal canary-to-production release, without changing
+this alert's query or threshold. Confirm the running image contains the fix;
+older and newer pods can safely coexist because no storage or replication
+format changes. Validate that interrupted or invalid uploads produce
+499/400/408 rather than 500, temporary files are reclaimed, retries store complete artifacts, and
+actual staging I/O faults still appear as 5xx with a nonempty cause. Monitor
+successful upload traffic and domain write failures as well as the 5xx rate.
+A rollback restores the previous transport, classification, and logging behavior; it requires no data migration. Until that
+rollout is verified, the live annotation must not be treated as a guarantee
+that upload-side disconnects are excluded.
+
 #### Before you call a 5xx a fault, check the shed
 
 Capacity shedding reached 429 in two steps, and a node can be running either
@@ -986,8 +1060,9 @@ sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
 
 `kind` is one of `response_stream` (egress capacity — the only kind the warning
 rule below is about), `multipart_uploads`, `multipart_storage`, `upload_memory`,
-`tmp_staging`, `memory_pressure_write`, `outbox`, `reapi_write_decode` or
-`reapi_materialization`.
+`tmp_staging`, `memory_pressure_write`, `reapi_write_decode` or
+`reapi_materialization` (`outbox` existed through the push path's removal in
+kura@0.46 and no longer occurs).
 
 The two `reapi_*` kinds carry no HTTP status at all — the remote-execution
 surface answers gRPC `RESOURCE_EXHAUSTED`, which clients already retry — so the
@@ -1251,28 +1326,28 @@ label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_memory_ceiling_mib"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_memory_ceiling_mib"})
             or max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_memory_ceiling_mib"}) * 0)) / (2 * 4096))
-  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "ceiling", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_allocatable{resource="memory"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="memory"})
             or max by (cluster, node) (kube_node_status_allocatable{resource="memory"}) * 0)) / 1048576 / (2 * 1024))
-  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "memory", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="ephemeral_storage"})
             or max by (cluster, node) (kube_node_status_allocatable{resource="ephemeral_storage"}) * 0)) / (2 * 50 * 1073741824))
-  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "disk", "", "")
 or
 label_replace(sum by (cluster, region) (
   floor((max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
          - (sum by (cluster, node) (kube_pod_container_resource_requests{resource="tuist_dev_egress_mbps"})
             or max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}) * 0)) / (2 * 25))
-  * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+  * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ), "constraint", "egress", "", "")
 ```
 
@@ -1280,6 +1355,7 @@ label_replace(sum by (cluster, region) (
   value is the number of instances that still fit
 - Pending period: 15 minutes
 - Severity: critical
+- Live: rule `efx1xqen168zka`
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting** (the
@@ -1293,8 +1369,8 @@ label_replace(sum by (cluster, region) (
   tuist.dev/memory-ceiling-mib extended resource the scheduler bin-packs,
   "memory" is the native memory request against allocatable, "disk" is the
   ephemeral-storage request (the storage claim, 50 GiB per replica today)
-  against allocatable disk, "egress" is the tuist.dev/egress-mbps floor (25
-  Mbps per replica) against the box's advertised budget. Zero means the
+  against allocatable disk, "egress" is the tuist.dev/egress-mbps floor (25 Mbps per
+  replica) against the box's advertised budget. Zero means the
   scheduler will decline the next provisioning in this region. Add a node to
   the region; for memory a smaller ceiling profile also works, for disk so
   does shrinking claims (Tuist.Kura.ClaimSizing). If "Kura region host memory low" is quiet, the
@@ -1328,11 +1404,28 @@ comment: the cache is a local-path directory, so the request is the only
 admission control the claim has), and the scheduler bin-packs that against
 allocatable ephemeral-storage, which is the disk minus kubelet's eviction
 reserve. The claim is per instance (`Server.storage_claim_size`, proposed by
-`Tuist.Kura.ClaimSizing`), 50 GiB per replica on nearly every live instance,
-so the disk row counts in units of two replicas at 50 GiB. This is the same
-question `Tuist.Kura.Capacity` answers with its 85% pressure line to shorten
-Air's archival window; the count is the form whose summary is true at every
-threshold. Shrinking claims is a lever here as well as a node.
+`Tuist.Kura.ClaimSizing`), and the disk row counts in units of two replicas at
+50 GiB against allocatable, per node: where the scheduler refuses. Shrinking
+claims is a lever here as well as a node, and sizing pulls it on its own for
+rings that keep weeks of content. A lowered pin releases its reservation
+without rebuilding anything: admission reads the pin, and the pods' requests
+and ring budget (`KURA_CAS_CAPACITY_BYTES`, derived from the claim) follow it
+on their next roll, while the volume keeps the size it was built at and the
+ring evicts down inside it.
+
+**This row is not the admission check, and the region fills up before it
+fires.** `Tuist.Kura.Admission` refuses a new instance, a cold return or a
+claim growth once the region's reservations reach 85% of its allocatable disk
+(`Tuist.Kura.Capacity` `@pressure_fraction`), summed over the region rather
+than per node, and it counts rows the cluster has not scheduled yet. A region
+therefore stops admitting while this row still reads one or more. That case is
+**Kura region admission cannot take an enterprise instance**, which reads the
+server's own number. Air's archival window shortens once what is left under
+that line can no longer take a new enterprise instance
+(`Tuist.Kura.Capacity.under_pressure?/1`). This document gave the row a
+`0.85 *` factor on 2026-09-14 that was never applied to the live rule, and it
+would not have made the row an admission check anyway: see that rule for what
+each version read while us-west, us-central and eu-west filled.
 
 The fourth constraint is egress. On a governed region every replica requests
 the region's guaranteed floor (`egress_guaranteed_mbps`, 25 Mbps) as the
@@ -1374,13 +1467,112 @@ join and the zero default exist to count: read against its occupied node alone
 the region reports 0 and fires. Staging and canary regions are out of scope, so
 a staging runner region past the disk pressure line does not fire.
 
+### Kura region admission cannot take an enterprise instance
+
+```promql
+max by (cluster, region) (
+  tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
+)
+or
+(
+  floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
+  - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
+)
+```
+
+- Threshold: `< 32`, as a separate threshold expression on `A`, so the alert
+  value is the GiB admission can still place
+- Pending period: 15 minutes
+- Severity: critical
+- Live: rule `cfyi8cxo4t4hsc`, titled `Kura - region admission cannot take an
+  enterprise instance`
+- Production only (the `cluster` matchers). Folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**
+  (see the Adaptive Metrics note under **Recording rules for Kura regions**).
+- Summary: `Kura region {{ $labels.region }} can admit
+  {{ $values.A.Value | printf "%.0f" }} GiB more in {{ $labels.cluster }},
+  less than one enterprise instance; free reservations or add a node`
+- Description: `Tuist.Kura.Admission refuses any instance whose reservation
+  (claim x 2 replicas) does not fit under 85% of the region's allocatable disk,
+  less the larger of what its pods request and what its kura_servers rows
+  reserve. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
+  every enterprise claim growth; below 16 GiB, every new or returning instance
+  of any plan. A refused account stays on whatever lane it was on and raises
+  nothing else. The value is negative when reservations already sit above the
+  line. Check "Kura admission refusing instances" for what is being turned
+  down, then free reservations (archive instances that store nothing) or add a
+  node to the region's pool. Zero with the region's nodes Ready means the
+  server cannot read the cluster, which refuses everything as well.`
+
+The admission check, as opposed to the scheduler check in **Kura region cannot
+place another instance**. `Tuist.Kura.Admission.admit?/2` places an instance
+only if `max(observed, desired) + candidate <= pressure_line`:
+
+- `pressure_line` is `trunc(0.85 x allocatable)`, over the Ready nodes of the
+  region's pool (`Tuist.Kura.Capacity.pressure_line_gib/1`),
+- `observed` is the `ephemeral-storage` request of every non-terminal cache
+  pod in the region (`Capacity.reserved_gib/1`),
+- `desired` is claim x replicas over every `kura_servers` row in the region
+  that still holds a volume, which covers rows the controller has not turned
+  into pods yet,
+- `candidate` is the new instance's claim x 2: 16 GiB for Air and Pro, 32 GiB
+  for Enterprise (`Tuist.Kura.Regions.storage_profile/1`), more for a claim
+  sizing has grown.
+
+`tuist_kura_capacity_admission_headroom_gibibytes` is
+`pressure_line - max(observed, desired)`, polled every minute on every web pod
+by `Tuist.Kura.PromExPlugin` from `Capacity.admission_headroom_gib/1`: the
+function admission decides with (`Admission.headroom_gib/1`), cached for a
+minute per region and shared with placement's `Capacity.room_for?/2`, so the
+rule cannot drift from the code and reports the reading placement acted on. Every pod reports the
+same number, hence `max` (which the `tuist_` Adaptive Metrics rule stores) and
+not `sum`. The second operand is the same arithmetic without `desired`, from
+the occupancy gauges; it is what the rule reads until a server that emits the
+headroom gauge is deployed, and for any region the headroom gauge is missing
+from. It overstates headroom only while rows are waiting for pods.
+
+32 GiB is one enterprise instance at its starting claim. Change it with
+`@enterprise_storage_claim` in `Tuist.Kura.Regions`.
+
+**Why nothing fired while us-west, us-central and eu-west filled (2026-09-11 to
+2026-09-17).** Admission headroom on 2026-09-17 07:00 UTC was eu-west 4 GiB,
+us-central 2, us-west 6. Three independent gaps:
+
+1. The live disk row of **Kura region cannot place another instance**
+   (`efx1xqen168zka`) compares against raw allocatable. This document added
+   `0.85 *` to it on 2026-09-14 and the live rule was never changed. The live
+   rule's firing history matches the raw form exactly: it fired only for
+   `scw-fr-par-runners`, 2026-09-10 15:14 to 2026-09-11 10:44 UTC, and the raw
+   form read below 1 there from 15:00 to 11:00. Read raw, us-west and
+   us-central each had about 125 GiB below allocatable and eu-west's emptier
+   node about 270, so the row read 1, 1 and 2 on 2026-09-17.
+2. With `0.85 *` the row still does not model admission. It is per node, and
+   one node over the line cancels another node's room: it read below 1 for
+   eu-west from 2026-09-11, when the region still had 308 GiB of headroom,
+   and for us-east for most of the time since 2026-09-09. Its unit is a 100 GiB instance, while claims start at 8 or 16
+   GiB and grow per account, so it reads 0 long before a region stops
+   admitting 16 GiB instances in some cases and after it in others.
+3. Nothing alerted on a refusal. A refused provision or cold return was only
+   logged (`[Kura.Lifecycle] could not provision instance ...
+   :capacity_exhausted`), and a refused claim growth was counted by
+   `tuist_kura_lifecycle_claim_apply_refused_count`, which no rule read and
+   whose `region` label Adaptive Metrics had aggregated away. On 2026-09-17 it
+   was counting about 5 refusals an hour in each of eu-west and us-east.
+
+Backtested against 2026-09-03 to 2026-09-17 with the second operand (the
+headroom gauge did not exist yet), this rule would have been below 32 for:
+us-east 2026-09-05 05:33 to 2026-09-11 10:33 (while claim sizing was
+blocked there), us-central from 2026-09-10 17:33, us-west from 2026-09-15 18:03, and eu-west
+from 2026-09-16 14:03. ap-southeast (121), eu-east (313) and sa-west (586)
+were never below it.
+
 ### Kura cache box out of memory
 
 ```promql
 min by (cluster, region, instance) (
   (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
   * on (cluster, instance) group_left(region)
-    label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+    label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
 )
 ```
 
@@ -1412,7 +1604,7 @@ host-level rule exists alongside the pod-level ones.
 ```promql
 max by (cluster, region, pod) (
   max by (cluster, pod) (kura_memory_pressure_state)
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
@@ -1427,7 +1619,7 @@ max by (cluster, region, pod) (
   memory pressure (state {{ $values.A.Value | printf "%.0f" }}) for 10 minutes
   ({{ $labels.cluster }})`
 - Description: `The pod's own memory controller has been out of Normal for 10
-  minutes (1 = constrained: outbox, backfill, segment refresh and snapshot
+  minutes (1 = constrained: backfill, segment refresh and snapshot
   build paused; 2 = critical: transient budget zeroed, every read refused,
   manifest index may be zeroed while the pod stays Ready). A short trip during
   a burst is expected; sustained means the pod is not working within its
@@ -1435,7 +1627,7 @@ max by (cluster, region, pod) (
   kura_background_work_paused and kura_memory_transient_reserved_bytes.`
 
 The pod's own controller has left Normal and stayed there. At Constrained the
-node pauses background work (`kura_background_work_paused` by worker: outbox,
+node pauses background work (`kura_background_work_paused` by worker:
 backfill, segment refresh, snapshot build); at Critical the transient budget is
 zeroed, every read is refused, and the manifest index can be zeroed while the
 pod stays Ready. A short trip into Constrained during a burst is the controller
@@ -1452,11 +1644,11 @@ quiet on creation.
 max by (cluster, region, pod) (
   kube_pod_container_status_last_terminated_reason{namespace="kura", container="kura", reason="OOMKilled"} == 1
   and on (cluster, pod) increase(kube_pod_container_status_restarts_total{namespace="kura", container="kura"}[1h]) > 0
-) * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+) * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 or
 sum by (cluster, region, pod) (
   increase(kura_container_memory_oom_kill_events[1h])
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 ) > 0
 ```
 
@@ -1527,7 +1719,7 @@ and on (cluster, pod) (
 - Threshold: `< 86400` seconds, as a separate threshold expression on `A`, so
   the alert value is the median age in seconds
 - Pending period: 60 minutes
-- Severity: critical
+- Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
   `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
@@ -1541,11 +1733,11 @@ and on (cluster, pod) (
   ring rotated out over the last day). Overnight and weekend builds will miss.
   Rings run full by design; what this measures is whether the claim is enough
   for the account's write rate. The lever is the account's storage claim,
-  which Tuist.Kura.ClaimSizing sizes and applies on its own, so this fires
-  only where that loop cannot fix it: the claim is clamped at the plan ceiling
-  (64Gi air and pro, 256Gi enterprise), the region has no disk to grow into
-  (see "Kura region cannot place another instance"), or sizing itself is
-  stuck. Only rings that have been full for the whole day count: a ring
+  which Tuist.Kura.ClaimSizing sizes and applies on its own, and it is usually
+  still confirming the reading when this fires: its one-day rungs need two to
+  five qualifying days before they grow the claim. Watch it; it escalates to
+  "Kura instance retention horizon under a day for three days" if sizing does
+  not land. Only rings that have been full for the whole day count: a ring
   rebuilt more recently cannot report an eviction older than itself, so it
   would fire on its own age.`
 
@@ -1567,19 +1759,42 @@ three days in both US regions while every other instance in the fleet sat
 above ten, and the region medians read as "about three days" purely because
 of it.
 
-**There is no warning tier, because sizing is the actor.**
+**Warning, because sizing is the actor.**
 `Tuist.Kura.ClaimSizing` does not merely propose: `ClaimSizingWorker` applies
 its proposals unattended every ten minutes, within a fleet-wide budget of five
 applies an hour. Its own `retention_floor_days` is 3, so any instance whose
 retention falls under two days is already inside the band sizing is working
 on, and it is deliberately unhurried there: the rung that matches a one-day
-shed age grows the claim after two consecutive qualifying days when the ring
-cycled about once a day over them, and after five when it did not. A
-two-day rule therefore alerts on a control loop that is mid-confirmation and
-would keep alerting for days while it does its job. A rule at two days was
-deployed with this one on 2026-09-02 and removed on 2026-09-04, having fired
-only on the artifact described below. One day is the tier worth waking
-someone: it means the loop did not keep up, or cannot act at all.
+shed age grows the claim after two qualifying days when the ring cycled about
+once a day over them, and after five when it did not. Days the account did
+not build are passed over rather than restarting the count. The step after a
+resize that landed below its own projection confirms on a single qualifying
+day of the resized ring instead, as long as that day shed at least a whole ring
+and falls within the matching rung's own window of the resize. A one-day
+reading is therefore routinely a control loop that is mid-confirmation, and
+this rule paged on exactly that while it was critical. It stays as the early
+signal; the page is **Kura instance retention horizon under a day for three
+days**. A rule at two days was deployed with this one on 2026-09-02 and
+removed on 2026-09-04, having fired only on the artifact described below.
+
+Each region is measured against the claim its own instances are pinned at,
+and an account keeps one claim: an instance pinned below the rest of its
+account (an expansion built at the plan's starting claim beside instances the
+pin migration grandfathered at 50Gi, say) that sheds under the floor is raised
+to the account's claim as soon as a rung confirms, rather than grown from the
+larger pin or left short.
+
+**Sizing also shrinks, and lands well clear of both tiers.** Besides a ring
+that never fills, a claim shrinks when every region kept what it shed for
+three retention floors (nine days) on every day of a month. It lands where
+the shortest day would keep the floor plus the growth headroom, 3.75 days, one
+step at most halves it (leaving at least 4.5 days), and it never goes under
+the plan's starting claim, so a shrunk ring sits several times above this
+rule's one day and above the longest growth rung's three. Once a lowered
+claim's pods roll, the ring's first rotation evicts its oldest segments down to
+the new budget: that sheds content older than anything it keeps afterwards,
+and fullness (segments held against the smaller desired total) reads over 100
+until it does, so the gate stays open without the rule firing.
 
 What is genuinely actionable and still has no rule of its own is *sizing
 blocked*: the claim clamped at the plan ceiling, or open proposals the worker
@@ -1625,6 +1840,56 @@ the rest read between ten and thirty days, and three instances have shed no
 segment at all in the window (`NaN`, which the `< 86400` threshold does not
 match). Nothing is under a day, so the rule is quiet; the 2.5-day account is
 the one to watch as its usage grows.
+
+### Kura instance retention horizon under a day for three days
+
+```promql
+histogram_quantile(0.5,
+  sum by (cluster, region, tenant_id, pod, le) (
+    increase(kura_segment_shed_age_seconds_bucket{cluster="tuist-production"}[3d])
+    * on (cluster, pod) group_left(region, tenant_id)
+      max by (cluster, pod, region, tenant_id) (kura_node_geo_info{cluster="tuist-production"})
+  )
+)
+and on (cluster, pod) (
+  min by (cluster, pod) (
+    min_over_time(kura_backfill_ring_fullness_percent{cluster="tuist-production"}[3d])
+  ) >= 100
+)
+```
+
+- Threshold: `< 86400` seconds, as a separate threshold expression on `A`, so
+  the alert value is the median age in seconds
+- Pending period: 60 minutes
+- Severity: critical
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
+  `affected_service` for the cache component: this is customer-visible.
+- Summary: `Kura instance {{ $labels.pod }} ({{ $labels.tenant_id }}) in
+  {{ $labels.region }} has evicted artifacts after a median of
+  {{ $values.A.Value | humanizeDuration }} for three days; claim sizing has
+  not fixed it`
+- Description: `The instance's ring has been full for three days and the
+  median age of the youngest artifact in each segment it rotated out over
+  those three days is under a day. Overnight and weekend builds have been
+  missing all that time. Tuist.Kura.ClaimSizing grows the claim on its own
+  and a resize would have reopened the ring-fullness gate, so this means the
+  loop did not act: the claim is clamped at the plan ceiling (64Gi air and
+  pro, 256Gi enterprise), the region has no disk to grow into (see "Kura
+  region cannot place another instance"), or sizing itself is stuck.`
+
+Same query as the warning with both windows widened to `[3d]`; the threshold
+stays at one day.
+
+**Why three days.** It clears what sizing needs to act on a one-day reading:
+the two-day rung, plus the day its last rollup takes to land and the worker
+to apply. A claim that grew changes the ring's desired segment count, so
+fullness drops below 100 while the ring converges, and `min_over_time(...[3d])`
+keeps the instance out of this rule for three days after the resize. What is
+left is an instance sizing did not touch. The five-day rung (a ring that did
+not cycle about once a day) can still be confirming at day three; three days
+of sub-day retention is customer damage whichever way sizing reads it, so it
+still pages.
 
 ### Kura instance not reconciled
 
@@ -1680,7 +1945,7 @@ the 69 minutes it took to notice one through a downstream customer alert.
 **Why warning rather than critical.** A stalled reconcile is an operator
 problem that becomes a customer problem later, and its customer-visible
 consequences already have critical rules of their own: **Kura instance
-retention horizon under a day** for a resize that never lands, and the
+retention horizon under a day for three days** for a resize that never lands, and the
 StatefulSet replica rule for an instance running short. Paging on this would
 wake someone for a condition whose damage is measured in hours.
 
@@ -1694,6 +1959,108 @@ cannot see that shape: the StatefulSet itself was deleted, so both
 `kube_statefulset_replicas` and `kube_statefulset_status_replicas_ready` were
 absent for the instance and their subtraction returned no series at all.
 
+### Kura rollout paused
+
+```promql
+max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)
+```
+
+- Threshold: `> 0`
+- Pending period: 15 minutes
+- Severity: warning
+- All environments. Folder `Alerts`, group `Cache`. No contact point on the
+  rule: the policy tree sends production and canary to `#notifications` and
+  staging to `#notifications-non-prod`. **No Data: Normal**, **Error: Error**.
+- Summary: `Kura rollout of {{ $labels.image_tag }} is paused in {{ $labels.env }}`
+- **Live** as
+  [`Kura - rollout paused`](https://tuist.grafana.net/alerting/grafana/kura-rollout-paused/view)
+  (UID `kura-rollout-paused`), recorded in
+  [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json).
+
+A paused rollout is the orchestrator's safety gate (see
+`Tuist.Kura.Rollouts`). It pauses when a hard health signal regresses on a
+scoped server, when a wave cannot converge within its one-hour deadline
+(`wave_deadline_exceeded`), or when an operator pauses it by hand. After that
+nothing moves until someone resumes or aborts it from `/ops/kura/rollouts`.
+The fleet keeps serving on mixed versions in the meantime, so no customer
+notices. That is exactly why a pause can go unnoticed.
+
+**What it would have caught.** The 0.55.0 production rollout paused on
+2026-09-22 at 17:27 UTC with `wave_deadline_exceeded` at wave 1 and sat there
+for about two days before anyone looked. The 2026-09-22 eu-east incident had
+set every eu-east StatefulSet to `updateStrategy: OnDelete`, so their pods
+never picked up the new template, and the server logs nothing while that
+holds. In the 30 days before it, 0.28.0 (12 hours) and 0.45.4 (60 hours) had
+also stayed paused unnoticed. The only signal was the one-shot Slack message
+from `Tuist.Kura.Rollouts.Notifier`, which is best-effort context, not
+detection. This rule keeps renotifying on the policy's repeat interval until
+the rollout resumes, completes, or is aborted.
+
+**When it fires.** Open `/ops/kura/rollouts` for the pause reason, and for the
+server, region and signal that caused it. For `wave_deadline_exceeded`, look
+for StatefulSets that cannot roll:
+
+```sh
+kubectl -n kura get sts -o json \
+  | jq -r '.items[] | select(.spec.updateStrategy.type == "OnDelete" or (.spec.updateStrategy.rollingUpdate.partition // 0) > 0) | .metadata.name'
+```
+
+Check `infra/kura-controller/incidents/` for a recovery that left them that
+way, and restore `RollingUpdate` one StatefulSet at a time
+(`infra/kura-controller/node-local-recovery.md`) before you resume.
+
+**Why 15 minutes, and why warning.** The orchestrator itself decides when to
+pause, so there is no flapping to smooth over. The pending period only lets an
+operator who pauses on purpose resume without a notification. A pause is a
+safe state, and so it should not page anyone at night. It has to stay visible
+until someone acts on it, and a repeating Slack notification does that.
+
+### Kura rollout running without progress
+
+```promql
+sum_over_time(
+  (
+    max by (cluster, env, image_tag, mode) (tuist_kura_rollout_active)
+    - max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)
+  )[6h:5m]
+) * 5 / 60
+```
+
+- Threshold: `> 5.5`. The value is the number of hours in the last six that
+  the rollout spent running and unpaused
+- Pending period: 5 minutes
+- Severity: warning
+- All environments. Same folder, group and routing as **Kura rollout
+  paused**; **No Data: Normal**, **Error: Error**.
+- Summary: `Kura rollout of {{ $labels.image_tag }} has been running for
+  {{ $values.A.Value | printf "%.1f" }} of the last 6 hours in {{ $labels.env }}`
+- **Live** as
+  [`Kura - rollout running without progress`](https://tuist.grafana.net/alerting/grafana/kura-rollout-stalled/view)
+  (UID `kura-rollout-stalled`), recorded in
+  [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json).
+
+This rule covers the rollout that is stuck but never pauses. Every wave has a
+one-hour deadline that pauses the rollout, so a working reconciler either
+finishes or pauses long before six hours. In the 30 days up to 2026-09-24, no
+rollout ran unpaused for more than 1.3 hours in any six-hour window. If a
+rollout stays in `running` that long, the reconciler is not advancing it: it
+is not ticking, or it is erroring before it reaches the deadline check. The
+PromEx poll reads the rollout row from Postgres independently of the
+reconciler, so it still reports `active` while the reconciler is wedged.
+
+**Why a sum over the window rather than `min_over_time` or a long pending
+period.** `min_over_time` ignores missing points, so a rollout that started
+one hour ago would already read as "active for six hours". A six-hour pending
+period is reset by any rule edit or ruler restart. Summing the running samples
+needs six real hours of data to reach the threshold. Scrape gaps (server pod
+replacements) can only delay it.
+
+**Not covered: the control plane stops reporting mid-rollout.** Both rules
+read gauges that the server emits, so if every server pod dies, both go to
+No Data and stay silent. The companion absence rule described on the Kura
+rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
+availability alerts cover that failure.
+
 ### Kura egress budget almost entirely consumed
 
 ```promql
@@ -1702,12 +2069,12 @@ label_replace(label_replace(
   sum by (cluster, region) (
     sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
     * on (cluster, instance) group_left(region)
-      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+      label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
   )
   /
   sum by (cluster, region) (
     max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
-    * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+    * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
   ),
 "scope", "region", "", ""), "target", "$1", "region", "(.*)")
 or
@@ -1716,7 +2083,7 @@ label_replace(label_replace(
   sum by (cluster, region, instance) (
     sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
     * on (cluster, instance) group_left(region)
-      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+      label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
   )
   / on (cluster, instance) group_left()
   label_replace(max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}), "instance", "$1", "node", "(.*)"),
@@ -2861,6 +3228,205 @@ Every probe location must come back as its own series. A single
 
 ## Warning alerts
 
+### CI remote compilation-cache reads slow for an account
+
+Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`).
+This is rule `dfybzqdz5rh1cb` ("Xcode cache - CI remote reads slow for an
+account"), folder `Alerts`, group `Cache client latency`, which evaluates every
+10 minutes.
+
+```sql
+WITH
+recent AS (
+  SELECT id, any(account_id) AS acct FROM build_runs
+  WHERE inserted_at >= now() - INTERVAL 1 HOUR AND is_ci
+  GROUP BY id
+),
+base AS (
+  SELECT id, any(account_id) AS acct FROM build_runs
+  WHERE inserted_at >= now() - INTERVAL 7 DAY AND inserted_at < now() - INTERVAL 1 HOUR AND is_ci
+    AND cityHash64(id) % 20 = 0 AND account_id IN (SELECT acct FROM recent)
+  GROUP BY id
+),
+recent_builds AS (
+  SELECT r.acct AS acct, ct.build_run_id AS build, count() AS reads,
+    countIf(ct.read_duration > 150) AS slow_reads, quantile(0.9)(ct.read_duration) AS p90
+  FROM cacheable_tasks AS ct INNER JOIN recent AS r ON r.id = ct.build_run_id
+  WHERE ct.build_run_id IN (SELECT id FROM recent) AND ct.status = 'hit_remote' AND ct.read_duration > 0
+  GROUP BY acct, build
+),
+baseline AS (
+  SELECT b.acct AS acct, count() AS base_reads, countIf(ct.read_duration > 150) / count() AS base_share
+  FROM cacheable_tasks AS ct INNER JOIN base AS b ON b.id = ct.build_run_id
+  WHERE ct.build_run_id IN (SELECT id FROM base) AND ct.status = 'hit_remote' AND ct.read_duration > 0
+  GROUP BY acct
+)
+SELECT toString(rb.acct) AS account_id,
+  round(sum(rb.slow_reads) / sum(rb.reads), 3) AS slow_read_share
+FROM recent_builds AS rb INNER JOIN baseline AS bl ON bl.acct = rb.acct
+GROUP BY account_id
+HAVING sum(rb.reads) >= 1000
+  AND count() >= 3
+  AND countIf(rb.p90 > 200 AND rb.reads >= 100) >= 2
+  AND slow_read_share >= 0.1
+  AND any(bl.base_reads) >= 1000
+  AND slow_read_share >= 4 * any(bl.base_share)
+```
+
+- Condition: threshold `C` directly on `A`, `IS ABOVE 0`. No Reduce step: the
+  query returns one numeric column and one string column, which Grafana reads
+  as one series per `account_id`.
+- Pending period: none, keep firing for 30 minutes
+- Severity: warning
+- No Data: Normal; Error: Error
+- Summary: `Account {{ $labels.account_id }}: {{ $values.A.Value | humanizePercentage }} of CI remote compilation-cache reads took over 150 ms in the last hour`
+
+**Why this reads client data rather than Kura metrics.** On 2026-09-14/15 CI
+builds on one account ran up to about 20 minutes longer. Per-task timings showed
+20-30 minute stretches where even p10 remote read latency was 225-235 ms and
+writes 700-1000 ms, against a normal p90 of 7-30 ms. Kura looked healthy the
+whole time: gRPC in-flight at or below 8, no CPU throttling, and
+`kura_public_request_latency_seconds` p90 under 3.5 ms. That histogram does
+cover gRPC, but it measures from the request reaching Kura to its response
+headers. The latency was added in front of it: the regional ingress returned
+malformed responses, and one failed endpoint probe moved the CLI's CAS proxy to
+a far region. No server-side rule can see either. `cacheable_tasks` records what
+Xcode itself waited for.
+
+**Why the account is compared with its own history.** Normal read latency
+differs a lot between accounts. Over 2026-09-01 to 09-08, most accounts' per-build
+read p90 stayed under 130 ms, but one account read at p10 250-500 ms in every
+build and another had a p90 of 200-900 ms in nearly every build. An absolute
+threshold fires on those accounts all day and still has to sit high enough to
+miss the incident's 265-320 ms builds. The slow-read share against the account's
+own 7-day share fires on a change, not on a steady state. The incident account's
+share went from 0.5-1% to 11-22%.
+
+**Why per-build and per-read conditions instead of an hourly p90.** The incident
+was intermittent: slow builds (p90 265-505 ms) were interleaved with normal ones
+(p90 around 20 ms) in the same hour, so an account-wide hourly percentile
+diluted it. Requiring two builds over a 200 ms p90 keeps a single slow build from
+firing, and the minimum of 1000 reads over 3 builds keeps small hours out.
+
+**Writes are not part of the condition.** Normal per-build write p90 ranges from
+30 ms to several seconds across accounts, driven by upload size, and the
+incident's 700-1100 ms writes sit inside that range.
+
+**Validated against production** on 2026-09-15 with the same SQL and `now()`
+replaced by a fixed time:
+
+| Evaluated at (UTC) | Result |
+| --- | --- |
+| 2026-09-14 06:00 | Fires for the incident account: share 0.22, baseline 0.005, 4 of 20 builds slow |
+| 2026-09-15 03:00 | Fires for the incident account: share 0.197, baseline 0.004, 4 of 10 builds slow |
+| 2026-09-01 11:00 | Fires for an account on the legacy cache lane: share 0.229, baseline 0.045, 2 of 5 builds slow |
+| 2026-09-03 12:00 | No rows |
+
+Hourly simulation over 2026-09-01 to 09-04 and 09-14/15 found the incident
+account from 2026-09-14 03:00, about a day before the report. The 09-01 row is a
+genuine burst: that account's slow builds read at p90 500-700 ms for about two
+hours. Accounts with less than 1000 baseline reads (new accounts, or ones whose
+builds moved lane) are skipped.
+
+**Cost.** `cacheable_tasks` is 140 GiB and unpartitioned, but its sort key starts
+with `build_run_id`, so `build_run_id IN (recent CI builds)` reads about 3% of
+granules. One evaluation reads about 130M rows (3 GiB) in 4 seconds, most of it
+the sampled 7-day baseline. Do not filter `cacheable_tasks` on `inserted_at`
+alone: that is a full scan. Do not alias an aggregate with the name of a column
+the same query filters on (`any(account_id) AS account_id`): ClickHouse
+resolves the `WHERE` to the alias and rejects the query.
+
+**Runbook.** Look at the account's builds (replace `ACCOUNT`):
+
+```sql
+SELECT br.id, br.ins, round(br.dur / 60000, 1) AS minutes, count() AS reads,
+  round(quantile(0.1)(ct.read_duration)) AS p10,
+  round(quantile(0.5)(ct.read_duration)) AS p50,
+  round(quantile(0.9)(ct.read_duration)) AS p90
+FROM cacheable_tasks AS ct
+INNER JOIN (
+  SELECT id, any(inserted_at) AS ins, any(duration) AS dur FROM build_runs
+  WHERE account_id = ACCOUNT AND is_ci AND inserted_at >= now() - INTERVAL 6 HOUR
+  GROUP BY id
+) AS br ON br.id = ct.build_run_id
+WHERE ct.build_run_id IN (
+    SELECT id FROM build_runs
+    WHERE account_id = ACCOUNT AND is_ci AND inserted_at >= now() - INTERVAL 6 HOUR
+  )
+  AND ct.status = 'hit_remote' AND ct.read_duration > 0
+GROUP BY br.id, br.ins, minutes
+ORDER BY br.ins
+```
+
+Then check the two known causes:
+
+1. [Kura ingress returning malformed or 502 responses](#kura-ingress-returning-malformed-or-502-responses)
+   for the account's instances.
+2. A CAS proxy endpoint flip. The CLI re-resolves the endpoint every 10 minutes
+   with one latency probe per region, and one failed probe moves it to another
+   region for at least 10 minutes. Those builds show a stretch where even p10
+   sits at the far region's round trip, then an abrupt return.
+
+Limits: only processed builds count, so the rule lags a slow build by its
+duration plus processing time. Hits replayed straight from the local CAS never
+reach `cacheable_tasks`.
+
+### Kura ingress returning malformed or 502 responses
+
+Data source: Loki `grafanacloud-logs`. This is rule `bfybzuvqgyzggc`, folder
+`Alerts`, group `Cache` (5-minute interval).
+
+```logql
+sum by (service_name, upstream) (
+  count_over_time(
+    {service_name=~"kura-.*-ingress-nginx", cluster="tuist-production"}
+      | regexp `^[^ ]+ - - \[[^]]+\] "[A-Z]+ [^"]+" (?P<resp_status>[0-9]{3}) .* \[(?P<upstream>[^\]]+)\] \[[^\]]*\] `
+      | resp_status=~"0..|502"
+    [15m]
+  )
+)
+```
+
+- Condition: threshold `C` on `A`, `IS ABOVE 30`
+- Pending period: 15 minutes
+- Severity: warning
+- No Data: Normal; Error: Error
+- Summary: `Kura gateway {{ $labels.service_name }} returned {{ $values.A.Value | printf "%.0f" }} malformed or 502 responses in 15 minutes for {{ $labels.upstream }}`
+
+The regional controllers log status `009` (clients see `HTTP/2 000` or
+`HTTP/0.9`) with upstream status 200 when nginx hands an HTTP request a cached
+h2c connection, and `502` when it hands a gRPC call an HTTP/1.1 connection. Both
+Ingresses of a Kura instance point at pod port 4000, and ingress-nginx keeps one
+keepalive pool per upstream address, so this only happens on an instance serving
+both lanes at once. Kura answered correctly in every case, so no Kura metric or
+rule moves. The paired controller error lines are
+`upstream sent no valid HTTP/1.0 header` and
+`no connection data found for keepalive http2 connection`. PR #13227 routes
+gateway gRPC to a dedicated Kura port; until it is deployed, expect this rule to
+fire for accounts that use both lanes.
+
+`upstream` is the instance's HTTP backend (`kura-kura-<instance>-http`), which
+identifies the account.
+
+- 503 and 504 are excluded. They come from draining pods, capacity shedding and
+  upstream timeouts, arrive in bursts of thousands, and the Kura 5xx rule covers
+  what Kura produces.
+- The pending period is what separates sustained breakage from a burst: one
+  burst stays in the 15-minute window for three 5-minute evaluations and never
+  reaches the fourth.
+- The source is the access log because the controllers were not scraped. Every
+  line except 2xx and 404 is kept; those two are sampled at 10%. The dedicated
+  `kura-ingress-nginx` scrape in `values.yaml` now exports
+  `nginx_ingress_controller_requests` for these controllers, so this rule can
+  move to that metric once the scrape is deployed and its `status` values are
+  confirmed.
+
+Backtested over 2026-09-01 to 09-15 with the same expression stepped every 5
+minutes: fires for both of the incident account's instances throughout
+2026-09-14/15, on 2026-09-01, 09-02 and 09-03 for a us-east instance, and a few
+times a week for two us-west instances, all with the same `009`/`502` pairing.
+Single bursts did not fire, including one of 4,287 `502` responses.
+
 ### Kura shedding cache reads under capacity pressure
 
 ```promql
@@ -3043,26 +3609,20 @@ in the fleet came close.
 
 ```promql
 max by (cluster, region, pod, kind) (
-  (
-    increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
-    or
-    label_replace(increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m]), "kind", "outbox", "", "")
-  )
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  increase(kura_capacity_sheds_total_total{kind!="response_stream"}[15m])
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
 - Threshold: `> 0`, as a separate threshold expression on `A`, so the alert
   value is the number of writes refused in the last 15 minutes
-- Pending period: the same as the live outbox rule it replaces (group
-  `Cache` evaluates every 5 minutes)
+- Pending period: none (group `Cache` evaluates every 5 minutes)
 - Severity: warning
 - Production only (see **Recording rules for Kura regions** for where the
   scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Replaces
-  **Kura shedding cache writes from the replication outbox** (see **Retired
-  rules**); preview it against the last 7 days for `kind="outbox"` and confirm
-  it fires on the same samples before deleting that rule.
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+  Successor to **Kura shedding cache writes from the replication outbox** (see
+  **Retired rules**), and it keeps that rule's identifier.
 - Summary: `Kura pod {{ $labels.pod }} in {{ $labels.region }} refused at
   least {{ $values.A.Value | printf "%.0f" }} cache writes at the
   {{ $labels.kind }} limit in the last 15 minutes ({{ $labels.cluster }})`
@@ -3071,11 +3631,6 @@ max by (cluster, region, pod, kind) (
   GET, so a refused upload becomes a future cache miss and no build fails. On
   the remote-execution path the same shed answers gRPC RESOURCE_EXHAUSTED,
   which clients retry, so read a REAPI-heavy pod as sustained backpressure.
-  outbox: one replication peer's outbox share is full (or the node is at its
-  total), read kura_outbox_target_messages against kura_outbox_peer_capacity
-  and kura_outbox_messages against kura_outbox_capacity; peers being unreachable is NOT the usual cause,
-  check kura_peer_connection_failures_total and
-  kura_replication_bandwidth_effective_limit_bytes_per_second first.
   upload_memory, memory_pressure_write, reapi_write_decode,
   reapi_materialization: the transient memory budget derived from the pod's
   ceiling is exhausted, the lever is the account's memory profile.
@@ -3087,8 +3642,9 @@ max by (cluster, region, pod, kind) (
 
 Sibling to the read shed above, in a deliberately different shape: a count
 rather than a ratio, and one rule keyed on `kind` for every write-shed limit
-instead of one rule per limit. The `outbox` kind is the retired rule, query,
-threshold and `or` term unchanged; the other kinds ride along at the same bar.
+instead of one rule per limit. It began as the retired outbox rule generalised
+to every write-shed kind at the same bar; the `outbox` kind itself went away
+with push replication (see **Why the query no longer has an `or`**).
 
 #### Why a write shed is worse than a read shed
 
@@ -3112,22 +3668,17 @@ method label, and the routes serving both reads and writes cannot be split by
 route, so "writes attempted" is not expressible. A discrete loss makes the raw
 count meaningful on its own.
 
-#### Why the query has an `or`
+#### Why the query no longer has an `or`
 
-Until the 2026-08-31 fix the gRPC outbox gate recorded only
-`kura_memory_actions_total{action="grpc_write_rejected_outbox"}` and never
-touched the shed counter, as did the three REAPI persistence sites. That gap
-hid a very large number of remote-execution rejections on one pod (seven
-figures in 7 days) against a few dozen HTTP-path rejections in a day. The
-second term keeps the rule honest on pods still running an image from before
-that fix; it is safe to drop once the fix is fleet-wide. `max`, not `sum`, so
-the two terms do not double count once both are recorded, and `label_replace`
-files the fallback under the `outbox` kind so it lands on the same row.
-
-The shed counter legitimately exceeds the gate's own rejection count: a write
-admitted at the gate still loses when the remaining room is smaller than the
-target count or another write wins the race, and each persistence path
-records that shed itself.
+Through push replication the query also carried
+`or label_replace(increase(kura_memory_actions_total_total{action="grpc_write_rejected_outbox"}[15m]), "kind", "outbox", "", "")`.
+Until the 2026-08-31 fix, a remote-execution write refused because the
+replication outbox was full was recorded only as that memory action and never
+reached the shed counter, so the second term filed those refusals under an
+`outbox` kind for pods still on older images. Removing push replication in
+kura@0.46 (#13185) deleted the outbox, its gate and the memory action, so the
+term matched nothing and was dropped. No write is refused for replication room
+any more.
 
 #### One rule keyed on kind
 
@@ -3136,21 +3687,17 @@ one series per limit and every value a constant in `metrics::shed_kind`, so
 the label cannot grow with traffic. Grouping by it costs nothing and names the
 limit in the summary, which is what the on-call needs to pick the lever:
 
-- `outbox`: the replication outbox reached its 100,000 cap. The drain is
-  pipelined (`OUTBOX_MAX_INFLIGHT` deliveries at once) and the metadata lane is
-  additionally batched, but the bulk lane still costs one delivery per message,
-  so a backlog is normally ingest outrunning it, not peers being unreachable:
-  in the 2026-08-28 episode both
-  `kura_peer_connection_failures_total` and
-  `kura_replication_bandwidth_effective_limit_bytes_per_second` were healthy
-  and bandwidth sat at its configured ceiling almost the whole time. It is
-  also a rollout signal: `Tuist.Kura.Rollouts.gate_checks/2` compares each
-  canary's `outboxMessages` against `baseline + 10%`, so the pod firing this
-  is very likely the one holding a runtime rollout in wave 0.
 - `upload_memory`, `memory_pressure_write`: the transient memory budget, which
   is derived from the pod's ceiling at startup, is exhausted. The lever is the
   account's memory profile; **Kura pod living above its memory request** usually
   fires first.
+  - `upload_memory` borrows the elastic ceiling headroom before it queues, so
+    on current versions it means an upload waited 30 seconds with the floor
+    and that headroom both spent, or with pressure above normal closing the
+    borrow. Read `kura_memory_elastic_transient_reserved_bytes` against
+    `kura_memory_elastic_transient_capacity_bytes` as for `reapi_write_decode`
+    below. Older versions queued on the floor alone, so a shed there can come
+    with pressure normal and the headroom unused.
 - `reapi_write_decode`, `reapi_materialization`: the same budget on the
   remote-execution surface. These answer gRPC `RESOURCE_EXHAUSTED`, which
   Bazel retries, so this counter is the only place they show, and a
@@ -3192,140 +3739,126 @@ limit in the summary, which is what the on-call needs to pick the lever:
 
 ```promql
 sum by (pod, kind) (rate(kura_capacity_sheds_total_total[5m]))
-max by (pod) (kura_outbox_messages)
 ```
 
-### Kura replication outbox approaching its cap
+### Kura replication outbox approaching its cap (retired)
+
+Retired with the push path's removal (kura@0.46): `kura_outbox_messages` and
+the outbox write shed no longer exist, so the live rule `afwtwlzgkderke`
+(`Kura - replication outbox approaching its cap`, folder `Alerts`, group
+`Cache`) evaluates an absent series and must be deleted in Grafana. The
+signal it led — writes refused for a full outbox — has no successor because
+a write is never refused for replication room any more: a pull link that
+falls behind shows as `kura_sync_forward_cursor_lag_entries` and
+`kura_region_watermark_age_seconds` on the pulling side (the `Tuist Kura /
+Details` sync row), which have no rule yet.
+
+### Kura instance has no ready replicas
+
+**Live since 2026-09-22 19:20 UTC:** [rule `ffz1ualjy8fswd`](https://tuist.grafana.net/alerting/grafana/ffz1ualjy8fswd/view)
+is enabled in the separate **Cache availability** evaluation group, running
+**every 60 seconds** with a two-minute pending period. The existing `Cache`
+group evaluates every five minutes and is unchanged. At 19:22:30 UTC, live
+evaluation reported health `ok`, state `normal`, and all 185 instances Normal.
+
+[`kura-availability-alert-rules.json`](kura-availability-alert-rules.json)
+records the live rule, including its UID, folder and datasource. Merging this
+file does not provision Grafana. The authenticated browser successfully saved
+the configuration after the Atlas MCP policy PUT continued to return HTTP 403;
+the MCP authorization issue remains separate. Readback through the API verified
+the saved rule, 60-second group interval, and policy tree.
+
+The companion
+[`kura-availability-notification-policy.json`](kura-availability-notification-policy.json)
+contains **three sibling routes**, appended after the existing staging-cluster
+and staging-env exceptions. Merge these into a fresh policy tree; preserve the
+root and other routes, and never PUT this array as a whole-tree replacement:
+
+- All three match only this alert title in the `Alerts` folder.
+- The first matches `cluster!=tuist-production` and selects only
+  `Slack #notifications-non-prod`, including missing and unknown cluster labels.
+- The second matches `cluster=tuist-production`, selects `Slack #notifications 2`,
+  and uses `continue: true` to also reach the third route's `Incidents` receiver.
+- An `env=production` label alone cannot page. The existing `env=staging`
+  exception remains authoritative even with a conflicting production cluster.
+- Other alerts retain their current routes, including rules pinned to `Incidents`.
+
+Do not add `notification_settings` to the rule. Its expression retains the
+cluster label used by this policy; `env` is intentionally not required.
+Non-production instances of this rule never select the production receiver,
+its Atlas webhook, or IRM. IRM label definitions confirmed the case-sensitive
+`affected_service=Cache` option. That label selects a component; it does not by
+itself configure IRM escalation or declare an incident. The browser routing
+preview showed 165 production instances selecting Slack plus Incidents and 20
+non-production instances selecting only non-production Slack. No synthetic
+notifications or end-to-end public status-page incident drill were performed.
+
+Historical preview against the live datasource covered 13:00–18:00 UTC on
+2026-09-22 at one-minute resolution. The query detected up to 23 unavailable
+production StatefulSets; staging and canary stayed at zero. A two-minute
+subquery minimum also detected the outage, but is not an exact replay of
+Grafana's evaluation state. All three environments were zero at the final
+instant check. This is a zero-Ready-replica signal, not a complete public
+cache health check: an auth-backend failure can occur while pods stay Ready.
+
+For future reprovisioning or rollback:
+
+1. Read and save the current notification policy; merge the three scoped routes
+   without overwriting concurrent changes or duplicating existing routes. Keep
+   staging exceptions first and the production Slack route before Incidents.
+2. Upsert the existing rule UID from the payload. For a fresh stack, provision
+   it paused until routing is verified. Set the **Cache availability** group
+   interval to **60 seconds** separately; the per-rule API payload does not
+   carry the group interval. Do not change the existing `Cache` group interval.
+3. Read rule, group, and policies back. Verify matchers, receivers, absence of
+   rule-level notification overrides, interval, and live evaluation health.
+   Validate routing with Alertmanager's engine before enabling a fresh rule.
+4. To roll back, pause this rule first, then remove only these three scoped
+   routes from the current policy. Do not restore a stale whole-tree backup.
+
+Run `bash infra/helm/k8s-monitoring/test-kura-availability-alert.sh` with
+`jq`, `promtool` and `amtool` on PATH (or set `AMTOOL` to the latter's path). The
+script tests the exact query and pending period plus ten routing cases using
+Alertmanager itself; it sends no notifications. Validation used amtool 0.28.1.
 
 ```promql
-max by (cluster, pod) (
-  (kura_outbox_messages > 25000 and predict_linear(kura_outbox_messages[5m], 600) > 100000)
-  or
-  (kura_outbox_messages > 90000)
-)
+(max by (cluster, namespace, statefulset) (
+  kube_statefulset_replicas{namespace="kura"}
+) > bool 0)
+* on (cluster, namespace, statefulset)
+(max by (cluster, namespace, statefulset) (
+  kube_statefulset_status_replicas_ready{namespace="kura"}
+) == bool 0)
 ```
 
-- Threshold: `> 0`, as a separate threshold expression on `A`; the comparisons
-  inside the query filter the series and keep the depth as the value
-- Live: rule `afwtwlzgkderke`, titled `Kura - replication outbox approaching its
-  cap`, `severity: warning`, folder `Alerts`, group `Cache` (evaluated every
-  5 minutes), receiver `Slack #notifications 2`. Moved to this form on
-  2026-08-31 from `> 75000` for 15 minutes.
-- Summary: `Kura pod {{ $labels.pod }} is heading for its replication outbox
-  cap in {{ $labels.cluster }} (depth {{ $values.A.Value | printf "%.0f" }}),
-  where it starts refusing customer writes`
-- Description: `Leading indicator for "Kura shedding cache writes by kind"
-  (the outbox kind). Once the outbox reaches its cap both write gates refuse
-  public writes: HTTP answers 429 and the remote-execution surface answers gRPC
-  RESOURCE_EXHAUSTED; the cache client only retries GETs, so a refused HTTP
-  upload is lost rather than delayed. Do NOT assume an unreachable peer: check
-  max by (pod) (kura_outbox_messages) and sum by (pod)
-  (rate(kura_replication_requests_total_total{operation="upsert_artifact"}[10m]))
-  (filter by operation, the counter also counts backfill). Drain is serial and
-  node-wide, one delivery per peer round-trip, so a backlog is ingest
-  outrunning it. If the write-shed rule is also firing the window has closed.
-  The same backlog gates Kura runtime rollouts, so this pod is likely holding
-  a rollout in wave 0.`
+- Threshold: `> 0`; pending period: **2 minutes**; severity: **critical**.
+- Desired zero is excluded. One Ready replica is degraded but does not fire.
+- Healthy samples remain an explicit zero. Missing readiness is unknown,
+  not zero replicas: no-data and execution errors remain visible as Grafana
+  `NoData` / `Error`, rather than silently reporting healthy service.
+- There is no `cluster=` filter, preserving detection if Adaptive Metrics
+  removes that label; aggregation removes scrape-target label differences.
 
-Leading indicator for the `outbox` kind of **Kura shedding cache writes by
-kind** above. That rule tells you writes are already being lost; this one is
-the window before it starts. When the retired outbox rule is deleted, update
-this rule's description, which still names it by its old title.
+This catches the total loss that the existing 30-minute warning below also
+matches but cannot promptly distinguish. On 2026-09-22 EU East's only host
+repeatedly lost API connectivity, both colocated replicas were evicted, and
+DNS-dependent bootstrap delayed their recovery. A pod count is not a complete
+external availability check: correlate it with public `/ready`, authenticated
+read failures, node conditions, Cilium, and DNS. Check how many affected
+instances share a host before diagnosing each instance independently.
 
-The live description also still says the drain is "serial and node-wide, one
-delivery per peer round-trip". That stopped being true when the drain was
-pipelined and the metadata lane batched; it reads as an instruction to look for
-a slow peer when the question is which lane is deep. Correct it in the same
-edit, to: `Drain is pipelined and the metadata lane is batched, but the bulk
-lane costs one delivery per message, so a backlog is ingest outrunning it.
-Split it with max by (pod, lane) (kura_outbox_lane_messages).`
+Do not delete local data volumes to repair a network partition. Preserve the
+readiness gate and follow the [node-local recovery runbook](../../kura-controller/node-local-recovery.md).
+Test the exact provisioning expression and pending period with:
 
-#### Two terms: a forecast that leads, and a static backstop
-
-A depth threshold alone could not lead. In the 2026-08-31 episode one pod
-crossed 75000 and hit the cap under three minutes later; the old rule
-(`> 75000`, for 15 minutes, in the 5-minute Cache group) reached Alerting 28
-minutes *after* the cap. The `predict_linear` term, a 10-minute forecast over
-the last 5 minutes of depth, went true about 9 minutes before the cap at a
-depth around 32000. The 25000 floor keeps a short, self-resolving burst quiet.
-
-The `> 90000` term is the backstop for the case the forecast cannot see: a
-backlog parked just under the cap that is flat rather than rising. A full
-outbox sheds nothing until traffic arrives, so the gap between this rule and
-the shed can still be hours: in the 2026-08-28 episode the outbox sat near the
-cap all night and the first write was shed when the tenant's builds started the
-next morning. Do not read a silent shed rule as a drained outbox.
-
-Together the two terms held fewer pod-minutes over the 7 days to 2026-08-31
-than the old threshold on each of the three pods that ever reach the cap, so
-the form is net quieter as well as earlier.
-
-#### Caveat: the cap is now per peer, and the total is no longer what sheds
-
-Both 100000 and 90000 were `DEFAULT_OUTBOX_MAX_DEPTH`, which no longer exists.
-The share is now `KURA_OUTBOX_MAX_DEPTH_PER_PEER` (100000) enforced **per
-replication target**: a write is shed once any one of its peers holds that
-many queued messages, whatever the node-wide total. The node is also bounded
-by a total of the share times its peer count, capped at 1000000. The total
-(`kura_outbox_messages`) can therefore sit far below `kura_outbox_capacity`
-while the pod is already shedding on one peer, so alert on both: the deepest
-per-peer queue against the share, and the total against the capacity, all
-exported by Kura:
-
-```promql
-max by (pod) (kura_outbox_target_messages) / max by (pod) (kura_outbox_peer_capacity) > 0.9
-  or max by (pod) (kura_outbox_messages / kura_outbox_capacity) > 0.9
+```sh
+bash infra/helm/k8s-monitoring/test-kura-availability-alert.sh
 ```
 
-Until the live rule is moved to that form, its `> 90000` backstop on the
-node-wide total fires at the old point for a one- or two-peer pod, but on a
-larger mesh it fires **early**: the total is the sum of every peer's queue, so
-a five-peer pod can page at 18000 per peer, nowhere near a shed. Read a page
-from the old rule on a large mesh against the per-target series before
-treating it as a shed.
-
-This per-peer share is an interim measure: the drain is throughput-bound
-(`OUTBOX_MAX_INFLIGHT` is a node-wide pipeline depth, not per target), so a
-larger buffer changes how much a saturated pod holds, not whether it saturates.
-The scalable replacement is the replication log redesign, tracked separately
-from this rule.
-
-#### Why the drain falls behind
-
-Do not assume the peers are unreachable. Through the 2026-08-31 and 2026-09-02
-episodes `kura_peer_connection_failures_total` was 0, apply errors were 0, and
-replication bandwidth sat at its configured ceiling. Bandwidth is not the
-constraint, and neither is the round trip.
-
-Start by splitting the backlog by lane:
-
-```promql
-max by (pod, lane) (kura_outbox_lane_messages)
-```
-
-The two lanes fail for different reasons and have different levers. The
-metadata lane (inline upserts, namespace deletes) is amortized by
-`drain_metadata_batches`, which carries up to `REPLICATION_BATCH_MAX_ITEMS`
-messages per request. The bulk lane (segment-backed artifacts) is skipped by
-that path entirely and drains one delivery per message, `OUTBOX_MAX_INFLIGHT`
-at a time, so it is bounded by per-delivery *body transfer* rather than by RTT.
-A runner-cache workload is almost all bulk lane, and on 2026-09-02 a
-write-primary replicating to two peers one region away sustained ~17.7
-messages/s against ingest peaking near 97 messages/s. A deep bulk lane points
-at the in-flight ceiling; a deep metadata lane points at batching.
-
-One artifact write also enqueues one message *per target*, so depth is not a
-count of artifacts.
-
-#### Aggregate by pod, not by series
-
-`kura_outbox_messages` carries an `instance` label, and a pod that has
-restarted appears under several instance IPs across a long window. A bare
-`kura_outbox_messages > 90000` therefore returns one series per historical IP
-and counts a single pod many times: one chronically backlogged pod showed up
-as seven separate series over a week. Always reduce with `max by (pod)` (or
-`by (cluster, pod)`) first. The same applies when counting how long a pod
-spent above a threshold.
+The fixtures cover healthy and degraded replicas, complete outage, recovery,
+a brief rollout, deliberate scale-to-zero, missing telemetry, other namespaces,
+and absent cluster labels. External probe coverage and live historical-query
+validation are still deployment checks, not consequences of those unit tests.
 
 ### Kura instance below its replica count
 
@@ -3337,7 +3870,9 @@ standby is also what a rebuilt replica refills its ring from over the peer mesh
 (`instancePodAffinity` in the kura-controller). An instance down to one replica
 still answers, which is why nothing that watches request rates or error rates
 sees anything: it is not an outage, it is the absence of the thing that keeps
-the next deploy from being one.
+the next deploy from being one. Zero Ready replicas **are an outage**; use the
+separate availability rule above and do not wait for this warning's 30-minute
+pending period before investigating loss of service.
 
 **Live**: rule `dfxj89n1poidca`, created 2026-09-07 in folder `Alerts`, group
 `Cache`, alongside the other Kura rules. It carries no `notification_settings`,
@@ -3684,6 +4219,198 @@ probe failed TLS verification every tick, and the endpoint-not-ready branch
 logged at info and returned `:ok` without writing anything. The instance was
 indistinguishable from one thirty seconds old.
 
+### Kura new instances slow to serve
+
+```promql
+max(tuist_kura_lifecycle_new_instance_time_to_ready_p90_seconds{cluster="tuist-production"})
+  and on()
+(max(tuist_kura_lifecycle_new_instances_count{cluster="tuist-production"}) >= 10)
+```
+
+- Threshold: `> 120` seconds, so the alert value is the p90 itself
+- Pending period: 30 minutes
+- Severity: warning
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: OK**, **Error: Alerting**.
+- Live: rule `kura-new-instance-slow`, created 2026-09-17.
+- Summary: `Kura new instances took {{ $values.A.Value | printf "%.0f" }}s at
+  the 90th percentile over the last day`
+
+**What it measures.** `tuist_kura_lifecycle_new_instance_time_to_ready_p90_seconds`
+is a PromEx polling gauge, computed every five minutes from `kura_deployments`
+over the last 24 hours: for each account-region instance that started serving,
+the wall-clock from the deployment that brought it up to its endpoint
+answering. Only first provisions and cold returns count, which is the first
+deployment a server has had since its account-region last returned from
+archive. A fleet rollout mints ten times as many deployments as new instances
+and they pass through the same activation path, so counting those would measure
+the rollout gate instead.
+
+**Read it with `max`, not `sum`.** Like the gauges above, every
+`tuist-tuist-server` replica reports the same fleet-wide value and Adaptive
+Metrics has aggregated `instance` and `pod` away.
+
+**Why the sample gate.** Production provisions on the order of 30 new instances
+a day, so a 24-hour p90 is taken over a few dozen samples and a quiet day would
+otherwise let one slow instance decide the alert. When the window holds nothing
+the count is reported as zero and the percentile is left alone, so the gate
+closes and the rule goes to No Data — which is why No Data is OK rather than
+Alerting: a fleet that provisioned nothing has no speed to report.
+
+Note that the percentile going stale rather than absent is what makes the count
+carry the gate. PromEx's `last_value` is an ETS row the exporter reads back with
+no TTL and no delete path, so a series that simply stops being emitted keeps
+reporting its last computed value for the life of the pod. Were the count to go
+stale too, a day with provisioning wedged would keep evaluating the previous
+day's percentile against the previous day's sample count and stay green.
+
+**Why 120 seconds, and where it should go.** Before the on-demand provisioning
+work, production's p90 for a first provision was 181s over a week (p50 127s),
+and a staging drill of the same path afterwards returned an archived instance
+in 13.7s. 120s is therefore well clear of the expected range while still
+catching a regression to the old behaviour. Tighten it toward 60s once a couple
+of weeks of production data with the new path exist, and read the current
+distribution before changing it:
+
+```sql
+SELECT count(*), percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (finished_at - inserted_at)))
+FROM kura_deployments WHERE status = 2 AND inserted_at > now() - interval '7 days';
+```
+
+**What it catches that the two rules above do not.** Those fire when an instance
+never serves, on a 15-minute stall threshold. This one fires when instances do
+serve but have got slower: DNS publication, volume provisioning, the regional
+gateway's sync rate, image pulls on a fresh box. The usual first read is the
+timeline of one recent instance, which `AwaitActivationWorker`'s log lines give
+(`waiting on DNS for server`, `waiting on public endpoint for server`) together
+with the pod and volume events in the `kura` namespace.
+
+### Kura region admission headroom running out
+
+```promql
+predict_linear(
+  (
+    max by (cluster, region) (
+      tuist_kura_capacity_admission_headroom_gibibytes{cluster="tuist-production"}
+    )
+    or
+    (
+      floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
+      - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
+    )
+  )[3d:30m],
+  3 * 86400
+)
+```
+
+- Threshold: `< 32`, as a separate threshold expression on `A`
+- Pending period: 2 hours
+- Severity: warning
+- Live: rule `cfyi8f0lyqayof`, titled `Kura - region admission headroom
+  running out`
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura region {{ $labels.region }} in {{ $labels.cluster }} is on
+  course to stop admitting enterprise instances within three days (projected
+  headroom {{ $values.A.Value | printf "%.0f" }} GiB)`
+- Description: `Extrapolates the last three days of capacity admission
+  headroom (see "Kura region admission cannot take an enterprise instance")
+  three days forward. A box takes days to order and join, so this is the tier
+  to act on: order a node for the region's pool, or find what is reserving
+  disk it does not use (instances that have stored nothing, claims far above
+  their rings).`
+
+The lead-time tier for **Kura region admission cannot take an enterprise
+instance**. An absolute threshold does not give lead time here, because
+regions fill at very different rates: over the week to 2026-09-17 us-central
+lost about 95 GiB of headroom a day and us-west about 40, and ap-southeast
+fell from 633 GiB to 121 in nine days. Three days forward from three days of
+history is the time an order takes. The 2-hour pending period keeps a region
+that has just started reporting, whose first samples are a steep drop, from
+firing on its first hour: eu-east did that for 1.5 hours on 2026-09-10.
+
+Backtested over 2026-09-03 to 2026-09-17, it fired for us-west from
+2026-09-11 14:33 and eu-west from 2026-09-11 12:03, four and five days before
+each crossed 32 GiB, for us-central from 2026-09-11 12:33, and for
+ap-southeast from 2026-09-16 12:33 (121 GiB left, projected -329 on
+2026-09-17). us-east fired from 2026-09-04 16:33, dropping out whenever
+archival released reservations.
+
+### Kura admission refusing instances
+
+When investigating reservations, use retention evidence rather than current
+volume occupancy alone. Claim sizing can correct moderate excess retention
+after 14 complete post-resize days with snapshots, at least seven meaningful
+eviction days, and two ring budgets of turnover. It discounts known idle whole
+days, requires adjusted retention of at least 4.5 days, and projects toward
+3.75 days. Each correction frees 10–25% of the account claim, requires every
+known pinned region to support shrinking, and restarts the observation window.
+Today's contradictory evictions veto it. Existing 30-day occupancy and
+clearly excessive-retention shrink paths still apply. The evidence is saved in
+`kura_claim_proposals`; low occupancy or one long-lived eviction is not enough
+to justify manually shrinking an instance.
+
+```promql
+label_replace(
+  sum by (cluster, region, reason) (
+    increase(tuist_kura_lifecycle_provision_refused_count{cluster="tuist-production"}[30m])
+  ),
+  "operation", "provision", "", ""
+)
+or
+label_replace(
+  sum by (cluster, region, reason) (
+    increase(tuist_kura_lifecycle_claim_apply_refused_count{cluster="tuist-production"}[30m])
+  ),
+  "operation", "claim_growth", "", ""
+)
+```
+
+- Threshold: `> 0`, as a separate threshold expression on `A`
+- Pending period: 30 minutes
+- Severity: warning
+- Live: rule `bfyi8f8z3whkwa`, titled `Kura - admission refusing instances`
+- Production only. Folder `Alerts`, group `Cache`, receiver
+  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+- Summary: `Kura capacity admission in {{ $labels.region }} is refusing
+  {{ $labels.operation }} ({{ $labels.reason }}) in {{ $labels.cluster }}`
+- Description: `Tuist.Kura.Admission turned down a provision or cold return
+  (operation=provision) or a storage-claim growth (operation=claim_growth) in
+  this region for 30 minutes. A refused account keeps the lane it had, and a
+  refused claim leaves its proposal open while the ring keeps evicting, so
+  nothing else reports it. capacity_exhausted: the reservation does not fit
+  under the region's pressure line, see "Kura region admission cannot take an
+  enterprise instance". capacity_unknown: the server cannot read the region's
+  nodes or pods. The server logs name the account:
+  "[Kura.Lifecycle] could not provision" and "[Kura.ClaimSizing] <region>
+  refused".`
+
+The refusal itself, which the headroom rule can only infer. It is not
+redundant with it: a claim growth or a return at a grown claim needs more than
+32 GiB, so a region can refuse those while the headroom rule is quiet, and
+`capacity_unknown` refuses everything whatever the headroom. This is also the
+"sizing blocked" rule **Kura instance retention horizon under a day** says is
+missing, for the half of it that is a capacity refusal; a claim clamped at the
+plan ceiling is still uncovered.
+
+A claim is account-wide, and `Kura.apply_claim_proposal/2` admits it region by
+region in alphabetical order and stops at the first refusal, so the region on
+a `claim_growth` row is the first one that refused, not the only one. On
+2026-09-17 the eu-west rows were monzo (32Gi to 64Gi, open since 09-15) and
+the us-east rows pinterest (50Gi to 200Gi, open since 09-16); both accounts
+also run in us-west, which would refuse them as well. `kura_claim_proposals`
+with `status` open names the accounts.
+
+Both counters are retried, not one-off: `Tuist.Kura.Lifecycle` retries a
+refused account on every pass and `Tuist.Kura.Workers.ClaimSizingWorker`
+retries an open proposal every ten minutes, so a region that keeps refusing
+keeps the rule firing, and one that recovers resolves it within 30 minutes.
+`sum by` rather than `max by`: a refusal is counted on the one web pod that
+made it, and Adaptive Metrics stores `sum:counter` for these counters.
+`region` on both must survive Adaptive Metrics; it was aggregated away on
+`tuist_kura_lifecycle_claim_apply_refused_count` on 2026-09-16 and restored
+on 2026-09-17, which shows as a single `region="<aggregated>"` row.
+
 ### Kura region has room for one more instance
 
 The `ceiling` and `memory` rows of **Kura region cannot place another
@@ -3716,12 +4443,12 @@ critical one pages and this one keeps the Slack thread.
 ```promql
 sum by (cluster, region) (
   node_memory_MemAvailable_bytes
-  * on (cluster, instance) group_left(region) label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+  * on (cluster, instance) group_left(region) label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
 )
 /
 sum by (cluster, region) (
   node_memory_MemTotal_bytes
-  * on (cluster, instance) group_left(region) label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+  * on (cluster, instance) group_left(region) label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
 )
 ```
 
@@ -3763,7 +4490,7 @@ creation; it is the guard rail.
 max by (cluster, region, pod) (
   avg_over_time(kura_container_memory_pressure_bytes[1h])
   / on (cluster, pod) group_left() max by (cluster, pod) (kube_pod_container_resource_requests{namespace="kura", container="kura", resource="memory"})
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 ```
 
@@ -3809,12 +4536,12 @@ label_replace(label_replace(
   sum by (cluster, region) (
     sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
     * on (cluster, instance) group_left(region)
-      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+      label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
   )
   /
   sum by (cluster, region) (
     max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
-    * on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+    * on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
   ),
 "scope", "region", "", ""), "target", "$1", "region", "(.*)")
 or
@@ -3823,7 +4550,7 @@ label_replace(label_replace(
   sum by (cluster, region, instance) (
     sum by (cluster, instance) (rate(node_network_transmit_bytes_total{device=~"e(n|th).*"}[5m])) * 8 / 1e6
     * on (cluster, instance) group_left(region)
-      label_replace(kura:node_region{cluster="tuist-production"}, "instance", "$1", "node", "(.*)")
+      label_replace(sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))), "instance", "$1", "node", "(.*)")
   )
   / on (cluster, instance) group_left()
   label_replace(max by (cluster, node) (kube_node_status_capacity{resource="tuist_dev_egress_mbps"}), "instance", "$1", "node", "(.*)"),
@@ -3892,7 +4619,7 @@ creation by a wide margin.
   sum by (cluster, account, pod) (kura_egress_tree_class_ceil_bytes_per_second{cluster="tuist-production"})
 )
 * on (cluster, pod) group_left(node) max by (cluster, pod, node) (kube_pod_info{namespace="kura", pod=~".*egress-tree-agent.*"})
-* on (cluster, node) group_left(region) kura:node_region{cluster="tuist-production"}
+* on (cluster, node) group_left(region) sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"})))
 ```
 
 - Threshold: `> 0.9`, as a separate threshold expression on `A`
@@ -3957,7 +4684,7 @@ or label_replace(
   and on (cluster, node) kube_node_status_capacity{resource="tuist_dev_egress_mbps"} > 0,
   "signal", "softnet_drops", "", "")
 or label_replace(
-  (kura:node_region{cluster="tuist-production"} and on (cluster, node) kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
+  (sgn(topk by (cluster, node) (1, timestamp(kura:node_region{cluster="tuist-production"}))) and on (cluster, node) kube_node_status_capacity{resource="tuist_dev_egress_mbps"})
   unless on (cluster, node) max by (cluster, node) (
     kube_pod_info{namespace="kura", pod=~".*egress-tree-agent.*"} * on (cluster, pod) group_left() (up{job="egress-tree-agent"} == 1)
   ),
@@ -4061,17 +4788,17 @@ windows in the preceding two weeks, all false — for the reason described under
 sum by (cluster, region, protocol) (
   sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total{
     outcome=~"waited|degraded|degraded_timeout|degraded_memory_unavailable|queue_full|timeout"}[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 /
 sum by (cluster, region, protocol) (
   sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 )
 and
 sum by (cluster, region, protocol) (
   sum by (cluster, pod, protocol) (rate(kura_response_stream_admissions_total_total[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 ) > 1
 ```
 
@@ -4131,29 +4858,38 @@ rather than dropping the protocol split.
 ```promql
 histogram_quantile(0.95, sum by (cluster, region, le) (
   sum by (cluster, pod, le) (rate(kura_public_request_latency_seconds_bucket[5m]))
-  * on (cluster, pod) group_left(region) kura:pod_region{cluster="tuist-production"}
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
 ))
+and on (cluster, region)
+sum by (cluster, region) (
+  sum by (cluster, pod) (rate(kura_public_request_latency_seconds_count[5m]))
+  * on (cluster, pod) group_left(region) sgn(topk by (cluster, pod) (1, timestamp(kura:pod_region{cluster="tuist-production"})))
+) > 1
 ```
 
-- Threshold: `> 1` second, as a separate threshold expression on `A`
+- Threshold: `> 1` second, as a separate threshold expression on `A`; the
+  traffic floor of one request per second stays inside the PromQL, since
+  `and` filters the series rather than reducing it to a boolean
 - Pending period: 30 minutes
 - Severity: warning
-- Production only (see **Recording rules for Kura regions** for where the
-  scope lives). Folder `Alerts`, group `Cache`, receiver
-  `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**. Add
-  `affected_service` for the cache component: this is customer-visible.
+- Live: rule `ffx2xchowcwlce`. Production only (see **Recording rules for
+  Kura regions** for where the scope lives). Folder `Alerts`, group `Cache`,
+  receiver `Slack #notifications 2`; **No Data: Normal**, **Error: Alerting**.
+  Add `affected_service` for the cache component: this is customer-visible.
 - Summary: `Kura region {{ $labels.region }} p95 time to first byte has been
   {{ $values.A.Value | humanizeDuration }} for 30 minutes
   ({{ $labels.cluster }})`
 - Description: `p95 of time to first response byte for public cache requests
   (HTTP and gRPC, probes and internal routes excluded) across the region's
-  instances, sustained for 30 minutes. The catch-all customer-facing capacity
-  symptom: it rises whether the bottleneck is the NIC ("Kura egress budget
-  heavily used"), the response-stream pool ("Kura response streams waiting or
-  degraded"), memory pressure, or a wedged store. Read those rules first;
-  this one only says the customer is feeling it. The node also uses this
-  latency to throttle peer replication (kura_replication_bandwidth_*), so a
-  region sitting high here lets its outbox grow.`
+  instances, sustained for 30 minutes. Only evaluated while the region serves
+  more than one request per second: below that a handful of slow requests
+  decides the p95. The catch-all customer-facing capacity symptom: it rises
+  whether the bottleneck is the NIC ("Kura egress budget heavily used"), the
+  response-stream pool ("Kura response streams waiting or degraded"), memory
+  pressure, or a wedged store. Read those rules first; this one only says the
+  customer is feeling it. The node also uses this latency to throttle peer
+  replication (kura_replication_bandwidth_*), so a region sitting high here
+  lets its outbox grow.`
 
 The customer-facing symptom across all three capacity limits. It is not a
 diagnosis: the rules above say why, this one says the customer feels it. It
@@ -4169,6 +4905,20 @@ production region (its REAPI-heavy workload sits there normally), above 1 s in
 three windows fleet-wide, above 2 s in two. The typical 6 hour p95 is tens of
 milliseconds. One second for 30 minutes is the bar that separates that
 workload's normal from the two episodes.
+
+**Why the traffic floor.** A regional p95 over five minutes is decided by the
+slowest 5% of that window's requests, so at 0.3 requests per second it is the
+slowest four or five. Regions are bursty: over the 14 days to 2026-09-23 the
+median regional rate ranged from zero (`sa-west`, `scw-fr-par-runners`) to
+33 requests per second (`eu-west`), and every region spent part of the day
+near idle. Without the floor, every sustained breach in that period was an
+idle region: `ap-southeast` held the p95 above one second for about 28 hours
+in total, at 0.004 to 0.6 requests per second, and `us-central` and `sa-west`
+had shorter runs, the busiest averaging 1.1. At a floor of 0.5 requests per
+second three of those windows still fire; at one request per second none do.
+The floor is evaluated on the same five-minute window as the p95, so it is a
+statement about the sample the quantile came from, and it sits far below a
+working region, which runs at tens to hundreds of requests per second.
 
 ### Swift registry release work repeatedly deferred
 
@@ -4466,16 +5216,17 @@ and were cleared on 2026-08-19:
   CRDs, so the CRD and its CR outlived the controller that reconciled
   them, and the CR's finalizer had to be cleared by hand because nothing
   was left to process it.
-- 1 `tailscale-operator` subnet-router Pod, which is churn rather than a
-  stuck Pod: the operator replaces it every few minutes, so no single
-  instance survives the pending period.
+- 1 `tailscale-operator` subnet-router Pod. This was written off as churn
+  because no single instance survived the pending period, but it was
+  stuck: the staging Connector could not schedule at all from 2026-06-18
+  to 2026-09-23, and every tailscale-operator deploy replaced the Pending
+  Pod with a new one. *Tailscale proxy has no ready replica* below now
+  covers it.
 
-Staging is clean enough to alert on today. The scope stays at production
-because that is what the deployed rule uses, and the two should not drift;
-widening it is a deliberate follow-up rather than an oversight. Before
-doing so, confirm the subnet-router churn still never persists past 30
-minutes, because one instance did sit unschedulable for 18 consecutive
-hours in the 48 hours before the cleanup.
+The scope stays at production because that is what the deployed rule
+uses, and the two should not drift; widening it is a deliberate follow-up
+rather than an oversight. Before doing so, run the expression over
+staging for 48 hours and confirm it is empty.
 
 Validate any change to this query against live data before saving it. The
 staging noise above was invisible in review and only showed up by running
@@ -4504,6 +5255,110 @@ taint mistake surfaces the same morning instead of six weeks later. This
 is a warning rather than a page because it fires on any production
 workload in any namespace: the Pod that motivated it was critical, but
 most Pods that briefly cannot schedule are not.
+
+### Tailscale proxy has no ready replica
+
+Rule uid `efz3meilw8xkwb`, folder `Alerts`, group `Infrastructure`.
+
+Every StatefulSet in the `tailscale-operator` namespace is a proxy the
+Tailscale operator runs: the Connector subnet router
+(`ts-tuist-cluster-subnet-router-*`), the `macmini-egress` ProxyGroup
+that alloy-metrics scrapes the Mac minis through, and one
+`ts-<namespace>-<service>-*` proxy per Service exposed to the tailnet
+(the Postgres pooler, ClickHouse, the Alloy receiver, tuist-ops). A proxy
+with no ready replica means that tailnet path is down.
+
+The staging subnet router sat `Pending` from 2026-06-18 until
+[#13502](https://github.com/tuist/tuist/pull/13502) on 2026-09-23.
+[#11256](https://github.com/tuist/tuist/pull/11256) pinned it to the
+`kura-scw-fr-par` pool through its ProxyClass, and that pool's node
+carries a `tuist.dev/runner-cache=true:NoSchedule` taint the ProxyClass
+did not tolerate. Nothing paged for three months.
+
+```promql
+sum by (cluster, proxy) (
+  label_replace(
+    label_replace(
+      kube_statefulset_status_replicas_ready{namespace="tailscale-operator"},
+      "proxy", "$1", "statefulset", "(.+)"
+    ),
+    "proxy", "$1", "statefulset", "ts-(.+)-[a-z0-9]{5}"
+  )
+)
+and on (cluster, proxy)
+sum by (cluster, proxy) (
+  label_replace(
+    label_replace(
+      kube_statefulset_replicas{namespace="tailscale-operator"},
+      "proxy", "$1", "statefulset", "(.+)"
+    ),
+    "proxy", "$1", "statefulset", "ts-(.+)-[a-z0-9]{5}"
+  )
+) > 0
+```
+
+- Threshold: `A < 1`
+- Pending period: 30 minutes
+- Severity: warning
+- No-data state: OK, and the same for the execution-error state
+- Summary: `Tailscale proxy {{ $labels.proxy }} has had no ready replica for 30 minutes in {{ $labels.cluster }}`
+
+The query returns the ready count for every proxy, so a healthy proxy is
+a `Normal` instance rather than an empty result. The healthy baseline on
+2026-09-23 was 21 series across the three clusters.
+
+**The rule keys on the proxy, not the StatefulSet.** The Connector,
+ProxyClass and ProxyGroup are Helm `post-upgrade` hooks with
+`before-hook-creation`, so every `helm upgrade` of the tailscale-operator
+release deletes and recreates them, and the operator gives the new
+Connector StatefulSet a new generated suffix
+(`ts-tuist-cluster-subnet-router-qzwq6`). Staging's router was recreated
+up to 25 times a day in September. A rule keyed on the StatefulSet or the
+Pod gets a new label set on each redeploy, which restarts its pending
+period, and that is how the stuck router passed as churn under *Pod
+cannot be scheduled*. The inner `label_replace` copies `statefulset` into
+`proxy`. The outer one strips `ts-` and the suffix where the name has
+them, so a ProxyGroup such as `macmini-egress`, whose StatefulSet is
+named after it, keeps its own name. The `sum` then folds an old and a new
+StatefulSet that coexist during a redeploy into one series.
+
+A redeploy leaves the new StatefulSet at zero ready for the minute or two
+its Pod takes to start, which the pending period absorbs. The old
+StatefulSet can also vanish a scrape before the new one appears, dropping
+the series for one evaluation. Grafana keeps a pending instance through
+that until `missing_series_evals_to_resolve` (default 2) consecutive
+evaluations miss it. At one-minute resolution over 2026-06-19 to
+2026-09-23, the staging router's series missed at most one minute in any
+day.
+
+The `kube_statefulset_replicas > 0` leg keeps a proxy deliberately
+scaled to zero from firing. A proxy whose StatefulSet is gone entirely,
+such as a failed post-upgrade hook that deleted the Connector and never
+recreated it, produces no series and reads as healthy here.
+
+No metric change is needed. Both gauges are in the kube-state-metrics
+default allow list and in the non-production keep list in
+[`values.yaml`](./values.yaml), and carry `namespace` and `statefulset`
+in all three clusters. The operator's `tailscale.com/parent-resource`
+StatefulSet label would be a cleaner key, but `kube_statefulset_labels`
+exports no allow-listed label for it, and the name already identifies the
+proxy.
+
+Replayed over 2026-06-01 to 2026-09-23 in all three clusters, requiring
+30 consecutive minutes at zero ready, it fires only for the staging
+subnet router: intermittently on 2026-06-16 and 2026-06-17, before
+#11256 merged, then continuously from 2026-06-18 16:30 UTC until the
+router became ready at 2026-09-23 07:10 UTC, apart from one ready hour on
+2026-06-22. Production and canary never match. A replay that only takes
+the maximum over the window also flags a proxy whose series first appears
+at zero ready, as the canary pg-pooler proxy's did on 2026-08-18 when it
+was ready two minutes later. That is an artifact of the replay; the rule
+needs 30 minutes of evaluations.
+
+It is a warning, like *Pod cannot be scheduled*, and carries no
+notification settings: staging and canary route to
+`#notifications-non-prod` through the `cluster` matcher in the policy
+tree, and production to `#notifications`.
 
 ### Kubernetes request latency
 
@@ -4663,20 +5518,59 @@ min by (cluster, namespace) (
 ### Database connection pool starved
 
 ```promql
-sum by (cluster, namespace, repo, database) (
-  increase(tuist_repo_pool_checkout_queue_starved_samples_sum[5m])
+sum by (cluster, workload, repo, database) (
+  increase(tuist_repo_pool_checkout_queue_starved_samples{workload!=""}[5m])
 )
 /
 clamp_min(
-  sum by (cluster, namespace, repo, database) (
-    increase(tuist_repo_pool_checkout_queue_total_samples_sum[5m])
+  sum by (cluster, workload, repo, database) (
+    increase(tuist_repo_pool_checkout_queue_total_samples{workload!=""}[5m])
   ),
   1
 ) > 0.1
 ```
 
 - Pending period: 2 minutes
-- Summary: `More than 10% of database pool samples had queued work and no ready connection for {{ $labels.repo }} in {{ $labels.cluster }}`
+- Summary: `More than 10% of database pool samples had queued work and no ready connection for {{ $labels.repo }} in {{ $labels.workload }} / {{ $labels.cluster }}`
+
+Use `workload`, rather than a scrape job or namespace, to compare the web,
+build processor, and macOS test-result processor. The shared pool plugin polls
+every 100 milliseconds, so the accumulated starvation samples can expose
+bursts that the 60-second macOS scrape misses in the queue-depth gauge.
+The exported counters have no `_sum` suffix.
+
+### Database query failures by workload
+
+```promql
+sum by (cluster, workload, repo, result) (
+  increase(tuist_repo_query_count{result!="ok"}[5m])
+) > 0
+```
+
+- Pending period: 5 minutes
+- Set No Data to Normal: error series only exist after an error occurs.
+- Summary: `Database queries are failing with {{ $labels.result }} for {{ $labels.workload }} / {{ $labels.repo }} in {{ $labels.cluster }}`
+
+`queue_timeout` counts attempts rejected before acquiring a connection;
+`connection_error` counts other connection failures; `error` covers database
+and other adapter errors. `ok` counts successful queries. These are bounded
+labels, without statement text, parameters, project names, or customer data.
+
+The Processor Service dashboard (`tuist-processor-service`) plots this rate
+alongside `tuist_repo_query_{queue_time,query_time,decode_time,total_time}_milliseconds`.
+Each timing family exports histogram buckets, count, and sum. Query execution
+includes the network round trip; it is not isolated database-engine time.
+Phases missing from an adapter event are omitted, so a rejected checkout does
+not create a zero-duration execution sample. The dashboard's timing panels
+filter to successful queries; the failure-rate panel keeps rejected work
+visible separately. Mean durations work in every environment, while buckets
+are retained only in production.
+
+After deploying, compare the `web`, `processor`, and `xcresult_processor`
+workloads on the dashboard. If raw exports contain a metric but Grafana does
+not, inspect Adaptive Metrics before changing the application. Historical
+series will not acquire the new workload label. These are rule definitions
+to provision in Grafana, not automatically deployed alert rules.
 
 ### Tuist server ClickHouse query failures
 
@@ -4740,9 +5634,9 @@ histogram_quantile(
 ### Slow or cancelled ClickHouse query
 
 Data source: ClickHouse `tuist-production-clickhouse` (uid `dexgs9hv7rjswd`),
-not the metrics data source. This is rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
-query"), whose definition before 2026-09-05 could not have fired on that
-day's Modules page outage, so the fields below replace it.
+not the metrics data source. Live as rule `ffeb6l2ax5qtcf` ("Slow ClickHouse
+query") since 2026-09-15. Its definition before then could not have fired on
+the 2026-09-05 Modules page outage, and errored on every evaluation.
 
 ```sql
 SELECT
@@ -4761,6 +5655,7 @@ ORDER BY slow_or_cancelled DESC
 LIMIT 20
 ```
 
+- Query `A` relative time range: 15 minutes.
 - Condition: expression `B`, **Threshold** on `A`, `IS ABOVE 2`. No Reduce
   expression: the query returns one numeric column and string columns only,
   which Grafana reads as one series per `(query_hash, query_preview)` label
@@ -4768,11 +5663,12 @@ LIMIT 20
   several numeric ones and its Reduce step failed with `input data must be a
   wide series`, so the rule errored instead of evaluating whenever rows came
   back.
-- Pending period: 2 minutes
-- Severity: warning
-- Folder `Alerts`, group `Server`
-- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.B }} times in 15 minutes: {{ $labels.query_preview }}`
-- Set **No Data** to Normal: a healthy cluster returns no rows.
+- Pending period: 2 minutes; keep firing for 10 minutes
+- Label `severity=warning`
+- Folder `Alerts`, group `Server`; no receiver set on the rule
+- Summary: `ClickHouse query {{ $labels.query_hash }} was slow or cancelled {{ $values.A }} times in 15 minutes: {{ $labels.query_preview }}`.
+  Use `$values.A`: `$values.B` is the threshold result, 0 or 1.
+- Set **No Data** to Normal: a healthy cluster returns no rows. Error state: Error.
 - `clusterAllReplicas('default', system.query_log)` reads every replica's log.
   The data source hits one of the three ClickHouse Cloud replicas per request,
   so the previous `system.query_log` saw a third of the attempts at best.
@@ -4803,10 +5699,14 @@ LIMIT 20
 - `normalizeQuery` folds literals into `?` so the preview label is stable per
   hash between evaluations; a changing label value would open a new alert
   instance each time.
-- Validated against a reproduction, not against production: replaying the
-  failure through the driver against ClickHouse 26.1 gave 18 and 4 for the two
-  query shapes, both above the threshold, while the previous rule's
-  `type = 'QueryFinish'` form returned no rows over the same window.
+- Validated against a reproduction: replaying the failure through the driver
+  against ClickHouse 26.1 gave 18 and 4 for the two query shapes, both above
+  the threshold, while the previous rule's `type = 'QueryFinish'` form returned
+  no rows over the same window.
+- Validated in production on 2026-09-15: `POST /api/v1/eval` returned one
+  `numeric-multi` frame per `(query_hash, query_preview)` for both `A` and
+  `B`, and the first scheduled evaluation after the update reported
+  `health: ok` with no error.
 
 ### etcd write-ahead-log synchronization latency
 
@@ -5119,6 +6019,13 @@ sum by (cluster) (
 
 ### Browser LCP percentiles
 
+**Staged replacement:** [Browser RUM quality and surface-specific LCP](browser-rum.md)
+adds collector-verified authentication, trusted collector Ray IDs and paused
+per-surface alert definitions. The legacy rules below stay active until the
+two-phase gateway rollout and baseline validation are complete. Their pooled
+September 5 baseline is historical; a six-hour Faro window must not be described
+as an official Core Web Vitals assessment.
+
 Real user monitoring for tuist.dev. These are the only rules in this document
 that read Loki rather than Prometheus, because browser telemetry arrives as log
 entries and never becomes a metric.
@@ -5308,20 +6215,53 @@ not identify each client's loaded bundle or WebDriver flag.
 
 The Cloudflare rule in
 `infra/flux/cloudflare-config/browser-telemetry-bot-filter.yaml` filters
-verified bots at ingestion. Flux applies the `CloudflareCustomRule` and the
-management-cluster operator reconciles it into the zone's WAF ruleset. It
-blocks only `POST https://tuist.dev/-/faro/collect` when `cf.client.bot` is
-true, so crawlers can still read public pages. This uses the same verified-bot
+verified and self-declared bots at ingestion. Flux applies the
+`CloudflareCustomRule` and the management-cluster operator reconciles it into
+the zone's WAF ruleset. It blocks only `POST https://tuist.dev/-/faro/collect`
+when `cf.client.bot` is
+true or the request user agent explicitly identifies HeadlessChrome,
+YisouSpider, Sogou web spider, or meta-externalagent. Comparisons are
+case-insensitive; YisouSpider matches the whole value, Sogou and Meta match
+their product prefix, and HeadlessChrome matches its versioned product token.
+Crawlers can still read public pages. This uses the same verified-bot
 signal as the existing crawler rate-limit rules and does not require granular
 Enterprise Bot Management scores. There is no browser-version or viewport
 denylist and no challenge on the collector's background requests.
 
-**Coverage is deliberately limited to Cloudflare-verified bots.** A false
+**Self-declared automation does not need to be a verified bot.** In the 24h
+window ending September 18, 2026 at 08:15 UTC, Faro contained 9 YisouSpider,
+8 Sogou web spider, and 3 HeadlessChrome LCP samples. Meta was observed in the
+September 8 investigation above. The explicit user-agent clauses cover those
+declarations independently of Cloudflare's verified-bot list. They use request
+headers at the edge. An ingress log at 07:17:50 UTC confirms a Faro POST with
+the actual `YisouSpider` request header received HTTP 202, alongside its LCP
+sample. The other counts use Faro's browser-reported `browser_userAgent` and
+are candidates for filtering, not proof that the same header reached
+Cloudflare. Confirm the request headers in Security Events after rollout.
+
+**This does not classify clients impersonating ordinary browsers.** A false
 `cf.client.bot` does not mean human. We have not correlated the Linux cohort
 with Cloudflare's classification, so disappearance of that cohort is a
 post-deployment check, not an established result. If it persists, inspect
 Cloudflare's request classification and available Bot Management entitlement
 before extending the rule; do not exclude ordinary Linux browsers wholesale.
+
+The same September 18 window had 2,200 LCP samples and p95 11.80s. The Linux
+1919x992 cohort contributed 288 samples from 288 sessions, including 169 of
+the 236 samples above 5s; 255 of its samples were on login URLs. Excluding
+that fingerprint for diagnosis brought p95 to 4.26s. This is not evidence
+that every matching visit is automated and the fingerprint is not a deployed
+filter. A separate Mac/Chrome 1366x1366 cohort dominated the September 16
+spike: 30,546 of 33,095 total samples were on `/turnstile-challenge`. Keep
+these cohorts visible while verifying their edge classification.
+
+The repository's bot-management configuration records the zone as Business
+with Super Bot Fight Mode. Granular
+[`cf.bot_management.score` custom rules require Enterprise Bot Management](https://developers.cloudflare.com/bots/concepts/bot-score/);
+verify live entitlement before proposing one. Keep the collector's SBFM skip:
+a managed challenge on a background telemetry POST silently loses samples.
+The explicit user-agent extension does not change that skip, the p95 5s
+threshold, or the alert sample floor.
 
 After merge, use the management-cluster context to inspect
 `kubectl get cloudflarecustomrule browser-telemetry-verified-bots -o yaml`.
@@ -5357,9 +6297,13 @@ count(sum by (session_id) (
 
 For the explicitly identified Meta cohort, use the same measurement selector
 with `| browser_userAgent=~"(?i)meta-externalagent/.*"` instead of the Linux
-OS and viewport filters. To roll back the edge filter, set `enabled: false`
-in its Kubernetes manifest and let Flux and the operator reconcile; editing
-the rule in the Cloudflare dashboard would be reverted by the operator.
+OS and viewport filters. Also check the new declarations with
+`| browser_userAgent=~"(?i)(.*headlesschrome/.*|yisouspider|sogou web spider/.*)"`.
+To roll back just the self-declared automation extension, restore the
+expression's final condition to `cf.client.bot`. To roll back the entire edge
+filter, set `enabled: false` in its Kubernetes manifest and let Flux and the
+operator reconcile; editing the rule in the Cloudflare dashboard would be
+reverted by the operator.
 
 **D scales with traffic**, which is worth remembering before reading a rise as a
 regression. It is an absolute count over 24h and it tracked the weekly cycle
@@ -5649,7 +6593,8 @@ on exactly the same samples at the same grain while the other write-shed
 kinds the old rule left uncovered ride along. Its reasoning (count not rate,
 the `or` term, the triage queries) moved into that section. Delete the old
 rule only after the new one has been previewed for `kind="outbox"` against
-the last 7 days and matches.
+the last 7 days and matches. The `outbox` kind and its `or` term were later
+dropped from that rule with push replication (kura@0.46).
 
 **Kura cache pod failing scrapes** (`cfvvcmpw0wqv4f`, warning, deleted
 2026-08-26) counted absolute failed scrapes:

@@ -4,6 +4,7 @@ defmodule Tuist.TestsTest do
 
   import Ecto.Query
 
+  alias Ecto.Association.NotLoaded
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.ClickHouseRepo
@@ -15,10 +16,12 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseCurrentState
   alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunByCommit
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunFlakyCorrection
+  alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestCaseState
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker
@@ -297,7 +300,7 @@ defmodule Tuist.TestsTest do
       {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id)
 
       # Then
-      assert %Ecto.Association.NotLoaded{} = run.failures
+      assert %NotLoaded{} = run.failures
     end
   end
 
@@ -1322,6 +1325,23 @@ defmodule Tuist.TestsTest do
   end
 
   describe "create_test/1" do
+    test "sets the version a created run is kept by instead of leaving it to the server" do
+      # `inserted_at` is the version test_runs keeps the latest row by. Left to
+      # the column default, each ClickHouse server stamps its own clock, so two
+      # servers holding the same writes can keep different versions of a run.
+
+      # When
+      {:ok, test_run} = RunsFixtures.test_fixture()
+
+      # Then
+      assert %NaiveDateTime{} = test_run.inserted_at
+
+      %{rows: [[stored]]} =
+        IngestRepo.query!("SELECT inserted_at FROM test_runs FINAL WHERE id = {id:UUID}", %{"id" => test_run.id})
+
+      assert NaiveDateTime.compare(stored, test_run.inserted_at) == :eq
+    end
+
     test "persists test case runs and their arguments without relying on the asynchronous batch" do
       # Given
       # The client uploads attachments and crash reports as soon as it gets these
@@ -3694,7 +3714,7 @@ defmodule Tuist.TestsTest do
       url = Tests.test_ci_run_url(test)
 
       # Then
-      assert url == "https://app.circleci.com/pipelines/github/owner/project/42"
+      assert url == "https://app.circleci.com/jobs/github/owner/project/42"
     end
 
     test "returns Buildkite URL for Buildkite provider" do
@@ -4318,6 +4338,37 @@ defmodule Tuist.TestsTest do
       assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "muted"}]) == ["muted"]
     end
 
+    test "filters by the preloaded states of more test cases than ClickHouse accepts as separate HTTP fields" do
+      project = ProjectsFixtures.project_fixture()
+      inserted_at = NaiveDateTime.utc_now()
+
+      state_rows =
+        Enum.map(1..4_500, fn _index ->
+          %{
+            project_id: project.id,
+            test_case_id: UUIDv7.generate(),
+            state: "muted",
+            is_flaky: false,
+            inserted_at: inserted_at
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseState, state_rows)
+
+      muted =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "muted",
+          state: "muted",
+          inserted_at: NaiveDateTime.add(inserted_at, 1, :microsecond)
+        )
+
+      IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(muted)])
+
+      assert listed_test_case_names(project.id, [%{field: :state, op: :==, value: "muted"}]) == ["muted"]
+      assert listed_test_case_names(project.id, [%{field: :state, op: :!=, value: "muted"}]) == []
+    end
+
     test "preserves state when an in-flight ingestion read the row before the mute" do
       # Ingestion snapshots the existing test case rows once per report and only
       # stamps `inserted_at` later, per module. A mute landing inside that window
@@ -4555,6 +4606,37 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert result == {:error, :not_found}
+    end
+  end
+
+  describe "list_test_case_run_arguments/1" do
+    test "preloads the arguments of more test case runs than fit in one ClickHouse parameter" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      argument_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(Tuist.Tests.TestCaseRunArgument, [
+        %{
+          id: argument_id,
+          test_case_run_id: test_case_run.id,
+          name: "iPhone",
+          status: "success",
+          duration: 100,
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      ])
+
+      test_case_runs = [
+        %TestCaseRun{id: test_case_run.id} | Enum.map(1..4_000, fn _ -> %TestCaseRun{id: UUIDv7.generate()} end)
+      ]
+
+      # When
+      [preloaded | others] =
+        ClickHouseRepo.preload(test_case_runs, arguments: &Tests.list_test_case_run_arguments/1)
+
+      # Then
+      assert [%{id: ^argument_id, name: "iPhone"}] = preloaded.arguments
+      assert Enum.all?(others, &(&1.arguments == []))
     end
   end
 
@@ -8418,6 +8500,258 @@ defmodule Tuist.TestsTest do
 
       assert [%{name: "testBarFlaky"} = group] = group_b
       assert length(group.runs) == 1
+    end
+
+    test "resolves failures and repetitions for thousands of cross-run matches" do
+      # More run IDs than ClickHouse's `http_max_fields` (1,000) allows as
+      # individual query parameters.
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "regression-large-cross-run-set"
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ],
+                  failures: [
+                    %{
+                      message: "Assertion failed",
+                      path: "/path/to/test.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      [%{id: current_run_id, test_case_id: test_case_id}] =
+        ClickHouseRepo.all(
+          from(tcr in TestCaseRun,
+            where: tcr.test_run_id == ^test_run.id,
+            select: %{id: tcr.id, test_case_id: tcr.test_case_id}
+          )
+        )
+
+      cross_run_count = 2_500
+      base_time = NaiveDateTime.utc_now()
+      newest_run_id = UUIDv7.generate()
+      oldest_run_id = UUIDv7.generate()
+
+      cross_runs =
+        for i <- 1..cross_run_count do
+          id =
+            case i do
+              1 -> newest_run_id
+              ^cross_run_count -> oldest_run_id
+              _ -> UUIDv7.generate()
+            end
+
+          %{
+            id: id,
+            name: "testFlakyExample",
+            test_run_id: UUIDv7.generate(),
+            test_module_run_id: UUIDv7.generate(),
+            test_suite_run_id: nil,
+            test_case_id: test_case_id,
+            project_id: project.id,
+            is_ci: true,
+            scheme: "",
+            account_id: project.account_id,
+            ran_at: NaiveDateTime.add(base_time, -i, :second),
+            git_branch: "main",
+            is_default_branch: false,
+            git_commit_sha: commit_sha,
+            status: if(rem(i, 2) == 0, do: "success", else: "failure"),
+            is_flaky: true,
+            is_new: false,
+            is_quarantined: false,
+            duration: 100,
+            inserted_at: NaiveDateTime.utc_now(),
+            module_name: "FlakyTestModule",
+            suite_name: "",
+            shard_id: nil,
+            shard_index: nil
+          }
+        end
+
+      TestCaseRun.Buffer.insert_all(cross_runs)
+
+      detailed_runs = [{newest_run_id, "Newest"}, {oldest_run_id, "Oldest"}]
+
+      TestCaseFailure.Buffer.insert_all(
+        for {run_id, label} <- detailed_runs do
+          %{
+            id: UUIDv7.generate(),
+            test_case_run_id: run_id,
+            test_case_run_argument_id: nil,
+            message: "#{label} failure",
+            path: "/path/to/other_test.swift",
+            line_number: 7,
+            issue_type: "assertion_failure",
+            inserted_at: NaiveDateTime.utc_now()
+          }
+        end
+      )
+
+      TestCaseRunRepetition.Buffer.insert_all(
+        for {run_id, label} <- detailed_runs do
+          %{
+            id: UUIDv7.generate(),
+            test_case_run_id: run_id,
+            test_case_run_argument_id: nil,
+            repetition_number: 1,
+            name: "#{label} run",
+            status: "failure",
+            duration: 250,
+            source: "run",
+            inserted_at: NaiveDateTime.utc_now()
+          }
+        end
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert [group] = Tests.get_flaky_runs_for_test_run(test_run.id)
+      assert group.name == "testFlakyExample"
+      assert length(group.runs) == cross_run_count + 1
+
+      runs_by_id = Map.new(group.runs, &{&1.id, &1})
+
+      assert [%{message: "Assertion failed"}] = runs_by_id[current_run_id].failures
+      assert ["First Run", "Retry 1"] = Enum.map(runs_by_id[current_run_id].repetitions, & &1.name)
+
+      for {run_id, label} <- detailed_runs do
+        failure_message = "#{label} failure"
+        repetition_name = "#{label} run"
+        assert [%{message: ^failure_message}] = runs_by_id[run_id].failures
+        assert [%{name: ^repetition_name}] = runs_by_id[run_id].repetitions
+      end
+    end
+
+    test "returns every group when a test run has more flaky test cases than ClickHouse's form field limit" do
+      project = ProjectsFixtures.project_fixture()
+      flaky_test_case_count = 1_100
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "many-flaky-test-cases",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases:
+                for i <- 1..flaky_test_case_count do
+                  %{
+                    name: "testFlaky#{i}",
+                    status: "success",
+                    duration: 10,
+                    repetitions: [
+                      %{repetition_number: 1, name: "First Run", status: "failure", duration: 4},
+                      %{repetition_number: 2, name: "Retry 1", status: "success", duration: 6}
+                    ]
+                  }
+                end
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Tests.get_flaky_runs_for_test_run(test_run.id)
+
+      assert length(result) == flaky_test_case_count
+      assert Enum.all?(result, fn group -> match?([%{repetitions: [_, _]}], group.runs) end)
+    end
+
+    test "loads failures and repetitions only through put_flaky_run_details/1 when details are skipped" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "deferred-flaky-details",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ],
+                  failures: [
+                    %{
+                      message: "Assertion failed",
+                      path: "/path/to/test.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert [group] = Tests.get_flaky_runs_for_test_run(test_run.id, details: false)
+      assert [%{failures: %NotLoaded{}, repetitions: %NotLoaded{}}] = group.runs
+      refute Map.has_key?(group, :passed_count)
+
+      assert Tests.put_flaky_run_details([group]) == Tests.get_flaky_runs_for_test_run(test_run.id)
     end
   end
 

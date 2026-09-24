@@ -27,6 +27,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/module-cache/metrics`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/module-cache/metrics/get(moduleCacheMetrics)`.
     func moduleCacheMetrics(_ input: Operations.moduleCacheMetrics.Input) async throws -> Operations.moduleCacheMetrics.Output
+    /// Get account or volume storage, activity and trends for a time range.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/analytics/get(getRunnerVolumeAnalytics)`.
+    func getRunnerVolumeAnalytics(_ input: Operations.getRunnerVolumeAnalytics.Input) async throws -> Operations.getRunnerVolumeAnalytics.Output
     /// Get a generation by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
@@ -100,6 +105,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
     func updateTestCase(_ input: Operations.updateTestCase.Input) async throws -> Operations.updateTestCase.Output
+    /// Clear saved volume contents. Running jobs retain their copies but cannot save them.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)`.
+    func clearRunnerVolume(_ input: Operations.clearRunnerVolume.Input) async throws -> Operations.clearRunnerVolume.Output
     /// Get the artifact tree for a bundle.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts`.
@@ -249,6 +259,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
     @available(*, deprecated)
     func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws -> Operations.deleteOrganization.Output
+    /// Get runner volume details.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/{volume_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)`.
+    func getRunnerVolume(_ input: Operations.getRunnerVolume.Input) async throws -> Operations.getRunnerVolume.Output
     /// Get one recorded Xcode build step and its log.
     ///
     /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
@@ -339,6 +354,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/xcode/builds/{build_id}/cache-tasks/get(listBuildCacheTasks)`.
     func listBuildCacheTasks(_ input: Operations.listBuildCacheTasks.Input) async throws -> Operations.listBuildCacheTasks.Output
+    /// List the volumes mounted by a runner job.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)`.
+    func listRunnerJobVolumes(_ input: Operations.listRunnerJobVolumes.Input) async throws -> Operations.listRunnerJobVolumes.Output
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -724,6 +744,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/organizations`.
     /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
     func createOrganization(_ input: Operations.createOrganization.Input) async throws -> Operations.createOrganization.Output
+    /// List the jobs that used a runner volume.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)`.
+    func listRunnerVolumeJobs(_ input: Operations.listRunnerVolumeJobs.Input) async throws -> Operations.listRunnerVolumeJobs.Output
     /// Authenticate with Apple identity token.
     ///
     /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
@@ -767,6 +792,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/get(listGradleBuildSteps)`.
     func listGradleBuildSteps(_ input: Operations.listGradleBuildSteps.Input) async throws -> Operations.listGradleBuildSteps.Output
+    /// List runner volumes filtered by name and repository.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)`.
+    func listRunnerVolumes(_ input: Operations.listRunnerVolumes.Input) async throws -> Operations.listRunnerVolumes.Output
     /// List test suite runs for a test run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites`.
@@ -963,6 +993,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get account or volume storage, activity and trends for a time range.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/analytics/get(getRunnerVolumeAnalytics)`.
+    public func getRunnerVolumeAnalytics(
+        path: Operations.getRunnerVolumeAnalytics.Input.Path,
+        query: Operations.getRunnerVolumeAnalytics.Input.Query = .init(),
+        headers: Operations.getRunnerVolumeAnalytics.Input.Headers = .init()
+    ) async throws -> Operations.getRunnerVolumeAnalytics.Output {
+        try await getRunnerVolumeAnalytics(Operations.getRunnerVolumeAnalytics.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Get a generation by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
@@ -1128,6 +1173,19 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Clear saved volume contents. Running jobs retain their copies but cannot save them.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)`.
+    public func clearRunnerVolume(
+        path: Operations.clearRunnerVolume.Input.Path,
+        headers: Operations.clearRunnerVolume.Input.Headers = .init()
+    ) async throws -> Operations.clearRunnerVolume.Output {
+        try await clearRunnerVolume(Operations.clearRunnerVolume.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// Get the artifact tree for a bundle.
@@ -1509,6 +1567,19 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get runner volume details.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/{volume_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)`.
+    public func getRunnerVolume(
+        path: Operations.getRunnerVolume.Input.Path,
+        headers: Operations.getRunnerVolume.Input.Headers = .init()
+    ) async throws -> Operations.getRunnerVolume.Output {
+        try await getRunnerVolume(Operations.getRunnerVolume.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Get one recorded Xcode build step and its log.
     ///
     /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
@@ -1724,6 +1795,19 @@ extension APIProtocol {
         try await listBuildCacheTasks(Operations.listBuildCacheTasks.Input(
             path: path,
             query: query,
+            headers: headers
+        ))
+    }
+    /// List the volumes mounted by a runner job.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)`.
+    public func listRunnerJobVolumes(
+        path: Operations.listRunnerJobVolumes.Input.Path,
+        headers: Operations.listRunnerJobVolumes.Input.Headers = .init()
+    ) async throws -> Operations.listRunnerJobVolumes.Output {
+        try await listRunnerJobVolumes(Operations.listRunnerJobVolumes.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -2692,6 +2776,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// List the jobs that used a runner volume.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)`.
+    public func listRunnerVolumeJobs(
+        path: Operations.listRunnerVolumeJobs.Input.Path,
+        query: Operations.listRunnerVolumeJobs.Input.Query = .init(),
+        headers: Operations.listRunnerVolumeJobs.Input.Headers = .init()
+    ) async throws -> Operations.listRunnerVolumeJobs.Output {
+        try await listRunnerVolumeJobs(Operations.listRunnerVolumeJobs.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Authenticate with Apple identity token.
     ///
     /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
@@ -2794,6 +2893,21 @@ extension APIProtocol {
         headers: Operations.listGradleBuildSteps.Input.Headers = .init()
     ) async throws -> Operations.listGradleBuildSteps.Output {
         try await listGradleBuildSteps(Operations.listGradleBuildSteps.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// List runner volumes filtered by name and repository.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)`.
+    public func listRunnerVolumes(
+        path: Operations.listRunnerVolumes.Input.Path,
+        query: Operations.listRunnerVolumes.Input.Query = .init(),
+        headers: Operations.listRunnerVolumes.Input.Headers = .init()
+    ) async throws -> Operations.listRunnerVolumes.Output {
+        try await listRunnerVolumes(Operations.listRunnerVolumes.Input(
             path: path,
             query: query,
             headers: headers
@@ -3891,6 +4005,8 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/test_modules`.
             public var test_modules: Components.Schemas.TestParams.test_modulesPayload
+            /// - Remark: Generated from `#/components/schemas/TestParams/xcode_coverage`.
+            public var xcode_coverage: Components.Schemas.XcodeCoverage?
             /// The version of Xcode used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_version`.
@@ -3922,6 +4038,7 @@ public enum Components {
             ///   - status: The status of the test run.
             ///   - stress_new_tests:
             ///   - test_modules: The test modules associated with the test run.
+            ///   - xcode_coverage:
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
                 build_run_id: Swift.String? = nil,
@@ -3948,6 +4065,7 @@ public enum Components {
                 status: Components.Schemas.TestParams.statusPayload? = nil,
                 stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                 test_modules: Components.Schemas.TestParams.test_modulesPayload,
+                xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.build_run_id = build_run_id
@@ -3974,6 +4092,7 @@ public enum Components {
                 self.status = status
                 self.stress_new_tests = stress_new_tests
                 self.test_modules = test_modules
+                self.xcode_coverage = xcode_coverage
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
@@ -4001,6 +4120,7 @@ public enum Components {
                 case status
                 case stress_new_tests
                 case test_modules
+                case xcode_coverage
                 case xcode_version
             }
         }
@@ -4385,6 +4505,524 @@ public enum Components {
                 case hash
             }
         }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics`.
+        public struct RunnerVolumeAnalytics: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity`.
+            public struct activityPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity/hit_rate`.
+                public var hit_rate: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity/job_runs`.
+                public var job_runs: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity/pointsPayload/hit_rate`.
+                    public var hit_rate: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity/pointsPayload/job_runs`.
+                    public var job_runs: Swift.Int
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - hit_rate:
+                    ///   - job_runs:
+                    public init(
+                        at: Foundation.Date,
+                        hit_rate: Swift.Double? = nil,
+                        job_runs: Swift.Int
+                    ) {
+                        self.at = at
+                        self.hit_rate = hit_rate
+                        self.job_runs = job_runs
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case hit_rate
+                        case job_runs
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.hit_rate = try container.decodeIfPresent(
+                            Swift.Double.self,
+                            forKey: .hit_rate
+                        )
+                        self.job_runs = try container.decode(
+                            Swift.Int.self,
+                            forKey: .job_runs
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "hit_rate",
+                            "job_runs"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity/points`.
+                public typealias pointsPayload = [Components.Schemas.RunnerVolumeAnalytics.activityPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity/points`.
+                public var points: Components.Schemas.RunnerVolumeAnalytics.activityPayload.pointsPayload
+                /// Creates a new `activityPayload`.
+                ///
+                /// - Parameters:
+                ///   - hit_rate:
+                ///   - job_runs:
+                ///   - points:
+                public init(
+                    hit_rate: Swift.Double? = nil,
+                    job_runs: Swift.Int,
+                    points: Components.Schemas.RunnerVolumeAnalytics.activityPayload.pointsPayload
+                ) {
+                    self.hit_rate = hit_rate
+                    self.job_runs = job_runs
+                    self.points = points
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case hit_rate
+                    case job_runs
+                    case points
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.hit_rate = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .hit_rate
+                    )
+                    self.job_runs = try container.decode(
+                        Swift.Int.self,
+                        forKey: .job_runs
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.RunnerVolumeAnalytics.activityPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "hit_rate",
+                        "job_runs",
+                        "points"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/activity`.
+            public var activity: Components.Schemas.RunnerVolumeAnalytics.activityPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/period`.
+            public struct periodPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/period/end`.
+                public var end: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/period/start`.
+                public var start: Foundation.Date
+                /// Creates a new `periodPayload`.
+                ///
+                /// - Parameters:
+                ///   - end:
+                ///   - start:
+                public init(
+                    end: Foundation.Date,
+                    start: Foundation.Date
+                ) {
+                    self.end = end
+                    self.start = start
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case end
+                    case start
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.end = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .end
+                    )
+                    self.start = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .start
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "end",
+                        "start"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/period`.
+            public var period: Components.Schemas.RunnerVolumeAnalytics.periodPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity`.
+            public struct previous_activityPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity/hit_rate`.
+                public var hit_rate: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity/job_runs`.
+                public var job_runs: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity/pointsPayload/hit_rate`.
+                    public var hit_rate: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity/pointsPayload/job_runs`.
+                    public var job_runs: Swift.Int
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - hit_rate:
+                    ///   - job_runs:
+                    public init(
+                        at: Foundation.Date,
+                        hit_rate: Swift.Double? = nil,
+                        job_runs: Swift.Int
+                    ) {
+                        self.at = at
+                        self.hit_rate = hit_rate
+                        self.job_runs = job_runs
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case hit_rate
+                        case job_runs
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.hit_rate = try container.decodeIfPresent(
+                            Swift.Double.self,
+                            forKey: .hit_rate
+                        )
+                        self.job_runs = try container.decode(
+                            Swift.Int.self,
+                            forKey: .job_runs
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "hit_rate",
+                            "job_runs"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity/points`.
+                public typealias pointsPayload = [Components.Schemas.RunnerVolumeAnalytics.previous_activityPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity/points`.
+                public var points: Components.Schemas.RunnerVolumeAnalytics.previous_activityPayload.pointsPayload
+                /// Creates a new `previous_activityPayload`.
+                ///
+                /// - Parameters:
+                ///   - hit_rate:
+                ///   - job_runs:
+                ///   - points:
+                public init(
+                    hit_rate: Swift.Double? = nil,
+                    job_runs: Swift.Int,
+                    points: Components.Schemas.RunnerVolumeAnalytics.previous_activityPayload.pointsPayload
+                ) {
+                    self.hit_rate = hit_rate
+                    self.job_runs = job_runs
+                    self.points = points
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case hit_rate
+                    case job_runs
+                    case points
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.hit_rate = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .hit_rate
+                    )
+                    self.job_runs = try container.decode(
+                        Swift.Int.self,
+                        forKey: .job_runs
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.RunnerVolumeAnalytics.previous_activityPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "hit_rate",
+                        "job_runs",
+                        "points"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/previous_activity`.
+            public var previous_activity: Components.Schemas.RunnerVolumeAnalytics.previous_activityPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storagePayload`.
+            public struct storagePayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storagePayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storagePayload/capacity_bytes`.
+                public var capacity_bytes: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storagePayload/unmeasured_capacity_copies`.
+                public var unmeasured_capacity_copies: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storagePayload/unmeasured_copies`.
+                public var unmeasured_copies: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storagePayload/used_bytes`.
+                public var used_bytes: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storagePayload/volumes`.
+                public var volumes: Swift.Int
+                /// Creates a new `storagePayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - capacity_bytes:
+                ///   - unmeasured_capacity_copies:
+                ///   - unmeasured_copies:
+                ///   - used_bytes:
+                ///   - volumes:
+                public init(
+                    at: Foundation.Date,
+                    capacity_bytes: Swift.Int? = nil,
+                    unmeasured_capacity_copies: Swift.Int,
+                    unmeasured_copies: Swift.Int,
+                    used_bytes: Swift.Int? = nil,
+                    volumes: Swift.Int
+                ) {
+                    self.at = at
+                    self.capacity_bytes = capacity_bytes
+                    self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                    self.unmeasured_copies = unmeasured_copies
+                    self.used_bytes = used_bytes
+                    self.volumes = volumes
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case capacity_bytes
+                    case unmeasured_capacity_copies
+                    case unmeasured_copies
+                    case used_bytes
+                    case volumes
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.capacity_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .capacity_bytes
+                    )
+                    self.unmeasured_capacity_copies = try container.decode(
+                        Swift.Int.self,
+                        forKey: .unmeasured_capacity_copies
+                    )
+                    self.unmeasured_copies = try container.decode(
+                        Swift.Int.self,
+                        forKey: .unmeasured_copies
+                    )
+                    self.used_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .used_bytes
+                    )
+                    self.volumes = try container.decode(
+                        Swift.Int.self,
+                        forKey: .volumes
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "capacity_bytes",
+                        "unmeasured_capacity_copies",
+                        "unmeasured_copies",
+                        "used_bytes",
+                        "volumes"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storage`.
+            public typealias storagePayload = [Components.Schemas.RunnerVolumeAnalytics.storagePayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/storage`.
+            public var storage: Components.Schemas.RunnerVolumeAnalytics.storagePayload
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends`.
+            public struct trendsPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/hit_rate_percentage_points`.
+                public var hit_rate_percentage_points: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/used_bytes`.
+                public struct used_bytesPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/used_bytes/change`.
+                    public var change: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/used_bytes/percent`.
+                    public var percent: Swift.Double?
+                    /// Creates a new `used_bytesPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - change:
+                    ///   - percent:
+                    public init(
+                        change: Swift.Double? = nil,
+                        percent: Swift.Double? = nil
+                    ) {
+                        self.change = change
+                        self.percent = percent
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case change
+                        case percent
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.change = try container.decodeIfPresent(
+                            Swift.Double.self,
+                            forKey: .change
+                        )
+                        self.percent = try container.decodeIfPresent(
+                            Swift.Double.self,
+                            forKey: .percent
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "change",
+                            "percent"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/used_bytes`.
+                public var used_bytes: Components.Schemas.RunnerVolumeAnalytics.trendsPayload.used_bytesPayload
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/volumes`.
+                public struct volumesPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/volumes/change`.
+                    public var change: Swift.Double?
+                    /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/volumes/percent`.
+                    public var percent: Swift.Double?
+                    /// Creates a new `volumesPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - change:
+                    ///   - percent:
+                    public init(
+                        change: Swift.Double? = nil,
+                        percent: Swift.Double? = nil
+                    ) {
+                        self.change = change
+                        self.percent = percent
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case change
+                        case percent
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.change = try container.decodeIfPresent(
+                            Swift.Double.self,
+                            forKey: .change
+                        )
+                        self.percent = try container.decodeIfPresent(
+                            Swift.Double.self,
+                            forKey: .percent
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "change",
+                            "percent"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends/volumes`.
+                public var volumes: Components.Schemas.RunnerVolumeAnalytics.trendsPayload.volumesPayload
+                /// Creates a new `trendsPayload`.
+                ///
+                /// - Parameters:
+                ///   - hit_rate_percentage_points:
+                ///   - used_bytes:
+                ///   - volumes:
+                public init(
+                    hit_rate_percentage_points: Swift.Double? = nil,
+                    used_bytes: Components.Schemas.RunnerVolumeAnalytics.trendsPayload.used_bytesPayload,
+                    volumes: Components.Schemas.RunnerVolumeAnalytics.trendsPayload.volumesPayload
+                ) {
+                    self.hit_rate_percentage_points = hit_rate_percentage_points
+                    self.used_bytes = used_bytes
+                    self.volumes = volumes
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case hit_rate_percentage_points
+                    case used_bytes
+                    case volumes
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.hit_rate_percentage_points = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .hit_rate_percentage_points
+                    )
+                    self.used_bytes = try container.decode(
+                        Components.Schemas.RunnerVolumeAnalytics.trendsPayload.used_bytesPayload.self,
+                        forKey: .used_bytes
+                    )
+                    self.volumes = try container.decode(
+                        Components.Schemas.RunnerVolumeAnalytics.trendsPayload.volumesPayload.self,
+                        forKey: .volumes
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "hit_rate_percentage_points",
+                        "used_bytes",
+                        "volumes"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeAnalytics/trends`.
+            public var trends: Components.Schemas.RunnerVolumeAnalytics.trendsPayload
+            /// Creates a new `RunnerVolumeAnalytics`.
+            ///
+            /// - Parameters:
+            ///   - activity:
+            ///   - period:
+            ///   - previous_activity:
+            ///   - storage:
+            ///   - trends:
+            public init(
+                activity: Components.Schemas.RunnerVolumeAnalytics.activityPayload,
+                period: Components.Schemas.RunnerVolumeAnalytics.periodPayload,
+                previous_activity: Components.Schemas.RunnerVolumeAnalytics.previous_activityPayload,
+                storage: Components.Schemas.RunnerVolumeAnalytics.storagePayload,
+                trends: Components.Schemas.RunnerVolumeAnalytics.trendsPayload
+            ) {
+                self.activity = activity
+                self.period = period
+                self.previous_activity = previous_activity
+                self.storage = storage
+                self.trends = trends
+            }
+            public enum CodingKeys: String, CodingKey {
+                case activity
+                case period
+                case previous_activity
+                case storage
+                case trends
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.activity = try container.decode(
+                    Components.Schemas.RunnerVolumeAnalytics.activityPayload.self,
+                    forKey: .activity
+                )
+                self.period = try container.decode(
+                    Components.Schemas.RunnerVolumeAnalytics.periodPayload.self,
+                    forKey: .period
+                )
+                self.previous_activity = try container.decode(
+                    Components.Schemas.RunnerVolumeAnalytics.previous_activityPayload.self,
+                    forKey: .previous_activity
+                )
+                self.storage = try container.decode(
+                    Components.Schemas.RunnerVolumeAnalytics.storagePayload.self,
+                    forKey: .storage
+                )
+                self.trends = try container.decode(
+                    Components.Schemas.RunnerVolumeAnalytics.trendsPayload.self,
+                    forKey: .trends
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "activity",
+                    "period",
+                    "previous_activity",
+                    "storage",
+                    "trends"
+                ])
+            }
+        }
         /// Token to authenticate the user with.
         ///
         /// - Remark: Generated from `#/components/schemas/DeviceCodeAuthenticationTokens`.
@@ -4421,6 +5059,44 @@ public enum Components {
                 case access_token
                 case refresh_token
                 case token
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumePeriod`.
+        public struct RunnerVolumePeriod: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumePeriod/end`.
+            public var end: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumePeriod/start`.
+            public var start: Foundation.Date
+            /// Creates a new `RunnerVolumePeriod`.
+            ///
+            /// - Parameters:
+            ///   - end:
+            ///   - start:
+            public init(
+                end: Foundation.Date,
+                start: Foundation.Date
+            ) {
+                self.end = end
+                self.start = start
+            }
+            public enum CodingKeys: String, CodingKey {
+                case end
+                case start
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.end = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .end
+                )
+                self.start = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .start
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "end",
+                    "start"
+                ])
             }
         }
         /// This response confirms that the upload has been completed successfully.
@@ -4957,15 +5633,25 @@ public enum Components {
         public struct CacheEndpoints: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheEndpoints/endpoints`.
             public var endpoints: [Swift.String]
+            /// Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CacheEndpoints/provisioning`.
+            public var provisioning: Swift.Bool?
             /// Creates a new `CacheEndpoints`.
             ///
             /// - Parameters:
             ///   - endpoints:
-            public init(endpoints: [Swift.String]) {
+            ///   - provisioning: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+            public init(
+                endpoints: [Swift.String],
+                provisioning: Swift.Bool? = nil
+            ) {
                 self.endpoints = endpoints
+                self.provisioning = provisioning
             }
             public enum CodingKeys: String, CodingKey {
                 case endpoints
+                case provisioning
             }
         }
         /// The page number to return.
@@ -6380,6 +7066,131 @@ public enum Components {
                 case hash
             }
         }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends`.
+        public struct RunnerVolumeTrends: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/hit_rate_percentage_points`.
+            public var hit_rate_percentage_points: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/used_bytes`.
+            public struct used_bytesPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/used_bytes/change`.
+                public var change: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/used_bytes/percent`.
+                public var percent: Swift.Double?
+                /// Creates a new `used_bytesPayload`.
+                ///
+                /// - Parameters:
+                ///   - change:
+                ///   - percent:
+                public init(
+                    change: Swift.Double? = nil,
+                    percent: Swift.Double? = nil
+                ) {
+                    self.change = change
+                    self.percent = percent
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case change
+                    case percent
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.change = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .change
+                    )
+                    self.percent = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .percent
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "change",
+                        "percent"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/used_bytes`.
+            public var used_bytes: Components.Schemas.RunnerVolumeTrends.used_bytesPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/volumes`.
+            public struct volumesPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/volumes/change`.
+                public var change: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/volumes/percent`.
+                public var percent: Swift.Double?
+                /// Creates a new `volumesPayload`.
+                ///
+                /// - Parameters:
+                ///   - change:
+                ///   - percent:
+                public init(
+                    change: Swift.Double? = nil,
+                    percent: Swift.Double? = nil
+                ) {
+                    self.change = change
+                    self.percent = percent
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case change
+                    case percent
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.change = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .change
+                    )
+                    self.percent = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .percent
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "change",
+                        "percent"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrends/volumes`.
+            public var volumes: Components.Schemas.RunnerVolumeTrends.volumesPayload
+            /// Creates a new `RunnerVolumeTrends`.
+            ///
+            /// - Parameters:
+            ///   - hit_rate_percentage_points:
+            ///   - used_bytes:
+            ///   - volumes:
+            public init(
+                hit_rate_percentage_points: Swift.Double? = nil,
+                used_bytes: Components.Schemas.RunnerVolumeTrends.used_bytesPayload,
+                volumes: Components.Schemas.RunnerVolumeTrends.volumesPayload
+            ) {
+                self.hit_rate_percentage_points = hit_rate_percentage_points
+                self.used_bytes = used_bytes
+                self.volumes = volumes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case hit_rate_percentage_points
+                case used_bytes
+                case volumes
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.hit_rate_percentage_points = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .hit_rate_percentage_points
+                )
+                self.used_bytes = try container.decode(
+                    Components.Schemas.RunnerVolumeTrends.used_bytesPayload.self,
+                    forKey: .used_bytes
+                )
+                self.volumes = try container.decode(
+                    Components.Schemas.RunnerVolumeTrends.volumesPayload.self,
+                    forKey: .volumes
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "hit_rate_percentage_points",
+                    "used_bytes",
+                    "volumes"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams`.
         public struct CreateShardPlanParams: Codable, Hashable, Sendable {
             /// The UUID of the associated Xcode build run.
@@ -7165,6 +7976,345 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPageSize`.
         public typealias RunsIndexPageSize = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes`.
+        public struct RunnerJobVolumes: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload`.
+            public struct volumesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage`.
+                public struct usagePayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/cache_hit`.
+                    public var cache_hit: Swift.Bool?
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/cache_status`.
+                    public var cache_status: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/cache_status_description`.
+                    public var cache_status_description: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/capacity_bytes`.
+                    public var capacity_bytes: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/id`.
+                    public var id: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/job_name`.
+                    public var job_name: Swift.String?
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/mounted_at`.
+                    public var mounted_at: Foundation.Date?
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/used_bytes`.
+                    public var used_bytes: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/workflow_job_id`.
+                    public var workflow_job_id: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/workflow_name`.
+                    public var workflow_name: Swift.String?
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage/workflow_run_id`.
+                    public var workflow_run_id: Swift.Int
+                    /// Creates a new `usagePayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - cache_hit:
+                    ///   - cache_status:
+                    ///   - cache_status_description:
+                    ///   - capacity_bytes:
+                    ///   - id:
+                    ///   - job_name:
+                    ///   - mounted_at:
+                    ///   - used_bytes:
+                    ///   - workflow_job_id:
+                    ///   - workflow_name:
+                    ///   - workflow_run_id:
+                    public init(
+                        cache_hit: Swift.Bool? = nil,
+                        cache_status: Swift.String,
+                        cache_status_description: Swift.String,
+                        capacity_bytes: Swift.Int? = nil,
+                        id: Swift.String,
+                        job_name: Swift.String? = nil,
+                        mounted_at: Foundation.Date? = nil,
+                        used_bytes: Swift.Int? = nil,
+                        workflow_job_id: Swift.Int,
+                        workflow_name: Swift.String? = nil,
+                        workflow_run_id: Swift.Int
+                    ) {
+                        self.cache_hit = cache_hit
+                        self.cache_status = cache_status
+                        self.cache_status_description = cache_status_description
+                        self.capacity_bytes = capacity_bytes
+                        self.id = id
+                        self.job_name = job_name
+                        self.mounted_at = mounted_at
+                        self.used_bytes = used_bytes
+                        self.workflow_job_id = workflow_job_id
+                        self.workflow_name = workflow_name
+                        self.workflow_run_id = workflow_run_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case cache_hit
+                        case cache_status
+                        case cache_status_description
+                        case capacity_bytes
+                        case id
+                        case job_name
+                        case mounted_at
+                        case used_bytes
+                        case workflow_job_id
+                        case workflow_name
+                        case workflow_run_id
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.cache_hit = try container.decodeIfPresent(
+                            Swift.Bool.self,
+                            forKey: .cache_hit
+                        )
+                        self.cache_status = try container.decode(
+                            Swift.String.self,
+                            forKey: .cache_status
+                        )
+                        self.cache_status_description = try container.decode(
+                            Swift.String.self,
+                            forKey: .cache_status_description
+                        )
+                        self.capacity_bytes = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .capacity_bytes
+                        )
+                        self.id = try container.decode(
+                            Swift.String.self,
+                            forKey: .id
+                        )
+                        self.job_name = try container.decodeIfPresent(
+                            Swift.String.self,
+                            forKey: .job_name
+                        )
+                        self.mounted_at = try container.decodeIfPresent(
+                            Foundation.Date.self,
+                            forKey: .mounted_at
+                        )
+                        self.used_bytes = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .used_bytes
+                        )
+                        self.workflow_job_id = try container.decode(
+                            Swift.Int.self,
+                            forKey: .workflow_job_id
+                        )
+                        self.workflow_name = try container.decodeIfPresent(
+                            Swift.String.self,
+                            forKey: .workflow_name
+                        )
+                        self.workflow_run_id = try container.decode(
+                            Swift.Int.self,
+                            forKey: .workflow_run_id
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "cache_hit",
+                            "cache_status",
+                            "cache_status_description",
+                            "capacity_bytes",
+                            "id",
+                            "job_name",
+                            "mounted_at",
+                            "used_bytes",
+                            "workflow_job_id",
+                            "workflow_name",
+                            "workflow_run_id"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/usage`.
+                public var usage: Components.Schemas.RunnerJobVolumes.volumesPayloadPayload.usagePayload
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume`.
+                public struct volumePayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/architecture`.
+                    public var architecture: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/capacity_bytes`.
+                    public var capacity_bytes: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/id`.
+                    public var id: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/key`.
+                    public var key: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/last_used_at`.
+                    public var last_used_at: Foundation.Date?
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/platform`.
+                    public var platform: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/provider`.
+                    public var provider: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/repository`.
+                    public var repository: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/unmeasured_capacity_copies`.
+                    public var unmeasured_capacity_copies: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/unmeasured_copies`.
+                    public var unmeasured_copies: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume/used_bytes`.
+                    public var used_bytes: Swift.Int?
+                    /// Creates a new `volumePayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - architecture:
+                    ///   - capacity_bytes:
+                    ///   - id:
+                    ///   - key:
+                    ///   - last_used_at:
+                    ///   - platform:
+                    ///   - provider:
+                    ///   - repository:
+                    ///   - unmeasured_capacity_copies:
+                    ///   - unmeasured_copies:
+                    ///   - used_bytes:
+                    public init(
+                        architecture: Swift.String,
+                        capacity_bytes: Swift.Int? = nil,
+                        id: Swift.String,
+                        key: Swift.String,
+                        last_used_at: Foundation.Date? = nil,
+                        platform: Swift.String,
+                        provider: Swift.String,
+                        repository: Swift.String,
+                        unmeasured_capacity_copies: Swift.Int,
+                        unmeasured_copies: Swift.Int,
+                        used_bytes: Swift.Int? = nil
+                    ) {
+                        self.architecture = architecture
+                        self.capacity_bytes = capacity_bytes
+                        self.id = id
+                        self.key = key
+                        self.last_used_at = last_used_at
+                        self.platform = platform
+                        self.provider = provider
+                        self.repository = repository
+                        self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                        self.unmeasured_copies = unmeasured_copies
+                        self.used_bytes = used_bytes
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case architecture
+                        case capacity_bytes
+                        case id
+                        case key
+                        case last_used_at
+                        case platform
+                        case provider
+                        case repository
+                        case unmeasured_capacity_copies
+                        case unmeasured_copies
+                        case used_bytes
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.architecture = try container.decode(
+                            Swift.String.self,
+                            forKey: .architecture
+                        )
+                        self.capacity_bytes = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .capacity_bytes
+                        )
+                        self.id = try container.decode(
+                            Swift.String.self,
+                            forKey: .id
+                        )
+                        self.key = try container.decode(
+                            Swift.String.self,
+                            forKey: .key
+                        )
+                        self.last_used_at = try container.decodeIfPresent(
+                            Foundation.Date.self,
+                            forKey: .last_used_at
+                        )
+                        self.platform = try container.decode(
+                            Swift.String.self,
+                            forKey: .platform
+                        )
+                        self.provider = try container.decode(
+                            Swift.String.self,
+                            forKey: .provider
+                        )
+                        self.repository = try container.decode(
+                            Swift.String.self,
+                            forKey: .repository
+                        )
+                        self.unmeasured_capacity_copies = try container.decode(
+                            Swift.Int.self,
+                            forKey: .unmeasured_capacity_copies
+                        )
+                        self.unmeasured_copies = try container.decode(
+                            Swift.Int.self,
+                            forKey: .unmeasured_copies
+                        )
+                        self.used_bytes = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .used_bytes
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "architecture",
+                            "capacity_bytes",
+                            "id",
+                            "key",
+                            "last_used_at",
+                            "platform",
+                            "provider",
+                            "repository",
+                            "unmeasured_capacity_copies",
+                            "unmeasured_copies",
+                            "used_bytes"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumesPayload/volume`.
+                public var volume: Components.Schemas.RunnerJobVolumes.volumesPayloadPayload.volumePayload
+                /// Creates a new `volumesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - usage:
+                ///   - volume:
+                public init(
+                    usage: Components.Schemas.RunnerJobVolumes.volumesPayloadPayload.usagePayload,
+                    volume: Components.Schemas.RunnerJobVolumes.volumesPayloadPayload.volumePayload
+                ) {
+                    self.usage = usage
+                    self.volume = volume
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case usage
+                    case volume
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.usage = try container.decode(
+                        Components.Schemas.RunnerJobVolumes.volumesPayloadPayload.usagePayload.self,
+                        forKey: .usage
+                    )
+                    self.volume = try container.decode(
+                        Components.Schemas.RunnerJobVolumes.volumesPayloadPayload.volumePayload.self,
+                        forKey: .volume
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "usage",
+                        "volume"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumes`.
+            public typealias volumesPayload = [Components.Schemas.RunnerJobVolumes.volumesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerJobVolumes/volumes`.
+            public var volumes: Components.Schemas.RunnerJobVolumes.volumesPayload
+            /// Creates a new `RunnerJobVolumes`.
+            ///
+            /// - Parameters:
+            ///   - volumes:
+            public init(volumes: Components.Schemas.RunnerJobVolumes.volumesPayload) {
+                self.volumes = volumes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case volumes
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.volumes = try container.decode(
+                    Components.Schemas.RunnerJobVolumes.volumesPayload.self,
+                    forKey: .volumes
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "volumes"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/WebhookEndpoint`.
         public struct WebhookEndpoint: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/WebhookEndpoint/event_types`.
@@ -7216,6 +8366,347 @@ public enum Components {
                 case signing_secret_last_four
                 case updated_at
                 case url
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs`.
+        public struct RunnerVolumeJobs: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload`.
+            public struct jobsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/cache_hit`.
+                public var cache_hit: Swift.Bool?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/cache_status`.
+                public var cache_status: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/cache_status_description`.
+                public var cache_status_description: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/capacity_bytes`.
+                public var capacity_bytes: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/job_name`.
+                public var job_name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/mounted_at`.
+                public var mounted_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/used_bytes`.
+                public var used_bytes: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/workflow_job_id`.
+                public var workflow_job_id: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/workflow_name`.
+                public var workflow_name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobsPayload/workflow_run_id`.
+                public var workflow_run_id: Swift.Int
+                /// Creates a new `jobsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - cache_hit:
+                ///   - cache_status:
+                ///   - cache_status_description:
+                ///   - capacity_bytes:
+                ///   - id:
+                ///   - job_name:
+                ///   - mounted_at:
+                ///   - used_bytes:
+                ///   - workflow_job_id:
+                ///   - workflow_name:
+                ///   - workflow_run_id:
+                public init(
+                    cache_hit: Swift.Bool? = nil,
+                    cache_status: Swift.String,
+                    cache_status_description: Swift.String,
+                    capacity_bytes: Swift.Int? = nil,
+                    id: Swift.String,
+                    job_name: Swift.String? = nil,
+                    mounted_at: Foundation.Date? = nil,
+                    used_bytes: Swift.Int? = nil,
+                    workflow_job_id: Swift.Int,
+                    workflow_name: Swift.String? = nil,
+                    workflow_run_id: Swift.Int
+                ) {
+                    self.cache_hit = cache_hit
+                    self.cache_status = cache_status
+                    self.cache_status_description = cache_status_description
+                    self.capacity_bytes = capacity_bytes
+                    self.id = id
+                    self.job_name = job_name
+                    self.mounted_at = mounted_at
+                    self.used_bytes = used_bytes
+                    self.workflow_job_id = workflow_job_id
+                    self.workflow_name = workflow_name
+                    self.workflow_run_id = workflow_run_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case cache_hit
+                    case cache_status
+                    case cache_status_description
+                    case capacity_bytes
+                    case id
+                    case job_name
+                    case mounted_at
+                    case used_bytes
+                    case workflow_job_id
+                    case workflow_name
+                    case workflow_run_id
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.cache_hit = try container.decodeIfPresent(
+                        Swift.Bool.self,
+                        forKey: .cache_hit
+                    )
+                    self.cache_status = try container.decode(
+                        Swift.String.self,
+                        forKey: .cache_status
+                    )
+                    self.cache_status_description = try container.decode(
+                        Swift.String.self,
+                        forKey: .cache_status_description
+                    )
+                    self.capacity_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .capacity_bytes
+                    )
+                    self.id = try container.decode(
+                        Swift.String.self,
+                        forKey: .id
+                    )
+                    self.job_name = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .job_name
+                    )
+                    self.mounted_at = try container.decodeIfPresent(
+                        Foundation.Date.self,
+                        forKey: .mounted_at
+                    )
+                    self.used_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .used_bytes
+                    )
+                    self.workflow_job_id = try container.decode(
+                        Swift.Int.self,
+                        forKey: .workflow_job_id
+                    )
+                    self.workflow_name = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .workflow_name
+                    )
+                    self.workflow_run_id = try container.decode(
+                        Swift.Int.self,
+                        forKey: .workflow_run_id
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "cache_hit",
+                        "cache_status",
+                        "cache_status_description",
+                        "capacity_bytes",
+                        "id",
+                        "job_name",
+                        "mounted_at",
+                        "used_bytes",
+                        "workflow_job_id",
+                        "workflow_name",
+                        "workflow_run_id"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobs`.
+            public typealias jobsPayload = [Components.Schemas.RunnerVolumeJobs.jobsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/jobs`.
+            public var jobs: Components.Schemas.RunnerVolumeJobs.jobsPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/pagination_metadata`.
+            public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/pagination_metadata/current_page`.
+                public var current_page: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/pagination_metadata/has_next_page`.
+                public var has_next_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/pagination_metadata/has_previous_page`.
+                public var has_previous_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/pagination_metadata/page_size`.
+                public var page_size: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/pagination_metadata/total_count`.
+                public var total_count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/pagination_metadata/total_pages`.
+                public var total_pages: Swift.Int
+                /// Creates a new `pagination_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - current_page:
+                ///   - has_next_page:
+                ///   - has_previous_page:
+                ///   - page_size:
+                ///   - total_count:
+                ///   - total_pages:
+                public init(
+                    current_page: Swift.Int,
+                    has_next_page: Swift.Bool,
+                    has_previous_page: Swift.Bool,
+                    page_size: Swift.Int,
+                    total_count: Swift.Int,
+                    total_pages: Swift.Int
+                ) {
+                    self.current_page = current_page
+                    self.has_next_page = has_next_page
+                    self.has_previous_page = has_previous_page
+                    self.page_size = page_size
+                    self.total_count = total_count
+                    self.total_pages = total_pages
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case current_page
+                    case has_next_page
+                    case has_previous_page
+                    case page_size
+                    case total_count
+                    case total_pages
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.current_page = try container.decode(
+                        Swift.Int.self,
+                        forKey: .current_page
+                    )
+                    self.has_next_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_next_page
+                    )
+                    self.has_previous_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_previous_page
+                    )
+                    self.page_size = try container.decode(
+                        Swift.Int.self,
+                        forKey: .page_size
+                    )
+                    self.total_count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_count
+                    )
+                    self.total_pages = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_pages
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "current_page",
+                        "has_next_page",
+                        "has_previous_page",
+                        "page_size",
+                        "total_count",
+                        "total_pages"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJobs/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.RunnerVolumeJobs.pagination_metadataPayload
+            /// Creates a new `RunnerVolumeJobs`.
+            ///
+            /// - Parameters:
+            ///   - jobs:
+            ///   - pagination_metadata:
+            public init(
+                jobs: Components.Schemas.RunnerVolumeJobs.jobsPayload,
+                pagination_metadata: Components.Schemas.RunnerVolumeJobs.pagination_metadataPayload
+            ) {
+                self.jobs = jobs
+                self.pagination_metadata = pagination_metadata
+            }
+            public enum CodingKeys: String, CodingKey {
+                case jobs
+                case pagination_metadata
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.jobs = try container.decode(
+                    Components.Schemas.RunnerVolumeJobs.jobsPayload.self,
+                    forKey: .jobs
+                )
+                self.pagination_metadata = try container.decode(
+                    Components.Schemas.RunnerVolumeJobs.pagination_metadataPayload.self,
+                    forKey: .pagination_metadata
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "jobs",
+                    "pagination_metadata"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination`.
+        public struct RunnerVolumePagination: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination/current_page`.
+            public var current_page: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination/has_next_page`.
+            public var has_next_page: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination/has_previous_page`.
+            public var has_previous_page: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination/page_size`.
+            public var page_size: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination/total_count`.
+            public var total_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumePagination/total_pages`.
+            public var total_pages: Swift.Int
+            /// Creates a new `RunnerVolumePagination`.
+            ///
+            /// - Parameters:
+            ///   - current_page:
+            ///   - has_next_page:
+            ///   - has_previous_page:
+            ///   - page_size:
+            ///   - total_count:
+            ///   - total_pages:
+            public init(
+                current_page: Swift.Int,
+                has_next_page: Swift.Bool,
+                has_previous_page: Swift.Bool,
+                page_size: Swift.Int,
+                total_count: Swift.Int,
+                total_pages: Swift.Int
+            ) {
+                self.current_page = current_page
+                self.has_next_page = has_next_page
+                self.has_previous_page = has_previous_page
+                self.page_size = page_size
+                self.total_count = total_count
+                self.total_pages = total_pages
+            }
+            public enum CodingKeys: String, CodingKey {
+                case current_page
+                case has_next_page
+                case has_previous_page
+                case page_size
+                case total_count
+                case total_pages
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.current_page = try container.decode(
+                    Swift.Int.self,
+                    forKey: .current_page
+                )
+                self.has_next_page = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .has_next_page
+                )
+                self.has_previous_page = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .has_previous_page
+                )
+                self.page_size = try container.decode(
+                    Swift.Int.self,
+                    forKey: .page_size
+                )
+                self.total_count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .total_count
+                )
+                self.total_pages = try container.decode(
+                    Swift.Int.self,
+                    forKey: .total_pages
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "current_page",
+                    "has_next_page",
+                    "has_previous_page",
+                    "page_size",
+                    "total_count",
+                    "total_pages"
+                ])
             }
         }
         /// - Remark: Generated from `#/components/schemas/CacheStatus`.
@@ -7602,6 +9093,143 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case pagination_metadata
                 case test_case_runs
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolume`.
+        public struct RunnerVolume: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/architecture`.
+            public var architecture: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/capacity_bytes`.
+            public var capacity_bytes: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/key`.
+            public var key: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/last_used_at`.
+            public var last_used_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/platform`.
+            public var platform: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/provider`.
+            public var provider: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/repository`.
+            public var repository: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/unmeasured_capacity_copies`.
+            public var unmeasured_capacity_copies: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/unmeasured_copies`.
+            public var unmeasured_copies: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolume/used_bytes`.
+            public var used_bytes: Swift.Int?
+            /// Creates a new `RunnerVolume`.
+            ///
+            /// - Parameters:
+            ///   - architecture:
+            ///   - capacity_bytes:
+            ///   - id:
+            ///   - key:
+            ///   - last_used_at:
+            ///   - platform:
+            ///   - provider:
+            ///   - repository:
+            ///   - unmeasured_capacity_copies:
+            ///   - unmeasured_copies:
+            ///   - used_bytes:
+            public init(
+                architecture: Swift.String,
+                capacity_bytes: Swift.Int? = nil,
+                id: Swift.String,
+                key: Swift.String,
+                last_used_at: Foundation.Date? = nil,
+                platform: Swift.String,
+                provider: Swift.String,
+                repository: Swift.String,
+                unmeasured_capacity_copies: Swift.Int,
+                unmeasured_copies: Swift.Int,
+                used_bytes: Swift.Int? = nil
+            ) {
+                self.architecture = architecture
+                self.capacity_bytes = capacity_bytes
+                self.id = id
+                self.key = key
+                self.last_used_at = last_used_at
+                self.platform = platform
+                self.provider = provider
+                self.repository = repository
+                self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                self.unmeasured_copies = unmeasured_copies
+                self.used_bytes = used_bytes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case architecture
+                case capacity_bytes
+                case id
+                case key
+                case last_used_at
+                case platform
+                case provider
+                case repository
+                case unmeasured_capacity_copies
+                case unmeasured_copies
+                case used_bytes
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.architecture = try container.decode(
+                    Swift.String.self,
+                    forKey: .architecture
+                )
+                self.capacity_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .capacity_bytes
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.key = try container.decode(
+                    Swift.String.self,
+                    forKey: .key
+                )
+                self.last_used_at = try container.decodeIfPresent(
+                    Foundation.Date.self,
+                    forKey: .last_used_at
+                )
+                self.platform = try container.decode(
+                    Swift.String.self,
+                    forKey: .platform
+                )
+                self.provider = try container.decode(
+                    Swift.String.self,
+                    forKey: .provider
+                )
+                self.repository = try container.decode(
+                    Swift.String.self,
+                    forKey: .repository
+                )
+                self.unmeasured_capacity_copies = try container.decode(
+                    Swift.Int.self,
+                    forKey: .unmeasured_capacity_copies
+                )
+                self.unmeasured_copies = try container.decode(
+                    Swift.Int.self,
+                    forKey: .unmeasured_copies
+                )
+                self.used_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .used_bytes
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "architecture",
+                    "capacity_bytes",
+                    "id",
+                    "key",
+                    "last_used_at",
+                    "platform",
+                    "provider",
+                    "repository",
+                    "unmeasured_capacity_copies",
+                    "unmeasured_copies",
+                    "used_bytes"
+                ])
             }
         }
         /// The page number to return.
@@ -7993,6 +9621,88 @@ public enum Components {
                 case success_count
                 case total_jobs
                 case workflow_name
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint`.
+        public struct RunnerVolumeStoragePoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint/capacity_bytes`.
+            public var capacity_bytes: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint/unmeasured_capacity_copies`.
+            public var unmeasured_capacity_copies: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint/unmeasured_copies`.
+            public var unmeasured_copies: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint/used_bytes`.
+            public var used_bytes: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeStoragePoint/volumes`.
+            public var volumes: Swift.Int
+            /// Creates a new `RunnerVolumeStoragePoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - capacity_bytes:
+            ///   - unmeasured_capacity_copies:
+            ///   - unmeasured_copies:
+            ///   - used_bytes:
+            ///   - volumes:
+            public init(
+                at: Foundation.Date,
+                capacity_bytes: Swift.Int? = nil,
+                unmeasured_capacity_copies: Swift.Int,
+                unmeasured_copies: Swift.Int,
+                used_bytes: Swift.Int? = nil,
+                volumes: Swift.Int
+            ) {
+                self.at = at
+                self.capacity_bytes = capacity_bytes
+                self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                self.unmeasured_copies = unmeasured_copies
+                self.used_bytes = used_bytes
+                self.volumes = volumes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case capacity_bytes
+                case unmeasured_capacity_copies
+                case unmeasured_copies
+                case used_bytes
+                case volumes
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.capacity_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .capacity_bytes
+                )
+                self.unmeasured_capacity_copies = try container.decode(
+                    Swift.Int.self,
+                    forKey: .unmeasured_capacity_copies
+                )
+                self.unmeasured_copies = try container.decode(
+                    Swift.Int.self,
+                    forKey: .unmeasured_copies
+                )
+                self.used_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .used_bytes
+                )
+                self.volumes = try container.decode(
+                    Swift.Int.self,
+                    forKey: .volumes
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "capacity_bytes",
+                    "unmeasured_capacity_copies",
+                    "unmeasured_copies",
+                    "used_bytes",
+                    "volumes"
+                ])
             }
         }
         /// - Remark: Generated from `#/components/schemas/TestRun`.
@@ -8723,6 +10433,159 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexBefore`.
         public typealias GenerationsIndexBefore = Swift.String
+        /// Line coverage from a test run that ran with code coverage enabled: every source file the run's instrumented binaries compiled, with its per-line execution counts and functions.
+        ///
+        /// - Remark: Generated from `#/components/schemas/XcodeCoverage`.
+        public struct XcodeCoverage: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload`.
+            public struct filesPayloadPayload: Codable, Hashable, Sendable {
+                /// Executable lines the tests ran at least once.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/covered_lines`.
+                public var covered_lines: Swift.Int
+                /// Lines the compiler instrumented.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/executable_lines`.
+                public var executable_lines: Swift.Int
+                /// How many times each of `line_numbers` ran, index by index.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/execution_counts`.
+                public var execution_counts: [Swift.Int]
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload`.
+                public struct functionsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/covered_lines`.
+                    public var covered_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/executable_lines`.
+                    public var executable_lines: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/execution_count`.
+                    public var execution_count: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/line_number`.
+                    public var line_number: Swift.Int
+                    /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functionsPayload/name`.
+                    public var name: Swift.String
+                    /// Creates a new `functionsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - covered_lines:
+                    ///   - executable_lines:
+                    ///   - execution_count:
+                    ///   - line_number:
+                    ///   - name:
+                    public init(
+                        covered_lines: Swift.Int,
+                        executable_lines: Swift.Int,
+                        execution_count: Swift.Int,
+                        line_number: Swift.Int,
+                        name: Swift.String
+                    ) {
+                        self.covered_lines = covered_lines
+                        self.executable_lines = executable_lines
+                        self.execution_count = execution_count
+                        self.line_number = line_number
+                        self.name = name
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case covered_lines
+                        case executable_lines
+                        case execution_count
+                        case line_number
+                        case name
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functions`.
+                public typealias functionsPayload = [Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/functions`.
+                public var functions: Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayload
+                /// The Git blob object id of the file's contents, absent for files Git does not track.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/git_blob_id`.
+                public var git_blob_id: Swift.String?
+                /// Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/is_test`.
+                public var is_test: Swift.Bool?
+                /// The executable lines, ascending.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/line_numbers`.
+                public var line_numbers: [Swift.Int]
+                /// The file's path, relative to the repository's root when it lives under it and absolute otherwise.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/path`.
+                public var path: Swift.String
+                /// The targets whose binaries compiled the file.
+                ///
+                /// - Remark: Generated from `#/components/schemas/XcodeCoverage/filesPayload/targets`.
+                public var targets: [Swift.String]
+                /// Creates a new `filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - covered_lines: Executable lines the tests ran at least once.
+                ///   - executable_lines: Lines the compiler instrumented.
+                ///   - execution_counts: How many times each of `line_numbers` ran, index by index.
+                ///   - functions:
+                ///   - git_blob_id: The Git blob object id of the file's contents, absent for files Git does not track.
+                ///   - is_test: Whether only test bundles compiled the file. Test code is stored but left out of coverage figures.
+                ///   - line_numbers: The executable lines, ascending.
+                ///   - path: The file's path, relative to the repository's root when it lives under it and absolute otherwise.
+                ///   - targets: The targets whose binaries compiled the file.
+                public init(
+                    covered_lines: Swift.Int,
+                    executable_lines: Swift.Int,
+                    execution_counts: [Swift.Int],
+                    functions: Components.Schemas.XcodeCoverage.filesPayloadPayload.functionsPayload,
+                    git_blob_id: Swift.String? = nil,
+                    is_test: Swift.Bool? = nil,
+                    line_numbers: [Swift.Int],
+                    path: Swift.String,
+                    targets: [Swift.String]
+                ) {
+                    self.covered_lines = covered_lines
+                    self.executable_lines = executable_lines
+                    self.execution_counts = execution_counts
+                    self.functions = functions
+                    self.git_blob_id = git_blob_id
+                    self.is_test = is_test
+                    self.line_numbers = line_numbers
+                    self.path = path
+                    self.targets = targets
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case covered_lines
+                    case executable_lines
+                    case execution_counts
+                    case functions
+                    case git_blob_id
+                    case is_test
+                    case line_numbers
+                    case path
+                    case targets
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/files`.
+            public typealias filesPayload = [Components.Schemas.XcodeCoverage.filesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/files`.
+            public var files: Components.Schemas.XcodeCoverage.filesPayload
+            /// Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran.
+            ///
+            /// - Remark: Generated from `#/components/schemas/XcodeCoverage/partial`.
+            public var partial: Swift.Bool
+            /// Creates a new `XcodeCoverage`.
+            ///
+            /// - Parameters:
+            ///   - files:
+            ///   - partial: Whether the run left tests out on purpose (selective testing, -only-testing, -skip-testing), so its coverage describes only the tests that ran.
+            public init(
+                files: Components.Schemas.XcodeCoverage.filesPayload,
+                partial: Swift.Bool
+            ) {
+                self.files = files
+                self.partial = partial
+            }
+            public enum CodingKeys: String, CodingKey {
+                case files
+                case partial
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/RunnerShellSession`.
         public struct RunnerShellSession: Codable, Hashable, Sendable {
             /// When the session expires.
@@ -10457,6 +12320,143 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestCaseEventsPageSize`.
         public typealias TestCaseEventsPageSize = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob`.
+        public struct RunnerVolumeJob: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/cache_hit`.
+            public var cache_hit: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/cache_status`.
+            public var cache_status: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/cache_status_description`.
+            public var cache_status_description: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/capacity_bytes`.
+            public var capacity_bytes: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/id`.
+            public var id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/job_name`.
+            public var job_name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/mounted_at`.
+            public var mounted_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/used_bytes`.
+            public var used_bytes: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/workflow_job_id`.
+            public var workflow_job_id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/workflow_name`.
+            public var workflow_name: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeJob/workflow_run_id`.
+            public var workflow_run_id: Swift.Int
+            /// Creates a new `RunnerVolumeJob`.
+            ///
+            /// - Parameters:
+            ///   - cache_hit:
+            ///   - cache_status:
+            ///   - cache_status_description:
+            ///   - capacity_bytes:
+            ///   - id:
+            ///   - job_name:
+            ///   - mounted_at:
+            ///   - used_bytes:
+            ///   - workflow_job_id:
+            ///   - workflow_name:
+            ///   - workflow_run_id:
+            public init(
+                cache_hit: Swift.Bool? = nil,
+                cache_status: Swift.String,
+                cache_status_description: Swift.String,
+                capacity_bytes: Swift.Int? = nil,
+                id: Swift.String,
+                job_name: Swift.String? = nil,
+                mounted_at: Foundation.Date? = nil,
+                used_bytes: Swift.Int? = nil,
+                workflow_job_id: Swift.Int,
+                workflow_name: Swift.String? = nil,
+                workflow_run_id: Swift.Int
+            ) {
+                self.cache_hit = cache_hit
+                self.cache_status = cache_status
+                self.cache_status_description = cache_status_description
+                self.capacity_bytes = capacity_bytes
+                self.id = id
+                self.job_name = job_name
+                self.mounted_at = mounted_at
+                self.used_bytes = used_bytes
+                self.workflow_job_id = workflow_job_id
+                self.workflow_name = workflow_name
+                self.workflow_run_id = workflow_run_id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case cache_hit
+                case cache_status
+                case cache_status_description
+                case capacity_bytes
+                case id
+                case job_name
+                case mounted_at
+                case used_bytes
+                case workflow_job_id
+                case workflow_name
+                case workflow_run_id
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.cache_hit = try container.decodeIfPresent(
+                    Swift.Bool.self,
+                    forKey: .cache_hit
+                )
+                self.cache_status = try container.decode(
+                    Swift.String.self,
+                    forKey: .cache_status
+                )
+                self.cache_status_description = try container.decode(
+                    Swift.String.self,
+                    forKey: .cache_status_description
+                )
+                self.capacity_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .capacity_bytes
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                self.job_name = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .job_name
+                )
+                self.mounted_at = try container.decodeIfPresent(
+                    Foundation.Date.self,
+                    forKey: .mounted_at
+                )
+                self.used_bytes = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .used_bytes
+                )
+                self.workflow_job_id = try container.decode(
+                    Swift.Int.self,
+                    forKey: .workflow_job_id
+                )
+                self.workflow_name = try container.decodeIfPresent(
+                    Swift.String.self,
+                    forKey: .workflow_name
+                )
+                self.workflow_run_id = try container.decode(
+                    Swift.Int.self,
+                    forKey: .workflow_run_id
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "cache_hit",
+                    "cache_status",
+                    "cache_status_description",
+                    "capacity_bytes",
+                    "id",
+                    "job_name",
+                    "mounted_at",
+                    "used_bytes",
+                    "workflow_job_id",
+                    "workflow_name",
+                    "workflow_run_id"
+                ])
+            }
+        }
         /// Time-bucketed duration metrics for build or test runs. The bucket granularity (hour, day, or month) is derived from the requested time range.
         ///
         /// - Remark: Generated from `#/components/schemas/DurationMetrics`.
@@ -10954,6 +12954,106 @@ public enum Components {
             case download = "download"
             case upload = "upload"
         }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity`.
+        public struct RunnerVolumeActivity: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/hit_rate`.
+            public var hit_rate: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/job_runs`.
+            public var job_runs: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/pointsPayload/hit_rate`.
+                public var hit_rate: Swift.Double?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/pointsPayload/job_runs`.
+                public var job_runs: Swift.Int
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - hit_rate:
+                ///   - job_runs:
+                public init(
+                    at: Foundation.Date,
+                    hit_rate: Swift.Double? = nil,
+                    job_runs: Swift.Int
+                ) {
+                    self.at = at
+                    self.hit_rate = hit_rate
+                    self.job_runs = job_runs
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case hit_rate
+                    case job_runs
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.hit_rate = try container.decodeIfPresent(
+                        Swift.Double.self,
+                        forKey: .hit_rate
+                    )
+                    self.job_runs = try container.decode(
+                        Swift.Int.self,
+                        forKey: .job_runs
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "hit_rate",
+                        "job_runs"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/points`.
+            public typealias pointsPayload = [Components.Schemas.RunnerVolumeActivity.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivity/points`.
+            public var points: Components.Schemas.RunnerVolumeActivity.pointsPayload
+            /// Creates a new `RunnerVolumeActivity`.
+            ///
+            /// - Parameters:
+            ///   - hit_rate:
+            ///   - job_runs:
+            ///   - points:
+            public init(
+                hit_rate: Swift.Double? = nil,
+                job_runs: Swift.Int,
+                points: Components.Schemas.RunnerVolumeActivity.pointsPayload
+            ) {
+                self.hit_rate = hit_rate
+                self.job_runs = job_runs
+                self.points = points
+            }
+            public enum CodingKeys: String, CodingKey {
+                case hit_rate
+                case job_runs
+                case points
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.hit_rate = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .hit_rate
+                )
+                self.job_runs = try container.decode(
+                    Swift.Int.self,
+                    forKey: .job_runs
+                )
+                self.points = try container.decode(
+                    Components.Schemas.RunnerVolumeActivity.pointsPayload.self,
+                    forKey: .points
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "hit_rate",
+                    "job_runs",
+                    "points"
+                ])
+            }
+        }
         /// The maximum number of suite runs to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/TestSuiteRunsPageSize`.
@@ -10963,6 +13063,318 @@ public enum Components {
             case hit_local = "hit_local"
             case hit_remote = "hit_remote"
             case miss = "miss"
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerJobVolume`.
+        public struct RunnerJobVolume: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage`.
+            public struct usagePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/cache_hit`.
+                public var cache_hit: Swift.Bool?
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/cache_status`.
+                public var cache_status: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/cache_status_description`.
+                public var cache_status_description: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/capacity_bytes`.
+                public var capacity_bytes: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/job_name`.
+                public var job_name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/mounted_at`.
+                public var mounted_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/used_bytes`.
+                public var used_bytes: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/workflow_job_id`.
+                public var workflow_job_id: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/workflow_name`.
+                public var workflow_name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage/workflow_run_id`.
+                public var workflow_run_id: Swift.Int
+                /// Creates a new `usagePayload`.
+                ///
+                /// - Parameters:
+                ///   - cache_hit:
+                ///   - cache_status:
+                ///   - cache_status_description:
+                ///   - capacity_bytes:
+                ///   - id:
+                ///   - job_name:
+                ///   - mounted_at:
+                ///   - used_bytes:
+                ///   - workflow_job_id:
+                ///   - workflow_name:
+                ///   - workflow_run_id:
+                public init(
+                    cache_hit: Swift.Bool? = nil,
+                    cache_status: Swift.String,
+                    cache_status_description: Swift.String,
+                    capacity_bytes: Swift.Int? = nil,
+                    id: Swift.String,
+                    job_name: Swift.String? = nil,
+                    mounted_at: Foundation.Date? = nil,
+                    used_bytes: Swift.Int? = nil,
+                    workflow_job_id: Swift.Int,
+                    workflow_name: Swift.String? = nil,
+                    workflow_run_id: Swift.Int
+                ) {
+                    self.cache_hit = cache_hit
+                    self.cache_status = cache_status
+                    self.cache_status_description = cache_status_description
+                    self.capacity_bytes = capacity_bytes
+                    self.id = id
+                    self.job_name = job_name
+                    self.mounted_at = mounted_at
+                    self.used_bytes = used_bytes
+                    self.workflow_job_id = workflow_job_id
+                    self.workflow_name = workflow_name
+                    self.workflow_run_id = workflow_run_id
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case cache_hit
+                    case cache_status
+                    case cache_status_description
+                    case capacity_bytes
+                    case id
+                    case job_name
+                    case mounted_at
+                    case used_bytes
+                    case workflow_job_id
+                    case workflow_name
+                    case workflow_run_id
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.cache_hit = try container.decodeIfPresent(
+                        Swift.Bool.self,
+                        forKey: .cache_hit
+                    )
+                    self.cache_status = try container.decode(
+                        Swift.String.self,
+                        forKey: .cache_status
+                    )
+                    self.cache_status_description = try container.decode(
+                        Swift.String.self,
+                        forKey: .cache_status_description
+                    )
+                    self.capacity_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .capacity_bytes
+                    )
+                    self.id = try container.decode(
+                        Swift.String.self,
+                        forKey: .id
+                    )
+                    self.job_name = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .job_name
+                    )
+                    self.mounted_at = try container.decodeIfPresent(
+                        Foundation.Date.self,
+                        forKey: .mounted_at
+                    )
+                    self.used_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .used_bytes
+                    )
+                    self.workflow_job_id = try container.decode(
+                        Swift.Int.self,
+                        forKey: .workflow_job_id
+                    )
+                    self.workflow_name = try container.decodeIfPresent(
+                        Swift.String.self,
+                        forKey: .workflow_name
+                    )
+                    self.workflow_run_id = try container.decode(
+                        Swift.Int.self,
+                        forKey: .workflow_run_id
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "cache_hit",
+                        "cache_status",
+                        "cache_status_description",
+                        "capacity_bytes",
+                        "id",
+                        "job_name",
+                        "mounted_at",
+                        "used_bytes",
+                        "workflow_job_id",
+                        "workflow_name",
+                        "workflow_run_id"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/usage`.
+            public var usage: Components.Schemas.RunnerJobVolume.usagePayload
+            /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume`.
+            public struct volumePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/architecture`.
+                public var architecture: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/capacity_bytes`.
+                public var capacity_bytes: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/key`.
+                public var key: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/last_used_at`.
+                public var last_used_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/platform`.
+                public var platform: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/provider`.
+                public var provider: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/repository`.
+                public var repository: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/unmeasured_capacity_copies`.
+                public var unmeasured_capacity_copies: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/unmeasured_copies`.
+                public var unmeasured_copies: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume/used_bytes`.
+                public var used_bytes: Swift.Int?
+                /// Creates a new `volumePayload`.
+                ///
+                /// - Parameters:
+                ///   - architecture:
+                ///   - capacity_bytes:
+                ///   - id:
+                ///   - key:
+                ///   - last_used_at:
+                ///   - platform:
+                ///   - provider:
+                ///   - repository:
+                ///   - unmeasured_capacity_copies:
+                ///   - unmeasured_copies:
+                ///   - used_bytes:
+                public init(
+                    architecture: Swift.String,
+                    capacity_bytes: Swift.Int? = nil,
+                    id: Swift.String,
+                    key: Swift.String,
+                    last_used_at: Foundation.Date? = nil,
+                    platform: Swift.String,
+                    provider: Swift.String,
+                    repository: Swift.String,
+                    unmeasured_capacity_copies: Swift.Int,
+                    unmeasured_copies: Swift.Int,
+                    used_bytes: Swift.Int? = nil
+                ) {
+                    self.architecture = architecture
+                    self.capacity_bytes = capacity_bytes
+                    self.id = id
+                    self.key = key
+                    self.last_used_at = last_used_at
+                    self.platform = platform
+                    self.provider = provider
+                    self.repository = repository
+                    self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                    self.unmeasured_copies = unmeasured_copies
+                    self.used_bytes = used_bytes
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case architecture
+                    case capacity_bytes
+                    case id
+                    case key
+                    case last_used_at
+                    case platform
+                    case provider
+                    case repository
+                    case unmeasured_capacity_copies
+                    case unmeasured_copies
+                    case used_bytes
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.architecture = try container.decode(
+                        Swift.String.self,
+                        forKey: .architecture
+                    )
+                    self.capacity_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .capacity_bytes
+                    )
+                    self.id = try container.decode(
+                        Swift.String.self,
+                        forKey: .id
+                    )
+                    self.key = try container.decode(
+                        Swift.String.self,
+                        forKey: .key
+                    )
+                    self.last_used_at = try container.decodeIfPresent(
+                        Foundation.Date.self,
+                        forKey: .last_used_at
+                    )
+                    self.platform = try container.decode(
+                        Swift.String.self,
+                        forKey: .platform
+                    )
+                    self.provider = try container.decode(
+                        Swift.String.self,
+                        forKey: .provider
+                    )
+                    self.repository = try container.decode(
+                        Swift.String.self,
+                        forKey: .repository
+                    )
+                    self.unmeasured_capacity_copies = try container.decode(
+                        Swift.Int.self,
+                        forKey: .unmeasured_capacity_copies
+                    )
+                    self.unmeasured_copies = try container.decode(
+                        Swift.Int.self,
+                        forKey: .unmeasured_copies
+                    )
+                    self.used_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .used_bytes
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "architecture",
+                        "capacity_bytes",
+                        "id",
+                        "key",
+                        "last_used_at",
+                        "platform",
+                        "provider",
+                        "repository",
+                        "unmeasured_capacity_copies",
+                        "unmeasured_copies",
+                        "used_bytes"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerJobVolume/volume`.
+            public var volume: Components.Schemas.RunnerJobVolume.volumePayload
+            /// Creates a new `RunnerJobVolume`.
+            ///
+            /// - Parameters:
+            ///   - usage:
+            ///   - volume:
+            public init(
+                usage: Components.Schemas.RunnerJobVolume.usagePayload,
+                volume: Components.Schemas.RunnerJobVolume.volumePayload
+            ) {
+                self.usage = usage
+                self.volume = volume
+            }
+            public enum CodingKeys: String, CodingKey {
+                case usage
+                case volume
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.usage = try container.decode(
+                    Components.Schemas.RunnerJobVolume.usagePayload.self,
+                    forKey: .usage
+                )
+                self.volume = try container.decode(
+                    Components.Schemas.RunnerJobVolume.volumePayload.self,
+                    forKey: .volume
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "usage",
+                    "volume"
+                ])
+            }
         }
         /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
         ///
@@ -11687,6 +14099,55 @@ public enum Components {
             case local = "local"
             case remote = "remote"
         }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivityPoint`.
+        public struct RunnerVolumeActivityPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivityPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivityPoint/hit_rate`.
+            public var hit_rate: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeActivityPoint/job_runs`.
+            public var job_runs: Swift.Int
+            /// Creates a new `RunnerVolumeActivityPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - hit_rate:
+            ///   - job_runs:
+            public init(
+                at: Foundation.Date,
+                hit_rate: Swift.Double? = nil,
+                job_runs: Swift.Int
+            ) {
+                self.at = at
+                self.hit_rate = hit_rate
+                self.job_runs = job_runs
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case hit_rate
+                case job_runs
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.hit_rate = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .hit_rate
+                )
+                self.job_runs = try container.decode(
+                    Swift.Int.self,
+                    forKey: .job_runs
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "hit_rate",
+                    "job_runs"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams`.
         public struct GenerateShardUploadURLParams: Codable, Hashable, Sendable {
             /// The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.
@@ -11746,6 +14207,44 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/TestModuleRunsPage`.
         public typealias TestModuleRunsPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrend`.
+        public struct RunnerVolumeTrend: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrend/change`.
+            public var change: Swift.Double?
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeTrend/percent`.
+            public var percent: Swift.Double?
+            /// Creates a new `RunnerVolumeTrend`.
+            ///
+            /// - Parameters:
+            ///   - change:
+            ///   - percent:
+            public init(
+                change: Swift.Double? = nil,
+                percent: Swift.Double? = nil
+            ) {
+                self.change = change
+                self.percent = percent
+            }
+            public enum CodingKeys: String, CodingKey {
+                case change
+                case percent
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.change = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .change
+                )
+                self.percent = try container.decodeIfPresent(
+                    Swift.Double.self,
+                    forKey: .percent
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "change",
+                    "percent"
+                ])
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/BuildStatus`.
         @frozen public enum BuildStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
@@ -12030,6 +14529,44 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case meta
                 case tokens
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeCleared`.
+        public struct RunnerVolumeCleared: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeCleared/cleared`.
+            public var cleared: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeCleared/id`.
+            public var id: Swift.String
+            /// Creates a new `RunnerVolumeCleared`.
+            ///
+            /// - Parameters:
+            ///   - cleared:
+            ///   - id:
+            public init(
+                cleared: Swift.Bool,
+                id: Swift.String
+            ) {
+                self.cleared = cleared
+                self.id = id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case cleared
+                case id
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.cleared = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .cleared
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "cleared",
+                    "id"
+                ])
             }
         }
         /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
@@ -14391,6 +16928,265 @@ public enum Components {
                 case webhook_endpoint_id
             }
         }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeList`.
+        public struct RunnerVolumeList: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/pagination_metadata`.
+            public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/pagination_metadata/current_page`.
+                public var current_page: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/pagination_metadata/has_next_page`.
+                public var has_next_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/pagination_metadata/has_previous_page`.
+                public var has_previous_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/pagination_metadata/page_size`.
+                public var page_size: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/pagination_metadata/total_count`.
+                public var total_count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/pagination_metadata/total_pages`.
+                public var total_pages: Swift.Int
+                /// Creates a new `pagination_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - current_page:
+                ///   - has_next_page:
+                ///   - has_previous_page:
+                ///   - page_size:
+                ///   - total_count:
+                ///   - total_pages:
+                public init(
+                    current_page: Swift.Int,
+                    has_next_page: Swift.Bool,
+                    has_previous_page: Swift.Bool,
+                    page_size: Swift.Int,
+                    total_count: Swift.Int,
+                    total_pages: Swift.Int
+                ) {
+                    self.current_page = current_page
+                    self.has_next_page = has_next_page
+                    self.has_previous_page = has_previous_page
+                    self.page_size = page_size
+                    self.total_count = total_count
+                    self.total_pages = total_pages
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case current_page
+                    case has_next_page
+                    case has_previous_page
+                    case page_size
+                    case total_count
+                    case total_pages
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.current_page = try container.decode(
+                        Swift.Int.self,
+                        forKey: .current_page
+                    )
+                    self.has_next_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_next_page
+                    )
+                    self.has_previous_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_previous_page
+                    )
+                    self.page_size = try container.decode(
+                        Swift.Int.self,
+                        forKey: .page_size
+                    )
+                    self.total_count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_count
+                    )
+                    self.total_pages = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_pages
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "current_page",
+                        "has_next_page",
+                        "has_previous_page",
+                        "page_size",
+                        "total_count",
+                        "total_pages"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.RunnerVolumeList.pagination_metadataPayload
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload`.
+            public struct volumesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/architecture`.
+                public var architecture: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/capacity_bytes`.
+                public var capacity_bytes: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/key`.
+                public var key: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/last_used_at`.
+                public var last_used_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/platform`.
+                public var platform: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/provider`.
+                public var provider: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/repository`.
+                public var repository: Swift.String
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/unmeasured_capacity_copies`.
+                public var unmeasured_capacity_copies: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/unmeasured_copies`.
+                public var unmeasured_copies: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumesPayload/used_bytes`.
+                public var used_bytes: Swift.Int?
+                /// Creates a new `volumesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - architecture:
+                ///   - capacity_bytes:
+                ///   - id:
+                ///   - key:
+                ///   - last_used_at:
+                ///   - platform:
+                ///   - provider:
+                ///   - repository:
+                ///   - unmeasured_capacity_copies:
+                ///   - unmeasured_copies:
+                ///   - used_bytes:
+                public init(
+                    architecture: Swift.String,
+                    capacity_bytes: Swift.Int? = nil,
+                    id: Swift.String,
+                    key: Swift.String,
+                    last_used_at: Foundation.Date? = nil,
+                    platform: Swift.String,
+                    provider: Swift.String,
+                    repository: Swift.String,
+                    unmeasured_capacity_copies: Swift.Int,
+                    unmeasured_copies: Swift.Int,
+                    used_bytes: Swift.Int? = nil
+                ) {
+                    self.architecture = architecture
+                    self.capacity_bytes = capacity_bytes
+                    self.id = id
+                    self.key = key
+                    self.last_used_at = last_used_at
+                    self.platform = platform
+                    self.provider = provider
+                    self.repository = repository
+                    self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                    self.unmeasured_copies = unmeasured_copies
+                    self.used_bytes = used_bytes
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case architecture
+                    case capacity_bytes
+                    case id
+                    case key
+                    case last_used_at
+                    case platform
+                    case provider
+                    case repository
+                    case unmeasured_capacity_copies
+                    case unmeasured_copies
+                    case used_bytes
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.architecture = try container.decode(
+                        Swift.String.self,
+                        forKey: .architecture
+                    )
+                    self.capacity_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .capacity_bytes
+                    )
+                    self.id = try container.decode(
+                        Swift.String.self,
+                        forKey: .id
+                    )
+                    self.key = try container.decode(
+                        Swift.String.self,
+                        forKey: .key
+                    )
+                    self.last_used_at = try container.decodeIfPresent(
+                        Foundation.Date.self,
+                        forKey: .last_used_at
+                    )
+                    self.platform = try container.decode(
+                        Swift.String.self,
+                        forKey: .platform
+                    )
+                    self.provider = try container.decode(
+                        Swift.String.self,
+                        forKey: .provider
+                    )
+                    self.repository = try container.decode(
+                        Swift.String.self,
+                        forKey: .repository
+                    )
+                    self.unmeasured_capacity_copies = try container.decode(
+                        Swift.Int.self,
+                        forKey: .unmeasured_capacity_copies
+                    )
+                    self.unmeasured_copies = try container.decode(
+                        Swift.Int.self,
+                        forKey: .unmeasured_copies
+                    )
+                    self.used_bytes = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .used_bytes
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "architecture",
+                        "capacity_bytes",
+                        "id",
+                        "key",
+                        "last_used_at",
+                        "platform",
+                        "provider",
+                        "repository",
+                        "unmeasured_capacity_copies",
+                        "unmeasured_copies",
+                        "used_bytes"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumes`.
+            public typealias volumesPayload = [Components.Schemas.RunnerVolumeList.volumesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeList/volumes`.
+            public var volumes: Components.Schemas.RunnerVolumeList.volumesPayload
+            /// Creates a new `RunnerVolumeList`.
+            ///
+            /// - Parameters:
+            ///   - pagination_metadata:
+            ///   - volumes:
+            public init(
+                pagination_metadata: Components.Schemas.RunnerVolumeList.pagination_metadataPayload,
+                volumes: Components.Schemas.RunnerVolumeList.volumesPayload
+            ) {
+                self.pagination_metadata = pagination_metadata
+                self.volumes = volumes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case pagination_metadata
+                case volumes
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.pagination_metadata = try container.decode(
+                    Components.Schemas.RunnerVolumeList.pagination_metadataPayload.self,
+                    forKey: .pagination_metadata
+                )
+                self.volumes = try container.decode(
+                    Components.Schemas.RunnerVolumeList.volumesPayload.self,
+                    forKey: .volumes
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "pagination_metadata",
+                    "volumes"
+                ])
+            }
+        }
         /// A new project token.
         ///
         /// - Remark: Generated from `#/components/schemas/ProjectFullToken`.
@@ -15715,6 +18511,922 @@ public enum Operations {
             }
         }
     }
+    /// Get account or volume storage, activity and trends for a time range.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/analytics/get(getRunnerVolumeAnalytics)`.
+    public enum getRunnerVolumeAnalytics {
+        public static let id: Swift.String = "getRunnerVolumeAnalytics"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.getRunnerVolumeAnalytics.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/query/end`.
+                public var end: Foundation.Date?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/query/start`.
+                public var start: Foundation.Date?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/query/volume_id`.
+                public var volume_id: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - end:
+                ///   - start:
+                ///   - volume_id:
+                public init(
+                    end: Foundation.Date? = nil,
+                    start: Foundation.Date? = nil,
+                    volume_id: Swift.String? = nil
+                ) {
+                    self.end = end
+                    self.start = start
+                    self.volume_id = volume_id
+                }
+            }
+            public var query: Operations.getRunnerVolumeAnalytics.Input.Query
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunnerVolumeAnalytics.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunnerVolumeAnalytics.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getRunnerVolumeAnalytics.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getRunnerVolumeAnalytics.Input.Path,
+                query: Operations.getRunnerVolumeAnalytics.Input.Query = .init(),
+                headers: Operations.getRunnerVolumeAnalytics.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity`.
+                        public struct activityPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity/hit_rate`.
+                            public var hit_rate: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity/job_runs`.
+                            public var job_runs: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity/pointsPayload/hit_rate`.
+                                public var hit_rate: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity/pointsPayload/job_runs`.
+                                public var job_runs: Swift.Int
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - hit_rate:
+                                ///   - job_runs:
+                                public init(
+                                    at: Foundation.Date,
+                                    hit_rate: Swift.Double? = nil,
+                                    job_runs: Swift.Int
+                                ) {
+                                    self.at = at
+                                    self.hit_rate = hit_rate
+                                    self.job_runs = job_runs
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case hit_rate
+                                    case job_runs
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.hit_rate = try container.decodeIfPresent(
+                                        Swift.Double.self,
+                                        forKey: .hit_rate
+                                    )
+                                    self.job_runs = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .job_runs
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "hit_rate",
+                                        "job_runs"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity/points`.
+                            public typealias pointsPayload = [Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.activityPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity/points`.
+                            public var points: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.activityPayload.pointsPayload
+                            /// Creates a new `activityPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - hit_rate:
+                            ///   - job_runs:
+                            ///   - points:
+                            public init(
+                                hit_rate: Swift.Double? = nil,
+                                job_runs: Swift.Int,
+                                points: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.activityPayload.pointsPayload
+                            ) {
+                                self.hit_rate = hit_rate
+                                self.job_runs = job_runs
+                                self.points = points
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case hit_rate
+                                case job_runs
+                                case points
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.hit_rate = try container.decodeIfPresent(
+                                    Swift.Double.self,
+                                    forKey: .hit_rate
+                                )
+                                self.job_runs = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .job_runs
+                                )
+                                self.points = try container.decode(
+                                    Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.activityPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "hit_rate",
+                                    "job_runs",
+                                    "points"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/activity`.
+                        public var activity: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.activityPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/period`.
+                        public struct periodPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/period/end`.
+                            public var end: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/period/start`.
+                            public var start: Foundation.Date
+                            /// Creates a new `periodPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - end:
+                            ///   - start:
+                            public init(
+                                end: Foundation.Date,
+                                start: Foundation.Date
+                            ) {
+                                self.end = end
+                                self.start = start
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case end
+                                case start
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.end = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .end
+                                )
+                                self.start = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .start
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "end",
+                                    "start"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/period`.
+                        public var period: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.periodPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity`.
+                        public struct previous_activityPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity/hit_rate`.
+                            public var hit_rate: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity/job_runs`.
+                            public var job_runs: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity/pointsPayload/hit_rate`.
+                                public var hit_rate: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity/pointsPayload/job_runs`.
+                                public var job_runs: Swift.Int
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - hit_rate:
+                                ///   - job_runs:
+                                public init(
+                                    at: Foundation.Date,
+                                    hit_rate: Swift.Double? = nil,
+                                    job_runs: Swift.Int
+                                ) {
+                                    self.at = at
+                                    self.hit_rate = hit_rate
+                                    self.job_runs = job_runs
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case hit_rate
+                                    case job_runs
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.hit_rate = try container.decodeIfPresent(
+                                        Swift.Double.self,
+                                        forKey: .hit_rate
+                                    )
+                                    self.job_runs = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .job_runs
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "hit_rate",
+                                        "job_runs"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity/points`.
+                            public typealias pointsPayload = [Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.previous_activityPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity/points`.
+                            public var points: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.previous_activityPayload.pointsPayload
+                            /// Creates a new `previous_activityPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - hit_rate:
+                            ///   - job_runs:
+                            ///   - points:
+                            public init(
+                                hit_rate: Swift.Double? = nil,
+                                job_runs: Swift.Int,
+                                points: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.previous_activityPayload.pointsPayload
+                            ) {
+                                self.hit_rate = hit_rate
+                                self.job_runs = job_runs
+                                self.points = points
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case hit_rate
+                                case job_runs
+                                case points
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.hit_rate = try container.decodeIfPresent(
+                                    Swift.Double.self,
+                                    forKey: .hit_rate
+                                )
+                                self.job_runs = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .job_runs
+                                )
+                                self.points = try container.decode(
+                                    Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.previous_activityPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "hit_rate",
+                                    "job_runs",
+                                    "points"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/previous_activity`.
+                        public var previous_activity: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.previous_activityPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storagePayload`.
+                        public struct storagePayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storagePayload/at`.
+                            public var at: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storagePayload/capacity_bytes`.
+                            public var capacity_bytes: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storagePayload/unmeasured_capacity_copies`.
+                            public var unmeasured_capacity_copies: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storagePayload/unmeasured_copies`.
+                            public var unmeasured_copies: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storagePayload/used_bytes`.
+                            public var used_bytes: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storagePayload/volumes`.
+                            public var volumes: Swift.Int
+                            /// Creates a new `storagePayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - at:
+                            ///   - capacity_bytes:
+                            ///   - unmeasured_capacity_copies:
+                            ///   - unmeasured_copies:
+                            ///   - used_bytes:
+                            ///   - volumes:
+                            public init(
+                                at: Foundation.Date,
+                                capacity_bytes: Swift.Int? = nil,
+                                unmeasured_capacity_copies: Swift.Int,
+                                unmeasured_copies: Swift.Int,
+                                used_bytes: Swift.Int? = nil,
+                                volumes: Swift.Int
+                            ) {
+                                self.at = at
+                                self.capacity_bytes = capacity_bytes
+                                self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                                self.unmeasured_copies = unmeasured_copies
+                                self.used_bytes = used_bytes
+                                self.volumes = volumes
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case at
+                                case capacity_bytes
+                                case unmeasured_capacity_copies
+                                case unmeasured_copies
+                                case used_bytes
+                                case volumes
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.at = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .at
+                                )
+                                self.capacity_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .capacity_bytes
+                                )
+                                self.unmeasured_capacity_copies = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .unmeasured_capacity_copies
+                                )
+                                self.unmeasured_copies = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .unmeasured_copies
+                                )
+                                self.used_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .used_bytes
+                                )
+                                self.volumes = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .volumes
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "at",
+                                    "capacity_bytes",
+                                    "unmeasured_capacity_copies",
+                                    "unmeasured_copies",
+                                    "used_bytes",
+                                    "volumes"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storage`.
+                        public typealias storagePayload = [Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.storagePayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/storage`.
+                        public var storage: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.storagePayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends`.
+                        public struct trendsPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/hit_rate_percentage_points`.
+                            public var hit_rate_percentage_points: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/used_bytes`.
+                            public struct used_bytesPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/used_bytes/change`.
+                                public var change: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/used_bytes/percent`.
+                                public var percent: Swift.Double?
+                                /// Creates a new `used_bytesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - change:
+                                ///   - percent:
+                                public init(
+                                    change: Swift.Double? = nil,
+                                    percent: Swift.Double? = nil
+                                ) {
+                                    self.change = change
+                                    self.percent = percent
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case change
+                                    case percent
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.change = try container.decodeIfPresent(
+                                        Swift.Double.self,
+                                        forKey: .change
+                                    )
+                                    self.percent = try container.decodeIfPresent(
+                                        Swift.Double.self,
+                                        forKey: .percent
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "change",
+                                        "percent"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/used_bytes`.
+                            public var used_bytes: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload.used_bytesPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/volumes`.
+                            public struct volumesPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/volumes/change`.
+                                public var change: Swift.Double?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/volumes/percent`.
+                                public var percent: Swift.Double?
+                                /// Creates a new `volumesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - change:
+                                ///   - percent:
+                                public init(
+                                    change: Swift.Double? = nil,
+                                    percent: Swift.Double? = nil
+                                ) {
+                                    self.change = change
+                                    self.percent = percent
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case change
+                                    case percent
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.change = try container.decodeIfPresent(
+                                        Swift.Double.self,
+                                        forKey: .change
+                                    )
+                                    self.percent = try container.decodeIfPresent(
+                                        Swift.Double.self,
+                                        forKey: .percent
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "change",
+                                        "percent"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends/volumes`.
+                            public var volumes: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload.volumesPayload
+                            /// Creates a new `trendsPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - hit_rate_percentage_points:
+                            ///   - used_bytes:
+                            ///   - volumes:
+                            public init(
+                                hit_rate_percentage_points: Swift.Double? = nil,
+                                used_bytes: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload.used_bytesPayload,
+                                volumes: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload.volumesPayload
+                            ) {
+                                self.hit_rate_percentage_points = hit_rate_percentage_points
+                                self.used_bytes = used_bytes
+                                self.volumes = volumes
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case hit_rate_percentage_points
+                                case used_bytes
+                                case volumes
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.hit_rate_percentage_points = try container.decodeIfPresent(
+                                    Swift.Double.self,
+                                    forKey: .hit_rate_percentage_points
+                                )
+                                self.used_bytes = try container.decode(
+                                    Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload.used_bytesPayload.self,
+                                    forKey: .used_bytes
+                                )
+                                self.volumes = try container.decode(
+                                    Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload.volumesPayload.self,
+                                    forKey: .volumes
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "hit_rate_percentage_points",
+                                    "used_bytes",
+                                    "volumes"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/json/trends`.
+                        public var trends: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - activity:
+                        ///   - period:
+                        ///   - previous_activity:
+                        ///   - storage:
+                        ///   - trends:
+                        public init(
+                            activity: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.activityPayload,
+                            period: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.periodPayload,
+                            previous_activity: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.previous_activityPayload,
+                            storage: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.storagePayload,
+                            trends: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload
+                        ) {
+                            self.activity = activity
+                            self.period = period
+                            self.previous_activity = previous_activity
+                            self.storage = storage
+                            self.trends = trends
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case activity
+                            case period
+                            case previous_activity
+                            case storage
+                            case trends
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.activity = try container.decode(
+                                Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.activityPayload.self,
+                                forKey: .activity
+                            )
+                            self.period = try container.decode(
+                                Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.periodPayload.self,
+                                forKey: .period
+                            )
+                            self.previous_activity = try container.decode(
+                                Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.previous_activityPayload.self,
+                                forKey: .previous_activity
+                            )
+                            self.storage = try container.decode(
+                                Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.storagePayload.self,
+                                forKey: .storage
+                            )
+                            self.trends = try container.decode(
+                                Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload.trendsPayload.self,
+                                forKey: .trends
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "activity",
+                                "period",
+                                "previous_activity",
+                                "storage",
+                                "trends"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/200/content/application\/json`.
+                    case json(Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getRunnerVolumeAnalytics.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolumeAnalytics.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerVolumeAnalytics.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner volume data
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/analytics/get(getRunnerVolumeAnalytics)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getRunnerVolumeAnalytics.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getRunnerVolumeAnalytics.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolumeAnalytics.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerVolumeAnalytics.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/analytics/get(getRunnerVolumeAnalytics)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getRunnerVolumeAnalytics.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getRunnerVolumeAnalytics.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolumeAnalytics.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerVolumeAnalytics.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/analytics/get(getRunnerVolumeAnalytics)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getRunnerVolumeAnalytics.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getRunnerVolumeAnalytics.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolumeAnalytics.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerVolumeAnalytics.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Volume or job not found, or runners disabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/analytics/get(getRunnerVolumeAnalytics)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getRunnerVolumeAnalytics.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getRunnerVolumeAnalytics.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getRunnerVolumeAnalytics.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/analytics/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolumeAnalytics.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getRunnerVolumeAnalytics.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getRunnerVolumeAnalytics.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/analytics/get(getRunnerVolumeAnalytics)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getRunnerVolumeAnalytics.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getRunnerVolumeAnalytics.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a generation by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
@@ -16778,14 +20490,14 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers`.
                 public struct Headers: Sendable, Hashable {
-                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    /// How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.
                     ///
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/headers/cache-control`.
                     public var cache_hyphen_control: Swift.String?
                     /// Creates a new `Headers`.
                     ///
                     /// - Parameters:
-                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right.
+                    ///   - cache_hyphen_control: How long the endpoint list stays good for. Long-lived while a dedicated instance is serving, seconds while one is being provisioned back, so a client does not hold a stand-in answer past the point it stops being right. Clients that wait for the instance get `no-cache` in that state, so each poll reaches the server.
                     public init(cache_hyphen_control: Swift.String? = nil) {
                         self.cache_hyphen_control = cache_hyphen_control
                     }
@@ -16800,15 +20512,25 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/endpoints`.
                         public var endpoints: [Swift.String]
+                        /// Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/json/provisioning`.
+                        public var provisioning: Swift.Bool?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - endpoints:
-                        public init(endpoints: [Swift.String]) {
+                        ///   - provisioning: Whether a dedicated cache instance is being prepared for the account. While it is, the endpoint list can be empty, and clients should use their local cache until it is ready.
+                        public init(
+                            endpoints: [Swift.String],
+                            provisioning: Swift.Bool? = nil
+                        ) {
                             self.endpoints = endpoints
+                            self.provisioning = provisioning
                         }
                         public enum CodingKeys: String, CodingKey {
                             case endpoints
+                            case provisioning
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/cache/endpoints/GET/responses/200/content/application\/json`.
@@ -20602,6 +24324,417 @@ public enum Operations {
             }
         }
     }
+    /// Clear saved volume contents. Running jobs retain their copies but cannot save them.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)`.
+    public enum clearRunnerVolume {
+        public static let id: Swift.String = "clearRunnerVolume"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/path/volume_id`.
+                public var volume_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - volume_id:
+                public init(
+                    account_handle: Swift.String,
+                    volume_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.volume_id = volume_id
+                }
+            }
+            public var path: Operations.clearRunnerVolume.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.clearRunnerVolume.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.clearRunnerVolume.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.clearRunnerVolume.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.clearRunnerVolume.Input.Path,
+                headers: Operations.clearRunnerVolume.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/200/content/json/cleared`.
+                        public var cleared: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cleared:
+                        ///   - id:
+                        public init(
+                            cleared: Swift.Bool,
+                            id: Swift.String
+                        ) {
+                            self.cleared = cleared
+                            self.id = id
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cleared
+                            case id
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.cleared = try container.decode(
+                                Swift.Bool.self,
+                                forKey: .cleared
+                            )
+                            self.id = try container.decode(
+                                Swift.String.self,
+                                forKey: .id
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "cleared",
+                                "id"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/200/content/application\/json`.
+                    case json(Operations.clearRunnerVolume.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.clearRunnerVolume.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.clearRunnerVolume.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.clearRunnerVolume.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner volume data
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.clearRunnerVolume.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.clearRunnerVolume.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.clearRunnerVolume.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.clearRunnerVolume.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.clearRunnerVolume.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.clearRunnerVolume.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.clearRunnerVolume.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.clearRunnerVolume.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.clearRunnerVolume.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.clearRunnerVolume.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.clearRunnerVolume.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.clearRunnerVolume.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Volume or job not found, or runners disabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.clearRunnerVolume.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.clearRunnerVolume.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.clearRunnerVolume.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.clearRunnerVolume.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.clearRunnerVolume.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.clearRunnerVolume.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.clearRunnerVolume.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.clearRunnerVolume.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get the artifact tree for a bundle.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts`.
@@ -22598,6 +26731,8 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modules`.
                     public var test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_coverage`.
+                    public var xcode_coverage: Components.Schemas.XcodeCoverage?
                     /// The version of Xcode used during the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_version`.
@@ -22629,6 +26764,7 @@ public enum Operations {
                     ///   - status: The status of the test run.
                     ///   - stress_new_tests:
                     ///   - test_modules: The test modules associated with the test run.
+                    ///   - xcode_coverage:
                     ///   - xcode_version: The version of Xcode used during the run.
                     public init(
                         build_run_id: Swift.String? = nil,
@@ -22655,6 +26791,7 @@ public enum Operations {
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
                         stress_new_tests: Components.Schemas.StressNewTestsResult? = nil,
                         test_modules: Operations.createTest.Input.Body.jsonPayload.test_modulesPayload,
+                        xcode_coverage: Components.Schemas.XcodeCoverage? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
                         self.build_run_id = build_run_id
@@ -22681,6 +26818,7 @@ public enum Operations {
                         self.status = status
                         self.stress_new_tests = stress_new_tests
                         self.test_modules = test_modules
+                        self.xcode_coverage = xcode_coverage
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -22708,6 +26846,7 @@ public enum Operations {
                         case status
                         case stress_new_tests
                         case test_modules
+                        case xcode_coverage
                         case xcode_version
                     }
                 }
@@ -32500,6 +36639,516 @@ public enum Operations {
             }
         }
     }
+    /// Get runner volume details.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/{volume_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)`.
+    public enum getRunnerVolume {
+        public static let id: Swift.String = "getRunnerVolume"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/path/volume_id`.
+                public var volume_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - volume_id:
+                public init(
+                    account_handle: Swift.String,
+                    volume_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.volume_id = volume_id
+                }
+            }
+            public var path: Operations.getRunnerVolume.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunnerVolume.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunnerVolume.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getRunnerVolume.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getRunnerVolume.Input.Path,
+                headers: Operations.getRunnerVolume.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/architecture`.
+                        public var architecture: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/capacity_bytes`.
+                        public var capacity_bytes: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/key`.
+                        public var key: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/last_used_at`.
+                        public var last_used_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/platform`.
+                        public var platform: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/provider`.
+                        public var provider: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/repository`.
+                        public var repository: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/unmeasured_capacity_copies`.
+                        public var unmeasured_capacity_copies: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/unmeasured_copies`.
+                        public var unmeasured_copies: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/json/used_bytes`.
+                        public var used_bytes: Swift.Int?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - architecture:
+                        ///   - capacity_bytes:
+                        ///   - id:
+                        ///   - key:
+                        ///   - last_used_at:
+                        ///   - platform:
+                        ///   - provider:
+                        ///   - repository:
+                        ///   - unmeasured_capacity_copies:
+                        ///   - unmeasured_copies:
+                        ///   - used_bytes:
+                        public init(
+                            architecture: Swift.String,
+                            capacity_bytes: Swift.Int? = nil,
+                            id: Swift.String,
+                            key: Swift.String,
+                            last_used_at: Foundation.Date? = nil,
+                            platform: Swift.String,
+                            provider: Swift.String,
+                            repository: Swift.String,
+                            unmeasured_capacity_copies: Swift.Int,
+                            unmeasured_copies: Swift.Int,
+                            used_bytes: Swift.Int? = nil
+                        ) {
+                            self.architecture = architecture
+                            self.capacity_bytes = capacity_bytes
+                            self.id = id
+                            self.key = key
+                            self.last_used_at = last_used_at
+                            self.platform = platform
+                            self.provider = provider
+                            self.repository = repository
+                            self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                            self.unmeasured_copies = unmeasured_copies
+                            self.used_bytes = used_bytes
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case architecture
+                            case capacity_bytes
+                            case id
+                            case key
+                            case last_used_at
+                            case platform
+                            case provider
+                            case repository
+                            case unmeasured_capacity_copies
+                            case unmeasured_copies
+                            case used_bytes
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.architecture = try container.decode(
+                                Swift.String.self,
+                                forKey: .architecture
+                            )
+                            self.capacity_bytes = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .capacity_bytes
+                            )
+                            self.id = try container.decode(
+                                Swift.String.self,
+                                forKey: .id
+                            )
+                            self.key = try container.decode(
+                                Swift.String.self,
+                                forKey: .key
+                            )
+                            self.last_used_at = try container.decodeIfPresent(
+                                Foundation.Date.self,
+                                forKey: .last_used_at
+                            )
+                            self.platform = try container.decode(
+                                Swift.String.self,
+                                forKey: .platform
+                            )
+                            self.provider = try container.decode(
+                                Swift.String.self,
+                                forKey: .provider
+                            )
+                            self.repository = try container.decode(
+                                Swift.String.self,
+                                forKey: .repository
+                            )
+                            self.unmeasured_capacity_copies = try container.decode(
+                                Swift.Int.self,
+                                forKey: .unmeasured_capacity_copies
+                            )
+                            self.unmeasured_copies = try container.decode(
+                                Swift.Int.self,
+                                forKey: .unmeasured_copies
+                            )
+                            self.used_bytes = try container.decodeIfPresent(
+                                Swift.Int.self,
+                                forKey: .used_bytes
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "architecture",
+                                "capacity_bytes",
+                                "id",
+                                "key",
+                                "last_used_at",
+                                "platform",
+                                "provider",
+                                "repository",
+                                "unmeasured_capacity_copies",
+                                "unmeasured_copies",
+                                "used_bytes"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getRunnerVolume.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getRunnerVolume.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolume.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerVolume.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner volume data
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getRunnerVolume.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getRunnerVolume.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolume.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerVolume.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getRunnerVolume.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getRunnerVolume.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolume.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerVolume.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getRunnerVolume.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getRunnerVolume.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolume.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunnerVolume.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Volume or job not found, or runners disabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getRunnerVolume.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getRunnerVolume.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getRunnerVolume.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunnerVolume.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getRunnerVolume.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getRunnerVolume.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getRunnerVolume.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getRunnerVolume.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get one recorded Xcode build step and its log.
     ///
     /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
@@ -39715,6 +44364,718 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.listBuildCacheTasks.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the volumes mounted by a runner job.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)`.
+    public enum listRunnerJobVolumes {
+        public static let id: Swift.String = "listRunnerJobVolumes"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/path/workflow_job_id`.
+                public var workflow_job_id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - workflow_job_id:
+                public init(
+                    account_handle: Swift.String,
+                    workflow_job_id: Swift.Int
+                ) {
+                    self.account_handle = account_handle
+                    self.workflow_job_id = workflow_job_id
+                }
+            }
+            public var path: Operations.listRunnerJobVolumes.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRunnerJobVolumes.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRunnerJobVolumes.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listRunnerJobVolumes.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.listRunnerJobVolumes.Input.Path,
+                headers: Operations.listRunnerJobVolumes.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload`.
+                        public struct volumesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage`.
+                            public struct usagePayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/cache_hit`.
+                                public var cache_hit: Swift.Bool?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/cache_status`.
+                                public var cache_status: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/cache_status_description`.
+                                public var cache_status_description: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/capacity_bytes`.
+                                public var capacity_bytes: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/id`.
+                                public var id: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/job_name`.
+                                public var job_name: Swift.String?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/mounted_at`.
+                                public var mounted_at: Foundation.Date?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/used_bytes`.
+                                public var used_bytes: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/workflow_job_id`.
+                                public var workflow_job_id: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/workflow_name`.
+                                public var workflow_name: Swift.String?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage/workflow_run_id`.
+                                public var workflow_run_id: Swift.Int
+                                /// Creates a new `usagePayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - cache_hit:
+                                ///   - cache_status:
+                                ///   - cache_status_description:
+                                ///   - capacity_bytes:
+                                ///   - id:
+                                ///   - job_name:
+                                ///   - mounted_at:
+                                ///   - used_bytes:
+                                ///   - workflow_job_id:
+                                ///   - workflow_name:
+                                ///   - workflow_run_id:
+                                public init(
+                                    cache_hit: Swift.Bool? = nil,
+                                    cache_status: Swift.String,
+                                    cache_status_description: Swift.String,
+                                    capacity_bytes: Swift.Int? = nil,
+                                    id: Swift.String,
+                                    job_name: Swift.String? = nil,
+                                    mounted_at: Foundation.Date? = nil,
+                                    used_bytes: Swift.Int? = nil,
+                                    workflow_job_id: Swift.Int,
+                                    workflow_name: Swift.String? = nil,
+                                    workflow_run_id: Swift.Int
+                                ) {
+                                    self.cache_hit = cache_hit
+                                    self.cache_status = cache_status
+                                    self.cache_status_description = cache_status_description
+                                    self.capacity_bytes = capacity_bytes
+                                    self.id = id
+                                    self.job_name = job_name
+                                    self.mounted_at = mounted_at
+                                    self.used_bytes = used_bytes
+                                    self.workflow_job_id = workflow_job_id
+                                    self.workflow_name = workflow_name
+                                    self.workflow_run_id = workflow_run_id
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case cache_hit
+                                    case cache_status
+                                    case cache_status_description
+                                    case capacity_bytes
+                                    case id
+                                    case job_name
+                                    case mounted_at
+                                    case used_bytes
+                                    case workflow_job_id
+                                    case workflow_name
+                                    case workflow_run_id
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.cache_hit = try container.decodeIfPresent(
+                                        Swift.Bool.self,
+                                        forKey: .cache_hit
+                                    )
+                                    self.cache_status = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .cache_status
+                                    )
+                                    self.cache_status_description = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .cache_status_description
+                                    )
+                                    self.capacity_bytes = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .capacity_bytes
+                                    )
+                                    self.id = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .id
+                                    )
+                                    self.job_name = try container.decodeIfPresent(
+                                        Swift.String.self,
+                                        forKey: .job_name
+                                    )
+                                    self.mounted_at = try container.decodeIfPresent(
+                                        Foundation.Date.self,
+                                        forKey: .mounted_at
+                                    )
+                                    self.used_bytes = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .used_bytes
+                                    )
+                                    self.workflow_job_id = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .workflow_job_id
+                                    )
+                                    self.workflow_name = try container.decodeIfPresent(
+                                        Swift.String.self,
+                                        forKey: .workflow_name
+                                    )
+                                    self.workflow_run_id = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .workflow_run_id
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "cache_hit",
+                                        "cache_status",
+                                        "cache_status_description",
+                                        "capacity_bytes",
+                                        "id",
+                                        "job_name",
+                                        "mounted_at",
+                                        "used_bytes",
+                                        "workflow_job_id",
+                                        "workflow_name",
+                                        "workflow_run_id"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/usage`.
+                            public var usage: Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayloadPayload.usagePayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume`.
+                            public struct volumePayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/architecture`.
+                                public var architecture: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/capacity_bytes`.
+                                public var capacity_bytes: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/id`.
+                                public var id: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/key`.
+                                public var key: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/last_used_at`.
+                                public var last_used_at: Foundation.Date?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/platform`.
+                                public var platform: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/provider`.
+                                public var provider: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/repository`.
+                                public var repository: Swift.String
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/unmeasured_capacity_copies`.
+                                public var unmeasured_capacity_copies: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/unmeasured_copies`.
+                                public var unmeasured_copies: Swift.Int
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume/used_bytes`.
+                                public var used_bytes: Swift.Int?
+                                /// Creates a new `volumePayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - architecture:
+                                ///   - capacity_bytes:
+                                ///   - id:
+                                ///   - key:
+                                ///   - last_used_at:
+                                ///   - platform:
+                                ///   - provider:
+                                ///   - repository:
+                                ///   - unmeasured_capacity_copies:
+                                ///   - unmeasured_copies:
+                                ///   - used_bytes:
+                                public init(
+                                    architecture: Swift.String,
+                                    capacity_bytes: Swift.Int? = nil,
+                                    id: Swift.String,
+                                    key: Swift.String,
+                                    last_used_at: Foundation.Date? = nil,
+                                    platform: Swift.String,
+                                    provider: Swift.String,
+                                    repository: Swift.String,
+                                    unmeasured_capacity_copies: Swift.Int,
+                                    unmeasured_copies: Swift.Int,
+                                    used_bytes: Swift.Int? = nil
+                                ) {
+                                    self.architecture = architecture
+                                    self.capacity_bytes = capacity_bytes
+                                    self.id = id
+                                    self.key = key
+                                    self.last_used_at = last_used_at
+                                    self.platform = platform
+                                    self.provider = provider
+                                    self.repository = repository
+                                    self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                                    self.unmeasured_copies = unmeasured_copies
+                                    self.used_bytes = used_bytes
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case architecture
+                                    case capacity_bytes
+                                    case id
+                                    case key
+                                    case last_used_at
+                                    case platform
+                                    case provider
+                                    case repository
+                                    case unmeasured_capacity_copies
+                                    case unmeasured_copies
+                                    case used_bytes
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.architecture = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .architecture
+                                    )
+                                    self.capacity_bytes = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .capacity_bytes
+                                    )
+                                    self.id = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .id
+                                    )
+                                    self.key = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .key
+                                    )
+                                    self.last_used_at = try container.decodeIfPresent(
+                                        Foundation.Date.self,
+                                        forKey: .last_used_at
+                                    )
+                                    self.platform = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .platform
+                                    )
+                                    self.provider = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .provider
+                                    )
+                                    self.repository = try container.decode(
+                                        Swift.String.self,
+                                        forKey: .repository
+                                    )
+                                    self.unmeasured_capacity_copies = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .unmeasured_capacity_copies
+                                    )
+                                    self.unmeasured_copies = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .unmeasured_copies
+                                    )
+                                    self.used_bytes = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .used_bytes
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "architecture",
+                                        "capacity_bytes",
+                                        "id",
+                                        "key",
+                                        "last_used_at",
+                                        "platform",
+                                        "provider",
+                                        "repository",
+                                        "unmeasured_capacity_copies",
+                                        "unmeasured_copies",
+                                        "used_bytes"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumesPayload/volume`.
+                            public var volume: Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayloadPayload.volumePayload
+                            /// Creates a new `volumesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - usage:
+                            ///   - volume:
+                            public init(
+                                usage: Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayloadPayload.usagePayload,
+                                volume: Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayloadPayload.volumePayload
+                            ) {
+                                self.usage = usage
+                                self.volume = volume
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case usage
+                                case volume
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.usage = try container.decode(
+                                    Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayloadPayload.usagePayload.self,
+                                    forKey: .usage
+                                )
+                                self.volume = try container.decode(
+                                    Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayloadPayload.volumePayload.self,
+                                    forKey: .volume
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "usage",
+                                    "volume"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumes`.
+                        public typealias volumesPayload = [Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/json/volumes`.
+                        public var volumes: Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - volumes:
+                        public init(volumes: Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayload) {
+                            self.volumes = volumes
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case volumes
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.volumes = try container.decode(
+                                Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload.volumesPayload.self,
+                                forKey: .volumes
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "volumes"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/200/content/application\/json`.
+                    case json(Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listRunnerJobVolumes.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerJobVolumes.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerJobVolumes.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner volume data
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listRunnerJobVolumes.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listRunnerJobVolumes.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerJobVolumes.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerJobVolumes.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listRunnerJobVolumes.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listRunnerJobVolumes.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerJobVolumes.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerJobVolumes.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listRunnerJobVolumes.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listRunnerJobVolumes.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerJobVolumes.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerJobVolumes.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Volume or job not found, or runners disabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listRunnerJobVolumes.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listRunnerJobVolumes.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listRunnerJobVolumes.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerJobVolumes.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listRunnerJobVolumes.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listRunnerJobVolumes.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listRunnerJobVolumes.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listRunnerJobVolumes.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -68917,6 +74278,665 @@ public enum Operations {
             }
         }
     }
+    /// List the jobs that used a runner volume.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)`.
+    public enum listRunnerVolumeJobs {
+        public static let id: Swift.String = "listRunnerVolumeJobs"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/path/volume_id`.
+                public var volume_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - volume_id:
+                public init(
+                    account_handle: Swift.String,
+                    volume_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.volume_id = volume_id
+                }
+            }
+            public var path: Operations.listRunnerVolumeJobs.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page:
+                ///   - page_size:
+                public init(
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil
+                ) {
+                    self.page = page
+                    self.page_size = page_size
+                }
+            }
+            public var query: Operations.listRunnerVolumeJobs.Input.Query
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRunnerVolumeJobs.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRunnerVolumeJobs.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listRunnerVolumeJobs.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listRunnerVolumeJobs.Input.Path,
+                query: Operations.listRunnerVolumeJobs.Input.Query = .init(),
+                headers: Operations.listRunnerVolumeJobs.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload`.
+                        public struct jobsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/cache_hit`.
+                            public var cache_hit: Swift.Bool?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/cache_status`.
+                            public var cache_status: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/cache_status_description`.
+                            public var cache_status_description: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/capacity_bytes`.
+                            public var capacity_bytes: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/job_name`.
+                            public var job_name: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/mounted_at`.
+                            public var mounted_at: Foundation.Date?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/used_bytes`.
+                            public var used_bytes: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/workflow_job_id`.
+                            public var workflow_job_id: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/workflow_name`.
+                            public var workflow_name: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobsPayload/workflow_run_id`.
+                            public var workflow_run_id: Swift.Int
+                            /// Creates a new `jobsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - cache_hit:
+                            ///   - cache_status:
+                            ///   - cache_status_description:
+                            ///   - capacity_bytes:
+                            ///   - id:
+                            ///   - job_name:
+                            ///   - mounted_at:
+                            ///   - used_bytes:
+                            ///   - workflow_job_id:
+                            ///   - workflow_name:
+                            ///   - workflow_run_id:
+                            public init(
+                                cache_hit: Swift.Bool? = nil,
+                                cache_status: Swift.String,
+                                cache_status_description: Swift.String,
+                                capacity_bytes: Swift.Int? = nil,
+                                id: Swift.String,
+                                job_name: Swift.String? = nil,
+                                mounted_at: Foundation.Date? = nil,
+                                used_bytes: Swift.Int? = nil,
+                                workflow_job_id: Swift.Int,
+                                workflow_name: Swift.String? = nil,
+                                workflow_run_id: Swift.Int
+                            ) {
+                                self.cache_hit = cache_hit
+                                self.cache_status = cache_status
+                                self.cache_status_description = cache_status_description
+                                self.capacity_bytes = capacity_bytes
+                                self.id = id
+                                self.job_name = job_name
+                                self.mounted_at = mounted_at
+                                self.used_bytes = used_bytes
+                                self.workflow_job_id = workflow_job_id
+                                self.workflow_name = workflow_name
+                                self.workflow_run_id = workflow_run_id
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case cache_hit
+                                case cache_status
+                                case cache_status_description
+                                case capacity_bytes
+                                case id
+                                case job_name
+                                case mounted_at
+                                case used_bytes
+                                case workflow_job_id
+                                case workflow_name
+                                case workflow_run_id
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.cache_hit = try container.decodeIfPresent(
+                                    Swift.Bool.self,
+                                    forKey: .cache_hit
+                                )
+                                self.cache_status = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .cache_status
+                                )
+                                self.cache_status_description = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .cache_status_description
+                                )
+                                self.capacity_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .capacity_bytes
+                                )
+                                self.id = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .id
+                                )
+                                self.job_name = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .job_name
+                                )
+                                self.mounted_at = try container.decodeIfPresent(
+                                    Foundation.Date.self,
+                                    forKey: .mounted_at
+                                )
+                                self.used_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .used_bytes
+                                )
+                                self.workflow_job_id = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .workflow_job_id
+                                )
+                                self.workflow_name = try container.decodeIfPresent(
+                                    Swift.String.self,
+                                    forKey: .workflow_name
+                                )
+                                self.workflow_run_id = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .workflow_run_id
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "cache_hit",
+                                    "cache_status",
+                                    "cache_status_description",
+                                    "capacity_bytes",
+                                    "id",
+                                    "job_name",
+                                    "mounted_at",
+                                    "used_bytes",
+                                    "workflow_job_id",
+                                    "workflow_name",
+                                    "workflow_run_id"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobs`.
+                        public typealias jobsPayload = [Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload.jobsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/jobs`.
+                        public var jobs: Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload.jobsPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/pagination_metadata`.
+                        public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/pagination_metadata/current_page`.
+                            public var current_page: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/pagination_metadata/has_next_page`.
+                            public var has_next_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/pagination_metadata/has_previous_page`.
+                            public var has_previous_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/pagination_metadata/page_size`.
+                            public var page_size: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/pagination_metadata/total_count`.
+                            public var total_count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/pagination_metadata/total_pages`.
+                            public var total_pages: Swift.Int
+                            /// Creates a new `pagination_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - current_page:
+                            ///   - has_next_page:
+                            ///   - has_previous_page:
+                            ///   - page_size:
+                            ///   - total_count:
+                            ///   - total_pages:
+                            public init(
+                                current_page: Swift.Int,
+                                has_next_page: Swift.Bool,
+                                has_previous_page: Swift.Bool,
+                                page_size: Swift.Int,
+                                total_count: Swift.Int,
+                                total_pages: Swift.Int
+                            ) {
+                                self.current_page = current_page
+                                self.has_next_page = has_next_page
+                                self.has_previous_page = has_previous_page
+                                self.page_size = page_size
+                                self.total_count = total_count
+                                self.total_pages = total_pages
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case current_page
+                                case has_next_page
+                                case has_previous_page
+                                case page_size
+                                case total_count
+                                case total_pages
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.current_page = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .current_page
+                                )
+                                self.has_next_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_next_page
+                                )
+                                self.has_previous_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_previous_page
+                                )
+                                self.page_size = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .page_size
+                                )
+                                self.total_count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_count
+                                )
+                                self.total_pages = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_pages
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "current_page",
+                                    "has_next_page",
+                                    "has_previous_page",
+                                    "page_size",
+                                    "total_count",
+                                    "total_pages"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload.pagination_metadataPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - jobs:
+                        ///   - pagination_metadata:
+                        public init(
+                            jobs: Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload.jobsPayload,
+                            pagination_metadata: Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload.pagination_metadataPayload
+                        ) {
+                            self.jobs = jobs
+                            self.pagination_metadata = pagination_metadata
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case jobs
+                            case pagination_metadata
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.jobs = try container.decode(
+                                Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload.jobsPayload.self,
+                                forKey: .jobs
+                            )
+                            self.pagination_metadata = try container.decode(
+                                Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload.pagination_metadataPayload.self,
+                                forKey: .pagination_metadata
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "jobs",
+                                "pagination_metadata"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/200/content/application\/json`.
+                    case json(Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listRunnerVolumeJobs.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumeJobs.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerVolumeJobs.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner volume data
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listRunnerVolumeJobs.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listRunnerVolumeJobs.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumeJobs.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerVolumeJobs.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listRunnerVolumeJobs.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listRunnerVolumeJobs.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumeJobs.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerVolumeJobs.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listRunnerVolumeJobs.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listRunnerVolumeJobs.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumeJobs.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerVolumeJobs.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Volume or job not found, or runners disabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listRunnerVolumeJobs.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listRunnerVolumeJobs.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listRunnerVolumeJobs.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumeJobs.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listRunnerVolumeJobs.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listRunnerVolumeJobs.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/jobs/get(listRunnerVolumeJobs)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listRunnerVolumeJobs.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listRunnerVolumeJobs.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Authenticate with Apple identity token.
     ///
     /// This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
@@ -71705,6 +77725,697 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.listGradleBuildSteps.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List runner volumes filtered by name and repository.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)`.
+    public enum listRunnerVolumes {
+        public static let id: Swift.String = "listRunnerVolumes"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.listRunnerVolumes.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/name`.
+                public var name: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/repository`.
+                public var repository: Swift.String?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/sort_by`.
+                @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case volume = "volume"
+                    case repository = "repository"
+                    case used_space = "used_space"
+                    case capacity = "capacity"
+                    case last_used = "last_used"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/sort_by`.
+                public var sort_by: Operations.listRunnerVolumes.Input.Query.sort_byPayload?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/sort_order`.
+                @frozen public enum sort_orderPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case asc = "asc"
+                    case desc = "desc"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/query/sort_order`.
+                public var sort_order: Operations.listRunnerVolumes.Input.Query.sort_orderPayload?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - name:
+                ///   - page:
+                ///   - page_size:
+                ///   - repository:
+                ///   - sort_by:
+                ///   - sort_order:
+                public init(
+                    name: Swift.String? = nil,
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
+                    repository: Swift.String? = nil,
+                    sort_by: Operations.listRunnerVolumes.Input.Query.sort_byPayload? = nil,
+                    sort_order: Operations.listRunnerVolumes.Input.Query.sort_orderPayload? = nil
+                ) {
+                    self.name = name
+                    self.page = page
+                    self.page_size = page_size
+                    self.repository = repository
+                    self.sort_by = sort_by
+                    self.sort_order = sort_order
+                }
+            }
+            public var query: Operations.listRunnerVolumes.Input.Query
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRunnerVolumes.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listRunnerVolumes.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listRunnerVolumes.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listRunnerVolumes.Input.Path,
+                query: Operations.listRunnerVolumes.Input.Query = .init(),
+                headers: Operations.listRunnerVolumes.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/pagination_metadata`.
+                        public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/pagination_metadata/current_page`.
+                            public var current_page: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/pagination_metadata/has_next_page`.
+                            public var has_next_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/pagination_metadata/has_previous_page`.
+                            public var has_previous_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/pagination_metadata/page_size`.
+                            public var page_size: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/pagination_metadata/total_count`.
+                            public var total_count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/pagination_metadata/total_pages`.
+                            public var total_pages: Swift.Int
+                            /// Creates a new `pagination_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - current_page:
+                            ///   - has_next_page:
+                            ///   - has_previous_page:
+                            ///   - page_size:
+                            ///   - total_count:
+                            ///   - total_pages:
+                            public init(
+                                current_page: Swift.Int,
+                                has_next_page: Swift.Bool,
+                                has_previous_page: Swift.Bool,
+                                page_size: Swift.Int,
+                                total_count: Swift.Int,
+                                total_pages: Swift.Int
+                            ) {
+                                self.current_page = current_page
+                                self.has_next_page = has_next_page
+                                self.has_previous_page = has_previous_page
+                                self.page_size = page_size
+                                self.total_count = total_count
+                                self.total_pages = total_pages
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case current_page
+                                case has_next_page
+                                case has_previous_page
+                                case page_size
+                                case total_count
+                                case total_pages
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.current_page = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .current_page
+                                )
+                                self.has_next_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_next_page
+                                )
+                                self.has_previous_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_previous_page
+                                )
+                                self.page_size = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .page_size
+                                )
+                                self.total_count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_count
+                                )
+                                self.total_pages = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_pages
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "current_page",
+                                    "has_next_page",
+                                    "has_previous_page",
+                                    "page_size",
+                                    "total_count",
+                                    "total_pages"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload.pagination_metadataPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload`.
+                        public struct volumesPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/architecture`.
+                            public var architecture: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/capacity_bytes`.
+                            public var capacity_bytes: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/id`.
+                            public var id: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/key`.
+                            public var key: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/last_used_at`.
+                            public var last_used_at: Foundation.Date?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/platform`.
+                            public var platform: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/provider`.
+                            public var provider: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/repository`.
+                            public var repository: Swift.String
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/unmeasured_capacity_copies`.
+                            public var unmeasured_capacity_copies: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/unmeasured_copies`.
+                            public var unmeasured_copies: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumesPayload/used_bytes`.
+                            public var used_bytes: Swift.Int?
+                            /// Creates a new `volumesPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - architecture:
+                            ///   - capacity_bytes:
+                            ///   - id:
+                            ///   - key:
+                            ///   - last_used_at:
+                            ///   - platform:
+                            ///   - provider:
+                            ///   - repository:
+                            ///   - unmeasured_capacity_copies:
+                            ///   - unmeasured_copies:
+                            ///   - used_bytes:
+                            public init(
+                                architecture: Swift.String,
+                                capacity_bytes: Swift.Int? = nil,
+                                id: Swift.String,
+                                key: Swift.String,
+                                last_used_at: Foundation.Date? = nil,
+                                platform: Swift.String,
+                                provider: Swift.String,
+                                repository: Swift.String,
+                                unmeasured_capacity_copies: Swift.Int,
+                                unmeasured_copies: Swift.Int,
+                                used_bytes: Swift.Int? = nil
+                            ) {
+                                self.architecture = architecture
+                                self.capacity_bytes = capacity_bytes
+                                self.id = id
+                                self.key = key
+                                self.last_used_at = last_used_at
+                                self.platform = platform
+                                self.provider = provider
+                                self.repository = repository
+                                self.unmeasured_capacity_copies = unmeasured_capacity_copies
+                                self.unmeasured_copies = unmeasured_copies
+                                self.used_bytes = used_bytes
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case architecture
+                                case capacity_bytes
+                                case id
+                                case key
+                                case last_used_at
+                                case platform
+                                case provider
+                                case repository
+                                case unmeasured_capacity_copies
+                                case unmeasured_copies
+                                case used_bytes
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.architecture = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .architecture
+                                )
+                                self.capacity_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .capacity_bytes
+                                )
+                                self.id = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .id
+                                )
+                                self.key = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .key
+                                )
+                                self.last_used_at = try container.decodeIfPresent(
+                                    Foundation.Date.self,
+                                    forKey: .last_used_at
+                                )
+                                self.platform = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .platform
+                                )
+                                self.provider = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .provider
+                                )
+                                self.repository = try container.decode(
+                                    Swift.String.self,
+                                    forKey: .repository
+                                )
+                                self.unmeasured_capacity_copies = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .unmeasured_capacity_copies
+                                )
+                                self.unmeasured_copies = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .unmeasured_copies
+                                )
+                                self.used_bytes = try container.decodeIfPresent(
+                                    Swift.Int.self,
+                                    forKey: .used_bytes
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "architecture",
+                                    "capacity_bytes",
+                                    "id",
+                                    "key",
+                                    "last_used_at",
+                                    "platform",
+                                    "provider",
+                                    "repository",
+                                    "unmeasured_capacity_copies",
+                                    "unmeasured_copies",
+                                    "used_bytes"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumes`.
+                        public typealias volumesPayload = [Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload.volumesPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/json/volumes`.
+                        public var volumes: Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload.volumesPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - pagination_metadata:
+                        ///   - volumes:
+                        public init(
+                            pagination_metadata: Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload.pagination_metadataPayload,
+                            volumes: Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload.volumesPayload
+                        ) {
+                            self.pagination_metadata = pagination_metadata
+                            self.volumes = volumes
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
+                            case volumes
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.pagination_metadata = try container.decode(
+                                Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload.pagination_metadataPayload.self,
+                                forKey: .pagination_metadata
+                            )
+                            self.volumes = try container.decode(
+                                Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload.volumesPayload.self,
+                                forKey: .volumes
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "pagination_metadata",
+                                "volumes"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/200/content/application\/json`.
+                    case json(Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listRunnerVolumes.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumes.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerVolumes.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner volume data
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listRunnerVolumes.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listRunnerVolumes.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumes.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerVolumes.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listRunnerVolumes.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listRunnerVolumes.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumes.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerVolumes.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listRunnerVolumes.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listRunnerVolumes.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumes.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listRunnerVolumes.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Volume or job not found, or runners disabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listRunnerVolumes.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listRunnerVolumes.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listRunnerVolumes.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listRunnerVolumes.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listRunnerVolumes.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.listRunnerVolumes.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/get(listRunnerVolumes)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.listRunnerVolumes.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.listRunnerVolumes.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):

@@ -14,7 +14,14 @@ This module handles CLI integration with the Tuist Server APIs.
 ## Invariants
 - `TUIST_URL` overrides config URL and must be a valid URL.
 - OAuth client ID defaults to a built-in value if not provided.
+- Cache request metadata carries SDK build fingerprints separately from the existing exact content hash; preserve it through target-to-item storage conversions.
 
 - Gradle and Bazel recorded-step endpoints and the optional Gradle report start timestamp are generated from server controller schemas. Regenerate through `server/mise/tasks/generate-api-cli-code.sh`; preserve opaque step IDs and nullable per-step logs.
 
 - Command event serialization sends effective destinations and all individual subhashes, including embedded products, foreign builds, and UI-test device/runtime inputs. Do not substitute declared graph destinations for missing inputs.
+
+- Runner volume operations each have a dedicated service and mockable protocol.
+  Keep generated request/response mapping here, preserve pagination envelopes and
+  nullable measurements, and map rate limits to AuthorizationThrottledError with
+  Retry-After. Noora presentation and project/account resolution belong to the
+  runner command module.

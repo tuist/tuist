@@ -16,6 +16,10 @@ enum BazelrcFile {
     static let name = ".bazelrc.tuist"
 
     private static let remoteCacheFlag = "build --remote_cache="
+    private static let remoteDownloaderFlag = "build --experimental_remote_downloader="
+    private static let remoteDownloaderFallbackFlag = "build --experimental_remote_downloader_local_fallback=true"
+    private static let remoteCacheCompressionFlag = "build --remote_cache_compression=true"
+    private static let remoteCacheCompressionOption = "--remote_cache_compression"
     private static let credentialHelperFlag = "build --credential_helper="
     private static let buildEventServiceFlag = "build --bes_backend="
     private static let legacyBuildEventServiceTimeoutFlag = "build --bes_timeout=30s"
@@ -43,6 +47,7 @@ enum BazelrcFile {
         projectHandle: String,
         credentialHelperPath: AbsolutePath,
         buildInsights: Bool = true,
+        remoteDownloader: Bool = true,
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String {
         let buildEventServiceConfiguration = buildInsights ? """
@@ -59,14 +64,24 @@ enum BazelrcFile {
 
         """ : ""
 
+        let downloaderConfiguration = remoteDownloader
+            ? "\(remoteDownloaderFlag)\(endpoint.url)\n\(remoteDownloaderFallbackFlag)\n" : ""
+
         return """
         \(remoteCacheFlag)\(endpoint.url)
-        build --remote_header=x-tuist-account-handle=\(accountHandle)
+        \(downloaderConfiguration)build --remote_header=x-tuist-account-handle=\(accountHandle)
         \(credentialHelperFlag)\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
+        \(remoteCacheCompressionFlag)
         \(buildEventServiceConfiguration)
 
         """
+    }
+
+    /// The file while the account has no cache endpoint serving. It configures nothing, because Bazel
+    /// fails a build whose remote cache it cannot reach.
+    static func renderWithoutRemoteCache() -> String {
+        "# No Tuist remote cache endpoint is serving this project yet. Run `tuist bazel setup` again to configure it.\n"
     }
 
     /// The endpoint URL the file names, or `nil` when it names none.
@@ -89,13 +104,16 @@ enum BazelrcFile {
         with endpoint: GRPCEndpoint,
         cpuCount: Int = ProcessInfo.processInfo.activeProcessorCount
     ) -> String? {
-        guard remoteCache(in: contents) != nil else { return nil }
+        guard let previousEndpoint = remoteCache(in: contents) else { return nil }
 
         let rewritten = contents
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { line -> String in
                 if line.hasPrefix(remoteCacheFlag) {
                     return "\(remoteCacheFlag)\(endpoint.url)"
+                }
+                if line == Substring(remoteDownloaderFlag + previousEndpoint) {
+                    return "\(remoteDownloaderFlag)\(endpoint.url)"
                 }
                 if line.hasPrefix(credentialHelperFlag) {
                     // `<host>=<path>`: the path may itself contain `=`, so split once.
@@ -114,58 +132,71 @@ enum BazelrcFile {
             }
             .joined(separator: "\n")
 
-        let lines = rewritten.split(separator: "\n", omittingEmptySubsequences: false)
-        let cpuCapacityFlag = lines.contains(where: { hasOption("--build_metadata=TUIST_CPU_COUNT", in: $0) })
-            ? nil : "build --build_metadata=TUIST_CPU_COUNT=\(cpuCount)"
-        if lines.contains(where: { $0.hasPrefix(buildEventServiceFlag) }) {
-            var missingFlags: [String] = []
-            if let cpuCapacityFlag {
-                missingFlags.append(cpuCapacityFlag)
-            }
-            if !lines.contains(where: { hasOption(outputChunkOption, in: $0) }) {
-                missingFlags.append(outputChunkFlag)
-            }
-            if !lines.contains(where: { hasOption(namedSetEntriesOption, in: $0) }) {
-                missingFlags.append(namedSetEntriesFlag)
-            }
-            if !lines.contains(where: hasActionPublicationPreference) {
-                missingFlags.append(publishAllActionsFlag)
-            }
-            for flag in profileFlags {
-                let option = String(flag.dropFirst("build ".count).split(separator: "=")[0])
-                let positive = option.hasPrefix("--no") ? "--" + option.dropFirst(4) : option
-                let negative = "--no" + positive.dropFirst(2)
-                if !lines.contains(where: { hasOption(positive, in: $0) || hasOption(negative, in: $0) }) {
-                    missingFlags.append(flag)
+        let mid: String = {
+            let lines = rewritten.split(separator: "\n", omittingEmptySubsequences: false)
+            let cpuCapacityFlag = lines.contains(where: { hasOption("--build_metadata=TUIST_CPU_COUNT", in: $0) })
+                ? nil : "build --build_metadata=TUIST_CPU_COUNT=\(cpuCount)"
+            if lines.contains(where: { $0.hasPrefix(buildEventServiceFlag) }) {
+                var missingFlags: [String] = []
+                if let cpuCapacityFlag {
+                    missingFlags.append(cpuCapacityFlag)
                 }
+                if !lines.contains(where: { hasOption(outputChunkOption, in: $0) }) {
+                    missingFlags.append(outputChunkFlag)
+                }
+                if !lines.contains(where: { hasOption(namedSetEntriesOption, in: $0) }) {
+                    missingFlags.append(namedSetEntriesFlag)
+                }
+                if !lines.contains(where: hasActionPublicationPreference) {
+                    missingFlags.append(publishAllActionsFlag)
+                }
+                for flag in profileFlags {
+                    let option = String(flag.dropFirst("build ".count).split(separator: "=")[0])
+                    let positive = option.hasPrefix("--no") ? "--" + option.dropFirst(4) : option
+                    let negative = "--no" + positive.dropFirst(2)
+                    if !lines.contains(where: { hasOption(positive, in: $0) || hasOption(negative, in: $0) }) {
+                        missingFlags.append(flag)
+                    }
+                }
+                return missingFlags.isEmpty
+                    ? rewritten
+                    : rewritten.trimmingCharacters(in: .newlines) + "\n" + missingFlags.joined(separator: "\n") + "\n"
             }
-            let updated = missingFlags.isEmpty
-                ? rewritten
-                : rewritten.trimmingCharacters(in: .newlines) + "\n" + missingFlags.joined(separator: "\n") + "\n"
-            return updated == contents ? nil : updated
-        }
-        guard let accountHandle = lines.first(where: { $0.hasPrefix(remoteHeaderFlag) })
-            .map({ String($0.dropFirst(remoteHeaderFlag.count)) }),
-            let projectHandle = lines.first(where: { $0.hasPrefix(remoteInstanceNameFlag) })
-            .map({ String($0.dropFirst(remoteInstanceNameFlag.count)) })
-        else {
-            return rewritten == contents ? nil : rewritten
-        }
+            guard let accountHandle = lines.first(where: { $0.hasPrefix(remoteHeaderFlag) })
+                .map({ String($0.dropFirst(remoteHeaderFlag.count)) }),
+                let projectHandle = lines.first(where: { $0.hasPrefix(remoteInstanceNameFlag) })
+                .map({ String($0.dropFirst(remoteInstanceNameFlag.count)) })
+            else {
+                return rewritten
+            }
 
-        let suffix = """
-        \(buildEventServiceFlag)\(endpoint.url)
-        build --bes_header=x-tuist-account-handle=\(accountHandle)
-        build --bes_header=x-tuist-project-handle=\(projectHandle)
-        \(buildEventServiceTimeoutFlag)
-        build --bes_upload_mode=fully_async
-        \(outputChunkFlag)
-        \(namedSetEntriesFlag)
-        \(publishAllActionsFlag)
-        \(profileFlags.joined(separator: "\n"))
-        \(cpuCapacityFlag ?? "")
-        """
+            let suffix = """
+            \(buildEventServiceFlag)\(endpoint.url)
+            build --bes_header=x-tuist-account-handle=\(accountHandle)
+            build --bes_header=x-tuist-project-handle=\(projectHandle)
+            \(buildEventServiceTimeoutFlag)
+            build --bes_upload_mode=fully_async
+            \(outputChunkFlag)
+            \(namedSetEntriesFlag)
+            \(publishAllActionsFlag)
+            \(profileFlags.joined(separator: "\n"))
+            \(cpuCapacityFlag ?? "")
+            """
 
-        return rewritten.trimmingCharacters(in: .newlines) + "\n" + suffix + "\n"
+            return rewritten.trimmingCharacters(in: .newlines) + "\n" + suffix + "\n"
+        }()
+
+        // Backfill the compression flag on files that predate it, so a
+        // migration reaches Bazel without the user having to touch the file
+        // by hand. An explicit user preference (either value) is preserved.
+        let midLines = mid.split(separator: "\n", omittingEmptySubsequences: false)
+        let updated: String
+        if midLines.contains(where: { hasOption(remoteCacheCompressionOption, in: $0) }) {
+            updated = mid
+        } else {
+            updated = mid.trimmingCharacters(in: .newlines) + "\n" + remoteCacheCompressionFlag + "\n"
+        }
+        return updated == contents ? nil : updated
     }
 
     private static func hasActionPublicationPreference(_ line: Substring) -> Bool {

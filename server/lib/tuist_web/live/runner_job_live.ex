@@ -10,13 +10,16 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.GitLab
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.LogFormatter
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -59,6 +62,7 @@ defmodule TuistWeb.RunnerJobLive do
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
         buildkite_job = Buildkite.get_job(job.workflow_job_id)
+        gitlab_job = GitLab.get_job_for_account(selected_account.id, job.workflow_job_id)
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
         machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
@@ -73,10 +77,12 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:head_title, head_title)
          |> assign(:job, job)
          |> assign(:buildkite_job, buildkite_job)
+         |> assign(:gitlab_job, gitlab_job)
+         |> assign(:volumes, CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id))
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
-         |> assign_runner_insights(selected_account, job, buildkite_job)
+         |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -135,6 +141,54 @@ defmodule TuistWeb.RunnerJobLive do
   defp job_title(%{workflow_job_id: id}), do: "Job ##{id}"
 
   def header_title(job), do: job_title(job)
+
+  attr :volumes, :list, required: true
+  attr :account_name, :string, required: true
+
+  def job_volumes(assigns) do
+    ~H"""
+    <.card
+      :if={@volumes != []}
+      title={dgettext("dashboard_runners", "Volumes")}
+      icon="database"
+      data-part="volumes-card"
+    >
+      <.card_section>
+        <.table
+          id="runner-job-volumes"
+          rows={@volumes}
+          row_navigate={fn usage -> ~p"/#{@account_name}/runners/volumes/#{usage.volume_id}" end}
+        >
+          <:col :let={usage} label={dgettext("dashboard_runners", "Volume")}>
+            <.text_cell label={usage.volume.key} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
+            <.badge_cell
+              :if={not is_nil(usage.warm)}
+              label={
+                if usage.warm,
+                  do: dgettext("dashboard_runners", "Hit"),
+                  else: dgettext("dashboard_runners", "Miss")
+              }
+              color={if usage.warm, do: "success", else: "neutral"}
+              style="light-fill"
+            />
+            <.text_cell :if={is_nil(usage.warm)} label="—" />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Used space")}>
+            <.text_cell label={volume_bytes(usage.size_bytes)} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Capacity")}>
+            <.text_cell label={volume_bytes(usage.capacity_bytes)} />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+    """
+  end
+
+  defp volume_bytes(nil), do: "—"
+  defp volume_bytes(value), do: ByteFormatter.format_bytes(value)
 
   def header_status(%{status: "completed", conclusion: conclusion}) do
     case conclusion do

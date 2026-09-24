@@ -55,6 +55,10 @@ pub enum ListDecision {
     /// This pass is capacity-completed and the tuple is a segmented
     /// artifact: neither added nor claimed, resolved immediately.
     CapacitySkipped,
+    /// This pass already listed the tuple and it is still unresolved: it is
+    /// already queued, in a batch, re-claimed, or waited on. Routing it again
+    /// would fetch it twice and resolve an already-removed claim.
+    AlreadyListed,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -245,8 +249,8 @@ impl ClaimSet {
 
 impl PassClaimGuard {
     /// Records that this pass listed `key` and decides who fetches it.
-    /// Re-listing a tuple that is still unresolved for this pass is
-    /// idempotent and returns the current role.
+    /// Re-listing a tuple that is still unresolved for this pass changes
+    /// nothing and returns [`ListDecision::AlreadyListed`].
     pub fn list(&self, key: ClaimKey) -> ListDecision {
         let mut core = self.set.lock_core();
         let pass = core.pass(self.pass_id);
@@ -254,15 +258,7 @@ impl PassClaimGuard {
             return ListDecision::CapacitySkipped;
         }
         if pass.tuples.contains(&key) {
-            let entry = core
-                .entries
-                .get(&key)
-                .expect("unresolved tuple has an entry");
-            return if entry.holder == self.pass_id {
-                ListDecision::Claimed
-            } else {
-                ListDecision::Waiting
-            };
+            return ListDecision::AlreadyListed;
         }
         let decision = match core.entries.get_mut(&key) {
             Some(entry) => {
@@ -559,11 +555,28 @@ mod tests {
         let key = inline("artifact-a", 1_000);
 
         assert_eq!(fetcher.list(key.clone()), ListDecision::Claimed);
-        assert_eq!(fetcher.list(key.clone()), ListDecision::Claimed);
+        assert_eq!(fetcher.list(key.clone()), ListDecision::AlreadyListed);
         assert_eq!(waiter.list(key.clone()), ListDecision::Waiting);
-        assert_eq!(waiter.list(key.clone()), ListDecision::Waiting);
+        assert_eq!(waiter.list(key.clone()), ListDecision::AlreadyListed);
 
         fetcher.resolve_applied(&key);
+        assert!(set.is_empty());
+    }
+
+    #[test]
+    fn relisting_a_reclaimed_tuple_does_not_hand_it_out_twice() {
+        let set = ClaimSet::new();
+        let fetcher = set.register_pass();
+        let waiter = set.register_pass();
+        let key = inline("artifact-a", 1_000);
+
+        assert_eq!(fetcher.list(key.clone()), ListDecision::Claimed);
+        assert_eq!(waiter.list(key.clone()), ListDecision::Waiting);
+        fetcher.resolve_absent(&key);
+        assert_eq!(waiter.take_reclaimed(), vec![key.clone()]);
+
+        assert_eq!(waiter.list(key.clone()), ListDecision::AlreadyListed);
+        waiter.resolve_applied(&key);
         assert!(set.is_empty());
     }
 

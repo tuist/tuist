@@ -1,3 +1,5 @@
+import Path
+import Testing
 import TuistCore
 import TuistSupport
 import TuistTesting
@@ -31,5 +33,34 @@ final class ArtifactSignerTests: TuistTestCase {
         XCTAssertTrue(try subject.isValid(filePath))
         try subject.removeSignature(filePath)
         XCTAssertFalse(try subject.isValid(filePath))
+    }
+}
+
+struct ArtifactSigningCacheTests {
+    @Test func reusesEncryptionWhileResolvingScopeForEverySignature() throws {
+        let payload = MockArtifactSignaturePayloadProvider()
+        let encryptor = MockPayloadEncryptor()
+        let attributes = MockExtendedAttributesController()
+        payload.stubbedFetchResult = .success(.init(macAddress: "account-scope"))
+        encryptor.stubbedEncryptResult = .success("account-signature")
+        let signer = ArtifactSigner(
+            payloadEncryptor: encryptor,
+            signatureCache: ArtifactSigningCache(),
+            extendedAttributesController: attributes,
+            artifactSignaturePayloadProvider: payload
+        )
+        let path = try AbsolutePath(validating: "/unused")
+        try signer.sign(path)
+        try signer.sign(path)
+        #expect(encryptor.invokedEncryptCount == 1)
+        #expect(payload.invokedFetchCount == 2)
+        #expect(attributes.invokedSetAttributeParametersList.map(\.value) == ["account-signature", "account-signature"])
+
+        payload.stubbedFetchResult = .success(.init(macAddress: "machine-after-grant-expiry"))
+        encryptor.stubbedEncryptResult = .success("machine-signature")
+        try signer.sign(path)
+        #expect(encryptor.invokedEncryptCount == 2)
+        #expect(payload.invokedFetchCount == 3)
+        #expect(attributes.invokedSetAttributeParameters?.value == "machine-signature")
     }
 }

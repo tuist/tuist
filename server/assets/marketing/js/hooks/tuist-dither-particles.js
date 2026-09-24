@@ -186,28 +186,43 @@ export const TuistDitherParticles = {
       // The logo's own span is pointer-events: none, so the cursor is
       // tracked on the surrounding grid and mapped into artwork space.
       this.gridEl = this.host.closest('[data-part="community-grid"]') || this.host;
-      this.onMove = (e) => {
+      const track = (clientX, clientY) => {
         const rect = this.canvas.getBoundingClientRect();
         if (!rect.width) return;
         const s = TUIST_DITHER.width / rect.width;
-        this.mouse = { x: (e.clientX - rect.left) * s, y: (e.clientY - rect.top) * s };
+        this.mouse = { x: (clientX - rect.left) * s, y: (clientY - rect.top) * s };
         this.startPhysics();
       };
+      this.onMove = (e) => track(e.clientX, e.clientY);
       this.onLeave = () => {
         this.mouse = null;
         // The loop pauses at equilibrium while hovered, so the return trip
         // needs an explicit restart.
         this.startPhysics();
       };
+      // Touch screens have no hover: the finger drives the field instead,
+      // for as long as it is down. Passive listeners, so the page still
+      // scrolls under the finger — the particles follow the touch as it
+      // moves and settle back when it lifts.
+      this.onTouch = (e) => {
+        const t = e.touches[0];
+        if (t) track(t.clientX, t.clientY);
+      };
       this.gridEl.addEventListener("mousemove", this.onMove);
       this.gridEl.addEventListener("mouseleave", this.onLeave);
+      this.gridEl.addEventListener("touchstart", this.onTouch, { passive: true });
+      this.gridEl.addEventListener("touchmove", this.onTouch, { passive: true });
+      this.gridEl.addEventListener("touchend", this.onLeave);
+      this.gridEl.addEventListener("touchcancel", this.onLeave);
     }
 
     this.resize = () => {
       // Measure the canvas itself: it may be larger than its cropping
       // parent (the artwork overflows the span and gets clipped).
       const rect = this.canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+      // any visible gain for 2px dither dots and hairline strokes.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.width = Math.max(1, Math.round(rect.width));
       this.height = Math.max(1, Math.round(rect.height));
       this.canvas.width = this.width * dpr;
@@ -233,7 +248,7 @@ export const TuistDitherParticles = {
     // current dpr only, so it fires exactly when the dpr moves off it —
     // re-arm against the new value each time.
     this.armDprWatch = () => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       this.dprQuery = window.matchMedia(`(resolution: ${dpr}dppx)`);
       this.onDprChange = () => {
         this.armDprWatch();
@@ -273,6 +288,10 @@ export const TuistDitherParticles = {
     if (this.gridEl) {
       this.gridEl.removeEventListener("mousemove", this.onMove);
       this.gridEl.removeEventListener("mouseleave", this.onLeave);
+      this.gridEl.removeEventListener("touchstart", this.onTouch);
+      this.gridEl.removeEventListener("touchmove", this.onTouch);
+      this.gridEl.removeEventListener("touchend", this.onLeave);
+      this.gridEl.removeEventListener("touchcancel", this.onLeave);
     }
     if (this.dprQuery) this.dprQuery.removeEventListener("change", this.onDprChange);
     document.removeEventListener("visibilitychange", this.onVisible);

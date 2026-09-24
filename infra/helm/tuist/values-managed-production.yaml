@@ -26,7 +26,7 @@ registry:
   publicHost: tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: production
-  sentryEnv: prod
+  sentryEnv: production
   poolSize: "10"
   ingress:
     host: registry.tuist.dev
@@ -73,6 +73,15 @@ server:
   turnstile:
     enabled: true
 
+  # Interstitial Turnstile challenge in front of public project dashboards.
+  # Defence in depth on top of Cloudflare Super Bot Fight Mode at the edge
+  # (bot-management.yaml sets `sbfm_definitely_automated: managed_challenge`);
+  # SBFM still lets a real chunk of automated traffic through, so browser
+  # sessions get gated at the app layer too before they can touch the
+  # ClickHouse-backed dashboards. See PR #13205.
+  publicPageChallenge:
+    enabled: true
+
   kuraCapacityAdmission:
     enabled: true
 
@@ -81,6 +90,13 @@ server:
   config:
     atlasEmail:
       enabled: true
+    # Point server error reporting at the Atlas error-tracking ingest
+    # (atlas.tuist.dev) instead of the Hive ingest. The `dsn_atlas`
+    # field on the SENTRY 1P item was added alongside the existing
+    # `dsn` field, so rollback is `sentryDsn: dsn` on the same item.
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
 
   # Cache-signing grant private key (PEM Ed25519), synced from the
   # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
@@ -131,6 +147,21 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woeLWue9IBlPSZpNHymSX"
+      # Usage-based pricing meters, reported only for accounts with the
+      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Provisioned in the live Stripe account by
+      # `Tuist.Billing.UsageMeterProvisioning`. Carrying a Price here bills
+      # nobody on its own: an account is only charged once the flag is on
+      # for it and its subscription has been switched onto these items.
+      usage_meters:
+        cache_egress_megabytes: "price_1UITBVLWue9IBlPSvMpJS1co"
+        cache_requests: "price_1UITBXLWue9IBlPSXlwD8vxP"
+        passing_test_cases: "price_1UITBYLWue9IBlPSSp51pqjS"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEESLWue9IBlPSb2nVmx22"
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
@@ -304,6 +335,9 @@ server:
     collectorUrl: /-/faro/collect
     receiverHost: k8s-monitoring-alloy-receiver.observability.svc.cluster.local
     receiverPort: 12347
+    # Phase two after deploying gateway-capable pods; see ../k8s-monitoring/browser-rum.md.
+    gateway:
+      enabled: true
 
   ingress:
     enabled: true
@@ -380,14 +414,15 @@ kuraController:
   sentry:
     externalSecret:
       enabled: true
-      # Points at the self-hosted Hive ingest (../hive) so Kura errors land in
-      # the Kura project on hive.tuist.dev. The `kura-sentry-hive` 1P item in
-      # `tuist-k8s-production` holds the Hive DSN under the default
+      # Points at the self-hosted Atlas ingest (../atlas) so Kura errors land in
+      # the Kura project on atlas.tuist.dev. The `kura-sentry-atlas` 1P item in
+      # `tuist-k8s-production` holds the Atlas DSN under the default
       # `KURA_SENTRY_DSN` field and MUST exist before this merges; a
       # remoteRef whose item is missing fails the whole `kura-shared-secrets`
-      # sync. The prior `kura-sentry` item is kept in the vault as a rollback:
-      # flip this back to `kura-sentry` and reroll.
-      item: kura-sentry-hive
+      # sync. The prior `kura-sentry-hive` (Hive) and `kura-sentry` (hosted
+      # sentry.io) items are kept in the vault as rollbacks: flip this back to
+      # either and reroll.
+      item: kura-sentry-atlas
 
 # Only the shared mesh cache pools are listed. The runner-cache pool
 # (kura-scw-fr-par) is excluded: its tenants share the Elastic Metal box's
@@ -488,42 +523,124 @@ postgresql:
       destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
-  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
-  # and their volume stay Pending and `helm --wait` fails the deploy.
-  #
-  # Turning it on is step 2 of the rollout plan in the pull request. Nothing
-  # here is reachable before that, and every step after it is a separate deploy
-  # with its own gate.
-  #
-  # The machines are no longer the only gate. The `clickhouse` pool is two
-  # nodes, and the local PersistentVolume this chart renders binds on the pool
-  # label rather than a node name, so with one volume and two candidate nodes
-  # nothing stops the scheduler placing the pod on the node that does not hold
-  # the data. A volume per host has to land before this can be `true`, at one
-  # replica as much as at two.
+  # The in-cluster ClickHouse (spec #73), running alongside ClickHouse Cloud
+  # while the copy is built. `mode` stays `external` in
+  # `values-managed-common.yaml`: Cloud is the system of record until the
+  # cutover, and this workload takes backfilled history and shadow writes
+  # until then. Staging and canary have both finished that sequence, canary on
+  # 2026-09-17 and staging on 2026-09-22.
   managed:
-    enabled: false
-    # One replica to begin with, which is the shape staging proved end to end,
-    # so the copy and the soak can start as soon as a box lands. Two replicas
-    # need a volume per replica and the database initialised on each of them;
-    # until those exist, this being 2 would leave the second pod Pending.
+    enabled: true
+    # Two from the start, one per AX102-4 in the `clickhouse` pool
+    # (#3080350 and #3080353, FSN1-DC5). Canary proved the shape on
+    # 2026-09-22: a joining replica clones from its peer and stays out of the
+    # Service until `/replicas_status` says it has caught up.
     #
-    # A single replica is not the shape to *finish* on: after the cutover the
-    # system of record would live on one machine, with the backups below as the
-    # only other copy.
-    replicas: 1
-    keeper:
-      replicas: 1
-    # The dataset was 1.69 TiB in September and grows about 0.25 TiB a month,
-    # so this is roughly a year of headroom on the box's 7.68 TB. The local PV
-    # is not a quota — the pod can use whatever `/data` has — so this is a
-    # statement of intent rather than a limit, and the number to watch is the
-    # filesystem's.
+    # Two is also where this has to finish. After the cutover the system of
+    # record cannot live on one machine with only the backups below beside it.
+    # Starting at two avoids the two-deploy dance canary needed to add its
+    # second replica, where the configuration a joining replica fetches from
+    # has to reach the running one first.
+    replicas: 2
     persistence:
+      # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
+      # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
+      # September and grows about 0.25 TiB a month, so that is over a year of
+      # headroom even at a 70% fill target.
+      #
+      # The local PV is not a quota. The pod can use whatever `/data` has, so
+      # this is a statement of intent and the number to watch is the
+      # filesystem's.
       size: 3000Gi
+      localVolume:
+        # Replica `i` runs on `nodeNames[i]`, each with its volume reserved
+        # for that ordinal. CAPI generates these names, so replacing a box
+        # means editing this and rebuilding that replica from its peer.
+        nodeNames:
+          - bm-tuist-md-clickhouse-dp8tk-bnhcr-4fcqx
+          - bm-tuist-md-clickhouse-dp8tk-bnhcr-964hd
+    keeper:
+      # Three, unlike staging and canary, because this cluster starts fresh:
+      # a quorum that tolerates losing a member costs nothing to stand up now
+      # and is a membership change on a live ensemble later, where members
+      # started with the larger configuration can elect a leader between
+      # themselves holding none of the existing member's metadata.
+      #
+      # Keeper runs on the general pool rather than these two boxes, so one
+      # machine failing cannot take both a data replica and the quorum.
+      replicas: 3
+      # Say that, rather than leaving it to the scheduler. The processor pool
+      # is not tainted, so a member with no selector can land there, and that
+      # pool has no room to give: a processor replica requests 10Gi against
+      # ~11.7Gi of free memory per node, so its maxSurge pod only fits while
+      # nothing else moves in. A 512Mi member did move in on the deploy that
+      # first brought this server up, the surge pod stayed Pending for ten
+      # minutes, and the release rolled back on "Progress deadline exceeded"
+      # with ClickHouse itself healthy. The general pool has the memory, and
+      # it has exactly three nodes, which is what the required anti-affinity
+      # between members wants.
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: general
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM on
+    # the macOS fleet, so the Service name every other writer resolves does
+    # not resolve for it. Without this it mirrors nothing while Cloud is the
+    # system of record, and writes nothing once this server is.
+    #
+    # `tag:tuist-k8s-production` rather than the fleet's own tag: the proxy
+    # node is created by this cluster's operator, and the wrong tag makes the
+    # operator refuse with `requested tags are invalid or not permitted`,
+    # leaving no proxy and a hostname that never resolves.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-production
+      tags: tag:tuist-k8s-production
     backup:
       enabled: true
+    # Step 4 for production: mirror every ClickHouse write onto the in-cluster
+    # server as well as Cloud.
+    #
+    # Dual writes come before the backfill, not after it. From the moment this
+    # is on, every new row reaches both servers, and the backfill then copies
+    # what was written before a stated cutoff. The other order leaves the rows
+    # written between the copy finishing and the mirror starting on Cloud
+    # alone, with nothing later looking for them.
+    #
+    # Cloud stays the system of record. Nothing reads the in-cluster server
+    # yet, so a mirrored write that fails costs a metric rather than a
+    # request: inserts are handed to a bounded Task.Supervisor instead of
+    # being awaited, and mutations stay synchronous so an
+    # `ALTER TABLE ... DELETE` cannot overtake the inserts it is meant to
+    # erase. Production writes an order of magnitude more than canary did, so
+    # expect the bound to be the thing under test here.
+    #
+    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
+    # settles with no `dropped` once the pods have started. A pod's shadow
+    # pool is not ready for the first seconds of its life, which is what the
+    # retry covers, and retrying is safe because every destination table is
+    # `Replicated*` and deduplicates identical insert blocks by checksum. The
+    # same property makes the two replicas behind one Service safe: an insert
+    # lands on whichever answers and reaches the other through replication.
+    #
+    # Note when the rollout of this deploy finishes. That instant is the
+    # backfill's `cutoff`.
+    #
+    # Rollback: turn it off. Nothing has read from that server.
+    shadowWrites:
+      enabled: true
+    # Off, because the clone has run here: 82 tables, 31 views, 278 migration
+    # versions, 11 materialized-view inner tables skipped, nothing failed, in
+    # 26 seconds. Each step is a post-upgrade hook, so leaving one enabled
+    # re-runs it on every deploy. That was harmless for the clone, which
+    # creates what is missing and leaves the rest alone, and it is not
+    # harmless for what comes next.
+    #
+    # `cutoff` stays unset until the backfill, which is the next step and the
+    # one that reads it.
+    migration:
+      enabled: false
+      name: schema-clone
+      task: Tuist.Release.clone_clickhouse_schema
 
   poolSize: "15"
   bufferPoolSize: "15"
@@ -832,10 +949,12 @@ kuraFleet:
 # allocatable memory, so 32 GB admits six enterprise accounts (two pods each at
 # 4096 MiB) while the 2x1 TB NVMe would hold eight.
 #
-# Every box in this fleet must be the same offer AND datacenter: Dedibox
-# adoption matches both exactly (FindAdoptableServer), unlike the ovhFleets
-# entries, which substring-match the offer and prefix-match the datacenter. A
-# box of any other shape is never adopted, and nothing reports why.
+# Every box in this fleet must be in the same datacenter: Dedibox adoption
+# matches the datacenter exactly (FindAdoptableServer), unlike the ovhFleets
+# entries, which prefix-match it. The offer is left unset, so the tag and the
+# datacenter scope adoption and the pool mixes Pro-9-XS and Pro-5-L boxes (same
+# EPYC 7281 and 2x1 TB NVMe). A box in any other datacenter is never adopted,
+# and nothing reports why.
 #
 # Raise replicas only once each box reports `installed`. Prep is
 # `PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox <server-id>`,
@@ -843,11 +962,11 @@ kuraFleet:
 # per-account project quota, then tags the box into the pool.
 dediboxFleet:
   enabled: true
-  # Two boxes: the original plus sd-184776 (DC5, delivered 2026-09-02).
-  replicas: 2
+  # Three boxes: the original plus sd-184776 (DC5, delivered 2026-09-02) and
+  # the Pro-5-L sd-148144 (DC5, delivered 2026-09-17).
+  replicas: 3
   machine:
     adoptTag: tuist-kura-production
-    offer: Pro-9-XS
     datacenter: DC5
     os: ubuntu_24.04
     # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
@@ -887,7 +1006,7 @@ vultrFleets:
   # region out of service without touching the box.
   us-central:
     enabled: true
-    replicas: 1
+    replicas: 2
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
@@ -988,7 +1107,12 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-east:
     enabled: true
-    replicas: 2
+    # Four boxes: three since 2026-09-11 plus ns1027689 (vin1, 2026-09-18). At
+    # two the region reserved 1292 GiB against an admission line of 1303 (85% of
+    # allocatable), so Admission refused every storage claim growth here — and a
+    # claim is account-scoped, so that refusal also blocked the regions the same
+    # accounts run in that did have room.
+    replicas: 4
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
@@ -1005,7 +1129,7 @@ ovhFleets:
       item: OVH_FLEET_SSH
   us-west:
     enabled: true
-    replicas: 1
+    replicas: 2
     endpoint: ovh-us
     nodePool: kura-us-west
     machine:
@@ -1077,11 +1201,13 @@ ovhFleets:
     # adopting it. Growing the fleet is `baremetal:prep-ovh` on each new box,
     # then this number.
     #
-    # Six boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
-    # chart's 1 vCPU / 4 GB slot size, so 192 in total. Slots and threads are 1:1
+    # Ten boxes carry the Linux runner fleet: 128 GB each is 32 slots at the
+    # chart's 1 vCPU / 4 GB slot size, so 320 in total. Slots and threads are 1:1
     # on this shape, so there is no oversubscription headroom to absorb a burst;
-    # capacity grows by box count rather than by packing slots tighter.
-    replicas: 6
+    # capacity grows by box count rather than by packing slots tighter. A box
+    # seats at most one 16 vCPU Pod, so the box count is also the ceiling on
+    # concurrent 16 vCPU jobs.
+    replicas: 10
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
@@ -1153,57 +1279,50 @@ macosFleet:
   runnerCacheVolume:
     gib: 80
     # Fold the Xcode compilation cache (CAS) into the per-account image.
-    # masterCapGib is the sparse per-master ceiling; of it the CAS gets casGib,
-    # the binary cache the rest minus a ~2 GiB reserve. A typical binary master
-    # is ~2.4 GB, so the ~7 GiB binary budget still holds ~3x headroom while the
-    # CAS rides the same clone/promote/converge path. The guest is fail-safe: a
+    # masterCapGib is the capacity of every cache image: the room a job has.
+    # The image is sparse, so capacity costs nothing on the host until written,
+    # and teardown compacts the image it promotes, so a master takes on the host
+    # what it holds. A master created at a smaller cap is grown to this one when
+    # the host next installs it, at its account's next promote or convergence.
+    #
+    # Inside the image the two caches share one budget, the cap less a
+    # reserve of max(2 GiB, 20% of the cap): 24 GiB at 30, and 6 GiB of room a
+    # job always starts with before anything prunes. The guest divides the
+    # budget by what each cache holds, at attach and again at teardown, so an
+    # account that barely uses one cache leaves its share to the other, and a
+    # cache that holds nothing yet keeps 2 GiB to grow from. The compiler is
+    # given the compilation cache's limit whole as COMPILATION_CACHE_LIMIT_SIZE:
+    # llcas and the teardown prune rotate a store once its primary passes half
+    # of it, so it already covers both generations. The guest is fail-safe: a
     # store it cannot write falls back to a VM-local cold compilation cache, so
     # a bad budget costs warmth, not the job.
     #
-    # casGib is what the store may OCCUPY, not the limit the compiler is given:
-    # that is half of it, because llcas keeps a primary generation plus the
-    # demoted upstream that is still the warm cache. 11 here is 5.5 GiB per
-    # generation, and 11 + 7 + 2 reserve is the 20 GiB cap exactly.
+    # casGib turns the compilation cache on. It also sets the fixed split that
+    # runner images older than the division by use still apply, 14 GiB for the
+    # compilation cache and 10 GiB for the binary cache, because tart-kubelet
+    # and the runner image roll out separately.
     #
-    # Before that halving the compiler was handed the whole 11 GiB per
-    # generation, so a correctly pruning store wanted ~22 GiB inside a 20 GiB
-    # image — which is what the measured masters showed (17-18 GB of CAS against
-    # a 2.2 GB binary cache) and why this account's volume filled every ~2 days.
-    # Raising masterCapGib is NOT the alternative fix; see the admission
-    # arithmetic below.
+    # The cap is bounded by admission and the evictor, not by taste. Admission
+    # reserves the cap for every branch running a job, and a branch is reserved
+    # when it is materialized for one, not at VM boot. The evictor keeps
+    # 1.2 x cap free. Masters count at what they hold, so on this 80 GiB volume
+    # a cap of 30 leaves 44 GiB for masters: one account near its 24 GiB of
+    # limits beside several small ones, or around 14 accounts of 3 GiB. One job
+    # growing to the cap still leaves 50 GiB, and two overlapping ones 20.
     #
-    # The cap is bounded by admission, not by taste. Admission reserves
-    # masterCapGib for the branch it is admitting plus every branch already
-    # live, so with B branches already held the resident masters that survive
-    # are gib/cap - (B+1). A host runs one job VM, but a branch is reserved at
-    # VM BOOT rather than at dispatch, so a booted warm standby holds one too:
-    # B is 0 or 1 depending on the pool. At cap 28 that leaves 1 or 0 masters —
-    # which is what the fleet showed, hosts flapping between one master and
-    # none, and warm materializes at ~18%. At cap 20 it leaves 3 or 2. Either
-    # covers the account set with dispatch affinity scoring on residency.
-    #
-    # Raising gib is NOT the alternative fix. Masters that survive scale as
-    # gib/cap, so holding 3 at cap 28 needs gib 140, which raises the volume's
-    # PEAK claim on the shared boot container by 60 GiB. There is no room for
-    # that: the container is 460 GiB with ~330 GiB free idle, but a single job
-    # VM's CoW growth transiently takes it to 42-61 GiB, and the volume already
-    # reaches its 80 GiB quota (observed down to 0.5 GiB free). Restoring
-    # residents raises the volume's sustained floor, not that peak, which is
-    # why it fits where a bigger quota would not. gib also needs a host
-    # replacement (the provisioning script never resizes), while cap is an
-    # operator flag that rolls in place, so cap is the tunable one.
-    #
-    # If the tail ever does starve job VMs, lower gib rather than raising cap:
-    # masters fill to roughly gib - cap, so a smaller cap yields MORE total
-    # master bytes. gib is the footprint lever, cap is the master-count lever.
+    # Raising gib is NOT the alternative. The volume shares the Mac's 460 GiB
+    # disk with the goldens and the job VMs, and a job VM's own writes take the
+    # disk's free space down to 40-57 GiB (7 days to 2026-09-18). A bigger
+    # volume, once full, lowers that floor by the same amount. gib also needs a
+    # host replacement, because the provisioning script never resizes.
     #
     # Retuning either value changes how many accounts a host keeps hot, and
     # therefore how often dispatch can place a job warm. Nothing needs to be
     # kept in sync for that: the host advertises the masters it actually holds
     # as Node labels and the server reads them, so this arithmetic bounds the
     # fleet's behaviour without also being a number the server has to be told.
-    masterCapGib: 20
-    casGib: 11
+    masterCapGib: 30
+    casGib: 14
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
@@ -1426,12 +1545,11 @@ runnersFleet:
         # across all 15 macOS Nodes.
         maxPods: 5
         guestCapacity: 2
-        # 240 GiB against the M2-L's 80. Not a nicety — at 80 the dual
-        # guest host would hold FEWER hot accounts than a single-guest
-        # M2-L does today. Resident masters are `gib/masterCapGib -
-        # (liveBranches + 1)` and a branch is reserved at VM boot, so
-        # two guests means liveBranches reaches 2: at 80/20 that is
-        # 4 - 3 = 1 master, or 0. At 240/20 it is 12 - 3 = 9.
+        # 240 GiB against the M2-L's 80. Not a nicety: admission reserves
+        # masterCapGib for every branch running a job, and two guests run
+        # two, so at 80 GiB and a 30 GiB cap only 20 GiB would be left for
+        # masters. At 240 GiB it is 180 GiB, with masters counted at what
+        # they hold.
         #
         # The M2-L cannot simply be raised to match; that is the point
         # of the SKU. Its 460 GiB container has ~330 GiB free idle and
@@ -1549,10 +1667,12 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -1573,6 +1693,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 14
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 14
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -1636,6 +1761,16 @@ runnersController:
 # `/api/internal/runners/desired_replicas` rolling-P95 signal.
 runnersFleetLinux:
   enabled: true
+  # Converge existing and replacement hosts through the normal deployment.
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
+    maxSlots: 100
+    minFreeGB: 40
+    volumeGB: 20
+    provisioning:
+      enabled: true
+      sizeGB: 200
   name: runners-linux
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
@@ -1718,7 +1853,22 @@ runnersFleetLinux:
     # and 4 GB/vCPU, and kata pins guest RAM (request == limit == the
     # shape), so memory reservation is what runs out on this fleet while
     # CPU does not. This rung is bought for memory and priced for it.
-    - { vcpus: 16, memoryGb: 64 }
+    #
+    # Warm floor 1, unlike every other long-tail shape. This Pod needs a
+    # contiguous 16,250m / 66.5 GiB, which is 52% of a RISE-L's CPU and
+    # 57% of its memory, so at floor 0 each arrival waits for that hole
+    # to be manufactured by draining a host. The drain cannot converge
+    # here: `reservationTimeout` is 15m and the `16vcpu-32gb` jobs it
+    # queues behind run a p50 of 28m, so the reservation expires and the
+    # node then rests for `reservationCooldown`. Production 2026-09-11
+    # spent 36 minutes queued that way with the fleet at 88% committed
+    # and the account 96 GB under its own limit. Holding one Pod costs
+    # the same 66.5 GiB continuously and removes both the cold start and
+    # the drain, against ~4 jobs/day at a 46-minute median.
+    - vcpus: 16
+      memoryGb: 64
+      autoscaling:
+        minWarmPoolFloor: 1
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

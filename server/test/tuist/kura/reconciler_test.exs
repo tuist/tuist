@@ -5,9 +5,11 @@ defmodule Tuist.Kura.ReconcilerTest do
   alias Tuist.Accounts
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Identity
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Workers.AwaitActivationWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -178,6 +180,19 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     assert %Deployment{status: :running} =
              Repo.get_by!(Deployment, kura_server_id: server.id, image_tag: "sha-abcdef123456")
+
+    # A rollout reaches the whole fleet at once; the minute tick activates it.
+    refute_enqueued(worker: AwaitActivationWorker)
+  end
+
+  test "checks a provisioning server's activation every second once its deployment is applied" do
+    {_account, server, _deployment} = create_server()
+    stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+    stub(Provisioner, :rollout, fn _server, _inputs -> :ok end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert_enqueued(worker: AwaitActivationWorker, args: %{"server_id" => server.id})
   end
 
   test "reapplies a succeeded server when the backing KuraInstance is missing" do
@@ -376,6 +391,61 @@ defmodule Tuist.Kura.ReconcilerTest do
     expect(Provisioner, :rollout, fn %Server{id: id, storage_claim_size: claim}, _inputs ->
       assert id == server.id
       assert claim == "24Gi"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
+  test "already-renamed endpoints stay put until per-account migration is enabled" do
+    {original, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    server = server |> Ecto.Changeset.change(region: "eu-west") |> Repo.update!()
+    mark_deployment_succeeded(deployment)
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: original})
+    {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    Repo.query!("UPDATE account_handle_reservations SET client_url_expires_at = now() WHERE name = $1", [original.name])
+
+    stub(Provisioner, :public_url, fn account, server -> call_original(Provisioner, :public_url, [account, server]) end)
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+    stub(Provisioner, :rollout, fn _, _ -> flunk("migration must not apply while disabled") end)
+    reject(&Kura.activate_server/2)
+
+    assert :ok = Reconciler.reconcile()
+    assert Repo.get!(Server, server.id).public_host_drift_observed_at == nil
+    assert Kura.managed_cache_endpoint_urls(account) == [server.url]
+
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: account)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+    # Opt-in schedules host publication through the existing readiness hold;
+    # it does not immediately expose an unverified URL to discovery.
+    assert %DateTime{} = Repo.get!(Server, server.id).public_host_drift_observed_at
+    assert Kura.managed_cache_endpoint_urls(account) == [server.url]
+  end
+
+  test "the ordinary reconciliation tick withdraws expired URLs without an image change" do
+    {original, server, deployment} = create_server()
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: original)
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: account})
+    Repo.query!("UPDATE account_handle_reservations SET client_url_expires_at = now() WHERE name = $1", [original.name])
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      assert Identity.client_handles(inputs.account) == [account.name]
       :ok
     end)
 
@@ -1056,6 +1126,83 @@ defmodule Tuist.Kura.ReconcilerTest do
     stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
 
     server
+  end
+
+  describe "reconcile_server/1" do
+    test "applies one server's open deployment without waiting for the tick" do
+      {_account, server, deployment} = create_server()
+
+      expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, nil}
+      end)
+
+      expect(Provisioner, :rollout, fn %Server{id: id}, %{image_tag: image_tag} ->
+        assert id == server.id
+        assert image_tag == deployment.image_tag
+        :ok
+      end)
+
+      assert :ok = Reconciler.reconcile_server(server)
+
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "does nothing when this process is not the Kura control plane" do
+      stub(Tuist.Environment, :kura_control_plane?, fn -> false end)
+      {_account, server, _deployment} = create_server()
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :ok = Reconciler.reconcile_server(server)
+    end
+  end
+
+  describe "activate_when_ready/1" do
+    test "activates the server once the controller reports its deployment's image" do
+      {_account, server, deployment} = create_server()
+
+      expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, deployment.image_tag}
+      end)
+
+      assert :done = Reconciler.activate_when_ready(server.id)
+
+      assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+      assert %Server{status: :active} = Repo.get!(Server, server.id)
+    end
+
+    test "keeps waiting, without re-applying, while the controller is still starting the pods" do
+      {_account, server, deployment} = create_server()
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, nil} end)
+      reject(&Provisioner.rollout/2)
+
+      assert {:waiting, %Deployment{id: id}} = Reconciler.activate_when_ready(server.id)
+      assert id == deployment.id
+    end
+
+    test "keeps waiting while the endpoint does not answer yet" do
+      {account, server, deployment} = create_server()
+      {:ok, _deployment} = Kura.mark_running(deployment)
+      stub_unready_public_endpoint(account, server)
+
+      assert {:waiting, _deployment} = Reconciler.activate_when_ready(server.id)
+      assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
+    end
+
+    test "has nothing to wait for once the server is gone" do
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :done = Reconciler.activate_when_ready(UUIDv7.generate())
+    end
+
+    test "has nothing to wait for once the deployment is closed" do
+      {_account, server, deployment} = create_server()
+      mark_deployment_succeeded(deployment)
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :done = Reconciler.activate_when_ready(server.id)
+    end
   end
 
   defp create_server do

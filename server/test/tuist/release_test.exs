@@ -1,7 +1,51 @@
 defmodule Tuist.ReleaseTest do
   use ExUnit.Case, async: true
+  use Mimic
 
+  alias Tuist.ClickHouse.Parity
   alias Tuist.Release
+
+  describe "check_clickhouse_parity/0" do
+    setup do
+      stub(System, :put_env, fn _key, _value -> :ok end)
+      stub(Tuist.Environment, :migration_database_url, fn -> nil end)
+      :ok
+    end
+
+    defp parity_report(migrations) do
+      %{
+        compared: 2,
+        skipped: [],
+        matching: ["build_runs", "test_case_runs"],
+        differing: [],
+        schema: %{missing_on_destination: [], missing_on_source: [], differing_columns: []},
+        migrations: migrations,
+        derived: %{compared: 0, matching: [], differing: []}
+      }
+    end
+
+    test "passes when the migration ledgers hold the same versions" do
+      stub(Parity, :compare, fn -> {:ok, parity_report(%{missing_on_destination: [], only_on_destination: []})} end)
+
+      assert Release.check_clickhouse_parity() == :ok
+    end
+
+    test "raises when the destination's ledger is missing a version" do
+      stub(Parity, :compare, fn ->
+        {:ok, parity_report(%{missing_on_destination: [20_260_910_150_000], only_on_destination: []})}
+      end)
+
+      assert_raise RuntimeError, ~r/schema_migrations.*20260910150000/, fn -> Release.check_clickhouse_parity() end
+    end
+
+    test "raises when the destination's ledger has a version the source does not" do
+      stub(Parity, :compare, fn ->
+        {:ok, parity_report(%{missing_on_destination: [], only_on_destination: [20_260_912_090_000]})}
+      end)
+
+      assert_raise RuntimeError, ~r/schema_migrations.*20260912090000/, fn -> Release.check_clickhouse_parity() end
+    end
+  end
 
   describe "ops_clickhouse_reconciliation_queries/4" do
     test "resets privileges and converges the restricted role and user" do
@@ -25,9 +69,9 @@ defmodule Tuist.ReleaseTest do
                  max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
                  max_rows_to_read = 100000000 MIN 1 MAX 100000000,
                  max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
-                 max_result_rows = 201 MIN 1 MAX 201,
+                 max_result_rows = 10001 MIN 1 MAX 10001,
                  max_result_bytes = 5242880 MIN 1 MAX 5242880,
-                 max_block_size = 201 MIN 1 MAX 201,
+                 max_block_size = 10001 MIN 1 MAX 10001,
                  max_threads = 2 MIN 1 MAX 2
                """,
                "GRANT SELECT ON `tuist`.* TO `tuist_ops_readonly`",
@@ -142,11 +186,13 @@ defmodule Tuist.ReleaseTest do
 
       assert Release.processor_role_grant_statements(role, database, schema) == [
                ~s(REVOKE ALL ON ALL TABLES IN SCHEMA "public" FROM "tuist_processor"),
+               ~s|REVOKE ALL (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads FROM "tuist_processor"|,
                ~s(GRANT CONNECT ON DATABASE "tuist" TO "tuist_processor"),
                ~s(GRANT USAGE ON SCHEMA "public" TO "tuist_processor"),
                ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers, "public".test_case_run_flaky_corrections, "public".bazel_test_invocations, "public".bazel_test_results, "public".bazel_test_summaries TO "tuist_processor"),
                ~s(GRANT USAGE, SELECT ON SEQUENCE "public".oban_jobs_id_seq TO "tuist_processor"),
-               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags TO "tuist_processor")
+               ~s(GRANT SELECT ON TABLE "public".accounts, "public".projects, "public".automation_alerts, "public".webhook_endpoints, "public".feature_flags TO "tuist_processor"),
+               ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE "public".bazel_profile_uploads TO "tuist_processor"|
              ]
     end
 
@@ -166,6 +212,12 @@ defmodule Tuist.ReleaseTest do
                ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers, :"tuist_schema".test_case_run_flaky_corrections, :"tuist_schema".bazel_test_invocations, :"tuist_schema".bazel_test_results, :"tuist_schema".bazel_test_summaries TO tuist_processor;)
 
       assert sql =~ ~s(REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_processor;)
+
+      assert sql =~
+               ~s|REVOKE ALL (compressed, state, error, updated_at) ON TABLE :"tuist_schema".bazel_profile_uploads FROM tuist_processor;|
+
+      assert sql =~
+               ~s|GRANT SELECT, UPDATE (compressed, state, error, updated_at) ON TABLE :"tuist_schema".bazel_profile_uploads TO tuist_processor;|
     end
   end
 

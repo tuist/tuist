@@ -8,19 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
-// Minimal subset of the Remote Execution API (REAPI) Capabilities service.
-//
-// It is vendored solely so the CLI can probe a remote cache endpoint with the
-// same GetCapabilities handshake Bazel performs on start-up. Only the pieces
-// required to issue the request and confirm a successful response are declared:
-// the package, service name and method name match the upstream REAPI exactly so
-// the wire path resolves to "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities".
-//
-// ServerCapabilities is intentionally left empty. proto3 ignores unknown fields
-// on decode, so the probe can decode whatever the server returns while only
-// needing to confirm the call completes without a gRPC error.
-//
-// Upstream: https://github.com/bazelbuild/remote-apis/blob/main/build/bazel/remote/execution/v2/remote_execution.proto
+// Wire-compatible REAPI capability fields used for module-cache negotiation.
 
 import SwiftProtobuf
 
@@ -34,7 +22,6 @@ private struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAPIVer
     typealias Version = _2
 }
 
-/// A request message for Capabilities.GetCapabilities.
 public struct Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -51,13 +38,64 @@ public struct Build_Bazel_Remote_Execution_V2_GetCapabilitiesRequest: Sendable {
     public init() {}
 }
 
-/// A response message for Capabilities.GetCapabilities. Left empty on purpose:
-/// the probe only needs to confirm the server responds successfully, not to
-/// inspect the advertised capabilities.
 public struct Build_Bazel_Remote_Execution_V2_ServerCapabilities: Sendable {
     // SwiftProtobuf.Message conformance is added in an extension below. See the
     // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
     // methods supported on all messages.
+
+    public var cacheCapabilities: Build_Bazel_Remote_Execution_V2_CacheCapabilities {
+        get { _cacheCapabilities ?? Build_Bazel_Remote_Execution_V2_CacheCapabilities() }
+        set { _cacheCapabilities = newValue }
+    }
+
+    /// Returns true if `cacheCapabilities` has been explicitly set.
+    public var hasCacheCapabilities: Bool { _cacheCapabilities != nil }
+    /// Clears the value of `cacheCapabilities`. Subsequent reads from it will return its default value.
+    public mutating func clearCacheCapabilities() { _cacheCapabilities = nil }
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+
+    fileprivate var _cacheCapabilities: Build_Bazel_Remote_Execution_V2_CacheCapabilities?
+}
+
+public struct Build_Bazel_Remote_Execution_V2_CacheCapabilities: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var digestFunctions: [Build_Bazel_Remote_Execution_V2_DigestFunction.Value] = []
+
+    public var actionCacheUpdateCapabilities: Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities {
+        get { _actionCacheUpdateCapabilities ?? Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities() }
+        set { _actionCacheUpdateCapabilities = newValue }
+    }
+
+    /// Returns true if `actionCacheUpdateCapabilities` has been explicitly set.
+    public var hasActionCacheUpdateCapabilities: Bool { _actionCacheUpdateCapabilities != nil }
+    /// Clears the value of `actionCacheUpdateCapabilities`. Subsequent reads from it will return its default value.
+    public mutating func clearActionCacheUpdateCapabilities() { _actionCacheUpdateCapabilities = nil }
+
+    public var maxBatchTotalSizeBytes: Int64 = 0
+
+    public var supportedCompressors: [Build_Bazel_Remote_Execution_V2_Compressor.Value] = []
+
+    public var supportedBatchUpdateCompressors: [Build_Bazel_Remote_Execution_V2_Compressor.Value] = []
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+
+    fileprivate var _actionCacheUpdateCapabilities: Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities?
+}
+
+public struct Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var updateEnabled: Bool = false
 
     public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -107,14 +145,28 @@ extension Build_Bazel_Remote_Execution_V2_ServerCapabilities: SwiftProtobuf.Mess
     SwiftProtobuf._ProtoNameProviding
 {
     public static let protoMessageName: String = _protobuf_package + ".ServerCapabilities"
-    public static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}cache_capabilities\0")
 
     public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
-        // Load everything into unknown fields
-        while try decoder.nextFieldNumber() != nil {}
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeSingularMessageField(value: &_cacheCapabilities)
+            default: break
+            }
+        }
     }
 
     public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every if/case branch local when no optimizations
+        // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+        // https://github.com/apple/swift-protobuf/issues/1182
+        if let v = _cacheCapabilities {
+            try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+        }
         try unknownFields.traverse(visitor: &visitor)
     }
 
@@ -122,6 +174,104 @@ extension Build_Bazel_Remote_Execution_V2_ServerCapabilities: SwiftProtobuf.Mess
         lhs: Build_Bazel_Remote_Execution_V2_ServerCapabilities,
         rhs: Build_Bazel_Remote_Execution_V2_ServerCapabilities
     ) -> Bool {
+        if lhs._cacheCapabilities != rhs._cacheCapabilities { return false }
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_CacheCapabilities: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase,
+    SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".CacheCapabilities"
+    public static let _protobuf_nameMap = SwiftProtobuf
+        ._NameMap(
+            bytecode: "\0\u{3}digest_functions\0\u{3}action_cache_update_capabilities\0\u{4}\u{2}max_batch_total_size_bytes\0\u{4}\u{2}supported_compressors\0\u{3}supported_batch_update_compressors\0"
+        )
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeRepeatedEnumField(value: &digestFunctions)
+            case 2: try decoder.decodeSingularMessageField(value: &_actionCacheUpdateCapabilities)
+            case 4: try decoder.decodeSingularInt64Field(value: &maxBatchTotalSizeBytes)
+            case 6: try decoder.decodeRepeatedEnumField(value: &supportedCompressors)
+            case 7: try decoder.decodeRepeatedEnumField(value: &supportedBatchUpdateCompressors)
+            default: break
+            }
+        }
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every if/case branch local when no optimizations
+        // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+        // https://github.com/apple/swift-protobuf/issues/1182
+        if !digestFunctions.isEmpty {
+            try visitor.visitPackedEnumField(value: digestFunctions, fieldNumber: 1)
+        }
+        try { if let v = self._actionCacheUpdateCapabilities {
+            try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+        } }()
+        if maxBatchTotalSizeBytes != 0 {
+            try visitor.visitSingularInt64Field(value: maxBatchTotalSizeBytes, fieldNumber: 4)
+        }
+        if !supportedCompressors.isEmpty {
+            try visitor.visitPackedEnumField(value: supportedCompressors, fieldNumber: 6)
+        }
+        if !supportedBatchUpdateCompressors.isEmpty {
+            try visitor.visitPackedEnumField(value: supportedBatchUpdateCompressors, fieldNumber: 7)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_CacheCapabilities,
+        rhs: Build_Bazel_Remote_Execution_V2_CacheCapabilities
+    ) -> Bool {
+        if lhs.digestFunctions != rhs.digestFunctions { return false }
+        if lhs._actionCacheUpdateCapabilities != rhs._actionCacheUpdateCapabilities { return false }
+        if lhs.maxBatchTotalSizeBytes != rhs.maxBatchTotalSizeBytes { return false }
+        if lhs.supportedCompressors != rhs.supportedCompressors { return false }
+        if lhs.supportedBatchUpdateCompressors != rhs.supportedBatchUpdateCompressors { return false }
+        if lhs.unknownFields != rhs.unknownFields { return false }
+        return true
+    }
+}
+
+extension Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities: SwiftProtobuf.Message,
+    SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding
+{
+    public static let protoMessageName: String = _protobuf_package + ".ActionCacheUpdateCapabilities"
+    public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}update_enabled\0")
+
+    public mutating func decodeMessage(decoder: inout some SwiftProtobuf.Decoder) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            // The use of inline closures is to circumvent an issue where the compiler
+            // allocates stack space for every case branch when no optimizations are
+            // enabled. https://github.com/apple/swift-protobuf/issues/1034
+            switch fieldNumber {
+            case 1: try decoder.decodeSingularBoolField(value: &updateEnabled)
+            default: break
+            }
+        }
+    }
+
+    public func traverse(visitor: inout some SwiftProtobuf.Visitor) throws {
+        if updateEnabled != false {
+            try visitor.visitSingularBoolField(value: updateEnabled, fieldNumber: 1)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    public static func == (
+        lhs: Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities,
+        rhs: Build_Bazel_Remote_Execution_V2_ActionCacheUpdateCapabilities
+    ) -> Bool {
+        if lhs.updateEnabled != rhs.updateEnabled { return false }
         if lhs.unknownFields != rhs.unknownFields { return false }
         return true
     }

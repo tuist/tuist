@@ -44,8 +44,6 @@ const PEERS_PATH: &str = "/_internal/kura/mesh/peers";
 const KURA_MESH_PEERS_SYNC: &str = "KURA_MESH_PEERS_SYNC";
 
 const DEFAULT_INTERVAL_MS: u64 = 60_000;
-const CONNECT_TIMEOUT: Duration = Duration::from_millis(1_000);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 // Recovery re-enrollments mint fresh certificates; the backoff keeps a
 // persistent `mesh_member: false` (control-plane bug, clock skew) from
 // becoming a per-minute signing loop while staying well inside the server's
@@ -120,6 +118,12 @@ struct MeshHeartbeat<'a> {
 
 #[derive(Deserialize)]
 struct MeshHeartbeatResponse {
+    #[serde(default)]
+    account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
     // Deliberately NOT defaulted: `false` is the destructive value (it
     // triggers a recovery re-enrollment, which mints fresh certificates), so
     // a response that merely lacks the field — shape drift, an intermediary
@@ -133,21 +137,22 @@ struct MeshHeartbeatResponse {
     /// Roles beside the peer list (design §2.2); an older server sends none.
     #[serde(default)]
     peer_roles: Vec<PublishedRole>,
-    /// The account's pull flag (design §5.2); an older server sends none.
-    #[serde(default)]
-    replication_pull: Option<bool>,
 }
 
 #[derive(Deserialize)]
 struct MeshPeersResponse {
+    #[serde(default)]
+    account_handle: Option<String>,
+    #[serde(default)]
+    account_aliases: Option<Vec<String>>,
+    #[serde(default)]
+    endpoint_redirects: Option<std::collections::BTreeMap<String, String>>,
     #[serde(default)]
     peers: Vec<String>,
     #[serde(default)]
     refresh_interval_seconds: Option<u64>,
     #[serde(default)]
     peer_roles: Vec<PublishedRole>,
-    #[serde(default)]
-    replication_pull: Option<bool>,
 }
 
 pub fn spawn(state: SharedState, config: MeshHeartbeatConfig) {
@@ -185,8 +190,13 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
                         "mesh heartbeat recovered"
                     );
                 }
+                state.update_account_identity(
+                    payload.account_handle.as_deref(),
+                    payload.account_aliases.as_deref(),
+                    payload.endpoint_redirects.as_ref(),
+                );
                 apply_peers(&state, payload.peers).await;
-                apply_roles(&state, payload.peer_roles, payload.replication_pull).await;
+                apply_roles(&state, payload.peer_roles);
                 if !payload.mesh_member {
                     maybe_recover_membership(&state, &mut recovery).await;
                 } else {
@@ -233,8 +243,13 @@ async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
                         "mesh peer synchronization recovered"
                     );
                 }
+                state.update_account_identity(
+                    payload.account_handle.as_deref(),
+                    payload.account_aliases.as_deref(),
+                    payload.endpoint_redirects.as_ref(),
+                );
                 apply_peers(&state, payload.peers).await;
-                apply_roles(&state, payload.peer_roles, payload.replication_pull).await;
+                apply_roles(&state, payload.peer_roles);
                 // First successful fetch lifts the boot serving gate.
                 state.runtime.mark_peer_view_ready();
                 state.maybe_mark_serving().await;
@@ -336,7 +351,6 @@ async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBa
     match crate::enrollment::renew().await {
         Ok(outcome) => match crate::app::apply_renewed_enrollment(state, &outcome).await {
             Ok(()) => {
-                state.backfill.rearm_after_mesh_rejoin();
                 // The backoff is deliberately NOT reset here: recovery is
                 // only proven by a later heartbeat answering
                 // `mesh_member: true` (which resets it in the run loop). A
@@ -393,29 +407,16 @@ async fn apply_peers(state: &SharedState, mut peers: Vec<String>) {
             peers.len()
         );
         state.dynamic_peers.store(std::sync::Arc::new(peers));
-        state.rebuild_replication_targets().await;
     }
 }
 
-/// Adopts the control plane's roles and its account pull flag. The flag can
-/// only add to the node's own configuration: `KURA_REPLICATION_PULL=true`
-/// stays on whatever the server says, so an operator can flip a node the
-/// server does not know about.
-async fn apply_roles(
-    state: &SharedState,
-    mut roles: Vec<PublishedRole>,
-    replication_pull: Option<bool>,
-) {
+/// Adopts the control plane's roles.
+fn apply_roles(state: &SharedState, mut roles: Vec<PublishedRole>) {
     roles.sort_by(|a, b| a.url.cmp(&b.url));
     let current = state.published_roles.load();
     if **current != roles {
         info!("mesh peer roles updated: {} role(s)", roles.len());
         state.published_roles.store(std::sync::Arc::new(roles));
-    }
-    let pull = state.config.replication_pull || replication_pull.unwrap_or(false);
-    if state.set_replication_pull(pull) {
-        info!(pull, "replication pull flag changed by the control plane");
-        state.rebuild_replication_targets().await;
     }
 }
 
@@ -427,9 +428,7 @@ fn basic_auth(client_id: &str, client_secret: &str) -> String {
 }
 
 fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(REQUEST_TIMEOUT)
+    crate::control_plane_http::client_builder()
         .build()
         .expect("mesh heartbeat HTTP client should build")
 }
@@ -438,6 +437,52 @@ fn http_client() -> reqwest::Client {
 mod tests {
     use super::*;
     use crate::test_support::test_context;
+
+    #[tokio::test]
+    async fn managed_sync_learns_auth_handle_without_changing_the_storage_tenant() {
+        use axum::{Json, Router, extract::Query, routing::get};
+        use std::collections::HashMap;
+
+        let ctx = test_context(|config| config.tenant_id = "original".into()).await;
+        ctx.state.runtime.require_peer_view();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route(
+                    PEERS_PATH,
+                    get(|Query(query): Query<HashMap<String, String>>| async move {
+                        assert_eq!(query.get("tenant_id").unwrap(), "original");
+                        Json(serde_json::json!({"account_handle": "renamed", "peers": []}))
+                    }),
+                ),
+            )
+            .await
+            .unwrap();
+        });
+        let sync = tokio::spawn(run_peers_sync(
+            ctx.state.clone(),
+            MeshPeersSyncConfig {
+                peers_url: format!("http://{address}{PEERS_PATH}"),
+                client_id: "test-client".into(),
+                client_secret: "test-secret".into(),
+                tenant_id: "original".into(),
+                interval: Duration::from_secs(60),
+            },
+        ));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while ctx.state.runtime.peer_view_pending() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(ctx.state.account_identity.load().handle.as_str(), "renamed");
+        assert_eq!(ctx.state.config.tenant_id, "original");
+        sync.abort();
+        server.abort();
+    }
 
     #[tokio::test]
     async fn apply_peers_swaps_dynamic_peers_only_on_change() {
@@ -515,7 +560,6 @@ mod tests {
         assert!(!ctx.state.runtime.is_serving());
 
         ctx.state.runtime.mark_peer_view_ready();
-        crate::test_support::settle_empty_backfill_cycle(&ctx.state);
         ctx.state.maybe_mark_serving().await;
         assert!(ctx.state.runtime.is_serving());
     }

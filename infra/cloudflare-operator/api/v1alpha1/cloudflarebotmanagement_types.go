@@ -50,6 +50,16 @@ type CloudflareBotManagementSpec struct {
 	// +kubebuilder:default=false
 	Paused bool `json:"paused,omitempty"`
 
+	// DependsOn defers reconciliation until the referenced resource
+	// reports Ready=True. Nil means no gate — the reconciler runs
+	// every pass on its own timeline. This is how the SBFM flip is
+	// pinned behind the skip-on-API-paths custom rule: without the
+	// skip in place first, "definitely automated" gets served
+	// challenges on CI-driven POSTs to /api/*, which the CLI parses as
+	// unexpected HTML and fails. See
+	// infra/flux/cloudflare-config/bot-management.yaml.
+	DependsOn *ResourceRef `json:"dependsOn,omitempty"`
+
 	// BotFightMode covers Cloudflare's Bot Fight Mode tier (the free
 	// JS-challenge bot detection). Nil means the operator does not
 	// manage any Bot Fight Mode field on this zone.
@@ -74,11 +84,6 @@ type BotFightModeSpec struct {
 	// Cloudflare would otherwise attach to requests. Rarely toggled;
 	// modeled so an adopted state round-trips cleanly.
 	SuppressSessionScore *bool `json:"suppressSessionScore,omitempty"`
-
-	// UsingLatestModel opts the zone into Cloudflare's latest bot
-	// detection model. Reported by the API on read; can be set on
-	// write to keep the zone on the current model.
-	UsingLatestModel *bool `json:"usingLatestModel,omitempty"`
 }
 
 // SuperBotFightModeSpec models Super Bot Fight Mode (Business+).
@@ -108,6 +113,34 @@ type SuperBotFightModeSpec struct {
 	// OptimizeWordpress applies WordPress-specific bot-protection
 	// tweaks. Corresponds to the API field optimize_wordpress.
 	OptimizeWordpress *bool `json:"optimizeWordpress,omitempty"`
+}
+
+// ResourceRef points at another cloudflare-operator CR by kind + name.
+// Namespace is intentionally not modeled: all cloudflare-operator CRs
+// are cluster-scoped, so the pair (kind, name) is a unique identifier
+// in the API server.
+//
+// The kinds this reference can point at are enforced by the CRD's
+// enum; keep this list in sync with each CRD that embeds a ResourceRef.
+type ResourceRef struct {
+	// Kind of the referenced resource. Must be a cloudflare-operator
+	// CR kind; the CRD schema validates the value.
+	// +kubebuilder:validation:Enum=CloudflareCustomRule;CloudflareRateLimit;CloudflareBotManagement
+	Kind string `json:"kind"`
+
+	// Name of the referenced resource (cluster-scoped).
+	Name string `json:"name"`
+}
+
+func (in *ResourceRef) DeepCopyInto(out *ResourceRef) { *out = *in }
+
+func (in *ResourceRef) DeepCopy() *ResourceRef {
+	if in == nil {
+		return nil
+	}
+	o := new(ResourceRef)
+	in.DeepCopyInto(o)
+	return o
 }
 
 // CloudflareBotManagementStatus reports the last reconcile outcome.
@@ -197,10 +230,6 @@ func (in *BotFightModeSpec) DeepCopyInto(out *BotFightModeSpec) {
 		v := *in.SuppressSessionScore
 		out.SuppressSessionScore = &v
 	}
-	if in.UsingLatestModel != nil {
-		v := *in.UsingLatestModel
-		out.UsingLatestModel = &v
-	}
 }
 
 func (in *BotFightModeSpec) DeepCopy() *BotFightModeSpec {
@@ -240,6 +269,9 @@ func (in *CloudflareBotManagementSpec) DeepCopyInto(out *CloudflareBotManagement
 	}
 	if in.SuperBotFightMode != nil {
 		out.SuperBotFightMode = in.SuperBotFightMode.DeepCopy()
+	}
+	if in.DependsOn != nil {
+		out.DependsOn = in.DependsOn.DeepCopy()
 	}
 }
 

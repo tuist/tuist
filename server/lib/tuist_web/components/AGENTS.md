@@ -3,6 +3,7 @@
 This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
+- `GoogleOneTap` shares the protected credential form and configuration gates between marketing pages and login/sign-up LiveViews. It supports static mounting and LiveView lifecycle hooks.
 - Widget legends and breakdown dots support amber for aggregate cache misses (All), distinct from individual miss-category colors using the existing amber chart token.
 - Build timeline machine tracks form a responsive 2×2 grid above the step workspace. Each plot has its own ruler, cursor and focus region, synchronized to the same time range. The inspector and resize divider align with the top of the step chart section, including its controls, and share that section’s height. Step search and the legend sit directly above the step lanes, below machine metrics. The step skeleton and download failure state must leave already-loaded metrics visible.
 - Pass the build source to the shared timeline. Bazel uses a full-width CPU chart above memory and network; Xcode and Gradle retain the four-chart grid.
@@ -28,4 +29,8 @@ This area owns shared UI components for LiveView and templates.
 
 - Expanded cache targets list sorted direct target dependencies, linking to module details within the selected project, and retain the aggregate dependencies hash separately. JSON comparisons include both names and the hash.
 
-- `build_timeline_section` shares the initial loading/error states and source-specific coverage notices for all build systems. Every timeline supplies an HTTP metadata URL; machine metrics bootstrap independently through the shared LiveView loader.
+- `build_timeline_section` shares the initial loading/error states for all build systems. Every timeline supplies an HTTP metadata URL; machine metrics bootstrap independently through the shared LiveView loader.
+
+- Widgets and legends format numeric values through `CldrHelpers.format_number/2`; preformatted strings retain their units. Count table cells must use the same helper.
+
+- Do not render fallback coverage or internal clock-origin banners. Pages hide Timeline when the required recorded data is unavailable; Bazel requires a published profile, not retained build-summary spans. Preserve coverage and clock-origin metadata in the API.

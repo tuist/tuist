@@ -32,6 +32,8 @@ alias Tuist.Oban.RuntimeConfig
 # A boot failure here is caught in the canary stage before production.
 alias Tuist.Runners.Catalog
 
+config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
+
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
     :ok
@@ -550,7 +552,7 @@ if Tuist.Environment.error_tracking_enabled?() do
   config :sentry,
     client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
-    environment_name: env,
+    environment_name: Tuist.Environment.deploy_env_name(),
     release: Tuist.Environment.version(),
     enable_source_code_context: true,
     root_source_code_paths: [File.cwd!()],
@@ -697,7 +699,20 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # to one job per subscribed endpoint.
 # Alert evaluations are isolated at one worker per server Pod because their
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
-base_queues = [default: 10, alert_evaluations: 1, vcs_comments: 20, webhooks: 20, storage_retention: 1]
+# GitLab coordinator requests may long-poll; isolate them from general background work.
+# Kura instances coming up for a client that asked for its cache: bringing one
+# up and polling its endpoint twice a second, kept off :default so a busy queue
+# cannot delay either.
+base_queues = [
+  runner_gitlab: 10,
+  default: 10,
+  alert_evaluations: 1,
+  vcs_comments: 20,
+  webhooks: 20,
+  storage_retention: 1,
+  kura_provisioning: 10
+]
+
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
@@ -996,3 +1011,11 @@ else
   config :opentelemetry,
     traces_exporter: :none
 end
+
+config :tuist,
+       :runner_cache_volumes_namespace,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE", System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners"))
+
+config :tuist,
+       :runner_cache_volumes_sa_name,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_SA_NAME", "tuist-runner-cache-volumes")

@@ -81,6 +81,13 @@
 //                            manage all envs, the tag-per-env
 //                            split is for credential isolation,
 //                            not human access boundaries.
+//   tag:tuist-rack-edge      A rack's edge node, which relays its
+//                            switches' management traffic to the
+//                            Omada controller on the tailnet,
+//                            translated to its own address
+//                            (infra/helm/rack-edge).
+//                            Joined by an admin opening the login
+//                            URL, not by a key: one box, once.
 
 {
 	// Human access groups for the Kubernetes API server proxy.
@@ -118,6 +125,7 @@
 		"tag:tuist-macmini-staging":   ["autogroup:admin"],
 		"tag:tuist-macmini-canary":    ["autogroup:admin"],
 		"tag:tuist-macmini-production":["autogroup:admin"],
+		"tag:tuist-rack-edge":         ["autogroup:admin"],
 	},
 
 	"grants": [
@@ -341,6 +349,40 @@
 			"src": ["tag:tuist-k8s-staging"],
 			"dst": ["192.168.0.41/32"],
 			"ip":  ["tcp:22"],
+		},
+
+		// The BER1 switches → the Omada controller in the staging cluster, on
+		// its device ports only. The switches are not on the tailnet: their
+		// traffic reaches it through the rack's edge node, translated to the
+		// edge node's own address, so the source here is the edge node's tag and
+		// no rack prefix is advertised or routed. The destination is the
+		// staging operator's tag, which the controller's exposed Service
+		// carries. 29811-29817 are the device management, adoption, upgrade
+		// and monitoring channels; 8044 firmware upgrades; 29810 and 19810
+		// discovery and management over UDP.
+		{
+			"src": ["tag:tuist-rack-edge"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:29811-29817", "tcp:8044", "udp:29810", "udp:19810"],
+		},
+
+		// The BER1 edge node → the staging Alloy receiver's loki.source.api.
+		// The node's pod logs (alloy-rack-edge in infra/helm/k8s-monitoring)
+		// have no other way into Loki: the API server cannot reach the node's
+		// kubelet, and the node has no route to cluster Services.
+		{
+			"src": ["tag:tuist-rack-edge"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:3100"],
+		},
+
+		// Admins → the Omada controller's web UI and Open API in staging. The
+		// controller's own login is the access control; this keeps the path
+		// once the catch-all above is gone.
+		{
+			"src": ["autogroup:admin"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:8043"],
 		},
 
 		// Humans SSH into any Mac mini. Not load-bearing — the
@@ -621,6 +663,11 @@
 		{
 			"src": "tag:tuist-macmini-production",
 			"accept": ["tag:tuist-k8s-production:3100"],
+		},
+		// The rack edge node's pod logs, the same receiver port.
+		{
+			"src": "tag:tuist-rack-edge",
+			"accept": ["tag:tuist-k8s-staging:3100"],
 		},
 		// Note: no test entries with autogroup-based src. Tailscale's
 		// test engine doesn't resolve `autogroup:*` as a concrete

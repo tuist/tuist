@@ -1,3 +1,4 @@
+import { whenInView } from "../lib/in-view.js";
 /*
  * Compute illustration — the task feed. A continuously scrolling list of job
  * steps: new rows rise from the bottom in a "processing" state (spinner) while
@@ -79,10 +80,20 @@ export const TaskFeed = {
       }
       this.layout();
     };
-    this.raf = requestAnimationFrame(tick);
+    const start = () => {
+      if (this.raf) return;
+      this.last = null;
+      this.raf = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      if (this.raf) cancelAnimationFrame(this.raf);
+      this.raf = null;
+    };
+    this.stopInView = whenInView(this.el, { enter: start, leave: stop });
   },
 
   destroyed() {
+    if (this.stopInView) this.stopInView();
     if (this.raf) cancelAnimationFrame(this.raf);
   },
 

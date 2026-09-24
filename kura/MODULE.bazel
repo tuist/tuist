@@ -17,6 +17,11 @@ bazel_dep(name = "rules_cc", version = "0.2.19")
 # module when the root declares it, even though deps pull it in transitively.
 bazel_dep(name = "platforms", version = "1.1.0")
 
+# sh_test wrapper around rust_test binaries (see //bazel:rust_junit_test.bzl). Bazel 8 removed
+# native.sh_test, so rules_shell has to be declared explicitly even though rules_cc pulls it in
+# transitively for its own cc_test wiring.
+bazel_dep(name = "rules_shell", version = "0.8.0")
+
 # Crate graph + Rust toolchains via rules_rs: it resolves the third-party crates directly from
 # Cargo.toml/Cargo.lock for the platform_triples below, regenerating on each build with no committed
 # crate lockfile, so the same checked-in tree builds identically on every host.

@@ -40,11 +40,12 @@ func (m *metricsServerClient) PodCPUMilli(ctx context.Context, namespace string,
 
 	usage := make(map[string]int64, len(list.Items))
 	for i := range list.Items {
-		var total int64
 		for _, container := range list.Items[i].Containers {
-			total += container.Usage.Cpu().MilliValue()
+			if container.Name == kuraContainerName {
+				usage[list.Items[i].Name] = container.Usage.Cpu().MilliValue()
+				break
+			}
 		}
-		usage[list.Items[i].Name] = total
 	}
 	return usage, nil
 }

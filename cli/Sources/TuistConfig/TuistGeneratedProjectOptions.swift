@@ -92,6 +92,11 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             case fail
         }
 
+        public enum ProjectFormat: String, Codable, Hashable, Equatable, Sendable {
+            case pbxproj
+            case xcproj
+        }
+
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
@@ -112,6 +117,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
         public let defaultSwiftVersion: String
         public let manifestEnvironment: [String]
         public let onOutdatedDependencies: OutdatedDependenciesAction
+        public let projectFormat: ProjectFormat
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -131,7 +137,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             warningsAsErrors: WarningsAsErrors = .none,
             defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
             manifestEnvironment: [String] = [],
-            onOutdatedDependencies: OutdatedDependenciesAction = .warn
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            projectFormat: ProjectFormat = .pbxproj
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -151,6 +158,7 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
             self.defaultSwiftVersion = defaultSwiftVersion
             self.manifestEnvironment = manifestEnvironment
             self.onOutdatedDependencies = onOutdatedDependencies
+            self.projectFormat = projectFormat
         }
 
         #if DEBUG
@@ -173,7 +181,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
                 defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
                 manifestEnvironment: [String] = [],
-                onOutdatedDependencies: TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction = .warn
+                onOutdatedDependencies: TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction = .warn,
+                projectFormat: TuistGeneratedProjectOptions.GenerationOptions.ProjectFormat = .pbxproj
             ) -> Self {
                 .init(
                     resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -193,7 +202,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                     warningsAsErrors: warningsAsErrors,
                     defaultSwiftVersion: defaultSwiftVersion,
                     manifestEnvironment: manifestEnvironment,
-                    onOutdatedDependencies: onOutdatedDependencies
+                    onOutdatedDependencies: onOutdatedDependencies,
+                    projectFormat: projectFormat
                 )
             }
         #endif

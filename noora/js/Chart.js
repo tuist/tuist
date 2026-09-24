@@ -1,6 +1,6 @@
 import * as echarts from "echarts";
 import { parse, formatHex } from "culori";
-import { formatHours } from "./formatters.js";
+import { formatHours, formatNumber } from "./formatters.js";
 
 /**
  * Formats elapsed time into a human readable string
@@ -66,6 +66,7 @@ function formatMbps(bytesPerSecond) {
 }
 
 const formatters = {
+  formatNumber: () => (value) => formatNumber(value),
   toLocaleDate: (el) => (value, _) => {
     const date = new Date(value);
     return date.toLocaleDateString(navigator.language, {
@@ -109,9 +110,41 @@ const formatters = {
   formatHours: (el) => (value, _) => {
     return formatHours(value);
   },
+  firstAndLastDate: (el) => {
+    let lastIndex = null;
+    return (value, index) => {
+      if (lastIndex === null) {
+        const chart = echarts.getInstanceByDom(
+          el.querySelector("[data-part='chart']"),
+        );
+        const option = chart?.getOption();
+        const axis =
+          option?.xAxis?.[0] ??
+          option?.xAxis ??
+          option?.yAxis?.[0] ??
+          option?.yAxis;
+        const data = axis?.data;
+        if (Array.isArray(data) && data.length > 0) {
+          lastIndex = data.length - 1;
+        }
+      }
+      if (index !== 0 && index !== lastIndex) {
+        return "";
+      }
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return value;
+      }
+      return date.toLocaleDateString(navigator.language, {
+        day: "numeric",
+        month: "short",
+      });
+    };
+  },
 };
 
 const tooltipFormatters = {
+  formatNumber,
   formatBytes,
   formatCurrency,
   formatMbps,
@@ -282,6 +315,22 @@ export function prepareChartOptions(input, element) {
 
     if (largestSeriesCount > 0) {
       element?.setAttribute("data-largest-series-count", largestSeriesCount);
+    }
+  }
+
+  for (const axisName of ["xAxis", "yAxis"]) {
+    const axes = [option[axisName]].flat().filter(Boolean);
+    for (const axis of axes) {
+      const isValueAxis = axis.type === "value" || (!axis.type && !axis.data);
+      if (
+        isValueAxis &&
+        (!axis.axisLabel?.formatter || axis.axisLabel.formatter === "{value}")
+      ) {
+        axis.axisLabel = {
+          ...axis.axisLabel,
+          formatter: (value) => formatNumber(value),
+        };
+      }
     }
   }
 
@@ -687,10 +736,13 @@ export function tooltipSeries(param, options = {}) {
         formattedValue = tooltipFormatters[functionName](value);
       }
     } else {
-      formattedValue = options.valueFormat.replace("{value}", value);
+      formattedValue = options.valueFormat.replace(
+        "{value}",
+        options.valueFormat === "{value}" ? formatNumber(value) : value,
+      );
     }
   } else {
-    formattedValue = value;
+    formattedValue = formatNumber(value);
   }
 
   const hasExtra = data && typeof data === "object" && data.tooltipExtra;

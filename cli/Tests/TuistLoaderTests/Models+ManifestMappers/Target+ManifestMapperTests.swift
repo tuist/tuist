@@ -351,3 +351,36 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
         ])
     }
 }
+
+struct LocalPackageTestDependencyDiagnosticTests {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func missingDependencyExplainsRootPackageRequirement(isLocalPackageTest: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        do {
+            _ = try await XcodeGraph.Target.from(
+                manifest: .test(
+                    name: "SupportTests",
+                    product: .unitTests,
+                    dependencies: [.external(name: "TestSupport")],
+                    metadata: .metadata(tags: isLocalPackageTest ? [TargetTags.localSwiftPackageTest] : [])
+                ),
+                generatorPaths: GeneratorPaths(manifestDirectory: directory, rootDirectory: directory),
+                externalDependencies: [:],
+                fileSystem: FileSystem(),
+                contentHasher: MockContentHashing(),
+                type: .local
+            )
+            Issue.record("Expected a missing dependency error")
+        } catch {
+            if isLocalPackageTest {
+                let error = try #require(error as? TargetManifestMapperError)
+                #expect(error == .missingLocalPackageTestDependency(target: "SupportTests", product: "TestSupport"))
+                #expect(error.description.contains("Tuist/Package.swift"))
+                #expect(error.description.contains("tuist install"))
+            } else {
+                let error = try #require(error as? TargetDependencyMapperError)
+                #expect(error.description == "`TestSupport` is not a valid configured external dependency")
+            }
+        }
+    }
+}

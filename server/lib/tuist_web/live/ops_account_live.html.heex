@@ -126,10 +126,10 @@
           <.text_cell label={origin.region} />
         </:col>
         <:col :let={origin} label={dgettext("dashboard", "Runs")}>
-          <.text_cell label={Integer.to_string(origin.run_count)} />
+          <.text_cell label={format_number(origin.run_count)} />
         </:col>
         <:col :let={origin} label={dgettext("dashboard", "Resolutions")}>
-          <.text_cell label={Integer.to_string(origin.demand_count)} />
+          <.text_cell label={format_number(origin.demand_count)} />
         </:col>
         <:col :let={origin} label={dgettext("dashboard", "Last seen")}>
           <.text_cell label={Timex.from_now(origin.last_seen_on)} />
@@ -201,8 +201,15 @@
     </.card_section>
     <.card_section :if={@kura_claim_proposal}>
       <p data-part="kura-claim-proposal-summary">
-        {case @kura_claim_proposal.direction do
-          :grow ->
+        {case @kura_claim_proposal do
+          %{direction: :grow, current_claim_size: claim, recommended_claim_size: claim} ->
+            dgettext(
+              "dashboard",
+              "Sizing proposes growing the instances pinned below %{recommended} to it, the claim the account's other instances hold.",
+              recommended: claim
+            )
+
+          %{direction: :grow} ->
             dgettext(
               "dashboard",
               "Sizing proposes growing the disk claim from %{current} to %{recommended}.",
@@ -210,7 +217,7 @@
               recommended: @kura_claim_proposal.recommended_claim_size
             )
 
-          :shrink ->
+          %{direction: :shrink} ->
             dgettext(
               "dashboard",
               "Sizing proposes shrinking the disk claim from %{current} to %{recommended}.",
@@ -250,7 +257,7 @@
       <p data-part="kura-storage-claim-description">
         {dgettext(
           "dashboard",
-          "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
+          "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up or keeps work for weeks longer than that. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
         )}
       </p>
       <p :if={@kura_sized_claim} data-part="kura-sized-claim">
@@ -271,7 +278,7 @@
           <.text_cell label={kura_disk_usage_label(snapshot)} />
         </:col>
         <:col :let={snapshot} label={dgettext("dashboard", "Segments")}>
-          <.text_cell label={Integer.to_string(snapshot.live_segment_count)} />
+          <.text_cell label={format_number(snapshot.live_segment_count)} />
         </:col>
         <:col :let={snapshot} label={dgettext("dashboard", "Reported")}>
           <.text_cell label={Timex.from_now(snapshot.captured_at)} />
@@ -296,7 +303,7 @@
           <.text_cell label={Timex.from_now(decision.inserted_at)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Change")}>
-          <.text_cell label={kura_claim_history_change(decision)} />
+          <.text_cell label={claim_history_change(decision)} />
         </:col>
         <:col :let={decision} label={dgettext("dashboard", "Outcome")}>
           <% {label, color} = claim_history_outcome(decision) %>
@@ -614,6 +621,64 @@
             type="submit"
             variant="primary"
             label={dgettext("dashboard", "Set minutes")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+    <.card_section>
+      <p data-part="standing-prepaid-description">
+        {dgettext(
+          "dashboard",
+          "Standing minutes are a monthly item on the account's subscription. Stripe bills them on every renewal invoice and the minutes are granted once that invoice is finalized, shortly after the cycle opens, which is what a recurring prepaid arrangement needs, since minutes expire with the cycle they were bought for. Setting them leaves the cycle now running exactly as it is. Zero stops the arrangement."
+        )}
+      </p>
+      <.alert
+        :if={@standing_prepaid_unavailable}
+        id="standing-prepaid-unavailable-alert"
+        size="large"
+        status="warning"
+        title={dgettext("dashboard", "Standing minutes unavailable")}
+        description={standing_prepaid_error(@standing_prepaid_unavailable)}
+      />
+      <p :if={is_nil(@standing_prepaid_unavailable)} data-part="standing-prepaid-next">
+        {dgettext("dashboard", "Next billed and granted on %{date}.",
+          date: standing_prepaid_next_label(@standing_prepaid_next_at)
+        )}
+      </p>
+      <.form
+        :if={is_nil(@standing_prepaid_unavailable)}
+        for={%{}}
+        id="standing-prepaid-minutes-form"
+        phx-change="quote_standing_prepaid_minutes"
+        phx-submit="set_standing_prepaid_minutes"
+      >
+        <.text_input
+          id="standing-prepaid-minutes-input"
+          name="minutes"
+          value={@standing_prepaid_minutes_value}
+          input_type="number"
+          min={0}
+          label={dgettext("dashboard", "Standing monthly minutes (macOS 6 vCPU / 14 GB)")}
+        />
+        <dl :if={@standing_prepaid_quote} data-part="standing-prepaid-quote">
+          <div>
+            <dt>{dgettext("dashboard", "Billed each cycle")}</dt>
+            <dd data-part="standing-prepaid-quote-invoiced">
+              {format_money(@standing_prepaid_quote.invoiced)}
+            </dd>
+          </div>
+          <div>
+            <dt>{dgettext("dashboard", "Granted each cycle")}</dt>
+            <dd data-part="standing-prepaid-quote-granted">
+              {format_money(@standing_prepaid_quote.granted)}
+            </dd>
+          </div>
+        </dl>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Set standing minutes")}
           />
         </div>
       </.form>

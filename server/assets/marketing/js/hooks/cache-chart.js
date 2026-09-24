@@ -262,7 +262,9 @@ export const CacheChart = {
   },
 
   resizeCanvas(canvas, ctx) {
-    const dpr = window.devicePixelRatio || 1;
+    // Backing store capped at 2x: at DPR 3 (phones) the fill cost outweighs
+    // any visible gain for 2px dither dots and hairline strokes.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const { clientWidth, clientHeight } = canvas;
     if (clientWidth === 0 || clientHeight === 0) return;
     const w = Math.round(clientWidth * dpr);
@@ -451,7 +453,7 @@ export const CacheChart = {
   // stroke-colored deep dots over fill-colored light ones.
   ditherStrip(height, stroke, fill) {
     this.strips = this.strips || {};
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const key = `${height}|${stroke}|${fill}|${dpr}`;
     if (this.strips[key]) return this.strips[key];
     const strip = document.createElement("canvas");

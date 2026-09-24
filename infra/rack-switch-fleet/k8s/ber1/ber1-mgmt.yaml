@@ -1,0 +1,289 @@
+apiVersion: tuist.dev/v1alpha1
+kind: RackSwitch
+metadata:
+  name: ber1-mgmt
+  labels:
+    tuist.dev/site: ber1
+    tuist.dev/role: mgmt
+spec:
+  site: ber1
+  role: mgmt
+  model: tl-sg3452
+  mac: a8:29:48:fe:b4:be
+  managedBy: controller
+  managementAddress: 192.168.0.13
+  applyOrder: 3
+  applyNote: There is one management switch and it is the path to JetKVM, AMT and ATS monitoring. Losing it loses out-of-band access to everything else at once, so it is changed alone, last, and only once both ToRs are known good. Its uplinks go straight to ber1-edge and never through a ToR, so a ToR change cannot isolate it.
+  credentialItem: ber1-mgmt switch admin
+  configRevision: 3f72d9a23382e294
+  config:
+    hostname: ber1-mgmt
+    managementVlan: 1
+    managementPrefixLength: 24
+    gateway: 192.168.0.10
+    spanningTree: rstp
+    lldp: true
+    snmp: false
+    vlans: []
+    lags: []
+    ports:
+      - port: 1
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 2
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 3
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 4
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 5
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 6
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 7
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 8
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 9
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 10
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 11
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 12
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 13
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 14
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 15
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 16
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 17
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 18
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 19
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 20
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 21
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 22
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 23
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 24
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 25
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 26
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 27
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 28
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 29
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 30
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 31
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 32
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 33
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 34
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 35
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 36
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 37
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 38
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 39
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 40
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 41
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 42
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 43
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 44
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 45
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 46
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 47
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 48
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 49
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 50
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 51
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []
+      - port: 52
+        description: ""
+        spanningTree: true
+        nativeVlan: 1
+        taggedVlans: []

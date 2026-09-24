@@ -34,7 +34,12 @@ pub(super) struct MemoryPools {
     elastic_foreground_response_streaming: Arc<Semaphore>,
     background_response_streaming: Arc<Semaphore>,
     response_stream_waiters: Arc<Semaphore>,
+    #[cfg(test)]
     response_stream_waiter_capacity: usize,
+    response_stream_retry_backlog: usize,
+    response_stream_queued_bytes: Arc<Semaphore>,
+    #[cfg(test)]
+    response_stream_queue_bytes: usize,
     response_stream_admission: Arc<Mutex<()>>,
     degraded_response_streaming: Arc<Semaphore>,
     mmap_serving_bytes: usize,
@@ -94,9 +99,22 @@ impl MemoryPools {
                 response_streaming_bytes,
                 foreground_response_streaming_bytes,
             );
-        let response_stream_waiters = response_streaming_bytes
+        // Preserve the backoff scale when changing queue limits: a larger
+        // queue must not invite shed HTTP clients and peers to retry sooner.
+        let response_stream_retry_backlog = response_streaming_bytes
             .div_ceil(MAX_RESPONSE_STREAM_RESERVATION_BYTES)
             .max(1);
+        let response_stream_waiters = (response_stream_retry_backlog * 4).min(1024);
+        // Queue at most two batches of the bytes public streams can serve.
+        // This bounds pending work, not allocated buffers or drain time: a
+        // stalled reader can still hold its permits beyond the wait deadline.
+        // Transient capacity is floor-clamped when a floor is published and
+        // ceiling-derived otherwise. Clamp each batch to that shared capacity.
+        let response_stream_queue_bytes = foreground_response_streaming_bytes
+            .saturating_add(elastic_foreground_response_streaming_bytes)
+            .min(transient_capacity_bytes)
+            .saturating_mul(2)
+            .min(u32::MAX as usize);
         // Backfill may make bounded progress, but it cannot take capacity
         // promised to binary serving. The global response pool leaves exactly
         // this quantum outside the foreground pool.
@@ -123,7 +141,12 @@ impl MemoryPools {
                 background_response_streaming_bytes,
             )),
             response_stream_waiters: Arc::new(Semaphore::new(response_stream_waiters)),
+            #[cfg(test)]
             response_stream_waiter_capacity: response_stream_waiters,
+            response_stream_retry_backlog,
+            response_stream_queued_bytes: Arc::new(Semaphore::new(response_stream_queue_bytes)),
+            #[cfg(test)]
+            response_stream_queue_bytes,
             response_stream_admission: Arc::new(Mutex::new(())),
             degraded_response_streaming: Arc::new(Semaphore::new(degraded_response_stream_slots)),
             mmap_serving_bytes,
@@ -245,15 +268,35 @@ impl MemoryPools {
             .map_err(|_| ())
     }
 
+    pub(super) fn response_stream_retry_backlog(&self) -> usize {
+        self.response_stream_retry_backlog
+    }
+
+    #[cfg(test)]
     pub(super) fn response_stream_waiter_capacity(&self) -> usize {
         self.response_stream_waiter_capacity
     }
 
-    pub(super) fn try_acquire_response_stream_waiter(&self) -> Result<OwnedSemaphorePermit, ()> {
-        self.response_stream_waiters
+    #[cfg(test)]
+    pub(super) fn response_stream_queue_bytes(&self) -> usize {
+        self.response_stream_queue_bytes
+    }
+
+    pub(super) fn try_acquire_response_stream_waiter(
+        &self,
+        requested_bytes: usize,
+    ) -> Result<(OwnedSemaphorePermit, OwnedSemaphorePermit), ()> {
+        let count = self
+            .response_stream_waiters
             .clone()
             .try_acquire_owned()
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        let bytes = self
+            .response_stream_queued_bytes
+            .clone()
+            .try_acquire_many_owned(u32::try_from(requested_bytes.max(1)).map_err(|_| ())?)
+            .map_err(|_| ())?;
+        Ok((count, bytes))
     }
 
     pub(super) fn try_acquire_background_response_streaming(

@@ -50,15 +50,28 @@ defmodule Tuist.FeatureFlagsTest do
     assert FeatureFlags.runners_enabled?(%Account{name: "tuist"})
   end
 
-  describe "kura_replication_pull_enabled?/1" do
-    test "reads the per-account replication-pull flag" do
-      account = %Account{id: 42, name: "tuist"}
-      other = %Account{id: 43, name: "other"}
+  describe "runner_cache_volumes_per_repository_enabled?/0" do
+    test "requires the flag in canary and production" do
+      for env <- [:can, :prod] do
+        stub(Environment, :env, fn -> env end)
+        expect(FunWithFlags, :enabled?, fn :runner_cache_volumes_per_repository -> false end)
 
-      stub(FunWithFlags, :enabled?, fn :kura_replication_pull, [for: actor] -> actor == account end)
+        refute FeatureFlags.runner_cache_volumes_per_repository_enabled?()
+      end
+    end
 
-      assert FeatureFlags.kura_replication_pull_enabled?(account)
-      refute FeatureFlags.kura_replication_pull_enabled?(other)
+    test "is on once the flag is enabled" do
+      stub(Environment, :env, fn -> :prod end)
+      expect(FunWithFlags, :enabled?, fn :runner_cache_volumes_per_repository -> true end)
+
+      assert FeatureFlags.runner_cache_volumes_per_repository_enabled?()
+    end
+
+    test "is on elsewhere without consulting the flag" do
+      stub(Environment, :env, fn -> :stag end)
+      reject(FunWithFlags, :enabled?, 1)
+
+      assert FeatureFlags.runner_cache_volumes_per_repository_enabled?()
     end
   end
 

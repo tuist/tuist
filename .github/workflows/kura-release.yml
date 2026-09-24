@@ -1,0 +1,86 @@
+name: Kura Canary Release
+
+# Every Kura change on main publishes a canary prerelease
+# (kura@X.Y.0-canary.N). Canaries are the bleeding edge: marked as a GitHub
+# prerelease, never moved to "Latest", and never push :latest on GHCR, so
+# self-hosted operators pinning `ghcr.io/tuist/kura:<semver>` or `:latest`
+# never pick them up unless they opt in explicitly.
+#
+# Stable releases are NOT cut from main. A line is frozen onto a
+# releases/kura-<major>.<minor>.x branch and published as an RC
+# (kura-rc.yml), soaks, then is promoted to stable X.Y.0 (kura-promote.yml).
+# Canary always targets the next unreleased minor: once an RC line is cut,
+# main's canary advances to the following minor.
+#
+# server-production-deployment.yml calls this workflow when kura/ changed,
+# before its deploy cascade, because hosted environments run the newest
+# canary in the deployed commit (server-deployment.yml). Publishing inside
+# that serialized run guarantees the canary exists before the deploy
+# resolves it. The RC/stable train only serves self-hosted operators.
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+  id-token: write
+
+concurrency:
+  # Canaries get their own group so the deploy cascade never queues behind a
+  # multi-hour RC or promote build. Canary, RC and stable tags are disjoint
+  # (-canary.N, -rc.N, X.Y.Z), so they cannot collide. The only overlap: a
+  # canary resolved while an RC line is being cut keeps the previous minor,
+  # and the next canary moves on. Queue rather than cancel so each canary
+  # publishes atomically.
+  group: kura-canary-publish
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  resolve:
+    name: Resolve canary version
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+      should_publish: ${{ steps.resolve.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: resolve
+        run: |
+          set -euo pipefail
+          if git tag --points-at HEAD | grep -qE '^kura@[0-9]+\.[0-9]+\.0-canary\.[0-9]+$'; then
+            echo "HEAD already has a kura canary tag; skipping."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          mise run --no-deps --skip-tools kura:release:channel-version -- canary
+
+  build-publish:
+    name: Build and publish canary
+    needs: resolve
+    if: needs.resolve.outputs.should_publish == 'true'
+    uses: ./.github/workflows/kura-build-publish.yml
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ github.sha }}
+      changelog_from: ${{ needs.resolve.outputs.changelog_from }}
+      make_latest: false
+      prerelease: true
+    secrets: inherit

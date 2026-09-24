@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 
 // Noora is an esbuild alias in production; these tests exercise the hook's
-// scheduling and transport without mounting Noora's DOM controls.
+// scheduling and transport without mounting Noora's DOM controls. Keep the
+// real number formatter so summary values exercise the production behavior.
 const loader = registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "noora")
       return {
-        url: "data:text/javascript,export function bindScrollIndicator() {}",
+        url: `data:text/javascript,export function bindScrollIndicator() {} export { formatNumber } from "${new URL("../../../../noora/js/formatters.js", import.meta.url).href}";`,
         shortCircuit: true,
       };
     return nextResolve(specifier, context);
@@ -306,7 +307,7 @@ test("initialization failure cleans up and hides partially mounted content", asy
   assert.equal(parts.get("payload-error").hidden, false);
 });
 
-test("empty messages distinguish absent records, searches and unfiltered gaps", (t) => {
+test("filter messages only appear when recorded steps do not match", (t) => {
   const frames = [];
   globalThis.requestAnimationFrame = (callback) => {
     frames.push(callback);
@@ -322,11 +323,11 @@ test("empty messages distinguish absent records, searches and unfiltered gaps", 
     target: "App",
     project: "Workspace",
   };
-  for (const [events, search, noRecords, noMatches] of [
-    [[], "", true, false],
-    [[], "Compile", true, false],
-    [[event], "", false, false],
-    [[event], "missing", false, true],
+  for (const [events, search, noMatches] of [
+    [[], "", false],
+    [[], "Compile", false],
+    [[event], "", false],
+    [[event], "missing", true],
   ]) {
     const view = fixture();
     view.allEvents = events;
@@ -336,7 +337,6 @@ test("empty messages distinguish absent records, searches and unfiltered gaps", 
     view.draw = () => {};
     view.relayout();
     frames.shift()();
-    assert.equal(!view.part("no-recorded-steps").hidden, noRecords);
     assert.equal(!view.part("no-matches").hidden, noMatches);
   }
 });
@@ -473,7 +473,9 @@ test("receiving steps preserves a range selected on metrics while loading", () =
   view.receiveSteps({ events: [], duration: view.duration, total_count: 0, target_count: 0 });
   assert.deepEqual(view.range, range);
   assert.equal(view.stepsReady, true);
-  assert.equal(view.part("workspace").hidden, false);
+  assert.equal(view.part("workspace").hidden, true);
+  assert.equal(view.part("step-count").hidden, true);
+  assert.equal(view.part("target-count").hidden, true);
   assert.equal(view.part("empty").hidden, true);
   view.metrics.samples = [];
   view.receiveSteps({ events: [], duration: view.duration, total_count: 0, target_count: 0 });
@@ -482,6 +484,24 @@ test("receiving steps preserves a range selected on metrics while loading", () =
 });
 
 for (const source of ["xcode", "gradle", "bazel"]) {
+  test(`${source} metrics-only timelines hide step controls and restore them when steps arrive`, () => {
+    const view = fixture();
+    view.source = source;
+    view.el = { querySelector: () => ({}) };
+    view.filter = () => {};
+    const metrics = view.metrics;
+    const step = { event_id: "1", start_ms: 0, duration_ms: 100, title: "Compile", category: "compile" };
+    for (const events of [[step], [], [step]]) {
+      view.receiveSteps({ events, duration: view.duration, total_count: events.length, target_count: events.length });
+      assert.equal(view.part("workspace").hidden, events.length === 0);
+      assert.equal(view.part("step-count").hidden, events.length === 0);
+      assert.equal(view.part("target-count").hidden, events.length === 0);
+      assert.equal(view.part("empty").hidden, true);
+      assert.equal(view.part("payload-loading").hidden, true);
+      assert.equal(view.metrics, metrics);
+    }
+  });
+
   test(`${source} downloads steps independently of the metric bootstrap`, async (t) => {
     const metadata = { events: [{ event_id: "task:1" }], duration: 100 };
     const view = loadingFixture();
@@ -515,4 +535,24 @@ test("receiving recorded steps retains source categories and hides unknown targe
   assert.equal(view.logsAvailable, true);
   assert.equal(view.allEvents[0].kind, "package");
   assert.equal(view.part("target-count").hidden, true);
+});
+
+test("receiving steps humanizes large summary counts and preserves small counts", () => {
+  const view = fixture();
+  const stats = new Map();
+  view.el = {
+    querySelector(selector) {
+      if (!stats.has(selector)) stats.set(selector, {});
+      return stats.get(selector);
+    },
+  };
+  view.filter = () => {};
+
+  view.receiveSteps({ events: [], duration: view.duration, total_count: 121755, target_count: 24420 });
+  assert.equal(stats.get('[data-stat="tasks"]').textContent, "121.8K");
+  assert.equal(stats.get('[data-stat="targets"]').textContent, "24.4K");
+
+  view.receiveSteps({ events: [], duration: view.duration, total_count: 836, target_count: 466 });
+  assert.equal(stats.get('[data-stat="tasks"]').textContent, "836");
+  assert.equal(stats.get('[data-stat="targets"]').textContent, "466");
 });

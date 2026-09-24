@@ -5,6 +5,7 @@ defmodule Tuist.Tests.Analytics do
   import Ecto.Query
 
   alias Postgrex.Interval
+  alias Tuist.Builds.Build
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.Tests
@@ -16,6 +17,9 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseRunActiveDailyStat
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
+  alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.XcodeCoverage
+  alias Tuist.Tests.XcodeCoverageRun
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
 
@@ -55,6 +59,116 @@ defmodule Tuist.Tests.Analytics do
       values: Enum.map(current_runs, & &1.count),
       dates: Enum.map(current_runs, & &1.date)
     }
+  end
+
+  @doc """
+  Line coverage of the project's test runs over time: the share of executable
+  lines covered across the runs in each bucket, with the period's figure and
+  its trend against the previous period. Runs that gathered no coverage are
+  left out rather than dragging the share down, and a bucket without any run
+  that did reads as a gap.
+  """
+  def test_run_coverage_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    points =
+      project_id
+      |> coverage_by_bucket(start_datetime, end_datetime, clickhouse_time_bucket, opts)
+      |> fill_coverage_points(start_datetime, end_datetime, date_period)
+
+    previous = coverage_totals(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime, opts)
+    current = coverage_totals(project_id, start_datetime, end_datetime, opts)
+
+    %{
+      coverage: coverage_percentage(current),
+      runs_count: current.runs_count,
+      trend: trend(previous_value: coverage_percentage(previous), current_value: coverage_percentage(current)),
+      values: Enum.map(points, & &1.coverage),
+      dates: Enum.map(points, & &1.date)
+    }
+  end
+
+  # A run's totals are published once per shard report; the highest version is
+  # the computation that included the most shards.
+  defp latest_coverage_rows(project_id, start_datetime, end_datetime, opts) do
+    runs =
+      apply_test_run_filters(
+        from(t in Test,
+          where: t.project_id == ^project_id,
+          where: t.ran_at >= ^start_datetime,
+          where: t.ran_at <= ^end_datetime,
+          group_by: t.id,
+          select: %{id: t.id, ran_at: min(t.ran_at)}
+        ),
+        opts
+      )
+
+    from(c in XcodeCoverageRun,
+      join: t in subquery(runs),
+      on: t.id == c.test_run_id,
+      where: c.project_id == ^project_id,
+      group_by: c.test_run_id,
+      having:
+        fragment("argMax(?, ?)", c.executable_lines, c.version) > 0 and
+          fragment("argMax(?, ?)", c.partial, c.version) == false,
+      select: %{
+        id: c.test_run_id,
+        ran_at: fragment("any(?)", t.ran_at),
+        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
+        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version)
+      }
+    )
+  end
+
+  defp coverage_by_bucket(project_id, start_datetime, end_datetime, time_bucket, opts) do
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    ClickHouseRepo.all(
+      from(r in subquery(latest_coverage_rows(project_id, start_datetime, end_datetime, opts)),
+        group_by: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format),
+          covered_lines: sum(r.covered_lines),
+          executable_lines: sum(r.executable_lines)
+        },
+        order_by: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format)
+      )
+    )
+  end
+
+  defp coverage_totals(project_id, start_datetime, end_datetime, opts) do
+    from(r in subquery(latest_coverage_rows(project_id, start_datetime, end_datetime, opts)),
+      select: %{
+        covered_lines: sum(r.covered_lines),
+        executable_lines: sum(r.executable_lines),
+        runs_count: count(r.id)
+      }
+    )
+    |> ClickHouseRepo.one()
+    |> case do
+      nil -> %{covered_lines: 0, executable_lines: 0, runs_count: 0}
+      totals -> Map.new(totals, fn {key, value} -> {key, value || 0} end)
+    end
+  end
+
+  defp coverage_percentage(%{covered_lines: covered, executable_lines: executable}) do
+    XcodeCoverage.percentage(covered, executable)
+  end
+
+  defp fill_coverage_points(rows, start_datetime, end_datetime, date_period) do
+    by_date = Map.new(rows, &{normalise_date(&1.date, date_period), coverage_percentage(&1)})
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      %{date: date, coverage: Map.get(by_date, normalise_date(date, date_period))}
+    end)
   end
 
   defp test_run_count(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
@@ -836,10 +950,14 @@ defmodule Tuist.Tests.Analytics do
 
   Returns a list of maps with:
   - test_run_id: The test run ID
-  - total_tests: Total number of test cases
-  - cache_hit_rate: Cache hit rate as a string (e.g., "50 %")
-  - skipped_tests: Number of skipped test targets
-  - ran_tests: Number of test cases that actually ran
+  - total_tests: Number of test cases reported by the run
+  - skipped_tests: Number of those test cases reported as skipped
+  - ran_tests: Number of those test cases that ran
+  - ran_test_modules: Number of test modules that ran
+  - skipped_test_modules: Number of test modules skipped by selective testing
+  - has_selective_testing_data: Whether selective testing ran for the test run
+  - module_cache_hit_rate: Module cache hit rate as a string (e.g., "50 %"), or nil without module cache data
+  - xcode_cache_hit_rate: Xcode cache hit rate of the test run's build as a string, or nil without Xcode cache data
   """
   def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
@@ -849,65 +967,131 @@ defmodule Tuist.Tests.Analytics do
     # It is ReplacingMergeTree, so re-inserts can duplicate rows per id;
     # `count(DISTINCT id)` gets the right count without paying for FINAL.
     test_case_counts =
-      ClickHouseRepo.all(
-        from(t in TestCaseRunByTestRun,
-          where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
-          group_by: t.test_run_id,
-          select: %{
-            test_run_id: t.test_run_id,
-            total_count: fragment("count(DISTINCT ?)", t.id)
-          }
-        )
+      from(t in TestCaseRunByTestRun,
+        where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
+        group_by: t.test_run_id,
+        select: %{
+          test_run_id: t.test_run_id,
+          total_count: fragment("count(DISTINCT ?)", t.id),
+          skipped_count: fragment("uniqExactIf(?, ? = 'skipped')", t.id, t.status)
+        }
       )
+      |> ClickHouseRepo.all()
+      |> Map.new(&{&1.test_run_id, &1})
 
-    event_data =
-      ClickHouseRepo.all(
-        from(e in Event,
-          where: e.project_id == ^project_id and e.test_run_id in ^test_run_ids,
-          select: %{
-            test_run_id: e.test_run_id,
-            cacheable_targets_count: e.cacheable_targets_count,
-            local_cache_hits_count: e.local_cache_hits_count,
-            remote_cache_hits_count: e.remote_cache_hits_count,
-            local_test_hits_count: e.local_test_hits_count,
-            remote_test_hits_count: e.remote_test_hits_count
-          }
-        )
+    # Sharded runs report the same module once per shard, so count distinct names.
+    ran_test_module_counts =
+      from(m in TestModuleRun,
+        where: m.test_run_id in ^test_run_ids,
+        group_by: m.test_run_id,
+        select: {m.test_run_id, fragment("uniqExact(?)", m.name)}
       )
+      |> ClickHouseRepo.all()
+      |> Map.new()
 
-    event_data_map = Map.new(event_data, &{&1.test_run_id, &1})
+    events_by_test_run_id =
+      from(e in Event,
+        where: e.project_id == ^project_id and e.test_run_id in ^test_run_ids,
+        select: %{
+          test_run_id: e.test_run_id,
+          cacheable_targets_count: e.cacheable_targets_count,
+          local_cache_hits_count: e.local_cache_hits_count,
+          remote_cache_hits_count: e.remote_cache_hits_count,
+          test_targets_count: e.test_targets_count,
+          local_test_hits_count: e.local_test_hits_count,
+          remote_test_hits_count: e.remote_test_hits_count
+        }
+      )
+      |> ClickHouseRepo.all()
+      |> Map.new(&{&1.test_run_id, &1})
 
-    Enum.map(test_case_counts, fn test_case_count ->
-      test_run_id = test_case_count.test_run_id
-      total_count = test_case_count.total_count
-      event_info = Map.get(event_data_map, test_run_id, %{})
+    build_run_ids = test_runs |> Enum.map(& &1.build_run_id) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    module_cache_events_by_build_run_id = module_cache_events_by_build_run_id(project_id, build_run_ids)
+    builds_by_id = xcode_cache_counts_by_build_id(project_id, build_run_ids, test_runs)
 
-      cacheable_targets = Map.get(event_info, :cacheable_targets_count) || 0
-      local_cache_hits = Map.get(event_info, :local_cache_hits_count) || 0
-      remote_cache_hits = Map.get(event_info, :remote_cache_hits_count) || 0
-      total_cache_hits = local_cache_hits + remote_cache_hits
+    test_runs
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.map(fn test_run ->
+      test_case_count = Map.get(test_case_counts, test_run.id, %{total_count: 0, skipped_count: 0})
+      event = Map.get(events_by_test_run_id, test_run.id, %{})
 
-      cache_hit_rate =
-        if cacheable_targets == 0 do
-          "0 %"
-        else
-          "#{(total_cache_hits / cacheable_targets * 100) |> Float.floor() |> round()} %"
-        end
-
-      local_test_hits = Map.get(event_info, :local_test_hits_count) || 0
-      remote_test_hits = Map.get(event_info, :remote_test_hits_count) || 0
-      skipped_tests = local_test_hits + remote_test_hits
-      ran_tests = total_count - skipped_tests
+      module_cache_event =
+        if Map.get(event, :cacheable_targets_count, 0) > 0,
+          do: event,
+          else: Map.get(module_cache_events_by_build_run_id, test_run.build_run_id)
 
       %{
-        test_run_id: test_run_id,
-        total_tests: total_count,
-        cache_hit_rate: cache_hit_rate,
-        skipped_tests: skipped_tests,
-        ran_tests: ran_tests
+        test_run_id: test_run.id,
+        total_tests: test_case_count.total_count,
+        skipped_tests: test_case_count.skipped_count,
+        ran_tests: test_case_count.total_count - test_case_count.skipped_count,
+        ran_test_modules: Map.get(ran_test_module_counts, test_run.id, 0),
+        skipped_test_modules: Map.get(event, :local_test_hits_count, 0) + Map.get(event, :remote_test_hits_count, 0),
+        has_selective_testing_data: Map.get(event, :test_targets_count, 0) > 0,
+        module_cache_hit_rate: module_cache_hit_rate(module_cache_event),
+        xcode_cache_hit_rate: xcode_cache_hit_rate(Map.get(builds_by_id, test_run.build_run_id))
       }
     end)
   end
+
+  # A test run that reused a separate build reports its module cache lookups on
+  # the build's command event. Among events sharing the build run ID, prefer the
+  # one without a test run, then the earliest, like the test run page does.
+  defp module_cache_events_by_build_run_id(_project_id, []), do: %{}
+
+  defp module_cache_events_by_build_run_id(project_id, build_run_ids) do
+    from(e in Event,
+      where: e.project_id == ^project_id and e.build_run_id in ^build_run_ids and e.cacheable_targets_count > 0,
+      order_by: [desc: is_nil(e.test_run_id), asc: e.ran_at, asc: e.created_at],
+      select: %{
+        build_run_id: e.build_run_id,
+        cacheable_targets_count: e.cacheable_targets_count,
+        local_cache_hits_count: e.local_cache_hits_count,
+        remote_cache_hits_count: e.remote_cache_hits_count
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.build_run_id)
+    |> Map.new(&{&1.build_run_id, &1})
+  end
+
+  # Build runs are rewritten when processing finishes, so read each column from
+  # the latest version of the row. The builds that tests run against are
+  # uploaded before them, which bounds the partitions the lookup reads.
+  defp xcode_cache_counts_by_build_id(_project_id, [], _test_runs), do: %{}
+
+  defp xcode_cache_counts_by_build_id(project_id, build_run_ids, test_runs) do
+    inserted_at_floor =
+      test_runs
+      |> Enum.map(& &1.ran_at)
+      |> Enum.min(NaiveDateTime)
+      |> NaiveDateTime.add(-7, :day)
+
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id in ^build_run_ids and b.inserted_at >= ^inserted_at_floor,
+      group_by: b.id,
+      select: %{
+        id: b.id,
+        cacheable_tasks_count: fragment("argMax(?, ?)", b.cacheable_tasks_count, b.updated_at),
+        cacheable_task_local_hits_count: fragment("argMax(?, ?)", b.cacheable_task_local_hits_count, b.updated_at),
+        cacheable_task_remote_hits_count: fragment("argMax(?, ?)", b.cacheable_task_remote_hits_count, b.updated_at)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  defp module_cache_hit_rate(%{cacheable_targets_count: total} = event) when total > 0,
+    do: hit_rate_text(event.local_cache_hits_count + event.remote_cache_hits_count, total)
+
+  defp module_cache_hit_rate(_event), do: nil
+
+  defp xcode_cache_hit_rate(%{cacheable_tasks_count: total} = build) when total > 0,
+    do: hit_rate_text(build.cacheable_task_local_hits_count + build.cacheable_task_remote_hits_count, total)
+
+  defp xcode_cache_hit_rate(_build), do: nil
+
+  defp hit_rate_text(hits, total), do: "#{(hits / total * 100) |> Float.floor() |> round()} %"
 
   @doc """
   Gets test case run analytics for a project over a time period.

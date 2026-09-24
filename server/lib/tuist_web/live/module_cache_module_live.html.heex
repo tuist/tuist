@@ -154,7 +154,7 @@
             "How many modules this one invalidates downstream when it changes."
           )
         }
-        value={if @module.ok?, do: Integer.to_string(@module.result.blast_radius || 0)}
+        value={if @module.ok?, do: format_number(@module.result.blast_radius || 0)}
         phx_click="select_widget"
         phx_value_widget="blast_radius"
         selected={@analytics_selected_widget == "blast_radius"}

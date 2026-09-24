@@ -23,4 +23,10 @@ spec:
       port: {{ .Values.service.httpPort }}
       targetPort: http
       protocol: TCP
+    {{- if gt (int .Values.service.gatewayGrpcPort) 0 }}
+    - name: grpc
+      port: {{ .Values.service.gatewayGrpcPort }}
+      targetPort: grpc
+      protocol: TCP
+    {{- end }}
 

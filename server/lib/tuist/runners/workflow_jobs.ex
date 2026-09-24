@@ -720,11 +720,16 @@ defmodule Tuist.Runners.WorkflowJobs do
   `StaleQueuedJobsWorker`'s candidate scan: `queued` rows whose
   `enqueued_at` falls in `(enqueued_after, enqueued_before)`, in the
   same map shape.
+
+  Only GitHub rows: the worker verifies candidates against GitHub's
+  Actions API, and GitLab and Buildkite settle their own queued jobs.
   """
   def list_stale_queued(%DateTime{} = enqueued_after, %DateTime{} = enqueued_before) do
     Repo.all(
       from(j in WorkflowJob,
-        where: j.status == "queued" and j.enqueued_at > ^enqueued_after and j.enqueued_at < ^enqueued_before,
+        where:
+          j.provider == "github" and j.status == "queued" and j.enqueued_at > ^enqueued_after and
+            j.enqueued_at < ^enqueued_before,
         select: %{
           workflow_job_id: j.workflow_job_id,
           account_id: j.account_id,

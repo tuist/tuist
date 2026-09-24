@@ -127,6 +127,10 @@ spec:
             - name: TUIST_TURNSTILE_ENABLED
               value: "1"
             {{- end }}
+            {{- if .Values.server.publicPageChallenge.enabled }}
+            - name: TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED
+              value: "1"
+            {{- end }}
             {{- if .Values.server.kuraCapacityAdmission.enabled }}
             - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
               value: "1"
@@ -175,6 +179,10 @@ spec:
             {{- with .Values.server.faro.collectorUrl }}
             - name: TUIST_FARO_COLLECTOR_URL
               value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.server.faro.receiverHost }}
+            - name: TUIST_FARO_RECEIVER_URL
+              value: {{ printf "http://%s:%v/collect" .Values.server.faro.receiverHost .Values.server.faro.receiverPort | quote }}
             {{- end }}
             {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
             - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
@@ -233,6 +241,12 @@ spec:
             # dispatch time to discover the fleet name; runner
             # availability is gated by the `:runners` feature flag and
             # has no chart-level setting.
+            - name: TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE
+              value: {{ .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            - name: TUIST_RUNNER_CACHE_VOLUMES_SA_NAME
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") | quote }}
+            - name: TUIST_RUNNER_LINUX_CACHE_VOLUMES
+              value: {{ .Values.runnersFleetLinux.cacheVolumes.enabled | quote }}
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
             # Identity gate for `POST /api/internal/runners/pods/stopped`:
@@ -429,7 +443,7 @@ spec:
             {{- end }}
             {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
-            {{- include "tuist.clickhouseBareMetalEnv" . | nindent 12 }}
+            {{- include "tuist.clickhouseManagedEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

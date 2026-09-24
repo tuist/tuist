@@ -1,8 +1,31 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConstants
+
+public enum ManifestLookupExcludes {
+    /// Glob patterns that prune `Derived/FrameworkSearchPaths` from lookups over a project tree.
+    ///
+    /// The directory holds one symbolic link per precompiled framework, pointing into the binary cache. Nothing a
+    /// manifest declares lives there, and following those links descends into every cached framework tree, which on
+    /// large graphs dominates the time spent loading them. `FileSysteming.glob(directory:include:exclude:)` evaluates
+    /// `exclude` before `include`, so the pattern prunes descent at the directory boundary rather than filtering after
+    /// the walk.
+    public static let frameworkSearchPathLinks = [
+        "**/\(Constants.DerivedDirectory.name)/\(Constants.DerivedDirectory.frameworkSearchPaths)",
+    ]
+}
 
 extension FileSysteming {
+    /// Expands glob patterns declared in a manifest (sources, resources, files, buildable folders, …) without descending
+    /// into `Derived/FrameworkSearchPaths`. See ``ManifestLookupExcludes/frameworkSearchPathLinks``.
+    public func manifestGlob(
+        directory: Path.AbsolutePath,
+        include: [String]
+    ) throws -> AnyThrowingAsyncSequenceable<AbsolutePath> {
+        try glob(directory: directory, include: include, exclude: ManifestLookupExcludes.frameworkSearchPathLinks)
+    }
+
     /// Returns the list of paths that match the given glob pattern, if the directory exists.
     ///
     /// - Parameters:
@@ -18,7 +41,7 @@ extension FileSysteming {
             try await validateGlobPattern(for: directory, include: include)
         }
 
-        return try glob(directory: directory, include: include)
+        return try manifestGlob(directory: directory, include: include)
     }
 
     private func validateGlobPattern(

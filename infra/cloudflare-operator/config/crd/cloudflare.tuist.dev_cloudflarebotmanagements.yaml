@@ -43,12 +43,20 @@ spec:
                   enum: [read_only, active]
                   default: read_only
                 paused: {type: boolean, default: false}
+                dependsOn:
+                  type: object
+                  required: [kind, name]
+                  properties:
+                    kind:
+                      type: string
+                      enum: [CloudflareCustomRule, CloudflareRateLimit, CloudflareBotManagement]
+                    name:
+                      type: string
                 botFightMode:
                   type: object
                   properties:
                     enableJs: {type: boolean}
                     suppressSessionScore: {type: boolean}
-                    usingLatestModel: {type: boolean}
                 superBotFightMode:
                   type: object
                   properties:

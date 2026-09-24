@@ -611,7 +611,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       # the test already exists, get_test must preload test_case_runs so
       # the response reflects what is actually stored, not an empty list.
       expect(Tests, :get_test, fn ^existing_id, opts ->
-        assert opts[:preload] == [test_case_runs: :arguments]
+        assert opts[:preload] == [test_case_runs: [arguments: &Tests.list_test_case_run_arguments/1]]
 
         {:ok,
          %Test{
@@ -711,7 +711,7 @@ defmodule TuistWeb.API.TestsControllerTest do
           status: "success",
           git_commit_sha: "abc123",
           git_ref: "refs/pull/42/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
           test_modules: []
         }
       )
@@ -772,7 +772,7 @@ defmodule TuistWeb.API.TestsControllerTest do
           scheme: "TuistAcceptanceTests",
           git_commit_sha: "abc123",
           git_ref: "refs/pull/42/merge",
-          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git",
           shard_index: 1,
           test_modules: []
         }
@@ -972,6 +972,60 @@ defmodule TuistWeb.API.TestsControllerTest do
           "stress_known_count" => 40
         }
       )
+    end
+
+    test "passes a locally processed run's coverage on", %{conn: conn, user: user, project: project} do
+      conn = Authentication.put_current_user(conn, user)
+
+      expect(Tests, :create_test, fn attrs ->
+        assert %{
+                 partial: true,
+                 files: [%{path: "Sources/Add.swift", line_numbers: [1, 2]}]
+               } =
+                 attrs.xcode_coverage
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "xcode",
+           status: "success",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            duration: 10,
+            is_ci: false,
+            status: "success",
+            test_modules: [],
+            xcode_coverage: %{
+              partial: true,
+              files: [
+                %{
+                  path: "Sources/Add.swift",
+                  git_blob_id: "abc",
+                  targets: ["Calculator"],
+                  covered_lines: 1,
+                  executable_lines: 2,
+                  line_numbers: [1, 2],
+                  execution_counts: [3, 0],
+                  functions: []
+                }
+              ]
+            }
+          }
+        )
+
+      assert json_response(conn, 200)
     end
 
     test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{

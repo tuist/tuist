@@ -13,7 +13,26 @@ defmodule Tuist.Marketing.NimblePublisher.Cache do
   end
 
   def entries(key, opts) do
-    ContentCache.get(__MODULE__, key, fn -> Builder.build!(opts) end)
+    # In dev, browser live reload can request content before ContentFileWatcher
+    # clears the cache after its 100ms delay. Fingerprinting source paths, mtimes,
+    # and sizes lets that request rebuild changed content without waiting for
+    # the watcher, closing the race between browser reload and invalidation.
+    ContentCache.get(__MODULE__, {key, fingerprint(opts)}, fn -> Builder.build!(opts) end)
+  end
+
+  defp fingerprint(opts) do
+    opts
+    |> Keyword.fetch!(:from)
+    |> Path.wildcard()
+    |> Enum.sort()
+    |> Enum.map(fn path ->
+      case File.stat(path, time: :posix) do
+        {:ok, %File.Stat{mtime: mtime, size: size}} -> {path, mtime, size}
+        _ -> {path, nil, nil}
+      end
+    end)
+    |> :erlang.term_to_binary()
+    |> :erlang.md5()
   end
 
   def reload do

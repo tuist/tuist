@@ -275,7 +275,11 @@
 
   & [data-part="test-details"] {
     gap: var(--noora-spacing-4);
+  }
 
+  & [data-part="test-details"],
+  & [data-part="coverage-summary-section"],
+  & [data-part="coverage-file-section"] {
     & [data-part="widgets"] {
       display: flex;
       flex-direction: row;
@@ -902,6 +906,72 @@
       & > [data-part="title"] {
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+      }
+    }
+  }
+  & > [data-part="coverage"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & [data-part="coverage-files-section"],
+    & [data-part="coverage-file-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+    }
+
+    & [data-part="coverage-file-link"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      text-decoration: none;
+      word-break: break-all;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    & [data-part="coverage-file-details"] {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--noora-spacing-5);
+      margin: 0;
+
+      & dt {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
+      }
+
+      & dd {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-body-medium);
+        word-break: break-all;
+
+        & a {
+          color: var(--noora-surface-label-primary);
+        }
+      }
+    }
+
+    & [data-part="coverage-cell"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      min-width: 160px;
+
+      & > .noora-progress-bar {
+        flex-grow: 1;
+      }
+
+      & > [data-part="percentage"] {
+        min-width: 48px;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
+        text-align: right;
       }
     }
   }

@@ -65,6 +65,7 @@ env:
 jobs:
   resolve:
     name: Resolve canary version
+    if: github.repository == 'tuist/tuist'
     runs-on: tuist-linux
     timeout-minutes: 5
     outputs:

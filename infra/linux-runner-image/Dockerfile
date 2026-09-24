@@ -34,7 +34,21 @@ ARG TARGETARCH=amd64
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent
+    go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-cache-volume ./cmd/tuist-cache-volume
+
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS gitlab-runner-builder
+WORKDIR /src
+COPY gitlab-runner/go.mod gitlab-runner/go.sum ./
+RUN go mod download
+COPY gitlab-runner/*.go ./
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-gitlab-runner .
 
 # Android SDK resolver. sdkmanager is a JVM tool, so it runs here in a
 # JDK stage and only the resolved SDK is copied into the final image —
@@ -111,7 +125,7 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
 FROM ubuntu:22.04
 
 # renovate: datasource=github-releases depName=actions/runner
-ARG RUNNER_VERSION=2.336.0
+ARG RUNNER_VERSION=2.337.0
 ARG RUNNER_ARCH=x64
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
@@ -228,11 +242,11 @@ RUN apt-get update \
 # land as `fix(linux-runner-image): …` and route through the
 # release flow same as `RUNNER_VERSION`.
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=1.36.1
+ARG KUBECTL_VERSION=1.37.0
 # renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=4.2.0
+ARG HELM_VERSION=4.3.0
 # renovate: datasource=github-releases depName=cli/cli
-ARG GH_VERSION=2.97.0
+ARG GH_VERSION=2.100.0
 RUN ARCH="$(dpkg --print-architecture)" \
     && curl -fSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" \
          -o /usr/local/bin/kubectl \
@@ -358,6 +372,7 @@ RUN set -eux; \
 # job's log and window back, authenticating with the job-scoped report
 # token the poller staged — never the SA token, which this container
 # does not hold.
+COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner
 COPY buildkite-hooks/ /usr/local/share/tuist/buildkite-hooks/
 RUN chmod +x /usr/local/share/tuist/buildkite-hooks/*
 
@@ -370,13 +385,19 @@ COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 COPY run-job.sh /usr/local/bin/run-job.sh
 COPY vitals.sh /usr/local/bin/vitals.sh
 COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
+COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /usr/local/bin/tuist-cache-volume
+COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/actions-runner/externals/tuist-cache-volume
 # metrics-sampler.sh runs in the `metrics` native-sidecar container
 # (holds the SA token like the poller; never the runner container) and
 # POSTs the microVM's machine metrics for the job detail page.
 COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
 RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent /usr/local/bin/metrics-sampler.sh
 
+# Ubuntu's logout script clears a console that GitLab's login shell does not have.
+RUN rm -f /home/runner/.bash_logout
+
 USER runner
+RUN printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login
 
 # Default CMD is the poll loop, used by the poller init container.
 # The runner main container overrides this with run-job.sh via the

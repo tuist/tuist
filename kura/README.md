@@ -18,7 +18,7 @@ Contributions to Kura require signing the Kura Contributor License Agreement (CL
 ## Summary ✨
 
 - ⚡ Hot reads come from local disk
-- 🪨 Local metadata, multipart state, and the replication outbox live in RocksDB
+- 🪨 Local metadata, multipart state, and the replication arrival feed live in RocksDB
 - 🔁 Blobs and cache metadata replicate to peer nodes with eventual consistency
 - 🔎 Nodes can discover peers through DNS and catch up from already-running nodes
 - 📦 Kura actively supports Bazel and Buck2 REAPI, Xcode Cache, Gradle, and module-cache protocols
@@ -39,10 +39,16 @@ Actively supported:
 
 The Xcode compilation-cache plugin negotiates the existing split/splice methods to upload missing chunks and reuse verified local chunks during downloads. Existing clients retain ordinary blob reads. See [Xcode client chunking](docs/client-chunking.md) for compression boundaries, compatibility, output-by-output investigation, and reproducible benchmarks. Gradle and binary/module-artifact transfers are unchanged.
 
+Uploads on these HTTP lanes can opt into ingest verification, since their keys are input-derived cache keys rather than content hashes: a single-request PUT may declare the body's SHA-256 in a `tuist-checksum-sha256` header (64 hex characters), and a module-cache complete may declare the assembled object's SHA-256 as `checksum_sha256` in its JSON body. The server hashes the received bytes while they stream in and refuses the write with `422` when they do not reproduce the declared digest; a refused multipart complete drops the whole upload, since a whole-object digest cannot say which part is wrong, and the client retries from a fresh session. A verified digest is stored with the artifact, replicated with it, and returned on downloads as `tuist-checksum-sha256` (on `200` and `206` alike, always describing the whole object), so the downloading client can check the body it received. Requests that declare nothing are stored unverified and served without the header, as before. The REAPI lanes verify digests unconditionally, as the protocol requires.
+
 Compatibility surfaces:
 
 - `Nx`: self-hosted remote cache API on `GET/PUT /v1/cache/{hash}`
 - `React Native Metro`: `HttpStore` / `HttpGetStore` on `GET/PUT /api/metro/cache/{cache_key}`
+
+## Bazel dependency downloads
+
+Kura supports Remote Asset `FetchBlob`: it fetches and verifies dependency archives once, stores them in the project CAS, and serves subsequent builds without contacting the origin while the bytes remain cached. `tuist bazel setup` enables it by default with local fallback. Use `--no-remote-downloader` to opt out. Fetches are capped at three minutes overall and 60 seconds per mirror. See [configuration, supported qualifiers, limits and rollout](docs/remote-assets.md).
 
 ## Local stack 🧪
 
@@ -130,9 +136,11 @@ Kura exposes multiple cache protocols behind one service. Public HTTPS supports 
 
 Artifact GETs on those HTTP routes are resumable. Kura advertises `Accept-Ranges: bytes` on every artifact response, accepts a single `bytes=` range on the request, and answers it with `206 Partial Content` and a `Content-Range` header. A client whose download is cut short should re-request with `Range: bytes=<bytes it already has>-` and append, rather than restarting from zero. Multi-range requests are served whole; a range starting past the end of the artifact is refused with `416 Range Not Satisfiable` and a `Content-Range: bytes */<size>` header.
 
+Account renames preserve the storage and peer tenant. Regional client endpoints migrate to the new name only after the separate, default-off per-account endpoint-migration gate is enabled; existing routing remains in place while paused. Historical client URLs remain DNS/TLS/routing aliases for 90 days, while their names stay reserved to the account; HTTP clients can negotiate a non-cacheable 307 redirect with `x-tuist-accept-endpoint-redirect: 1`, while gRPC continues serving through the alias. See [account identity and rollout](docs/account-renames.md) before enabling renames on an existing mesh.
+
 For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests carry their namespace explicitly through the gRPC `instance_name`/`resource_name`, and may declare the account with the `x-kura-tenant-id` metadata header (the gRPC analog of the `tenant_id` query param above).
 
-Kura extends the REAPI ActionCache with a wildcard form of the standard `GetActionResult.inline_output_files` hint: a literal `"*"` entry asks Kura to inline the contents of **every** output file the response budget affords (the per-request REAPI materialization budget, 8–64MB depending on the node's memory limits). It exists for clients whose output-file paths are digests unknown before the response — the Xcode CAS plugin — collapsing the action lookup and the blob fetch into one round-trip. Semantics: wildcard-matched files inline best-effort (a file the budget cannot afford stays un-inlined and the client falls back to `BatchReadBlobs`); explicitly listed paths keep the standard hard `RESOURCE_EXHAUSTED` error on budget exhaustion; servers without the extension match no literal `"*"` path and inline nothing, so mixed client/server versions interoperate unchanged. Note the trade-off: inlining happens before the server can know which blobs the client already holds, so every inlined byte counts as metered download egress even when a warm client discards it.
+Kura extends the REAPI ActionCache with a wildcard form of the standard `GetActionResult.inline_output_files` hint: a literal `"*"` entry asks Kura to inline the contents of **every** output file the response budget affords (the per-request REAPI materialization budget, 8–64MB depending on the node's memory limits). It exists for clients whose output-file paths are digests unknown before the response — the Xcode CAS plugin — collapsing the action lookup and the blob fetch into one round-trip. Semantics: wildcard-matched files inline best-effort (a file the budget cannot afford stays un-inlined and the client falls back to `BatchReadBlobs`); explicitly listed paths keep the standard hard `RESOURCE_EXHAUSTED` error on budget exhaustion; servers without the extension match no literal `"*"` path and inline nothing, so mixed client/server versions interoperate unchanged. Note the trade-off: inlining happens before the server can know which blobs the client already holds, so every inlined byte counts as metered download egress even when a warm client discards it. Optional files skipped because of materialization limits increment `kura_reapi_inline_fallbacks_total_total` per file. They do not increment `kura_capacity_sheds_total_total{kind="reapi_materialization"}` or the `reapi_materialization_rejected` memory action; those retain required-read rejection accounting. Client size-hint skips and missing blobs are not capacity fallbacks. Older replicas still include optional fallbacks in shedding until upgraded.
 
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
@@ -185,16 +193,16 @@ curl \
 
 Kura splits storage into two planes:
 
-- 🪨 RocksDB stores metadata, keyvalue payloads, multipart state, tombstones, segment lifecycle state, and the replication outbox.
+- 🪨 RocksDB stores metadata, keyvalue payloads, multipart state, tombstones, segment lifecycle state, and the replication arrival feed.
 - 📦 Segment files store large immutable binary artifacts for the hot path. The segment ring's capacity derives from the data-dir filesystem size (or `KURA_CAS_CAPACITY_BYTES`), and rotating in a new segment evicts the oldest one once the budget is reached.
 
-Replication is leaderless and eventually consistent, and a node moves from push to pull per peer (see `docs/replication-design.md`):
+Replication is leaderless and eventually consistent, and every node pulls (see `docs/replication-design.md`):
 
-- 🔁 local writes become durable together with their replication state: one arrival-feed row for pulling siblings and one outbox message per peer still on push, in the same atomic batch as the metadata commit
-- ⬇️ a pulling node (`KURA_REPLICATION_PULL`, or the account flag) reads its same-region siblings' arrival feed forward over loopback — lossless, long-polled, `GET /_internal/sync/forward` — and, while it holds its region's gateway role, each remote gateway's `version_ms` index ascending from a per-origin-region watermark, best effort; peers that do not advertise pulling are pushed to exactly as before
+- 🔁 local writes become durable together with their replication state: one arrival-feed row, in the same atomic batch as the metadata commit
+- ⬇️ a node reads its same-region siblings' arrival feed forward over loopback — lossless, long-polled, `GET /_internal/sync/forward` — and, while it holds its region's gateway role, each remote gateway's `version_ms` index ascending from a per-origin-region watermark, best effort
 - 🌍 a joining peer catches up newest-first through the backfill walker, listing its own per-entry index against each peer's and fetching only the bodies it is missing; the pull links run their backward passes through the same pipeline
+- 🧷 a peer on a release that predates pull is still served: its pushes land on the `/_internal/replicate/*` receivers this node keeps for it (and never sends on), and its link settles as `unsupported` until it is upgraded
 - 🔎 DNS discovery can expand the peer set automatically
-- 🧠 the outbox is processed incrementally so queue depth does not blow up heap usage during backlog
 
 Peer-to-peer traffic always uses the dedicated internal plane:
 
@@ -230,6 +238,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | --- | --- | --- | --- |
 | `KURA_PORT` | Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service (one listener, dispatched by request path). | No | `—` |
 | `KURA_HTTPS_PORT` | TLS port serving the same co-hosted HTTP + gRPC surface (ALPN-negotiated), active when `KURA_PUBLIC_TLS_*` is configured. | Yes | `4443` |
+| `KURA_GATEWAY_GRPC_PORT` | Plaintext h2c port serving only the REAPI gRPC services; plain HTTP requests get 404. Set it when a reverse proxy in front of Kura pools upstream connections by address, and route the proxy's gRPC traffic here. Unbound when unset. | Yes | Unset |
 | `KURA_INTERNAL_PORT` | Internal HTTP or mTLS port used for peer replication and discovery. | No | `—` |
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
@@ -264,11 +273,8 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` | Total memory budget reserved for metadata write buffering. | Yes | auto |
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | Yes | auto |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | Yes | auto |
-| `KURA_OUTBOX_MAX_DEPTH_PER_PEER` | Replication outbox messages one peer may hold. Every cache write enqueues one outbox message per replication target and is refused with retryable backpressure once any of its targets is at this depth, so one slow peer fills its own share without taking the room meant for the others. The node is also bounded by a total of this times its peer count (at least one share, at most `1000000`), re-derived on every membership pass; a pass that observes no peers at all returns the total to one share, while a pass that could not reach any peer holds the previous total. Per-target depth is exported as `kura_outbox_target_messages`, the share as `kura_outbox_peer_capacity`, and the total as `kura_outbox_capacity` and `outbox_capacity` on the rollout status endpoint. Each message is roughly half a KiB of RocksDB on disk. | Yes | `100000` |
-| `KURA_OUTBOX_MAX_DEPTH` | A fixed node-wide outbox total. When set it replaces the per-peer share entirely. | Yes | unset |
 | `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` | Aggregate per-node byte-per-second ceiling for peer artifact body transfers. Kura dynamically divides this ceiling by the larger of `public_inflight + 1` and recent public request latency pressure, so sync traffic backs off while public HTTP or gRPC cache work is active or slow; `0` disables throttling. | Yes | `536870912` |
 | `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` | Public HTTP/gRPC request latency target used to adapt peer artifact body bandwidth. If recent public latency exceeds the target, sync traffic backs off proportionally; `0` disables latency-based pressure. | Yes | `100` |
-| `KURA_REPLICATION_UPLOAD_STALL_MS` | Maximum time an outbox artifact upload may produce no body chunk before the attempt is abandoned and retried. Re-armed when the body ends, so the wait for the receiver's response gets a whole window. This is the only deadline on the upload path — the upload client carries no read timeout, because the response side stays silent until the receiver has consumed the whole body. | Yes | `60000` |
 | `KURA_CONTROL_PLANE_URL` | Base URL for the control plane Kura reports usage to. When set with the client credentials below, Kura pushes usage rollups to `/_internal/kura/usage`. The same batches carry storage telemetry for control-plane claim sizing: a capacity-eviction report per segment the ring sheds under size pressure (with deterministic per-segment event ids) and a ring-occupancy snapshot at most every 15 minutes, both buffered in memory only with bounded queues. Falls back to `KURA_AUTH_TUIST_URL` when those credentials are set, since usage and authorization address the same server. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_ID` | OAuth client id used for Kura control-plane calls. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_SECRET` | OAuth client secret used for Kura control-plane calls. | Yes | disabled |
@@ -289,7 +295,6 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_BACKFILL_MARGIN_PERCENT` | Share of the age-ordered segment ring (counted from the newest) whose boundary segment's seal-time stat becomes the backfill horizon; the margin's share of the ring's time span is the window's structural slack. | Yes | `40` |
 | `KURA_BACKFILL_READY_RING_PERCENT` | Segment-ring fullness percent at which a node still running its initial backfill cycle marks itself ready; readiness then latches for the process lifetime. | Yes | half of `KURA_BACKFILL_MARGIN_PERCENT` |
 | `KURA_BACKFILL_BATCH_BYTES` | Byte threshold a backfill pass composes one bodies batch against, and the cutoff above which a listed entry is fetched through the per-artifact endpoint. Must not exceed the compiled 32 MiB response ceiling shared by both sides of the bodies protocol. | Yes | `33554432` |
-| `KURA_REPLICATION_PULL` | Flips the node to pull replication: it advertises `pulling` in `/_internal/status`, reads from every peer that also pulls (its same-region siblings' arrival feed; remote gateways' ascending listings while it holds its region's gateway role) and keeps pushing through the outbox to every peer that does not — and to a pulling peer whose own advertised membership view (`peers` in `/_internal/status`) does not name this node, since such a peer cannot dial back and pull would reach it in neither direction. The control plane's account flag (`kura_replication_pull`, carried in the mesh heartbeat and peers-sync responses) can also switch it on for enrolled nodes; this value only ever adds to it. | Yes | `false` |
 | `KURA_SYNC_FEED_MAX_ROWS` | Rows the arrival feed retains before it drops its oldest. At ~100 B a row the default is ~100 MB logical; it must hold the writes that land during the longest backward pass a sibling can need, or a sibling that fell off the feed recovers into another `410`. Writes are never refused because the feed is full. | Yes | `1000000` |
 | `KURA_SYNC_LONG_POLL_SECS` | How long a forward read (`/_internal/sync/forward`, and `order=asc` listings) blocks with nothing to return. Clamped to `[1, 60]` and kept below the peer client's 30 s idle read timeout so an idle long-poll never races it; an idle poll re-checks every second, bounding a missed wake. | Yes | `25` |
 | `KURA_SYNC_PASS_START_BUFFER_MS` | How far below the region watermark a backward pass starts (`max(horizon, watermark − buffer)`) on a gateway entering or leaving the mesh, a restart or a promotion. Covers the origin region's own intra-region lag when the watermark last advanced; the cost is listing only, and the horizon floors it. | Yes | `600000` |
@@ -306,8 +311,8 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 
 ### Backfill operations
 
-- Backfill is the pass pipeline every catch-up path runs on — the per-peer scheduler for peers still on push, and the backward passes of the pull links; there is no walker selection to make. A node builds its per-entry index at boot and answers `GET /_internal/backfill/entries` with `503 index_building` until `backfill/meta/build_complete` is set — a requester treats that as a budget-exempt retry, so a mesh whose peers are still indexing converges late rather than failing.
-- The rollout report shows the initial cycle per node as `pending` (passes still running or retrying with budget left), `complete` (every in-cycle peer resolved cleanly), or `degraded` (a peer exhausted its failure budget on real failures).
+- Backfill is the pass pipeline every catch-up path runs on — the backward passes of the pull links and every forward page they apply; there is no walker selection to make. A node builds its per-entry index at boot and answers `GET /_internal/backfill/entries` with `503 index_building` until `backfill/meta/build_complete` is set — a requester treats that as a budget-exempt retry, so a mesh whose peers are still indexing converges late rather than failing.
+- The rollout report shows the catch-up per node as `pending` (a link readiness waits on is still bootstrapping), `complete` (every such link settled), or `degraded` (a link spent its bootstrap budget on real failures). A peer on a release that predates pull settles its link as `unsupported` and is counted under `backfill_budget_exhausted_capability_peers`, never as degraded.
 - Region-move promotion gates on instance readiness only; the initial-cycle mode is not consumed by the control plane. A move target can latch ready before its full transfer settles, so before initiating a move where completeness matters, check `backfill_initial_cycle: complete` on the target's rollout report first. To abort a move, destroy the move TARGET server (`Kura.destroy_server` via the server ops surface); the source keeps serving.
 - Index-build progress: a node still building answers listing requests with `503 index_building`; rebuilds (rollback-window staleness, cumulative crash forgiveness) are logged with the reason.
 
@@ -327,10 +332,10 @@ Both sides spool through the filesystem: the sender writes frames to a temp file
 Kura also enforces a few hard-coded budgets that are not configurable:
 
 - Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Its batched sibling `/_internal/replicate/artifacts` carries the metadata lane (inline artifacts only) and is capped at 512 items and 8 MiB per request; it answers one outcome per item so a single rejected item does not strand the rest, and a peer that predates the route answers 404, which sends the sender back to the per-artifact route. Backfill listing pages are capped at 32 MiB and 2048 rows, and a bodies response is bounded by the 32 MiB ceiling both sides compile in. When `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` is positive, Kura also applies a shared per-node bandwidth ceiling to peer artifact body traffic. The effective rate shrinks as public HTTP and gRPC requests are in flight or recent public latency rises above `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`, so background sync yields network capacity to public cache reads.
-- Cache writes are rejected with retryable transport-specific backpressure when memory pressure reaches `Critical`, when any replication peer's outbox share is full (`KURA_OUTBOX_MAX_DEPTH_PER_PEER`, or the fixed node-wide `KURA_OUTBOX_MAX_DEPTH`), when the file-descriptor pool is exhausted, or when the data volume has insufficient free space for a new segment.
-- Replication delivery is never paused for memory pressure, at any tier and regardless of the raw hard-watermark arm. Because a full outbox rejects cache writes, pausing the drain does not defer work — it strands the queue and ends up rejecting writes, leaving the node divergent from its peers for as long as they can accept its deliveries. The state that walks into the cap is the hard-watermark arm below `Critical`, where writes are still admitted while the drain is held; at `Critical` the write gates already reject before they look at outbox depth, so the outbox is frozen rather than growing. The drain loop is serial and node-wide, so exactly one delivery is in flight regardless of peer count or backlog depth, and it takes no transient reservation — that delivery moves one owned 512 KiB segment-read chunk directly into the peer request body, or for an inline artifact holds the whole value up to the 4 MiB inline ceiling. The usage (metering) outbox has no such coupling and still pauses under critical pressure.
-- Kura samples the container charge every 200 milliseconds and removes clean file-backed cache before evaluating pressure, while exporting the complete charge and conventional working set as separate metrics. A file-cache reclaim signal activates on two arms: a working-set arm routed through the hysteretic pressure state machine so it does not flip per sample near the soft watermark, and a raw hard-watermark arm on `memory.current` that intentionally stays steady state on warm serving nodes so they keep trading clean file-cache warmth for request capacity. Either arm makes request paths release completed file ranges without constraining admission. Sampling only drives pressure state, cache trimming, and coarse background load shedding; it never participates in per-request admission arithmetic. Response materialization, foreground uploads, multipart assembly, and peer catch-up transfers share one fair Tokio byte budget derived from the soft-to-hard watermark gap. Response-stream capacity scales with both that gap and the reserve between the hard watermark and runtime limit, allowing request serving to use memory released by pressure-driven cache trimming instead of stopping at a fixed absolute ceiling. Owned permits remain attached to the allocation or transfer that consumed them, and growth while already holding a permit is always non-blocking. A foreground upload reserves a source-plus-destination working set of up to 32 MiB, reduced automatically on smaller memory profiles. Objects larger than the active window, smaller uploads that had to queue, and overlapping foreground uploads synchronize and release completed staging and append-only segment ranges every 8 MiB. Kura closes the synchronized writer before using aligned `DONTNEED` file advice through Rustix, then reopens it in append mode, so cache reclamation cannot invalidate later buffered bytes. Waiting upload admission times out after 30 seconds with `503 Service Unavailable` or gRPC `RESOURCE_EXHAUSTED`. REAPI ByteStream keeps its existing 64 MiB decode limit. A request-body scanner reads every five-byte gRPC envelope header and non-blockingly grows the owned permit to twice the largest message observed before Tonic allocates its retained wire buffer and decoded byte vector. Once the first resource name reveals the blob size, Kura adds only its bounded disk working set. A batch of remote-execution reads reserves its whole response budget once, before any blob is read, and waits up to a second for it rather than shedding against a momentarily full pool; it never borrows above the floor, because a materialized response holds its reservation until the client has read the body and no deadline bounds that. Where a memory floor is published, the transient budget is sized from it and the remainder of the soft-to-hard gap is held as an elastic pool that write decoding alone may borrow while pressure is normal, so a burst outgrowing the floor is served from headroom the ceiling already allows; borrowed bytes are returned before floor-derived ones, and above normal pressure the pool stops lending. Growth past both returns retryable `RESOURCE_EXHAUSTED` without waiting behind a shared HTTP/2 connection window. Mapped-file serving remains a separate try-only bound over already-resident reclaimable pages and always falls back to streaming. Constrained pressure pauses locally initiated catch-up and snapshot work, but a bounded peer-response pool continues serving backfill reads so the mesh can converge; critical pressure sheds those responses too. Every backpressure response carries a numeric `Retry-After` drawn uniformly between one second and a ceiling that rises with the response-stream queue depth, up to ten seconds when that queue is full, so a fleet shed together does not return together. A joining node retries temporary rate-limit and service-unavailable responses in place, honoring numeric `Retry-After` hints and releasing its memory reservation while it waits. Temporary upload, assembly, and peer-staging files are owned by cancellation-safe cleanup guards, so aborted futures cannot strand disk usage; cancellation cleanup runs on Tokio's blocking pool instead of a runtime worker. The allocator reclaims unused pages on one background thread with a four-second decay, so a quiet node returns memory after a burst without relying on a later request to trigger maintenance.
-- Normal artifact and ByteStream readers also use weighted sublimits within that shared transient budget. File-backed artifact and backfill spool responses let the positional read initialize an uninitialized, capacity-bounded vector, move that allocation directly into the response body, and reserve three live buffers sized from 8 KiB to 512 KiB according to the response size. Inline web, replication, and backfill consumers yield reference-counted slices without copying; web responses reserve the complete retained value plus two transport chunks. ByteStream retains its required protocol vector. Materialized Remote Execution responses reserve both their source payload and encoded transport copy. One transport guard follows each permit through encoding and every Hyper-owned byte buffer, so a stalled or cancelled client cannot release capacity early. When the guaranteed response pool is full and memory pressure is normal, public reads may borrow a second bounded tier from unused transient capacity, while retaining one quarter of that capacity for uploads, materialization, and allocator growth. Public reads that cannot reserve either tier promptly degrade to the 8 KiB chunk floor while still charging the 512 KiB per-stream transport send buffer. The degraded queue and slot wait are bounded; when either capacity or transient headroom is exhausted, Kura returns a retryable unavailable response instead of opening an unaccounted stream. Backfill reads never queue, cannot bypass public waiters, and use only their separate reserved progress quantum, leaving the guaranteed foreground capacity for public binary serving.
+- Cache writes are rejected with retryable transport-specific backpressure when memory pressure reaches `Critical`, when the file-descriptor pool is exhausted, or when the data volume has insufficient free space for a new segment.
+- Catch-up passes are paused as background work under memory pressure; the usage (metering) outbox pauses under critical pressure.
+- Kura samples the container charge every 200 milliseconds and removes clean file-backed cache before evaluating pressure, while exporting the complete charge and conventional working set as separate metrics. A file-cache reclaim signal activates on two arms: a working-set arm routed through the hysteretic pressure state machine so it does not flip per sample near the soft watermark, and a raw hard-watermark arm on `memory.current` that intentionally stays steady state on warm serving nodes so they keep trading clean file-cache warmth for request capacity. Either arm makes request paths release completed file ranges without constraining admission. Sampling only drives pressure state, cache trimming, and coarse background load shedding; it never participates in per-request admission arithmetic. Response materialization, foreground uploads, multipart assembly, and peer catch-up transfers share one fair Tokio byte budget derived from the soft-to-hard watermark gap. Response-stream capacity scales with both that gap and the reserve between the hard watermark and runtime limit, allowing request serving to use memory released by pressure-driven cache trimming instead of stopping at a fixed absolute ceiling. Owned permits remain attached to the allocation or transfer that consumed them, and growth while already holding a permit is always non-blocking. A foreground upload that fits the 16 MiB window reserves a source-plus-destination working set of twice its size, reduced automatically on smaller memory profiles; a larger object is charged for one 8 MiB drop interval of each, the most its bounded copy holds. Objects larger than the active window, smaller uploads that had to queue, and overlapping foreground uploads synchronize and release completed staging and append-only segment ranges every 8 MiB. Kura closes the synchronized writer before using aligned `DONTNEED` file advice through Rustix, then reopens it in append mode, so cache reclamation cannot invalidate later buffered bytes. Waiting upload admission times out after 30 seconds with `503 Service Unavailable` or gRPC `RESOURCE_EXHAUSTED`. REAPI ByteStream keeps its existing 64 MiB decode limit. A request-body scanner reads every five-byte gRPC envelope header and non-blockingly grows the owned permit to twice the largest message observed before Tonic allocates its retained wire buffer and decoded byte vector. Once the first resource name reveals the blob size, Kura adds only its bounded disk working set. A batch of remote-execution reads reserves its whole response budget once, before any blob is read, and waits up to a second for it rather than shedding against a momentarily full pool; it never borrows above the floor, because a materialized response holds its reservation until the client has read the body and no deadline bounds that. Where a memory floor is published, the transient budget is sized from it and the remainder of the soft-to-hard gap is held as an elastic pool that write decoding and upload staging may borrow while pressure is normal (a queued upload still waits on the floor-derived pool), so a burst outgrowing the floor is served from headroom the ceiling already allows; borrowed bytes are returned before floor-derived ones, and above normal pressure the pool stops lending. Growth past both returns retryable `RESOURCE_EXHAUSTED` without waiting behind a shared HTTP/2 connection window. Mapped-file serving remains a separate try-only bound over already-resident reclaimable pages and always falls back to streaming. Constrained pressure pauses locally initiated catch-up and snapshot work, but a bounded peer-response pool continues serving backfill reads so the mesh can converge; critical pressure sheds those responses too. Every backpressure response carries a numeric `Retry-After` drawn uniformly between one second and a ceiling that rises with the response-stream queue depth, up to ten seconds at the original stream-capacity backlog threshold (independent of queue expansion), so a fleet shed together does not return together. A joining node retries temporary rate-limit and service-unavailable responses in place, honoring numeric `Retry-After` hints and releasing its memory reservation while it waits. Temporary upload, assembly, and peer-staging files are owned by cancellation-safe cleanup guards, so aborted futures cannot strand disk usage; cancellation cleanup runs on Tokio's blocking pool instead of a runtime worker. The allocator reclaims unused pages on one background thread with a four-second decay, so a quiet node returns memory after a burst without relying on a later request to trigger maintenance.
+- Normal artifact and ByteStream readers also use weighted sublimits within that shared transient budget. File-backed artifact and backfill spool responses let the positional read initialize an uninitialized, capacity-bounded vector, move that allocation directly into the response body, and reserve three live buffers sized from 8 KiB to 512 KiB according to the response size. Inline web, replication, and backfill consumers yield reference-counted slices without copying; web responses reserve the complete retained value plus two transport chunks. ByteStream retains its required protocol vector. Materialized Remote Execution responses reserve both their source payload and encoded transport copy. One transport guard follows each permit through encoding and every Hyper-owned byte buffer, so a stalled or cancelled client cannot release capacity early. When the guaranteed response pool is full and memory pressure is normal, public reads may borrow a second bounded tier from unused transient capacity, while retaining one quarter of that capacity for uploads, materialization, and allocator growth. HTTP reads that cannot reserve either tier promptly degrade to the 8 KiB chunk floor while still charging the 64 KiB per-stream transport send buffer. Queued ByteStream reads acquire their complete byte reservation when their FIFO turn arrives, before opening a reader or constructing compression state. The shared queue bounds requested bytes to two batches of effective foreground serving capacity, clamped by the transient budget (floor-derived when a floor is published, ceiling-derived otherwise). A separate count limit of four times the original full-buffer stream capacity, capped at 1024, bounds bookkeeping. Queued bytes are pending demand, not allocated stream buffers; stalled clients can still prevent the queue from draining. ByteStream waits at most five seconds and returns `RESOURCE_EXHAUSTED` on queue overflow or timeout. The degraded queue and slot wait are bounded; when either capacity or transient headroom is exhausted, Kura returns a retryable unavailable response instead of opening an unaccounted stream. Backfill reads never queue, cannot bypass public waiters, and use only their separate reserved progress quantum, leaving the guaranteed foreground capacity for public binary serving.
 - Public plaintext HTTP/1 artifact downloads can use the same-port Linux accelerator after the request has been parsed, matched to a known artifact route, authorized, and resolved to a local file. The accelerator owns only a bounded pool of blocking transfer workers and falls back to the normal Axum/Hyper serving path whenever classification is incomplete or unsafe.
 - RocksDB column families are configured with explicit level-0 slowdown/stop triggers and pending compaction limits so backlog turns into write-side backpressure instead of unbounded write-buffer growth.
 - Inline keyvalue payloads are buffered in memory before being written. Total RAM committed to inline payloads is bounded by `KURA_FILE_DESCRIPTOR_POOL_SIZE * KURA_MAX_KEYVALUE_BYTES`; both knobs are tuned together when sizing per-pod memory.
@@ -378,6 +383,15 @@ Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sen
 
 ## 📊 Observability
 
+Optional connectivity diagnostics emit bounded resolver and DNS/TCP/HTTP-header
+observations to ordinary Kura JSON logs. `KURA_CONNECTIVITY_PROFILE` accepts only
+`production`, `staging`, or `canary` and is disabled when unset or invalid. The
+controller sets it only for deployment-selected instances. A dedicated thread
+and async runtime keep network waits and diagnostic failures out of startup and
+readiness decisions; this remains telemetry inside Kura's process resource budget.
+See the [connectivity runbook](../infra/kura-controller/connectivity-diagnostics.md)
+for fixed targets, sample interpretation, access boundaries, and rollout.
+
 Kura ships with a fairly complete local observability story:
 
 - 📈 Prometheus metrics
@@ -415,6 +429,44 @@ sampled with `KURA_REQUEST_LOG_SAMPLE_RATE`. Requests exceeding
 `KURA_SLOW_REQUEST_THRESHOLD_MS`, failed streams, and server errors emit rate-limited warnings with
 response bytes, time to first byte, total duration, and the serving path. The rate limit uses
 constant process memory and reports the number of suppressed events on the next warning.
+
+Staged and inline artifact uploads distinguish incoming request-body failures from
+storage I/O. Recognized disconnects (including premature EOF, remote HTTP/2 stream
+resets, and remote GOAWAY errors surfaced while reading a body) are recorded as 499
+with `kura.response.result=client_aborted`. Malformed framing is 400 with
+`invalid_request_body`; incoming-body timeouts are 408 with `request_timeout`.
+Unknown body failures remain 500 with `request_body_error`, and disk failures retain
+their existing 5xx or capacity response. Actual inline size-limit failures remain 413.
+Hyper enforces wire Content-Length framing: a short HTTP/1 body ends in the 499
+premature-EOF path; bytes after the declared body belong to the next message.
+Hyper 1.9 suppresses HTTP/2 CANCEL/NO_ERROR body errors. Public and peer listeners
+therefore guard the concrete incoming body: EOF without END_STREAM becomes a typed
+abort, including for bodies without Content-Length. A transport may instead cancel
+the handler entirely; then no HTTP completion status can be emitted.
+
+`/_internal/backfill/bodies`, the body-fetch stage every catch-up pass runs on,
+classifies the same way: it distinguishes a transport failure from its own
+`MAX_BACKFILL_BODIES_REQUEST_BYTES` ceiling rather than answering 413 for both.
+The push replication receivers, kept for peers that predate pull, keep their
+blanket 413.
+
+A rejected body never commits an artifact or multipart part. Staging cleanup releases
+its disk reservation after unlink succeeds; an unlink failure is logged and retains
+the reservation to avoid oversubscribing disk. Body-read failures increment the existing
+`result="error"` artifact-write/multipart-part counter or `outcome="error"`
+replication-apply counter. A key-value payload refused by its size
+limit is a 413 and not a write failure, so it is counted only as the size
+rejection it is; the push receivers still book an apply error for their own
+413. Use HTTP status counters and completion results to
+distinguish client failures from storage faults.
+Upload completion events retain bounded causes through internal response extensions;
+ordinary error responses, including cache-miss 404s, keep their previous logging behavior.
+Client-body failures have a separate warning limiter, so an abort storm cannot exhaust
+the warning budget for server faults. An ingress may already have closed the upstream
+connection, so correlate request IDs rather than expecting its status to match Kura's
+local completion status. These classifications cover CAS, Gradle, Nx, Metro,
+multipart parts, key-value uploads, and inline/file-backed peer artifact replication.
+The ShellSpec upload regression runs in CI's clients shard.
 
 HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
 
@@ -456,12 +508,18 @@ When enabled:
 
 Configure it with:
 
-- `KURA_ANALYTICS_SERVER_URL`
+- `KURA_ANALYTICS_SERVER_URL` — give a cluster-local name in absolute form
+  (`http://tuist-tuist-server.tuist.svc.cluster.local.:80`, with the trailing
+  dot) so the node resolves it in one lookup instead of expanding it against
+  every `ndots` search domain first
 - `KURA_ANALYTICS_SIGNING_KEY`
 - optional `KURA_ANALYTICS_BATCH_SIZE` default `100`
 - optional `KURA_ANALYTICS_BATCH_TIMEOUT_MS` default `5000`
 - optional `KURA_ANALYTICS_QUEUE_CAPACITY` default `1000`
-- optional `KURA_ANALYTICS_REQUEST_TIMEOUT_MS` default `5000`
+- optional `KURA_ANALYTICS_REQUEST_TIMEOUT_MS` default `5000`, which spans the
+  connect; the connect budget itself is the control plane's 3s, shared with
+  Bazel test-artifact delivery and lowered to the request timeout when that is
+  set below it
 - optional `KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD` default `5`
 - optional `KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS` default `30000`
 
@@ -479,6 +537,9 @@ When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL
 POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
 ```
 
+Usage delivery allows up to 3 seconds for connection setup, including DNS, within
+a 5-second total request deadline covering setup, upload, and response.
+
 Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
@@ -486,6 +547,38 @@ The hot path increments bounded in-memory counters keyed by tenant, namespace, n
 The usage pipeline follows Kura's resource discipline: bucket count, durable outbox depth, and delivery batch size are capped; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
 
 ## ☸️ Deployment Options
+
+### Irreversible upgrade steps
+
+Kura's on-disk metadata store opens with an explicit RocksDB column-family
+descriptor list, and RocksDB refuses to open a database that contains a
+column family the process does not declare. A release that first
+introduces a new column family therefore closes the rollback door for
+that database volume: once a pod on that release completes `Store::open`,
+the manifest gains the new descriptor, and rolling that pod's image back
+to a predecessor fails on the next start with `Column families not
+opened`.
+
+The rollback constraint applies to a specific data volume, not to the
+release channel as a whole. Options if a rollback becomes necessary:
+
+1. Restore the pod's PersistentVolume from a pre-upgrade snapshot before
+   rolling the image back. This is the surgical recovery.
+2. Delete the pod's PersistentVolume (or empty its data directory) and
+   let it rebuild from peers. This is the safe recovery on a mesh
+   configured for peer replication.
+3. Never roll back that pod's binary past the release that declared the
+   column family. This is the normal expectation once a fleet has been
+   through the deploy.
+
+Deploys that add a new column family are called out here so an operator
+knows which releases lock in that boundary:
+
+- **Release TBD, PR #13467 — `analytics_outbox`.** Adds the RocksDB
+  column family for the future durable analytics outbox. No producer
+  writes to it in that release; the column family stays empty until a
+  follow-up release lights it up. The rollback boundary is set the
+  moment the pod first opens its data volume on this release.
 
 ### Helm And Kubernetes
 
@@ -508,9 +601,12 @@ helm lint ops/helm/kura
 helm template kura ops/helm/kura --namespace kura
 ```
 
-Enable `grpcIngress` when the Bazel Remote Execution API should be reachable outside the cluster. It renders a separate ingress that routes to the service's `grpc` port so you can attach controller-specific gRPC annotations without changing the HTTP API ingress:
+Enable `grpcIngress` when the Bazel Remote Execution API should be reachable outside the cluster. It renders a separate ingress so you can attach controller-specific gRPC annotations without changing the HTTP API ingress. It routes to the service's `http` port, which serves gRPC alongside the HTTP API. When the ingress controller keeps a pool of upstream connections (ingress-nginx does by default), set `service.gatewayGrpcPort`: Kura then binds a gRPC-only port (`KURA_GATEWAY_GRPC_PORT`) and the ingress routes to the service's `grpc` port instead, so gRPC and HTTP connections to a pod are never pooled together:
 
 ```yaml
+service:
+  gatewayGrpcPort: 4001
+
 grpcIngress:
   enabled: true
   className: nginx
@@ -551,7 +647,7 @@ For a gated in-place StatefulSet rollout, the repo also includes:
 ./ops/helm/kura/rollout.sh kura kura --set image.tag=<new-tag>
 ```
 
-That script is the Kubernetes adapter. The rollout gate itself lives in `ops/rollout/gate.sh` and only assumes it can fetch Kura's rollout status endpoint once per node per poll. The Helm adapter stages the new revision behind a StatefulSet partition, rolls the highest ordinal first, and only advances after every node reports the same membership generation, all nodes are back in `serving`, the updated pod stays ready, ring membership is restored cluster-wide, outbox depth stays near baseline, no node is under critical memory pressure, and the cluster is not introducing new file-descriptor timeout activity.
+That script is the Kubernetes adapter. The rollout gate itself lives in `ops/rollout/gate.sh` and only assumes it can fetch Kura's rollout status endpoint once per node per poll. The Helm adapter stages the new revision behind a StatefulSet partition, rolls the highest ordinal first, and only advances after every node reports the same membership generation, all nodes are back in `serving`, the updated pod stays ready, ring membership is restored cluster-wide, no node is under critical memory pressure, and the cluster is not introducing new file-descriptor timeout activity.
 
 If the Kura container listens on a non-default HTTP port, set `KURA_HTTP_PORT=<port>` when invoking the rollout helper so the adapter samples the correct loopback endpoint inside each pod.
 
@@ -727,3 +823,5 @@ configuration that makes it do otherwise.
 ### Bazel build timelines
 
 With build insights enabled by `tuist bazel setup`, Kura forwards Bazel's JSON trace profile and action diagnostics to the Tuist server. Profiles supply all recorded intervals and native resource counters; the existing bounded invocation summary remains available for older builds. Delivery reads only authenticated project CAS artifacts under a background memory reservation. Profile files above 32 MiB compressed are rejected; individual diagnostic streams retain their first and last 16 KiB. The server stores normalized timelines and sanitized logs for 90 days.
+
+REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain module usage attribution. Other clients remain attributed to `reapi`; the hint does not change authentication or CAS storage. CAS batch requests count once per batch, and already-present blob uploads do not add usage.

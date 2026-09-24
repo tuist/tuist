@@ -22,10 +22,16 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Authentication
   alias Tuist.Base64
   alias Tuist.Billing
+  alias Tuist.CacheEndpoints
   alias Tuist.Environment
+  alias Tuist.IngestRepo
   alias Tuist.Kura.Demand
   alias Tuist.Kura.Registrations
+  alias Tuist.Kura.Server
+  alias Tuist.Kura.UsageEvent
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -37,39 +43,40 @@ defmodule Tuist.AccountsTest do
     :ok
   end
 
-  describe "new_organizations_in_last_hour/0" do
-    test "returns organizations created less than an hour ago" do
-      # Given
-      organization = AccountsFixtures.organization_fixture()
+  describe "new_organizations_in_period/2" do
+    test "includes the start, excludes the end, and orders organizations by creation time" do
+      start_at = ~U[2026-09-10 18:00:00Z]
+      end_at = ~U[2026-09-10 19:00:00Z]
+      creator = AccountsFixtures.user_fixture()
+      later = AccountsFixtures.organization_fixture(creator: creator, created_at: DateTime.add(start_at, 30, :minute))
+      first = AccountsFixtures.organization_fixture(creator: creator, created_at: start_at)
+      AccountsFixtures.organization_fixture(creator: creator, created_at: DateTime.add(start_at, -1, :second))
+      at_end = AccountsFixtures.organization_fixture(creator: creator, created_at: end_at)
 
-      # When
-      assert Accounts.new_organizations_in_last_hour() == [organization]
+      assert Accounts.new_organizations_in_period(start_at, end_at) == [first, later]
+      assert Accounts.new_organizations_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
     end
 
-    test "doesn't return organizations created more than an hour ago" do
-      # Given
-      AccountsFixtures.organization_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
-
-      # When
-      assert Accounts.new_organizations_in_last_hour() == []
+    test "returns an empty list when no organizations were created in the period" do
+      assert Accounts.new_organizations_in_period(~U[2026-09-10 18:00:00Z], ~U[2026-09-10 19:00:00Z]) == []
     end
   end
 
-  describe "new_users_in_last_hour/0" do
-    test "returns organizations created less than an hour ago" do
-      # Given
-      user = AccountsFixtures.user_fixture()
+  describe "new_users_in_period/2" do
+    test "includes the start, excludes the end, and orders users by creation time" do
+      start_at = ~U[2026-09-10 18:00:00Z]
+      end_at = ~U[2026-09-10 19:00:00Z]
+      later = AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, 30, :minute))
+      first = AccountsFixtures.user_fixture(created_at: start_at)
+      AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, -1, :second))
+      at_end = AccountsFixtures.user_fixture(created_at: end_at)
 
-      # When
-      assert Accounts.new_users_in_last_hour() == [user]
+      assert Accounts.new_users_in_period(start_at, end_at) == [first, later]
+      assert Accounts.new_users_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
     end
 
-    test "doesn't return organizations created more than an hour ago" do
-      # Given
-      AccountsFixtures.user_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
-
-      # When
-      assert Accounts.new_users_in_last_hour() == []
+    test "returns an empty list when no users were created in the period" do
+      assert Accounts.new_users_in_period(~U[2026-09-10 18:00:00Z], ~U[2026-09-10 19:00:00Z]) == []
     end
   end
 
@@ -105,7 +112,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       stale = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -13, :hour)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(u in User, where: u.id == ^user.id),
         set: [last_sign_in_at: stale]
       )
@@ -209,7 +216,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.account_month_usage(account_id)
 
       # Then
-      assert %{remote_cache_hits_count: 1} == got
+      assert %{remote_cache_hits_count: 1, cache_egress_megabytes: 0, cache_requests: 0} == got
     end
 
     test "ignores events that ran before the free tier was reset" do
@@ -239,7 +246,46 @@ defmodule Tuist.AccountsTest do
       got = Accounts.account_month_usage(account_id, now)
 
       # Then
-      assert %{remote_cache_hits_count: 1} == got
+      assert %{remote_cache_hits_count: 1, cache_egress_megabytes: 0, cache_requests: 0} == got
+    end
+
+    test "meters cache egress and requests from the free tier's reset onwards, with runner traffic at half" do
+      now = ~U[2025-05-18 15:27:00Z]
+      _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
+
+      Account
+      |> Repo.get!(account_id)
+      |> Ecto.Changeset.change(free_tier_reset_at: ~U[2025-05-15 00:00:00Z])
+      |> Repo.update!()
+
+      for {region, bytes, requests, window_start} <- [
+            {"eu-west", 9_000_000_000, 900, ~N[2025-05-10 12:00:00]},
+            {"eu-west", 3_000_000_000, 300, ~N[2025-05-16 12:00:00]},
+            {"scw-fr-par-runners", 2_000_000_000, 200, ~N[2025-05-17 12:00:00]}
+          ] do
+        IngestRepo.insert_all(UsageEvent, [
+          %{
+            event_id: "evt-#{System.unique_integer([:positive])}",
+            account_id: account_id,
+            project_id: 0,
+            node_id: "kura-test",
+            region: region,
+            traffic_plane: "public",
+            direction: "egress",
+            operation: "download",
+            protocol: "http",
+            artifact_kind: "xcode",
+            bytes: bytes,
+            request_count: requests,
+            window_start: window_start,
+            window_seconds: 60,
+            inserted_at: window_start
+          }
+        ])
+      end
+
+      # 3 GB since the reset, plus 2 GB served from a runner region at half
+      assert %{cache_egress_megabytes: 4_000, cache_requests: 400} = Accounts.account_month_usage(account_id, now)
     end
 
     test "returns the right value when there are no remote cache hits" do
@@ -252,7 +298,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.account_month_usage(account_id, now)
 
       # Then
-      assert %{remote_cache_hits_count: 0} == got
+      assert %{remote_cache_hits_count: 0, cache_egress_megabytes: 0, cache_requests: 0} == got
     end
   end
 
@@ -337,8 +383,8 @@ defmodule Tuist.AccountsTest do
       stub(DateTime, :utc_now, fn -> today end)
 
       org = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
-      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
+      account = Repo.get_by!(Account, organization_id: org.id)
+      account = Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
 
       {:ok, _} =
         Billing.create_token_usage(%{
@@ -364,8 +410,8 @@ defmodule Tuist.AccountsTest do
       stub(DateTime, :utc_now, fn -> today end)
 
       org = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
-      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
+      account = Repo.get_by!(Account, organization_id: org.id)
+      account = Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
 
       {:ok, _} =
         Billing.create_token_usage(%{
@@ -596,7 +642,7 @@ defmodule Tuist.AccountsTest do
         )
 
       user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
-      Tuist.Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+      Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
 
       # Then
       refute Accounts.organization_viewer?(user, organization)
@@ -618,7 +664,7 @@ defmodule Tuist.AccountsTest do
         )
 
       user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
-      Tuist.Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+      Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
 
       # Then — the enrollment role decides, rather than defaulting to user.
       viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
@@ -1325,7 +1371,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1356,7 +1402,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1408,12 +1454,12 @@ defmodule Tuist.AccountsTest do
           url: fn token -> token end
         })
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^older.id),
         set: [created_at: ~N[2026-01-01 00:00:00]]
       )
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^newer.id),
         set: [created_at: ~N[2026-02-01 00:00:00]]
       )
@@ -1469,7 +1515,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1559,7 +1605,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1707,7 +1753,7 @@ defmodule Tuist.AccountsTest do
         |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
         |> NaiveDateTime.truncate(:second)
 
-      Tuist.Repo.update_all(
+      Repo.update_all(
         from(i in Invitation, where: i.id == ^invitation.id),
         set: [updated_at: expired_at]
       )
@@ -1929,6 +1975,28 @@ defmodule Tuist.AccountsTest do
     test "returns not found error when organization does not exist" do
       # When / Then
       assert {:error, :not_found} == Accounts.get_organization_by_id(999)
+    end
+
+    test "returns not found error when id is a non-integer string" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1,`")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("not-a-number")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1abc")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("")
+    end
+
+    test "returns not found error when id is nil or an unexpected type" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id(nil)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(-1)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(%{})
+    end
+
+    test "returns organization when id is a string of digits" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      {:ok, organization} = Accounts.create_organization(%{name: "test-org-string-id", creator: user})
+
+      # When / Then
+      assert {:ok, organization} == Accounts.get_organization_by_id(Integer.to_string(organization.id))
     end
   end
 
@@ -2306,6 +2374,15 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "create_user/1" do
+    test "drops the hyphens a handle derived from the email would start or end with" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      unique = TuistTestSupport.Utilities.unique_integer()
+
+      {:ok, user} = Accounts.create_user("_edge.#{unique}_@tuist.dev", password: valid_user_password())
+
+      assert Accounts.get_account_from_user(user).name == "edge-#{unique}"
+    end
+
     test "doesn't start biling trial if it's an on-premise environment" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> false end)
@@ -3251,7 +3328,7 @@ defmodule Tuist.AccountsTest do
 
       # Then - Should only have one role/user_role for this user+organization
       roles =
-        Tuist.Repo.all(
+        Repo.all(
           from(ur in UserRole,
             join: r in Role,
             on: ur.role_id == r.id,
@@ -3277,7 +3354,7 @@ defmodule Tuist.AccountsTest do
 
       # Then - Should only have one role (the first one created)
       roles =
-        Tuist.Repo.all(
+        Repo.all(
           from(ur in UserRole,
             join: r in Role,
             on: ur.role_id == r.id,
@@ -3436,28 +3513,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_organization_members_with_role/1" do
-    test "returns members of an organization" do
-      user_one = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture(creator: user_one)
-      user_two = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_two, organization, role: :user)
-      user_three = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_three, organization, role: :admin)
-
-      organization_two = AccountsFixtures.organization_fixture()
-      Accounts.add_user_to_organization(user_one, organization_two, role: :admin)
-
-      # When
-      got =
-        organization
-        |> Accounts.get_organization_members_with_role()
-        |> Enum.sort(&(hd(&1).id < hd(&2).id))
-
-      # Then
-      assert [[user_one, "admin"], [user_two, "user"], [user_three, "admin"]] == got
-    end
-
+  describe "list_organization_members_with_role/2 with SSO" do
     test "includes SSO users for organizations with Google SSO" do
       user_one = AccountsFixtures.user_fixture()
       domain = unique_sso_domain()
@@ -3481,7 +3537,8 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin, regular user, and SSO user
@@ -3515,13 +3572,135 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin and SSO user
       assert length(got) == 2
       assert Enum.any?(got, fn [user, role] -> user.id == user_one.id and role == "admin" end)
       assert Enum.any?(got, fn [user, role] -> user.id == sso_user.id and role == "user" end)
+    end
+  end
+
+  describe "list_organization_members_with_role/2" do
+    test "paginates members ordered by account name with the total count" do
+      creator = AccountsFixtures.user_fixture(handle: "aaa-creator#{System.unique_integer([:positive])}")
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      members =
+        for index <- 1..4 do
+          user = AccountsFixtures.user_fixture(handle: "member-#{index}-#{System.unique_integer([:positive])}")
+          Accounts.add_user_to_organization(user, organization, role: :user)
+          user
+        end
+
+      other_organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(hd(members), other_organization, role: :admin)
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_members_with_role(organization, page: 1, page_size: 3)
+      {second_page, second_total} = Accounts.list_organization_members_with_role(organization, page: 2, page_size: 3)
+
+      # Then
+      assert first_total == 5
+      assert second_total == 5
+
+      assert Enum.map(first_page ++ second_page, fn [user, role] -> {user.id, role} end) ==
+               [{creator.id, "admin"} | Enum.map(members, &{&1.id, "user"})]
+
+      assert Enum.all?(first_page, fn [user, _role] -> user.account.name end)
+    end
+
+    test "filters members by email or account name, case-insensitively" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+      by_email = AccountsFixtures.user_fixture(email: "Alice-#{System.unique_integer([:positive])}@example.com")
+      by_name = AccountsFixtures.user_fixture(handle: "alice-#{System.unique_integer([:positive])}")
+      Accounts.add_user_to_organization(by_email, organization)
+      Accounts.add_user_to_organization(by_name, organization)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "ALICE")
+
+      # Then
+      assert total == 2
+      assert members |> Enum.map(fn [user, _role] -> user.id end) |> Enum.sort() == Enum.sort([by_email.id, by_name.id])
+    end
+
+    test "treats LIKE wildcards in the search term literally" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "%")
+
+      # Then
+      assert members == []
+      assert total == 0
+    end
+  end
+
+  describe "list_organization_invitations/2" do
+    test "paginates the organization's invitations newest first with the total count" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      other_organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      invitations =
+        for index <- 1..3 do
+          {:ok, invitation} =
+            Accounts.invite_user_to_organization("invitee-#{index}@tuist.dev", %{
+              inviter: inviter,
+              to: organization,
+              url: &"/auth/invitations/#{&1}"
+            })
+
+          Repo.update_all(
+            from(i in Invitation, where: i.id == ^invitation.id),
+            set: [created_at: NaiveDateTime.add(~N[2026-01-01 00:00:00], index, :day)]
+          )
+
+          invitation
+        end
+
+      Accounts.invite_user_to_organization("other@tuist.dev", %{
+        inviter: inviter,
+        to: other_organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_invitations(organization, page: 1, page_size: 2)
+      {second_page, second_total} = Accounts.list_organization_invitations(organization, page: 2, page_size: 2)
+
+      # Then
+      assert first_total == 3
+      assert second_total == 3
+      assert Enum.map(first_page ++ second_page, & &1.id) == invitations |> Enum.reverse() |> Enum.map(& &1.id)
+    end
+
+    test "filters invitations by invitee email, case-insensitively, with LIKE wildcards taken literally" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      {:ok, alice} =
+        Accounts.invite_user_to_organization("alice@tuist.dev", %{
+          inviter: inviter,
+          to: organization,
+          url: &"/auth/invitations/#{&1}"
+        })
+
+      Accounts.invite_user_to_organization("bob@tuist.dev", %{
+        inviter: inviter,
+        to: organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When / Then
+      assert {[%{id: id}], 1} = Accounts.list_organization_invitations(organization, search: "ALICE")
+      assert id == alice.id
+      assert {[], 0} = Accounts.list_organization_invitations(organization, search: "%")
     end
   end
 
@@ -4028,13 +4207,13 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
 
-    test "purges the account's runner cache-volume masters from object storage" do
+    test "purges the account's runner cache-volume masters and GitLab caches from object storage" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       test_pid = self()
 
-      expect(Tuist.Storage, :delete_all_objects, fn prefix, _actor ->
+      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
         send(test_pid, {:purged, prefix})
         {:ok, 0}
       end)
@@ -4045,6 +4224,30 @@ defmodule Tuist.AccountsTest do
       # Then
       assert_receive {:purged, "runner-volume-masters/" <> rest}
       assert rest == "#{account.id}/"
+      assert_receive {:purged, gitlab_cache_prefix}
+      assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.id}/"
+    end
+
+    test "a failed cache-master purge does not skip the GitLab cache purge" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      stub(Tuist.Storage, :delete_all_objects, fn
+        "runner-volume-masters/" <> _, _actor ->
+          raise "storage down"
+
+        prefix, _actor ->
+          send(test_pid, {:purged, prefix})
+          {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:purged, "runner-gitlab-cache/" <> _}
     end
 
     test "account deletion still succeeds when the cache-master purge fails" do
@@ -5016,7 +5219,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_cache_endpoints_for_handle/1" do
+  describe "get_cache_resolution_for_handle/3 for earlier clients" do
     test "returns custom endpoints when account has them configured and enabled" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
@@ -5028,7 +5231,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
@@ -5050,7 +5253,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == ["https://kura-cache.example.com"]
@@ -5065,7 +5268,7 @@ defmodule Tuist.AccountsTest do
       stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == ["https://node.acme.example:8080"]
@@ -5082,7 +5285,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5104,7 +5307,7 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == ["https://custom-cache.example.com"]
@@ -5128,7 +5331,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5145,7 +5348,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
       {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
 
-      Repo.insert!(%Tuist.Kura.Server{
+      Repo.insert!(%Server{
         account_id: account.id,
         region: "us-east",
         status: :archived,
@@ -5153,7 +5356,7 @@ defmodule Tuist.AccountsTest do
       })
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       assert resolution.endpoints == ["https://default.tuist.dev"]
@@ -5175,7 +5378,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       assert resolution.endpoints == ["https://default.tuist.dev"]
@@ -5193,7 +5396,7 @@ defmodule Tuist.AccountsTest do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       refute resolution.provisioning
@@ -5214,11 +5417,50 @@ defmodule Tuist.AccountsTest do
       {:ok, account} = Accounts.update_account(account, %{region: :all})
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       assert resolution.endpoints == ["https://default.tuist.dev"]
       assert resolution.provisioning
+    end
+
+    test "asks for the account's instance straight away when none is serving" do
+      # Given
+      # Returning an archived instance used to wait for the demand buffer's
+      # flush and the next reconciler tick, up to two minutes before the
+      # instance even started coming back.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert [%Oban.Job{args: %{"account_id" => account_id}}] =
+               all_enqueued(worker: ProvisionOnDemandWorker)
+
+      assert account_id == account.id
+    end
+
+    test "does not ask for an instance for an account with no resolvable service region" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
+
+      # When
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      refute_enqueued(worker: ProvisionOnDemandWorker)
     end
 
     test "does not report provisioning once an instance is serving" do
@@ -5230,11 +5472,12 @@ defmodule Tuist.AccountsTest do
       KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://acme-us-east-1.kura.tuist.dev")
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
 
       # Then
       assert resolution.endpoints == ["https://acme-us-east-1.kura.tuist.dev"]
       refute resolution.provisioning
+      refute_enqueued(worker: ProvisionOnDemandWorker)
     end
 
     test "does not report provisioning when the client is not routed to Kura" do
@@ -5245,7 +5488,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      resolution = Accounts.get_cache_resolution_for_handle(account.name)
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :legacy)
 
       # Then
       refute resolution.provisioning
@@ -5262,7 +5505,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
       Demand.flush()
 
       # Then
@@ -5277,7 +5520,7 @@ defmodule Tuist.AccountsTest do
       account = Accounts.get_account_from_user(user)
 
       # When
-      Accounts.get_cache_endpoints_for_handle(account.name)
+      Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
       Demand.flush()
 
       # Then
@@ -5297,7 +5540,7 @@ defmodule Tuist.AccountsTest do
       KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == ["https://custom-cache.example.com"]
@@ -5312,7 +5555,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5329,7 +5572,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5346,7 +5589,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5363,7 +5606,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5380,7 +5623,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5392,7 +5635,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle("nonexistent-account")
+      endpoints = Accounts.get_cache_resolution_for_handle("nonexistent-account", :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -5404,10 +5647,136 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(nil)
+      endpoints = Accounts.get_cache_resolution_for_handle(nil, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
+    end
+  end
+
+  describe "get_cache_resolution_for_handle/3 for Kura clients" do
+    test "returns the account's Kura endpoints over its custom endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution == %{endpoints: ["https://kura-cache.example.com"], provisioning: false}
+    end
+
+    test "returns no endpoints instead of the legacy cache nodes while a lifecycle-managed account has no Kura instance" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://cache-us-east.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true, region: :usa})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      # When
+      kura = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      legacy_fallback = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
+
+      # Then
+      assert kura.endpoints == []
+      assert legacy_fallback.endpoints == ["https://cache-us-east.tuist.dev"]
+    end
+
+    test "returns custom endpoints for an account that has never routed through Kura" do
+      # Given
+      # Stubbed rather than arranged, because the demand this very call records
+      # is what makes an account lifecycle-managed.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == ["https://cache1.example.com"]
+    end
+
+    test "returns no endpoints instead of the legacy cache nodes when the account has no Kura or custom endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> nil end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        CacheEndpoints.create_cache_endpoint(%{url: "https://cache-eu-central.tuist.dev", display_name: "EU"})
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == []
+    end
+
+    test "reports provisioning while the account's instance is not serving yet" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "us-east",
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-us-east"
+      })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution == %{endpoints: [], provisioning: true}
+    end
+
+    test "returns no endpoints instead of the legacy cache nodes for an unknown or missing account handle" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://cache-us-east.tuist.dev"] end)
+
+      # When / Then
+      assert Accounts.get_cache_resolution_for_handle("nonexistent-account", :kura) ==
+               %{endpoints: [], provisioning: false}
+
+      assert Accounts.get_cache_resolution_for_handle(nil, :kura) == %{endpoints: [], provisioning: false}
+    end
+
+    test "returns the configured endpoints when self-hosted" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :cache_endpoints, fn -> ["https://cache-self-hosted.example.com"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution == %{endpoints: ["https://cache-self-hosted.example.com"], provisioning: false}
     end
   end
 
@@ -6149,5 +6518,15 @@ defmodule Tuist.AccountsTest do
     jws = %{"alg" => "RS256", "kid" => "agent-auth-test-key", "typ" => typ}
     {_, token} = jwk |> JOSE.JWT.sign(jws, jwt) |> JOSE.JWS.compact()
     token
+  end
+
+  describe "get_account_ids_by_handles/1" do
+    test "keys each account id by the handle as requested, whatever its casing" do
+      account = organization_fixture(name: "Mixed-Case-#{System.unique_integer([:positive])}").account
+      downcased = String.downcase(account.name)
+
+      assert Accounts.get_account_ids_by_handles([account.name, downcased, "no-such-account-#{account.id}"]) ==
+               %{account.name => account.id, downcased => account.id}
+    end
   end
 end

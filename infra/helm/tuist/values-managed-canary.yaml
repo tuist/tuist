@@ -21,7 +21,7 @@ registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
   deployEnv: canary
-  sentryEnv: can
+  sentryEnv: canary
   ingress:
     host: registry-canary.tuist.dev
     tlsSecretName: registry-canary-tls
@@ -53,6 +53,18 @@ server:
   kuraCapacityAdmission:
     enabled: true
 
+  # Point the server's Sentry envelopes at the self-hosted Atlas ingest
+  # (atlas.tuist.dev, the migration from ../hive). PREREQ (MUST land before
+  # this merges): add a `dsn_atlas` field to the SENTRY 1Password item in
+  # `tuist-k8s-canary` holding the Server-project Atlas DSN; otherwise the
+  # ExternalSecret sync fails on a missing remoteRef and takes every other
+  # key in the server-config Secret with it. Rollback is a revert; the
+  # existing `dsn` field on the same item stays put.
+  config:
+    externalSecrets:
+      fields:
+        sentryDsn: dsn_atlas
+
   # Cloudflare Turnstile signup gate. Uses the same real widget as production
   # (single TURNSTILE Cloudflare widget with tuist.dev, canary.tuist.dev and
   # staging.tuist.dev in its hostname allowlist), synced from the TURNSTILE
@@ -63,6 +75,12 @@ server:
   # is safe here and rehearses the exact ESO sync + hostname-allowlist path
   # production runs.
   turnstile:
+    enabled: true
+
+  # Mirrors production so canary rehearses the public-dashboard challenge
+  # ahead of the cascade. See values-managed-production.yaml and PR #13205
+  # for context.
+  publicPageChallenge:
     enabled: true
 
   appUrl: https://canary.tuist.dev
@@ -115,6 +133,20 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: ""
         runner_macos_compute_unit_milliseconds: "price_1U6woPQ9gGM5W1agDGX7fNED"
+      # Usage-based pricing meters, reported only for accounts with the
+      # `usage_based_pricing` flag, in place of the remote cache hit meter.
+      # Provisioned in this environment's own Stripe account (test mode) by
+      # `Tuist.Billing.UsageMeterProvisioning`. A subscription only carries
+      # them once its account is switched, which the flag still gates.
+      usage_meters:
+        cache_egress_megabytes: "price_1UITAiQ9gGM5W1agQo117CYC"
+        cache_requests: "price_1UITAkQ9gGM5W1ag7kkpTbOX"
+        passing_test_cases: "price_1UITAlQ9gGM5W1ag0ql0psQC"
+      # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
+      # macOS baseline machine-minute, carried as a subscription item whose
+      # quantity is the minutes. Never blank it once an account carries the
+      # item: a plan change would stop recognising it and delete it.
+      runner_prepaid_minutes: "price_1UGEILQ9gGM5W1agSHl9o4rT"
       air:
         usage: ["price_1S7xQ3Q9gGM5W1ag8IjnKx6f"]
         flat_monthly: ["price_1S7xQ3Q9gGM5W1agupKva14g"]
@@ -224,12 +256,6 @@ server:
       value: "1"
     - name: TUIST_KURA_DEMAND_TRACKING_GRACE_DAYS
       value: "0"
-    - name: TUIST_KURA_ARCHIVAL_SWEEP_CRON
-      # The production default is @daily, which would leave an instance
-      # eligible for up to another day against the one-day window above.
-      # Hourly closes that to an hour; staging's */5 buys nothing here, where
-      # nobody is watching a single instance through its cycle.
-      value: "0 * * * *"
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # This environment's rollouts run expedited, so the value only shapes
     # interim-paced ordering here; kept aligned with production.
@@ -258,62 +284,37 @@ objectStorage:
       default: tuist-can-storage
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73). On: both AX42-1 are installed and
-  # Ready in the `clickhouse` pool, each with `/data` as XFS on its 2x512 GB
-  # mirror.
+  # The in-cluster ClickHouse is canary's system of record (spec #73). Every
+  # workload reads and writes it through TUIST_CLICKHOUSE_URL, and ClickHouse
+  # Cloud receives nothing.
   #
-  # This is step 2 of the rollout plan, and it brings the server up empty and
-  # nothing more. The steps after it are the schema clone, then
-  # `shadowWrites.enabled`, then `migration` with the backfill in the
-  # background, then the read flag. Each is its own deploy, and each has a
-  # gate.
+  # Going back to `external` does not copy anything back: rows written since
+  # the switch exist only on the in-cluster server.
+  mode: managed
   managed:
     enabled: true
-    # Canary carries no production-sized copy: its AX42-1 has a 2x512 GB
-    # mirror, so this is sized for the environment's own data. What canary is
-    # for is the shape production will run — a second replica and a
-    # three-member quorum, neither of which staging exercises.
+    # Canary carries no production-sized copy: its AX42-1s have a 2x512 GB
+    # mirror each, so this is sized for the environment's own data. What
+    # canary is for is the shape production will run, which staging does not
+    # exercise: two replicas here, one on each AX42-1.
     #
-    # Both are still 1. Two replicas need a database initialised on each of
-    # them, which the init Job does not do: it reaches whichever pod the
-    # Service picks. The volume half is solved, by `nodeName` below, so raising
-    # these is now gated on the init alone.
-    replicas: 1
+    # Keeper stays at one member. Growing a live ensemble to three is a
+    # membership change, not a replica count: new members started with a
+    # three-server configuration can elect a leader between themselves with
+    # none of the existing member's metadata.
+    replicas: 2
     persistence:
       size: 200Gi
       localVolume:
-        # The pool has two nodes, so this names which one holds the data. See
-        # the `nodeName` comment in values.yaml for why it is a hostname and
-        # not the pool label. The second box is joined, tainted and idle until
-        # the two-replica work lands.
-        nodeName: bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
-    # Dual writes come before the backfill, not after it. From the moment this
-    # is on, every new row reaches both servers; the backfill then copies what
-    # was written before a stated cutoff. Doing it the other way round leaves
-    # the rows written between the copy finishing and the mirror starting on
-    # Cloud alone, with nothing later looking for them.
-    #
-    # Cloud stays the system of record. Nothing reads from the in-cluster
-    # server yet, so a mirrored write that fails costs a metric and not a
-    # request: inserts are handed to a bounded Task.Supervisor rather than
-    # awaited, and mutations stay synchronous so an `ALTER TABLE ... DELETE`
-    # cannot overtake the inserts it is meant to erase.
-    #
-    # Gate to leave this step: `tuist_clickhouse_shadow_write_count{result}`
-    # settles with no `dropped` once the pods have started. A pod's shadow pool
-    # is not ready for the first seconds of its life, which is what the retry
-    # covers, and retrying is safe because every destination table is
-    # `Replicated*` and deduplicates identical insert blocks by checksum.
-    #
-    # Rollback: turn it off. Nothing has read from that server.
-    shadowWrites:
-      enabled: true
+        # Replica 0 on the box that has held the data since the migration
+        # began, replica 1 on the second. See `nodeNames` in values.yaml.
+        nodeNames:
+          - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-nlxk4
+          - bm-tuist-canary-md-clickhouse-zxbdh-hkgcf-zs7tv
     # Reachable over the tailnet as well as in-cluster, because the
     # xcresult-processor is not on the pod network: it runs in a Tart VM with
     # a tailnet address, so the Service name every other writer resolves does
-    # not resolve for it. It wrote the whole test family to Cloud and mirrored
-    # none of it, which parity reported as six tables holding zero rows on the
-    # destination.
+    # not resolve for it.
     #
     # `tag:tuist-k8s-canary` rather than the fleet's own tag: the proxy node is
     # created by this cluster's operator, and the wrong tag makes the operator
@@ -328,68 +329,6 @@ clickhouse:
       replicas: 1
     backup:
       enabled: true
-    # One step of the migration, run as a Job by the chart. The sequence is
-    # advanced by changing `task` and deploying, so each step is a reviewed
-    # change in the release history rather than a command typed at a database.
-    #
-    # Step 3 of the rollout: clone the schema onto the empty server. Unlike the
-    # deploy that first introduced the workload, this one has somewhere to
-    # clone to. The Job is a post-upgrade hook, so it runs once the release is
-    # applied and the StatefulSet is up, and the `-credentials` Secret it reads
-    # the destination from already exists.
-    #
-    # Gate: table, view and migration-version counts match the source. Engines
-    # need no assertion, because `database_replicated_allow_only_replicated_engine`
-    # makes the destination reject a non-replicated table, so creation
-    # succeeding is the proof.
-    #
-    # Off, because the clone has run here: 84 tables, 30 views, 245 migration
-    # versions, nothing failed. Each step is a post-upgrade hook, so leaving
-    # one enabled re-runs it on every deploy. That was harmless for the clone,
-    # which creates what is missing and leaves the rest alone, and it is not
-    # harmless for what comes next.
-    #
-    # `name` and `task` are the step this would run if it were enabled, which
-    # is why they name the *next* one rather than the last that ran.
-    #
-    # `cutoff` is deliberately absent, and arming the backfill without it fails
-    # loudly rather than copying to a stale timestamp. Set it to a moment after
-    # the deploy that turns dual writes on above has finished rolling out: the
-    # backfill covers everything before it, the mirror covers everything after,
-    # and naming the boundary is what stops the two from leaving a gap.
-    # Step 5, the initial replication: everything canary wrote before the
-    # cutoff still lives only on Cloud, and this copies it.
-    #
-    # A post-upgrade hook, by inheriting `background: false`, which is the mode
-    # staging used successfully. The previous attempt set `background: true` on
-    # the belief that helm does not wait on ordinary Jobs. Helm 3 does not;
-    # helm 4 does, so the Job blocked the release and a failing one rolled
-    # three canary deploys back. Background mode stays unusable until there is
-    # a mechanism helm does not wait on, and that is a production problem:
-    # canary's dataset is small enough to wait for.
-    #
-    # Two bugs that stopped every previous run are fixed and deployed here:
-    # the advisory lock's connection is no longer capped at fifteen seconds,
-    # and the destination is waited for rather than raced.
-    #
-    # `cutoff` is later than the last mirror error rather than the moment dual
-    # writes rolled out. Terminal shadow-write errors are rows that reached
-    # Cloud and not the destination, so a cutoff before them leaves those rows
-    # covered by neither side. The counter last moved at about 11:30Z and has
-    # been flat since, so this is comfortably after it.
-    #
-    # It will not reach clean parity in one run, by construction: this deploy
-    # restarts the server pods, and the writes lost while their mirror warms up
-    # land after the cutoff. The repair is another run with a later cutoff,
-    # which is what the runbook prescribes and what production will do anyway.
-    #
-    # Gate: every chunk recorded done in the ledger with no failures, read from
-    # the Job afterwards.
-    migration:
-      enabled: true
-      name: backfill
-      task: Tuist.Release.backfill_clickhouse
-      cutoff: "2026-09-10T12:20:00Z"
 
   poolSize: "30"
   bufferPoolSize: "30"
@@ -783,7 +722,8 @@ macosFleet:
   # unwritable share for a local cold cache instead of exporting a broken
   # root. Production has run on that path (gib: 80) since; canary tracks it
   # here, with the Xcode compilation cache (CAS) folded in — masterCapGib 28
-  # gives the CAS 16 GiB, the binary cache ~10, and a ~2 GiB reserve.
+  # gives the two caches 22.4 GiB to share by use, with a 5.6 GiB reserve.
+  # casGib 16 sets the fixed split older runner images apply.
   runnerCacheVolume:
     gib: 80
     masterCapGib: 28
@@ -845,10 +785,12 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
-    # Warm floor stays 0. The floors are drawn against the fleet's
-    # guest-slot budget, and a beta pool holding a warm slot parks a
-    # whole host for traffic that is by definition experimental.
-    "27.0-beta":
+    "27.2-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "27.0":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -869,6 +811,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "26.1.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

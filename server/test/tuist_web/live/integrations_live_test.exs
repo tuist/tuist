@@ -6,6 +6,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.GitLab
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -357,6 +358,106 @@ defmodule TuistWeb.IntegrationsLiveTest do
     render_hook(lv, "create-connection", %{})
 
     assert Tuist.Projects.get_project_by_id(project.id).default_branch == "develop"
+    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert project_id == project.id
+  end
+
+  test "rejects a repository that is not accessible to the account's GitHub App installation", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
+      {:ok, [%{id: 123, full_name: "test-org/test-repo", default_branch: "main"}]}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "victim-org/victim-repo"})
+    html = render_hook(lv, "create-connection", %{})
+
+    assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
+    assert Tuist.Projects.projects_by_vcs_repository_full_handle("victim-org/victim-repo") == []
+  end
+
+  test "rejects a repository when the installation repositories cannot be fetched", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation -> {:error, :unauthorized} end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
+    html = render_hook(lv, "create-connection", %{})
+
+    assert html =~ "The selected repository is not accessible to this account&#39;s GitHub App installation."
+    assert Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo") == []
+  end
+
+  test "reuses the repositories loaded at mount when creating a connection", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+    calls = :counters.new(1, [])
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
+      :counters.add(calls, 1, 1)
+      {:ok, [%{id: 123, full_name: "test-org/test-repo"}]}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
+    render_hook(lv, "create-connection", %{})
+
+    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert project_id == project.id
+    assert :counters.get(calls, 1) == 1
+  end
+
+  test "fetches the repositories again when the load at mount failed", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+    calls = :counters.new(1, [])
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
+      :counters.add(calls, 1, 1)
+
+      if :counters.get(calls, 1) == 1,
+        do: {:error, :timeout},
+        else: {:ok, [%{id: 123, full_name: "test-org/test-repo"}]}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
+    render_hook(lv, "create-connection", %{})
+
+    assert [%{id: project_id}] = Tuist.Projects.projects_by_vcs_repository_full_handle("test-org/test-repo")
+    assert project_id == project.id
   end
 
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do
@@ -392,6 +493,87 @@ defmodule TuistWeb.IntegrationsLiveTest do
       html = render_click(lv, "select-github-enterprise")
 
       refute html =~ "Server URL"
+    end
+  end
+
+  describe "GitLab CI" do
+    setup do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> true end)
+      :ok
+    end
+
+    test "connects with only URL and token, rotates tokens without reflecting secrets, and disconnects", %{
+      conn: conn,
+      account: account
+    } do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert html =~ "connect-gitlab-form"
+
+      assert Floki.find(Floki.parse_document!(html), "#gitlab-profile") == []
+
+      assert html |> Floki.parse_document!() |> Floki.find("input#gitlab-token") |> Floki.attribute("type") == [
+               "password"
+             ]
+
+      html =
+        lv
+        |> form("#connect-gitlab-form", %{
+          url: "https://gitlab.com",
+          runner_token: "glrt-private-token"
+        })
+        |> render_submit()
+
+      [connection] = GitLab.list_connections(account.id)
+      assert connection.runner_token == "glrt-private-token"
+      refute html =~ "glrt-private-token"
+      refute has_element?(lv, "#connect-gitlab-form")
+
+      assert has_element?(
+               lv,
+               "[data-part=gitlab-card-section] > [data-part=header-row] button[phx-click=disconnect-gitlab]"
+             )
+
+      refute has_element?(lv, "#gitlab-connection-#{connection.id} [data-part=title]")
+      assert has_element?(lv, "#gitlab-connection-#{connection.id} input[name=_id]")
+      refute has_element?(lv, "#gitlab-connection-#{connection.id} input[name=id]")
+      lv |> form("#gitlab-connection-#{connection.id}", %{runner_token: ""}) |> render_submit()
+      assert GitLab.get_connection(connection.id).runner_token == "glrt-private-token"
+      html = lv |> form("#gitlab-connection-#{connection.id}", %{runner_token: "glrt-rotated"}) |> render_submit()
+      refute html =~ "glrt-rotated"
+      assert GitLab.get_connection(connection.id).runner_token == "glrt-rotated"
+      lv |> element("button[phx-click=disconnect-gitlab][phx-value-id='#{connection.id}']") |> render_click()
+      assert GitLab.list_connections(account.id) == []
+      assert has_element?(lv, "#connect-gitlab-form")
+      refute has_element?(lv, "button[phx-click=disconnect-gitlab]")
+    end
+
+    test "rejects invalid credentials without exposing the submitted token", %{conn: conn, account: account} do
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      html =
+        lv
+        |> form("#connect-gitlab-form", %{
+          url: "https://gitlab.com",
+          runner_token: "personal-access-secret"
+        })
+        |> render_submit()
+
+      assert html =~ "Check the GitLab URL"
+      refute html =~ "personal-access-secret"
+      assert GitLab.list_connections(account.id) == []
+    end
+
+    test "does not connect runners when the feature is disabled", %{conn: conn, account: account} do
+      stub(Tuist.FeatureFlags, :runners_enabled?, fn _ -> false end)
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/integrations")
+      refute html =~ "connect-gitlab-form"
+
+      render_hook(lv, "save-gitlab", %{
+        url: "https://gitlab.com",
+        runner_token: "glrt-secret"
+      })
+
+      assert GitLab.list_connections(account.id) == []
     end
   end
 

@@ -18,7 +18,7 @@ Use Build Insights to track local and CI build performance. It currently support
   <.home_card
     title="Generated projects"
     details="Track build insights in Tuist generated projects with custom schemes."
-    link="/guides/features/build-insights/generated-projects"
+    link="/guides/features/build-insights/generated-xcode-project"
 />
   <.home_card
     title="Gradle"

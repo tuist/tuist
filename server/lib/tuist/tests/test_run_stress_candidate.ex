@@ -10,6 +10,7 @@ defmodule Tuist.Tests.TestRunStressCandidate do
   is what lets a test case the gate found flaky read as flaky everywhere.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
 

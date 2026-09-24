@@ -149,7 +149,8 @@ defmodule Tuist.Marketing.MDExConverter do
     id = "mermaid-" <> Integer.to_string(:erlang.phash2(literal))
 
     %MDEx.HtmlBlock{
-      literal: ~s(<div id="#{id}" phx-update="ignore"><pre class="mermaid">#{diagram}</pre></div>)
+      literal:
+        ~s(<div id="#{id}" phx-update="ignore" phx-no-curly-interpolation><pre class="mermaid">#{diagram}</pre></div>)
     }
   end
 
@@ -161,9 +162,11 @@ defmodule Tuist.Marketing.MDExConverter do
 
     copy_source = literal |> String.trim() |> Markdown.html_escape()
 
+    # Live posts compile to HEEx, where `{` starts an interpolation, so code
+    # (JSON, Elixir, Swift...) must opt out or the post fails to compile.
     %MDEx.HtmlBlock{
       literal: """
-      <div class="code-window">\
+      <div class="code-window" phx-no-curly-interpolation>\
       <div data-part="bar">\
       <div data-part="language">#{language}</div>\
       <div data-part="copy" class="noora-neutral-button" data-size="large"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\

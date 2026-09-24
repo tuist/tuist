@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   check:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.repository == 'tuist/tuist' && github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       deployed: ${{ steps.check.outputs.deployed }}

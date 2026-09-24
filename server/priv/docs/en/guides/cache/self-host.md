@@ -62,9 +62,17 @@ KURA_CONTROL_PLANE_CLIENT_ID="kura_$(openssl rand -hex 12)"
 KURA_CONTROL_PLANE_CLIENT_SECRET="$(openssl rand -base64 32)"
 ```
 
-Set those values as `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` in the Tuist server environment, then use the same values in the Kura configuration below. Registration heartbeats include `KURA_TENANT_ID`, so the server can still attach the node to the right account.
+Set those values as `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` in the Tuist server environment, then use the same values in the Kura configuration below. Registration heartbeats include `KURA_TENANT_ID`, the account's permanent cache identity, so the server can attach the node to the right account even after an account rename.
 
-If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, the page requires the `kura` feature flag and generating a self-hosted-node credential additionally requires an Enterprise plan.
+If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, generating a self-hosted-node credential requires an Enterprise plan.
+
+## Choose the permanent tenant {#permanent-tenant}
+
+`KURA_TENANT_ID` is a permanent storage and peer identity, initially derived from the account's original handle. For an account that has never been renamed, it matches the current handle. **Keep its original value after an account rename**, including when adding replacement nodes or another node to the same mesh. For example, renaming `original` to `renamed` leaves `KURA_TENANT_ID=original` on every node. Changing it selects a different object-key namespace; renaming the account does not migrate stored artifacts or peer identity.
+
+Replace `<permanent-kura-tenant>` in the examples below with this value. Reuse the tenant from an existing correctly configured node, or the `tenant_id` returned by enrollment. An operator of a self-hosted Tuist server can inspect the account's `kura_tenant_id` database field. Do not infer the value from a renamed account's URL.
+
+With a valid deployment-level control-plane credential, registration and peer discovery return **409 Conflict** with `error: "tenant_mismatch"` and `expected_tenant_id` if the node supplies a current or retained handle that differs from its permanent tenant. They do not register the node or silently substitute a different storage identity. Invalid credentials and unknown tenants still return **401 Unauthorized** without disclosing a tenant. If a node has already written data with a different tenant, review its configuration and storage history before changing it; the error response does not perform a storage migration.
 
 ## How clients reach your nodes {#routing}
 
@@ -92,7 +100,7 @@ services:
       KURA_CONTROL_PLANE_URL: "https://tuist.dev"
       KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
       KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
-      KURA_TENANT_ID: "<account-handle>"
+      KURA_TENANT_ID: "<permanent-kura-tenant>"
 
       # Register so the node shows in the dashboard and the CLI routes to it
       KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
@@ -143,7 +151,7 @@ services:
       - "4000:4000"
       - "7443:7443"
     environment:
-      KURA_TENANT_ID: "<account-handle>"
+      KURA_TENANT_ID: "<permanent-kura-tenant>"
       KURA_NODE_URL: "http://kura-1.acme.internal:7443"
       KURA_PEERS: ""   # single node: disable static peer discovery
       KURA_REGION: "office"
@@ -205,7 +213,7 @@ Then install Kura in the same namespace with the same Secret:
 replicaCount: 1
 
 config:
-  tenantId: "<account-handle>"
+  tenantId: "<permanent-kura-tenant>"
   region: "office"
 
 ingress:
@@ -289,7 +297,7 @@ These variables configure every node, regardless of topology (peer TLS is the ex
 
 | Variable | Description |
 |---|---|
-| `KURA_TENANT_ID` | Your account handle. |
+| `KURA_TENANT_ID` | Your account's permanent Kura tenant. Keep its original value after renaming the account; see [Choose the permanent tenant](#permanent-tenant). |
 | `KURA_NODE_URL` | This node's peer URL on your network. |
 | `KURA_PEERS` | Static peer discovery list. Set it to an empty string for a single standalone node; set reachable peer URLs for a multi-node mesh. |
 | `KURA_REGION` | A free-form region label (e.g. `office`, `ci`). |

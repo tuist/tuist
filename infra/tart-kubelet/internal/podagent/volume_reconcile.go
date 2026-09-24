@@ -2,7 +2,10 @@ package podagent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -23,6 +26,12 @@ import (
 // promote a cache-volume branch to the right master.
 const runnerAccountLabel = "tuist.dev/runner-account"
 
+// runnerCacheVolumeLabel is the Pod label the Tuist server stamps at dispatch,
+// in the same patch as runnerAccountLabel, with the job's cache volume. Like the
+// account it is invisible to the guest, so a job cannot pick another
+// repository's volume. Absent means ReservedTuistCacheVolume.
+const runnerCacheVolumeLabel = "tuist.dev/runner-cache-volume"
+
 // runnerCacheUntrustedLabel marks a Pod whose job the server could not
 // positively confirm as trusted (same-repo, non-fork). When present, the host
 // skips cache-volume materialize and promotion, so an untrusted fork job neither
@@ -40,6 +49,22 @@ func RunnerAccountFromPod(pod *corev1.Pod) string {
 	return pod.Labels[runnerAccountLabel]
 }
 
+// RunnerCacheVolumeFromPod returns the Pod's cache volume, or false when the
+// label is not a volume name and the job must not touch any master.
+func RunnerCacheVolumeFromPod(pod *corev1.Pod) (string, bool) {
+	if pod == nil {
+		return ReservedTuistCacheVolume, true
+	}
+	volume, ok := pod.Labels[runnerCacheVolumeLabel]
+	if !ok {
+		return ReservedTuistCacheVolume, true
+	}
+	if !isVolumeName(volume) {
+		return "", false
+	}
+	return volume, true
+}
+
 // RunnerCacheUntrusted reports whether the server marked this Pod's job as
 // untrusted (a fork it could not confirm as same-repo). Exported so state
 // recovery in package main can preserve the untrusted decision.
@@ -48,18 +73,23 @@ func RunnerCacheUntrusted(pod *corev1.Pod) bool {
 }
 
 // ReattachVolumeForPod reconstructs the cache-volume attachment for a VM that
-// survived a kubelet restart. It preserves the untrusted decision: SourceAccount
-// is set from the account label ONLY for a trusted pod. An untrusted branch is
-// reattached (so its live virtio-fs mount isn't swept and it's cleaned at job
-// end) but keeps SourceAccount empty, so Finalize's SourceAccount==account guard
-// discards it — recovery can never revive attacker-controlled content into the
-// account's master. Both recoverState and the createPod adoption path use this.
+// survived a kubelet restart, on the volume the pod's label names. It preserves
+// the untrusted decision: SourceAccount is set from the account label ONLY for a
+// trusted pod with a well-formed volume. Any other branch is reattached (so its
+// live virtio-fs mount isn't swept and it's cleaned at job end) but keeps
+// SourceAccount empty, so Finalize's SourceAccount==account guard discards it —
+// recovery can never revive attacker-controlled content into a master. Both
+// recoverState and the createPod adoption path use this.
 func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (VolumeAttachment, bool) {
-	att, ok := volumes.ReattachBranch(ReservedTuistCacheVolume, vm)
+	volume, validVolume := RunnerCacheVolumeFromPod(pod)
+	if !validVolume {
+		volume = ReservedTuistCacheVolume
+	}
+	att, ok := volumes.ReattachBranch(volume, vm)
 	if !ok {
 		return VolumeAttachment{}, false
 	}
-	if !RunnerCacheUntrusted(pod) {
+	if validVolume && !RunnerCacheUntrusted(pod) {
 		att.SourceAccount = RunnerAccountFromPod(pod)
 	}
 	return att, true
@@ -309,17 +339,26 @@ func readRunnerHeartbeat(statusDir string) (string, time.Time, bool) {
 // guest never reads or writes the cache while the host is still clonefiling it.
 const cacheReadyFile = "cache-ready"
 
-// cacheBudgetFile carries the per-branch byte budget the guest exports as
-// TUIST_CACHE_MAX_BYTES for the CLI's LRU self-prune. Staged by the host
-// because the guest sees the whole shared quota volume's free space over the
-// virtio-fs share, which would be a far-too-large budget.
+// cacheBudgetFile carries the binary cache's share of the fixed split, which a
+// runner image older than sharedCacheBudgetFile exports as TUIST_CACHE_MAX_BYTES
+// for the CLI's LRU self-prune. Staged by the host because the guest sees the
+// whole shared quota volume's free space over the virtio-fs share, which would be
+// a far-too-large budget.
 const cacheBudgetFile = "cache-max-bytes"
+
+// sharedCacheBudgetFile carries what the binary cache and the compilation cache
+// may hold together (cacheImageBudget). The guest divides it between them by
+// what each holds, at attach and again at teardown, so this is the one figure the
+// host decides. cacheBudgetFile and the casEnabledFile figure stay staged beside
+// it, because tart-kubelet and the runner image roll out separately and an older
+// image reads only those.
+const sharedCacheBudgetFile = "cache-budget-bytes"
 
 // allocateVolumeBranch prepares an empty per-VM cache branch directory for a
 // booting VM (shared into the guest as a virtio-fs mount), or returns an
-// un-attached zero value when the feature is off or admission declines. The
-// branch is filled later by maybeMaterializeVolume, once dispatch has bound
-// the VM to an account.
+// un-attached zero value when the feature is off or the root is not mounted. The
+// branch is filled, and admitted, later by maybeMaterializeVolume, once dispatch
+// has bound the VM to an account.
 func (r *Reconciler) allocateVolumeBranch(vmName string) (VolumeAttachment, error) {
 	if r.Volumes == nil || !r.Volumes.Enabled() {
 		return VolumeAttachment{}, nil
@@ -327,13 +366,14 @@ func (r *Reconciler) allocateVolumeBranch(vmName string) (VolumeAttachment, erro
 	return r.Volumes.AllocateBranch(ReservedTuistCacheVolume, vmName)
 }
 
-// maybeMaterializeVolume clonefiles the dispatched account's cache master into
-// this VM's branch and signals the guest, exactly once per VM. The Tuist
-// server stamps the pod's runner-account label when it claims a job, so this
-// runs on the reconcile that observes that label — the account is known before
-// any cache bytes reach the VM, which is what makes the shared-host model safe.
-// A cold first job (no master yet) still writes cache-ready so the guest stops
-// waiting; its writes become the account's first master at Finalize.
+// maybeMaterializeVolume clonefiles the dispatched job's cache master, for its
+// account and volume, into this VM's branch and signals the guest, exactly once
+// per VM. The Tuist server stamps the pod's runner-account and cache-volume
+// labels when it claims a job, so this runs on the reconcile that observes them —
+// the account and volume are known before any cache bytes reach the VM, which is
+// what makes the shared-host model safe. A cold first job (no master yet) still
+// writes cache-ready so the guest stops waiting; its writes become the volume's
+// first master at Finalize.
 func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	if r.Volumes == nil {
 		return
@@ -348,13 +388,19 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	}
 
 	// Fork-exclusion: an untrusted job never touches the shared cache. It gets an
-	// EMPTY image rather than the account's master, and SourceAccount stays empty
-	// so Finalize's SourceAccount==account guard discards the branch — the job can
-	// neither read the account's warm master nor promote into it. It still needs
-	// an image of its own: cache-ready tells the guest to attach, and signalling
-	// without one would drop every fork job onto the local cold cache.
-	if pod.Labels[runnerCacheUntrustedLabel] == "true" {
-		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil {
+	// EMPTY image rather than a master, and SourceAccount stays empty so
+	// Finalize's SourceAccount==account guard discards the branch — the job can
+	// neither read a warm master nor promote into it. It still needs an image of
+	// its own: cache-ready tells the guest to attach, and signalling without one
+	// would drop every fork job onto the local cold cache. A malformed volume
+	// label is isolated the same way.
+	volume, validVolume := RunnerCacheVolumeFromPod(pod)
+	if !validVolume {
+		log.Log.WithName("volume").Info("cache volume label is not a volume name; running the job on an empty image",
+			"vm", entry.VMName, "account", account, "volume", pod.Labels[runnerCacheVolumeLabel])
+	}
+	if pod.Labels[runnerCacheUntrustedLabel] == "true" || !validVolume {
+		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil && !errors.Is(err, errAdmissionDeclined) {
 			log.Log.WithName("volume").Error(err, "create empty cache image for untrusted job", "vm", entry.VMName)
 		}
 		entry.Volume.Materialized = true
@@ -370,9 +416,13 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Materialize this host's LOCAL master into the branch immediately — a CoW
 	// clonefile that touches the network zero times (~tens of ms) — and signal
 	// the guest, so the job starts warm without ever blocking on a download.
-	warm, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
-	if err != nil {
-		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
+	// A declined branch has no image, so the guest's attach fails and it runs on
+	// its local cold cache. That is logged and counted where admission declines.
+	entry.Volume.VolumeName = volume
+	source, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
+	declined := errors.Is(err, errAdmissionDeclined)
+	if err != nil && !declined {
+		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account, "volume", volume)
 	}
 	entry.Volume.SourceAccount = account
 	entry.Volume.Materialized = true
@@ -389,9 +439,14 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Signal the guest the cache is ready (warm or cold) so its bounded wait
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
-	RecordVolumeMaterialized(warm)
+	// A declined job was refused space in this volume, and converging downloads
+	// into the same volume with nothing reserved.
+	if declined {
+		return
+	}
+	RecordVolumeMaterialized(source)
 
-	// Converge the on-disk master toward the account's HEAD in the background,
+	// Converge the on-disk master toward the volume's HEAD in the background,
 	// off the job-start critical path. The running job already holds its own
 	// CoW branch, so refreshing the master (an atomic swap of a separate dir)
 	// never touches the job in flight — it just makes the NEXT job on this host
@@ -411,59 +466,23 @@ func writeCacheReady(statusDir string) {
 	_ = os.WriteFile(filepath.Join(statusDir, cacheReadyFile), []byte("1"), 0o644)
 }
 
-// writeCacheBudget stages the per-branch byte budget (≈80% of a master's
-// provisioned cap) into the status share before the VM boots, for the guest's
-// TUIST_CACHE_MAX_BYTES.
 const (
-	// cacheVolumeReserveFloorGiB / cacheVolumeReservePercent size the filesystem
-	// reserve kept free in the cache image: reserve = max(floor, percent of cap).
-	// It is max(absolute, proportional) — NOT a flat percent — because the two
-	// risks it guards (APFS metadata/CoW headroom, and a single build's pruner
-	// OVERSHOOT before the LRU/llcas reclaim) scale absolutely, not with cap size.
-	// A flat percent over-reserves a big image and starves a small one; the floor
-	// keeps a real slice on small caps while the percent bounds it on large ones
-	// (crossover at 40 GiB). The binary cache and the folded CAS split the rest.
+	// cacheVolumeReserveFloorGiB / cacheVolumeReservePercent size the space kept
+	// free in the cache image when both caches are at their limits: reserve =
+	// max(floor, percent of cap). It is the room a job has to grow into before
+	// anything prunes, since the compilation cache is pruned only at attach and
+	// teardown, and it also covers APFS metadata and CoW headroom. The floor keeps
+	// a real slice on a small cap. The binary cache and the folded CAS share the
+	// rest: 24 GiB at cap 30, with 6 GiB of room.
 	cacheVolumeReserveFloorGiB = 2
-	cacheVolumeReservePercent  = 5
-
-	// How many generations of a compilation-cache store are live at once, and
-	// therefore the factor between the store's FOOTPRINT on the image and the
-	// per-generation limit the compiler is given.
-	//
-	// COMPILATION_CACHE_LIMIT_SIZE bounds one GENERATION, not the directory.
-	// llcas keeps a chain: when the live chain is over the limit, closing the
-	// store's last handle starts a new primary and demotes the old one, and a
-	// prune then deletes whatever fell off the end. What survives a prune is
-	// therefore primary + upstream — the old generation is the warm cache and
-	// deleting it would defeat the point. Measured on Xcode 26.5: a store pruned
-	// every cycle settles at 1.8-2x its limit (0.45 GiB live against a 0.25 GiB
-	// limit).
-	//
-	// So casGiB is the CAS's share of the IMAGE and the compiler is given half
-	// of it. Handing the compiler the whole share instead is what over-committed
-	// the image: at cap 20 / cas 11 a correctly pruning store wants ~22 GiB
-	// inside a 20 GiB image before the binary cache gets a byte, and the
-	// measured masters (17-18 GB of CAS against a 2.2 GB binary cache) are
-	// exactly that arithmetic playing out.
-	casGenerationsRetained = 2
+	cacheVolumeReservePercent  = 20
 )
 
-// cacheImageSplit computes the coordinated budget split for a capGiB cache image
-// shared by the binary cache and the folded CAS. It returns the binary cache's
-// byte budget (TUIST_CACHE_MAX_BYTES) and the CAS's FOOTPRINT allowance on the
-// image (0 when the CAS is off). binary + CAS never exceed cap−reserve, so the
-// two independent pruners cannot over-commit the one image to ENOSPC. A CASGiB
-// set larger than the usable space is clamped so the binary cache always keeps
-// a slice.
-//
-// The CAS figure is a footprint, NOT the limit the compiler is given: a store
-// holds more than one generation, so the limit is casGenerationLimit of this.
-// Returning the footprint is what keeps the invariant above true — the thing
-// that has to fit inside the image is what the store occupies, not what one of
-// its generations may reach.
-func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
+// cacheImageBudget is what the binary cache and the folded CAS may hold together
+// in a capGiB cache image: the cap less the reserve.
+func cacheImageBudget(capGiB int) uint64 {
 	if capGiB <= 0 {
-		return 0, 0
+		return 0
 	}
 	const gib = uint64(1024 * 1024 * 1024)
 	capBytes := uint64(capGiB) * gib
@@ -474,14 +493,27 @@ func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
 	if reserve > capBytes/2 {
 		reserve = capBytes / 2 // a tiny cap never reserves more than half
 	}
-	usable := capBytes - reserve
-	if casGiB <= 0 {
-		b := capBytes * 80 / 100 // CAS off: binary keeps ~80% (its own 20% headroom)
-		if b > usable {
-			b = usable
-		}
-		return b, 0
+	return capBytes - reserve
+}
+
+// cacheImageSplit divides cacheImageBudget at a fixed point, for runner images
+// that predate the guest's division by use. It returns the binary cache's byte
+// budget (TUIST_CACHE_MAX_BYTES) and the CAS's allowance (0 when the CAS is off),
+// which add up to the budget, so the two independent pruners cannot over-commit
+// the one image to ENOSPC. A CASGiB set larger than the budget is clamped so the
+// binary cache always keeps a slice. At cap 30 / cas 14 that is 10 GiB for the
+// binary cache and 14 GiB for the compilation cache.
+//
+// The CAS figure is both what the store may occupy and the limit the compiler
+// and the prune are given: llcas, and `prune_store`, rotate a store once its
+// primary passes HALF the limit, so the limit already covers the primary and the
+// upstream generation it demoted.
+func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
+	usable := cacheImageBudget(capGiB)
+	if usable == 0 || casGiB <= 0 {
+		return usable, 0
 	}
+	const gib = uint64(1024 * 1024 * 1024)
 	casBytes = uint64(casGiB) * gib
 	if maxCAS := usable * 90 / 100; casBytes > maxCAS {
 		casBytes = maxCAS // oversized CASGiB: keep the binary cache a ≥10% slice
@@ -490,22 +522,16 @@ func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
 	return binaryBytes, casBytes
 }
 
-// casGenerationLimit converts the CAS's footprint allowance on the image into
-// the per-generation budget the compiler is given as
-// COMPILATION_CACHE_LIMIT_SIZE. See casGenerationsRetained: the store keeps a
-// primary and an upstream generation, so a limit of half the allowance is what
-// makes the footprint land inside it.
-func casGenerationLimit(casBytes uint64) uint64 {
-	return casBytes / casGenerationsRetained
-}
-
-// writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES).
+// writeCacheBudget stages the budget both caches share, and the binary cache's
+// share of the fixed split for runner images that read only that, into the status
+// share before the VM boots.
 func writeCacheBudget(statusDir string, capGiB, casGiB int) {
 	if statusDir == "" || capGiB <= 0 {
 		return
 	}
 	budget, _ := cacheImageSplit(capGiB, casGiB)
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
+	_ = os.WriteFile(filepath.Join(statusDir, sharedCacheBudgetFile), []byte(strconv.FormatUint(cacheImageBudget(capGiB), 10)), 0o644)
 }
 
 // casEnabledFile signals the guest to point the compiler at the folded CAS store
@@ -518,19 +544,17 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	if statusDir == "" || r.Volumes == nil || !r.Volumes.casEnabled() {
 		return
 	}
-	// The marker carries the CAS's exact byte budget (the coordinated other half of
-	// writeCacheBudget's split, from the same cacheImageSplit so the two can't
-	// drift), which the guest emits as COMPILATION_CACHE_LIMIT_SIZE — an absolute
-	// bound, not a percent, because Swift Build's LIMIT_PERCENT is against the
-	// cache-db size plus free space, which shrinks as the binary cache fills.
-	//
-	// HALF the split's CAS share, because the split apportions the image and this
-	// number bounds a generation: see casGenerationLimit. The guest emits it as
-	// COMPILATION_CACHE_LIMIT_SIZE and passes the same value to the teardown
-	// prune, so the bound the build is told to keep is the one that is enforced.
+	// The marker's presence turns the folded CAS on. Its figure is the CAS's share
+	// of the fixed split (the other half of writeCacheBudget's, from the same
+	// cacheImageSplit so the two can't drift), which only a runner image older
+	// than sharedCacheBudgetFile applies. A newer one divides the shared budget
+	// by use instead. Either way the guest emits the figure as
+	// COMPILATION_CACHE_LIMIT_SIZE — an absolute bound, not a percent, because
+	// Swift Build's LIMIT_PERCENT is against the cache-db size plus free space,
+	// which shrinks as the binary cache fills — and prunes to the same value, so
+	// the bound the build is told to keep is the one that is enforced.
 	_, casBytes := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
-	limit := casGenerationLimit(casBytes)
-	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.FormatUint(limit, 10)), 0o644)
+	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.FormatUint(casBytes, 10)), 0o644)
 }
 
 // uploadMillisFile carries the wall-clock ms the guest teardown spent uploading
@@ -569,6 +593,68 @@ func readFillPercent(statusDir string) int {
 		return -1
 	}
 	return pct
+}
+
+// cacheLimitsFile carries what the guest's division of the shared budget
+// measured and decided: one "<when>\t<cache>\t<held bytes>\t<limit bytes>" line
+// per cache, appended at attach and again at teardown. Those sizes are the only
+// per-cache measurement the fleet has, and the limits beside them are what the
+// division's rule and its floors are retuned from. The runner log carries the
+// same numbers, but the host re-emits only a bounded tail of it, so a verbose
+// job's attach lines fall off before they reach the log store.
+const cacheLimitsFile = "cache-limits"
+
+// cacheLimitsMaxSamples bounds what one job can make the host record. A division
+// stages four lines; the file is guest-written and the guest runs untrusted
+// customer CI.
+const cacheLimitsMaxSamples = 8
+
+// cacheLimitSample is one cache's size and limit at one end of a job.
+type cacheLimitSample struct {
+	when, cache           string
+	heldBytes, limitBytes float64
+}
+
+// readCacheLimits returns what the guest staged, dropping every line that is not
+// a measurement. A job that ran on a host staging the fixed split stages nothing,
+// which reads as none.
+func readCacheLimits(statusDir string) []cacheLimitSample {
+	b, ok := readGuestFile(statusDir, cacheLimitsFile, guestMarkerMaxBytes)
+	if !ok {
+		return nil
+	}
+	var samples []cacheLimitSample
+	for _, line := range strings.Split(string(b), "\n") {
+		fields := strings.Split(strings.TrimSpace(line), "\t")
+		if len(fields) != 4 {
+			continue
+		}
+		when, cache := fields[0], fields[1]
+		if when != "attach" && when != "teardown" {
+			continue
+		}
+		if cache != "binary" && cache != "compilation" {
+			continue
+		}
+		held, err := strconv.ParseUint(fields[2], 10, 64)
+		if err != nil {
+			continue
+		}
+		limit, err := strconv.ParseUint(fields[3], 10, 64)
+		if err != nil {
+			continue
+		}
+		samples = append(samples, cacheLimitSample{
+			when:       when,
+			cache:      cache,
+			heldBytes:  float64(held),
+			limitBytes: float64(limit),
+		})
+		if len(samples) == cacheLimitsMaxSamples {
+			break
+		}
+	}
+	return samples
 }
 
 // baseGenerationFile carries the HEAD generation the branch was clonefiled from,
@@ -660,9 +746,14 @@ func readPromoteResult(statusDir string) promoteResult {
 const volumeHeadFile = "volume-head.json"
 
 type volumeHead struct {
-	Generation  int    `json:"generation"`
-	Digest      string `json:"digest"`
-	DownloadURL string `json:"download_url"`
+	Generation int    `json:"generation"`
+	Digest     string `json:"digest"`
+	// ContentDigest is the SHA-256 of the master object's bytes, published by
+	// the promoting guest alongside the inventory digest. Empty for a HEAD
+	// promoted by a runner image that predates the content hash, in which case
+	// the convergence skips the content check (the status quo).
+	ContentDigest string `json:"content_digest"`
+	DownloadURL   string `json:"download_url"`
 }
 
 func readVolumeHead(statusDir string) *volumeHead {
@@ -677,8 +768,8 @@ func readVolumeHead(statusDir string) *volumeHead {
 	return &h
 }
 
-// convergeMaster fast-forwards this host's master for the account to the
-// account's HEAD when the host is behind, by downloading the latest master
+// convergeMaster fast-forwards this host's master for the (account, volume) to
+// that volume's HEAD when the host is behind, by downloading the latest master
 // archive and atomically swapping it in. Runs in the background off the
 // job-start critical path (see maybeMaterializeVolume): it refreshes the master
 // dir, which the in-flight job's CoW branch does not reference, so the NEXT job
@@ -744,6 +835,32 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	if err := downloadMasterImage(head.DownloadURL, image); err != nil {
 		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
 		return
+	}
+	// Verify the downloaded bytes against the HEAD's content digest before
+	// anything parses them: the promoting guest hashed the settled image file,
+	// so anything short of bit-for-bit equality — corruption in the object
+	// store, on the wire, or in this host's RAM — declines here. This is the
+	// check the inventory digest below cannot make: that one hashes entry names
+	// and sizes, so a flipped bit INSIDE a cached file sails through it.
+	//
+	// The same measure-vs-mismatch split as the inventory check applies: a
+	// hashing failure is a local read fault that says nothing about the object
+	// and declines quietly, while a hash that differs is proof about the object,
+	// reproducible on every host — staged for the guest to report so the server
+	// can retire a HEAD nothing can adopt (see stageUnverifiableHead).
+	if head.ContentDigest != "" {
+		got, err := fileSHA256(image)
+		switch {
+		case err != nil:
+			logger.Error(err, "converge: cannot hash the downloaded image; keeping local master",
+				"vm", vmName, "account", account, "volume", volumeName, "want", head.ContentDigest)
+			return
+		case got != head.ContentDigest:
+			logger.Info("converge: image content hash does not match HEAD; keeping local master",
+				"vm", vmName, "account", account, "want", head.ContentDigest, "got", got)
+			stageUnverifiableHead(statusDir, head.Digest)
+			return
+		}
 	}
 	// Verify the downloaded image's inventory matches the HEAD digest before
 	// adopting it, so the host never records a generation for an image that isn't
@@ -851,6 +968,22 @@ const convergeImageName = "head.sparseimage"
 // and staging disk forever.
 const convergeDownloadTimeout = 30 * time.Minute
 
+// fileSHA256 returns the lowercase hex SHA-256 of the file's bytes — the same
+// digest the promoting guest computed over its settled image and the object
+// store verified at ingest, so all three measure the identical byte stream.
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
 // downloadMasterImage fetches the account's master image from a presigned URL to
 // dst. The object IS the image — a settled APFS filesystem carrying the
 // symlinks, xattrs and modes the cache needs — so there is nothing to unpack.
@@ -926,6 +1059,9 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	if pct := readFillPercent(entry.VolumeStatusDir); pct >= 0 {
 		RecordVolumeFill(pct)
 	}
+	// Record what the guest's division measured and decided. Nothing else reports
+	// what either cache in the image actually holds.
+	RecordVolumeCacheLimits(readCacheLimits(entry.VolumeStatusDir))
 
 	// Consumed: the branch has been renamed away (promote) or removed
 	// (discard). Clear the flag so a later teardown path does not re-run

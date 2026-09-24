@@ -52,17 +52,27 @@ Your current limits are shown alongside each chart. If your workflows regularly 
   <.home_card
     title="GitHub Actions"
     details="Connect GitHub, point runs-on at a Tuist profile, and run your first job on the fleet."
-    link="/guides/features/runners/github-actions"
+    link="/guides/features/runners/ci-providers/github-actions"
 />
   <.home_card
     title="Buildkite"
     details="Connect your cluster, name a queue after a Tuist profile, and target it from a step."
-    link="/guides/features/runners/buildkite"
+    link="/guides/features/runners/ci-providers/buildkite"
+/>
+  <.home_card
+    title="GitLab CI"
+    details="Connect GitLab once and choose each job’s machine with pipeline tags."
+    link="/guides/features/runners/ci-providers/gitlab-ci"
 />
   <.home_card
     title="Profiles"
     details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
     link="/guides/features/runners/profiles"
+/>
+  <.home_card
+    title="Cache volumes"
+    details="Keep dependency directories between Linux jobs with a private writable copy for each run."
+    link="/guides/features/runners/cache-volumes"
 />
 </.home_cards>
 

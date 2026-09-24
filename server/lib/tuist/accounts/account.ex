@@ -46,10 +46,13 @@ defmodule Tuist.Accounts.Account do
 
   schema "accounts" do
     field :name, :string
+    field :kura_tenant_id, :string, read_after_writes: true
     field :billing_email, :string
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
+    field :current_month_cache_egress_megabytes, :integer
+    field :current_month_cache_requests, :integer
     field :free_tier_reset_at, :utc_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
     field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
@@ -129,7 +132,9 @@ defmodule Tuist.Accounts.Account do
     cast(account, attrs, [
       :customer_id,
       :current_month_remote_cache_hits_count,
-      :current_month_remote_cache_hits_count_updated_at
+      :current_month_remote_cache_hits_count_updated_at,
+      :current_month_cache_egress_megabytes,
+      :current_month_cache_requests
     ])
   end
 
@@ -138,7 +143,12 @@ defmodule Tuist.Accounts.Account do
   end
 
   def free_tier_reset_changeset(account, attrs) do
-    cast(account, attrs, [:free_tier_reset_at, :current_month_remote_cache_hits_count])
+    cast(account, attrs, [
+      :free_tier_reset_at,
+      :current_month_remote_cache_hits_count,
+      :current_month_cache_egress_megabytes,
+      :current_month_cache_requests
+    ])
   end
 
   def update_changeset(account, attrs) do
@@ -220,8 +230,11 @@ defmodule Tuist.Accounts.Account do
   defp validate_handle(changeset) do
     changeset
     |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/, message: "must contain only alphanumeric characters")
+    |> validate_format(:name, ~r/^[a-zA-Z0-9](?:.*[a-zA-Z0-9])?$/s, message: "must start and end with a letter or number")
     |> validate_length(:name, min: 1, max: 32)
     |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
     |> unique_constraint(:name, name: "index_accounts_on_name")
+    |> unique_constraint(:name, name: "accounts_name_reserved", message: "is reserved by another account")
+    |> unique_constraint(:name, name: "accounts_kura_tenant_id_index", message: "is reserved by another account")
   end
 end
