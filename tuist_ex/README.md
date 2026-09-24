@@ -71,6 +71,24 @@ fails, set `TUIST_DEBUG=1` to print the reason to standard error. Authentication
 reuses the credentials from `mix tuist.login`, or the `TUIST_TOKEN` environment
 variable if set.
 
+## Compile with analytics
+
+```sh
+mix tuist.compile
+mix tuist.compile -- --force
+```
+
+`mix tuist.compile` wraps `mix compile`, attaches an after-compiler hook to
+the Elixir and `.app` compilers, and submits a build record to your Tuist
+dashboard when the compile finishes. The record carries duration and status,
+each warning and error as a distinct diagnostic (file, module, message,
+line, and column), plus the same environment metadata (Elixir and
+[Open Telecom Platform](https://www.erlang.org/doc/system/otp) versions, Mix
+environment, git ref, and continuous integration provider) that
+`mix tuist.test` submits. Everything after `--` is forwarded to
+`mix compile`. Submission failures never change the exit code of
+`mix compile`.
+
 ## Development
 
 Requires Elixir 1.18 or later. From `tuist_ex/`:

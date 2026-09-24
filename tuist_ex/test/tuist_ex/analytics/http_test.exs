@@ -55,4 +55,23 @@ defmodule TuistEx.Analytics.HTTPTest do
     assert {:error, message} = AnalyticsHTTP.submit_test_run(%{}, environment: environment)
     assert message =~ "Missing Tuist project handle"
   end
+
+  test "submit_mix_build/2 POSTs to /mix/builds with the same auth path" do
+    environment = fn
+      "TUIST_URL" -> "https://tuist.example"
+      "TUIST_PROJECT" -> "acme/widgets"
+      _ -> nil
+    end
+
+    stub(Auth, :token, fn _ -> {:ok, "token"} end)
+
+    expect(HTTP, :request, fn :post, url, body, headers ->
+      assert url == "https://tuist.example/api/projects/acme/widgets/mix/builds"
+      assert body == %{id: "build-id"}
+      assert {"authorization", "Bearer token"} in headers
+      {:ok, 201, %{"id" => "build-id"}}
+    end)
+
+    assert :ok = AnalyticsHTTP.submit_mix_build(%{id: "build-id"}, environment: environment)
+  end
 end

@@ -20,17 +20,22 @@ defmodule TuistEx.Analytics.Config do
     project_url = Keyword.get(project_tuist_config(), :url)
     url = environment.("TUIST_URL") || Keyword.get(options, :url) || project_url || @default_url
 
-    uri = URI.parse(url)
-
-    # Match the same strictness as TuistEx.Auth.server_url/2: reject
-    # userinfo, query strings, and fragments so we don't concatenate a path
-    # onto them and route the request to nowhere.
-    if uri.scheme in ["http", "https"] and is_binary(uri.host) and uri.host != "" and
-         is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment) do
+    if valid_url?(url) do
       {:ok, String.trim_trailing(url, "/")}
     else
       {:error, "Invalid Tuist server URL: #{inspect(url)}"}
     end
+  end
+
+  # Match the same strictness as TuistEx.Auth.server_url/2: reject userinfo,
+  # query strings, and fragments so we don't concatenate a path onto them and
+  # route the request to nowhere.
+  defp valid_url?(url) do
+    uri = URI.parse(url)
+
+    uri.scheme in ["http", "https"] and
+      is_binary(uri.host) and uri.host != "" and
+      is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment)
   end
 
   defp resolve_project_handle(options, environment) do
