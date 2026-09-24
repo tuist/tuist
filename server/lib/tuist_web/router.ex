@@ -292,9 +292,8 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     # Operators are not members of customer accounts, so without this an
     # operator's MCP session sees only their own projects. Runs after
-    # authentication because the grant is honoured only for the operator it
-    # was minted for.
-    plug :accept_operator_grant_header
+    # authentication because the elevation belongs to the operator behind the
+    # token.
     plug :accept_atlas_identity_header
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end

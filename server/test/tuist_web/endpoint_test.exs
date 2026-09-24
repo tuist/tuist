@@ -8,7 +8,6 @@ defmodule TuistWeb.EndpointTest do
       :post
       |> Plug.Test.conn("/mcp")
       |> put_req_header("x-tuist-atlas-identity", "sa-token")
-      |> put_req_header("x-tuist-operator-grant", "grant")
       |> put_req_header("authorization", "Bearer token")
       |> put_req_header("accept", "application/json")
 

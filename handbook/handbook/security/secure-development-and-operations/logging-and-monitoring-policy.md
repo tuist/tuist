@@ -192,7 +192,7 @@ below points at it repeatedly rather than describing a separate log per event.
 | Account creation, modification, disablement, and deletion | Server request records; automated retirement of dormant accounts additionally emits a record naming every account actioned |
 | Role, permission, and organization membership changes | Server request records |
 | Privileged infrastructure elevation, with justification | Three independent records: the approval thread, the operations database, and the per-call access log of the cluster gateway |
-| Operator access to a customer account | The signed grant, joinable to every request made under it by the grant identifier |
+| Operator access to a customer account | In the dashboard, the signed grant, joinable to every request made under it by the grant identifier. Read-only access through the internal operations app's MCP proxy needs no grant; it is recorded by that app's audit log, one record per call naming the operator, the tool, and its arguments, and by server request records carrying the operator's identity and the account read |
 | Infrastructure, network, and deployment configuration changes | Version control history and the deployment pipeline's own run records |
 | Changes to logging configuration held in version control | Version control history |
 
@@ -202,7 +202,7 @@ below points at it repeatedly rather than describing a separate log per event.
 | --- | --- |
 | Access to and modification of customer data and organization settings | Server request records, attributed to the selected account and project |
 | Creation, rotation, and revocation of tokens and other credentials | Server request records |
-| Administrative operations performed on customer accounts by Tuist personnel | Server request records carrying the operator grant identifier |
+| Administrative operations performed on customer accounts by Tuist personnel | Server request records carrying the operator grant identifier, or, for reads through the internal operations app, the operator's identity and the account read |
 | Export or bulk retrieval of data | Server request records |
 | Errors and exceptions indicating a security-relevant failure | Application error reporting, and the server's own error records |
 
