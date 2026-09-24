@@ -121,7 +121,7 @@ defmodule Tuist.Tests.Test do
       :build_system
     ])
     |> validate_inclusion(:status, ["success", "failure", "skipped", "in_progress", "processing", "failed_processing"])
-    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel"])
+    |> validate_inclusion(:build_system, ["xcode", "gradle", "bazel", "elixir"])
     |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
     |> validate_inclusion(:stress_mode, ["" | StressNewTests.modes()])
     |> validate_inclusion(:stress_outcome, ["" | StressNewTests.run_outcomes()])

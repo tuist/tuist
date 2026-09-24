@@ -228,6 +228,16 @@ defmodule TuistWeb.API.TestsController do
              format: :uuid,
              description: "Optional client-generated UUID for the test run. If not provided, the server generates one."
            },
+           contract_version: %Schema{
+             type: :string,
+             description:
+               "Version of the client-server analytics contract the caller was built against (e.g. \"0.1\"). Older clients may omit it; the server accepts unknown values."
+           },
+           ran_at: %Schema{
+             type: :string,
+             format: :"date-time",
+             description: "ISO 8601 timestamp for when the test run started."
+           },
            duration: %Schema{
              description: "Duration of the run in milliseconds.",
              type: :integer
