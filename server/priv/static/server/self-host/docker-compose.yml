@@ -139,7 +139,7 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "MC_HOST_local=http://tuist:tuist_dev_password@127.0.0.1:9000 mc ready local >/dev/null"]
+      test: ["CMD-SHELL", "MC_HOST_local=http://127.0.0.1:9000 mc ready local >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 20
