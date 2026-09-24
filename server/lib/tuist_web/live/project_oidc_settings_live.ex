@@ -4,6 +4,7 @@ defmodule TuistWeb.ProjectOIDCSettingsLive do
   use Noora
 
   alias Tuist.Authorization
+  alias Tuist.OIDC.ProjectProviders
   alias Tuist.OIDC.ScopeRules
   alias Tuist.Projects
   alias Tuist.Repo
@@ -27,6 +28,7 @@ defmodule TuistWeb.ProjectOIDCSettingsLive do
       |> assign(:rules_id, @rules_id)
       |> assign(:oidc_rules, OIDCScopeRules.rules_by_scope(ScopeRules.list_project_rules(selected_project)))
       |> assign(:oidc_rule_errors, %{})
+      |> assign(:unmatched_providers, ProjectProviders.recent_unmatched_providers(selected_project))
 
     {:ok, socket}
   end

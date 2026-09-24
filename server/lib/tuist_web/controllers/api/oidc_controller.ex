@@ -12,6 +12,7 @@ defmodule TuistWeb.API.OIDCController do
   alias OpenApiSpex.Schema
   alias Tuist.Guardian
   alias Tuist.OIDC
+  alias Tuist.OIDC.ProjectProviders
   alias Tuist.OIDC.ScopeRules
   alias Tuist.Projects
   alias TuistWeb.API.Schemas.Error
@@ -85,6 +86,7 @@ defmodule TuistWeb.API.OIDCController do
          {withheld_scopes, failures} = ScopeRules.evaluate(account, projects, claims),
          {:ok, access_token} <- generate_token(account, projects, withheld_scopes) do
       log_exchange(claims, account, failures)
+      ProjectProviders.record_exchange(projects, claims[:provider])
 
       conn
       |> put_withheld_warnings(failures)

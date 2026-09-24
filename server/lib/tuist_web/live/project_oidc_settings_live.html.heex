@@ -80,6 +80,11 @@
           </.link_button>
         </:action>
       </.alert>
+      <TuistWeb.Components.OIDCScopeRules.provider_notice
+        providers={@unmatched_providers}
+        subject={dgettext("dashboard_projects", "project")}
+        data-part="oidc-provider-alert"
+      />
       <TuistWeb.Components.OIDCScopeRules.oidc_scope_rules
         id={@rules_id}
         scopes={TuistWeb.Components.OIDCScopeRules.project_scopes()}

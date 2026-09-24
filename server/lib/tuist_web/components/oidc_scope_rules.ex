@@ -135,6 +135,57 @@ defmodule TuistWeb.Components.OIDCScopeRules do
     """
   end
 
+  attr(:providers, :list, required: true, doc: "Providers other than GitHub Actions seen recently")
+  attr(:subject, :string, required: true, doc: "What the rules protect, e.g. \"project\"")
+  attr(:rest, :global)
+
+  def provider_notice(assigns) do
+    ~H"""
+    <.alert
+      :if={@providers != []}
+      status="warning"
+      type="secondary"
+      size="large"
+      title={
+        dgettext("dashboard", "%{providers} runs lose write access when a rule applies",
+          providers: provider_names(@providers)
+        )
+      }
+      description={
+        dgettext(
+          "dashboard",
+          "This %{subject} received OIDC tokens from %{providers} in the last 30 days. Rules only match GitHub Actions tokens, so those runs lose write access for every permission that has a rule. Reads keep working.",
+          subject: @subject,
+          providers: provider_names(@providers)
+        )
+      }
+      {@rest}
+    />
+    <.alert
+      :if={@providers == []}
+      status="information"
+      type="secondary"
+      size="large"
+      title={dgettext("dashboard", "Rules only match GitHub Actions tokens")}
+      description={
+        dgettext(
+          "dashboard",
+          "OIDC tokens from CircleCI or Bitrise lose write access for every permission that has a rule. Reads keep working."
+        )
+      }
+      {@rest}
+    />
+    """
+  end
+
+  defp provider_names(providers) do
+    Enum.map_join(providers, dgettext("dashboard", " and "), fn
+      :circleci -> "CircleCI"
+      :bitrise -> "Bitrise"
+      other -> to_string(other)
+    end)
+  end
+
   @doc """
   Handles the component's events for a LiveView. `put_rule` and `delete_rule`
   persist the change for the scope, and `list_rules` reloads the rules.

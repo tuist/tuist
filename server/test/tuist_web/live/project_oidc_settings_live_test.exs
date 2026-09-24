@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectOIDCSettingsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.OIDC.ProjectProviders
   alias Tuist.OIDC.ScopeRules
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -79,5 +80,28 @@ defmodule TuistWeb.ProjectOIDCSettingsLiveTest do
 
     assert html =~ "add at least one branch, workflow, or environment pattern"
     assert [] = ScopeRules.list_project_rules(project)
+  end
+
+  test "notes that rules only match GitHub Actions tokens", %{conn: conn, organization: organization, project: project} do
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/oidc")
+
+    assert has_element?(lv, "[data-part=oidc-provider-alert]", "Rules only match GitHub Actions tokens")
+  end
+
+  test "warns when the project recently used CircleCI or Bitrise OIDC tokens", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    :ok = ProjectProviders.record_exchange([project], :circleci)
+    :ok = ProjectProviders.record_exchange([project], :bitrise)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/oidc")
+
+    assert has_element?(
+             lv,
+             "[data-part=oidc-provider-alert]",
+             "Bitrise and CircleCI runs lose write access when a rule applies"
+           )
   end
 end

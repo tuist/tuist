@@ -11,6 +11,7 @@ defmodule TuistWeb.CacheLive do
   alias Tuist.Billing.Entitlements
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
+  alias Tuist.OIDC.ProjectProviders
   alias Tuist.OIDC.ScopeRules
   alias TuistWeb.Components.OIDCScopeRules
 
@@ -33,6 +34,7 @@ defmodule TuistWeb.CacheLive do
       |> assign(:new_self_hosted_client_secret, nil)
       |> assign(:oidc_rules, OIDCScopeRules.rules_by_scope(ScopeRules.list_account_rules(selected_account)))
       |> assign(:oidc_rule_errors, %{})
+      |> assign(:unmatched_providers, ProjectProviders.recent_unmatched_providers(selected_account))
       |> load_self_hosted_state()
 
     {:ok, socket}
@@ -248,6 +250,7 @@ defmodule TuistWeb.CacheLive do
 
   attr(:oidc_rules, :map, required: true)
   attr(:oidc_rule_errors, :map, required: true)
+  attr(:unmatched_providers, :list, required: true)
 
   def oidc_scope_rules_section(assigns) do
     ~H"""
@@ -263,6 +266,11 @@ defmodule TuistWeb.CacheLive do
           </span>
         </div>
       </div>
+      <OIDCScopeRules.provider_notice
+        providers={@unmatched_providers}
+        subject={dgettext("dashboard_account", "account")}
+        data-part="oidc-provider-alert"
+      />
       <OIDCScopeRules.oidc_scope_rules
         id="account-oidc-scope-rules"
         scopes={OIDCScopeRules.account_scopes()}

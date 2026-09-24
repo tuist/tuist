@@ -310,6 +310,17 @@ defmodule TuistWeb.API.OIDCControllerTest do
       assert :ok = Authorization.authorize(:project_cache_create, subject, project)
     end
 
+    test "records the provider that exchanged the token", %{conn: conn, project: project} do
+      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/rules", provider: :circleci}} end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/auth/oidc/token", %{token: "oidc-token"})
+      |> json_response(:ok)
+
+      assert Tuist.OIDC.ProjectProviders.recent_unmatched_providers(project) == [:circleci]
+    end
+
     test "withholds ruled scopes from providers other than GitHub Actions", %{conn: conn, project: project} do
       {:ok, _} = ScopeRules.put_project_rule(project, "project:bundles:write", %{refs: ["**"]})
 

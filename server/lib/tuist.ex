@@ -148,6 +148,8 @@ defmodule Tuist do
       Authorization,
       Guardian,
       OIDC,
+      OIDC.ProjectProvider,
+      OIDC.ProjectProviders,
       OIDC.ScopeRule,
       OIDC.ScopeRules,
       Authorization.Checks,

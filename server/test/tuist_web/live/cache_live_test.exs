@@ -230,6 +230,17 @@ defmodule TuistWeb.CacheLiveTest do
     assert SelfHostedClients.list_self_hosted_clients(account) == []
   end
 
+  test "warns when projects of the account recently used CircleCI OIDC tokens", %{conn: conn, account: account} do
+    stub_non_hosted_deployment()
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+    project = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture(account_id: account.id)
+    :ok = Tuist.OIDC.ProjectProviders.record_exchange([project], :circleci)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert has_element?(lv, "[data-part=oidc-provider-alert]", "CircleCI runs lose write access when a rule applies")
+  end
+
   test "saves and removes the account-wide cache OIDC rule", %{conn: conn, account: account} do
     stub_non_hosted_deployment()
     stub(Kura, :latest_versions, fn 1 -> [] end)
