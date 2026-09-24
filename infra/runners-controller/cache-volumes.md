@@ -3,8 +3,11 @@
 Linux custom volumes use the same storage model as the automatic macOS cache:
 persistent local masters, private copy-on-write branches, immutable object-storage
 images, and generation-checked publication. No Ceph cluster, credentials, RBD
-images or network block devices are required. Custom key/path volumes remain
-Linux-only; the existing automatic macOS repository cache is unchanged.
+images or network block devices are required.
+
+This runbook covers the Linux backend. macOS custom volumes use the shared
+lifecycle with an [APFS backend](../tart-kubelet/custom-cache-volumes.md);
+the existing automatic macOS repository cache remains unchanged.
 
 The feature is disabled by default for self-hosted installs. Staging is enabled
 for the validation below. The managed production overlay enables it through the
