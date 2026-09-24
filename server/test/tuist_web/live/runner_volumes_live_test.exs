@@ -147,7 +147,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert %{value: 25.0, value_label: "+25.0 pp"} = RunnerVolumesLive.hit_rate_trend(75.0, 50.0)
     assert %{value: -25.0, value_label: "-25.0 pp"} = RunnerVolumesLive.hit_rate_trend(50.0, 75.0)
     assert %{value: 50.0, value_label: "+50.0 pp"} = RunnerVolumesLive.hit_rate_trend(50.0, 0.0)
-    assert %{value: 0.0, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 50.0)
+    assert %{value: unchanged_rate, value_label: nil} = RunnerVolumesLive.hit_rate_trend(50.0, 50.0)
+    assert unchanged_rate == 0.0
     assert %{value: 0, value_label: "No previous data"} = RunnerVolumesLive.hit_rate_trend(75.0, nil)
     assert %{value: 0, value_label: "No data"} = RunnerVolumesLive.hit_rate_trend(nil, 75.0)
     period = {~U[2026-09-15 10:00:00Z], ~U[2026-09-22 10:00:00Z]}
