@@ -33,6 +33,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
@@ -44,7 +45,6 @@ defmodule Tuist.Tests.Coverage.Evidence do
   @separator "\x1F"
   @insert_chunk_size 5_000
   @scopes ~w(test suite target)
-  @latest_runs_window 100
 
   @doc """
   Stores a run's evidence. `evidence` is the request's `coverage_evidence`,
@@ -260,31 +260,49 @@ defmodule Tuist.Tests.Coverage.Evidence do
   end
 
   @doc """
+  The tests a report holds evidence of their own for, as `{name,
+  module_name, suite_name}`: what marks their test case runs
+  (`has_coverage_evidence` on `test_case_runs`) as the ones
+  `latest_for_test/4` looks through. Empty when coverage is off for the
+  project, as `record/3` then stores nothing.
+  """
+  def tests_with_evidence(_project_id, nil), do: MapSet.new()
+
+  def tests_with_evidence(project_id, evidence) do
+    scopes = value(evidence, :scopes, [])
+
+    if scopes != [] and Coverage.enabled_for_project?(project_id) do
+      scopes |> Enum.map(&test_identity/1) |> Enum.reject(&is_nil/1) |> MapSet.new()
+    else
+      MapSet.new()
+    end
+  end
+
+  # A test scope's `{name, module_name, suite_name}`, as a test case run is
+  # keyed, when `record/3` stores rows for it.
+  defp test_identity(scope) do
+    name = value(scope, :name, "")
+    module_name = value(scope, :module, "")
+
+    if value(scope, :kind, "") == "test" and name != "" and module_name != "" and value(scope, :files, []) != [],
+      do: {name, module_name, value(scope, :suite, "") || ""}
+  end
+
+  @doc """
   The latest run that holds evidence of the test's own, with the files it
-  ran there (`files/4`): what a test case's page shows. Nil when none of the
-  test's #{@latest_runs_window} most recent runs recorded any.
+  ran there (`files/4`): what a test case's page shows. Nil when no run
+  within the evidence's retention recorded any.
   """
   def latest_for_test(project_id, module_name, suite_name, name) do
     scope_id = test_scope_id(module_name, suite_name || "", name)
     test_case_id = Tests.generate_test_case_id(project_id, name, module_name, suite_name || "")
 
-    # Evidence is keyed by run, so the test's own runs are found first (in
-    # `test_case_runs` order) and only their rows are read: a filter on the
-    # test's scope alone would read every evidence row of the project.
-    recent_runs =
-      from(r in TestCaseRun,
-        where: r.project_id == ^project_id and r.test_case_id == ^test_case_id,
-        order_by: [desc: r.ran_at],
-        limit: ^@latest_runs_window,
-        select: r.test_run_id
-      )
-
     latest =
       ClickHouseRepo.one(
         from(f in CoverageFile,
           where:
-            f.project_id == ^project_id and f.test_run_id in subquery(recent_runs) and f.scope_kind == "test" and
-              f.scope_id == ^scope_id,
+            f.project_id == ^project_id and f.test_run_id in subquery(latest_evidence_run(project_id, test_case_id)) and
+              f.scope_kind == "test" and f.scope_id == ^scope_id,
           order_by: [desc: f.inserted_at],
           limit: 1,
           select: %{test_run_id: f.test_run_id, git_commit_sha: f.git_commit_sha, inserted_at: f.inserted_at}
@@ -294,6 +312,23 @@ defmodule Tuist.Tests.Coverage.Evidence do
     if latest do
       Map.put(latest, :files, files(%{id: latest.test_run_id, project_id: project_id}, module_name, suite_name, name))
     end
+  end
+
+  # The test's runs are in `test_case_runs` key order, and the ones whose run
+  # recorded its evidence are flagged, so the latest is one read, bounded by
+  # the evidence's retention; its evidence is then read by run, a
+  # `coverage_files` key prefix.
+  defp latest_evidence_run(project_id, test_case_id) do
+    retained_since = DateTime.add(DateTime.utc_now(), -Environment.coverage_retention_days().files, :day)
+
+    from(r in TestCaseRun,
+      where:
+        r.project_id == ^project_id and r.test_case_id == ^test_case_id and r.has_coverage_evidence and
+          r.ran_at >= ^retained_since,
+      order_by: [desc: r.ran_at],
+      limit: 1,
+      select: r.test_run_id
+    )
   end
 
   @doc """

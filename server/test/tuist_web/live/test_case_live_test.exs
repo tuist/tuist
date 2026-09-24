@@ -53,6 +53,20 @@ defmodule TuistWeb.TestCaseLiveTest do
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: account.id,
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Sources/Boot.swift"],
+            scopes: [
+              %{
+                kind: "test",
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd()",
+                files: [0],
+                lines: [[3, 5, 9, 9, 12, 14]]
+              },
+              %{kind: "target", module: "AppTests", suite: "", name: "", files: [0, 1]}
+            ]
+          },
           test_modules: [
             %{
               name: "AppTests",
@@ -65,21 +79,6 @@ defmodule TuistWeb.TestCaseLiveTest do
             }
           ]
         )
-
-      Tuist.Tests.Coverage.Evidence.record(test_run, %{
-        paths: ["Sources/Math.swift", "Sources/Boot.swift"],
-        scopes: [
-          %{
-            kind: "test",
-            module: "AppTests",
-            suite: "MathTests",
-            name: "testAdd()",
-            files: [0],
-            lines: [[3, 5, 9, 9, 12, 14]]
-          },
-          %{kind: "target", module: "AppTests", suite: "", name: "", files: [0, 1]}
-        ]
-      })
 
       test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       id = fn name -> Enum.find(test_run.test_case_runs, &(&1.name == name)).test_case_id end

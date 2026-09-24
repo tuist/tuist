@@ -8724,6 +8724,7 @@ defmodule Tuist.TestsTest do
             is_flaky: true,
             is_new: false,
             is_quarantined: false,
+            has_coverage_evidence: false,
             duration: 100,
             inserted_at: NaiveDateTime.utc_now(),
             module_name: "FlakyTestModule",

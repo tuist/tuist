@@ -165,12 +165,54 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     assert %{tests: []} = Evidence.covering(test_run, "Sources/Math.swift", line: 6)
     # Only the file is known there: the test may have run the line.
     assert %{tests: [%{name: "testAdd()", lines: nil}]} = Evidence.covering(test_run, "Sources/Text.swift", line: 6)
+  end
 
-    assert %{test_run_id: run_id, files: [%{path: "Sources/Math.swift"} | _]} =
-             Evidence.latest_for_test(test_run.project_id, "AppTests", "MathTests", "testAdd()")
+  test "reads a test's latest evidence from the run its test case runs flag", %{project: project} do
+    modules = [
+      %{
+        name: "AppTests",
+        status: "success",
+        duration: 10,
+        test_cases: [
+          %{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 5},
+          %{name: "testNone()", test_suite_name: "MathTests", status: "success", duration: 5}
+        ]
+      }
+    ]
 
-    assert run_id == test_run.id
-    assert Evidence.latest_for_test(test_run.project_id, "AppTests", "MathTests", "never()") == nil
+    evidence = %{
+      paths: ["Sources/Math.swift"],
+      scopes: [%{kind: "test", module: "AppTests", suite: "MathTests", name: "testAdd()", files: [0], lines: [[3, 5]]}]
+    }
+
+    {:ok, measured} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        test_modules: modules,
+        coverage_evidence: evidence,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)
+      )
+
+    # A later run without evidence, as a run without coverage leaves it.
+    {:ok, _unmeasured} = RunsFixtures.test_fixture(project_id: project.id, test_modules: modules)
+
+    flags =
+      Tuist.ClickHouseRepo.all(
+        from(r in Tuist.Tests.TestCaseRun,
+          where: r.test_run_id == ^measured.id,
+          order_by: r.name,
+          select: {r.name, r.has_coverage_evidence}
+        )
+      )
+
+    assert flags == [{"testAdd()", true}, {"testNone()", false}]
+
+    assert %{test_run_id: run_id, files: [%{path: "Sources/Math.swift", lines: [[3, 5]]}]} =
+             Evidence.latest_for_test(project.id, "AppTests", "MathTests", "testAdd()")
+
+    assert run_id == measured.id
+    assert Evidence.latest_for_test(project.id, "AppTests", "MathTests", "testNone()") == nil
+    assert Evidence.latest_for_test(project.id, "AppTests", "MathTests", "never()") == nil
   end
 
   test "a later report replaces the shard's earlier one", %{test_run: test_run} do

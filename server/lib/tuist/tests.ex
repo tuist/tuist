@@ -584,7 +584,13 @@ defmodule Tuist.Tests do
       Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
 
       {test_case_ids_with_flaky_run, test_case_runs} =
-        create_test_modules(test, test_modules, shard_index, shard_plan)
+        create_test_modules(
+          test,
+          test_modules,
+          shard_index,
+          shard_plan,
+          Coverage.Evidence.tests_with_evidence(test.project_id, Map.get(attrs, :coverage_evidence))
+        )
 
       Tuist.Tasks.run_async(fn ->
         mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
@@ -824,7 +830,13 @@ defmodule Tuist.Tests do
 
           {test_case_ids_with_flaky_run, test_case_runs} =
             OpenTelemetry.Tracer.with_span "tests.create_test_modules" do
-              create_test_modules(merged_test, test_modules, shard_index, shard_plan)
+              create_test_modules(
+                merged_test,
+                test_modules,
+                shard_index,
+                shard_plan,
+                Coverage.Evidence.tests_with_evidence(project_id, Map.get(attrs, :coverage_evidence))
+              )
             end
 
           # Every shard carries its own errors, and only unattributed issues
@@ -1960,7 +1972,9 @@ defmodule Tuist.Tests do
     _ -> :error
   end
 
-  defp create_test_modules(test, test_modules, shard_index, shard_plan) do
+  # `evidence_tests` are the tests the report holds evidence of their own for
+  # (`Coverage.Evidence.tests_with_evidence/2`), which flags their runs.
+  defp create_test_modules(test, test_modules, shard_index, shard_plan, evidence_tests) do
     # Resolved once per run and threaded down rather than looked up where each
     # row is built: it decides `is_new` for every test case and
     # `is_default_branch` for every run row, and both used to mean a separate
@@ -2056,7 +2070,8 @@ defmodule Tuist.Tests do
           shard_plan,
           shard_index,
           existing_test_cases,
-          is_default_branch
+          is_default_branch,
+          evidence_tests
         )
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
@@ -2358,7 +2373,8 @@ defmodule Tuist.Tests do
          shard_plan,
          shard_index,
          existing_test_cases,
-         is_default_branch
+         is_default_branch,
+         evidence_tests
        ) do
     test_case_data_list =
       test_cases
@@ -2421,6 +2437,7 @@ defmodule Tuist.Tests do
           is_flaky: is_flaky,
           is_new: is_new,
           is_quarantined: Map.get(case_attrs, :is_quarantined, false),
+          has_coverage_evidence: MapSet.member?(evidence_tests, identity_key),
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
