@@ -13,35 +13,22 @@ absolute paths (SwiftPM `.build/checkouts/`, Xcode DerivedData,
 `actions/cache` payloads) are interchangeable between hosted and
 self-hosted runs without per-environment cache keys.
 
-The Cirrus base image's pre-existing `admin` user is kept around
-as the Packer SSH provisioning identity but is not used at
-runtime — no service, sudo entry, or auto-login targets it.
+Jobs run as the account that built the image, as on GitHub-hosted
+images. The Cirrus base provisions everything as its auto-login
+`admin` user (uid 501), with `/Users/runner` as a symlink to
+`/Users/admin`, and the Xcode base and this image's build keep
+provisioning as `admin`. A provisioner near the end renames the account to
+`runner` (same uid, password `runner`), moves its home to
+`/Users/runner`, and leaves `/Users/admin` as a symlink to it for
+paths the base baked in. The Homebrew prefix, `~/.zprofile`,
+rbenv's Rubies, mise, the Metal Toolchain and the session's TCC
+database therefore all belong to the job account. No `admin` user
+exists at runtime.
 
-Because the base images provision as `admin` and jobs run as
-`runner`, anything the base installs under `admin` has to be
-handed over explicitly. Three things are:
-
-- `/opt/homebrew`. The prefix shipped owned by `admin`, so `brew
-  install` from a workflow step failed its writability audit
-  while `brew` itself resolved fine on `PATH`. GitHub-hosted
-  images build and run under one account, so the job user owns
-  the prefix — this image chowns it to `runner` to match.
-- `~/.zprofile`. The cirruslabs base writes it for `admin` and
-  symlinks `/Users/runner` at `/Users/admin`; this image replaces
-  that symlink with a real `runner` account whose home comes from
-  macOS's user template and has no `.zprofile`, so the file is
-  copied over. Without it the login shell the LaunchAgent (and
-  every step shell under it) runs resolves no brew shellenv, no
-  rbenv, no node.
-- The Metal Toolchain. On Xcode 26.1 a toolchain downloaded by
-  `admin` is not usable by `runner`, so the image downloads it again
-  as `runner`, with the same explicit `-buildVersion` the base uses
-  (see `infra/macos-xcode-image/AGENTS.md`). Base images built before
-  the toolchain was added to them have none, and this download is
-  what installs it.
-
-When adding tooling to the base, check ownership and login-shell
-reachability from `runner`, not just presence under `admin`.
+Provisioners before the rename write runtime paths as
+`/Users/runner/...` through the base's symlink. Provisioners after
+it run as `sudo -u runner -H`; macOS sudoers keeps `HOME`, so
+dropping `-H` would point them at the SSH session's `/Users/admin`.
 
 A related class of gap is anything GitHub-hosted images pre-seed
 that ours do not. When adding parity features, compare against
@@ -54,15 +41,15 @@ TCC is one of those gaps. Scripted Finder automation (`create-dmg`,
 anything driving Finder through `osascript`) needs a standing
 `kTCCServiceAppleEvents` approval, or the first send waits on a
 consent prompt nobody can answer and fails as `AppleEvent timed out
-(-1712)`. `dispatch-poll.sh` (`approve_finder_automation`) writes it
-at boot. Three details decide whether a row matches, and earlier
-attempts got each one wrong:
+(-1712)`. The Packer template writes it after the rename and fails
+the build if it does not persist. Three details decide whether a row
+matches, and earlier attempts got each one wrong:
 
 - **Database.** Only the session user's
   `~/Library/Application Support/com.apple.TCC/TCC.db` is consulted.
-  A row in the system database is ignored. The user database only
-  exists once `runner` has logged in, which is why this runs at boot
-  and not in the Packer template.
+  A row in the system database is ignored. The user database exists
+  at build time because the base logs its account in, and this
+  account is that one.
 - **Client.** TCC charges the event to the responsible process, not
   to `osascript`. For GitHub jobs that is
   `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite
@@ -73,13 +60,11 @@ attempts got each one wrong:
 - **Target.** `indirect_object_code_identity` must hold Finder's
   code requirement. A row with it NULL is ignored.
 
-The sanity checks at the end of the Packer template run as `sudo
--u runner -H`. macOS sudoers keeps `HOME`, so dropping `-H`
-leaves them pointed at `/Users/admin` and they assert against the
-provisioning account's environment instead of the runtime one —
-which is how a reachability check stayed green through months of
-broken `brew install`s, and how the `brew install hello` check
-added to catch that failed on `admin`'s unwritable cache instead.
+macOS 27 moves the user database into a per-user container under
+`/private/var/containers/Data/ProtectedSystem/`. The build's
+existence check fails on such a base rather than shipping an image
+without the approval; resolve the path from the user `tccd`'s open
+files when the base moves to macOS 27.
 
 - `/Users/runner/actions-runner/` — GitHub Actions runner binary
   (no registration; we register at runtime via JIT config minted
