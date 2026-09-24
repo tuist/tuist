@@ -21,9 +21,8 @@ provisioning as `admin`. A provisioner near the end renames the account to
 `runner` (same uid, password `runner`), moves its home to
 `/Users/runner`, and leaves `/Users/admin` as a symlink to it for
 paths the base baked in. The Homebrew prefix, `~/.zprofile`,
-rbenv's Rubies, mise, the Metal Toolchain and the session's TCC
-database therefore all belong to the job account. No `admin` user
-exists at runtime.
+rbenv's Rubies, mise and the Metal Toolchain therefore all belong
+to the job account. No `admin` user exists at runtime.
 
 Provisioners before the rename write runtime paths as
 `/Users/runner/...` through the base's symlink. Provisioners after
@@ -41,15 +40,15 @@ TCC is one of those gaps. Scripted Finder automation (`create-dmg`,
 anything driving Finder through `osascript`) needs a standing
 `kTCCServiceAppleEvents` approval, or the first send waits on a
 consent prompt nobody can answer and fails as `AppleEvent timed out
-(-1712)`. The Packer template writes it after the rename and fails
-the build if it does not persist. Three details decide whether a row
-matches, and earlier attempts got each one wrong:
+(-1712)`. `dispatch-poll.sh` (`approve_finder_automation`) writes it
+at boot. Three details decide whether a row matches, and earlier
+attempts got each one wrong:
 
 - **Database.** Only the session user's
   `~/Library/Application Support/com.apple.TCC/TCC.db` is consulted.
-  A row in the system database is ignored. The user database exists
-  at build time because the base logs its account in, and this
-  account is that one.
+  A row in the system database is ignored. tccd creates a fresh user
+  database when the VM boots, so a row written at image build is
+  gone by the time a job runs.
 - **Client.** TCC charges the event to the responsible process, not
   to `osascript`. For GitHub jobs that is
   `/Users/runner/actions-runner/bin/Runner.Listener`. The Buildkite
@@ -61,10 +60,9 @@ matches, and earlier attempts got each one wrong:
   code requirement. A row with it NULL is ignored.
 
 macOS 27 moves the user database into a per-user container under
-`/private/var/containers/Data/ProtectedSystem/`. The build's
-existence check fails on such a base rather than shipping an image
-without the approval; resolve the path from the user `tccd`'s open
-files when the base moves to macOS 27.
+`/private/var/containers/Data/ProtectedSystem/`, so the path
+`approve_finder_automation` writes has to be resolved from the user
+`tccd`'s open files once the base moves to macOS 27.
 
 - `/Users/runner/actions-runner/` — GitHub Actions runner binary
   (no registration; we register at runtime via JIT config minted

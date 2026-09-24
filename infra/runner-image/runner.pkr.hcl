@@ -73,8 +73,7 @@ packer {
 # provisioner near the end renames the account to `runner` and moves its
 # home to `/Users/runner`. Everything the base and this build set up
 # (the Homebrew prefix, `~/.zprofile`, rbenv's Rubies, the Metal
-# Toolchain, the session's TCC database) belongs to the job account
-# without being handed over.
+# Toolchain) belongs to the job account without being handed over.
 #
 # Provisioners after the rename run as `sudo -u runner -H`. The `-H`
 # is load-bearing: macOS sudoers carries `env_keep += "HOME"`.
@@ -483,32 +482,6 @@ build {
       "dseditgroup -o checkmember -m runner admin >/dev/null || { echo 'rename: runner is not in the admin group' >&2; exit 1; }",
       "dscl . -authonly runner runner || { echo 'rename: runner password is not runner' >&2; exit 1; }",
       "sudo -u runner -H sudo -n true"
-    ]
-  }
-
-  # Standing approval for scripting Finder (`create-dmg`, anything
-  # styling a window through `osascript`). Without it the first
-  # AppleEvent to Finder waits on a consent prompt nobody can answer
-  # and fails as `AppleEvent timed out (-1712)`.
-  #
-  # Three details decide whether tccd uses the row. The session
-  # user's database is the one consulted for AppleEvents, and a row
-  # in the system database is ignored. The client is the responsible
-  # process, not `osascript`: `Runner.Listener` for GitHub jobs, and
-  # `dispatch-poll.sh`'s `/bin/bash` for the agents it launches
-  # directly. And `indirect_object_code_identity` must carry Finder's
-  # code requirement.
-  #
-  # The database exists because the base auto-logs its account in,
-  # which is this one.
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "DB='/Users/runner/Library/Application Support/com.apple.TCC/TCC.db'",
-      "[ -f \"$DB\" ] || { echo \"TCC: $DB missing; the base no longer logs its account in, or macOS moved the database\" >&2; exit 1; }",
-      "FINDER=\"X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'\"",
-      "for client in /Users/runner/actions-runner/bin/Runner.Listener /bin/bash; do /usr/bin/sqlite3 \"$DB\" \"INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '$client', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', $FINDER, 0, CAST(strftime('%s','now') AS INTEGER));\"; done",
-      "[ \"$(/usr/bin/sqlite3 \"$DB\" \"SELECT count(*) FROM access WHERE service = 'kTCCServiceAppleEvents' AND indirect_object_identifier = 'com.apple.finder' AND auth_value = 2 AND indirect_object_code_identity IS NOT NULL AND client IN ('/Users/runner/actions-runner/bin/Runner.Listener', '/bin/bash');\")\" = 2 ] || { echo 'TCC: Finder automation approval did not persist' >&2; exit 1; }"
     ]
   }
 
