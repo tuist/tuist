@@ -847,6 +847,59 @@ struct TuistCacheEEAcceptanceTests {
         TuistTest.expectLogs("2 targets stored: Feature, Services")
     }
 
+    /// NativeRendererKit links the static NativeRenderer.xcframework, which ships its own flat
+    /// module map, under `.when(platforms: [.iOS])`. The cold warm builds NativeRendererKit from
+    /// source. The second warm evicts Tokens, Canvas and Feature, so Palette is kept as source
+    /// behind the cached dynamic Renderer while Canvas processes NativeRenderer.xcframework
+    /// through the cached NativeRendererKit. Both warms fail with `redefinition of module
+    /// 'NativeRendererFFI'` if the conditioned link does not count as publishing the module map.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_xcframework_linked_under_platform_condition")
+    ) func cache_warm_with_static_xcframework_linked_under_platform_condition() async throws {
+        // The temporary directory lives under the `/var` -> `/private/var` symlink. Without a canonical path, the
+        // generated projects and the SwiftPM-resolved local package reference the xcframework through different
+        // paths, and Xcode rejects the two `ProcessXCFramework` tasks as unexpected duplicates.
+        let fixtureDirectory = try AbsolutePath(
+            validating: URL(fileURLWithPath: try #require(TuistTest.fixtureDirectory).pathString)
+                .resolvingSymlinksInPath().path
+        )
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        let environment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let evictedTargets: Set<String> = ["Canvas", "Feature", "Tokens"]
+        let blobs = try await fileSystem.glob(directory: environment.cacheDirectory, include: ["**/blob-*"]).collect()
+        var evictedActions = 0
+        for blob in blobs {
+            guard let inputs = try? JSONSerialization.jsonObject(with: await fileSystem.readFile(at: blob)) as? [String: String],
+                  let name = inputs["name"], evictedTargets.contains(name),
+                  let variant = inputs["variant"], let fingerprint = inputs["fingerprint"]
+            else { continue }
+            let action = try BinaryCacheAction(name: name, variant: variant, fingerprint: fingerprint)
+            try await fileSystem.remove(environment.cacheDirectory.appending(components: [
+                "Binaries",
+                "action-\(action.digest.hash)",
+            ]))
+            evictedActions += 1
+        }
+        #expect(evictedActions == 6)
+        for target in evictedTargets {
+            let artifacts = try await fileSystem
+                .glob(directory: environment.cacheDirectory, include: ["**/\(target).xcframework"]).collect()
+            for artifact in artifacts {
+                try await fileSystem.remove(artifact.parentDirectory)
+            }
+        }
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Canvas, Feature, Tokens")
+        TuistTest.expectLogs("3 targets stored: Canvas, Feature, Tokens")
+    }
+
     /// Foundation's #bundle macro expands to Bundle.module only when
     /// SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE is set at compile time, and the expansion is baked
     /// into cached binaries. StaticFramework uses #bundle directly and through an SE-0422

@@ -1034,9 +1034,9 @@ public class GraphTraverser: GraphTraversing {
     /// Iterative, per-node memoised walk from a source-graph target. Traversal stops at static
     /// xcframeworks (terminal) and at descendant targets that survive in `currentGraph` (they
     /// contribute their own settings through the current-graph walkers; walking through them
-    /// here would double-count). The starting target itself always contributes its children —
-    /// it's the surviving root we're walking from; the check gates whether we recurse INTO
-    /// surviving descendants, not whether the walk starts.
+    /// here would double-count). The starting target is the surviving root, and the walk starts
+    /// only from its children that were replaced by cached binaries. A static xcframework the
+    /// root links itself is not behind a cached target: Xcode processes it for the root.
     ///
     /// The cache stores the standard per-node reachable set (with the terminal check applied),
     /// so a node cached during one target's walk can be reused as a descendant of another
@@ -1050,7 +1050,10 @@ public class GraphTraverser: GraphTraversing {
         includes: (GraphDependency.XCFramework) -> Bool
     ) -> Set<GraphDependency> {
         let root: GraphDependency = .target(name: name, path: path)
-        guard let rootChildren = graph.dependencies[root] else { return [] }
+        guard let rootChildren = graph.dependencies[root]?.filter({ child in
+            guard case let .target(childName, childPath, _) = child else { return false }
+            return currentGraph.projects[childPath]?.targets[childName] == nil
+        }) else { return [] }
 
         func terminal(_ node: GraphDependency) -> Bool {
             if case let .xcframework(xcframework) = node, xcframework.linking == .static {

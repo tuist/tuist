@@ -1,0 +1,4 @@
+module NativeRendererFFI {
+    header "native_renderer.h"
+    export *
+}

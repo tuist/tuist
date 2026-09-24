@@ -605,6 +605,354 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         XCTAssertBetterEqual([], gotSideEffects)
     }
 
+    func test_map_when_static_xcframework_library_is_linked_directly_under_a_matching_platform_condition()
+        async throws
+    {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let rendererPath = projectPath
+            .parentDirectory
+            .appending(component: "XRendererRustFramework.xcframework")
+        let rendererHeadersPath = rendererPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: rendererHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: rendererHeadersPath.appending(component: "module.modulemap")
+        )
+
+        let renderer: GraphDependency = .testXCFramework(
+            path: rendererPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "libxrenderer.a")
+                    ),
+                ]
+            ),
+            linking: .static,
+            moduleMaps: [
+                rendererHeadersPath.appending(component: "module.modulemap"),
+            ]
+        )
+        let dynamicFramework: GraphDependency = .testXCFramework(
+            path: try temporaryPath()
+                .appending(component: "DynamicFramework.xcframework")
+        )
+        let appDependency = GraphDependency.target(name: "App", path: projectPath)
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                        .test(
+                            name: "Consumer"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                appDependency: [
+                    .target(name: "Consumer", path: projectPath),
+                    renderer,
+                ],
+                .target(name: "Consumer", path: projectPath): [
+                    dynamicFramework,
+                ],
+                dynamicFramework: [
+                    renderer,
+                ],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: appDependency, to: renderer): try XCTUnwrap(.when([.ios])),
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test()
+                    ),
+                    .test(
+                        name: "Consumer",
+                        settings: .test()
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(expectedGraph, gotGraph)
+        XCTAssertBetterEqual([], gotSideEffects)
+    }
+
+    func test_map_when_static_xcframework_library_is_processed_by_a_static_target_through_a_cached_static_xcframework()
+        async throws
+    {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let rendererPath = projectPath
+            .parentDirectory
+            .appending(component: "XRendererRustFramework.xcframework")
+        let rendererHeadersPath = rendererPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: rendererHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: rendererHeadersPath.appending(component: "module.modulemap")
+        )
+
+        let renderer: GraphDependency = .testXCFramework(
+            path: rendererPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "libxrenderer.a")
+                    ),
+                ]
+            ),
+            linking: .static,
+            moduleMaps: [
+                rendererHeadersPath.appending(component: "module.modulemap"),
+            ]
+        )
+        let cachedStaticWrapper: GraphDependency = .testXCFramework(
+            path: try temporaryPath()
+                .appending(component: "XRendererKit.xcframework"),
+            linking: .static,
+            swiftModules: [
+                try temporaryPath().appending(components: "XRendererKit.xcframework", "XRendererKit.swiftmodule"),
+            ]
+        )
+        let cachedDynamicFramework: GraphDependency = .testXCFramework(
+            path: try temporaryPath()
+                .appending(component: "Renderer.xcframework")
+        )
+        let canvasDependency = GraphDependency.target(name: "Canvas", path: projectPath)
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "Canvas",
+                            product: .staticFramework
+                        ),
+                        .test(
+                            name: "Palette",
+                            product: .staticFramework
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                canvasDependency: [
+                    cachedStaticWrapper,
+                ],
+                cachedStaticWrapper: [
+                    renderer,
+                ],
+                .target(name: "Palette", path: projectPath): [
+                    cachedDynamicFramework,
+                ],
+                cachedDynamicFramework: [
+                    cachedStaticWrapper,
+                ],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: cachedStaticWrapper, to: renderer): try XCTUnwrap(.when([.ios])),
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "Canvas",
+                        product: .staticFramework,
+                        settings: .test()
+                    ),
+                    .test(
+                        name: "Palette",
+                        product: .staticFramework,
+                        settings: .test(
+                            base: [
+                                "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
+                                    "$(inherited)",
+                                    "\"$(SRCROOT)/../XRendererKit.xcframework/test\"",
+                                ],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(expectedGraph, gotGraph)
+        XCTAssertBetterEqual([], gotSideEffects)
+    }
+
+    func test_map_when_static_xcframework_library_is_linked_directly_only_for_mac_catalyst() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let rendererPath = projectPath
+            .parentDirectory
+            .appending(component: "XRendererRustFramework.xcframework")
+        let rendererHeadersPath = rendererPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: rendererHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: rendererHeadersPath.appending(component: "module.modulemap")
+        )
+
+        let renderer: GraphDependency = .testXCFramework(
+            path: rendererPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "libxrenderer.a")
+                    ),
+                ]
+            ),
+            linking: .static,
+            moduleMaps: [
+                rendererHeadersPath.appending(component: "module.modulemap"),
+            ]
+        )
+        let dynamicFramework: GraphDependency = .testXCFramework(
+            path: try temporaryPath()
+                .appending(component: "DynamicFramework.xcframework")
+        )
+        let derivedDirectory = projectPath.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Constants.SwiftPackageManager.packageBuildDirectoryName,
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
+            ]
+        )
+        let appDependency = GraphDependency.target(name: "App", path: projectPath)
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App",
+                            destinations: [.iPhone, .macCatalyst]
+                        ),
+                        .test(
+                            name: "Consumer"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                appDependency: [
+                    .target(name: "Consumer", path: projectPath),
+                    renderer,
+                ],
+                .target(name: "Consumer", path: projectPath): [
+                    dynamicFramework,
+                ],
+                dynamicFramework: [
+                    renderer,
+                ],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: appDependency, to: renderer): try XCTUnwrap(.when([.catalyst])),
+            ]
+        )
+
+        let expectedSettings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": [
+                "-Xcc",
+                "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/XRendererRustFramework/Headers/module.modulemap\"",
+            ],
+            "OTHER_C_FLAGS": [
+                "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/XRendererRustFramework/Headers/module.modulemap\"",
+            ],
+            "HEADER_SEARCH_PATHS": [
+                "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/XRendererRustFramework/Headers\"",
+            ],
+        ]
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        destinations: [.iPhone, .macCatalyst],
+                        settings: .test(base: expectedSettings)
+                    ),
+                    .test(
+                        name: "Consumer",
+                        settings: .test(base: expectedSettings)
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(expectedGraph, gotGraph)
+        XCTAssertBetterEqual(
+            [
+                .directory(
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "XRendererRustFramework", "Headers"))
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "XRendererRustFramework", "Headers", "module.modulemap"),
+                        contents: "modulemap".data(using: .utf8)
+                    )
+                ),
+            ],
+            gotSideEffects
+        )
+    }
+
     /// Some static Objective-C xcframeworks keep their module map and headers in a `Headers/<ModuleName>/`
     /// subdirectory and re-import each other with the `<ModuleName/...>` prefix. Such a "nested"
     /// layout gets only the `Headers` root (the parent of the module subdirectory) on the search

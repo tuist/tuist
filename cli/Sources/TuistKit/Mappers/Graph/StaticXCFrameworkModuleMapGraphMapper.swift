@@ -56,17 +56,29 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
             let target = graphTarget.target
             let project = graphTarget.project
             let targetDependency = GraphDependency.target(name: target.name, path: project.path)
-            let targetPlatforms = target.supportedPlatforms
             // Xcode's `ProcessXCFramework` publishes `include/<Module>/module.modulemap` in the
             // per-SDK `$(BUILT_PRODUCTS_DIR)/include`, so a producing target only covers a consumer
             // whose platform matches. Adding the vendor `Headers/` copy on top of the `include/`
             // copy on the SAME SDK is what triggers `redefinition of module`; on a different SDK
             // the consumer has neither map without the vendor copy, and we hit
             // `unable to resolve module dependency`.
-            let publishesModuleMapOnConsumerSDK: (GraphDependency.XCFramework) -> Bool = { xcframework in
-                guard let producingPlatforms = xcframeworkPlatformsProcessedByGeneratedTargets[xcframework.path]
+            let publishesModuleMapOnConsumerSDK: (ConditionedXCFramework) -> Bool = { conditionedXCFramework in
+                guard let producingPlatforms =
+                    xcframeworkPlatformsProcessedByGeneratedTargets[conditionedXCFramework.xcframework.path]
                 else { return false }
-                return !producingPlatforms.isDisjoint(with: targetPlatforms)
+                let consumingCondition: PlatformCondition?
+                if case let .condition(condition) = Self.conditionThroughOtherDependencies(
+                    from: targetDependency,
+                    to: .xcframework(conditionedXCFramework.xcframework),
+                    graph: graph,
+                    traverser: graphTraverser
+                ) {
+                    consumingCondition = condition
+                } else {
+                    consumingCondition = conditionedXCFramework.condition
+                }
+                let consumingPlatforms = Self.platforms(of: target, under: consumingCondition)
+                return !producingPlatforms.isDisjoint(with: consumingPlatforms)
             }
             var staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies = graphTraverser
                 .staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
@@ -166,7 +178,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                 staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies
                     .filter {
                         $0.xcframework.containsLibrary()
-                            && !publishesModuleMapOnConsumerSDK($0.xcframework)
+                            && !publishesModuleMapOnConsumerSDK($0)
                     }
                     .map(\.xcframework)
 
@@ -341,6 +353,13 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
     ///   wraps `GoogleMaps.xcframework` isn't a direct graph edge for its consumer, but Xcode still
     ///   processes the transitively-relinked xcframework), which is exactly the redefinition path
     ///   this mapper needs to cover.
+    /// * `copyProductDependencies` of every generated target. A static target does not link its
+    ///   precompiled static xcframeworks, but its "Static XCFramework Dependencies" phase still makes
+    ///   Xcode process them, including the ones a cached static xcframework dependency brings along.
+    ///
+    /// A link under a platform condition (a SwiftPM binary target consumed with
+    /// `.when(platforms: [.iOS])`) still makes Xcode process the xcframework on the platforms the
+    /// condition allows, so it counts for those platforms only.
     private static func xcframeworkPlatformsProcessedByGeneratedTargets(
         in graph: Graph,
         initialGraphWithSources: Graph?,
@@ -349,6 +368,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
         var platformsByPath: [AbsolutePath: Set<Platform>] = [:]
 
         func record(_ path: AbsolutePath, on platforms: Set<Platform>) {
+            guard !platforms.isEmpty else { return }
             platformsByPath[path, default: []].formUnion(platforms)
         }
 
@@ -356,21 +376,25 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
             for target in project.targets.values {
                 let sourceDependency: GraphDependency = .target(name: target.name, path: project.path)
                 for dependency in graph.dependencies[sourceDependency, default: []] {
-                    guard graph.dependencyConditions[(sourceDependency, dependency)] == nil,
-                          case let .xcframework(xcframework) = dependency
-                    else { continue }
-                    record(xcframework.path, on: target.supportedPlatforms)
+                    guard case let .xcframework(xcframework) = dependency else { continue }
+                    record(
+                        xcframework.path,
+                        on: platforms(
+                            of: target,
+                            under: graph.dependencyConditions[(sourceDependency, dependency)],
+                            includingMacCatalyst: false
+                        )
+                    )
                 }
-                guard let references = try? traverser.linkableDependencies(
+                let linkableReferences = (try? traverser.linkableDependencies(
                     path: project.path,
                     name: target.name,
                     shouldExcludeHostAppDependencies: false
-                ) else { continue }
-                for reference in references {
-                    guard case let .xcframework(path, _, _, _, condition) = reference,
-                          condition == nil
-                    else { continue }
-                    record(path, on: target.supportedPlatforms)
+                )) ?? []
+                let copiedReferences = traverser.copyProductDependencies(path: project.path, name: target.name)
+                for reference in linkableReferences.union(copiedReferences) {
+                    guard case let .xcframework(path, _, _, _, condition) = reference else { continue }
+                    record(path, on: platforms(of: target, under: condition, includingMacCatalyst: false))
                 }
             }
         }
@@ -381,15 +405,72 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping { // swiftlint
                       let survivingTarget = graph.projects[path]?.targets[name]
                 else { continue }
                 for dependency in dependencies {
-                    guard initialGraphWithSources.dependencyConditions[(source, dependency)] == nil,
-                          case let .xcframework(xcframework) = dependency
-                    else { continue }
-                    record(xcframework.path, on: survivingTarget.supportedPlatforms)
+                    guard case let .xcframework(xcframework) = dependency else { continue }
+                    record(
+                        xcframework.path,
+                        on: platforms(
+                            of: survivingTarget,
+                            under: initialGraphWithSources.dependencyConditions[(source, dependency)],
+                            includingMacCatalyst: false
+                        )
+                    )
                 }
             }
         }
 
         return platformsByPath
+    }
+
+    /// When `targetDependency` links `xcframework` directly, the condition under which it reaches
+    /// `xcframework` through its other dependencies, or `nil` when there is no direct link. It is
+    /// `.incompatible` when no other dependency reaches `xcframework` in `graph`.
+    ///
+    /// `combinedCondition` stops at a direct link and returns that link's condition. The vendor
+    /// copy serves the paths through dynamic xcframeworks instead, and a direct link for other
+    /// platforms says nothing about them.
+    private static func conditionThroughOtherDependencies(
+        from targetDependency: GraphDependency,
+        to xcframework: GraphDependency,
+        graph: Graph,
+        traverser: GraphTraverser
+    ) -> PlatformCondition.CombinationResult? {
+        let dependencies = graph.dependencies[targetDependency, default: []]
+        guard dependencies.contains(xcframework) else { return nil }
+        return dependencies
+            .filter { $0 != xcframework }
+            .map { dependency -> PlatformCondition.CombinationResult in
+                let edgeCondition = graph.dependencyConditions[(targetDependency, dependency)]
+                switch traverser.combinedCondition(to: xcframework, from: dependency) {
+                case .incompatible:
+                    return .incompatible
+                case let .condition(.some(condition)):
+                    return condition.intersection(edgeCondition)
+                case .condition(nil):
+                    return .condition(edgeCondition)
+                }
+            }
+            .reduce(.incompatible) { $0.combineWith($1) }
+    }
+
+    /// The platforms of `target` on which a dependency under `condition` applies.
+    ///
+    /// Mac Catalyst builds into its own `-maccatalyst` products directory, so a Catalyst-only link
+    /// does not publish a module map in the iOS SDKs that `.iOS` stands for here. Producers pass
+    /// `includingMacCatalyst: false` so such a link never suppresses the vendor copy on iOS.
+    private static func platforms(
+        of target: Target,
+        under condition: PlatformCondition?,
+        includingMacCatalyst: Bool = true
+    ) -> Set<Platform> {
+        guard let condition else { return target.supportedPlatforms }
+        return Set(
+            target.destinations
+                .filter { destination in
+                    (includingMacCatalyst || destination != .macCatalyst)
+                        && condition.platformFilters.contains(destination.platformFilter)
+                }
+                .map(\.platform)
+        )
     }
 
     /// Only called for flat layouts, which point at the derived module map whose umbrella header was
