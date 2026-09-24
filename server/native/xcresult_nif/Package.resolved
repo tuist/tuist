@@ -1,5 +1,5 @@
 {
-  "originHash" : "831c9a1beeb9f291ba7ac3bbc3d1d8ab3d2dc97126df851f91318737f12864b7",
+  "originHash" : "12b51a712925057b04a842c6b29fdac949a54a83b44cf43b6aca595a79297bad",
   "pins" : [
     {
       "identity" : "apple.swift-atomics",
@@ -50,7 +50,6 @@
       "identity" : "kolos65.Mockable",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/Kolos65/Mockable",
       "state" : {
         "version" : "0.6.2"
       }
@@ -71,14 +70,6 @@
       "originalLocation" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "version" : "602.0.0"
-      }
-    },
-    {
-      "identity" : "tuist.Command",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "0.14.10"
       }
     },
     {

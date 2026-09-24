@@ -28,3 +28,12 @@ documented in `COMMUNITY_NOTIFICATIONS.md`.
 Cache-volume distribution recovery uses the original immutable source commit from
 a partial release; finish that version before dispatching a release of newer main
 changes. Never substitute new contents beneath an existing distribution tag.
+
+## Tuist Elixir package
+
+`tuist-ex.yml` runs separate compilation, documentation, test, formatting,
+and package jobs. Compilation covers the minimum and current supported Elixir
+versions. The workflow is reused by `tuist-ex-release.yml` before publication.
+Releases run only from `main`, serialize publishing, and use the shared
+`release:check` registry with the `tuist-ex@` tag prefix. The existing
+`HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.

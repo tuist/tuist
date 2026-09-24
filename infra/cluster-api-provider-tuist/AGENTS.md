@@ -204,6 +204,26 @@ own source address. Notes:
   the rules survive a reboot or an external flush with no SSH round trip.
 - Loopback must stay open or `renderSSHReachabilityScript`'s `127.0.0.1:22`
   probe reads as a permanent wedge and reloads ssh every minute.
+- Tart VMs keep `:22` to the internet and nothing on the host. A VM's egress
+  arrives inbound on the vmnet bridge with its `192.168.64.x` source before it
+  is NAT'd out, so the catch-all block would drop every SSH a customer workload
+  makes, and the VM range gets its own pass. Two blocks sit above that pass:
+  one for a sibling VM (`<vm_ssh_sources>`) and one for every host address
+  (`self`). Blocking the bridge address alone is not enough. A VM that dials
+  the host's en0, LAN or tailnet address is delivered to the same `*:22`
+  listener, so a workload could flood the backlog the guard exists to protect.
+  This was reproduced from a runner VM on `ber1-proto-01` on 2026-09-24.
+- Use static `self`, never `(self)`. xnu's pf has no interface groups, so the
+  dynamic form resolves to an empty table: it loads cleanly and blocks nothing
+  (also verified on `ber1-proto-01`). pfctl expands static `self` to the host's
+  current addresses on every load, and the re-arm reloads every 60s, so an
+  address the host gains is covered within a minute. The re-arm must keep
+  reloading even when the anchor file is unchanged.
+- Every pass rule carries `flags any`. On a fresh host `installVMEgressFirewall`
+  enables pf under the bootstrap's own session, so that session has no state
+  when the guard loads, and under pf's default `flags S/SA` its next packet
+  hits the block. macOS pf tracks a connection it picks up mid-stream with the
+  maximum window scale, so the adopted session is not throttled.
 - Folding the live session's source into the table makes the guard
   self-correcting: if the operator's egress address changes and the configured
   list goes stale, the public dial is dropped, the drift loop falls back to the

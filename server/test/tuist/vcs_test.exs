@@ -97,7 +97,7 @@ defmodule Tuist.VCSTest do
         ci_project_handle: "tuist/tuist"
       }
 
-      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/pipelines/github/tuist/tuist/12345"
+      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/jobs/github/tuist/tuist/12345"
     end
 
     test "returns Buildkite builds URL for buildkite provider" do

@@ -21,8 +21,8 @@ private let timeoutSeconds = 600
 private let coverageTimeoutSeconds = 300
 
 /// Seconds a cancelled parse is given to unwind before the caller gives up on
-/// it. Cancellation reaches the `xcresulttool`/`sips` child through Command's
-/// `continuation.onTermination`, which terminates the process; a child that
+/// it. Cancellation reaches the `xcresulttool`/`sips` child through the task
+/// that owns the subprocess; a child that
 /// ignores it would otherwise hold this thread for the life of the BEAM.
 private let cancellationGraceSeconds = 30
 
@@ -101,7 +101,7 @@ public func parseXCResult(
 /// Losing the race cancels the winner's sibling, and the group cannot return
 /// until every child has been awaited, so a timed-out parse is torn down
 /// before the caller sees the error rather than left running with a
-/// `CommandRunner` process-limiter permit and a temp directory the worker is
+/// process-limiter permit and a temp directory the worker is
 /// about to delete.
 private func parse(path: String, rootDir: String, timeout: Int) async throws -> TestSummary {
     let xcresultPath = try AbsolutePath(validating: path)

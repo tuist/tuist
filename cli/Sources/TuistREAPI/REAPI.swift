@@ -60,12 +60,14 @@ public enum REAPICacheError: Error, LocalizedError {
     case corruptBlob
     case invalidTree
     case insufficientSpace
+    case transferStalled
     public var errorDescription: String? {
         switch self {
         case .invalidDigest: "The cache returned an invalid content digest."
         case .corruptBlob: "The cache content failed its integrity check."
         case .invalidTree: "The cache artifact has an unsupported layout or an unsafe path or symlink."
         case .insufficientSpace: "The cache artifact exceeds the available local cache budget."
+        case .transferStalled: "The cache transfer stopped delivering data."
         case .unsupportedEndpoint: "The cache endpoint does not advertise REAPI caching with SHA-256. Configure a REAPI-capable endpoint."
         case .unsupportedProxy: "REAPI requires a CONNECT proxy URL using the http or https scheme."
         case .proxyConnectionFailed: "The proxy could not establish a connection to the REAPI cache."

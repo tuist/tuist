@@ -347,22 +347,47 @@ async fn feed_cap_drops_the_oldest_rows_instead_of_blocking() {
     let context = test_context(|config| config.sync_feed_max_rows = 10).await;
     let store = &context.state.store;
     snapshot(&context).await;
-    for index in 0..15 {
+    for index in 0..21 {
         write_inline(store, &format!("key-{index}"), b"v").await;
     }
-    assert_eq!(store.sync_feed().head(), 15);
-    assert_eq!(store.sync_feed().floor(), 5);
-    assert_eq!(store.sync_feed().dropped_total(), 5);
+    assert_eq!(store.sync_feed().head(), 21);
+    assert_eq!(store.sync_feed().floor(), 11);
+    assert_eq!(store.sync_feed().dropped_total(), 11);
     let rows = store.sync_feed_page(0, 100).expect("page");
-    assert_eq!(rows.first().map(|row| row.seq), Some(6));
+    assert_eq!(rows.first().map(|row| row.seq), Some(12));
     assert_eq!(rows.len(), 10);
     assert!(
         context
             .state
             .metrics
             .render()
-            .contains("kura_sync_forward_index_dropped_total_total 5"),
+            .contains("kura_sync_forward_index_dropped_total_total 11"),
         "the drop counter is exported"
+    );
+}
+
+// A feed held at its cap by a sibling that stopped reading trims in batches,
+// not on every write.
+#[tokio::test]
+async fn feed_cap_trims_in_batches_while_pinned_at_the_cap() {
+    let context = test_context(|config| config.sync_feed_max_rows = 10).await;
+    let store = &context.state.store;
+    snapshot(&context).await;
+    let mut floors = Vec::new();
+    for index in 0..60 {
+        write_inline(store, &format!("key-{index}"), b"v").await;
+        floors.push(store.sync_feed().floor());
+    }
+    floors.dedup();
+    assert_eq!(
+        floors,
+        vec![0, 11, 22, 33, 44],
+        "the floor moves once per batch of writes, never per write"
+    );
+    let depth = store.sync_feed().head() - store.sync_feed().floor();
+    assert!(
+        (10..=20).contains(&depth),
+        "the feed keeps at least the cap and overshoots by at most a batch: {depth}"
     );
 }
 
@@ -418,15 +443,16 @@ async fn forward_endpoint_answers_head_entries_and_gone() {
     let gone: SyncForwardGone = serde_json::from_value(body_json(response).await).expect("gone");
     assert_eq!(gone.error, "incarnation");
 
-    for index in 0..6 {
+    // The cap overshoots by a batch (here the cap itself) before it trims.
+    for index in 0..7 {
         write_inline(store, &format!("cap-{index}"), b"v").await;
     }
     let response = forward(&context, &format!("&after={incarnation}:2")).await;
     assert_eq!(response.status(), StatusCode::GONE);
     let gone: SyncForwardGone = serde_json::from_value(body_json(response).await).expect("gone");
     assert_eq!(gone.error, "floor");
-    assert_eq!(gone.floor, 4);
-    assert_eq!(gone.head, 8);
+    assert_eq!(gone.floor, 5);
+    assert_eq!(gone.head, 9);
 }
 
 // A-29a: an exhausted page reports the head, so a gap at the head — the

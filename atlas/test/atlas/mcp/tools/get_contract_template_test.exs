@@ -2,6 +2,7 @@ defmodule Atlas.MCP.Tools.GetContractTemplateTest do
   use Atlas.MCP.ToolCase
 
   alias Atlas.Contracts
+  alias Atlas.MCP.Server
   alias Atlas.MCP.Tools.GetContractTemplate
 
   test "returns a signed URL that verifies back to the same template" do
@@ -36,35 +37,28 @@ defmodule Atlas.MCP.Tools.GetContractTemplateTest do
     assert payload.template_set == Contracts.default_template_set()
   end
 
-  test "attaches the Word template as an embedded binary resource" do
+  test "tools/call returns the download URL as text content only, with no null _meta" do
     conn = executive_mcp_conn()
 
     response =
-      GetContractTemplate.call(conn, %{
-        "template_set" => "2026-02",
-        "filename" => "msa.docx"
+      Server.handle_message(conn, %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "tools/call",
+        "params" => %{
+          "name" => "get_contract_template",
+          "arguments" => %{"template_set" => "2026-02", "filename" => "msa.docx"}
+        }
       })
 
-    assert %{
-             "content" => [
-               %{"type" => "text"},
-               %{
-                 "type" => "resource",
-                 "resource" => %{
-                   "uri" => uri,
-                   "mimeType" => content_type,
-                   "blob" => encoded_contents
-                 }
-               }
-             ],
-             "structuredContent" => %{"filename" => "msa.docx"}
-           } = response
+    %{"result" => result} = response |> JSON.encode!() |> JSON.decode!()
 
-    assert uri =~ "/contracts/templates/2026-02/msa.docx?token="
-    assert content_type == Contracts.docx_content_type()
-
-    {:ok, template} = Contracts.fetch_template("2026-02", "msa.docx")
-    assert Base.decode64!(encoded_contents) == File.read!(Contracts.template_path(template))
+    refute null_meta?(result)
+    refute result["isError"]
+    assert [%{"type" => "text", "text" => text}] = result["content"]
+    assert %{"download_url" => download_url} = JSON.decode!(text)
+    assert download_url =~ "/contracts/templates/2026-02/msa.docx?token="
+    assert result["structuredContent"]["download_url"] == download_url
   end
 
   test "returns an error when the filename is unknown" do
@@ -88,4 +82,14 @@ defmodule Atlas.MCP.Tools.GetContractTemplateTest do
 
     assert message =~ "Contract templates"
   end
+
+  defp null_meta?(value) when is_map(value) do
+    Enum.any?(value, fn
+      {"_meta", nil} -> true
+      {_key, nested} -> null_meta?(nested)
+    end)
+  end
+
+  defp null_meta?(value) when is_list(value), do: Enum.any?(value, &null_meta?/1)
+  defp null_meta?(_value), do: false
 end

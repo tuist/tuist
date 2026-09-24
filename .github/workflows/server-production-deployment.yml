@@ -1364,8 +1364,14 @@ jobs:
           # caches every stage (deps.compile, builder, og-images).
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
+          # TUIST_VERSION is baked into the image as the value Sentry reports as
+          # `release`. The Dockerfile default is `0.0.0`, so without this line
+          # every hosted-server event lands in Atlas without a release tag.
+          # Reuse the image tag so the Atlas release matches the image the pod
+          # runs (`sha-<12chars>`).
           build-args: |
             TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
       - uses: docker/build-push-action@v6

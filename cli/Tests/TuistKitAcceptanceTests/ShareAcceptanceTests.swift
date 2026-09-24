@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -10,6 +9,7 @@ import TuistCore
 import TuistEnvironment
 import TuistLoggerTesting
 import TuistNooraTesting
+import TuistProcess
 import TuistRunCommand
 import TuistShareCommand
 import TuistSupport

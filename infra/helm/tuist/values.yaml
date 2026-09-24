@@ -3393,9 +3393,14 @@ clickhouse:
       raftPort: 9234
       storageSize: 10Gi
       storageClassName: ""
-      # Keeper stays on the general cloud pool: it is small control-plane
-      # metadata, and co-locating it with the data replica would let one host
-      # failure take both the data and the quorum that makes it writable.
+      # Where the members run, which every cluster with more than one node
+      # pool should set rather than leave empty. Keeper belongs on the general
+      # pool: it is small control-plane metadata, and co-locating it with a
+      # data replica would let one host failure take both the data and the
+      # quorum that makes it writable. Empty means the scheduler decides, and
+      # it will happily put a member on a pool that is sized for one workload
+      # and has no headroom for another, which is how production's first
+      # deploy of this server rolled back with ClickHouse healthy.
       nodeSelector: {}
       resources:
         requests:
