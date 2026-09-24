@@ -73,10 +73,8 @@ defmodule Tuist.Tests do
   @short_cache_ttl to_timeout(second: 10)
   @unscoped_test_suite_runs_lookback_days 7
   # Above this many test cases with an explicit state, the listing joins the
-  # states instead of filtering by their ids. The ids travel as one
-  # `Array(UUID)` parameter, which must stay below ClickHouse's
-  # `http_max_field_value_size` (128 KiB).
-  @max_preloaded_test_case_states 2_000
+  # states instead of filtering by their ids.
+  @max_preloaded_test_case_states 10_000
   # Sortable duration fields the listing exposes, each backed by a matching
   # aggregate state on `test_case_duration_daily_stats_per_case`. They are
   # shown side by side rather than one at a time: the useful question about a
@@ -3001,13 +2999,27 @@ defmodule Tuist.Tests do
 
   defp apply_resolved_state_ids(query, true, _matching_ids, []), do: query
 
-  defp apply_resolved_state_ids(query, true, _matching_ids, non_matching_ids),
-    do: where(query, [test_case], test_case.id not in ^non_matching_ids)
+  defp apply_resolved_state_ids(query, true, _matching_ids, non_matching_ids) do
+    condition =
+      non_matching_ids
+      |> Enum.chunk_every(@uuid_lookup_batch_size)
+      |> Enum.map(fn ids -> dynamic([test_case], test_case.id not in ^ids) end)
+      |> Enum.reduce(fn condition, acc -> dynamic(^acc and ^condition) end)
+
+    where(query, ^condition)
+  end
 
   defp apply_resolved_state_ids(query, false, [], _non_matching_ids), do: where(query, false)
 
-  defp apply_resolved_state_ids(query, false, matching_ids, _non_matching_ids),
-    do: where(query, [test_case], test_case.id in ^matching_ids)
+  defp apply_resolved_state_ids(query, false, matching_ids, _non_matching_ids) do
+    condition =
+      matching_ids
+      |> Enum.chunk_every(@uuid_lookup_batch_size)
+      |> Enum.map(fn ids -> dynamic([test_case], test_case.id in ^ids) end)
+      |> Enum.reduce(fn condition, acc -> dynamic(^acc or ^condition) end)
+
+    where(query, ^condition)
+  end
 
   defp apply_joined_control_plane_filter(filter, query) do
     op = Map.get(filter, :op, :==)

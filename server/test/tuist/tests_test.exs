@@ -4313,7 +4313,7 @@ defmodule Tuist.TestsTest do
       inserted_at = NaiveDateTime.utc_now()
 
       state_rows =
-        Enum.map(1..2_001, fn _index ->
+        Enum.map(1..10_001, fn _index ->
           %{
             project_id: project.id,
             test_case_id: UUIDv7.generate(),
@@ -4343,7 +4343,7 @@ defmodule Tuist.TestsTest do
       inserted_at = NaiveDateTime.utc_now()
 
       state_rows =
-        Enum.map(1..1_500, fn _index ->
+        Enum.map(1..4_500, fn _index ->
           %{
             project_id: project.id,
             test_case_id: UUIDv7.generate(),
