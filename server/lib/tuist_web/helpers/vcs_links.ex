@@ -90,27 +90,6 @@ defmodule TuistWeb.Helpers.VCSLinks do
     """
   end
 
-  attr :project, :map, required: true
-  attr :git_ref, :string, required: true
-  attr :fallback, :string, default: nil
-  attr :rest, :global
-
-  def pull_request_link(assigns) do
-    assigns =
-      assigns
-      |> assign(:pr_number, VCS.pull_request_number_from_git_ref(assigns.git_ref))
-      |> assign(:url, pull_request_url(assigns.project, assigns.git_ref))
-
-    ~H"""
-    <%= if @pr_number do %>
-      <a :if={@url} href={@url} target="_blank" {@rest}>{"##{@pr_number}"}</a>
-      <span :if={!@url} {@rest}>{"##{@pr_number}"}</span>
-    <% else %>
-      <span :if={@fallback} {@rest}>{@fallback}</span>
-    <% end %>
-    """
-  end
-
   @doc """
   Returns the URL of the pull request a `refs/pull/<number>/<suffix>` git ref
   points to in the project's connected GitHub repository, or `nil` when the ref

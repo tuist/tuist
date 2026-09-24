@@ -7,14 +7,12 @@ defmodule TuistWeb.TestRunsLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.Helpers.TestLabels
-  import TuistWeb.Helpers.VCSLinks
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.FeatureFlags
-  alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.XcodeCoverage
@@ -28,7 +26,6 @@ defmodule TuistWeb.TestRunsLive do
 
     socket =
       socket
-      |> assign(:selected_project, Repo.preload(project, vcs_connection: :github_app_installation))
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("test-runs"))
       |> assign(:coverage_enabled, coverage_enabled)
