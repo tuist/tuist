@@ -21,8 +21,14 @@ import XcodeGraph
 /// and `CLANG_OTHER_PREFIX_MAPPINGS`. Xcode emits these after the project mappings, and
 /// the scratch directory before the workspace directory that usually contains it, so a
 /// path always resolves to its most specific placeholder.
+///
+/// The workspace directory is written once, to `TUIST_PREFIX_MAPPING_WORKSPACE_DIR`,
+/// and the mappings reference it, so they read the same in every checkout and the
+/// module cache hash can leave out just that one setting. Each mapping is quoted
+/// because Xcode splits a list element at spaces.
 public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
     static let prefixMappingSettings = ["SWIFT_OTHER_PREFIX_MAPPINGS", "CLANG_OTHER_PREFIX_MAPPINGS"]
+    static let workspaceDirectorySetting = "TUIST_PREFIX_MAPPING_WORKSPACE_DIR"
 
     private let tuist: Tuist
 
@@ -39,15 +45,17 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
             "Transforming workspace \(workspace.workspace.name): Adding Xcode cache prefix mappings"
         )
 
+        let workspaceDirectory = workspace.workspace.xcWorkspacePath.parentDirectory
         let mappings = Self.prefixMappings(
             scratchDirectories: Set(workspace.projects.compactMap(\.swiftPackageManagerScratchDirectory)),
-            workspaceDirectory: workspace.workspace.xcWorkspacePath.parentDirectory
+            workspaceDirectory: workspaceDirectory
         )
 
         var workspace = workspace
         workspace.projects = workspace.projects.map { project in
             var project = project
             var base = project.settings.base
+            base[Self.workspaceDirectorySetting] = .string(workspaceDirectory.pathString)
             for setting in Self.prefixMappingSettings {
                 base[setting] = Self.appending(mappings, to: base[setting])
             }
@@ -61,10 +69,22 @@ public struct XcodeCachePrefixMappingWorkspaceMapper: WorkspaceMapping {
         scratchDirectories: Set<AbsolutePath>,
         workspaceDirectory: AbsolutePath
     ) -> [String] {
+        let root = "$(\(workspaceDirectorySetting))"
         let scratchMappings = scratchDirectories.sorted().enumerated().map { index, directory in
-            "\(directory.pathString)=/^spm\(index == 0 ? "" : "\(index + 1)")"
+            let prefix = directory.isDescendant(of: workspaceDirectory)
+                ? "\(root)/\(directory.relative(to: workspaceDirectory).pathString)"
+                : directory.pathString
+            return quoted("\(prefix)=/^spm\(index == 0 ? "" : "\(index + 1)")")
         }
-        return scratchMappings + ["\(workspaceDirectory.pathString)=/^workspace"]
+        return scratchMappings + [quoted("\(root)=/^workspace")]
+    }
+
+    /// Quotes `value` as a single element of a build setting list.
+    private static func quoted(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 
     private static func appending(_ mappings: [String], to existing: SettingValue?) -> SettingValue {

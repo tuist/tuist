@@ -49,8 +49,7 @@ public struct SettingsContentHasher: SettingsContentHashing {
 
     private func hash(_ settingsDictionary: SettingsDictionary) throws -> String {
         let filteredSettings = settingsDictionary.compactMap { key, value -> (String, SettingValue)? in
-            guard !Self.isCompilationCacheSetting(key) else { return nil }
-            let value = Self.prefixMappingSettings.contains(key) ? Self.prefixMappingPlaceholders(in: value) : value
+            guard !Self.isCompilationCacheSetting(key), key != Self.prefixMappingWorkspaceDirectorySetting else { return nil }
             let filteredValue = filterProductNeutralFlags(from: value)
             return filteredValue.map { (key, $0) }
         }
@@ -73,29 +72,14 @@ public struct SettingsContentHasher: SettingsContentHashing {
         key.hasPrefix("COMPILATION_CACHE_")
     }
 
-    /// `XcodeCachePrefixMappingWorkspaceMapper` writes `<absolute path>=<placeholder>`
-    /// pairs into these settings for the SwiftPM scratch and workspace directories.
+    /// The workspace directory `XcodeCachePrefixMappingWorkspaceMapper` writes for the
+    /// `SWIFT_OTHER_PREFIX_MAPPINGS` and `CLANG_OTHER_PREFIX_MAPPINGS` it generates.
     ///
-    /// The absolute side differs between checkouts of the same repository, git worktrees
-    /// included, so hashing it would give each checkout its own module cache. Only the
-    /// placeholder reaches the built product (`#filePath` and debug info record it), so
-    /// the placeholder is what gets hashed.
-    private static let prefixMappingSettings: Set<String> = ["SWIFT_OTHER_PREFIX_MAPPINGS", "CLANG_OTHER_PREFIX_MAPPINGS"]
-
-    private static func prefixMappingPlaceholders(in value: SettingValue) -> SettingValue {
-        switch value {
-        case let .array(mappings):
-            return .array(mappings.map(prefixMappingPlaceholder))
-        case let .string(mappings):
-            return .string(mappings.split(separator: " ").map { prefixMappingPlaceholder(String($0)) }.joined(separator: " "))
-        }
-    }
-
-    /// The compilers split a mapping at its first `=`, so the placeholder is everything after it.
-    private static func prefixMappingPlaceholder(_ mapping: String) -> String {
-        guard let separator = mapping.firstIndex(of: "=") else { return mapping }
-        return String(mapping[mapping.index(after: separator)...])
-    }
+    /// Those mappings reference this setting instead of embedding the path, and are
+    /// hashed as written. The path itself differs between checkouts of the same
+    /// repository, git worktrees included, while the placeholders it maps to, which are
+    /// what reach the built product, don't.
+    private static let prefixMappingWorkspaceDirectorySetting = "TUIST_PREFIX_MAPPING_WORKSPACE_DIR"
 
     private func filterProductNeutralFlags(from value: SettingValue) -> SettingValue? {
         guard case let .array(elements) = value else {

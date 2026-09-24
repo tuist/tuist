@@ -40,6 +40,10 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
     /// moves its generated project to `tuist-derived/Projects/`. Its sources stay in the
     /// checkout, outside the `PROJECT_DIR` that project prefix mapping covers.
     private var externalProject: Project {
+        externalProject(scratchDirectory: scratchDirectory)
+    }
+
+    private func externalProject(scratchDirectory: AbsolutePath) -> Project {
         let checkout = scratchDirectory.appending(components: "checkouts", "swift-atomics")
         return Project.test(
             path: checkout,
@@ -80,10 +84,11 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         #expect(sideEffects.isEmpty)
         let expected: SettingValue = .array([
             "$(inherited)",
-            "/Users/dev/app/Tuist/.build=/^spm",
-            "/Users/dev/app=/^workspace",
+            #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)/Tuist/.build=/^spm""#,
+            #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#,
         ])
         for project in mapped.projects {
+            #expect(project.settings.base["TUIST_PREFIX_MAPPING_WORKSPACE_DIR"] == .string("/Users/dev/app"))
             #expect(project.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"] == expected)
             #expect(project.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == expected)
         }
@@ -105,7 +110,7 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         #expect(
             mapped.projects.first?.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"]
-                == .array(["$(inherited)", "/Users/dev/app=/^workspace"])
+                == .array(["$(inherited)", #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#])
         )
     }
 
@@ -127,7 +132,59 @@ struct XcodeCachePrefixMappingWorkspaceMapperTests {
         // Then
         #expect(
             mapped.projects.first?.settings.base["SWIFT_OTHER_PREFIX_MAPPINGS"]
-                == .array(["/opt/shared=/^shared", "/Users/dev/app=/^workspace"])
+                == .array(["/opt/shared=/^shared", #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#])
+        )
+    }
+
+    /// Xcode splits a list element at spaces, so a workspace path with spaces stays in
+    /// the plain workspace directory setting, out of the mapping elements.
+    @Test(.withMockedXcodeController)
+    func map_whenWorkspaceDirectoryHasSpaces_keepsItOutOfTheMappings() async throws {
+        // Given
+        try stubXcodeVersion(Version(27, 0, 0))
+        let subject = makeSubject()
+        let repository = try AbsolutePath(validating: "/Users/dev/my app")
+        let workspace = Workspace.test(path: repository, xcWorkspacePath: repository.appending(component: "App.xcworkspace"))
+        let project = externalProject(scratchDirectory: repository.appending(components: "Tuist", ".build"))
+
+        // When
+        let (mapped, _) = try await subject.map(
+            workspace: WorkspaceWithProjects(workspace: workspace, projects: [project])
+        )
+
+        // Then
+        let base = try #require(mapped.projects.first?.settings.base)
+        #expect(base["TUIST_PREFIX_MAPPING_WORKSPACE_DIR"] == .string("/Users/dev/my app"))
+        #expect(
+            base["SWIFT_OTHER_PREFIX_MAPPINGS"] == .array([
+                "$(inherited)",
+                #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)/Tuist/.build=/^spm""#,
+                #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#,
+            ])
+        )
+    }
+
+    /// A scratch directory outside the workspace is written as an absolute path, quoted
+    /// and escaped so that spaces and quotes stay inside a single mapping.
+    @Test(.withMockedXcodeController)
+    func map_whenScratchDirectoryIsOutsideTheWorkspace_quotesItsAbsolutePath() async throws {
+        // Given
+        try stubXcodeVersion(Version(27, 0, 0))
+        let subject = makeSubject()
+        let project = try externalProject(scratchDirectory: AbsolutePath(validating: #"/Volumes/Shared Cache/say "hi"/.build"#))
+
+        // When
+        let (mapped, _) = try await subject.map(
+            workspace: WorkspaceWithProjects(workspace: workspace, projects: [project])
+        )
+
+        // Then
+        #expect(
+            mapped.projects.first?.settings.base["CLANG_OTHER_PREFIX_MAPPINGS"] == .array([
+                "$(inherited)",
+                #""/Volumes/Shared Cache/say \"hi\"/.build=/^spm""#,
+                #""$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace""#,
+            ])
         )
     }
 

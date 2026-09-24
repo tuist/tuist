@@ -251,47 +251,49 @@ struct SettingsContentHasherCompilationCacheTests {
         #expect(try await subject.hash(settings: plain) != subject.hash(settings: withRealFlag))
     }
 
-    /// Two git worktrees of the same repository map different absolute directories to
-    /// the same placeholders, and must land on the same hash.
-    @Test func hash_ignoresPrefixMappingDirectoriesAcrossCheckouts() async throws {
+    /// Git worktrees of one repository differ only in the workspace directory that the
+    /// generated prefix mappings reference, and must land on the same hash.
+    @Test func hash_ignoresPrefixMappingWorkspaceDirectory() async throws {
         // Given
         let subject = makeSubject()
+        let mappings: SettingValue = .array([
+            "$(inherited)",
+            "\"$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)/Tuist/.build=/^spm\"",
+            "\"$(TUIST_PREFIX_MAPPING_WORKSPACE_DIR)=/^workspace\"",
+        ])
         let mainCheckout = settings(base: [
-            "SWIFT_OTHER_PREFIX_MAPPINGS": .array([
-                "$(inherited)", "/Users/dev/app/Tuist/.build=/^spm", "/Users/dev/app=/^workspace",
-            ]),
-            "CLANG_OTHER_PREFIX_MAPPINGS": .string("/Users/dev/app/Tuist/.build=/^spm /Users/dev/app=/^workspace"),
+            "TUIST_PREFIX_MAPPING_WORKSPACE_DIR": .string("/Users/dev/app"),
+            "SWIFT_OTHER_PREFIX_MAPPINGS": mappings,
+            "CLANG_OTHER_PREFIX_MAPPINGS": mappings,
         ])
         let worktree = settings(base: [
-            "SWIFT_OTHER_PREFIX_MAPPINGS": .array([
-                "$(inherited)", "/Users/dev/worktrees/feature/Tuist/.build=/^spm", "/Users/dev/worktrees/feature=/^workspace",
-            ]),
-            "CLANG_OTHER_PREFIX_MAPPINGS": .string(
-                "/Users/dev/worktrees/feature/Tuist/.build=/^spm /Users/dev/worktrees/feature=/^workspace"
-            ),
+            "TUIST_PREFIX_MAPPING_WORKSPACE_DIR": .string("/Users/dev/worktrees/feature branch"),
+            "SWIFT_OTHER_PREFIX_MAPPINGS": mappings,
+            "CLANG_OTHER_PREFIX_MAPPINGS": mappings,
         ])
 
         // When / Then
         #expect(try await subject.hash(settings: mainCheckout) == subject.hash(settings: worktree))
     }
 
-    /// The placeholder is recorded in the built product, so a different one must move the hash.
-    @Test func hash_keepsPrefixMappingPlaceholders() async throws {
+    /// Both sides of a mapping reach the built product: `/repo=/^shared` records
+    /// `/^shared/Shared/main.swift` where `/repo/Shared=/^shared` records `/^shared/main.swift`.
+    @Test func hash_keepsPrefixMappingValues() async throws {
         // Given
         let subject = makeSubject()
-        let spm = settings(base: [
-            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/Users/dev/app/Tuist/.build=/^spm"]),
+        let repository = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/repo=/^shared"]),
         ])
-        let other = settings(base: [
-            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/Users/dev/app/Tuist/.build=/^other"]),
+        let sharedDirectory = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/repo/Shared=/^shared"]),
         ])
         let unmapped = settings(base: [:])
 
         // When
-        let spmHash = try await subject.hash(settings: spm)
+        let repositoryHash = try await subject.hash(settings: repository)
 
         // Then
-        #expect(try await spmHash != subject.hash(settings: other))
-        #expect(try await spmHash != subject.hash(settings: unmapped))
+        #expect(try await repositoryHash != subject.hash(settings: sharedDirectory))
+        #expect(try await repositoryHash != subject.hash(settings: unmapped))
     }
 }
