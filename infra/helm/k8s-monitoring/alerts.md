@@ -1968,15 +1968,14 @@ max by (cluster, env, image_tag, mode) (tuist_kura_rollout_paused)
 - Threshold: `> 0`
 - Pending period: 15 minutes
 - Severity: warning
-- All environments. Folder `Alerts`, no rule group (see **Managed with gcx**
-  below), evaluated every 5 minutes. No contact point on the rule: the policy
-  tree sends production and canary to `#notifications` and staging to
-  `#notifications-non-prod`. **No Data: Normal**, **Error: Error**.
+- All environments. Folder `Alerts`, group `Cache`. No contact point on the
+  rule: the policy tree sends production and canary to `#notifications` and
+  staging to `#notifications-non-prod`. **No Data: Normal**, **Error: Error**.
 - Summary: `Kura rollout of {{ $labels.image_tag }} is paused in {{ $labels.env }}`
-- **Live since 2026-09-24 17:23 UTC** as
+- **Live** as
   [`Kura - rollout paused`](https://tuist.grafana.net/alerting/grafana/kura-rollout-paused/view)
-  (UID `kura-rollout-paused`), defined in
-  [`kura-rollout-alert-rules/kura-rollout-paused.yaml`](kura-rollout-alert-rules/kura-rollout-paused.yaml).
+  (UID `kura-rollout-paused`). [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json)
+  records it; see **How these rules were created** below.
 
 A paused rollout is the orchestrator's safety gate (see
 `Tuist.Kura.Rollouts`). It pauses when a hard health signal regresses on a
@@ -2031,14 +2030,14 @@ sum_over_time(
   the rollout spent running and unpaused
 - Pending period: 5 minutes
 - Severity: warning
-- All environments. Same folder, evaluation interval and routing as **Kura
-  rollout paused**; **No Data: Normal**, **Error: Error**.
+- All environments. Same folder, group and routing as **Kura rollout
+  paused**; **No Data: Normal**, **Error: Error**.
 - Summary: `Kura rollout of {{ $labels.image_tag }} has been running for
   {{ $values.A.Value | printf "%.1f" }} of the last 6 hours in {{ $labels.env }}`
-- **Live since 2026-09-24 17:23 UTC** as
+- **Live** as
   [`Kura - rollout running without progress`](https://tuist.grafana.net/alerting/grafana/kura-rollout-stalled/view)
-  (UID `kura-rollout-stalled`), defined in
-  [`kura-rollout-alert-rules/kura-rollout-stalled.yaml`](kura-rollout-alert-rules/kura-rollout-stalled.yaml).
+  (UID `kura-rollout-stalled`), recorded in
+  [`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json).
 
 This rule covers the rollout that is stuck but never pauses. Every wave has a
 one-hour deadline that pauses the rollout, so a working reconciler either
@@ -2062,46 +2061,40 @@ No Data and stay silent. The companion absence rule described on the Kura
 rollout dashboard (`tuist-kura-rollout.json`) is not created. The server's own
 availability alerts cover that failure.
 
-#### Managed with gcx
+#### How these rules were created
 
-Both rollout rules were created with [gcx](https://github.com/grafana/gcx),
-Grafana's CLI, from the manifests in
-[`kura-rollout-alert-rules/`](kura-rollout-alert-rules/). They are the only
-rules in this document managed that way; every other rule here is still
-created and edited in the Grafana UI. Nothing applies the manifests on merge,
-so a change is live only after someone pushes it:
+Both rules are ordinary UI-editable rules in `Alerts` › `Cache` (no
+provenance), live since 2026-09-24 17:56 UTC.
+[`kura-rollout-alert-rules.json`](kura-rollout-alert-rules.json) records them
+in the provisioning API's format. Nothing applies it on merge. Edit the rules in
+the UI like any other, then refresh the file.
+
+They were created with the provisioning API, sent through
+[gcx](https://github.com/grafana/gcx) so it could use gcx's login:
 
 ```sh
-gcx login tuist --server https://tuist.grafana.net
-gcx resources push -p infra/helm/k8s-monitoring/kura-rollout-alert-rules
-gcx alert rules get kura-rollout-paused
+gcx api /api/v1/provisioning/alert-rules -X POST \
+  -H "X-Disable-Provenance: true" -H "Content-Type: application/json" \
+  -d @rule.json
 ```
 
-Push only this directory. Pulling or pushing every `alertrules` resource would
-touch the UI-managed rules too.
+**Do not create alert rules with `gcx resources push`.** A first attempt did,
+and the rules it creates through the `rules.alerting.grafana.app` resource API
+have three problems:
 
-Four consequences of creating a rule through gcx:
+- **No rule group.** The API refuses a group on create (`cannot set group when
+  creating a new rule`) and on update. Each rule lands in a synthetic
+  `no_group_for_rule_<uid>` group, so it does not show under its intended
+  group.
+- **Read-only in the UI.** Such rules get provenance `api`, and the UI will not
+  save or delete them. A provisioning-API update with `X-Disable-Provenance`
+  fails with `409 provenanceMismatch`.
+- **Hard to delete.** The provisioning API refuses to delete them (`needs
+  'kubectl'`). Only `gcx resources delete alertrules/<uid>` works, and only
+  with a login whose grant includes `grafana-api:delete`.
 
-- **Read-only in the UI.** Rules pushed through the resource API get
-  provenance `api`, so the Grafana UI shows them as provisioned and will not
-  save edits. Change the YAML and push it instead.
-- **No rule group.** The resource API refuses a group on create (`cannot set
-  group when creating a new rule`) and on update of an ungrouped rule. So these
-  two sit outside the `Cache` group and carry their own `trigger.interval` of
-  5 minutes, the same cadence the `Cache` group uses. Routing does not depend
-  on the group: the policy tree groups by folder and `alertname`.
-- **Only some identities can delete them, and none of them through the UI.** The
-  UI refuses to delete a provisioned rule. The `gcx login` OAuth grant also
-  lacks the `grafana-api:delete` scope, so `gcx resources delete` and
-  `DELETE /api/v1/provisioning/alert-rules/<uid>` both return 403. Deleting
-  one needs a service account token with delete rights, which an org admin
-  has to create. That is also the only way to move these rules into a group
-  or make them UI-editable: an update cannot change provenance (`409
-  provenanceMismatch`), so the rule has to be deleted and recreated through
-  the provisioning API with `X-Disable-Provenance: true`.
-- **Server-side dry-run is not supported.** `--dry-run` only checks that the
-  files parse; a bad field (for example `noDataState: OK` instead of `Ok`) only
-  surfaces as a 403 on the real push.
+`noDataState` is also spelled differently: `OK` in the provisioning API, `Ok`
+in the resource API.
 
 ### Kura egress budget almost entirely consumed
 
