@@ -874,6 +874,8 @@ rackLinuxFleet:
     - name: ber1-svc
       role: services
       tailnetTags: [tag:tuist-rack-node]
+      # Its i226-LM, on ber1-mgmt port 2.
+      bootMAC: "38:05:25:3a:de:d3"
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
   boot:
