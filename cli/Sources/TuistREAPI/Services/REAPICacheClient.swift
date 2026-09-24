@@ -102,9 +102,19 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         /// for before the first message of a transfer arrives. Kura reads chunk at 512 KiB.
         public var largestExpectedMessageBytes: Int64 = 512 * 1024
 
+        /// What a transfer is allowed on top of the time its bytes take at `slowestBytesPerSecond`,
+        /// covering the round trip and the server's own work.
+        public var baseAllowance: Duration = .seconds(120)
+
         public init() {}
 
         public static let `default` = TransferGuards()
+    }
+
+    /// How long `bytes` may take on the slowest link a transfer is sized for. It bounds a single
+    /// call's deadline and, across attempts, how long resuming a blob may go on.
+    private func allowance(forBytes bytes: Int64) -> Duration {
+        guards.baseAllowance + .seconds(max(0, bytes) / guards.slowestBytesPerSecond)
     }
 
     /// Cap on consecutive read attempts that get no further into a blob. An attempt that reaches
@@ -117,7 +127,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     /// A deadline for a call carrying `bytes`, which a link at `slowestBytesPerSecond` meets.
     private func options(forBytes bytes: Int64) -> CallOptions {
         var options = options
-        options.timeout = .seconds(120 + max(0, bytes) / guards.slowestBytesPerSecond)
+        options.timeout = allowance(forBytes: bytes)
         return options
     }
 
@@ -229,11 +239,18 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         if advertised > 0 { negotiatedBatchBytes.withLock { $0 = min(advertised, Self.maximumBatchBytes) } }
     }
 
-    private func retry<T>(_ operation: () async throws -> T) async throws -> T {
+    /// A call whose deadline is sized from its payload has already been given the time that payload
+    /// needs on the slowest link, so `retryingDeadlineExceeded: false` stops it being asked for the
+    /// same wait twice more: three turns at a 2 MiB batch's deadline is half an hour of a build.
+    private func retry<T>(
+        retryingDeadlineExceeded: Bool = true,
+        _ operation: () async throws -> T
+    ) async throws -> T {
         var attempt = 0
         while true {
             do { return try await operation() } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
+                if !retryingDeadlineExceeded, (error as? RPCError)?.code == .deadlineExceeded { throw error }
                 guard attempt < 2, Self.isRetryable(error) else { throw error }
                 try await Task.sleep(for: .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100)))
                 attempt += 1
@@ -296,7 +313,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 successful.insert(digest)
             } else {
                 do {
-                    try await self.retry {
+                    try await self.retry(retryingDeadlineExceeded: false) {
                         let pending = Set(batch).subtracting(successful)
                         var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []
                         for digest in pending {
@@ -361,7 +378,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             }
             var successful = Set<REAPI.Digest>()
             do {
-                try await self.retry {
+                try await self.retry(retryingDeadlineExceeded: false) {
                     let pending = batch.filter { !successful.contains($0) }
                     let response = try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
                         .Client(wrapping: self.client)
@@ -501,6 +518,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             let handle = try FileHandle(forWritingTo: path)
             defer { try? handle.close() }
             let progress = ReadProgress()
+            let startedReading = ContinuousClock.now
             var stalledAttempts = 0
             var failure: (any Error)?
             while true {
@@ -515,6 +533,13 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 }
                 let received = progress.received
                 if received == digest.sizeBytes { break }
+                // Resuming is bounded by the bytes it has to show for itself: a download may take as
+                // long as a link at `slowestBytesPerSecond` needs for what it has received. A server
+                // that hands over a chunk and stalls falls behind that and is given up on, instead of
+                // resuming until the build around it has run out of time.
+                if received > 0, ContinuousClock.now - startedReading > allowance(forBytes: received) {
+                    throw failure ?? REAPICacheError.transferStalled
+                }
                 if received > before {
                     stalledAttempts = 0
                 } else {

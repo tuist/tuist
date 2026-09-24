@@ -345,10 +345,11 @@ struct REAPICacheClientTests {
     /// The production guards with their seconds scaled down: a message is still allowed the time
     /// it takes at `slowestBytesPerSecond`, which is what keeps a slow transfer from being cut,
     /// but a test does not wait minutes to watch a stalled one give up.
-    private static var impatientGuards: REAPICacheClient.TransferGuards {
+    private static func impatientGuards(base: Duration = .seconds(5)) -> REAPICacheClient.TransferGuards {
         var guards = REAPICacheClient.TransferGuards()
         guards.idleTimeout = .milliseconds(200)
         guards.slowestBytesPerSecond = 512 * 1024
+        guards.baseAllowance = base
         return guards
     }
 
@@ -444,7 +445,7 @@ struct REAPICacheClientTests {
             let client = try await REAPICacheClient(
                 endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
                 accountHandle: "account", instanceName: "project",
-                guards: Self.impatientGuards
+                guards: Self.impatientGuards()
             ) { "token" }
             let path = directory.appending(component: "stalled").url
             let start = ContinuousClock.now
@@ -480,7 +481,7 @@ struct REAPICacheClientTests {
             let client = try await REAPICacheClient(
                 endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
                 accountHandle: "account", instanceName: "project",
-                guards: Self.impatientGuards
+                guards: Self.impatientGuards()
             ) { "token" }
             let path = directory.appending(component: "slow-first-message").url
 
@@ -489,6 +490,72 @@ struct REAPICacheClientTests {
             #expect(try Data(contentsOf: path) == body)
             // One read, so the slow first message was waited out rather than cut and retried.
             #expect(await state.readOffsets[digest] == [0])
+        }
+    }
+
+    /// Resuming while a server hands over a chunk and stalls would otherwise run for as long as the
+    /// build lets it, since progress resets the no-progress cap and each attempt gets a new deadline.
+    @Test(.inTemporaryDirectory) func givesUpOnAReadThatFallsBehindTheSlowestLink() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(4 * 1024 * 1024)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        // Enough to finish the blob if nothing bounded the resuming, which takes far longer than
+        // the bytes delivered are allowed to take.
+        await state.plan(Array(repeating: .hang(after: 8192), count: 12), for: digest)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [WireBytes(state: state), WireCapabilities()])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards(base: .milliseconds(500))
+            ) { "token" }
+            let path = directory.appending(component: "behind")
+            let start = ContinuousClock.now
+
+            await #expect(throws: (any Error).self) { try await client.downloadBlob(digest, to: path.url) }
+
+            #expect(start.duration(to: .now) < .seconds(8))
+            #expect(await state.readOffsets[digest]?.count ?? 0 <= 4)
+            #expect(try await !FileSystem().exists(path))
+        }
+    }
+
+    /// A batch read cannot resume or be watched for idleness, so its deadline is the only thing that
+    /// notices a hung server. Spending it three times over is most of a build.
+    @Test(.inTemporaryDirectory) func doesNotSpendAByteSizedDeadlineThreeTimes() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let state = WireCache()
+        let body = Self.blob(4096)
+        let digest = REAPI.digest(body)
+        await state.put(body, digest: digest)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            WireCAS(state: state, readDelay: .seconds(2)), WireBytes(state: state), WireCapabilities(),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project",
+                guards: Self.impatientGuards(base: .milliseconds(300))
+            ) { "token" }
+            let destination = directory.appending(component: "batched").url
+
+            #expect(try await client.downloadAvailableBlobs([digest: destination]).isEmpty)
+
+            #expect(await state.readCalls == 1)
         }
     }
 
@@ -513,7 +580,7 @@ struct REAPICacheClientTests {
             let client = try await REAPICacheClient(
                 endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
                 accountHandle: "account", instanceName: "project",
-                guards: Self.impatientGuards
+                guards: Self.impatientGuards()
             ) { "token" }
 
             try await client.uploadBlobs([digest: source])
@@ -657,6 +724,7 @@ private struct WireActions: Build_Bazel_Remote_Execution_V2_ActionCache.ServiceP
 private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.SimpleServiceProtocol {
     let state: WireCache
     var compressReads = true
+    var readDelay: Duration = .zero
     func batchUpdateBlobs(
         request: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest,
         context _: ServerContext
@@ -682,6 +750,7 @@ private struct WireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorag
         context _: ServerContext
     ) async throws -> Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse {
         try await state.beginRead()
+        if readDelay != .zero { try await Task.sleep(for: readDelay) }
         #expect(request.acceptableCompressors == [.zstd])
         let blobs = await state.blobs
         if compressReads, request.digests.contains(where: { (blobs[$0]?.count ?? 0) >= 1024 }) {
