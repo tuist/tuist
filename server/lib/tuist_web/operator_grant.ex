@@ -64,12 +64,16 @@ defmodule TuistWeb.OperatorGrant do
   @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
   @atlas_identity_header "x-tuist-atlas-identity"
 
+  # No longer accepted on `/mcp`, but older clients and the MCP docs of the
+  # time sent a live grant in it, so it stays out of recorded headers.
+  @retired_grant_header "x-tuist-operator-grant"
+
   @doc """
   Request headers that carry live credentials: Atlas' ServiceAccount token,
-  which also authenticates the internal Atlas API. Keep them out of anything
-  that records request headers.
+  which also authenticates the internal Atlas API, and the retired operator
+  grant header. Keep them out of anything that records request headers.
   """
-  def credential_headers, do: [@atlas_identity_header]
+  def credential_headers, do: [@atlas_identity_header, @retired_grant_header]
 
   # --- verification ------------------------------------------------------
 

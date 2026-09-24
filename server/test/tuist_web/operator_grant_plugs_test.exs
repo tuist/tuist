@@ -471,6 +471,6 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
   defp unwrap(pem) when is_binary(pem), do: pem
 
   test "credential_headers lists every header that carries a credential" do
-    assert OperatorGrant.credential_headers() == ["x-tuist-atlas-identity"]
+    assert Enum.sort(OperatorGrant.credential_headers()) == ["x-tuist-atlas-identity", "x-tuist-operator-grant"]
   end
 end
