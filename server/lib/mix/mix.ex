@@ -1,4 +1,4 @@
-defmodule Tuist.Mix do
+defmodule Tuist.MixTasks do
   @moduledoc ~S"""
   This module represents a boundary for all the Mix tasks.
   """
