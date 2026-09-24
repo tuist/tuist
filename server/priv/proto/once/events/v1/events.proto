@@ -169,6 +169,15 @@ message RunStarted {
   ContentRef root_graph_digest = 11;
   string project_id = 12;
   EffectiveLimits effective_limits = 13;
+  // Whether the run happened on CI rather than a developer machine. The
+  // dashboard splits runs on this the way it does for the other build
+  // systems, which all report the same distinction.
+  bool is_ci = 14;
+  // The branch the run was built from, empty when it cannot be determined.
+  // CI checkouts are usually on a detached HEAD, where git alone reports
+  // "HEAD" rather than a name, so the provider's own branch variable is
+  // preferred over asking git.
+  string git_branch = 15;
 }
 
 message ArgvToken {

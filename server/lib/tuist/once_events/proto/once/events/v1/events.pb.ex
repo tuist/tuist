@@ -444,6 +444,8 @@ defmodule Once.Events.V1.RunStarted do
   field :root_graph_digest, 11, type: Once.Events.V1.ContentRef, json_name: "rootGraphDigest"
   field :project_id, 12, type: :string, json_name: "projectId"
   field :effective_limits, 13, type: Once.Events.V1.EffectiveLimits, json_name: "effectiveLimits"
+  field :is_ci, 14, type: :bool, json_name: "isCi"
+  field :git_branch, 15, type: :string, json_name: "gitBranch"
 end
 
 defmodule Once.Events.V1.ArgvToken do

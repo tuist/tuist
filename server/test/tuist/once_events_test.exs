@@ -10,6 +10,7 @@ defmodule Tuist.OnceEventsTest do
   alias Once.Events.V1.RunCompleted
   alias Once.Events.V1.RunEvent
   alias Once.Events.V1.RunEventBatch
+  alias Once.Events.V1.RunStarted
   alias Once.Events.V1.TargetCompleted
   alias Once.Events.V1.TestCaseCompleted
   alias Once.Events.V1.TestSuiteStarted
@@ -327,6 +328,82 @@ defmodule Tuist.OnceEventsTest do
     assert_raise GRPC.RPCError, ~r/project token does not match/, fn ->
       RunEventService.get_argv_hash_key(%{request | project_id: "another/project"}, stream)
     end
+  end
+
+  test "a RunStarted carries its CI flag onto the run", %{run: run} do
+    project(
+      run,
+      %RunEvent{
+        epoch_ms: 1_789_405_000_000,
+        payload: {:run_started, %RunStarted{once_version: "0.60.0", is_ci: true}}
+      }
+    )
+
+    assert OnceEvents.get_run(run.project_id, run.run_id).is_ci
+  end
+
+  test "a RunStarted carries its branch onto the run", %{run: run} do
+    project(
+      run,
+      %RunEvent{
+        epoch_ms: 1_789_405_000_000,
+        payload: {:run_started, %RunStarted{git_rev: "abc123", git_branch: "release/1.2"}}
+      }
+    )
+
+    assert %{git_branch: "release/1.2", git_rev: "abc123"} = OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a RunStarted without a branch stores an empty string rather than nil", %{run: run} do
+    # The column is not nullable, so a client that cannot determine a branch
+    # (detached HEAD outside CI, or one predating the field) must still write.
+    project(
+      run,
+      %RunEvent{epoch_ms: 1_789_405_000_000, payload: {:run_started, %RunStarted{git_rev: "abc123"}}}
+    )
+
+    assert %{git_branch: ""} = OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "a RunStarted from a client that predates the field reads as not CI", %{run: run} do
+    # Implicit presence on the wire: an older client sends no field at all and
+    # protobuf decodes it as `false`, which is the same thing a local run
+    # sends. Both belong under "Local", matching how Xcode builds behave.
+    project(
+      run,
+      %RunEvent{
+        epoch_ms: 1_789_405_000_000,
+        payload: {:run_started, %RunStarted{once_version: "0.59.0"}}
+      }
+    )
+
+    refute OnceEvents.get_run(run.project_id, run.run_id).is_ci
+  end
+
+  test "the Builds analytics split runs by environment", %{project: project} do
+    for {run_id, is_ci, wall_ms} <- [{"ci-run", true, 4000}, {"local-run", false, 2000}] do
+      {:ok, started} =
+        OnceEvents.upsert_run(%{
+          project_id: project.id,
+          run_id: run_id,
+          kind: "build",
+          is_ci: is_ci,
+          started_at: DateTime.utc_now()
+        })
+
+      {:ok, _} =
+        OnceEvents.finalize_run(started, %{
+          finalization: "finalized",
+          exit_status: 0,
+          wall_ms: wall_ms,
+          finalized_at: DateTime.utc_now()
+        })
+    end
+
+    assert Analytics.summary(project.id, commands: ["build"], is_ci: true).total == 1
+    assert Analytics.summary(project.id, commands: ["build"], is_ci: false).total == 1
+    # No `:is_ci` opt is the "Any" selection, which must not filter.
+    assert Analytics.summary(project.id, commands: ["build"]).total == 2
   end
 
   defp project(run, %RunEvent{} = event), do: Projector.project(event, run.project_id, run.run_id)

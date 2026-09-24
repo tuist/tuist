@@ -20,7 +20,12 @@ defmodule Tuist.OnceEvents.Run do
     field :once_version, :string
     field :protocol_version, :string
     field :host_class, :string
+    # Implicit-presence `bool` on the wire, so a client that predates the
+    # field is indistinguishable from one reporting a local run. Both read
+    # as `false`, which matches how `Tuist.Builds.Build` treats Xcode runs.
+    field :is_ci, :boolean, default: false
     field :git_rev, :string
+    field :git_branch, :string, default: ""
     field :git_dirty, :boolean, default: false
     field :argv_normalized, :map, default: %{}
     field :argv_hash_key_id, :string
