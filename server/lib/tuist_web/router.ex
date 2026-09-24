@@ -844,6 +844,10 @@ defmodule TuistWeb.Router do
           get "/builds/:build_id/steps/:step_id", GradleBuildStepsController, :show
         end
 
+        scope "/mix" do
+          post "/builds", MixController, :create_build
+        end
+
         scope "/bazel" do
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
