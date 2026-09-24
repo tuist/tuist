@@ -355,7 +355,10 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
 - **Capped from above, dropping oldest.** If the sibling is absent or slow the
   feed reaches its cap and the oldest rows go, exactly as the segment ring drops
   its oldest content. **Writes are never blocked** — which is the whole failure
-  mode the outbox's depth cap produces today. The default cap is **1,000,000
+  mode the outbox's depth cap produces today. The cap trims in batches like the
+  consumer trim: the feed overshoots it by one trim batch before dropping back,
+  since a range delete per write under a pinned cap stacks nested tombstones
+  that RocksDB fragments quadratically on read, flush and WAL replay. The default cap is **1,000,000
   rows** (about 100 MB at the feed's ~98 B a row, ~80 MB on disk); the sizing
   rule is that it must hold the writes that land during the longest backward
   pass the sibling can need, which is what keeps the recovery below from
