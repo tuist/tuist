@@ -1,6 +1,7 @@
 # The image of what runs on a rack's edge node: the rack-edge DaemonSet
 # (infra/helm/rack-edge), and the rack boot server in the tuist chart. The tools
-# their scripts call, and nothing of its own beyond Ubuntu's build of iPXE.
+# their scripts call, keepalived, and nothing of its own beyond Ubuntu's build
+# of iPXE.
 ARG ALPINE_VERSION=3.22
 ARG UBUNTU_VERSION=24.04
 
@@ -17,5 +18,5 @@ RUN apt-get update \
 
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add --no-cache dnsmasq iproute2 nftables busybox-extras curl libarchive-tools
+RUN apk add --no-cache dnsmasq iproute2 nftables keepalived busybox-extras curl libarchive-tools
 COPY --from=netboot /netboot/ /usr/share/rack-netboot/

@@ -294,8 +294,12 @@ spec:
       detail: edge/i226-lm
     - port: 2
       purpose: management
-      peer: ber1-svc
-      detail: services/i226-lm
+      peer: ber1-edge-b
+      detail: edge/i226-lm
+    - port: 47
+      purpose: edge
+      peer: ber1-edge-b
+      detail: edge/i226-v
     - port: 48
       purpose: edge
       peer: ber1-edge

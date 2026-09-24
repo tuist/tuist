@@ -34,14 +34,20 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       terminationGracePeriodSeconds: 10
-      # The path first, so dnsmasq starts with the switch-side addresses it binds
-      # to already on the port. What it installs stays in the node's kernel when
-      # the pod goes, so a rollout never cuts the switches off.
+      # The path first, so keepalived starts with the VRRP bond it talks over
+      # already up. What the path installs stays in the node's kernel when the
+      # pod goes. The floating addresses go with keepalived, to the other edge,
+      # and come back when this one is master again.
       initContainers:
         - name: path
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: [sh, /etc/rack-edge/mgmt-path.sh]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -56,11 +62,41 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: [sh, -ec, 'while sleep {{ .Values.reapplySeconds }}; do sh /etc/rack-edge/mgmt-path.sh; done']
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
               add: [NET_ADMIN]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/rack-edge
+              readOnly: true
+        # The site's floating addresses, on whichever edge is master. dnsmasq on
+        # every edge has the same configuration and answers only for the
+        # ranges whose address this node holds.
+        - name: vrrp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec, 'exec keepalived --dont-fork --log-console --log-detail --no-syslog --vrrp --use-file "/etc/rack-edge/keepalived-$NODE_NAME.conf"']
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              # Addresses and routes, and the raw sockets VRRP and gratuitous
+              # ARP go out on.
+              add: [NET_ADMIN, NET_RAW]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:

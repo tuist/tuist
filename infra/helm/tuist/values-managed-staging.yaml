@@ -860,20 +860,15 @@ rackLinuxFleet:
         tuist.dev/rack-edge: ber1
       nodeTaints:
         - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
-    services:
-      nodeLabels:
-        tuist.dev/rack-services: ber1
-      nodeTaints:
-        - {key: tuist.dev/rack-services, value: ber1, effect: NoSchedule}
   hosts:
     - name: ber1-edge
       role: edge
       tailnetTags: [tag:tuist-rack-edge]
-    # Netboots from the boot server on ber1-edge; tag:tuist-rack-node is owned by
-    # tag:tuist-rack-edge, the tag the OAuth client mints keys with.
-    - name: ber1-svc
-      role: services
-      tailnetTags: [tag:tuist-rack-node]
+    # The standby edge. It netboots from the boot server on ber1-edge, which
+    # holds the floating provisioning address while ber1-edge-b is not up.
+    - name: ber1-edge-b
+      role: edge
+      tailnetTags: [tag:tuist-rack-edge]
       # Its i226-LM, on ber1-mgmt port 2.
       bootMAC: "38:05:25:3a:de:d3"
   authorizedKeys:

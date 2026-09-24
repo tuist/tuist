@@ -1,11 +1,12 @@
 # Rack nodes
 
-How the BER1 rack's x86 Linux machines (the MS-01s: edge, services and storage)
-become cluster nodes. A host netboots from the rack's edge node, installs
-Ubuntu, joins the tailnet on first boot, and the cluster's operator joins it as a
-node and keeps it converged. Nobody touches it: a box with an empty disk
-netboots on its own, and a running one is reinstalled with an annotation. The
-edge node runs the boot server, so it is the one host installed from a stick.
+How the BER1 rack's x86 Linux machines (the MS-01s: the two edges and the
+storage pair) become cluster nodes. A host netboots from the rack's edges,
+installs Ubuntu, joins the tailnet on first boot, and the cluster's operator
+joins it as a node and keeps it converged. Nobody touches it: a box with an
+empty disk netboots on its own, and a running one is reinstalled with an
+annotation. The edges run the boot server, each installing the other, so only
+the first edge of a site is installed from a stick.
 
 ## The pieces
 
@@ -20,11 +21,13 @@ edge node runs the boot server, so it is the one host installed from a stick.
   publishes each host's install, finds the host on the tailnet and joins it.
   See "Rack-owned Linux hosts" in its AGENTS.md.
 - **The boot server** (`rackLinuxFleet.boot`, a DaemonSet in the tuist chart
-  running `files/rack-boot.sh` on the edge node) serves what the operator
-  publishes, on the site's provisioning address.
-- **The edge node's DHCP** (`management.edge.netboot` in the site definition,
+  running `files/rack-boot.sh` on both edges) serves what the operator
+  publishes, on the site's provisioning address, from whichever edge holds it.
+- **The edges' DHCP** (`management.edge.netboot` in the site definition,
   rendered into the rack-edge chart) points UEFI firmware on the management
-  switch at the boot server. See `infra/rack-switch-fleet/AGENTS.md`.
+  switch at the boot server. keepalived moves the provisioning address, and
+  with it the DHCP and the boot server that answer, to the standby edge when
+  the active one goes. See `infra/rack-switch-fleet/AGENTS.md`.
 - **The seed** is rendered by `internal/rackinstall` in the operator, for PXE
   and for the stick alike.
 
@@ -40,7 +43,7 @@ files under the MAC to the `<fleet>-boot` Secret: the autoinstall `user-data`
 and `meta-data`, and an iPXE script. The boot server mirrors the Secret within a
 minute or two. The chain a netbooting host goes through:
 
-1. The firmware's PXE asks the edge node's dnsmasq for an address and gets one
+1. The firmware's PXE asks the active edge's dnsmasq for an address and gets one
    in the provisioning range, with iPXE (`snponly.efi`) from the provisioning
    address over TFTP.
 2. iPXE asks for an address again, is told to run `boot.ipxe`, and fetches
@@ -61,13 +64,13 @@ signed chain (shim, then network GRUB) cannot be used on the MS-01: GRUB's UEFI
 network driver cannot send a packet through its Intel network driver ("couldn't
 send network packet" on both i226 ports), so it never reads its menu.
 
-The edge node serves the segment from its i226-V (ber1-mgmt port 48), not its
-i226-LM: an i226-LM with vPro never puts a DHCP offer it sends on the wire,
-while the daemon logs it and a capture on the host shows it. The i226-LM
-(port 1) carries only AMT, and the host leaves it down.
+An edge serves the segment from its i226-V (ber1-mgmt port 48 for `ber1-edge`,
+47 for `ber1-edge-b`), not its i226-LM: an i226-LM with vPro never puts a DHCP
+offer it sends on the wire, while the daemon logs it and a capture on the host
+shows it. An edge's i226-LM carries only AMT, and the host leaves it down.
 
 The installer can get its default route from its provisioning lease, through
-the edge node, as well as from the uplinks' DHCP, so the edge node translates the
+the edge, as well as from the uplinks' DHCP, so each edge translates the
 provisioning range onto its uplinks as well as into the tailnet.
 
 **Racking an MS-01.** Its firmware ships with the network stack off, so it never
@@ -83,7 +86,7 @@ something is booted first; pick the i226-LM's network entry from the boot menu
 **Reinstalling a running host:**
 
 ```
-kubectl annotate racklinuxhost ber1-svc tuist.dev/reinstall=true
+kubectl annotate racklinuxhost ber1-edge-b tuist.dev/reinstall=true
 ```
 
 People annotate through the kubectl gateway's `tuist-fleet-unwedge` role
@@ -103,7 +106,7 @@ Watch it with:
 
 ```
 kubectl get racklinuxhost -o wide -w
-kubectl describe racklinuxhost ber1-svc
+kubectl describe racklinuxhost ber1-edge-b
 ```
 
 **The console password** of each host is in the `<fleet>-console` Secret, under
@@ -117,9 +120,10 @@ publishes a fresh one while the host still needs it.
 
 ## The stick
 
-The edge node runs the boot server, so it cannot netboot from it; the operator
-never publishes an install for an `edge` host. It is installed from a stick,
-and so is any host when the edge node is down:
+An edge netboots from the other edge: the operator publishes its install only
+while another edge of its site is on the tailnet to serve it. The first edge of
+a site has no other edge, so it is installed from a stick, and so is any host
+when both edges are down:
 
 ```
 mise run rack:write-install-usb /dev/disk4 --host ber1-edge
@@ -148,8 +152,8 @@ carries the same guard.
 ## What an install carries
 
 - network configuration for the SFP+ uplinks only (DHCP on the X710's `i40e`
-  ports), so the 2.5G ports stay unmanaged for the node's pods: the edge
-  node's rack-edge pod owns the switch port;
+  ports), so the 2.5G ports stay unmanaged for the node's pods: an edge's
+  rack-edge pod owns its switch port;
 - the host's hostname and role, the `tuist` account with passwordless sudo and
   a console password, SSH with password authentication off, and the rack's
   fleet key (`BER1_FLEET_SSH`) plus people's keys
@@ -157,8 +161,8 @@ carries the same guard.
 - a tailnet join key minted from the OAuth client in `TAILSCALE_RACK_NODES`:
   single-use, pre-authorized, not ephemeral, carrying the host's tags. The
   OAuth client never reaches the host. It mints keys for its own tag
-  (`tag:tuist-rack-edge`) and the tags it owns (`tag:tuist-rack-node`, for
-  every other role).
+  (`tag:tuist-rack-edge`, which both edges carry) and the tags it owns
+  (`tag:tuist-rack-node`, for every other role).
 
 A first-boot unit, `tuist-tailnet-join`, installs Tailscale, joins with the key,
 deletes it, and disables itself; it retries every minute until it succeeds.
@@ -196,9 +200,9 @@ The rack moves to production by moving its inventory: the hosts and
 `rackLinuxFleet.boot` go from `values-managed-staging.yaml` to
 `values-managed-production.yaml`, the `TAILSCALE_RACK_NODES` item goes to the
 `tuist-k8s-production` vault, the ACL grants `tag:tuist-k8s-production` what it
-grants `tag:tuist-k8s-staging` for the rack tags, the edge node is reinstalled
-from a stick written with `--env production`, and the other hosts are reinstalled
-by annotation once it is up. Production's Cilium must exclude
+grants `tag:tuist-k8s-staging` for the rack tags, `ber1-edge` is reinstalled from
+a stick written with `--env production`, and the other hosts, `ber1-edge-b`
+included, are reinstalled by annotation once it is up. Production's Cilium must exclude
 `cilium.io/no-schedule=true` first (`infra/k8s/mgmt/bootstrap/cilium-values.yaml`);
 the operator refuses to join the node until it does.
 
