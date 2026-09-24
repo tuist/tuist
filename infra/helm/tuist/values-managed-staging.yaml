@@ -876,6 +876,10 @@ rackLinuxFleet:
       tag: sha-0c8b663d8559
 
 macosFleet:
+  # The cluster's own tag, for a proxy the Tailscale operator runs for one
+  # Service (values.yaml).
+  tailscaleEgress:
+    proxyTags: tag:tuist-k8s-staging
   enabled: true
   replicas: 1
   # The minis drop inbound :22 from everything except the tailnet, loopback
