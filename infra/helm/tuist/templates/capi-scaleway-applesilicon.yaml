@@ -78,6 +78,9 @@ rules:
       # resourceVersion check makes the claim atomic.
       - rackhosts/status
       - racklinuxhosts/status
+      # The RackLinuxHost controller holds a deleted host with a finalizer
+      # until it retired the host's machine, tailnet device and console key.
+      - racklinuxhosts/finalizers
       - racklinuxmachines/status
       - racklinuxmachines/finalizers
       - failoverips/status
@@ -86,10 +89,17 @@ rules:
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
   # The RackLinuxHost controller scales a rack pool's MachineDeployment up as
-  # the pool's hosts come onto the tailnet.
+  # the pool's hosts come onto the tailnet and down as they are deleted, and
+  # deletes it once the pool has no hosts and no Machines.
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machinedeployments]
-    verbs: [patch]
+    verbs: [patch, delete]
+  # A deleted rack host's Machine is marked for its MachineSet to delete
+  # (cluster.x-k8s.io/delete-machine) when the pool shrinks, and deleted
+  # outright when another host takes its place.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: [machines]
+    verbs: [patch, delete]
   # The SASC reconciler marks the parent Cluster's
   # ControlPlaneInitialized condition True (externally-managed
   # control plane: Mac minis join an existing Hetzner cluster, so

@@ -109,14 +109,32 @@ kubectl get racklinuxhost -o wide -w
 kubectl describe racklinuxhost ber1-edge-b
 ```
 
-**Retiring a host**, or renaming one, is removing it from `rackLinuxFleet.hosts`
-and then deleting what the chart keeps (`helm.sh/resource-policy: keep`), in
-this order: scale its role's MachineDeployment down once the host is off the
-tailnet (the host controller scales a pool back up while a host is connected),
-which deletes its Machine and Node; delete its `RackLinuxHost`; then delete its
-tailnet device. While the device exists the host reads as installed; without
-it, a `RackLinuxHost` still carrying the `bootMAC` would publish an install for
-a box that may now be another host. Its key in `<fleet>-console` goes last.
+**Retiring a host** is removing it from `rackLinuxFleet.hosts`, deploying, and
+deleting its `RackLinuxHost`, which the chart keeps
+(`helm.sh/resource-policy: keep`):
+
+```
+kubectl delete racklinuxhost ber1-svc
+```
+
+People delete through the kubectl gateway's `tuist-fleet-unwedge` role. The
+operator withdraws the host's install and removes its Machine, scaling its
+role's MachineDeployment down when no other host of the pool takes its place.
+Once the Machine's delete has stopped the kubelet and removed the Node, it
+deletes the host's tailnet device and its key in `<fleet>-console`, and the
+`RackLinuxHost` goes. A role left without hosts loses its MachineDeployment and
+its template. A host still in the values is created again by the next deploy.
+
+**Renaming a host** is changing its entry's `name` in `rackLinuxFleet.hosts`,
+keeping its `bootMAC`. The new name, created last, is what the box becomes: the
+operator publishes its install and, while the box is on the tailnet under the
+old name, sets `BootNext` through it and reboots the box into the new install,
+once. Once the new name is on the tailnet, the operator deletes the old one,
+which retires it as above. An edge's new name gets an install only while the
+site's other edge serves it; otherwise install it from a stick (below), and the
+old name is deleted all the same. Keep one entry per box: an old entry left in
+the values is created again by the next deploy, newer than the running name,
+and takes the box back.
 
 **The console password** of each host is in the `<fleet>-console` Secret, under
 the host's name, minted with its first netboot install and kept across

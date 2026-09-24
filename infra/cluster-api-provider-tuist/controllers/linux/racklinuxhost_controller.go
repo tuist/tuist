@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -27,6 +28,9 @@ import (
 
 // TailnetJoinedCondition reports whether the host's device is on the tailnet.
 const TailnetJoinedCondition clusterv1.ConditionType = "TailnetJoined"
+
+// RackLinuxHostFinalizer holds a deleted host until the operator retired it.
+const RackLinuxHostFinalizer = "racklinuxhost.cluster.x-k8s.io/finalizer"
 
 const rackLinuxHostPollInterval = 2 * time.Minute
 
@@ -43,7 +47,9 @@ type TailnetAPI interface {
 // same box left behind, and names the current one after the host. It publishes
 // installs for hosts to netboot (racklinuxhost_install.go), scales a pool's
 // MachineDeployment up as its hosts come onto the tailnet, and releases a claim
-// whose machine is gone. It never claims or joins a host.
+// whose machine is gone. It never claims or joins a host. A deleted host is
+// retired before its finalizer goes, and a pool left without hosts or Machines
+// loses its MachineDeployment (racklinuxhost_retire.go).
 type RackLinuxHostReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
@@ -77,17 +83,23 @@ func (r *RackLinuxHostReconciler) egress() rackEgress {
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxhosts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxhosts/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxhosts/finalizers,verbs=update
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxmachines,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=racklinuxmachinetemplates,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines,verbs=get;list;watch;patch;delete
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machinedeployments,verbs=get;list;watch;patch;delete
 
 func (r *RackLinuxHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	host := &infrav1.RackLinuxHost{}
 	if getErr := r.Get(ctx, req.NamespacedName, host); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
-			return ctrl.Result{}, nil
+			pending, err := r.retireEmptyPools(ctx, req.Namespace)
+			if err != nil || !pending {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 		return ctrl.Result{}, getErr
-	}
-	if !host.DeletionTimestamp.IsZero() {
-		return ctrl.Result{}, nil
 	}
 
 	patchHelper, helperErr := patch.NewHelper(host, r.Client)
@@ -100,21 +112,28 @@ func (r *RackLinuxHostReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}()
 
+	if !host.DeletionTimestamp.IsZero() {
+		return r.reconcileDelete(ctx, host)
+	}
+	controllerutil.AddFinalizer(host, RackLinuxHostFinalizer)
+
 	if err := r.releaseIfOrphaned(ctx, host); err != nil {
 		return ctrl.Result{}, err
 	}
 	requeue, listed := r.observeTailnet(ctx, host)
-	if !listed {
-		return ctrl.Result{RequeueAfter: requeue}, nil
+	if listed {
+		after, err := r.reconcileInstall(ctx, host)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if after > 0 && after < requeue {
+			requeue = after
+		}
+		if err := r.scaleUpPool(ctx, host); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
-	after, err := r.reconcileInstall(ctx, host)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if after > 0 && after < requeue {
-		requeue = after
-	}
-	if err := r.scaleUpPool(ctx, host); err != nil {
+	if _, err := r.retireEmptyPools(ctx, host.Namespace); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: requeue}, nil
@@ -250,8 +269,12 @@ func (r *RackLinuxHostReconciler) observeTailnet(ctx context.Context, host *infr
 	return rackLinuxHostPollInterval, true
 }
 
-// hostDevices are the devices that claim to be host, newest first.
+// hostDevices are the devices that claim to be host, newest first. A host
+// without tags has none.
 func hostDevices(devices []tailnet.Device, host *infrav1.RackLinuxHost) []tailnet.Device {
+	if len(host.Spec.Tailnet.Tags) == 0 {
+		return nil
+	}
 	var out []tailnet.Device
 	for _, d := range devices {
 		if strings.EqualFold(d.Hostname, host.Name) && d.HasTags(host.Spec.Tailnet.Tags) {

@@ -22,10 +22,11 @@ import (
 const rackTestNamespace = "tuist-staging"
 
 type fakeTailnet struct {
-	devices []tailnet.Device
-	deleted []string
-	renamed map[string]string
-	minted  []string
+	devices   []tailnet.Device
+	deleted   []string
+	deleteErr error
+	renamed   map[string]string
+	minted    []string
 }
 
 func (f *fakeTailnet) Devices(context.Context) ([]tailnet.Device, error) {
@@ -33,6 +34,9 @@ func (f *fakeTailnet) Devices(context.Context) ([]tailnet.Device, error) {
 }
 
 func (f *fakeTailnet) DeleteDevice(_ context.Context, id string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	f.deleted = append(f.deleted, id)
 	return nil
 }

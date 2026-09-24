@@ -73,8 +73,10 @@ func rackConsoleSecretName(fleet string) string { return fleet + "-console" }
 // device shows the install ran. An edge's install is published only while
 // another edge of its site is connected to serve it, or once the edge was
 // rebooted into it. A requested reinstall of a running host is started by
-// setting its firmware to netboot once and rebooting it. It returns how soon to
-// look again, zero for the usual interval.
+// setting its firmware to netboot once and rebooting it. A host declaring the
+// boot MAC of a host declared before it takes that box over
+// (racklinuxhost_takeover.go). It returns how soon to look again, zero for the
+// usual interval.
 func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *infrav1.RackLinuxHost) (time.Duration, error) {
 	if r.Install == nil {
 		return 0, nil
@@ -92,6 +94,24 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		return 0, nil
 	}
 
+	twins, err := r.bootMACTwins(ctx, host, host.Spec.BootMAC)
+	if err != nil {
+		return 0, err
+	}
+	if next := successor(host, twins); next != nil {
+		if inst != nil {
+			if err := r.withdrawInstall(ctx, host); err != nil {
+				return 0, err
+			}
+			r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallWithdrawn",
+				"Withdrew install %s: %s declares bootMAC %s after %s", inst.KeyID, next.Name, host.Spec.BootMAC, host.Name)
+		}
+		conditions.MarkFalse(host, InstalledCondition, "Replaced", clusterv1.ConditionSeverityInfo,
+			"%s declares bootMAC %s after %s, so the box becomes %s; %s is deleted once %s is on the tailnet and %s is not",
+			next.Name, host.Spec.BootMAC, host.Name, next.Name, host.Name, next.Name, host.Name)
+		return 0, nil
+	}
+
 	if inst != nil && device != nil && device.DeviceID != inst.PreviousDeviceID {
 		if err := r.withdrawInstall(ctx, host); err != nil {
 			return 0, err
@@ -100,7 +120,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			"%s netbooted install %s and joined the tailnet as %s", host.Name, inst.KeyID, device.DeviceID)
 		delete(host.Annotations, RackReinstallAnnotation)
 		conditions.MarkTrue(host, InstalledCondition)
-		return 0, nil
+		return 0, r.retireReplaced(ctx, host, twins)
 	}
 
 	reinstall := host.Annotations[RackReinstallAnnotation] == "true"
@@ -113,7 +133,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 				"Withdrew install %s: the %s annotation is gone", inst.KeyID, RackReinstallAnnotation)
 		}
 		conditions.MarkTrue(host, InstalledCondition)
-		return 0, nil
+		return 0, r.retireReplaced(ctx, host, twins)
 	}
 	switch host.Spec.Role {
 	case "edge":
@@ -158,6 +178,9 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 	}
 
 	if device == nil {
+		if running := runningPredecessor(host, twins); running != nil || inst.TriggeredAt != nil {
+			return r.takeOver(ctx, host, running, now)
+		}
 		conditions.MarkFalse(host, InstalledCondition, "WaitingForNetboot", clusterv1.ConditionSeverityInfo,
 			"install %s is published for %s; the host installs itself when it netboots, which it does on its own with an empty disk (otherwise pick its network boot entry once)",
 			inst.KeyID, host.Spec.BootMAC)
@@ -279,6 +302,8 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 
 // anotherEdgeServes reports whether another edge of the host's site is
 // connected to the tailnet, so its boot server can serve the host's netboot.
+// An edge with the host's boot MAC is the same box, and one being deleted is
+// going away.
 func (r *RackLinuxHostReconciler) anotherEdgeServes(ctx context.Context, host *infrav1.RackLinuxHost) (bool, error) {
 	hosts := &infrav1.RackLinuxHostList{}
 	if err := r.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
@@ -286,7 +311,10 @@ func (r *RackLinuxHostReconciler) anotherEdgeServes(ctx context.Context, host *i
 	}
 	for i := range hosts.Items {
 		h := &hosts.Items[i]
-		if h.Name != host.Name && h.Spec.Role == "edge" && h.Spec.Location.Site == host.Spec.Location.Site &&
+		if h.Name == host.Name || !h.DeletionTimestamp.IsZero() || sameBox(h, host) {
+			continue
+		}
+		if h.Spec.Role == "edge" && h.Spec.Location.Site == host.Spec.Location.Site &&
 			h.Status.Tailnet != nil && h.Status.Tailnet.Connected {
 			return true, nil
 		}
@@ -307,14 +335,26 @@ func (r *RackLinuxHostReconciler) installServed(ctx context.Context, inst *infra
 }
 
 // withdrawInstall removes the host's published install, whose join key the
-// boot server would otherwise keep handing out.
+// boot server would otherwise keep handing out. While another host has an
+// install published for the same MAC, the boot Secret serves that one, and it
+// stays.
 func (r *RackLinuxHostReconciler) withdrawInstall(ctx context.Context, host *infrav1.RackLinuxHost) error {
 	inst := host.Status.Install
 	if inst == nil {
 		return nil
 	}
+	twins, err := r.bootMACTwins(ctx, host, inst.BootMAC)
+	if err != nil {
+		return err
+	}
+	for i := range twins {
+		if t := twins[i].Status.Install; t != nil && strings.EqualFold(t.BootMAC, inst.BootMAC) {
+			host.Status.Install = nil
+			return nil
+		}
+	}
 	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: r.CredentialsManager.Namespace, Name: rackBootSecretName(r.Install.FleetName)}, secret)
+	err = r.Get(ctx, types.NamespacedName{Namespace: r.CredentialsManager.Namespace, Name: rackBootSecretName(r.Install.FleetName)}, secret)
 	switch {
 	case apierrors.IsNotFound(err):
 	case err != nil:
@@ -441,7 +481,7 @@ nohup sh -c 'sleep 3; systemctl reboot' >/dev/null 2>&1 &
 // pool to the number of the pool's hosts on the tailnet, so a host joins the
 // cluster once it is installed, and a MachineDeployment is never waiting on a
 // host that is not there yet. It never scales down: a host that drops off the
-// tailnet keeps its node.
+// tailnet keeps its node. A host being deleted does not count.
 func (r *RackLinuxHostReconciler) scaleUpPool(ctx context.Context, host *infrav1.RackLinuxHost) error {
 	if host.Spec.Pool == "" || host.Status.Tailnet == nil || !host.Status.Tailnet.Connected {
 		return nil
@@ -456,7 +496,7 @@ func (r *RackLinuxHostReconciler) scaleUpPool(ctx context.Context, host *infrav1
 		if h.Name == host.Name {
 			h = host
 		}
-		if h.Spec.Pool == host.Spec.Pool && h.Status.Tailnet != nil && h.Status.Tailnet.Connected {
+		if h.Spec.Pool == host.Spec.Pool && h.DeletionTimestamp.IsZero() && h.Status.Tailnet != nil && h.Status.Tailnet.Connected {
 			joined++
 		}
 	}

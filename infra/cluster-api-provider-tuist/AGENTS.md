@@ -628,7 +628,43 @@ was rebooted into it; otherwise its install is withdrawn and it is installed
 from a stick. `storage` has no layout yet. The `Installed` condition says which
 step a host is on. The same controller scales the MachineDeployment labelled
 `tuist.dev/rack-pool=<pool>` up to the number of the pool's hosts on the
-tailnet, never down, so the chart can declare a host before it is installed.
+tailnet, not counting hosts being deleted, and never down, so the chart can
+declare a host before it is installed.
+
+**A box is its `bootMAC`** (`racklinuxhost_takeover.go`). Hosts declaring the
+same MAC are one box under several names, and the one created last is what the
+box becomes. An older one yields while a newer one has an install published or
+is on the tailnet: it publishes nothing for the MAC, withdraws its own install,
+and reports `Installed` False with `Replaced`. The newest publishes its install
+like any host not on the tailnet. While an older one is connected, two minutes
+after publishing it sets `BootNext` over SSH through the older host, the system
+the box runs, and reboots the box, once (`status.install.triggeredAt`); a box
+that comes back as the older host reports `ReinstallDidNotBoot` after half an
+hour. Once the newest is on the tailnet with its install withdrawn, it deletes
+every older one that is not connected. An install is withdrawn from the boot
+Secret only while no other host has one published for the MAC. An `edge`
+declaring the same MAC, or one being deleted, is not another edge serving the
+netboot.
+
+**Deleting a `RackLinuxHost` retires it** (`racklinuxhost_retire.go`, finalizer
+`racklinuxhost.cluster.x-k8s.io/finalizer`). The controller withdraws its
+install. A host a machine holds has that machine's Machine removed: while the
+pool's MachineDeployment has more replicas than the pool's other hosts keep
+(those on the tailnet, and those off it still holding a machine), the Machine
+is annotated `cluster.x-k8s.io/delete-machine=true` and the MachineDeployment
+scaled down to them; otherwise the Machine is deleted and its replacement claims
+another host. The controller waits for the machine's delete to release the
+claim, so the kubelet is stopped over the tailnet first. Then it deletes the
+host's egress Service, its tailnet devices (the recorded one and any other with
+its name and tags) with their host key pins, and its key in `<fleet>-console`,
+and drops the finalizer. A step that fails keeps the finalizer and is retried.
+
+**An empty pool is retired.** A MachineDeployment of `RackLinuxMachine`s
+labelled `tuist.dev/rack-pool` whose pool has no `RackLinuxHost`, at zero
+replicas, with no Machines and older than ten minutes (Helm creates it before
+the pool's hosts), is deleted, and so is the `RackLinuxMachineTemplate` it names
+unless another MachineDeployment names it. Every host reconcile checks, and so
+does the reconcile that follows a host's deletion.
 
 **The kubelet's identity is `system:node:<host>`, not an operator-minted
 ServiceAccount.** The converge script exits 42 when the kubelet has no valid
@@ -667,6 +703,7 @@ is how to force a re-join.
 kubectl get rlh                     # hosts: pool, role, tailnet address, connected, claim
 kubectl get rlh -o wide             # plus the device and a published install's key
 kubectl annotate rlh <host> tuist.dev/reinstall=true   # netboot a new install
+kubectl delete rlh <host>           # retire a host the chart no longer declares
 kubectl get rlm -o wide             # machines: host, phase, last converge
 kubectl describe rlm <name>         # HostConverged / TailnetReady / NodeReady, events
 ```

@@ -597,3 +597,191 @@ func TestRackInstallPublishesAgainWhenTheBootSecretLostIt(t *testing.T) {
 		t.Fatal("the host's iPXE script is not published")
 	}
 }
+
+// renamedBox is a box running as ber1-svc and declared again as ber1-svc-b.
+func renamedBox(connected bool) (running, renamed *infrav1.RackLinuxHost) {
+	running = svcHost()
+	running.CreationTimestamp = metav1.NewTime(time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC))
+	running.Status.Tailnet = &infrav1.RackLinuxHostTailnetStatus{DeviceID: "old", Name: "ber1-svc.example.ts.net", Address: "100.64.0.9", Connected: connected}
+	renamed = svcHost()
+	renamed.Name = "ber1-svc-b"
+	renamed.CreationTimestamp = metav1.NewTime(installEpoch.Add(-time.Hour))
+	return running, renamed
+}
+
+func renamedDevice(id, created string, connected bool) tailnet.Device {
+	d := svcDevice(id, created, connected)
+	d.Name, d.Hostname, d.Addresses = "ber1-svc-b.example.ts.net", "ber1-svc-b", []string{"100.64.0.10"}
+	return d
+}
+
+func drainEvents(h *installHarness) []string {
+	var out []string
+	events := h.r.Recorder.(*record.FakeRecorder).Events
+	for {
+		select {
+		case e := <-events:
+			out = append(out, e)
+		default:
+			return out
+		}
+	}
+}
+
+func TestRackInstallTakesOverTheBoxOfARenamedHost(t *testing.T) {
+	running, renamed := renamedBox(true)
+	h := newInstallHarness(t, running, renamed)
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", true)}
+
+	got := h.reconcile(t, "ber1-svc-b")
+	if got.Status.Install == nil || len(h.api.minted) != 1 || got.Status.Install.TriggeredAt != nil {
+		t.Fatalf("install %+v minted %v, want one published for the new name", got.Status.Install, h.api.minted)
+	}
+	if !strings.Contains(string(h.boot(t)[svcMACPath+".user-data"]), "hostname: ber1-svc-b") {
+		t.Fatal("the published seed is not the new name's")
+	}
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the box before the boot server could serve its install")
+	}
+
+	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	got = h.reconcile(t, "ber1-svc-b")
+	if len(h.runner.runs) != 1 {
+		t.Fatalf("runs %d, want the box rebooted into the new name's install", len(h.runner.runs))
+	}
+	if run := h.runner.runs[0]; run.host != "rack-linux-ber1-svc.tailscale-operator.svc.cluster.local" || !strings.Contains(run.script, "mac=38052538b5b5") {
+		t.Fatalf("run %+v, want the netboot-once script through the running system", run)
+	}
+	if got.Status.Install.TriggeredAt == nil {
+		t.Fatal("the takeover is not recorded")
+	}
+
+	h.now = h.now.Add(time.Minute)
+	h.reconcile(t, "ber1-svc-b")
+	if len(h.runner.runs) != 1 {
+		t.Fatal("rebooted the box a second time")
+	}
+
+	old := h.reconcile(t, "ber1-svc")
+	if old.Status.Install != nil || len(h.api.minted) != 1 {
+		t.Fatalf("install %+v minted %v; the old name publishes nothing for the box", old.Status.Install, h.api.minted)
+	}
+	if c := conditions.Get(old, InstalledCondition); c == nil || c.Reason != "Replaced" {
+		t.Fatalf("Installed %+v", c)
+	}
+
+	h.api.devices = nil
+	old = h.reconcile(t, "ber1-svc")
+	if old.Status.Tailnet != nil || old.Status.Install != nil || len(h.api.minted) != 1 {
+		t.Fatalf("tailnet %+v install %+v minted %v; the old name never publishes for the box once its device is gone", old.Status.Tailnet, old.Status.Install, h.api.minted)
+	}
+	if !strings.Contains(string(h.boot(t)[svcMACPath+".user-data"]), "hostname: ber1-svc-b") {
+		t.Fatal("the new name's install is no longer served")
+	}
+
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false), renamedDevice("new", "2026-09-24T08:20:00Z", true)}
+	h.reconcile(t, "ber1-svc")
+	drainEvents(h)
+	got = h.reconcile(t, "ber1-svc-b")
+	if got.Status.Install != nil || !conditions.IsTrue(got, InstalledCondition) {
+		t.Fatalf("install %+v, want it withdrawn once the new name joined", got.Status.Install)
+	}
+	old = &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-svc"}, old); err != nil || old.DeletionTimestamp.IsZero() {
+		t.Fatalf("the old name is not being deleted: %v", err)
+	}
+	named := false
+	for _, e := range drainEvents(h) {
+		named = named || (strings.Contains(e, "Deleted RackLinuxHost ber1-svc:") && strings.Contains(e, "ber1-svc-b"))
+	}
+	if !named {
+		t.Error("no event names both hosts")
+	}
+
+	if gone, _ := h.reconcileOrGone(t, "ber1-svc"); gone != nil {
+		t.Fatalf("the old name is still there with finalizers %v", gone.Finalizers)
+	}
+	if strings.Join(h.api.deleted, ",") != "old" {
+		t.Fatalf("deleted %v, want the old name's device", h.api.deleted)
+	}
+}
+
+func TestRackInstallWaitsForTheRenamedBoxToComeOnline(t *testing.T) {
+	running, renamed := renamedBox(false)
+	h := newInstallHarness(t, running, renamed)
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false)}
+	h.reconcile(t, "ber1-svc-b")
+	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	got := h.reconcile(t, "ber1-svc-b")
+	if len(h.runner.runs) != 0 || got.Status.Install == nil || got.Status.Install.TriggeredAt != nil {
+		t.Fatalf("runs %d install %+v; an offline box cannot be rebooted", len(h.runner.runs), got.Status.Install)
+	}
+	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "WaitingForNetboot" {
+		t.Fatalf("Installed %+v", c)
+	}
+	if old := h.reconcile(t, "ber1-svc"); old.DeletionTimestamp != nil {
+		t.Fatal("the running name was deleted before the new one joined")
+	}
+}
+
+func TestRackInstallReportsATakeoverThatDidNotNetboot(t *testing.T) {
+	running, renamed := renamedBox(true)
+	triggered := installEpoch.Add(-rackReinstallBootTimeout - time.Minute)
+	withInstall(renamed, "kMINT1CNTRL", "", triggered.Add(-time.Minute), &triggered)
+	h := newInstallHarness(t, running, renamed, publishedBoot("kMINT1CNTRL"))
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", true)}
+	got := h.reconcile(t, "ber1-svc-b")
+	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "ReinstallDidNotBoot" || !strings.Contains(c.Message, "ber1-svc") {
+		t.Fatalf("Installed %+v", c)
+	}
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the box again")
+	}
+}
+
+func TestRackInstallKeepsARunningHostWhoseTwinHasNotJoined(t *testing.T) {
+	running, renamed := renamedBox(true)
+	renamed.Spec.Role = "storage"
+	h := newInstallHarness(t, running, renamed)
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", true)}
+	h.reconcile(t, "ber1-svc-b")
+	old := h.reconcile(t, "ber1-svc")
+	if !conditions.IsTrue(old, InstalledCondition) || old.DeletionTimestamp != nil {
+		t.Fatalf("Installed %+v; a twin with nothing published does not replace the running host", conditions.Get(old, InstalledCondition))
+	}
+	renamedNow := &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-svc-b"}, renamedNow); err != nil || renamedNow.DeletionTimestamp != nil {
+		t.Fatalf("the newer name was deleted: %v", err)
+	}
+}
+
+func TestRackInstallDoesNotCountTheSameBoxOrADeletingEdgeAsServing(t *testing.T) {
+	for name, other := range map[string]func() *infrav1.RackLinuxHost{
+		"the connected edge is the same box": func() *infrav1.RackLinuxHost {
+			o := otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true)
+			o.Spec.BootMAC = svcMAC
+			o.CreationTimestamp = metav1.NewTime(installEpoch.Add(-48 * time.Hour))
+			return o
+		},
+		"the connected edge is being deleted": func() *infrav1.RackLinuxHost {
+			o := otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true)
+			o.Finalizers = []string{RackLinuxHostFinalizer}
+			now := metav1.NewTime(installEpoch)
+			o.DeletionTimestamp = &now
+			return o
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			edge := installableEdge()
+			edge.CreationTimestamp = metav1.NewTime(installEpoch.Add(-time.Hour))
+			h := newInstallHarness(t, edge, other())
+			got := h.reconcile(t, "ber1-edge")
+			if len(h.api.minted) != 0 || got.Status.Install != nil {
+				t.Fatalf("minted %v install %+v", h.api.minted, got.Status.Install)
+			}
+			if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "ServesTheNetboot" {
+				t.Fatalf("Installed %+v", c)
+			}
+		})
+	}
+}
