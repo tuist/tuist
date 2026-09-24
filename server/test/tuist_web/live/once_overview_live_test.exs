@@ -47,7 +47,7 @@ defmodule TuistWeb.OnceOverviewLiveTest do
 
   test "a Once project gets an overview instead of a redirect", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path)
-    render_async(view)
+    render_async(view, 2_000)
 
     assert has_element?(view, "#once-overview")
 
@@ -120,20 +120,20 @@ defmodule TuistWeb.OnceOverviewLiveTest do
       })
 
     {:ok, view, _} = live(conn, path <> "?builds-environment=ci")
-    render_async(view)
+    render_async(view, 2_000)
 
     assert has_element?(view, "#once-overview-builds-environment-dropdown")
     assert render(view) =~ "4242"
 
     # "Local" must exclude the CI run rather than showing everything.
     {:ok, view, _} = live(conn, path <> "?builds-environment=local")
-    render_async(view)
+    render_async(view, 2_000)
 
     refute render(view) =~ "4242"
 
     # "Any" is unfiltered, so the CI run is back.
     {:ok, view, _} = live(conn, path <> "?builds-environment=any")
-    render_async(view)
+    render_async(view, 2_000)
 
     assert render(view) =~ "4242"
   end

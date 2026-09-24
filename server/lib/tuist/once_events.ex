@@ -32,6 +32,18 @@ defmodule Tuist.OnceEvents do
   # ---- Writes -----------------------------------------------------------
 
   @doc """
+  Every test case staged for `run`, oldest first. This is what
+  `Tuist.OnceEvents.TestReportIngestor` assembles the shared report from,
+  since `RunCompleted` carries only per-result counts.
+  """
+  def list_test_case_runs(%Run{} = run) do
+    TestCaseRun
+    |> where([c], c.once_run_id == ^run.id)
+    |> order_by([c], asc: c.finished_at, asc: c.id)
+    |> Repo.all()
+  end
+
+  @doc """
   Upsert a run when its RunStarted event lands. Idempotent on
   `(project_id, run_id)`.
   """
@@ -479,10 +491,13 @@ defmodule Tuist.OnceEvents do
     |> uuid_from_seed()
   end
 
-  # Formats the first 16 bytes of a SHA-256 digest as a UUID so the value
-  # fits the table's `uuid` primary key. The version and variant nibbles
-  # are stamped to keep it a well-formed v5-style name-based UUID.
-  defp uuid_from_seed(seed) do
+  @doc """
+  Formats the first 16 bytes of a SHA-256 digest as a UUID so the value fits
+  a `uuid` column. The version and variant nibbles are stamped to keep it a
+  well-formed v5-style name-based UUID, so the same seed always yields the
+  same id and a replay stays idempotent.
+  """
+  def uuid_from_seed(seed) do
     <<a::32, b::16, _::4, c::12, _::2, d::14, e::48, _rest::binary>> =
       :crypto.hash(:sha256, seed)
 

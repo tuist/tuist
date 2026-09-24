@@ -20,6 +20,7 @@ defmodule Tuist.OnceEvents.Projector do
   alias Once.Events.V1.TestSuiteCompleted
   alias Once.Events.V1.TestSuiteStarted
   alias Tuist.OnceEvents
+  alias Tuist.OnceEvents.TestReportIngestor
 
   @doc """
   Project one `RunEvent` under the resolved project. Returns `:ok` on any
@@ -59,14 +60,20 @@ defmodule Tuist.OnceEvents.Projector do
   end
 
   def project(%RunEvent{payload: {:run_completed, %RunCompleted{} = completed}}, project_id, run_id) do
-    with %{} = run <- OnceEvents.get_run(project_id, run_id) do
-      OnceEvents.finalize_run(run, %{
-        finalization: "finalized",
-        exit_status: run_result_exit(completed.result),
-        cancellation_reason: nil_if_empty(completed.cancellation_reason),
-        wall_ms: completed.wall_ms,
-        finalized_at: DateTime.utc_now()
-      })
+    with %{} = run <- OnceEvents.get_run(project_id, run_id),
+         {:ok, finalized} <-
+           OnceEvents.finalize_run(run, %{
+             finalization: "finalized",
+             exit_status: run_result_exit(completed.result),
+             cancellation_reason: nil_if_empty(completed.cancellation_reason),
+             wall_ms: completed.wall_ms,
+             finalized_at: DateTime.utc_now()
+           }) do
+      # The staged `once_test_*` rows are ingestion state; this is where a
+      # finished run becomes a row in the shared test store. A failure here
+      # must not reject the event, or the client would retry a run that did
+      # finalize, so it is logged and left for the run to be republished.
+      TestReportIngestor.publish(finalized)
     end
 
     :ok
