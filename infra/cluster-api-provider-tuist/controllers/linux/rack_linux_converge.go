@@ -209,7 +209,7 @@ apt_get() {
   DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 -y -qq "$@"
 }
 kubelet_package() {
-  apt-cache madison kubelet 2>/dev/null | awk -v want="$1-" 'index($3, want) == 1 {print $3; exit}'
+  apt-cache madison kubelet 2>/dev/null | awk -v want="$1-" '!found && index($3, want) == 1 {print $3; found = 1}'
 }
 has_identity() {
   [ -s /var/lib/kubelet/kubeconfig ] && [ -s /var/lib/kubelet/pki/kubelet-client-current.pem ] &&

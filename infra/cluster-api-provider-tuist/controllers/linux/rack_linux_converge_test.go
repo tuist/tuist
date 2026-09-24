@@ -45,6 +45,47 @@ func TestRackConvergeScriptParses(t *testing.T) {
 	}
 }
 
+// apt-cache keeps writing after the kubelet_package lookup has its answer, as
+// it does on a host with the repository's whole release history; under
+// pipefail, the lookup still succeeds.
+func TestRackConvergeScriptFindsTheKubeletPackageInALongListing(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("no bash")
+	}
+	script := renderRackConvergeScript(edgeConvergeOptions())
+	start := strings.Index(script, "kubelet_package() {")
+	if start < 0 {
+		t.Fatal("script has no kubelet_package")
+	}
+	end := strings.Index(script[start:], "\n}\n")
+	dir := t.TempDir()
+	fake := `#!/bin/sh
+echo "   kubelet | 1.34.6-1.1 | https://pkgs.k8s.io/core:/stable:/v1.34/deb  Packages"
+sleep 0.2
+i=5
+while [ $i -ge 0 ]; do
+  echo "   kubelet | 1.34.$i-1.1 | https://pkgs.k8s.io/core:/stable:/v1.34/deb  Packages"
+  i=$((i - 1))
+done
+`
+	if err := os.WriteFile(filepath.Join(dir, "apt-cache"), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lookup := "set -euo pipefail\n" + script[start:start+end+3] + `package=$(kubelet_package 1.34.6)
+echo "$package"
+`
+	cmd := exec.Command(bash, "-c", lookup)
+	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("lookup failed: %v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != "1.34.6-1.1" {
+		t.Fatalf("got %q, want 1.34.6-1.1", got)
+	}
+}
+
 func TestRackConvergeScriptRegistersTheNodeAsDeclared(t *testing.T) {
 	script := renderRackConvergeScript(edgeConvergeOptions())
 	for _, want := range []string{
