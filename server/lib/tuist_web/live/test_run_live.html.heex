@@ -344,6 +344,16 @@
               />
             </div>
             <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Pull request")}</div>
+              <.pull_request_link
+                project={@selected_project}
+                git_ref={@run.git_ref}
+                show_icon
+                fallback={dgettext("dashboard_tests", "None")}
+                data-part="value"
+              />
+            </div>
+            <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Commit")}</div>
               <.commit_link
                 project={@selected_project}

@@ -628,6 +628,17 @@
               }
             />
           </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Pull request")}>
+            <div data-part="cell" data-type="text">
+              <div data-part="icon"><.git_merge /></div>
+              <.pull_request_link
+                project={@selected_project}
+                git_ref={test_run.git_ref}
+                fallback={dgettext("dashboard_tests", "None")}
+                data-part="label"
+              />
+            </div>
+          </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Ran by")}>
             <.test_ran_by_badge_cell test={test_run} />
           </:col>

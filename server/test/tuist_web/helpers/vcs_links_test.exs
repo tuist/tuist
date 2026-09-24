@@ -53,6 +53,57 @@ defmodule TuistWeb.Helpers.VCSLinksTest do
     end
   end
 
+  describe "pull_request_url/2" do
+    test "builds the pull request URL on github.com" do
+      assert VCSLinks.pull_request_url(project_with_connection("https://github.com"), "refs/pull/23958/merge") ==
+               "https://github.com/org/repo/pull/23958"
+    end
+
+    test "builds the pull request URL on a GitHub Enterprise Server host" do
+      assert VCSLinks.pull_request_url(project_with_connection("https://github.example.com"), "refs/pull/42/head") ==
+               "https://github.example.com/org/repo/pull/42"
+    end
+
+    test "returns nil when the git ref is not a pull request ref" do
+      assert VCSLinks.pull_request_url(project_with_connection("https://github.com"), "refs/heads/main") == nil
+      assert VCSLinks.pull_request_url(project_with_connection("https://github.com"), nil) == nil
+    end
+
+    test "returns nil when the project has no version control connection" do
+      assert VCSLinks.pull_request_url(%{vcs_connection: nil}, "refs/pull/42/merge") == nil
+    end
+  end
+
+  describe "pull_request_link/1" do
+    test "links to the pull request" do
+      assigns = %{project: project_with_connection("https://github.com"), git_ref: "refs/pull/42/merge"}
+
+      html = render_component(&VCSLinks.pull_request_link/1, assigns)
+
+      assert html =~ ~s(href="https://github.com/org/repo/pull/42")
+      assert html =~ "#42"
+    end
+
+    test "renders the pull request number as plain text when the project has no version control connection" do
+      assigns = %{project: %{vcs_connection: nil}, git_ref: "refs/pull/42/merge", fallback: "None"}
+
+      html = render_component(&VCSLinks.pull_request_link/1, assigns)
+
+      assert html =~ "#42"
+      refute html =~ "href="
+      refute html =~ "None"
+    end
+
+    test "renders the fallback when the git ref is not a pull request ref" do
+      assigns = %{project: project_with_connection("https://github.com"), git_ref: "refs/heads/main", fallback: "None"}
+
+      html = render_component(&VCSLinks.pull_request_link/1, assigns)
+
+      assert html =~ "None"
+      refute html =~ "href="
+    end
+  end
+
   describe "repository_link/1" do
     test "links to the connected repository" do
       assigns = %{project: project_with_connection("https://github.example.com")}

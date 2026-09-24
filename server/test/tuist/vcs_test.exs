@@ -641,7 +641,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: _
                                          } ->
         {:ok, %{}}
@@ -696,7 +696,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: _
                                          } ->
         {:ok, %{}}
@@ -863,7 +863,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: body
                                          } ->
         assert String.starts_with?(body, "### 🛠️ Tuist Run Report 🛠️")
@@ -2687,6 +2687,24 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "pull_request_number_from_git_ref/1" do
+    test "returns the pull request number of a pull request ref" do
+      assert VCS.pull_request_number_from_git_ref("refs/pull/23958/merge") == 23_958
+      assert VCS.pull_request_number_from_git_ref("refs/pull/7/head") == 7
+      assert VCS.pull_request_number_from_git_ref("refs/pull/7") == 7
+    end
+
+    test "returns nil for refs that are not pull request refs" do
+      assert VCS.pull_request_number_from_git_ref("refs/heads/main") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/tags/v1.0.0") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/abc/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/12abc/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/0/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("") == nil
+      assert VCS.pull_request_number_from_git_ref(nil) == nil
+    end
+  end
+
   describe "create_comment/1" do
     setup do
       stub(Environment, :github_app_configured?, fn -> true end)
@@ -2705,7 +2723,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "123",
+                                           issue_id: 123,
                                            body: "This is a test comment"
                                          } ->
         {:ok, %Comment{id: 1, client_id: "client_id"}}
@@ -2838,7 +2856,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "123",
+                                           issue_id: 123,
                                            body: "This is a test comment"
                                          } ->
         {:error, :forbidden}

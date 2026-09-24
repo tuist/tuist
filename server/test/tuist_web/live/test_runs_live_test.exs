@@ -6,9 +6,11 @@ defmodule TuistWeb.TestRunsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Projects
   alias Tuist.Runs.Analytics, as: RunsAnalytics
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.VCSFixtures
 
   describe "lists latest test runs" do
     setup do
@@ -185,6 +187,46 @@ defmodule TuistWeb.TestRunsLiveTest do
       assert html =~ "does not contain"
       assert html =~ "Regular"
       refute html =~ "Queued"
+    end
+
+    test "links test runs of pull requests to the pull request", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      installation = VCSFixtures.github_app_installation_fixture(account_id: organization.account.id)
+
+      {:ok, _connection} =
+        Projects.create_vcs_connection(%{
+          project_id: project.id,
+          provider: :github,
+          repository_full_handle: "tuist/tuist",
+          github_app_installation_id: installation.id
+        })
+
+      ran_at = ~N[2024-04-30 10:19:30]
+
+      {:ok, _pull_request_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          git_ref: "refs/pull/23958/merge",
+          ran_at: ran_at
+        )
+
+      {:ok, _branch_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          git_ref: "refs/heads/main",
+          ran_at: ran_at
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+
+      assert has_element?(lv, "#test-runs-table th", "Pull request")
+      assert has_element?(lv, ~s(#test-runs-table a[href="https://github.com/tuist/tuist/pull/23958"]), "#23958")
+      assert has_element?(lv, "#test-runs-table span[data-part='label']", "None")
     end
   end
 
