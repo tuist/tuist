@@ -96,16 +96,61 @@ defmodule TuistWeb.OnceOverviewLiveTest do
     refute html =~ "formatPercentage"
   end
 
+  test "the Builds card filters on environment", %{conn: conn, path: path, project: project} do
+    at = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+    # One CI build on top of the three local runs the setup creates, with a
+    # duration nothing else uses so the legend counts are unambiguous.
+    {:ok, ci_run} =
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "build",
+        command_display: "once build",
+        is_ci: true,
+        started_at: at
+      })
+
+    {:ok, _} =
+      OnceEvents.finalize_run(ci_run, %{
+        finalization: "finalized",
+        exit_status: 0,
+        wall_ms: 4242,
+        finalized_at: at
+      })
+
+    {:ok, view, _} = live(conn, path <> "?builds-environment=ci")
+    render_async(view)
+
+    assert has_element?(view, "#once-overview-builds-environment-dropdown")
+    assert render(view) =~ "4242"
+
+    # "Local" must exclude the CI run rather than showing everything.
+    {:ok, view, _} = live(conn, path <> "?builds-environment=local")
+    render_async(view)
+
+    refute render(view) =~ "4242"
+
+    # "Any" is unfiltered, so the CI run is back.
+    {:ok, view, _} = live(conn, path <> "?builds-environment=any")
+    render_async(view)
+
+    assert render(view) =~ "4242"
+  end
+
   test "changing the period keeps the overview rendered", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path)
-    render_async(view)
+    # The card fans out to several `assign_async` queries, which do not
+    # reliably settle inside `render_async/1`'s 100ms default when the suite
+    # runs them alongside the other Once files.
+    render_async(view, 2_000)
 
     render_click(view, "analytics_period_changed", %{
       "value" => %{"start" => "2026-09-01", "end" => "2026-09-23"},
       "preset" => "last-7-days"
     })
 
-    render_async(view)
+    render_async(view, 2_000)
 
     assert has_element?(view, "#once-overview")
   end
