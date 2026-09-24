@@ -490,7 +490,11 @@ case System.get_env("MCP_PROXY_SERVERS") do
             # request from each user's stored grant rather than from config.
             # Only read-tier grants are forwarded, so the credential — not this
             # list of tools — is what bounds the request upstream.
-            operator_grant_header: "x-tuist-operator-grant"
+            operator_grant_header: "x-tuist-operator-grant",
+            # Atlas' ServiceAccount token, so the Tuist server knows the call
+            # came through Atlas' audit log and lets operators read any
+            # account without a grant.
+            atlas_identity_header: "x-tuist-atlas-identity"
           },
           %{
             name: "grafana",

@@ -368,6 +368,57 @@ defmodule Atlas.MCP.ProxyTest do
     assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
   end
 
+  test "sends Atlas' workload identity to an upstream configured for it" do
+    stub(Config, :get, fn -> atlas_identity_proxy_config() end)
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+
+    stub(Atlas.TuistServer, :workload_identity_token, fn -> {:ok, "sa-token"} end)
+
+    expect(Req, :post, fn %Req.Request{} = request ->
+      assert request.headers["x-tuist-atlas-identity"] == ["sa-token"]
+      initialize_response(request)
+    end)
+
+    expect_initialized_notification()
+    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
+
+    assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
+  end
+
+  test "leaves the workload identity off when no token is available" do
+    stub(Config, :get, fn -> atlas_identity_proxy_config() end)
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+
+    stub(Atlas.TuistServer, :workload_identity_token, fn -> {:error, "not configured"} end)
+
+    expect(Req, :post, fn %Req.Request{} = request ->
+      refute Map.has_key?(request.headers, "x-tuist-atlas-identity")
+      initialize_response(request)
+    end)
+
+    expect_initialized_notification()
+    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
+
+    assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
+  end
+
+  test "never sends the workload identity to an upstream not configured for it" do
+    stub(Config, :get, fn -> read_only_proxy_config() end)
+    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+
+    reject(Atlas.TuistServer, :workload_identity_token, 0)
+
+    expect(Req, :post, fn %Req.Request{} = request ->
+      refute Map.has_key?(request.headers, "x-tuist-atlas-identity")
+      initialize_response(request)
+    end)
+
+    expect_initialized_notification()
+    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
+
+    assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
+  end
+
   # A refusal the operator cannot act on is a dead end: the upstream knows which
   # account owns the record, and this is the only place that meets a user who
   # could ask for it.
@@ -752,6 +803,29 @@ defmodule Atlas.MCP.ProxyTest do
       |> Map.put("operator_grant_header", "x-tuist-operator-grant")
 
     [servers: [server]]
+  end
+
+  defp atlas_identity_proxy_config do
+    server =
+      read_only_proxy_config()
+      |> Keyword.fetch!(:servers)
+      |> hd()
+      |> Map.put("atlas_identity_header", "x-tuist-atlas-identity")
+
+    [servers: [server]]
+  end
+
+  defp initialize_response(request) do
+    {:ok,
+     %Req.Response{
+       status: 200,
+       headers: %{"mcp-session-id" => ["session-1"]},
+       body: %{
+         "jsonrpc" => "2.0",
+         "id" => request.options.json["id"],
+         "result" => %{"protocolVersion" => "2025-03-26"}
+       }
+     }}
   end
 
   defp allowlisted_proxy_config do

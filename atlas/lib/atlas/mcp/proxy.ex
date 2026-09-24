@@ -13,6 +13,7 @@ defmodule Atlas.MCP.Proxy do
   alias Atlas.MCP.Proxy.Server
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.GetMCPConnectionStatus
+  alias Atlas.TuistServer
 
   require Logger
 
@@ -226,6 +227,7 @@ defmodule Atlas.MCP.Proxy do
           read_only: truthy?(get_config(raw, :read_only, false)),
           tool_allowlist: normalize_scopes(get_config(raw, :tool_allowlist, [])),
           operator_grant_header: get_config(raw, :operator_grant_header),
+          atlas_identity_header: get_config(raw, :atlas_identity_header),
           bearer_token: bearer_token,
           receive_timeout: normalize_timeout(get_config(raw, :receive_timeout, 15_000))
         }
@@ -642,6 +644,7 @@ defmodule Atlas.MCP.Proxy do
       |> put_default_header("mcp-protocol-version", @protocol_version)
       |> maybe_put_header("mcp-session-id", session_id)
       |> maybe_put_header(server.operator_grant_header, operator_grant_token(server, conn))
+      |> maybe_put_header(server.atlas_identity_header, atlas_identity_token(server))
 
     with {:ok, auth_token} <- auth_token(server, conn) do
       request = Req.new(url: server.url, headers: headers, receive_timeout: server.receive_timeout)
@@ -669,6 +672,20 @@ defmodule Atlas.MCP.Proxy do
   end
 
   defp operator_grant_token(_server, _conn), do: nil
+
+  # Tells the upstream the call came through Atlas, which audits every proxied
+  # tool call; the Tuist server lets operators read customer accounts only on
+  # that condition. The token is Atlas' own ServiceAccount token, so it is only
+  # sent to upstreams configured for it. Without one (dev, test) the header is
+  # left off and the upstream falls back to the user's own access.
+  defp atlas_identity_token(%Server{atlas_identity_header: nil}), do: nil
+
+  defp atlas_identity_token(%Server{}) do
+    case TuistServer.workload_identity_token() do
+      {:ok, token} -> token
+      {:error, _reason} -> nil
+    end
+  end
 
   defp auth_token(%Server{auth_type: :bearer_token, bearer_token: token}, _conn), do: {:ok, token}
   defp auth_token(%Server{auth_type: :none}, _conn), do: {:ok, nil}

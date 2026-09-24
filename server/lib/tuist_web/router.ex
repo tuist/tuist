@@ -295,6 +295,7 @@ defmodule TuistWeb.Router do
     # authentication because the grant is honoured only for the operator it
     # was minted for.
     plug :accept_operator_grant_header
+    plug :accept_atlas_identity_header
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
