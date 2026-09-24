@@ -127,7 +127,7 @@ defmodule Atlas.MCP.ServerTest do
       assert instructions =~ "list_contract_templates"
       assert instructions =~ "get_contract_template"
       assert instructions =~ "Never create a substitute document from scratch"
-      assert instructions =~ "embedded resource"
+      assert instructions =~ "signed `download_url`"
       assert instructions =~ "current request over pasted conversation context"
     end
 

@@ -311,7 +311,7 @@ defmodule Atlas.MCP.Server do
   For any request to create, draft, prepare, generate, or fill an order form, enterprise contract, Master Services Agreement, or contract package:
   1. Call `generate_enterprise_contract` with `document_scope` set to `order_form` or `contract_package`. Follow the workflow it returns.
   2. Call `get_account` to retrieve the customer identity, legal, billing, signatory, and commercial term fields. Prefer explicit values in the user's current request over pasted conversation context, and prefer both over older values stored on the account.
-  3. Call `list_contract_templates`, then `get_contract_template` for the appropriate official Word template. The latter attaches the binary template directly, so use that embedded resource instead of trying browser, desktop-control, or terminal hand-offs. Never create a substitute document from scratch.
+  3. Call `list_contract_templates`, then `get_contract_template` for the appropriate official Word template. The latter returns a signed `download_url` for the template; download the file from it before its `expires_at` rather than trying browser or desktop-control hand-offs. Never create a substitute document from scratch.
   4. If the user asks only for an order form, fetch only the appropriate order form rather than the full contract package. Use `order-form-tuist-hosted.docx` for a hosted deal and `order-form-self-hosted.docx` for a self-hosted deal. Ask the user when the hosting model cannot be determined from their request, conversation context, or the latest commercial term.
   5. Do not invent missing legal, billing, signatory, date, or renewal fields. Ask the user for required values that are absent from both their request and Atlas.
 

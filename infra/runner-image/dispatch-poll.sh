@@ -174,6 +174,45 @@ keep_desktop_interactive() {
 
 keep_desktop_interactive
 
+# approve_finder_automation records a standing approval for scripting
+# Finder, which `create-dmg` and any other `osascript`-driven window
+# styling needs. Without one, the first AppleEvent to Finder waits on a
+# consent prompt nobody can answer and the send fails as `AppleEvent
+# timed out (-1712)`.
+#
+# The decision is read from the session user's TCC database, which tccd
+# only creates once `runner` has logged in, so it cannot be seeded at
+# image build. The system database is not consulted for it.
+#
+# TCC charges the event to the responsible process, not to `osascript`:
+# `Runner.Listener` for GitHub jobs, and this script's `/bin/bash` for
+# the agents it launches directly. A row only matches when it carries
+# Finder's code requirement as `indirect_object_code_identity`.
+#
+# Best-effort: a job that never scripts Finder must not wait on this.
+approve_finder_automation() {
+  local db="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
+  local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
+  local waited=0 client
+  while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if [ ! -f "${db}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING per-user TCC.db missing; Finder automation will prompt"
+    return 0
+  fi
+  for client in /Users/runner/actions-runner/bin/Runner.Listener /bin/bash; do
+    if ! /usr/bin/sqlite3 "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Finder automation for ${client}"
+      return 0
+    fi
+  done
+  echo "$(date -u +%FT%TZ) dispatch-poll: Finder automation approved"
+}
+
+approve_finder_automation
+
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
 # environments whose Mac minis have the tailnet route into the
