@@ -430,7 +430,9 @@ defmodule TuistWeb.AppLayoutComponents do
           label={dgettext("dashboard_runners", "Volumes")}
           icon="database"
           navigate={~p"/#{@selected_account.name}/runners/volumes"}
-          selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners/volumes")}
+          selected={
+            String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners/volumes")
+          }
         />
         <.sidebar_item
           :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}

@@ -61,6 +61,10 @@ This directory contains database migrations and other private assets.
 - Cache-volume image publication adds nullable digests and published generation,
   plus a base HEAD generation defaulting to zero. This is separate from the
   invalidation epoch; schema rollback follows local-image fleet cleanup.
+  Its version is `20260924130000`; the prototype `20260923120000` collided with
+  main's account cache-meter migration. Prototype databases need their migration
+  history reconciled before either migration runs; verify the corresponding
+  columns instead of assuming which migration the old version represents.
 
 - Kura identity backfill is forward-only: audit historical provisioner references and reservation collisions before deployment. Unknown/conflicting references abort; never guess a live volume namespace. See `kura/docs/account-renames.md` at repository root.
 

@@ -12,7 +12,7 @@ msgid ""
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:110
-#: lib/tuist_web/live/runner_volumes_live.html.heex:343
+#: lib/tuist_web/live/runner_volumes_live.html.heex:348
 #: lib/tuist_web/live/runner_workflow_live.html.heex:37
 #: lib/tuist_web/live/runner_workflows_live.html.heex:110
 #: lib/tuist_web/live/runners_live.html.heex:110
@@ -64,7 +64,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_profiles_live.html.heex:193
 #: lib/tuist_web/live/runner_profiles_live.html.heex:327
 #: lib/tuist_web/live/runner_volumes_live.ex:263
-#: lib/tuist_web/live/runner_volumes_live.html.heex:535
+#: lib/tuist_web/live/runner_volumes_live.html.heex:540
 #: lib/tuist_web/live/runner_workflows_live.html.heex:89
 #: lib/tuist_web/live/runners_live.html.heex:89
 #, elixir-autogen, elixir-format
@@ -172,7 +172,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:583
 #: lib/tuist_web/live/runner_jobs_live.html.heex:535
 #: lib/tuist_web/live/runner_jobs_live.html.heex:578
-#: lib/tuist_web/live/runner_volumes_live.html.heex:438
+#: lib/tuist_web/live/runner_volumes_live.html.heex:443
 #: lib/tuist_web/live/runner_workflow_live.ex:266
 #: lib/tuist_web/live/runner_workflow_live.html.heex:287
 #: lib/tuist_web/live/runner_workflow_live.html.heex:322
@@ -186,8 +186,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.html.heex:6
 #: lib/tuist_web/live/runner_jobs_live.ex:44
 #: lib/tuist_web/live/runner_jobs_live.html.heex:465
-#: lib/tuist_web/live/runner_volumes_live.html.heex:331
-#: lib/tuist_web/live/runner_volumes_live.html.heex:414
+#: lib/tuist_web/live/runner_volumes_live.html.heex:336
+#: lib/tuist_web/live/runner_volumes_live.html.heex:419
 #: lib/tuist_web/live/runner_workflow_live.html.heex:179
 #: lib/tuist_web/live/runner_workflow_live.html.heex:248
 #: lib/tuist_web/live/runner_workflows_live.ex:271
@@ -256,7 +256,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:672
 #: lib/tuist_web/live/runner_volumes_live.html.heex:283
-#: lib/tuist_web/live/runner_volumes_live.html.heex:506
+#: lib/tuist_web/live/runner_volumes_live.html.heex:511
 #: lib/tuist_web/live/runner_workflow_live.html.heex:388
 #: lib/tuist_web/live/runner_workflows_live.html.heex:415
 #, elixir-autogen, elixir-format
@@ -287,7 +287,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:664
 #: lib/tuist_web/live/runner_volumes_live.html.heex:273
-#: lib/tuist_web/live/runner_volumes_live.html.heex:496
+#: lib/tuist_web/live/runner_volumes_live.html.heex:501
 #: lib/tuist_web/live/runner_workflow_live.html.heex:380
 #: lib/tuist_web/live/runner_workflows_live.html.heex:407
 #, elixir-autogen, elixir-format
@@ -305,7 +305,7 @@ msgstr ""
 msgid "Queued"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:413
+#: lib/tuist_web/live/runner_volumes_live.html.heex:418
 #: lib/tuist_web/live/runners_live.html.heex:530
 #, elixir-autogen, elixir-format
 msgid "Recent jobs"
@@ -444,7 +444,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:592
 #: lib/tuist_web/live/runner_jobs_live.html.heex:600
 #: lib/tuist_web/live/runner_jobs_live.html.heex:621
-#: lib/tuist_web/live/runner_volumes_live.ex:490
+#: lib/tuist_web/live/runner_volumes_live.ex:495
 #: lib/tuist_web/live/runner_workflow_live.ex:304
 #: lib/tuist_web/live/runner_workflow_live.ex:305
 #: lib/tuist_web/live/runner_workflow_live.ex:312
@@ -463,7 +463,7 @@ msgid "Unknown"
 msgstr ""
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:26
-#: lib/tuist_web/live/runner_volumes_live.html.heex:422
+#: lib/tuist_web/live/runner_volumes_live.html.heex:427
 #: lib/tuist_web/live/runners_live.html.heex:379
 #: lib/tuist_web/live/runners_live.html.heex:538
 #, elixir-autogen, elixir-format
@@ -476,7 +476,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:584
 #: lib/tuist_web/live/runner_jobs_live.html.heex:543
 #: lib/tuist_web/live/runner_jobs_live.html.heex:586
-#: lib/tuist_web/live/runner_volumes_live.html.heex:441
+#: lib/tuist_web/live/runner_volumes_live.html.heex:446
 #: lib/tuist_web/live/runner_workflows_live.ex:274
 #: lib/tuist_web/live/runner_workflows_live.html.heex:309
 #: lib/tuist_web/live/runner_workflows_live.html.heex:352
@@ -800,7 +800,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_profiles_live.html.heex:76
 #: lib/tuist_web/live/runner_profiles_live.html.heex:221
 #: lib/tuist_web/live/runner_volumes_live.html.heex:213
-#: lib/tuist_web/live/runner_volumes_live.html.heex:305
+#: lib/tuist_web/live/runner_volumes_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr ""
@@ -963,7 +963,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_profiles_live.html.heex:237
 #: lib/tuist_web/live/runner_volumes_live.ex:209
 #: lib/tuist_web/live/runner_volumes_live.html.heex:244
-#: lib/tuist_web/live/runner_volumes_live.html.heex:313
+#: lib/tuist_web/live/runner_volumes_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Last used"
 msgstr ""
@@ -1046,7 +1046,7 @@ msgid "No logs were captured for this step."
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.html.heex:79
-#: lib/tuist_web/live/runner_volumes_live.html.heex:330
+#: lib/tuist_web/live/runner_volumes_live.html.heex:335
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr ""
@@ -1431,13 +1431,13 @@ msgstr ""
 msgid "GitLab"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:518
+#: lib/tuist_web/live/runner_volumes_live.ex:523
 #, elixir-autogen, elixir-format
 msgid "Attached"
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.ex:165
-#: lib/tuist_web/live/runner_volumes_live.html.heex:459
+#: lib/tuist_web/live/runner_volumes_live.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr ""
@@ -1446,8 +1446,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_volumes_live.ex:208
 #: lib/tuist_web/live/runner_volumes_live.ex:392
 #: lib/tuist_web/live/runner_volumes_live.html.heex:233
-#: lib/tuist_web/live/runner_volumes_live.html.heex:319
-#: lib/tuist_web/live/runner_volumes_live.html.heex:475
+#: lib/tuist_web/live/runner_volumes_live.html.heex:324
+#: lib/tuist_web/live/runner_volumes_live.html.heex:480
 #, elixir-autogen, elixir-format
 msgid "Capacity"
 msgstr ""
@@ -1462,49 +1462,49 @@ msgstr ""
 msgid "Could not update volume. Please retry."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:539
+#: lib/tuist_web/live/runner_volumes_live.ex:544
 #, elixir-autogen, elixir-format
 msgid "Deleted"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:538
+#: lib/tuist_web/live/runner_volumes_live.ex:543
 #, elixir-autogen, elixir-format
 msgid "Deletion pending"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:520
+#: lib/tuist_web/live/runner_volumes_live.ex:525
 #, elixir-autogen, elixir-format
 msgid "Discarded"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:541
+#: lib/tuist_web/live/runner_volumes_live.ex:546
 #, elixir-autogen, elixir-format
 msgid "Empty"
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.ex:170
-#: lib/tuist_web/live/runner_volumes_live.html.heex:463
+#: lib/tuist_web/live/runner_volumes_live.html.heex:468
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.ex:171
-#: lib/tuist_web/live/runner_volumes_live.html.heex:464
+#: lib/tuist_web/live/runner_volumes_live.html.heex:469
 #, elixir-autogen, elixir-format
 msgid "Miss"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:485
+#: lib/tuist_web/live/runner_volumes_live.html.heex:490
 #, elixir-autogen, elixir-format
 msgid "No recorded uses"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:517
+#: lib/tuist_web/live/runner_volumes_live.ex:522
 #, elixir-autogen, elixir-format
 msgid "Preparing"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:540
+#: lib/tuist_web/live/runner_volumes_live.ex:545
 #, elixir-autogen, elixir-format
 msgid "Ready"
 msgstr ""
@@ -1545,8 +1545,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_volumes_live.ex:207
 #: lib/tuist_web/live/runner_volumes_live.ex:391
 #: lib/tuist_web/live/runner_volumes_live.html.heex:222
-#: lib/tuist_web/live/runner_volumes_live.html.heex:356
-#: lib/tuist_web/live/runner_volumes_live.html.heex:472
+#: lib/tuist_web/live/runner_volumes_live.html.heex:361
+#: lib/tuist_web/live/runner_volumes_live.html.heex:477
 #, elixir-autogen, elixir-format
 msgid "Used space"
 msgstr ""
@@ -1556,7 +1556,7 @@ msgstr ""
 msgid "Attach a volume in your workflow or try a different search."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:491
+#: lib/tuist_web/live/runner_volumes_live.html.heex:496
 #, elixir-autogen, elixir-format
 msgid "Job history pages"
 msgstr ""
@@ -1576,7 +1576,7 @@ msgstr ""
 msgid "Search volumes or repositories"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:499
+#: lib/tuist_web/live/runner_volumes_live.ex:504
 #, elixir-autogen, elixir-format
 msgid "Summed across saved snapshots and job copies, including copies awaiting deletion. Shared data may be counted more than once; these are not unique physical bytes or a billing amount."
 msgstr ""
@@ -1607,18 +1607,18 @@ msgid "Volumes with stored copies at the end of the selected period, regardless 
 msgstr ""
 
 #: lib/tuist_web/live/runner_volumes_live.ex:329
-#: lib/tuist_web/live/runner_volumes_live.html.heex:367
+#: lib/tuist_web/live/runner_volumes_live.html.heex:372
 #, elixir-autogen, elixir-format
 msgid "Hit rate"
 msgstr ""
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:140
-#: lib/tuist_web/live/runner_volumes_live.html.heex:405
+#: lib/tuist_web/live/runner_volumes_live.html.heex:410
 #, elixir-autogen, elixir-format
 msgid "No data in this period"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:370
+#: lib/tuist_web/live/runner_volumes_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Share of mounts with a known cache result that reused a saved cache in the selected period."
 msgstr ""
@@ -1628,25 +1628,25 @@ msgstr ""
 msgid "Not reported"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:522
+#: lib/tuist_web/live/runner_volumes_live.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Clears the saved cache for future jobs. Running jobs can finish."
 msgstr ""
 
 #: lib/tuist_web/live/runner_volumes_live.ex:328
-#: lib/tuist_web/live/runner_volumes_live.html.heex:381
+#: lib/tuist_web/live/runner_volumes_live.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Job runs"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:384
+#: lib/tuist_web/live/runner_volumes_live.html.heex:389
 #, elixir-autogen, elixir-format
 msgid "Number of job runs that mounted this volume during the selected period."
 msgstr ""
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:21
-#: lib/tuist_web/live/runner_volumes_live.html.heex:520
-#: lib/tuist_web/live/runner_volumes_live.html.heex:542
+#: lib/tuist_web/live/runner_volumes_live.html.heex:525
+#: lib/tuist_web/live/runner_volumes_live.html.heex:547
 #, elixir-autogen, elixir-format
 msgid "Clear volume"
 msgstr ""
@@ -1656,42 +1656,42 @@ msgstr ""
 msgid "Volume cleared. Running jobs can finish."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:478
+#: lib/tuist_web/live/runner_volumes_live.html.heex:483
 #, elixir-autogen, elixir-format
 msgid "Mounted at"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:444
+#: lib/tuist_web/live/runner_volumes_live.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Cache status"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:519
+#: lib/tuist_web/live/runner_volumes_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Saved"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:532
+#: lib/tuist_web/live/runner_volumes_live.ex:537
 #, elixir-autogen, elixir-format
 msgid "Changes from this job were not saved for future job runs."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:529
+#: lib/tuist_web/live/runner_volumes_live.ex:534
 #, elixir-autogen, elixir-format
 msgid "Changes from this job were saved to the volume for future job runs."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:534
+#: lib/tuist_web/live/runner_volumes_live.ex:539
 #, elixir-autogen, elixir-format
 msgid "The cache status is unavailable."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:523
+#: lib/tuist_web/live/runner_volumes_live.ex:528
 #, elixir-autogen, elixir-format
 msgid "The volume is being prepared for this job."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:526
+#: lib/tuist_web/live/runner_volumes_live.ex:531
 #, elixir-autogen, elixir-format
 msgid "The volume is mounted for this job. Changes have not been saved yet."
 msgstr ""

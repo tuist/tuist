@@ -17,6 +17,9 @@ This node covers Helm assets under `infra/helm/`.
 - Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
 - Support both `embedded` and `external` dependency modes when practical.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
+- The K3s smoke task builds its MinIO/mc image from checksum-pinned upstream
+  release binaries and imports it into the disposable cluster. Existing-context
+  runs must preload that image; the smoke values never pull it from a registry.
 - Managed PgBouncer client limits and idle cleanup live in `tuist/values-managed-common.yaml`. Keep the connection lifecycle and rollout validation in [`../cnpg/README.md`](../cnpg/README.md#client-connections-through-tailscale) aligned when changing them.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
@@ -68,3 +71,5 @@ This node covers Helm assets under `infra/helm/`.
   its agent image pinned to a tested commit and retain the mount while any
   private branches are live. Production enables provisioning and resolves the
   agent image from the matching controller release through normal deployment.
+  Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
+  production rendering exercises the cache-volume agent's shared-tag fallback.
