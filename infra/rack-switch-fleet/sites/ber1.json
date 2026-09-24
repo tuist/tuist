@@ -14,7 +14,7 @@
     "gateway": "192.168.0.1",
     "edge": {
       "ssh": "tuist@ber1-edge",
-      "interface": "enp87s0",
+      "interface": "enp89s0",
       "address": "192.168.0.10",
       "provisioning": "192.168.50.1/24",
       "netboot": true
@@ -138,14 +138,14 @@
         },
         {
           "switch": "ber1-tor-a",
-          "port": null,
+          "port": 25,
           "media": "dac",
           "nic": "sfp28-2",
           "purpose": "data"
         },
         {
           "switch": "ber1-mgmt",
-          "port": null,
+          "port": 1,
           "media": "copper",
           "nic": "i226-lm",
           "purpose": "management"
@@ -180,18 +180,18 @@
     {
       "name": "ber1-svc",
       "role": "services",
-      "note": "Single-homed to ToR B today, which puts DHCP, DNS, NTP, the tailnet subnet router and half the runners behind one switch. A seventh DAC would dual-home it; add the second link here when it arrives.",
+      "note": "Single-homed to ToR B today, which puts DHCP, DNS, NTP, the tailnet subnet router and half the runners behind one switch. A seventh DAC would dual-home it, into ber1-tor-a port 26 from sfp28-2; add that link here when it arrives.",
       "links": [
         {
           "switch": "ber1-tor-b",
-          "port": null,
+          "port": 26,
           "media": "dac",
           "purpose": "data",
           "nic": "sfp28-1"
         },
         {
           "switch": "ber1-mgmt",
-          "port": null,
+          "port": 2,
           "media": "copper",
           "nic": "i226-lm",
           "purpose": "management"
@@ -383,7 +383,8 @@
     "storage": "One storage node per ToR, matching the split across opposite ATS chains. Losing a ToR must cost one storage node, never both, so ber1-store-a is on ToR A and ber1-store-b on ToR B. The fleet tests enforce it.",
     "management": "Every x86 node's out-of-band path is one specific socket: AMT rides the MS-01's i226-LM and the i226-V beside it has none, so a management link recorded without its NIC is a link that gets patched into the wrong hole. The fleet tests require every management link to land on an interface the node's hardware marks as out-of-band.",
     "power": "Eaton throughout: 3x EATS16N transfer switches and 2x EVMAFC20A PDUs, one Mindfactory order not yet placed, so every power appliance is planned. The 2026-09-12 choice of APC AP4423A was superseded on 2026-09-21: the EATS16N is the same shape with a faster transfer, and a single vendor across ATS and PDU was the decisive argument.",
-    "sensors": "Environmental probes are not on the network. They chain off a PDU's USB port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links."
+    "sensors": "Environmental probes are not on the network. They chain off a PDU's USB port over RS485 and are addressed by Modbus address rather than by switch port, which is why they are nodes with no links.",
+    "ports": "On each ToR, ports 1-23 are for Mac minis, 24 is ber1-tor-a's router uplink, 25-31 are for the x86 nodes and 32 is the ISL. An x86 node takes the same port number on every ToR it reaches: ber1-edge 25, ber1-svc 26, the storage pair 27 (ber1-store-a on ToR A, ber1-store-b on ToR B). On ber1-mgmt the x86 nodes' i226-LM ports come first, in the same order from port 1."
   },
   "kubernetes": {
     "namespace": "tuist-staging"

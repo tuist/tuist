@@ -783,7 +783,7 @@ pod off the node and put it back afterwards:
 
 ```
 kubectl label node ber1-edge tuist.dev/rack-edge-
-mise run rack:ztp ber1-mgmt --via tuist@ber1-edge --interface enp87s0
+mise run rack:ztp ber1-mgmt --via tuist@ber1-edge --interface enp89s0
 kubectl label node ber1-edge tuist.dev/rack-edge=ber1
 ```
 

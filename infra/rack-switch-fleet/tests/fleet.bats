@@ -1052,10 +1052,12 @@ mini_referencing() {
 }
 
 @test "a switch with no assigned ports still renders a valid object" {
-    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-mgmt"
+    site="$BATS_TEST_TMPDIR/unassigned.json"
+    jq '(.nodes[].links[] | select(.switch == "ber1-mgmt")).port = null' "$SITE_FILE" > "$site"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$site' ber1-mgmt"
     [ "$status" -eq 0 ]
     [[ "$output" == *"kind: RackSwitch"* ]]
-    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$SITE_FILE' ber1-mgmt | yq '.spec | has(\"ports\")'"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render_k8s '$site' ber1-mgmt | yq '.spec | has(\"ports\")'"
     [ "$output" = "false" ]
 }
 
@@ -2020,7 +2022,8 @@ ADOPTED_FIXTURE="$BATS_TEST_DIRNAME/fixtures/ber1-mgmt-adopted.cfg"
 # The rendered management path run under sh, the way the pod runs it, against an
 # `ip` shaped like ber1-edge's (two uplinks carrying default routes) and an nft
 # that keeps what it loads. FAKE_DEFAULT_DEV adds a default route on another
-# device; FAKE_FORWARD is what /proc/sys/net/ipv4/ip_forward reads.
+# device; FAKE_FORWARD is what /proc/sys/net/ipv4/ip_forward reads; FAKE_ADDRS
+# is what `ip -o -4 addr show` lists.
 edge_run_stub() {
     local dir="$1"
     mkdir -p "$dir"
@@ -2030,6 +2033,10 @@ if [ "$*" = "route show default" ]; then
     echo "default via 192.168.0.1 dev enp2s0f0np0 proto dhcp src 192.168.0.157 metric 100"
     echo "default via 192.168.0.1 dev enp2s0f1np1 proto dhcp src 192.168.0.158 metric 100"
     [ -n "$FAKE_DEFAULT_DEV" ] && echo "default via 192.168.0.1 dev $FAKE_DEFAULT_DEV proto dhcp metric 50"
+    exit 0
+fi
+if [ "$*" = "-o -4 addr show" ]; then
+    [ -n "$FAKE_ADDRS" ] && printf '%s\n' "$FAKE_ADDRS"
     exit 0
 fi
 echo "ip $*" >> "$FAKE_LOG"
@@ -2051,9 +2058,9 @@ STUB
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
-    [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
-    [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp87s0"* ]]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp89s0 noprefixroute"* ]]
+    [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp89s0 src 192.168.0.10"* ]]
+    [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp89s0"* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade'* ]]
     [[ "$output" != *"ip route replace 192.168.0.11"* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
@@ -2077,7 +2084,7 @@ STUB
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *'oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade'* ]]
+    [[ "$output" == *'oifname != { "tailscale0", "enp89s0" } ip saddr 192.168.50.0/24 masquerade'* ]]
     jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/nonetboot.json"
     [ "$status" -eq 0 ]
@@ -2102,8 +2109,8 @@ STUB
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
     run cat "$bin/log"
-    [[ "${lines[0]}" == "ip link set enp87s0 up" ]]
-    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
+    [[ "${lines[0]}" == "ip link set enp89s0 up" ]]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp89s0 noprefixroute"* ]]
     [ "$(grep -c '^nft -f -$' "$bin/log")" -eq 1 ]
     [[ "$output" == *"delete table ip tuist_mgmt_path"* ]]
     [[ "$output" == *"delete table netdev tuist_rack_dhcp"* ]]
@@ -2114,12 +2121,12 @@ STUB
     bin="$BATS_TEST_TMPDIR/edge-uplink"
     edge_run_stub "$bin"
     fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0 sh "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp89s0 sh "$bin/mgmt-path.sh"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"enp87s0 carries this node's default route"* ]]
+    [[ "$output" == *"enp89s0 carries this node's default route"* ]]
     [ ! -s "$bin/log" ]
     # a route on a VLAN of the port is not the port itself
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0.10 sh "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp89s0.10 sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
 }
 
@@ -2132,6 +2139,25 @@ STUB
     [ "$status" -ne 0 ]
     [[ "$output" == *"ip_forward is off"* ]]
     [ ! -s "$bin/log" ]
+}
+
+@test "the rendered edge path takes the edge addresses off a port the site moved away from" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    bin="$BATS_TEST_TMPDIR/edge-moved"
+    edge_run_stub "$bin"
+    fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
+    addrs='5: enp87s0    inet 192.168.0.10/24 scope global noprefixroute enp87s0
+5: enp87s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp87s0
+2: enp2s0f0np0    inet 192.168.0.157/24 brd 192.168.0.255 scope global dynamic enp2s0f0np0
+3: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0'
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_ADDRS="$addrs" sh "$bin/mgmt-path.sh"
+    [ "$status" -eq 0 ]
+    run cat "$bin/log"
+    [[ "$output" == *"ip addr del 192.168.0.10/24 dev enp87s0"* ]]
+    [[ "$output" == *"ip addr del 192.168.50.1/24 dev enp87s0"* ]]
+    [[ "$output" != *"del 192.168.0.157/24"* ]]
+    [[ "$output" != *"del 192.168.50.1/24 dev enp89s0"* ]]
+    [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp89s0"* ]]
 }
 
 @test "a site whose edge node names no switch port renders no edge files" {
@@ -2765,12 +2791,12 @@ STUB
 @test "the edge node hands the switches behind it their site address and their controller" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
-    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp89s0 noprefixroute"* ]]
     # replies to a known switch go to its MAC, since the SG3452 ignores broadcast ones
     [[ "$output" == *"udp sport 67 udp dport 68 @th,288,48 0xa82948feb4be ether daddr set a8:29:48:fe:b4:be"* ]]
     run fleet_edge_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"interface=enp87s0"* ]]
+    [[ "$output" == *"interface=enp89s0"* ]]
     [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
     [[ "$output" == *"dhcp-option=tag:known,option:router,192.168.0.10"* ]]
     [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150,255.255.255.0,1h"* ]]

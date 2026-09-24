@@ -83,6 +83,15 @@ if [ "\$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
   exit 1
 fi
 ip link set $interface up
+SCRIPT
+  # The addresses belong to the switch port alone. A port the site moved away
+  # from gives them up, or its connected route, kept while the cable is gone,
+  # would still claim the provisioning range.
+  local owned="\$4 == \"$edge_address/$length\""
+  [ -n "$provisioning" ] && owned="$owned || \$4 == \"$provisioning\""
+  cat <<SCRIPT
+ip -o -4 addr show | awk -v port='$interface' '\$2 != port && ($owned) {print \$2, \$4}' |
+  while read -r dev address; do ip addr del "\$address" dev "\$dev"; done
 ip addr replace $edge_address/$length dev $interface noprefixroute
 SCRIPT
   [ -n "$provisioning" ] && echo "ip addr replace $provisioning dev $interface"

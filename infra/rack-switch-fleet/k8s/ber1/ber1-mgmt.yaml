@@ -287,3 +287,12 @@ spec:
         spanningTree: true
         nativeVlan: 1
         taggedVlans: []
+  ports:
+    - port: 1
+      purpose: management
+      peer: ber1-edge
+      detail: edge/i226-lm
+    - port: 2
+      purpose: management
+      peer: ber1-svc
+      detail: services/i226-lm
