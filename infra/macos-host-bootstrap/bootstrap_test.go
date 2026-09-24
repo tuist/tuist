@@ -698,6 +698,45 @@ func TestRenderSSHIngressGuardScript_PassesVMEgress(t *testing.T) {
 	}
 }
 
+// A VM that dials the host's en0, LAN or tailnet address on :22 is delivered to
+// the same launchd listener as one that dials the bridge, so blocking the vmnet
+// range alone still lets a customer workload flood the host's backlog. Verified
+// on ber1-proto-01: from inside a runner VM, the host's LAN and tailnet
+// addresses accepted :22 until a `to self` block was loaded. The dynamic
+// `(self)` form loaded cleanly there and blocked nothing, because xnu has no
+// interface groups and leaves its table empty.
+func TestRenderSSHIngressGuardScript_DeniesVMsEveryHostAddress(t *testing.T) {
+	s, err := renderSSHIngressGuardScript(Config{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	const selfBlock = "block drop in quick proto tcp from <vm_ssh_sources> to self port 22"
+	if !strings.Contains(s, selfBlock) {
+		t.Fatalf("renderSSHIngressGuardScript missing %q", selfBlock)
+	}
+	if strings.Index(s, "pass in quick proto tcp from <vm_ssh_sources> to any port 22") < strings.Index(s, selfBlock) {
+		t.Error("VM pass renders before the host-address block; a VM reaches the host's :22 through its en0, LAN or tailnet address")
+	}
+
+	anchor := sshGuardAnchor(t, s)
+	for _, line := range strings.Split(anchor, "\n") {
+		if !strings.HasPrefix(line, "#") && strings.Contains(line, "(self)") {
+			t.Errorf("rule uses the dynamic (self), which macOS pf resolves to an empty table: %q", line)
+		}
+	}
+
+	// pfctl expands the static form to one rule per host address, and every
+	// host has loopback, so a parsed anchor without it means `self` was not
+	// expanded.
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	if !strings.Contains(parsed, "from <vm_ssh_sources> to 127.0.0.1 port = 22") {
+		t.Errorf("pfctl did not expand self to the host's addresses\n%s", parsed)
+	}
+}
+
 // On a fresh host pf is enabled under the bootstrap's own SSH session, so that
 // session reaches the guard with no state. With pf's default `flags S/SA` only a
 // SYN creates state, and the session's next packet falls through to the block.
@@ -706,17 +745,7 @@ func TestRenderSSHIngressGuardScript_PassesAdmitEstablishedSessions(t *testing.T
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	const open = "<<PFCONF\n"
-	start := strings.Index(s, open)
-	if start < 0 {
-		t.Fatalf("no PFCONF heredoc in rendered script\n%s", s)
-	}
-	anchor := s[start+len(open):]
-	end := strings.Index(anchor, "\nPFCONF\n")
-	if end < 0 {
-		t.Fatalf("unterminated PFCONF heredoc\n%s", s)
-	}
-	anchor = strings.ReplaceAll(anchor[:end+1], "${SESSION_ENTRY}", ", 198.51.100.9")
+	anchor := sshGuardAnchor(t, s)
 
 	assertPassesUseFlagsAny := func(source, rules string) {
 		t.Helper()
@@ -736,19 +765,48 @@ func TestRenderSSHIngressGuardScript_PassesAdmitEstablishedSessions(t *testing.T
 	}
 	assertPassesUseFlagsAny("rendered anchor", anchor)
 
+	parsed, ok := pfctlParse(t, anchor)
+	if !ok {
+		return
+	}
+	assertPassesUseFlagsAny("pfctl", parsed)
+}
+
+// sshGuardAnchor returns the pf anchor the guard script writes, with the
+// session source filled in the way the host shell does.
+func sshGuardAnchor(t *testing.T, script string) string {
+	t.Helper()
+	const open = "<<PFCONF\n"
+	start := strings.Index(script, open)
+	if start < 0 {
+		t.Fatalf("no PFCONF heredoc in rendered script\n%s", script)
+	}
+	anchor := script[start+len(open):]
+	end := strings.Index(anchor, "\nPFCONF\n")
+	if end < 0 {
+		t.Fatalf("unterminated PFCONF heredoc\n%s", script)
+	}
+	return strings.ReplaceAll(anchor[:end+1], "${SESSION_ENTRY}", ", 198.51.100.9")
+}
+
+// pfctlParse runs the anchor through `pfctl -n -v`, which parses without
+// loading and prints the rules as pf expands them. ok is false where pfctl is
+// not available, i.e. anywhere but macOS.
+func pfctlParse(t *testing.T, anchor string) (parsed string, ok bool) {
+	t.Helper()
 	pfctl, err := exec.LookPath("pfctl")
 	if err != nil {
-		return
+		return "", false
 	}
 	file := filepath.Join(t.TempDir(), "tuist.sshguard")
 	if err := os.WriteFile(file, []byte(anchor), 0o600); err != nil {
 		t.Fatalf("write anchor: %v", err)
 	}
-	parsed, err := exec.Command(pfctl, "-n", "-v", "-f", file).Output()
+	out, err := exec.Command(pfctl, "-n", "-v", "-f", file).Output()
 	if err != nil {
 		t.Fatalf("pfctl rejects the anchor: %v\n%s", err, anchor)
 	}
-	assertPassesUseFlagsAny("pfctl", string(parsed))
+	return string(out), true
 }
 
 // A malformed allow CIDR must fail closed rather than render a creative
