@@ -161,3 +161,28 @@ render() {
   [ "$(cat "$BATS_TEST_TMPDIR/seed/meta-data")" = "$(printf 'instance-id: ber1-edge-a-ktest1cntrl\nlocal-hostname: ber1-edge-a')" ]
   [ -f "$BATS_TEST_TMPDIR/seed/vendor-data" ]
 }
+
+@test "a stick for any host asks the env's boot server for the install published for the machine" {
+  run rack_boot_server staging
+  [ "$status" -eq 0 ]
+  [ "$output" = http://192.168.50.1:8480 ]
+  run render_stick_seed "$BATS_TEST_TMPDIR/stick" http://192.168.50.1:8480
+  [ "$status" -eq 0 ]
+  seed="$BATS_TEST_TMPDIR/stick"
+  early="$(yq -r '.autoinstall.early-commands[0]' "$seed/user-data")"
+  [[ "$early" == *"server='http://192.168.50.1:8480'"* ]]
+  [[ "$early" == *"cp /run/tuist-user-data /autoinstall.yaml"* ]]
+  [ "$(yq -r '.ethernets.wired.match.name' "$seed/network-config")" = 'e*' ]
+  [ "$(cat "$seed/meta-data")" = "instance-id: tuist-install-stick" ]
+  [ -f "$seed/vendor-data" ]
+  # The operator tells the stick from any other USB disk by this file.
+  [ -f "$seed/tuist-install-stick" ]
+  # It carries nothing of any one host: no key, no password, no hostname.
+  if grep -rqE 'tskey|\$6\$|hostname' "$seed"; then false; fi
+}
+
+@test "an env without a boot server has no stick for any host" {
+  run rack_boot_server production
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"rackLinuxFleet.boot.address"* ]]
+}

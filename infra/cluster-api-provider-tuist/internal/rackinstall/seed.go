@@ -97,6 +97,7 @@ func UserData(s Seed) (string, error) {
 	built := s.Built.UTC().Format("2006-01-02T15:04:05Z")
 
 	return fmt.Sprintf(`#cloud-config
+# tuist-install-id: %[7]s
 autoinstall:
   version: 1
   locale: en_US.UTF-8
@@ -129,20 +130,7 @@ autoinstall:
   shutdown: reboot
   early-commands:
     - |
-      mkdir -p /run/tuist-prev
-      for part in $(lsblk -rpno NAME,FSTYPE | awk '$2 == "ext4" {print $1}'); do
-        mount -o ro "$part" /run/tuist-prev 2>/dev/null || continue
-        if grep -qx 'tailnet_key=%[7]s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null; then
-          for fs in dev proc sys; do mount --rbind "/$fs" "/run/tuist-prev/$fs"; done
-          entry=$(chroot /run/tuist-prev efibootmgr | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} [Uu]buntu.*/\1/p' | head -n 1)
-          [ -n "$entry" ] && chroot /run/tuist-prev efibootmgr -q -n "$entry"
-          echo "tuist: this installer already installed %[1]s; booting the installed system" >/dev/console
-          umount -R /run/tuist-prev
-          reboot -f
-        fi
-        umount /run/tuist-prev
-      done
-  late-commands:
+%[10]s  late-commands:
     - curtin in-target --target=/target -- systemctl enable ssh
     - |
       printf '%%s ALL=(ALL) NOPASSWD:ALL\n' '%[2]s' > /target/etc/sudoers.d/90-%[2]s
@@ -196,7 +184,40 @@ autoinstall:
     - |
       printf 'node=%%s\nrole=%%s\nbuilt=%%s\ntailnet_key=%%s\n' '%[1]s' '%[8]s' '%[9]s' '%[7]s' > /target/etc/tuist-rack-node
       chmod 444 /target/etc/tuist-rack-node
-`, s.Host, s.User, s.PasswordHash, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built), nil
+`, s.Host, s.User, s.PasswordHash, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
+			"this installer already installed "+s.Host), "      ")), nil
+}
+
+// handover boots the rack install on this machine's disks that match selects
+// (a command run with the install's root at /run/tuist-prev) through BootNext,
+// with the installed system's own efibootmgr, instead of installing again.
+func handover(match, reason string) string {
+	return `mkdir -p /run/tuist-prev
+for part in $(lsblk -rpno NAME,FSTYPE | awk '$2 == "ext4" {print $1}'); do
+  mount -o ro "$part" /run/tuist-prev 2>/dev/null || continue
+  if ` + match + `; then
+    for fs in dev proc sys; do mount --rbind "/$fs" "/run/tuist-prev/$fs"; done
+    entry=$(chroot /run/tuist-prev efibootmgr | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*\{0,1\} [Uu]buntu.*/\1/p' | head -n 1)
+    [ -n "$entry" ] && chroot /run/tuist-prev efibootmgr -q -n "$entry"
+    echo "tuist: ` + reason + `; booting the installed system" >/dev/console
+    umount -R /run/tuist-prev
+    reboot -f
+  fi
+  umount /run/tuist-prev
+done
+`
+}
+
+func indent(s, prefix string) string {
+	lines := strings.SplitAfter(s, "\n")
+	var b strings.Builder
+	for _, line := range lines {
+		if line != "" {
+			b.WriteString(prefix + line)
+		}
+	}
+	return b.String()
 }
 
 // MetaData renders the seed's meta-data. The instance ID changes with every

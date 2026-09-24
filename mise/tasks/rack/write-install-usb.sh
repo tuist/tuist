@@ -9,12 +9,17 @@
 # Usage:
 #   mise run rack:write-install-usb <disk> --host <name> [--env staging] [--key-hours 24] [--ssh-key <pubkey>]
 #   mise run rack:write-install-usb --host <name> --output <iso>
+#   mise run rack:write-install-usb <disk> --any-host [--env staging]
 #
 # Run it with no disk and no --output to list the external disks attached.
 # Writing asks for confirmation, then for sudo. A stick installs a machine once:
 # booted again, it hands over to the system it installed. Until the install has
 # used it, the stick is a credential: a lost one is revoked by deleting its key
 # (the ID is printed below) in the Tailscale admin console.
+#
+# --any-host writes the stick that stays in every rack host instead: it carries
+# no host's install and no credential, and installs whatever the env's boot
+# server publishes for the machine it boots, whenever the operator boots it.
 #
 # See infra/rack-nodes/AGENTS.md.
 
@@ -23,6 +28,7 @@ set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 disk=""
 host=""
+any_host=""
 env="staging"
 key_hours=24
 output=""
@@ -31,6 +37,7 @@ ssh_key="$HOME/.ssh/id_ed25519.pub"
 while (( $# )); do
   case "$1" in
     --host) host="${2:-}"; shift 2;;
+    --any-host) any_host=1; shift;;
     --env) env="${2:-}"; shift 2;;
     --key-hours) key_hours="${2:-}"; shift 2;;
     --output) output="${2:-}"; shift 2;;
@@ -41,13 +48,17 @@ while (( $# )); do
 done
 
 if [ -z "$disk" ] && [ -z "$output" ]; then
-  echo "usage: mise run rack:write-install-usb <disk> --host <name> [--env staging]" >&2
+  echo "usage: mise run rack:write-install-usb <disk> (--host <name> | --any-host) [--env staging]" >&2
   echo >&2
   echo "external disks attached:" >&2
   diskutil list external physical >&2 || echo "  none" >&2
   exit 2
 fi
-[ -n "$host" ] || { echo "error: --host names the rack host to install" >&2; exit 2; }
+if [ -n "$host" ] && [ -n "$any_host" ]; then
+  echo "error: --host and --any-host exclude each other" >&2
+  exit 2
+fi
+[ -n "$host" ] || [ -n "$any_host" ] || { echo "error: --host names the rack host to install, or --any-host writes the stick every host keeps" >&2; exit 2; }
 [[ "$key_hours" =~ ^[1-9][0-9]*$ ]] || { echo "error: --key-hours takes a whole number of hours" >&2; exit 2; }
 if [ -n "$disk" ]; then
   case "$disk" in
@@ -75,14 +86,8 @@ source "$root/infra/rack-nodes/build-autoinstall-iso.sh"
 # shellcheck source=/dev/null
 source "$root/infra/rack-nodes/ubuntu-iso.sh"
 
-host_json="$(rack_host_json "$env" "$host")"
-vault="$(jq -r '.vault' <<<"$host_json")"
-ssh_item="$(jq -r '.sshItem' <<<"$host_json")"
-tailscale_item="$(jq -r '.tailscaleItem' <<<"$host_json")"
-[ -n "$ssh_item" ] || { echo "error: rackLinuxFleet.sshExternalSecret.item is not set for $env" >&2; exit 2; }
-[ -n "$tailscale_item" ] || { echo "error: rackLinuxFleet.tailscale.externalSecret.item is not set for $env" >&2; exit 2; }
-
-if [ -n "$disk" ]; then
+confirm_erase() {
+  [ -n "$disk" ] || return 0
   echo
   diskutil info "$disk" | grep -E "Device Node|Volume Name|Disk Size|Device / Media Name" || true
   echo
@@ -92,7 +97,54 @@ if [ -n "$disk" ]; then
     echo "aborted" >&2
     exit 1
   fi
+}
+
+write_image() {
+  diskutil unmountDisk "$disk"
+  echo "writing (a few minutes; Ctrl-T shows progress)"
+  sudo dd if="$1" of="${disk/\/dev\/disk//dev/rdisk}" bs=4m
+  sync
+  diskutil eject "$disk"
+}
+
+release=24.04
+
+if [ -n "$any_host" ]; then
+  server="$(rack_boot_server "$env")"
+  confirm_erase
+  workdir="$(mktemp -d)"
+  trap 'rm -rf "$workdir"' EXIT
+  render_stick_seed "$workdir/seed" "$server"
+  iso="$(ensure_ubuntu_iso "$release")"
+  echo "$(basename "$iso") verified against Ubuntu's SHA256SUMS"
+  image="$workdir/tuist-install-$env.iso"
+  build_autoinstall_iso "$iso" "$image" "$workdir/seed"
+  if [ -n "$output" ]; then
+    cp "$image" "$output"
+    echo "wrote $output: it installs whatever $server publishes for the machine it boots"
+    exit 0
+  fi
+  write_image "$image"
+  cat <<EOF
+
+Done. Plug this stick into a rack host of $env and leave it there. A host with
+an empty disk boots it by itself, and the operator boots it once to reinstall a
+running one. Its installer asks $server for the install
+published for the machine, and waits until there is one. Watch it with:
+
+  kubectl get racklinuxhost -w
+EOF
+  exit 0
 fi
+
+host_json="$(rack_host_json "$env" "$host")"
+vault="$(jq -r '.vault' <<<"$host_json")"
+ssh_item="$(jq -r '.sshItem' <<<"$host_json")"
+tailscale_item="$(jq -r '.tailscaleItem' <<<"$host_json")"
+[ -n "$ssh_item" ] || { echo "error: rackLinuxFleet.sshExternalSecret.item is not set for $env" >&2; exit 2; }
+[ -n "$tailscale_item" ] || { echo "error: rackLinuxFleet.tailscale.externalSecret.item is not set for $env" >&2; exit 2; }
+
+confirm_erase
 
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
@@ -123,7 +175,6 @@ echo "minted tailnet key $key_id: single-use, tagged $tags, expires in ${key_hou
 
 render_autoinstall "$workdir/seed" "$host_json" "$workdir/console-password" "$workdir/authorized_keys" "$workdir/tailnet-key" "$key_id"
 
-release=24.04
 iso="$(ensure_ubuntu_iso "$release")"
 echo "$(basename "$iso") verified against Ubuntu's SHA256SUMS"
 image="$workdir/$host.iso"
@@ -135,11 +186,7 @@ if [ -n "$output" ]; then
   exit 0
 fi
 
-diskutil unmountDisk "$disk"
-echo "writing (a few minutes; Ctrl-T shows progress)"
-sudo dd if="$image" of="${disk/\/dev\/disk//dev/rdisk}" bs=4m
-sync
-diskutil eject "$disk"
+write_image "$image"
 
 cat <<EOF
 

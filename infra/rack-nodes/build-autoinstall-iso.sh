@@ -20,7 +20,7 @@ build_autoinstall_iso() {
   xorriso -osirrox on -indev "$base_iso" -extract / "$tree" >/dev/null 2>&1
   chmod -R u+w "$tree"
   mkdir -p "$tree/nocloud"
-  cp "$seed"/user-data "$seed"/meta-data "$seed"/vendor-data "$tree/nocloud/"
+  cp "$seed"/* "$tree/nocloud/"
 
   # The seed path needs its trailing slash, and the semicolon is quoted so GRUB
   # does not read it as a command separator and drop everything after it.

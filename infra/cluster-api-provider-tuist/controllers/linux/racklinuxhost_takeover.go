@@ -88,12 +88,12 @@ func (r *RackLinuxHostReconciler) takeOver(ctx context.Context, host, running *i
 	if inst.TriggeredAt != nil {
 		if running != nil && now.Sub(inst.TriggeredAt.Time) > rackReinstallBootTimeout {
 			conditions.MarkFalse(host, InstalledCondition, "ReinstallDidNotBoot", clusterv1.ConditionSeverityWarning,
-				"the box was rebooted at %s to netboot %s's install and came back as %s; check its network boot entry and the boot server, then boot it from the network by hand",
+				"the box was rebooted at %s into its installer for %s's install and came back as %s; check its install stick or network boot entry and the boot server, then boot either by hand",
 				inst.TriggeredAt.UTC().Format(time.RFC3339), host.Name, running.Name)
 			return 0, nil
 		}
 		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-			"the box was rebooted to netboot install %s", inst.KeyID)
+			"the box was rebooted into its installer for install %s", inst.KeyID)
 		return 0, nil
 	}
 	if wait := inst.OfferedAt.Add(rackBootPropagation).Sub(now); wait > 0 {
@@ -101,20 +101,20 @@ func (r *RackLinuxHostReconciler) takeOver(ctx context.Context, host, running *i
 			"rebooting the box, which runs as %s, into install %s once the boot server serves it", running.Name, inst.KeyID)
 		return wait, nil
 	}
-	if err := r.netbootOnce(ctx, running); err != nil {
+	if err := r.bootInstallerOnce(ctx, running); err != nil {
 		r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted",
-			"Could not reboot %s's box into %s's network boot: %v", running.Name, host.Name, err)
+			"Could not reboot %s's box into %s's installer: %v", running.Name, host.Name, err)
 		conditions.MarkFalse(host, InstalledCondition, "ReinstallNotStarted", clusterv1.ConditionSeverityWarning, "%v", err)
 		return time.Minute, nil
 	}
 	triggered := metav1.NewTime(now)
 	inst.TriggeredAt = &triggered
-	message := fmt.Sprintf("Rebooted %s's box (bootMAC %s) to netboot install %s once, so that it becomes %s",
+	message := fmt.Sprintf("Rebooted %s's box (bootMAC %s) into its installer once, for install %s, so that it becomes %s",
 		running.Name, host.Spec.BootMAC, inst.KeyID, host.Name)
 	r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "%s", message)
 	r.Recorder.Eventf(running, corev1.EventTypeNormal, "Replacing", "%s", message)
 	conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-		"the box was rebooted to netboot install %s", inst.KeyID)
+		"the box was rebooted into its installer for install %s", inst.KeyID)
 	return 0, nil
 }
 

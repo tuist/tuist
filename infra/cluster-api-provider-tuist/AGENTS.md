@@ -609,7 +609,7 @@ the older one and renames the newest to the host's name. Two connected devices
 are left alone and reported as `DuplicateDevices`. The machine reconciler keys
 reinstalls off the device ID: a new one re-pins the SSH host key.
 
-**The host controller publishes netboot installs** (`racklinuxhost_install.go`,
+**The host controller publishes installs** (`racklinuxhost_install.go`,
 rendered by `internal/rackinstall`) when `--rack-linux-fleet-name` and
 `--rack-linux-install-server-url` are set. For a host with `spec.bootMAC` that
 is not on the tailnet, or that carries `tuist.dev/reinstall=true`, it mints a
@@ -619,8 +619,12 @@ the `<fleet>-boot` Secret, which the rack boot server serves, again whenever the
 Secret lost them; `status.install` records the key, the MAC and the device the
 install replaces. The fleet key's public half and `--rack-linux-authorized-key`
 are authorized, and the console password is minted once per host into
-`<fleet>-console`. A reinstall of a connected host sets `BootNext` to its PXE
-entry for the MAC over SSH, two minutes after publishing, and reboots it, once.
+`<fleet>-console`. A host's installer is its install stick, which fetches the
+seed for its MAC from the boot server (`rackinstall.StickUserData`), or a
+netboot. A reinstall of a connected host sets `BootNext` over SSH, two minutes
+after publishing, and reboots it, once: to a boot entry the script creates for
+a USB disk carrying `nocloud/tuist-install-stick`, or else to the PXE entry for
+the MAC.
 A new device other than the replaced one withdraws the install and removes the
 annotation. An `edge` host gets an install only while another `edge` of the
 same `spec.location.site` is connected to the tailnet to serve it, or once it
@@ -702,7 +706,7 @@ is how to force a re-join.
 ```bash
 kubectl get rlh                     # hosts: pool, role, tailnet address, connected, claim
 kubectl get rlh -o wide             # plus the device and a published install's key
-kubectl annotate rlh <host> tuist.dev/reinstall=true   # netboot a new install
+kubectl annotate rlh <host> tuist.dev/reinstall=true   # boot a new install
 kubectl delete rlh <host>           # retire a host the chart no longer declares
 kubectl get rlm -o wide             # machines: host, phase, last converge
 kubectl describe rlm <name>         # HostConverged / TailnetReady / NodeReady, events

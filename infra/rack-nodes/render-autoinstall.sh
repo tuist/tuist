@@ -31,3 +31,17 @@ render_autoinstall() {
         -tailnet-key-id "$tailnet_key_id"
   ) <"$password_file"
 }
+
+# Renders the seed of a stick that installs any host: its installer asks the
+# boot server at <server> for the install published for the machine it runs
+# on. It carries no host's install and no credential.
+# Sourced: render_stick_seed <outdir> <server>
+render_stick_seed() {
+  local outdir="$1" server="$2" module
+  module="$(git rev-parse --show-toplevel)/infra/cluster-api-provider-tuist"
+  if ! command -v go >/dev/null; then
+    echo "error: go is needed to render the seed (brew install go)" >&2
+    return 1
+  fi
+  (cd "$module" && go run ./cmd/rack-seed -out "$outdir" -stick-server "$server")
+}

@@ -27,7 +27,7 @@ import (
 
 const (
 	// InstalledCondition reports whether the host runs the install it should.
-	// It is False while an install is published for the host to netboot.
+	// It is False while an install is published for the host to boot.
 	InstalledCondition clusterv1.ConditionType = "Installed"
 
 	// RackReinstallAnnotation set to "true" on a RackLinuxHost reinstalls it
@@ -44,11 +44,11 @@ const (
 	// Secret volume, so a host is not rebooted before its install is served.
 	rackBootPropagation      = 2 * time.Minute
 	rackReinstallBootTimeout = 30 * time.Minute
-	rackNetbootOnceTimeout   = time.Minute
+	rackBootInstallerTimeout = time.Minute
 	rackConsolePasswordChars = 24
 )
 
-// RackInstall publishes installs for rack Linux hosts to netboot. The rack's
+// RackInstall publishes installs for rack Linux hosts to boot. The rack's
 // boot server (the rack-boot DaemonSet on the site's edge nodes) serves what
 // the operator writes to the <fleet>-boot Secret.
 type RackInstall struct {
@@ -57,7 +57,7 @@ type RackInstall struct {
 	// and <fleet>-console, each host's console password.
 	FleetName string
 
-	// ServerURL is the boot server's HTTP address as a netbooting host on the
+	// ServerURL is the boot server's HTTP address as a host's installer on the
 	// rack's management segment reaches it.
 	ServerURL string
 
@@ -73,8 +73,8 @@ func rackConsoleSecretName(fleet string) string { return fleet + "-console" }
 // device shows the install ran. An edge's install is published only while
 // another edge of its site is connected to serve it, or once the edge was
 // rebooted into it. A requested reinstall of a running host is started by
-// setting its firmware to netboot once and rebooting it. A host declaring the
-// boot MAC of a host declared before it takes that box over
+// setting its firmware to boot its installer once and rebooting it. A host
+// declaring the boot MAC of a host declared before it takes that box over
 // (racklinuxhost_takeover.go). It returns how soon to look again, zero for the
 // usual interval.
 func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *infrav1.RackLinuxHost) (time.Duration, error) {
@@ -117,7 +117,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			return 0, err
 		}
 		r.Recorder.Eventf(host, corev1.EventTypeNormal, "Installed",
-			"%s netbooted install %s and joined the tailnet as %s", host.Name, inst.KeyID, device.DeviceID)
+			"%s ran install %s and joined the tailnet as %s", host.Name, inst.KeyID, device.DeviceID)
 		delete(host.Annotations, RackReinstallAnnotation)
 		conditions.MarkTrue(host, InstalledCondition)
 		return 0, r.retireReplaced(ctx, host, twins)
@@ -182,24 +182,24 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			return r.takeOver(ctx, host, running, now)
 		}
 		conditions.MarkFalse(host, InstalledCondition, "WaitingForNetboot", clusterv1.ConditionSeverityInfo,
-			"install %s is published for %s; the host installs itself when it netboots, which it does on its own with an empty disk (otherwise pick its network boot entry once)",
+			"install %s is published for %s; the host installs itself when it boots its install stick or netboots, which it does on its own with an empty disk (otherwise pick either boot entry once)",
 			inst.KeyID, host.Spec.BootMAC)
 		return 0, nil
 	}
 	if inst.TriggeredAt != nil {
 		if device.Connected && now.Sub(inst.TriggeredAt.Time) > rackReinstallBootTimeout {
 			conditions.MarkFalse(host, InstalledCondition, "ReinstallDidNotBoot", clusterv1.ConditionSeverityWarning,
-				"%s was rebooted to netboot at %s and came back on its old install; check its network boot entry and the boot server, then remove the %s annotation and set it again",
+				"%s was rebooted into its installer at %s and came back on its old install; check its install stick or network boot entry and the boot server, then remove the %s annotation and set it again",
 				host.Name, inst.TriggeredAt.UTC().Format(time.RFC3339), RackReinstallAnnotation)
 			return 0, nil
 		}
 		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-			"%s was rebooted to netboot install %s", host.Name, inst.KeyID)
+			"%s was rebooted into its installer for install %s", host.Name, inst.KeyID)
 		return 0, nil
 	}
 	if !device.Connected {
 		conditions.MarkFalse(host, InstalledCondition, "WaitingForNetboot", clusterv1.ConditionSeverityWarning,
-			"install %s is published, but %s is offline, so the operator cannot reboot it into it; boot it from the network by hand",
+			"install %s is published, but %s is offline, so the operator cannot reboot it into it; boot its install stick or network entry by hand",
 			inst.KeyID, host.Name)
 		return 0, nil
 	}
@@ -208,16 +208,16 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			"rebooting %s into install %s once the boot server serves it", host.Name, inst.KeyID)
 		return wait, nil
 	}
-	if err := r.netbootOnce(ctx, host); err != nil {
-		r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not reboot %s into its network boot: %v", host.Name, err)
+	if err := r.bootInstallerOnce(ctx, host); err != nil {
+		r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not reboot %s into its installer: %v", host.Name, err)
 		conditions.MarkFalse(host, InstalledCondition, "ReinstallNotStarted", clusterv1.ConditionSeverityWarning, "%v", err)
 		return time.Minute, nil
 	}
 	triggered := metav1.NewTime(now)
 	inst.TriggeredAt = &triggered
-	r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Rebooted %s to netboot install %s once", host.Name, inst.KeyID)
+	r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Rebooted %s into its installer once, for install %s", host.Name, inst.KeyID)
 	conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-		"%s was rebooted to netboot install %s", host.Name, inst.KeyID)
+		"%s was rebooted into its installer for install %s", host.Name, inst.KeyID)
 	return 0, nil
 }
 
@@ -422,9 +422,10 @@ func randomPassword(n int) (string, error) {
 	return string(out), nil
 }
 
-// netbootOnce sets the running host's firmware to boot its network entry on
-// the next boot only, then reboots it.
-func (r *RackLinuxHostReconciler) netbootOnce(ctx context.Context, host *infrav1.RackLinuxHost) error {
+// bootInstallerOnce sets the running host's firmware to boot its installer, the
+// install stick or else its network entry, on the next boot only, then reboots
+// it.
+func (r *RackLinuxHostReconciler) bootInstallerOnce(ctx context.Context, host *infrav1.RackLinuxHost) error {
 	egress := r.egress()
 	if err := egress.ensure(ctx, r.Client, host); err != nil {
 		return fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
@@ -453,28 +454,57 @@ func (r *RackLinuxHostReconciler) netbootOnce(ctx context.Context, host *infrav1
 		run = runRackScriptOverSSH
 	}
 	out, err := run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key,
-		renderNetbootOnceScript(host.Spec.BootMAC), rackNetbootOnceTimeout, hk)
+		renderBootInstallerOnceScript(host.Spec.BootMAC), rackBootInstallerTimeout, hk)
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(out))
 	}
 	return nil
 }
 
-// renderNetbootOnceScript sets BootNext to the firmware's IPv4 network boot
-// entry for mac and reboots a few seconds later, after the SSH session ends.
-func renderNetbootOnceScript(mac string) string {
+// renderBootInstallerOnceScript sets BootNext to the host's installer and
+// reboots a few seconds later, after the SSH session ends. The installer is the
+// install stick when one is plugged in, which boots with the firmware as it
+// ships, and otherwise the firmware's IPv4 network boot entry for mac. The
+// stick gets a boot entry of its own, left out of BootOrder, since the firmware
+// lists a removable disk only after booting with it.
+func renderBootInstallerOnceScript(mac string) string {
 	return fmt.Sprintf(`set -eu
-mac=%s
-entry=$(efibootmgr -v | awk -v mac="$mac" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { l = tolower($0); if (index(l, "mac(" mac) && index(l, "ipv4(") && !index(l, "uri(")) { print substr($1, 5, 4); exit } }')
+mac=%[1]s
+label='tuist install stick'
+entries() {
+  efibootmgr | awk -v label="$label" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { name = substr($0, 9); sub(/^[* ] /, "", name); sub(/\t.*/, "", name); if (name == label) print substr($1, 5, 4) }'
+}
+entry= via=
+for disk in $(lsblk -dnpo NAME,TRAN,TYPE | awk '$2 == "usb" && $3 == "disk" {print $1}'); do
+  esp=$(lsblk -lnpo NAME,PARTTYPE "$disk" | awk 'tolower($2) == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $1; exit}')
+  [ -n "$esp" ] || continue
+  mnt=$(mktemp -d)
+  stick=
+  if mount -o ro -t iso9660 "$disk" "$mnt" 2>/dev/null; then
+    [ -f "$mnt/nocloud/%[3]s" ] && stick=1
+    umount "$mnt"
+  fi
+  rmdir "$mnt"
+  [ -n "$stick" ] || continue
+  for old in $(entries); do efibootmgr -q -b "$old" -B; done
+  efibootmgr -q -C -d "$disk" -p "${esp##*[!0-9]}" -L "$label" -l '\EFI\BOOT\BOOTX64.EFI'
+  entry=$(entries | head -n 1)
+  via="the install stick $disk"
+  break
+done
 if [ -z "$entry" ]; then
-  echo "no IPv4 network boot entry for %s among the firmware's boot entries:" >&2
+  entry=$(efibootmgr -v | awk -v mac="$mac" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { l = tolower($0); if (index(l, "mac(" mac) && index(l, "ipv4(") && !index(l, "uri(")) { print substr($1, 5, 4); exit } }')
+  via="the network"
+fi
+if [ -z "$entry" ]; then
+  echo "no install stick and no IPv4 network boot entry for %[2]s among the firmware's boot entries:" >&2
   efibootmgr -v >&2
   exit 3
 fi
 efibootmgr -q -n "$entry"
-echo "tuist-netboot: BootNext=$entry"
+echo "tuist-install: BootNext=$entry, $via"
 nohup sh -c 'sleep 3; systemctl reboot' >/dev/null 2>&1 &
-`, strings.ReplaceAll(strings.ToLower(mac), ":", ""), mac)
+`, strings.ReplaceAll(strings.ToLower(mac), ":", ""), mac, rackinstall.StickMarker)
 }
 
 // scaleUpPool raises the replicas of the MachineDeployment claiming the host's

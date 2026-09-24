@@ -34,11 +34,15 @@ func run(args []string, stdin io.Reader) error {
 	keysFile := fs.String("authorized-keys", "", "file of SSH public keys to authorize, one per line")
 	keyFile := fs.String("tailnet-key-file", "", "file holding the single-use tailnet join key")
 	keyID := fs.String("tailnet-key-id", "", "the join key's ID")
+	stickServer := fs.String("stick-server", "", "render the seed of a stick that installs any host, which asks the boot server at this address for the install published for the machine, instead of one host's")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *out == "" {
 		return fmt.Errorf("-out is required")
+	}
+	if *stickServer != "" {
+		return writeStickSeed(*out, *stickServer)
 	}
 
 	password, err := io.ReadAll(io.LimitReader(stdin, 4096))
@@ -92,6 +96,28 @@ func run(args []string, stdin io.Reader) error {
 		"vendor-data": "",
 	} {
 		if err := os.WriteFile(filepath.Join(*out, name), []byte(content), 0o600); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeStickSeed(out, server string) error {
+	userData, err := rackinstall.StickUserData(server)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		return err
+	}
+	for name, content := range map[string]string{
+		"user-data":             userData,
+		"meta-data":             rackinstall.StickMetaData(),
+		"vendor-data":           "",
+		"network-config":        rackinstall.StickNetworkConfig(),
+		rackinstall.StickMarker: "",
+	} {
+		if err := os.WriteFile(filepath.Join(out, name), []byte(content), 0o644); err != nil {
 			return err
 		}
 	}

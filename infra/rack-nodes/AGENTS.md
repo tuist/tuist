@@ -1,12 +1,15 @@
 # Rack nodes
 
 How the BER1 rack's x86 Linux machines (the MS-01s: the two edges and the
-storage pair) become cluster nodes. A host netboots from the rack's edges,
-installs Ubuntu, joins the tailnet on first boot, and the cluster's operator
-joins it as a node and keeps it converged. Nobody touches it: a box with an
-empty disk netboots on its own, and a running one is reinstalled with an
-annotation. The edges run the boot server, each installing the other, so only
-the first edge of a site is installed from a stick.
+storage pair) become cluster nodes. A host boots its installer, installs
+Ubuntu, joins the tailnet on first boot, and the cluster's operator joins it as
+a node and keeps it converged. The installer is the install stick every host
+keeps plugged in, which boots with the firmware as it ships, or a netboot from
+the rack's edges, which needs the firmware's network stack on and Secure Boot
+off. Either way it installs what the edges' boot server publishes for the host:
+a box with an empty disk boots it on its own, and a running one is reinstalled
+with an annotation. The edges run the boot server, each serving the other, so
+only the first edge of a site is installed from a stick of its own.
 
 ## The pieces
 
@@ -34,6 +37,30 @@ the first edge of a site is installed from a stick.
 A host that is declared but not installed does not hold up a deploy: the chart
 renders each rack MachineDeployment at its live replicas, and the host
 controller scales it up as the pool's hosts come onto the tailnet.
+
+## The install stick
+
+Every host keeps the install stick plugged in. It is the same for every host of
+an env and carries no credential:
+
+```
+mise run rack:write-install-usb /dev/disk4 --any-host
+```
+
+Its installer takes DHCP on every wired port, asks the boot server for
+`hosts/<mac>/user-data` for each of its NICs, and installs the first it gets:
+the seed a netboot reads (below). With nothing published it waits, and after
+five minutes it boots a rack install already on the disks instead of holding
+the machine. The seed carries its install's key ID (`# tuist-install-id:`), so a
+stick booted again after its install hands over to that system, as a netboot
+does.
+
+- A box with an empty disk boots the stick on its own, with the firmware's
+  defaults: Secure Boot on and the network stack off.
+- To reinstall a running host, the operator looks for a USB disk whose ISO
+  carries `nocloud/tuist-install-stick`, gives its EFI partition a boot entry of
+  its own (`tuist install stick`, left out of `BootOrder`), sets `BootNext` to
+  it and reboots. A host without one netboots instead.
 
 ## Netboot
 
@@ -73,15 +100,14 @@ The installer can get its default route from its provisioning lease, through
 the edge, as well as from the uplinks' DHCP, so each edge translates the
 provisioning range onto its uplinks as well as into the tailnet.
 
-**Racking an MS-01.** Its firmware ships with the network stack off, so it never
-netboots. Once, in Setup: Advanced → Network Stack Configuration → Network
-Stack and IPv4 PXE Support enabled; Security → Secure Boot disabled. Then it
-netboots whenever its disk does not boot, and the operator's reinstalls work.
+**Racking an MS-01** is its cables and the install stick. Its firmware stays as
+it ships: with its disk empty it boots the stick, which installs it once the
+host is declared. Netbooting instead needs, once, in Setup: Advanced → Network
+Stack Configuration → Network Stack and IPv4 PXE Support enabled; Security →
+Secure Boot disabled. Then it netboots whenever its disk does not boot.
 
-**A fresh box** installs itself when powered on with its disk empty: the disk has
-no boot entry, so the firmware falls through to PXE. A disk that already boots
-something is booted first; pick the i226-LM's network entry from the boot menu
-(F7 on the MS-01) once.
+**A box whose disk already boots something** boots that first; pick the stick,
+or the i226-LM's network entry, from the boot menu (F7 on the MS-01) once.
 
 **Reinstalling a running host:**
 
@@ -94,8 +120,8 @@ People annotate through the kubectl gateway's `tuist-fleet-unwedge` role
 production.
 
 The operator publishes the install, waits two minutes for the boot server to
-have it, then sets `BootNext` to the host's PXE entry for its `bootMAC` over SSH
-and reboots it. It does this once: a host that comes back on its old install
+have it, then sets `BootNext` to the host's install stick, or without one to its
+PXE entry for its `bootMAC`, over SSH and reboots it. It does this once: a host that comes back on its old install
 reports `Installed` False with `ReinstallDidNotBoot` after half an hour, and
 removing the annotation and setting it again tries again. The new install
 registers a new tailnet device; once it is connected the host controller deletes
@@ -145,7 +171,7 @@ host's tags, and anything on the management switch can fetch it from the boot
 server until the install has used it. Keys expire after a day, and the operator
 publishes a fresh one while the host still needs it.
 
-## The stick
+## A host's own stick
 
 An edge netboots from the other edge: the operator publishes its install only
 while another edge of its site is on the tailnet to serve it. The first edge of

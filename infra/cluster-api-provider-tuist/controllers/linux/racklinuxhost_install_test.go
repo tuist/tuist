@@ -3,9 +3,6 @@ package linux
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -524,63 +521,6 @@ func TestRackPoolNeverScalesDown(t *testing.T) {
 	}
 	if *md.Spec.Replicas != 3 {
 		t.Fatalf("replicas %d", *md.Spec.Replicas)
-	}
-}
-
-func TestNetbootOnceScriptSetsBootNextToTheBootNIC(t *testing.T) {
-	bash, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("no bash")
-	}
-	bin := t.TempDir()
-	calls := filepath.Join(bin, "calls")
-	fakes := map[string]string{
-		"efibootmgr": `if [ "${1:-}" = -v ]; then cat <<'OUT'
-BootCurrent: 0004
-BootOrder: 0004,0001,0002,0003
-Boot0001* UEFI PXEv4 (MAC:5847CA7A1B2C)	PciRoot(0x0)/Pci(0x1c,0x0)/Pci(0x0,0x0)/MAC(5847ca7a1b2c,0)/IPv4(0.0.0.0,0,DHCP,0.0.0.0,0.0.0.0,0.0.0.0)
-Boot0002* UEFI HTTPv4 (MAC:38052538B5B5)	PciRoot(0x0)/Pci(0x1c,0x4)/Pci(0x0,0x0)/MAC(38052538b5b5,0)/IPv4(0.0.0.0,0,DHCP,0.0.0.0,0.0.0.0,0.0.0.0)/Uri()
-Boot0003* UEFI PXEv4 (MAC:38052538B5B5)	PciRoot(0x0)/Pci(0x1c,0x4)/Pci(0x0,0x0)/MAC(38052538b5b5,0)/IPv4(0.0.0.0,0,DHCP,0.0.0.0,0.0.0.0,0.0.0.0)
-Boot0004* Ubuntu	HD(1,GPT,5c1d6e2a-0000-0000-0000-000000000000,0x800,0x219800)/File(\EFI\ubuntu\shimx64.efi)
-OUT
-else echo "efibootmgr $*" >>"` + calls + `"; fi`,
-		"systemctl": `echo "systemctl $*" >>"` + calls + `"`,
-		"sleep":     `:`,
-	}
-	for name, body := range fakes {
-		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	run := func(mac string) (string, error) {
-		cmd := exec.Command(bash, "-s")
-		cmd.Stdin = strings.NewReader(renderNetbootOnceScript(mac))
-		cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"))
-		out, err := cmd.CombinedOutput()
-		return string(out), err
-	}
-
-	out, err := run(svcMAC)
-	if err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		recorded, _ := os.ReadFile(calls)
-		if strings.Contains(string(recorded), "systemctl reboot") {
-			if !strings.Contains(string(recorded), "efibootmgr -q -n 0003") {
-				t.Fatalf("calls %q, want BootNext set to the PXEv4 entry of the boot NIC", recorded)
-			}
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("no reboot; calls %q output %q", recorded, out)
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	if out, err := run("aa:bb:cc:dd:ee:ff"); err == nil || !strings.Contains(out, "no IPv4 network boot entry for aa:bb:cc:dd:ee:ff") {
-		t.Fatalf("a MAC without an entry: err %v output %q", err, out)
 	}
 }
 
