@@ -139,7 +139,8 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     /// being prepared, so the proxy launches against it rather than without a remote.
     ///
     /// Builds only ever talk to the proxy, which starts without a remote when none is ready and
-    /// adopts it once it serves, so setup is the one place that can say the cache is not ready yet.
+    /// adopts it once it serves, so setup is the one place that can say the cache is not ready yet, or
+    /// not available to the logged-in account.
     private func waitForRemoteCache(fullHandle: String, serverURL: URL) async {
         let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
         do {
@@ -148,6 +149,11 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             AlertController.current.warning(.alert(
                 "The remote cache is still being prepared.",
                 takeaway: "Builds use the local compilation cache until it is ready, and start using the remote cache without running setup again."
+            ))
+        } catch let CacheURLStoreError.forbidden(message) {
+            AlertController.current.warning(.alert(
+                "\(message)",
+                takeaway: "Builds use the local compilation cache."
             ))
         } catch {
             Logger.current.debug("Could not check the remote cache endpoint for \(fullHandle): \(error.localizedDescription)")
