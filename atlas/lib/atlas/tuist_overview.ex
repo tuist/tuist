@@ -5,18 +5,21 @@ defmodule Atlas.TuistOverview do
   Each metric is measured through `Atlas.TuistServer`'s read-only Postgres and
   ClickHouse proxies, so Atlas never talks to the Tuist databases directly.
   A single `measure/2` call returns, per metric, the headline value for the
-  selected time range, the previous-period delta, and a daily series suitable
-  for a line or bar chart.
+  selected time range, the previous-period delta, and a series suitable for a
+  line or bar chart.
 
+  The series is bucketed by `granularity/2`: per day for windows of up to 30
+  days, per week for windows of up to six months, and per month beyond that.
   Users / organizations / projects are all-time cumulative counts (their value
-  grows over time), so their series is a per-day snapshot. Jobs and cache
-  operations are event streams, so their series is a per-day count within the
-  window. Active users is a distinct count: its series is the number of users
-  who ran something on each day, and its headline is the average of those days
-  rather than a sum, which for a distinct count would double-count anyone
-  active on more than one day. It also carries a `trend` series: a seven-day
-  trailing mean of the daily counts, which cancels the weekday/weekend cycle so
-  the direction of travel is readable.
+  grows over time), so each bucket holds the snapshot at its last day. Jobs and
+  cache operations are event streams, so each bucket holds the count of events
+  within it. Active users is a distinct count: each day holds the number of
+  users who ran something that day, a week or month bucket holds the average of
+  its days, and the headline is the average over the window. Summing would
+  double-count anyone active on more than one day. Daily series also carry a
+  `trend` series: a seven-day trailing mean of the daily counts, which cancels
+  the weekday/weekend cycle so the direction of travel is readable. Weekly and
+  monthly buckets already average that cycle away, so they drop the trend.
 
   When the Tuist server is not reachable (dev, tests without a projected SA
   token) `measure/2` falls back to illustrative sample series in dev so the
@@ -66,6 +69,19 @@ defmodule Atlas.TuistOverview do
 
   def preset(id) when is_binary(id), do: Enum.find(@presets, &(&1.id == id))
   def preset(_id), do: nil
+
+  @doc """
+  Returns the chart bucket size for the inclusive `start_date..end_date` window:
+  `:day` for up to 30 days, `:week` for up to six calendar months and `:month`
+  beyond that.
+  """
+  def granularity(%Date{} = start_date, %Date{} = end_date) do
+    cond do
+      date_range_days(start_date, end_date) <= 30 -> :day
+      Date.after?(start_date, Date.shift(end_date, month: -6)) -> :week
+      true -> :month
+    end
+  end
 
   @doc """
   Fetches the most recently created Tuist organizations for the sidebar table.
@@ -163,7 +179,8 @@ defmodule Atlas.TuistOverview do
 
   `range` is `{start_date, end_date}` (inclusive, `Date` structs). The
   returned map keys every metric with either `{:ok, %{total, delta_pct,
-  series}}` (series is a list of `[iso_date, value]` tuples) or
+  granularity, series}}` (series is a list of `{date, value}` tuples, one per
+  `granularity/2` bucket, keyed by the bucket's first day inside the window) or
   `{:error, reason}`.
   """
   def measure(range, opts \\ [])
@@ -180,11 +197,16 @@ defmodule Atlas.TuistOverview do
     cond do
       configured_fun.() ->
         Map.new(@all_metrics, fn metric ->
-          {metric, measure_metric(metric, {start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)}
+          {metric,
+           metric
+           |> measure_metric({start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)
+           |> group_series(metric, start_date, end_date)}
         end)
 
       Environment.dev?() ->
-        Map.new(@all_metrics, fn metric -> {metric, sample_measure(metric, start_date, end_date)} end)
+        Map.new(@all_metrics, fn metric ->
+          {metric, metric |> sample_measure(start_date, end_date) |> group_series(metric, start_date, end_date)}
+        end)
 
       true ->
         Map.new(@all_metrics, &{&1, {:error, :not_configured}})
@@ -212,10 +234,12 @@ defmodule Atlas.TuistOverview do
 
     cond do
       configured_fun.() ->
-        measure_metric(metric, {start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)
+        metric
+        |> measure_metric({start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)
+        |> group_series(metric, start_date, end_date)
 
       Environment.dev?() ->
-        sample_measure(metric, start_date, end_date)
+        metric |> sample_measure(start_date, end_date) |> group_series(metric, start_date, end_date)
 
       true ->
         {:error, :not_configured}
@@ -527,6 +551,47 @@ defmodule Atlas.TuistOverview do
     |> Date.range(end_date)
     |> Enum.map(fn day -> {day, Map.get(map, day, 0)} end)
   end
+
+  defp group_series({:ok, %{series: series} = measurement}, metric, start_date, end_date) do
+    granularity = granularity(start_date, end_date)
+
+    {:ok,
+     measurement
+     |> Map.put(:series, bucket_series(series, granularity, metric))
+     |> Map.put(:granularity, granularity)
+     |> group_trend(granularity)}
+  end
+
+  defp group_series(error, _metric, _start_date, _end_date), do: error
+
+  defp group_trend(measurement, :day), do: measurement
+  defp group_trend(measurement, _granularity), do: Map.delete(measurement, :trend)
+
+  defp bucket_series(series, :day, _metric), do: series
+
+  # Buckets follow calendar weeks (Monday-first) and months, so a window that
+  # starts mid-week or mid-month has a partial first bucket. Each bucket is
+  # keyed by its first day inside the window rather than the calendar start,
+  # so the chart never shows a date outside the selected range.
+  defp bucket_series(series, granularity, metric) do
+    series
+    |> Enum.chunk_by(fn {day, _value} -> bucket_start(day, granularity) end)
+    |> Enum.map(fn [{first_day, _value} | _rest] = bucket ->
+      {first_day, bucket_value(bucket, metric)}
+    end)
+  end
+
+  defp bucket_start(day, :week), do: Date.beginning_of_week(day)
+  defp bucket_start(day, :month), do: Date.beginning_of_month(day)
+
+  defp bucket_value(bucket, metric) when metric in @cumulative_metrics do
+    {_last_day, value} = List.last(bucket)
+    value
+  end
+
+  defp bucket_value(bucket, metric) when metric in @distinct_metrics, do: average_daily(bucket)
+
+  defp bucket_value(bucket, _metric), do: Enum.reduce(bucket, 0, fn {_day, value}, acc -> acc + value end)
 
   defp date_range_days(%Date{} = start_date, %Date{} = end_date), do: Date.diff(end_date, start_date) + 1
 
