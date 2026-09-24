@@ -32,6 +32,20 @@ defmodule Tuist.OnceEvents do
   # ---- Writes -----------------------------------------------------------
 
   @doc """
+  Record that `run`'s results reached the shared test store, so a replayed
+  `RunCompleted` does not publish them a second time.
+  """
+  def mark_test_report_published(%Run{} = run) do
+    now = DateTime.truncate(DateTime.utc_now(), :microsecond)
+
+    Run
+    |> where([r], r.id == ^run.id)
+    |> Repo.update_all(set: [test_report_published_at: now, updated_at: now])
+
+    :ok
+  end
+
+  @doc """
   Every test case staged for `run`, oldest first. This is what
   `Tuist.OnceEvents.TestReportIngestor` assembles the shared report from,
   since `RunCompleted` carries only per-result counts.

@@ -66,6 +66,7 @@ defmodule Tuist.OnceEvents.Run do
 
     field :started_at, :utc_datetime_usec
     field :finalized_at, :utc_datetime_usec
+    field :test_report_published_at, :utc_datetime_usec
     field :heartbeat_at, :utc_datetime_usec
 
     has_many :actions, Action, foreign_key: :once_run_id

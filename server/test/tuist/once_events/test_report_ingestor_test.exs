@@ -2,8 +2,11 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.TestReportIngestor
+  alias Tuist.Tests.Test.Buffer
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
@@ -57,6 +60,12 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     finalized
   end
 
+  defp case_run_count(test_run_id) do
+    Tuist.Tests.TestCaseRun
+    |> where([c], c.test_run_id == ^test_run_id)
+    |> Tuist.IngestRepo.aggregate(:count)
+  end
+
   test "a build run with no test cases publishes nothing", %{run: run} do
     assert TestReportIngestor.publish(finalize(run)) == {:ok, :no_test_cases}
   end
@@ -107,16 +116,39 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     assert test.status == "skipped"
   end
 
-  test "republishing the same run targets the same shared row", %{run: run} do
+  test "a replayed RunCompleted does not publish the run twice", %{run: run, project: project} do
     stage_case(run, %{case_id: "a", name: "a"})
     finalized = finalize(run)
 
     assert {:ok, first} = TestReportIngestor.publish(finalized)
-    assert {:ok, second} = TestReportIngestor.publish(finalized)
 
-    # `create_test/1` is not a single atomic write, so a retry has to resolve
-    # to one id rather than creating a second run for the same Once run.
-    assert first.id == second.id
+    # `create_test/1` is not a single atomic write. The run row dedupes on its
+    # derived id, but the module, suite and case children are appended, so
+    # without a publication guard a replay silently doubles every test case.
+    # Asserting on the returned run alone did not catch that.
+    reloaded = OnceEvents.get_run(project.id, run.run_id)
+    assert {:ok, :already_published} = TestReportIngestor.publish(reloaded)
+
+    Buffer.flush()
+
+    assert case_run_count(first.id) == 1
+  end
+
+  test "the published run is readable back from the shared store", %{run: run, project: project} do
+    stage_case(run, %{case_id: "a", name: "a", result: "passed"})
+
+    assert {:ok, test} = TestReportIngestor.publish(finalize(run))
+
+    # `create_test/1` writes the run through `Test.Buffer`, so asserting on
+    # the returned struct alone proves nothing about persistence. Flush and
+    # read it back.
+    Buffer.flush()
+
+    assert {:ok, %{build_system: "once", once_run_id: once_run_id, project_id: project_id}} =
+             Tuist.Tests.get_test(test.id)
+
+    assert once_run_id == run.run_id
+    assert project_id == project.id
   end
 
   test "the run id is scoped by project, since Once run ids are client minted", %{run: run} do

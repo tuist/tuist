@@ -97,7 +97,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={not once?}
           label={dgettext("dashboard", "Test Cases")}
           icon="exchange"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
@@ -113,7 +112,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={not once?}
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -125,7 +123,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={not once?}
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
@@ -308,7 +305,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={not once?}
           label={dgettext("dashboard", "Test Cases")}
           icon="exchange"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
@@ -324,7 +320,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={not once?}
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -336,7 +331,6 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={not once?}
           label={dgettext("dashboard", "Quarantined Tests")}
           icon="lock"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
