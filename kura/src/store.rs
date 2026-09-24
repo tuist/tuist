@@ -3503,7 +3503,10 @@ impl Store {
                     segment_path.display()
                 ));
             }
-            let drop_final_range = copied > advised_through
+            // A deferred batch releases this tail after its phase-2 fsync;
+            // dropping it here would sync the active segment per record.
+            let drop_final_range = durability == ApplyDurability::Sync
+                && copied > advised_through
                 && file_cache_policy.should_drop(
                     self.memory.should_reclaim_file_cache(),
                     self.memory.foreground_transient_reserved_bytes(),
@@ -13747,25 +13750,44 @@ mod tests {
         assert_eq!(sync_index.len(), 1);
     }
 
-    fn memory_action_count(store: &Store, action: &str) -> u64 {
-        let label = format!("action=\"{action}\"");
+    fn rendered_count(store: &Store, series: &str, label: &str) -> u64 {
         store
             .io
             .metrics()
             .render()
             .lines()
-            .find(|line| line.starts_with("kura_memory_actions_total") && line.contains(&label))
-            .and_then(|line| line.rsplit(' ').next())
-            .and_then(|value| value.parse::<f64>().ok())
-            .map_or(0, |value| value as u64)
+            .filter(|line| line.starts_with(series) && line.contains(label))
+            .filter_map(|line| line.rsplit(' ').next()?.parse::<f64>().ok())
+            .sum::<f64>() as u64
+    }
+
+    fn memory_action_count(store: &Store, action: &str) -> u64 {
+        rendered_count(
+            store,
+            "kura_memory_actions_total",
+            &format!("action=\"{action}\""),
+        )
+    }
+
+    /// A per-record segment sync reopens the active segment file afterwards.
+    fn segment_append_opens(store: &Store) -> u64 {
+        rendered_count(
+            store,
+            "kura_file_operation_duration_seconds_count",
+            "operation=\"open_persistent_append_file\"",
+        )
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn deferred_batch_releases_bounded_file_cache_once_after_its_fsync() {
         let (_temp_dir, config, store) = temp_store();
-        let bodies: Vec<Vec<u8>> = (0..8_u8).map(|index| vec![index; 12 * 1024]).collect();
+        // Small bodies take the positioned path; the last one exceeds the
+        // preload buffer and takes the reader path.
+        let mut bodies: Vec<Vec<u8>> = (0..8_u8).map(|index| vec![index; 12 * 1024]).collect();
+        bodies.push(vec![0xEE; SEGMENT_COPY_BUFFER_BYTES + 44 * 1024]);
 
         let mut batch = BackfillApplyBatch::new();
+        let mut opens_before = None;
         for (index, body) in bodies.iter().enumerate() {
             let key = format!("bounded-{index}");
             let path = config.tmp_dir.join("uploads").join(&key);
@@ -13785,10 +13807,17 @@ mod tests {
                 .await
                 .expect("segmented record should stage");
             assert_eq!(staged, BackfillStageOutcome::Staged);
+            // The first append opens the active segment.
+            opens_before.get_or_insert_with(|| segment_append_opens(&store));
         }
         // Releasing a dirty range needs a sync first, so any drop while
         // staging would be a per-record fsync of the active segment.
         assert_eq!(memory_action_count(&store, "segment_file_cache_drop"), 0);
+        assert_eq!(
+            segment_append_opens(&store),
+            opens_before.expect("records were staged"),
+            "no staged record synced and reopened the active segment"
+        );
         let fsyncs_before = store.segment_fsync_count.load(Ordering::Relaxed);
 
         store
