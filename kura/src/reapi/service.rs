@@ -291,7 +291,8 @@ impl ReapiService {
         let Some(auth) = self.state.auth.as_ref() else {
             return Ok(());
         };
-        let context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata);
+        let mut context = grpc_request_context(&self.state.config.tenant_id, &spec, metadata);
+        self.state.canonicalize_auth_context(&mut context);
         match auth.evaluate_access(&context).await {
             AccessDecision::Allow => Ok(()),
             AccessDecision::Deny(deny) => {
@@ -854,6 +855,27 @@ impl ReapiService {
                 .indexes
                 .lock()
                 .expect("snapshot cache lock poisoned");
+            // Drop what the store removed since the index was built before
+            // anything is served from it: a view still listing a cascaded entry
+            // hands the client a candidate it cannot restore, and it misses
+            // without the per-key lookup that would have answered not-found. An
+            // index the removal log no longer covers is rebuilt instead.
+            let behind_removals = indexes.get_mut(&cache_key).is_some_and(|index| {
+                match self
+                    .state
+                    .store
+                    .action_cache_removals_since(namespace_id, index.applied_removal_seq)
+                {
+                    Some(removals) => {
+                        index.apply_removals(&removals);
+                        false
+                    }
+                    None => true,
+                }
+            });
+            if behind_removals {
+                indexes.remove(&cache_key);
+            }
             let unchanged = indexes
                 .get(&cache_key)
                 .is_some_and(|index| index.built_at_generation == generation);
@@ -863,9 +885,10 @@ impl ReapiService {
                 let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
                 index.last_used = Instant::now();
                 let entries = index.entries.len();
+                let removal_seq = index.applied_removal_seq;
                 let mut snapshot = self.encode_snapshot(index, after)?;
                 drop(indexes);
-                self.cache_full_view(&cache_key, after, entries, &snapshot);
+                self.cache_full_view(&cache_key, after, entries, removal_seq, &snapshot);
                 snapshot.retain_response_memory()?;
                 if stale {
                     let _build =
@@ -887,19 +910,20 @@ impl ReapiService {
                 .lock()
                 .expect("snapshot served_full lock poisoned")
                 .get(&cache_key)
-                .cloned();
+                .cloned()
+                .filter(|view| self.nothing_removed_since(namespace_id, view.removal_seq));
             if let Some(cached) = cached {
                 let permit = self
                     .state
                     .memory
-                    .try_acquire_response_materialization(cached.len())
+                    .try_acquire_response_materialization(cached.bytes.len())
                     .map_err(|_| {
                         Status::resource_exhausted(
                             "action-cache snapshot serve declined under memory pressure",
                         )
                     })?;
                 let _build = self.ensure_index_build(namespace_id, trunk, IndexBuildTrigger::Serve);
-                return Ok(MaterializedSnapshot::new((*cached).clone(), permit));
+                return Ok(MaterializedSnapshot::new((*cached.bytes).clone(), permit));
             }
         }
         // Cold path: wait briefly for the build so small (and already
@@ -933,13 +957,50 @@ impl ReapiService {
                 "action-cache snapshot index was not retained; use per-key lookup and retry",
             ));
         };
+        match self
+            .state
+            .store
+            .action_cache_removals_since(namespace_id, index.applied_removal_seq)
+        {
+            Some(removals) => {
+                index.apply_removals(&removals);
+            }
+            None => {
+                return Err(Status::unavailable(
+                    "action-cache snapshot index fell behind its removals; use per-key lookup and retry",
+                ));
+            }
+        }
         index.last_used = Instant::now();
         let entries = index.entries.len();
+        let removal_seq = index.applied_removal_seq;
         let mut snapshot = self.encode_snapshot(index, after)?;
         drop(indexes);
-        self.cache_full_view(&cache_key, after, entries, &snapshot);
+        self.cache_full_view(&cache_key, after, entries, removal_seq, &snapshot);
         snapshot.retain_response_memory()?;
         Ok(snapshot)
+    }
+
+    /// Whether the cached full view still describes the store: nothing it could
+    /// advertise was removed since it was encoded. A stale one is not served,
+    /// and the request waits for the rebuild like a cold one.
+    #[cfg(test)]
+    fn served_full_is_current(&self, namespace_id: &str, cache_key: &str) -> bool {
+        let view = self
+            .snapshot_cache
+            .served_full
+            .lock()
+            .expect("snapshot served_full lock poisoned")
+            .get(cache_key)
+            .cloned();
+        view.is_some_and(|view| self.nothing_removed_since(namespace_id, view.removal_seq))
+    }
+
+    fn nothing_removed_since(&self, namespace_id: &str, removal_seq: u64) -> bool {
+        self.state
+            .store
+            .action_cache_removals_since(namespace_id, removal_seq)
+            .is_some_and(|removals| removals.is_empty())
     }
 
     /// Caches a full (`after == 0`) encoded view as the namespace's
@@ -947,7 +1008,14 @@ impl ReapiService {
     /// reconcile returns it instead of shedding to UNAVAILABLE. A delta is
     /// relative to a client's watermark and cannot be replayed, so it is not
     /// cached.
-    fn cache_full_view(&self, cache_key: &str, after: u64, entries: usize, bytes: &[u8]) {
+    fn cache_full_view(
+        &self,
+        cache_key: &str,
+        after: u64,
+        entries: usize,
+        removal_seq: u64,
+        bytes: &[u8],
+    ) {
         if after != 0 {
             return;
         }
@@ -969,11 +1037,28 @@ impl ReapiService {
                 .record_memory_action("snapshot_full_view_budget_rejected");
             return;
         }
-        self.snapshot_cache
-            .served_full
-            .lock()
-            .expect("snapshot served_full lock poisoned")
-            .insert(cache_key.to_owned(), std::sync::Arc::new(bytes.to_vec()));
+        {
+            let mut served_full = self
+                .snapshot_cache
+                .served_full
+                .lock()
+                .expect("snapshot served_full lock poisoned");
+            // Concurrent serves finish in any order; one encoded before a later
+            // removal must not replace a view that already reflects it.
+            if served_full
+                .get(cache_key)
+                .is_some_and(|view| view.removal_seq > removal_seq)
+            {
+                return;
+            }
+            served_full.insert(
+                cache_key.to_owned(),
+                ServedFullView {
+                    bytes: std::sync::Arc::new(bytes.to_vec()),
+                    removal_seq,
+                },
+            );
+        }
         self.snapshot_cache
             .trim_to(target_bytes, "capacity", &self.state.metrics);
     }
@@ -1203,6 +1288,9 @@ impl ReapiService {
         // would copy an unbounded node table (the entry cap does not bound it);
         // the cached full encoding is bounded at the wire ceiling.
         let generation = state.store.action_cache_generation(&namespace);
+        // Read before the scan: every removal up to here is already out of the
+        // store it reads, and later ones are applied on the next serve.
+        let removal_seq = state.store.action_cache_removal_seq();
         let index = cache
             .indexes
             .lock()
@@ -1226,6 +1314,7 @@ impl ReapiService {
             Ok(mut index) => {
                 index.reconciled_at = Instant::now();
                 index.built_at_generation = generation;
+                index.applied_removal_seq = removal_seq;
                 (index, Ok(()))
             }
             Err((index, error)) => {
@@ -1293,6 +1382,7 @@ impl ReapiService {
     ) -> Result<(), String> {
         let _build_guard = cache.build_lock.lock().await;
         let generation = state.store.action_cache_generation(&namespace);
+        let removal_seq = state.store.action_cache_removal_seq();
         let index = cache
             .indexes
             .lock()
@@ -1302,6 +1392,7 @@ impl ReapiService {
         let mut index = gate_snapshot_index(&state, &namespace, index).await;
         index.reconciled_at = Instant::now();
         index.built_at_generation = generation;
+        index.applied_removal_seq = removal_seq;
         if trigger == IndexBuildTrigger::Serve {
             index.last_used = Instant::now();
         }
@@ -1672,7 +1763,8 @@ impl ActionCache for ReapiService {
                         (
                             index,
                             explicit,
-                            batch_read_one(&self.state, namespace_id, &digest, budget).await,
+                            batch_read_one(&self.state, namespace_id, &digest, budget, explicit)
+                                .await,
                         )
                     }
                 }))
@@ -1691,6 +1783,7 @@ impl ActionCache for ReapiService {
                     // still fit) and the client falls back to BatchReadBlobs.
                     // A path the client listed explicitly keeps the hard error.
                     Err(status) if !explicit && status.code() == tonic::Code::ResourceExhausted => {
+                        self.state.metrics.record_reapi_inline_fallback();
                     }
                     Err(status) => return Err(status),
                 }
@@ -3116,6 +3209,7 @@ async fn batch_read_one(
     namespace_id: &str,
     digest: &reapi::Digest,
     budget: &std::sync::Mutex<MaterializationBudget<'_>>,
+    required: bool,
 ) -> Result<Option<Vec<u8>>, Status> {
     let key = blob_key(&digest_key(digest)?);
     let Some(manifest) = state
@@ -3134,10 +3228,14 @@ async fn batch_read_one(
             .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
         return Ok(None);
     };
-    budget
-        .lock()
-        .expect("budget lock")
-        .claim(manifest.size, "CAS response materialization")?;
+    {
+        let mut budget = budget.lock().expect("budget lock");
+        if required {
+            budget.claim(manifest.size, "CAS response materialization")?;
+        } else {
+            budget.try_claim(manifest.size, "CAS response materialization")?;
+        }
+    }
     let Some(bytes) = read_serving_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
@@ -3836,20 +3934,32 @@ impl<'a> MaterializationBudget<'a> {
     }
 
     fn claim(&mut self, size_bytes: u64, label: &str) -> Result<(), Status> {
+        self.try_claim(size_bytes, label).inspect_err(|_| {
+            self.state
+                .metrics
+                .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+            self.state
+                .metrics
+                .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
+        })
+    }
+
+    // Optional inlining uses the same admission without recording a request failure.
+    fn try_claim(&mut self, size_bytes: u64, label: &str) -> Result<(), Status> {
         let requested_bytes = usize::try_from(size_bytes).map_err(|_| {
-            self.reject(format!(
+            Status::resource_exhausted(format!(
                 "{label} exceeds the maximum addressable REAPI materialization size"
             ))
         })?;
         if requested_bytes > self.remaining_bytes {
-            return Err(self.reject(format!(
+            return Err(Status::resource_exhausted(format!(
                 "{label} needs {requested_bytes} bytes but only {} bytes remain in the REAPI materialization budget",
                 self.remaining_bytes
             )));
         }
         let limit_bytes = self.state.memory.reapi_materialization_limit_bytes();
         if requested_bytes > limit_bytes {
-            return Err(self.reject(format!(
+            return Err(Status::resource_exhausted(format!(
                 "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
             )));
         }
@@ -3858,7 +3968,7 @@ impl<'a> MaterializationBudget<'a> {
             .memory
             .try_acquire_response_materialization(requested_bytes)
             .map_err(|_| {
-                self.reject(format!(
+                Status::resource_exhausted(format!(
                     "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
                 ))
             })?;
@@ -3867,16 +3977,6 @@ impl<'a> MaterializationBudget<'a> {
             self.held_permits.push(permit);
         }
         Ok(())
-    }
-
-    fn reject(&self, message: String) -> Status {
-        self.state
-            .metrics
-            .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
-        self.state
-            .metrics
-            .record_capacity_shed(crate::metrics::shed_kind::REAPI_MATERIALIZATION);
-        Status::resource_exhausted(message)
     }
 
     fn into_response_guard(self) -> Option<crate::memory::ResponseTransportGuard> {
@@ -4082,7 +4182,7 @@ pub(super) async fn authorize_build_event_request(
         return Err(Status::unavailable("server is draining"));
     }
 
-    let account_handle = usage_tenant_id(metadata, &state.config.tenant_id);
+    let account_handle = usage_tenant_id(metadata, &state.account_identity.load().handle);
     let Some(auth) = state.auth.as_ref() else {
         return Ok(account_handle);
     };
@@ -4091,10 +4191,11 @@ pub(super) async fn authorize_build_event_request(
         operation: "build_event_stream",
         namespace_id: Some(project_handle),
     };
-    let context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
+    let mut context = grpc_request_context(&state.config.tenant_id, &spec, metadata);
+    state.canonicalize_auth_context(&mut context);
 
     match auth.evaluate_access(&context).await {
-        AccessDecision::Allow => Ok(account_handle),
+        AccessDecision::Allow => Ok(context.server_tenant_id),
         AccessDecision::Deny(deny) => Err(grpc_status_from_http_status(deny.status, &deny.message)),
     }
 }
@@ -5307,11 +5408,13 @@ mod tests {
                 .lock()
                 .unwrap()
                 .insert(namespace.to_owned(), index);
-            cache
-                .served_full
-                .lock()
-                .unwrap()
-                .insert(namespace.to_owned(), std::sync::Arc::new(vec![0; 2 * 1024]));
+            cache.served_full.lock().unwrap().insert(
+                namespace.to_owned(),
+                ServedFullView {
+                    bytes: std::sync::Arc::new(vec![0; 2 * 1024]),
+                    removal_seq: 0,
+                },
+            );
         }
 
         cache.trim_to(3 * 1024, "test", &metrics);
@@ -5892,12 +5995,20 @@ mod tests {
             .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("second serve should succeed");
-        wait_for_snapshot_index(&service, "ios", |index| index.entries.len() == 1).await;
+        // The serve itself already dropped both stranded entries from the index;
+        // deleting them from the store is the background reconcile's job.
         let exists = |key: &str| {
             store
                 .artifact_manifest_exists(ArtifactProducer::Reapi, "ios", key)
                 .expect("existence check should succeed")
         };
+        for _ in 0..400 {
+            if !exists(&stranded_key) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        wait_for_snapshot_index(&service, "ios", |index| index.entries.len() == 1).await;
         assert!(
             !exists(&stranded_key),
             "the stranded entry past the grace window is cascade-deleted"
@@ -5907,6 +6018,120 @@ mod tests {
             "a young stranded entry is kept — its blobs may still be mid-replication"
         );
         assert!(exists(&live_key));
+    }
+
+    #[tokio::test]
+    async fn snapshot_serve_drops_entries_whose_blobs_were_removed_after_the_index_was_built() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    crate::utils::now_ms(),
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn entry_bytes(llcas: &[u8], blob_hash: [u8; 32]) -> Vec<u8> {
+            reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: hex::encode(llcas),
+                    digest: Some(reapi::Digest {
+                        hash: hex::encode(blob_hash),
+                        size_bytes: 7,
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }
+            .encode_to_vec()
+        }
+        let blob_manifest = |key: &str| {
+            store
+                .manifest(&crate::utils::artifact_storage_id(
+                    ArtifactProducer::Reapi,
+                    "test-tenant",
+                    "ios",
+                    key,
+                ))
+                .expect("manifest read should succeed")
+                .expect("blob manifest should exist")
+        };
+
+        let evicted_blob = [0x11u8; 32];
+        let live_blob = [0x22u8; 32];
+        let evicted_blob_key = blob_key(&format!("{}/7", hex::encode(evicted_blob)));
+        let live_blob_key = blob_key(&format!("{}/7", hex::encode(live_blob)));
+        let stranded_hash = [0x44u8; 32];
+        let live_hash = [0x66u8; 32];
+        write_artifact(store, &uploads, &evicted_blob_key, b"payload").await;
+        write_artifact(store, &uploads, &live_blob_key, b"payload").await;
+        write_artifact(
+            store,
+            &uploads,
+            &format!("action_cache/{}/10", hex::encode(stranded_hash)),
+            &entry_bytes(&[0xAB, 0xCD], evicted_blob),
+        )
+        .await;
+        write_artifact(
+            store,
+            &uploads,
+            &format!("action_cache/{}/10", hex::encode(live_hash)),
+            &entry_bytes(&[0xEE, 0xFF], live_blob),
+        )
+        .await;
+        service
+            .serve_actioncache_snapshot("ios", 0, None)
+            .await
+            .expect("first serve should succeed");
+
+        store
+            .delete_artifact_metadata(&[blob_manifest(&evicted_blob_key)])
+            .expect("blob eviction should succeed");
+        // The index was just reconciled, so nothing rebuilds it before this
+        // serve: the removal has to be applied on the way out.
+        service
+            .serve_actioncache_snapshot("ios", 0, None)
+            .await
+            .expect("second serve should succeed");
+
+        let advertised: Vec<[u8; 32]> = service.snapshot_cache.indexes.lock().unwrap()["ios"]
+            .entries
+            .keys()
+            .copied()
+            .collect();
+        assert_eq!(
+            advertised,
+            vec![live_hash],
+            "an entry whose blob was removed must not be served again"
+        );
+        assert!(service.served_full_is_current("ios", "ios"));
+
+        // A cached full view encoded before a removal is not served while the
+        // index is out for a rebuild.
+        store
+            .delete_artifact_metadata(&[blob_manifest(&live_blob_key)])
+            .expect("blob eviction should succeed");
+        assert!(!service.served_full_is_current("ios", "ios"));
     }
 
     #[tokio::test]
@@ -9375,6 +9600,7 @@ mod tests {
                 .map(|status| status.code),
             Some(tonic::Code::ResourceExhausted as i32)
         );
+        assert_materialization_metrics(&context, 1, 0);
     }
 
     #[tokio::test]
@@ -9443,6 +9669,31 @@ mod tests {
             .expect_err("inline expansion should respect the materialization budget");
 
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        assert_materialization_metrics(&context, 1, 0);
+    }
+
+    fn assert_materialization_metrics(context: &TestContext, rejected: u64, fallbacks: u64) {
+        let rendered = context.state.metrics.render();
+        for (series, expected) in [
+            (
+                "kura_capacity_sheds_total_total{kind=\"reapi_materialization\"}",
+                rejected,
+            ),
+            (
+                "kura_memory_actions_total_total{action=\"reapi_materialization_rejected\"}",
+                rejected,
+            ),
+            ("kura_reapi_inline_fallbacks_total_total", fallbacks),
+        ] {
+            let value = rendered
+                .lines()
+                .find_map(|line| {
+                    line.strip_prefix(series)
+                        .and_then(|value| value.trim().parse::<u64>().ok())
+                })
+                .unwrap_or(0);
+            assert_eq!(value, expected, "unexpected {series}");
+        }
     }
 
     async fn persist_output_file_blob(context: &TestContext, bytes: &[u8]) -> reapi::Digest {
@@ -9538,6 +9789,7 @@ mod tests {
         let output_files = &response.get_ref().output_files;
         assert_eq!(output_files[0].contents, first_bytes);
         assert_eq!(output_files[1].contents, second_bytes);
+        assert_materialization_metrics(&context, 0, 0);
     }
 
     #[tokio::test]
@@ -9588,6 +9840,7 @@ mod tests {
                 if explicit { large.clone() } else { Vec::new() }
             );
         }
+        assert_materialization_metrics(&context, 0, 0);
     }
 
     #[tokio::test]
@@ -9613,6 +9866,11 @@ mod tests {
             vec![
                 reapi::OutputFile {
                     path: "large".into(),
+                    digest: Some(large_digest.clone()),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "another-large".into(),
                     digest: Some(large_digest),
                     ..Default::default()
                 },
@@ -9638,7 +9896,88 @@ mod tests {
 
         let output_files = &response.get_ref().output_files;
         assert!(output_files[0].contents.is_empty());
-        assert_eq!(output_files[1].contents, small_bytes);
+        assert!(output_files[1].contents.is_empty());
+        assert_eq!(output_files[2].contents, small_bytes);
+        assert_materialization_metrics(&context, 0, 2);
+    }
+
+    #[tokio::test]
+    async fn wildcard_inline_pool_contention_counts_fallbacks_separately_from_required_reads() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let bytes = vec![b'x'; 2 * 1024 * 1024];
+        let digest = persist_output_file_blob(&context, &bytes).await;
+        let action = persist_action_result_with_outputs(
+            &context,
+            vec![reapi::OutputFile {
+                path: "output".into(),
+                digest: Some(digest.clone()),
+                ..Default::default()
+            }],
+        )
+        .await;
+        // Leave room for the action result but not the optional output file.
+        let limit = context.state.memory.reapi_materialization_limit_bytes();
+        let first = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(limit)
+            .unwrap();
+        let second = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(limit - 1024 * 1024)
+            .unwrap();
+        let request = |paths| {
+            Request::new(reapi::GetActionResultRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                action_digest: Some(action.clone()),
+                inline_output_files: paths,
+                ..Default::default()
+            })
+        };
+
+        let response = service
+            .get_action_result(request(vec!["*".into()]))
+            .await
+            .unwrap();
+        assert!(response.get_ref().output_files[0].contents.is_empty());
+        assert_materialization_metrics(&context, 0, 1);
+        drop(response);
+
+        let error = service
+            .get_action_result(request(vec!["*".into(), "output".into()]))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        assert_materialization_metrics(&context, 1, 1);
+        drop((first, second));
+
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![digest],
+                ..Default::default()
+            }))
+            .await
+            .unwrap();
+        assert_eq!(response.get_ref().responses[0].data, bytes);
+        assert_eq!(
+            response.get_ref().responses[0]
+                .status
+                .as_ref()
+                .unwrap()
+                .code,
+            0
+        );
+        assert_materialization_metrics(&context, 1, 1);
     }
 
     #[tokio::test]
@@ -9679,6 +10018,7 @@ mod tests {
             .expect_err("an explicitly listed over-budget file must fail the lookup");
 
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        assert_materialization_metrics(&context, 1, 0);
     }
 
     #[tokio::test]

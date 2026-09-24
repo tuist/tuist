@@ -16,6 +16,7 @@ defmodule AtlasWeb.AccountLive do
   alias Atlas.Accounts.DealStage
   alias Atlas.Accounts.Outcome
   alias Atlas.Accounts.OutcomeProposal
+  alias Atlas.Accounts.POCs
   alias Atlas.Audit
   alias Atlas.Letters
   alias Atlas.LLMs
@@ -1532,25 +1533,6 @@ defmodule AtlasWeb.AccountLive do
                           />
                         </div>
                         <div data-part="account-settings-grid-full">
-                          <.text_area
-                            id="account-attention-context-input"
-                            field={@account_form[:attention_context]}
-                            label={gettext("Agent guidance")}
-                            placeholder={
-                              gettext(
-                                "Explain what makes this account strategically important and which usage patterns matter."
-                              )
-                            }
-                            hint={
-                              gettext(
-                                "For example: test sharding, automations, and test selections are central to this customer's delivery workflow."
-                              )
-                            }
-                            rows={4}
-                            max_length={2_000}
-                          />
-                        </div>
-                        <div data-part="account-settings-grid-full">
                           <div data-part="account-settings-select">
                             <.label label={gettext("Slack channel")} />
                             <input
@@ -2045,6 +2027,41 @@ defmodule AtlasWeb.AccountLive do
             id="account-feature-interests-empty"
             title={gettext("No feature interest recorded")}
             subtitle={gettext("Record requests from timeline events to see them here.")}
+          />
+        </.card_section>
+      </.card>
+
+      <.card title={gettext("Evaluations")} icon="checkup_list" data-part="account-pocs-card">
+        <.card_section data-part="account-pocs-section">
+          <.table
+            :if={@pocs != []}
+            id="account-pocs-table"
+            rows={@pocs}
+            row_key={fn poc -> "account-poc-#{poc.id}" end}
+            row_navigate={fn poc -> ~p"/commercial/sales/pocs/#{poc.id}" end}
+          >
+            <:col :let={poc} label={gettext("Evaluation")}>
+              <.text_cell label={poc.title} />
+            </:col>
+            <:col :let={poc} label={gettext("Status")}>
+              <.badge_cell
+                label={Phoenix.Naming.humanize(poc.status)}
+                color={evaluation_status_color(poc.status)}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={poc} label={gettext("Hosting")}>
+              <.text_cell label={Phoenix.Naming.humanize(poc.hosting)} />
+            </:col>
+            <:col :let={poc} label={gettext("Started")}>
+              <.text_cell label={format_date(poc.starts_on)} />
+            </:col>
+          </.table>
+          <.account_empty_state
+            :if={@pocs == []}
+            id="account-pocs-empty"
+            title={gettext("No evaluations yet")}
+            subtitle={gettext("Evaluations for this account will appear here.")}
           />
         </.card_section>
       </.card>
@@ -4173,6 +4190,7 @@ defmodule AtlasWeb.AccountLive do
     |> assign(:account, account)
     |> assign(:ready_to_sign_tax_certificate_requests, ready_to_sign_tax_certificate_requests(account))
     |> assign(:feature_interests, Accounts.list_feature_interests_for_account(account))
+    |> assign(:pocs, POCs.list_pocs(account_id: account.id))
     |> assign(:nudges, Nudges.list_nudges(account, limit: 20))
     |> clear_feature_interest_modal()
     |> clear_feature_interest_notes_modal()
@@ -4194,6 +4212,11 @@ defmodule AtlasWeb.AccountLive do
     |> assign_tax_certificate_request_form(account)
     |> assign(:signed_tax_certificate_upload_form, to_form(%{}, as: "signed_tax_certificate"))
   end
+
+  defp evaluation_status_color("active"), do: "information"
+  defp evaluation_status_color("closed_won"), do: "success"
+  defp evaluation_status_color("closed_lost"), do: "destructive"
+  defp evaluation_status_color(_status), do: "neutral"
 
   defp slack_threads_for(account) do
     account.events

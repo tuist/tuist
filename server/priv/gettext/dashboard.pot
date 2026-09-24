@@ -358,6 +358,7 @@ msgstr ""
 msgid "The preview ipa doesn't exist or has expired."
 msgstr ""
 
+#: lib/tuist_web/controllers/api/analytics_controller.ex:594
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
 #: lib/tuist_web/plugs/loader_plug.ex:131
 #, elixir-autogen, elixir-format
@@ -2875,6 +2876,11 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Disk is sized automatically: the claim grows when the cache starts discarding work sooner than the plan promises to keep it, and shrinks when it goes a long time without filling up or keeps work for weeks longer than that. Growing rebuilds volumes one replica at a time behind the standby that keeps serving; shrinking keeps the cache and evicts down."
+msgstr ""
+
+#: lib/tuist_web/components/runs/pull_request_button.ex:25
+#, elixir-autogen, elixir-format
+msgid "PR #%{number}"
 msgstr ""
 
 #: lib/tuist_web/controllers/auth_controller.ex:841

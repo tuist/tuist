@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	cpuBucketDuration = 6 * time.Hour
-	cpuBucketCount    = 28
+	cpuBucketDuration   = 6 * time.Hour
+	cpuBucketCount      = 28
+	cpuSampleInterval   = time.Minute
+	cpuSustainedSamples = 10
 
 	cpuHeadroomNumerator   = 5
 	cpuHeadroomDenominator = 4
@@ -86,9 +88,51 @@ func (r *KuraInstanceReconciler) observeCPUUsage(ctx context.Context, instance *
 		return
 	}
 
-	instance.Status.CPUAutosize = observeCPUPeak(instance.Status.CPUAutosize, peak, time.Now())
+	instance.Status.CPUAutosize = observeCPUSample(instance.Status.CPUAutosize, peak, time.Now())
 }
 
+// A reconcile can run repeatedly on the same metrics-server reading. Count
+// at most one observation per minute, and require ten consecutive observed
+// minutes before feeding their mean to the long-lived sizing history.
+func observeCPUSample(state *kurav1alpha1.KuraInstanceCPUAutosize, milli int64, now time.Time) *kurav1alpha1.KuraInstanceCPUAutosize {
+	next := state.DeepCopy()
+	if next == nil {
+		next = &kurav1alpha1.KuraInstanceCPUAutosize{RequestMilli: cpuColdStartMilli}
+	}
+	minute := now.UTC().Truncate(cpuSampleInterval)
+	if next.SampledAt == nil {
+		// Legacy buckets contain instantaneous peaks, not sustained demand.
+		// Preserve the reservation and scheduling cap while rebuilding evidence.
+		next.PeakMilli = 0
+		next.BucketStartedAt = nil
+		next.BucketPeaksMilli = nil
+		next.SamplesMilli = nil
+	} else {
+		gap := minute.Sub(next.SampledAt.Time)
+		if gap <= 0 {
+			return next
+		}
+		if gap > cpuSampleInterval {
+			next.SamplesMilli = nil
+		}
+	}
+	next.SampledAt = &metav1.Time{Time: minute}
+	next.SamplesMilli = append(next.SamplesMilli, clampMilli(milli))
+	if len(next.SamplesMilli) > cpuSustainedSamples {
+		next.SamplesMilli = next.SamplesMilli[len(next.SamplesMilli)-cpuSustainedSamples:]
+	}
+	if len(next.SamplesMilli) < cpuSustainedSamples {
+		return next
+	}
+	var total int64
+	for _, sample := range next.SamplesMilli {
+		total += int64(sample)
+	}
+	return observeCPUPeak(next, (total+cpuSustainedSamples-1)/cpuSustainedSamples, now)
+}
+
+// Retain peaks of sustained demand so quiet weekends do not erase weekday
+// requirements. Raw metrics must pass through observeCPUSample first.
 func observeCPUPeak(state *kurav1alpha1.KuraInstanceCPUAutosize, peakMilli int64, now time.Time) *kurav1alpha1.KuraInstanceCPUAutosize {
 	next := state.DeepCopy()
 	if next == nil {

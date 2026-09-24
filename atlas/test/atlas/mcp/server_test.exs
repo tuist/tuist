@@ -35,7 +35,6 @@ defmodule Atlas.MCP.ServerTest do
 
     assert Enum.any?(tools, &(&1["name"] == "get_mcp_connection_status"))
     assert Enum.any?(tools, &(&1["name"] == "list_accounts"))
-    assert Enum.any?(tools, &(&1["name"] == "list_account_attention_suggestions"))
     assert Enum.any?(tools, &(&1["name"] == "list_account_nudges"))
     assert Enum.any?(tools, &(&1["name"] == "claim_nudge"))
     assert Enum.any?(tools, &(&1["name"] == "dismiss_nudge"))
@@ -128,7 +127,7 @@ defmodule Atlas.MCP.ServerTest do
       assert instructions =~ "list_contract_templates"
       assert instructions =~ "get_contract_template"
       assert instructions =~ "Never create a substitute document from scratch"
-      assert instructions =~ "embedded resource"
+      assert instructions =~ "signed `download_url`"
       assert instructions =~ "current request over pasted conversation context"
     end
 

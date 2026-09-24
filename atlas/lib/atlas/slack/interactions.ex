@@ -18,6 +18,7 @@ defmodule Atlas.Slack.Interactions do
   alias Atlas.Slack.API
   alias Atlas.Slack.User
   alias Atlas.Users
+  alias Atlas.Users.User, as: AtlasUser
 
   require Logger
 
@@ -122,12 +123,11 @@ defmodule Atlas.Slack.Interactions do
   defp parse_poc_access_action(_action_id), do: :error
 
   defp handle_poc_access_action(action, request_id, opts) do
-    case Users.get_user_by_email(opts[:actor_email]) do
-      nil ->
-        {:error, :poc_access_actor_required}
-
-      user ->
-        apply_poc_access_action(action, request_id, user)
+    with email when is_binary(email) and email != "" <- opts[:actor_email],
+         %AtlasUser{} = user <- Users.get_user_by_email(email) do
+      apply_poc_access_action(action, request_id, user)
+    else
+      _ -> {:error, :poc_access_actor_required}
     end
   end
 

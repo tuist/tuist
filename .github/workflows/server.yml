@@ -91,6 +91,8 @@ jobs:
           key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
+      - name: Verify isolated process hosts
+        run: bash Tests/ProcessHost/test.sh
   gettext:
     name: Gettext
     # tuist-linux-large: mix gettext.extract compiles the full project

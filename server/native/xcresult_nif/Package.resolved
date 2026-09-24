@@ -1,5 +1,5 @@
 {
-  "originHash" : "bb0f0764c15d3ac9c27c28d1e60d76a322b97517c2726582f83add7a4337095d",
+  "originHash" : "12b51a712925057b04a842c6b29fdac949a54a83b44cf43b6aca595a79297bad",
   "pins" : [
     {
       "identity" : "apple.swift-atomics",
@@ -61,15 +61,6 @@
       "originalLocation" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
         "version" : "1.13.1"
-      }
-    },
-    {
-      "identity" : "swiftlang.swift-subprocess",
-      "kind" : "registry",
-      "location" : "",
-      "originalLocation" : "https://github.com/swiftlang/swift-subprocess.git",
-      "state" : {
-        "version" : "0.4.0"
       }
     },
     {

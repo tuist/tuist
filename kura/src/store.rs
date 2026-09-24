@@ -26,6 +26,10 @@ use uuid::Uuid;
 
 use crate::{
     action_cache_refs::referenced_blob_keys,
+    action_cache_removals::{
+        ACTION_CACHE_REMOVAL_LOG_MAX, ActionCacheRemoval, ActionCacheRemovalLog,
+        ActionCacheRemovals,
+    },
     artifact::{
         manifest::{ArtifactManifest, PersistedManifestRecord},
         producer::ArtifactProducer,
@@ -43,9 +47,10 @@ use crate::{
         ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
         ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
         ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
-        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
-        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS,
-        SEGMENT_FREE_SPACE_MARGIN, SYNC_FEED_TRIM_BATCH_ROWS,
+        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS,
+        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
+        SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
+        SYNC_FEED_TRIM_BATCH_ROWS,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -233,6 +238,10 @@ pub struct Store {
     /// per node: it only ever gates a local cache, a fresh process rebuilds once,
     /// and the apply path bumps it too so a peer's write is not missed.
     action_cache_generations: StdMutex<HashMap<String, u64>>,
+    /// Entries and blobs removed per namespace, so a cached snapshot index can
+    /// drop what it advertises before its next reconcile (see
+    /// `action_cache_removals`).
+    action_cache_removals: Arc<StdMutex<ActionCacheRemovalLog>>,
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
@@ -1143,6 +1152,9 @@ struct CascadeProgress {
     seen_recipes: HashSet<String>,
     pending_entries: Vec<String>,
     pending_namespaces: HashSet<String>,
+    /// Entries and blobs staged for deletion in the current chunk, recorded for
+    /// cached snapshot indexes when the chunk commits.
+    removals: Vec<(String, ActionCacheRemoval)>,
     total: usize,
     recipe_total: usize,
 }
@@ -1296,6 +1308,17 @@ impl Store {
             DB::open_cf_descriptors(&options, db_path, cfs)
                 .map_err(|error| format!("failed to open RocksDB: {error}"))?,
         );
+        // The option has no setter in the Rust bindings, so it is applied once
+        // open; it takes effect from the next memtable, not the one live now.
+        let key_value = db
+            .cf_handle(ROCKSDB_CF_KEY_VALUE)
+            .ok_or_else(|| "missing key_value column family".to_string())?;
+        let max_range_deletions = ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS.to_string();
+        db.set_options_cf(
+            &key_value,
+            &[("memtable_max_range_deletions", max_range_deletions.as_str())],
+        )
+        .map_err(|error| format!("failed to cap memtable range deletions: {error}"))?;
         io.metrics()
             .update_manifest_cache_capacity_bytes(config.manifest_cache_max_bytes);
         io.metrics().update_manifest_index_entries(0);
@@ -1362,6 +1385,9 @@ impl Store {
             #[cfg(test)]
             write_thread_observer: Arc::new(StdMutex::new(None)),
             action_cache_generations: StdMutex::new(HashMap::new()),
+            action_cache_removals: Arc::new(StdMutex::new(ActionCacheRemovalLog::new(
+                ACTION_CACHE_REMOVAL_LOG_MAX,
+            ))),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
             durable_seq: AtomicU64::new(0),
@@ -4168,6 +4194,14 @@ impl Store {
                         );
                         batch.delete_cf(self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS), &index_key);
                         self.stage_backfill_index_delete(&mut batch, &manifest);
+                        if manifest.producer == ArtifactProducer::Reapi
+                            && let Some(removal) =
+                                ActionCacheRemoval::for_artifact_key(&manifest.key)
+                        {
+                            cascade
+                                .removals
+                                .push((manifest.namespace_id.clone(), removal));
+                        }
                         *removed_artifacts.entry(manifest.producer).or_default() += 1;
                         removed_artifact_ids.push(artifact_id);
                     }
@@ -4256,6 +4290,13 @@ impl Store {
         // there, and it costs only a re-read if the commit then fails.
         self.invalidate_committed_eviction(removed_artifact_ids, cascade);
         let db = Arc::clone(&self.db);
+        // Removals are recorded for cached snapshot indexes only once the write
+        // has landed, and from the blocking task, which runs to completion even
+        // when the future awaiting it is dropped. Recording earlier would let a
+        // concurrent rebuild stamp the new sequence over rows still present,
+        // and nothing would record them again once the commit removed them.
+        let removals = std::mem::take(&mut cascade.removals);
+        let removal_log = Arc::clone(&self.action_cache_removals);
         #[cfg(test)]
         let commits = Arc::clone(&self.eviction_commits);
         #[cfg(test)]
@@ -4281,6 +4322,14 @@ impl Store {
                 }
             }
             let result = db.write(batch);
+            if result.is_ok() {
+                let mut log = removal_log
+                    .lock()
+                    .expect("action-cache removal log lock poisoned");
+                for (namespace_id, removal) in removals {
+                    log.record(&namespace_id, removal);
+                }
+            }
             #[cfg(test)]
             if result.is_ok() {
                 let hook = commits
@@ -4415,6 +4464,11 @@ impl Store {
                     continue;
                 }
                 self.stage_action_cache_entry_delete(batch, &entry_manifest, &entry_bytes);
+                if let Some(removal) = ActionCacheRemoval::for_artifact_key(&entry_manifest.key) {
+                    cascade
+                        .removals
+                        .push((entry_manifest.namespace_id.clone(), removal));
+                }
                 cascade.record(&entry_manifest.namespace_id, entry_id);
                 // Bound the batch inside the cascade, not just between blobs. The
                 // caller stages this blob's own rows only after this returns, so
@@ -4520,6 +4574,11 @@ impl Store {
                     // representation. Removing the recipe cannot strand them when
                     // the complete blob remains on another segment.
                     if !canonical_blob_survives {
+                        if let Some(removal) = ActionCacheRemoval::for_artifact_key(&blob_key) {
+                            cascade
+                                .removals
+                                .push((recipe_manifest.namespace_id.clone(), removal));
+                        }
                         self.stage_action_cache_cascade_for_blob(
                             batch,
                             &blob_id,
@@ -6746,6 +6805,15 @@ impl Store {
         }
         self.write_batch_sync(batch, "artifact metadata deletes")?;
         self.remove_manifest_cache_keys(&ids);
+        self.record_action_cache_removals(
+            manifests
+                .iter()
+                .filter(|manifest| manifest.producer == ArtifactProducer::Reapi)
+                .filter_map(|manifest| {
+                    ActionCacheRemoval::for_artifact_key(&manifest.key)
+                        .map(|removal| (manifest.namespace_id.clone(), removal))
+                }),
+        );
         Ok(())
     }
 
@@ -6994,6 +7062,41 @@ impl Store {
             .get(namespace_id)
             .copied()
             .unwrap_or(0)
+    }
+
+    /// The removal sequence a snapshot index built from the store now resumes
+    /// from.
+    pub fn action_cache_removal_seq(&self) -> u64 {
+        self.action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned")
+            .last()
+    }
+
+    /// The entries and blobs removed from the namespace after `after`, or `None`
+    /// when the log no longer retains all of them and the index has to rebuild.
+    pub fn action_cache_removals_since(
+        &self,
+        namespace_id: &str,
+        after: u64,
+    ) -> Option<ActionCacheRemovals> {
+        self.action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned")
+            .since(namespace_id, after)
+    }
+
+    fn record_action_cache_removals(
+        &self,
+        removals: impl IntoIterator<Item = (String, ActionCacheRemoval)>,
+    ) {
+        let mut log = self
+            .action_cache_removals
+            .lock()
+            .expect("action-cache removal log lock poisoned");
+        for (namespace_id, removal) in removals {
+            log.record(&namespace_id, removal);
+        }
     }
 
     fn bump_action_cache_generation(&self, namespace_id: &str) {
@@ -7830,7 +7933,10 @@ impl Store {
         );
         let floor = self.sync_feed.floor();
         let cap = self.sync_feed.cap();
-        if ticket.seq().saturating_sub(floor) > cap {
+        // Overshoot by a batch before trimming back: every trim is a range
+        // delete from key 0, so a trim per write under a pinned cap stacks
+        // nested tombstones that RocksDB fragments quadratically.
+        if ticket.seq().saturating_sub(floor) > cap.saturating_add(sync_feed_cap_trim_slack(cap)) {
             let new_floor = ticket.seq() - cap;
             self.stage_sync_feed_trim(batch, new_floor);
             self.sync_feed.raise_floor(new_floor);
@@ -10174,6 +10280,13 @@ fn load_sync_feed_state(db: &DB, cap: u64) -> Result<SyncFeedState, String> {
     ))
 }
 
+/// Rows the feed may hold past its cap before a cap trim drops back to it:
+/// the consumer trim's batch, shrunk for caps smaller than a batch so a tiny
+/// test cap still bounds the feed to twice itself.
+fn sync_feed_cap_trim_slack(cap: u64) -> u64 {
+    SYNC_FEED_TRIM_BATCH_ROWS.min(cap)
+}
+
 /// Marks every staged feed row of a landed batch committed, in one place so
 /// no commit path forgets it.
 fn commit_sync_feed_tickets(tickets: Vec<SyncFeedTicket>) {
@@ -10290,6 +10403,40 @@ mod tests {
     };
 
     const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn key_value_memtable_switches_once_it_holds_the_range_delete_cap() {
+        let (_temp_dir, _config, store) = temp_store();
+        let cf = store.cf(ROCKSDB_CF_KEY_VALUE);
+        let active_entries = || {
+            store
+                .db
+                .property_int_value_cf(cf, "rocksdb.num-entries-active-mem-table")
+                .expect("read memtable property")
+                .expect("memtable property is present")
+        };
+        // The cap is applied after open, so it reaches the next memtable.
+        store.db.put_cf(cf, b"test/seed", b"v").expect("seed");
+        store.db.flush_cf(cf).expect("switch memtable");
+
+        for index in 0..ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS {
+            store
+                .db
+                .delete_range_cf(cf, format!("test/{index:05}"), format!("test/{index:05}~"))
+                .expect("range delete");
+        }
+        assert_eq!(
+            active_entries(),
+            u64::from(ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS)
+        );
+        // RocksDB switches the full memtable at the start of the next write.
+        store.db.put_cf(cf, b"test/next", b"v").expect("next write");
+        assert_eq!(
+            active_entries(),
+            1,
+            "the memtable holding the cap's worth of range deletes was switched out"
+        );
+    }
 
     #[test]
     fn read_bytes_at_returns_exact_requested_range() {
@@ -17384,6 +17531,58 @@ mod tests {
             "the entry stranded by the evicted blob should be cascaded away"
         );
         assert!(blob_ref_entry_ids(&store, &blob.artifact_id).is_empty());
+    }
+
+    #[tokio::test]
+    async fn segment_eviction_records_its_removals_for_cached_snapshots() {
+        let (_temp_dir, _config, store) = temp_store();
+        let digest = reapi_digest(0xaa, 5);
+        let blob = persist_reapi_blob(&store, "acme", &digest, b"hello").await;
+        let entry = persist_action_cache_entry(
+            &store,
+            "acme",
+            0xbb,
+            &action_result_referencing(&[&digest]),
+            1,
+        )
+        .await;
+        let before = store.action_cache_removal_seq();
+        let seen_before_commit = Arc::new(AtomicU64::new(u64::MAX));
+        {
+            let seen = seen_before_commit.clone();
+            let log = store.action_cache_removals.clone();
+            store.eviction_commits.lock().unwrap().before_commit = Some(Arc::new(move || {
+                seen.store(log.lock().unwrap().last(), Ordering::SeqCst);
+            }));
+        }
+
+        store
+            .evict_segment(blob.segment_id.as_deref().expect("segment-backed blob"))
+            .await
+            .expect("failed to evict segment");
+
+        assert_eq!(
+            seen_before_commit.load(Ordering::SeqCst),
+            before,
+            "a rebuild during the commit must not see the removals as applied yet"
+        );
+
+        let removals = store
+            .action_cache_removals_since("acme", before)
+            .expect("the log retains this eviction");
+        let Some(ActionCacheRemoval::Entry(entry_hash)) =
+            ActionCacheRemoval::for_artifact_key(&entry.key)
+        else {
+            panic!("the entry key should name an action hash");
+        };
+        let Some(ActionCacheRemoval::Blob { hash, size }) =
+            ActionCacheRemoval::for_artifact_key(&blob.key)
+        else {
+            panic!("the blob key should name a digest");
+        };
+        assert!(removals.entries.contains(&entry_hash));
+        assert!(removals.blobs.contains(&(hash, size)));
+        assert_eq!(removals.through, store.action_cache_removal_seq());
     }
 
     #[tokio::test]

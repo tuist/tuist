@@ -54,8 +54,9 @@ assignment upstream if persistence fails.
 - Cache keys are
   `runner-gitlab-cache/<account id>/<instance digest>/<project id>/<protected|unprotected>/<key>`,
   written through `Storage` so custom-storage accounts use their own bucket.
-  Never key by handle: a handle freed by a rename can be claimed by another
-  account. Never drop the instance: project IDs are only unique within one
+  Never key by handle: archive keys must stay stable across account renames.
+  Historical handles remain reserved to their owning account. Never drop the
+  instance: project IDs are only unique within one
   GitLab instance, and an account can connect several. Hosted retention lists
   only that prefix, resolves plans by account ID, expires deleted accounts'
   archives with the Air window, and account deletion purges the prefix.

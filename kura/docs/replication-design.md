@@ -355,7 +355,10 @@ The structure the sibling reads is a **bounded change feed**, not a live index:
 - **Capped from above, dropping oldest.** If the sibling is absent or slow the
   feed reaches its cap and the oldest rows go, exactly as the segment ring drops
   its oldest content. **Writes are never blocked** — which is the whole failure
-  mode the outbox's depth cap produces today. The default cap is **1,000,000
+  mode the outbox's depth cap produces today. The cap trims in batches like the
+  consumer trim: the feed overshoots it by one trim batch before dropping back,
+  since a range delete per write under a pinned cap stacks nested tombstones
+  that RocksDB fragments quadratically on read, flush and WAL replay. The default cap is **1,000,000
   rows** (about 100 MB at the feed's ~98 B a row, ~80 MB on disk); the sizing
   rule is that it must hold the writes that land during the longest backward
   pass the sibling can need, which is what keeps the recovery below from
@@ -1040,7 +1043,8 @@ names below are the shipped ones.
 - `kura_sync_forward_cursor_lag_entries{peer}` and `_seconds{peer}` — how far
   the sibling is behind. On loopback this should sit near zero; sustained lag is
   the early warning for a flip landing on a cold replica.
-- `kura_sync_forward_index_entries` — arrival-feed depth, bounded by the cap.
+- `kura_sync_forward_index_entries` — arrival-feed depth, bounded by the cap
+  plus one trim batch.
 - `kura_sync_forward_index_dropped_total` — **drop-oldest events.** Non-zero
   means a sibling fell off the retained range and will need a backward pass. On
   loopback this should be approximately never, so it is an alert, not a gauge to

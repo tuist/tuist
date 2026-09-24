@@ -93,7 +93,8 @@ subjects:
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
 # nodes, PersistentVolumes, CAPI machines, our Scaleway provider CRs, the Kura
-# CRs, the RunnerPool CRs, the CNPG Postgres clusters, CRDs, and RBAC objects.
+# CRs, the RunnerPool CRs, the CNPG Postgres clusters, DNSEndpoints, CRDs,
+# and RBAC objects.
 # This aggregates into `view` via the label below (no extra binding; both
 # tuist-admins and tuist-eng inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
@@ -130,6 +131,9 @@ rules:
       - postgresql.cnpg.io
       - barmancloud.cnpg.io
     resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["externaldns.k8s.io"]
+    resources: ["dnsendpoints"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]

@@ -7668,3 +7668,402 @@ extension [String] {
         return false
     }
 }
+
+@Suite
+struct TestServiceStressNewTestsTests {
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [StressNewTestsMode.report, .enforce])
+    func run_withholds_the_hash_of_a_target_with_a_flaky_new_test(mode: StressNewTestsMode) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "Project")
+        let scheme = Scheme.test(
+            name: "UnitTests",
+            testAction: .test(targets: [
+                .test(target: TargetReference(projectPath: projectPath, name: "FlakyTests")),
+                .test(target: TargetReference(projectPath: projectPath, name: "StableTests")),
+            ])
+        )
+        let fixture = TestServiceStressNewTestsFixture(
+            rootDirectory: temporaryDirectory,
+            projectPath: projectPath,
+            testTargetNames: ["FlakyTests", "StableTests"],
+            schemes: [scheme],
+            stressResults: [try .flaky(mode: mode, target: "FlakyTests")]
+        )
+
+        try await fixture.run(path: temporaryDirectory, stressNewTests: mode, expectingBlock: mode == .enforce)
+
+        #expect(fixture.storedTestHashes == (mode == .enforce ? [] : [["StableTests"]]))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [StressNewTestsMode.report, .enforce])
+    func run_withholds_the_hash_of_a_target_an_earlier_scheme_ran_when_a_later_scheme_finds_a_flaky_new_test(
+        mode: StressNewTestsMode
+    ) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "Project")
+        let sharedTests = TargetReference(projectPath: projectPath, name: "SharedTests")
+        let firstScheme = Scheme.test(
+            name: "First",
+            testAction: .test(targets: [
+                .test(target: sharedTests),
+                .test(target: TargetReference(projectPath: projectPath, name: "FirstTests")),
+            ])
+        )
+        let secondScheme = Scheme.test(
+            name: "Second",
+            testAction: .test(targets: [
+                .test(target: sharedTests),
+                .test(target: TargetReference(projectPath: projectPath, name: "SecondTests")),
+            ])
+        )
+        let fixture = TestServiceStressNewTestsFixture(
+            rootDirectory: temporaryDirectory,
+            projectPath: projectPath,
+            testTargetNames: ["FirstTests", "SecondTests", "SharedTests"],
+            schemes: [firstScheme, secondScheme],
+            stressResults: [.passed(mode: mode), try .flaky(mode: mode, target: "SharedTests")]
+        )
+
+        try await fixture.run(path: temporaryDirectory, stressNewTests: mode, expectingBlock: mode == .enforce)
+
+        #expect(fixture.storedTestHashes == [mode == .enforce ? ["FirstTests"] : ["FirstTests", "SecondTests"]])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), arguments: [StressNewTestsMode.report, .enforce])
+    func run_without_building_withholds_the_hash_of_a_target_with_a_flaky_new_test(
+        mode: StressNewTestsMode
+    ) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await FileSystem().makeDirectory(at: testProductsPath)
+        try await FileSystem().writeAsJSON(
+            SelectiveTestingGraph(testTargetHashes: ["FlakyTests": "FlakyTests-hash", "StableTests": "StableTests-hash"]),
+            at: testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        )
+        let fixture = TestServiceStressNewTestsFixture(
+            rootDirectory: temporaryDirectory,
+            projectPath: temporaryDirectory.appending(component: "Project"),
+            testTargetNames: ["FlakyTests", "StableTests"],
+            schemes: [],
+            stressResults: [try .flaky(mode: mode, target: "FlakyTests")]
+        )
+
+        try await fixture.run(
+            path: temporaryDirectory,
+            action: .testWithoutBuilding,
+            stressNewTests: mode,
+            expectingBlock: mode == .enforce,
+            passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+        )
+
+        #expect(fixture.storedTestHashes == [["StableTests"]])
+    }
+}
+
+private final class StressNewTestsFixtureState {
+    var stressResults: [StressNewTestsResult?]
+    var storedTestHashes: [Set<String>] = []
+
+    init(stressResults: [StressNewTestsResult?]) {
+        self.stressResults = stressResults
+    }
+}
+
+private struct TestServiceStressNewTestsFixture {
+    private let state: StressNewTestsFixtureState
+    private let runMetadataStorage = RunMetadataStorage()
+    private let subject: TestService
+
+    /// The target names in each selective-testing hash upload.
+    var storedTestHashes: [Set<String>] {
+        state.storedTestHashes
+    }
+
+    init(
+        rootDirectory: AbsolutePath,
+        projectPath: AbsolutePath,
+        testTargetNames: [String],
+        schemes: [Scheme],
+        stressResults: [StressNewTestsResult?]
+    ) {
+        let state = StressNewTestsFixtureState(stressResults: stressResults)
+        self.state = state
+        let generator = MockGenerating()
+        let generatorFactory = MockGeneratorFactorying()
+        let cacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let xcodebuildController = MockXcodeBuildControlling()
+        let buildGraphInspector = MockBuildGraphInspecting()
+        let simulatorController = MockSimulatorControlling()
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        let configLoader = MockConfigLoading()
+        let xcResultService = MockXCResultServicing()
+        let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
+        let gitController = MockGitControlling()
+        let derivedDataLocator = MockDerivedDataLocating()
+        let serverEnvironmentService = MockServerEnvironmentServicing()
+        let stressNewTestsService = MockStressNewTestsServicing()
+
+        let graph = Graph.test(
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: testTargetNames.map { Target.test(name: $0, product: .unitTests) },
+                    schemes: schemes
+                ),
+            ]
+        )
+        var mapperEnvironment = MapperEnvironment()
+        mapperEnvironment.initialGraph = graph
+        mapperEnvironment.targetTestHashes = [
+            projectPath: Dictionary(uniqueKeysWithValues: testTargetNames.map { ($0, "\($0)-hash") }),
+        ]
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(cacheStorage)
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(cacheStorage)
+        given(cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willProduce { items, cacheCategory in
+                if cacheCategory == .selectiveTests {
+                    state.storedTestHashes.append(Set(items.keys.map(\.name)))
+                }
+                return []
+            }
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(rootDirectory)
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .willReturn(generator)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in (path, graph, mapperEnvironment) }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(schemes)
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(schemes)
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(simulatorController)
+            .findAvailableDevice(platform: .any, version: .any, minVersion: .any, deviceName: .any)
+            .willReturn(.test())
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: nil, destination: nil))
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(rootDirectory.appending(component: "DerivedData"))
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(rootDirectory)
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(URL(string: "https://tuist.dev")!)
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willReturn()
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: testTargetNames.map { module in
+                        TestModule(
+                            name: module,
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testNew",
+                                    testSuite: nil,
+                                    module: module,
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        )
+                    }
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(stressNewTestsService)
+            .run(
+                mode: .any,
+                testSummary: .any,
+                firstPassFailed: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                mutedTests: .any,
+                resultBundleDirectory: .any,
+                stressPass: .any
+            )
+            .willProduce { _, _, _, _, _, _, _, _ in
+                state.stressResults.isEmpty ? nil : state.stressResults.removeFirst()
+            }
+
+        subject = TestService(
+            generatorFactory: generatorFactory,
+            cacheStorageFactory: cacheStorageFactory,
+            xcodebuildController: xcodebuildController,
+            buildGraphInspector: buildGraphInspector,
+            simulatorController: simulatorController,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            configLoader: configLoader,
+            xcResultService: xcResultService,
+            xcodeBuildArgumentParser: xcodeBuildArgumentParser,
+            gitController: gitController,
+            derivedDataLocator: derivedDataLocator,
+            serverEnvironmentService: serverEnvironmentService,
+            uploadBuildRunService: nil,
+            stressNewTestsService: stressNewTestsService
+        )
+    }
+
+    func run(
+        path: AbsolutePath,
+        action: XcodeBuildTestAction = .test,
+        stressNewTests: StressNewTestsMode,
+        expectingBlock: Bool,
+        passthroughXcodeBuildArguments: [String] = []
+    ) async throws {
+        let run = {
+            try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+                try await AlertController.$current.withValue(AlertController()) {
+                    try await subject.run(
+                        runId: "run-id",
+                        schemeName: nil,
+                        clean: false,
+                        noUpload: false,
+                        configuration: nil,
+                        path: path,
+                        deviceName: nil,
+                        platform: nil,
+                        osVersion: nil,
+                        action: action,
+                        rosetta: false,
+                        skipUITests: false,
+                        skipUnitTests: false,
+                        resultBundlePath: nil,
+                        derivedDataPath: nil,
+                        retryCount: 0,
+                        testTargets: [],
+                        skipTestTargets: [],
+                        testPlanConfiguration: nil,
+                        ignoreBinaryCache: false,
+                        ignoreSelectiveTesting: false,
+                        generateOnly: false,
+                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                        skipQuarantine: true,
+                        mode: .off,
+                        stressNewTests: stressNewTests
+                    )
+                }
+            }
+        }
+        if expectingBlock {
+            await #expect(throws: StressNewTestsError.self) { try await run() }
+        } else {
+            try await run()
+        }
+    }
+}
+
+extension StressNewTestsResult {
+    fileprivate static func passed(mode: StressNewTestsMode) -> StressNewTestsResult {
+        StressNewTestsResult(
+            mode: mode,
+            outcome: .noCandidates,
+            newCount: 0,
+            stressedCount: 0,
+            excludedCount: 0,
+            knownCount: 10,
+            candidates: []
+        )
+    }
+
+    fileprivate static func flaky(mode: StressNewTestsMode, target: String) throws -> StressNewTestsResult {
+        StressNewTestsResult(
+            mode: mode,
+            outcome: .disagreed,
+            newCount: 1,
+            stressedCount: 1,
+            excludedCount: 0,
+            knownCount: 10,
+            candidates: [
+                StressNewTestsCandidate(
+                    identifier: try TestIdentifier(target: target, class: "\(target)Case", method: "testNew"),
+                    repetitions: 10,
+                    failedRepetitions: 3,
+                    outcome: .disagreed,
+                    isQuarantined: false
+                ),
+            ]
+        )
+    }
+}

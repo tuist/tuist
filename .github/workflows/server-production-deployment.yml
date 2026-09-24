@@ -126,10 +126,9 @@ jobs:
       # Server and Kura releases moved out of this pipeline into
       # server-{release,rc,promote}.yml and kura-{release,rc,promote}.yml,
       # which publish canary / RC / stable image tags on their own weekly
-      # release-train schedule. This pipeline's deploy tail continues to
-      # resolve the Kura runtime tag from `git tag -l 'kura@*'` at deploy
-      # time (server-deployment.yml), so hosted deploys pick up the
-      # newest promoted Kura on the next merge.
+      # release-train schedule. This pipeline calls kura-release.yml when
+      # kura/ changed, and its deploy tail resolves the Kura runtime tag to
+      # the newest `kura@` canary in the deployed commit (server-deployment.yml).
       helm-should-release: ${{ steps.check.outputs.helm-should-release }}
       helm-next-version: ${{ steps.check.outputs.helm-next-version }}
       helm-next-version-number: ${{ steps.check.outputs.helm-next-version-number }}
@@ -152,6 +151,7 @@ jobs:
       egress-tree-agent-next-version: ${{ steps.check.outputs.egress-tree-agent-next-version }}
       egress-tree-agent-next-version-number: ${{ steps.check.outputs.egress-tree-agent-next-version-number }}
       deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
+      kura-changed: ${{ steps.kura.outputs.kura-changed }}
       # Single source of truth for hotfix routing. "(hotfix)" in the commit
       # subject ships straight to production via the production-hotfix leg and
       # skips the canary cascade. The deploy-tail jobs (canary, production,
@@ -193,6 +193,20 @@ jobs:
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - id: kura
+        # Compared against the newest canary rather than the previous push:
+        # queued runs of this workflow collapse, and a Kura change in a
+        # replaced run must still be released and deployed.
+        run: |
+          set -euo pipefail
+          latest_canary="$(git tag --list 'kura@*' --merged HEAD \
+            | grep -E '^kura@[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
+            | sort -V | tail -n1 || true)"
+          if [ -z "$latest_canary" ] || ! git diff --quiet "$latest_canary" HEAD -- kura/; then
+            echo "kura-changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "kura-changed=false" >> "$GITHUB_OUTPUT"
           fi
 
   release-helm:
@@ -1246,6 +1260,24 @@ jobs:
             "${{ needs.check-releases.outputs.linux-runner-image-next-version }}" \
             tuist/tuist-linux-runner
 
+  # Publishes the Kura canary that the deploy legs below resolve (hosted Kura
+  # runs the newest canary in the deployed commit). It runs inside this
+  # serialized workflow so the tag exists before any leg resolves it, and no
+  # release can land mid-cascade. The legs wait for it without requiring
+  # success: a failed Kura release must not hold back server changes.
+  kura-release:
+    name: Kura canary release
+    needs: [check-releases]
+    if: needs.check-releases.outputs.kura-changed == 'true'
+    permissions:
+      contents: write
+      pull-requests: read
+      statuses: write
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/kura-release.yml
+    secrets: inherit
+
   # --------------------------------------------------------------------------
   # Production deploy cascade - build → canary → acceptance tests → production,
   # run in-sequence after the fleet/runtime images are built + tagged so a
@@ -1275,7 +1307,8 @@ jobs:
         needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
         needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
         needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
-        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true'
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
       )
     # Bigger shape: the server image build (Elixir release compile inside
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
@@ -1347,8 +1380,14 @@ jobs:
           # caches every stage (deps.compile, builder, og-images).
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
+          # TUIST_VERSION is baked into the image as the value Sentry reports as
+          # `release`. The Dockerfile default is `0.0.0`, so without this line
+          # every hosted-server event lands in Atlas without a release tag.
+          # Reuse the image tag so the Atlas release matches the image the pod
+          # runs (`sha-<12chars>`).
           build-args: |
             TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
       - uses: docker/build-push-action@v6
@@ -1386,7 +1425,7 @@ jobs:
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: [check-releases, build, tag-infra-releases]
+    needs: [check-releases, build, tag-infra-releases, kura-release]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
@@ -1464,9 +1503,10 @@ jobs:
       # TuistServerProductionDeployAcceptanceTests is this workflow's own plan
       # (see Project.swift): the EE suite this job has always run, which covers
       # caching, module cache and selective testing against canary, plus
-      # TuistServerAcceptanceTests, which covers build ingestion. Ingestion had
-      # no coverage here at all, which is how a change that killed 100% of it
-      # promoted to production green on 2026-09-09.
+      # TuistServerAcceptanceTests, which covers build and test result ingestion.
+      # Ingestion had no coverage here at all, which is how a change that killed
+      # 100% of build ingestion promoted to production green on 2026-09-09, and
+      # one that killed 100% of xcresult processing on 2026-09-23.
       #
       # The worker cap matches cli.yml. It is not load-bearing while the plan
       # holds two targets, since xcodebuild hands out one worker per target, but
@@ -1583,20 +1623,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-          # Full history + tags to resolve the same kura@ release tag the
+          # Full history + tags to resolve the same kura@ canary tag the
           # canary deploy pinned.
           fetch-depth: 0
       - name: Wait for the canary Kura rollout to complete
         run: |
           set -euo pipefail
-          # No --merged filter: the promoted kura@ tag now lives on
-          # releases/kura-X.Y.x, which is not ancestor of main HEAD. This
-          # matches how server-deployment.yml's resolver picks the tag the
-          # canary was actually deployed with.
-          kura_tag="$(git tag --list 'kura@*' \
+          # Mirrors server-deployment.yml's resolver: the newest canary this
+          # commit contains, else (commits predating canaries) the newest
+          # stable tag.
+          kura_tag="$(git tag --list 'kura@*' --merged "${{ github.sha }}" \
             | sed 's|^kura@||' \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-            | sort -V | tail -n1)"
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
+            | sort -V | tail -n1 || true)"
+          if [ -z "$kura_tag" ]; then
+            kura_tag="$(git tag --list 'kura@*' \
+              | sed 's|^kura@||' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V | tail -n1 || true)"
+          fi
           if [ -z "$kura_tag" ]; then
             echo "No kura@ release tag reachable from this commit; nothing to gate."
             exit 0
@@ -1686,7 +1731,7 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: [check-releases, build, tag-infra-releases]
+    needs: [check-releases, build, tag-infra-releases, kura-release]
     if: ${{ always() && needs.build.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
     # See `canary` above: grant the callee's full permission union.
     permissions:

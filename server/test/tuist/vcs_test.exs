@@ -97,7 +97,7 @@ defmodule Tuist.VCSTest do
         ci_project_handle: "tuist/tuist"
       }
 
-      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/pipelines/github/tuist/tuist/12345"
+      assert VCS.ci_run_url(ci_metadata) == "https://app.circleci.com/jobs/github/tuist/tuist/12345"
     end
 
     test "returns Buildkite builds URL for buildkite provider" do
@@ -233,11 +233,20 @@ defmodule Tuist.VCSTest do
           test_run_id: test_run_one.id
         )
 
+      {:ok, test_run_two_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          cacheable_tasks_count: 10,
+          cacheable_task_local_hits_count: 6,
+          cacheable_task_remote_hits_count: 2
+        )
+
       {:ok, test_run_two} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
+          build_run_id: test_run_two_build.id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           status: "failure",
@@ -295,7 +304,7 @@ defmodule Tuist.VCSTest do
           remote_cache_target_hits: ["C"],
           test_targets: ["ATests", "BTests", "CTests", "DTests"],
           local_test_target_hits: ["ATests", "BTests"],
-          remote_test_target_hits: ["CTests"],
+          remote_test_target_hits: [],
           status: "failure",
           test_run_id: test_run_two.id
         )
@@ -337,10 +346,10 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
-        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 4 | 3 | 1 | #{commit_link} |
+        | Scheme | Status | Module cache hit rate | Xcode cache hit rate | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run_one.id}) | ✅ | - | - | 0 | #{commit_link} |
+        | [test App](https://tuist.dev/test_runs/#{test_run_two.id}) | ❌ | 50 % | 80 % | 1/3 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -632,7 +641,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: _
                                          } ->
         {:ok, %{}}
@@ -687,7 +696,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: _
                                          } ->
         {:ok, %{}}
@@ -854,7 +863,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "1",
+                                           issue_id: 1,
                                            body: body
                                          } ->
         assert String.starts_with?(body, "### 🛠️ Tuist Run Report 🛠️")
@@ -1553,9 +1562,9 @@ defmodule Tuist.VCSTest do
 
         ##### Xcode
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 1 | #{commit_link} |
 
         ##### Gradle
 
@@ -1624,9 +1633,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [AppTests](https://tuist.dev/test_runs/#{test_run.id}) | ⏳ | 0 | #{commit_link} |
 
         """
 
@@ -1747,9 +1756,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 | #{commit_link} |
 
 
         #### Builds 🔨
@@ -1985,9 +1994,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -2094,9 +2103,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 7 | 0 | 7 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 1 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -2356,9 +2365,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 2 | 0 | 2 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -2500,9 +2509,9 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
-        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 0 % | 7 | 0 | 7 | #{commit_link} |
+        | Scheme | Status | Test modules | Commit |
+        |:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ❌ | 1 | #{commit_link} |
 
 
         #### Failed Tests ❌
@@ -2678,6 +2687,24 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "pull_request_number_from_git_ref/1" do
+    test "returns the pull request number of a pull request ref" do
+      assert VCS.pull_request_number_from_git_ref("refs/pull/23958/merge") == 23_958
+      assert VCS.pull_request_number_from_git_ref("refs/pull/7/head") == 7
+      assert VCS.pull_request_number_from_git_ref("refs/pull/7") == 7
+    end
+
+    test "returns nil for refs that are not pull request refs" do
+      assert VCS.pull_request_number_from_git_ref("refs/heads/main") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/tags/v1.0.0") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/abc/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/12abc/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("refs/pull/0/merge") == nil
+      assert VCS.pull_request_number_from_git_ref("") == nil
+      assert VCS.pull_request_number_from_git_ref(nil) == nil
+    end
+  end
+
   describe "create_comment/1" do
     setup do
       stub(Environment, :github_app_configured?, fn -> true end)
@@ -2696,7 +2723,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "123",
+                                           issue_id: 123,
                                            body: "This is a test comment"
                                          } ->
         {:ok, %Comment{id: 1, client_id: "client_id"}}
@@ -2829,7 +2856,7 @@ defmodule Tuist.VCSTest do
 
       expect(Client, :create_comment, fn %{
                                            repository_full_handle: "tuist/tuist",
-                                           issue_id: "123",
+                                           issue_id: 123,
                                            body: "This is a test comment"
                                          } ->
         {:error, :forbidden}

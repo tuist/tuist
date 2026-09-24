@@ -1,0 +1,102 @@
+[data-part="tasks-page"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--noora-spacing-5);
+  }
+
+  & > [data-part="header"] > [data-part="text"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    margin: 0;
+    max-width: 60rem;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & [data-part="header-actions"] {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+  }
+
+  & [data-part="tasks-card-section"] {
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="filters"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="search"] {
+    width: min(100%, 25rem);
+    flex-shrink: 0;
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="task-reminder-cell"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+    white-space: nowrap;
+  }
+
+  & [data-part="scroll-container"] {
+    overflow: visible;
+  }
+
+  @media (max-width: 768px) {
+    & > [data-part="header"] {
+      flex-direction: column;
+    }
+
+    & [data-part="filters"] {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    & [data-part="search"] {
+      width: 100%;
+    }
+  }
+}
+
+[data-part="task-modal-content"] {
+  padding: var(--noora-spacing-4) var(--noora-spacing-6);
+
+  & [data-part="task-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="task-select"],
+  & [data-part="reminder-field"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+}

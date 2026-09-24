@@ -209,6 +209,7 @@ defmodule AtlasWeb.Router do
       on_mount: [{AtlasWeb.LayoutLive, :default}],
       layout: {AtlasWeb.Layouts, :dashboard} do
       live "/", OverviewLive, :index
+      live "/tasks", TasksLive, :index
       live "/commercial/sales", SalesLive, :index
       live "/commercial/sales/accounts", AccountsLive, :index
       live "/commercial/sales/accounts/:id", AccountLive, :show

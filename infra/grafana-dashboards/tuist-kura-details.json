@@ -2158,7 +2158,7 @@
               "transformations": []
             }
           },
-          "description": "Public requests shed for capacity, by which limit refused them\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
+          "description": "Capacity rejections by limit. REAPI materialization includes rejected reads and per-blob batch errors, not just uploads. Optional wildcard inlining fallbacks are counted separately in kura_reapi_inline_fallbacks_total_total on current versions; older replicas still mix those fallbacks into this counter.\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
           "id": 12,
           "links": [],
           "title": "capacity_sheds_total (rate)",
@@ -20502,7 +20502,7 @@
               "transformations": []
             }
           },
-          "description": "Arrival-feed rows retained between the trim floor and the head: what the sibling has not yet consumed. Near zero while a sibling long-polls over loopback. Climbing means the sibling is down or slow; at the cap (`KURA_SYNC_FEED_MAX_ROWS`, 1,000,000 by default) the oldest rows are dropped rather than a write being refused. Zero on a region of one, which carries no feed, and on a node whose feed has never been switched on by a pulling sibling.\n\nPrometheus name: `kura_sync_forward_index_entries`",
+          "description": "Arrival-feed rows retained between the trim floor and the head: what the sibling has not yet consumed. Near zero while a sibling long-polls over loopback. Climbing means the sibling is down or slow; at the cap (`KURA_SYNC_FEED_MAX_ROWS`, 1,000,000 by default) the oldest rows are dropped rather than a write being refused. The feed overshoots the cap by up to one trim batch (1,024 rows) before dropping back to it, so a pinned feed reads slightly above the cap. Zero on a region of one, which carries no feed, and on a node whose feed has never been switched on by a pulling sibling.\n\nPrometheus name: `kura_sync_forward_index_entries`",
           "id": 214,
           "links": [],
           "title": "sync_forward_index_entries",
@@ -20594,7 +20594,7 @@
               "transformations": []
             }
           },
-          "description": "Arrival-feed rows dropped at the cap before a sibling read them. Non-zero means a sibling fell off the feed and will re-bootstrap (snapshot, backward pass, forward). On loopback this should be approximately never, so treat any increase as an alert rather than a trend: the sibling was down for longer than the feed could cover, or the cap is smaller than the sizing rule requires (it must hold the writes that land during the longest backward pass a sibling can need).\n\nPrometheus name: `kura_sync_forward_index_dropped_total_total`",
+          "description": "Arrival-feed rows dropped at the cap before a sibling read them, in steps of one trim batch (1,025 rows) at a time. Non-zero means a sibling fell off the feed and will re-bootstrap (snapshot, backward pass, forward). On loopback this should be approximately never, so treat any increase as an alert rather than a trend: the sibling was down for longer than the feed could cover, or the cap is smaller than the sizing rule requires (it must hold the writes that land during the longest backward pass a sibling can need).\n\nPrometheus name: `kura_sync_forward_index_dropped_total_total`",
           "id": 215,
           "links": [],
           "title": "sync_forward_index_dropped_total (rate)",
@@ -23342,6 +23342,98 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-244": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_reapi_inline_fallbacks_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Output files skipped during best-effort wildcard inlining because the response memory budget or shared pool could not admit them. Counted per file, not per RPC; the action lookup can still succeed and the client can fetch the omitted blob separately. Explicit inline failures remain in capacity_sheds with kind=reapi_materialization. Client size-hint skips and missing blobs are not counted. Older replicas do not expose this metric and still include optional fallbacks in their shedding counters.\n\nPrometheus name: `kura_reapi_inline_fallbacks_total_total`",
+          "id": 244,
+          "links": [],
+          "title": "Optional REAPI inlining fallbacks (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -23840,11 +23932,24 @@
                         "x": 0,
                         "y": 21
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-244"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 21
+                      }
                     }
                   ]
                 }
               },
-              "title": "HTTP, gRPC & request admission (10)"
+              "title": "HTTP, gRPC & request admission (11)"
             }
           },
           {

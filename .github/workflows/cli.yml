@@ -240,6 +240,10 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
+      - name: Verify scheme process integration
+        run: |
+          tuist generate TuistProcessSchemeIntegration --no-open
+          bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4 -enableCodeCoverage YES
         env:

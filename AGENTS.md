@@ -12,6 +12,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
+- `tuist_ex/` - Elixir build and test instrumentation Hex package - see `tuist_ex/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `atlas/` - Atlas internal ops app (Elixir/Phoenix) covering CRM, contracts, GTM, finance, letters, and the MCP tools other services call into. Deployed to `atlas-production` on the CAPI cluster. MPL-2.0. See `atlas/AGENTS.md`.
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
@@ -29,6 +30,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `infra/cluster-api-provider-tuist/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-tuist/AGENTS.md`.
 - `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
 - `infra/egress-tree-agent/` - Go DaemonSet enforcing kura per-tenant egress floors/ceilings and the node box cap via a shared per-node HTB tree (tcx BPF veth trampoline that keeps Cilium's datapath applied to shaped traffic). Consumes the `tuist.dev/egress-class` pod annotation rendered by the kura-controller. See `infra/egress-tree-agent/AGENTS.md`.
+- `infra/rack-switch-controller/` - Go controller that adopts `RackSwitch` objects marked `managedBy: controller` into the Omada SDN controller and writes their configuration through its Open API, one switch at a time in the site's apply order. Owns the generated RackSwitch CRD. See `infra/rack-switch-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
 - `grafana-datasource/` - Grafana data source plugin (Go backend + React) exposing Tuist build/test duration metrics. Thin client over the server's `/builds/metrics/duration` + `/tests/metrics/duration` API - see `grafana-datasource/AGENTS.md`
@@ -61,6 +63,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
 - `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
+- `tuist-ex` - Changes to the Elixir build and test integration
 - `noora` - Changes to the Noora web component library
 - `skills` - Changes to the Agent Skills package
 - `search` - Changes to the search infrastructure (TypeSense)
@@ -295,6 +298,7 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
 
 - Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
+- Hosted Kura follows `main` too: canary and production pin the newest `kura@X.Y.0-canary.N` in the deployed commit, which the cascade publishes by calling `kura-release.yml` when `kura/` changed. Fresh staging deploys still build the Kura runtime from the deployed commit. Pass `kura_runtime_image_tag` to `server-deployment.yml` to pin another tag (e.g. a stable one) for a deploy.
 - Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
 - Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).
 
