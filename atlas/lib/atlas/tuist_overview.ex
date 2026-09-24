@@ -185,32 +185,8 @@ defmodule Atlas.TuistOverview do
   """
   def measure(range, opts \\ [])
 
-  def measure({%Date{} = start_date, %Date{} = end_date}, opts) do
-    pg_query = Keyword.get(opts, :pg_query, &TuistServer.query/2)
-    ch_query = Keyword.get(opts, :ch_query, &TuistServer.clickhouse_query/2)
-    configured_fun = Keyword.get(opts, :configured?, &TuistServer.configured?/0)
-
-    days = date_range_days(start_date, end_date)
-    previous_start = Date.add(start_date, -days)
-    previous_end = Date.add(start_date, -1)
-
-    cond do
-      configured_fun.() ->
-        Map.new(@all_metrics, fn metric ->
-          {metric,
-           metric
-           |> measure_metric({start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)
-           |> group_series(metric, start_date, end_date)}
-        end)
-
-      Environment.dev?() ->
-        Map.new(@all_metrics, fn metric ->
-          {metric, metric |> sample_measure(start_date, end_date) |> group_series(metric, start_date, end_date)}
-        end)
-
-      true ->
-        Map.new(@all_metrics, &{&1, {:error, :not_configured}})
-    end
+  def measure({%Date{}, %Date{}} = range, opts) do
+    Map.new(@all_metrics, &{&1, measure_metric(&1, range, opts)})
   end
 
   @doc """
@@ -232,18 +208,19 @@ defmodule Atlas.TuistOverview do
     previous_start = Date.add(start_date, -days)
     previous_end = Date.add(start_date, -1)
 
-    cond do
-      configured_fun.() ->
-        metric
-        |> measure_metric({start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)
-        |> group_series(metric, start_date, end_date)
+    measurement =
+      cond do
+        configured_fun.() ->
+          measure_metric(metric, {start_date, end_date}, {previous_start, previous_end}, pg_query, ch_query)
 
-      Environment.dev?() ->
-        metric |> sample_measure(start_date, end_date) |> group_series(metric, start_date, end_date)
+        Environment.dev?() ->
+          sample_measure(metric, start_date, end_date)
 
-      true ->
-        {:error, :not_configured}
-    end
+        true ->
+          {:error, :not_configured}
+      end
+
+    group_series(measurement, metric, start_date, end_date)
   end
 
   defp measure_metric(metric, current, previous, pg_query, _ch_query) when metric in @cumulative_metrics do
