@@ -4250,12 +4250,20 @@ impl Proxy {
 
     /// Sweeps orphaned publication records for every known CAS path whose
     /// instance the proxy knows (an unprimed path has nothing to publish to).
+    ///
+    /// Walks the registered paths, not the stores the proxy holds open: it opens
+    /// only the store each instance used last, and a record spooled under
+    /// another is owed all the same. Reading a spool opens nothing; a store is
+    /// opened only to publish a record, and released once it goes idle again.
     pub fn sweep(&self) {
-        let paths: Vec<String> = self.paths.lock().unwrap().keys().cloned().collect();
-        for cas_path in paths {
-            let Some(instance) = self.path_instance.lock().unwrap().get(&cas_path).cloned() else {
-                continue;
-            };
+        let paths: Vec<(String, String)> = self
+            .path_instance
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(cas_path, instance)| (cas_path.clone(), instance.clone()))
+            .collect();
+        for (cas_path, instance) in paths {
             self.sweep_path(&cas_path, &instance);
         }
     }
@@ -11739,6 +11747,42 @@ mod tests {
             assert!(Instant::now() < deadline, "the warm reopens the store and drains");
             std::thread::sleep(Duration::from_millis(2));
         }
+    }
+
+    // A record left spooled under a store the proxy has not opened since it
+    // started (a shed or failed upload, a restart mid-drain) is owed all the
+    // same, and its path is not forgotten while it is.
+    #[test]
+    fn the_sweep_reaches_the_spool_of_a_registered_store_the_proxy_has_not_opened() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let dir = TempCasDir::new("sweep-unopened");
+        let registry = dir.0.join("registry");
+        let older = store_in(&dir, "older");
+        let latest = store_in(&dir, "latest");
+        std::fs::write(&registry, format!("{older}\ttuist/app\n{latest}\ttuist/app\n")).unwrap();
+        let now = unix_seconds();
+        std::fs::write(
+            uses_path_for(&registry),
+            format!("{older}\t{}\n{latest}\t{now}\n", now - 60 * 60),
+        )
+        .unwrap();
+        // Not uploading, so reaching the record deletes it.
+        std::fs::write(sources_path_for(&registry), r#"{"tuist/app":{"upload":false}}"#).unwrap();
+        std::fs::create_dir_all(spool_dir(&older)).unwrap();
+        let record = spool_dir(&older).join("record");
+        std::fs::write(&record, b"record").unwrap();
+        let proxy = upstream_registry_proxy(&registry);
+        proxy.prematerialize_snapshot("tuist/app", &empty_snapshot());
+
+        proxy.sweep();
+
+        assert!(!record.exists(), "the spooled record is reached");
+        assert!(
+            !proxy.paths.lock().unwrap().contains_key(&older),
+            "without opening a store it did not need"
+        );
     }
 
     // A warm stamps no use, so a store that went idle before its warm started
