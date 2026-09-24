@@ -19,30 +19,34 @@ defmodule TuistWeb.OnceRunsLive do
   alias Phoenix.LiveView.AsyncResult
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Analytics
-  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
+  alias TuistWeb.Utilities.SHA
 
   @page_size 20
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    {resource, table_title, resource_kind, kind_filter, base_path, show_analytics?} =
+    # `summary_card?` is what makes the Builds page's card the Xcode shaped
+    # one: a chart over the latest few runs with a View more button, instead
+    # of the filterable, paginated listing the dedicated Build
+    # Runs and Test Runs pages are.
+    {resource, table_title, resource_kind, kind_filter, base_path, show_analytics?, summary_card?} =
       case socket.assigns[:live_action] do
         :tests ->
           {dgettext("dashboard_projects", "Test Runs"), dgettext("dashboard_projects", "Test Runs"), :tests, "test",
-           "once/test-runs", true}
+           "once/test-runs", true, false}
 
         :build_runs ->
           {dgettext("dashboard_projects", "Build Runs"), dgettext("dashboard_projects", "Build Runs"), :builds, "build",
-           "once/build-runs", false}
+           "once/build-runs", false, false}
 
         _ ->
           # The Builds page is an overview whose table lists the latest runs,
           # so the card is titled the way the Xcode and Gradle builds pages
           # title theirs rather than repeating the page name.
           {dgettext("dashboard_projects", "Builds"), dgettext("dashboard_builds", "Recent Builds"), :builds, "build",
-           "once/builds", true}
+           "once/builds", true, true}
       end
 
     socket =
@@ -53,6 +57,7 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign(:once_base_path, base_path)
       |> assign(:once_kind_filter, kind_filter)
       |> assign(:once_show_analytics, show_analytics?)
+      |> assign(:once_summary_card, summary_card?)
       |> assign(:head_title, "#{resource} · #{account.name}/#{project.name} · Tuist")
       |> assign(:available_filters, define_filters())
 
@@ -69,20 +74,27 @@ defmodule TuistWeb.OnceRunsLive do
     sort_order = params["invocations-sort-order"] || "desc"
     uri = URI.new!("?" <> URI.encode_query(params))
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
-    search = String.trim(params["search"] || "")
 
     %{preset: analytics_preset, period: analytics_period} =
       DatePicker.date_picker_params(params, "analytics")
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
+    insights_dimension = insights_dimension(params["configuration-insights-type"])
 
     filters =
       [%{field: :project_id, op: :==, value: project.id}] ++
-        search_filters(search) ++
         Filter.Operations.convert_filters_to_flop(active_filters)
 
     commands = [socket.assigns.once_kind_filter]
     analytics_opts = analytics_opts(analytics_period, commands)
+
+    # The dedicated listing pages carry no date picker, the way Xcode's own
+    # Build Runs page does not, so scoping their table to a period would put
+    # older runs out of reach with no control to widen the window.
+    listing_opts =
+      if socket.assigns.once_show_analytics,
+        do: analytics_opts,
+        else: Keyword.drop(analytics_opts, [:start_datetime, :end_datetime])
 
     {invocations, meta} =
       Analytics.list_invocations(
@@ -95,7 +107,7 @@ defmodule TuistWeb.OnceRunsLive do
           page_size: @page_size,
           commands: commands
         },
-        analytics_opts
+        listing_opts
       )
 
     has_any_invocations = Enum.any?(invocations) || Analytics.invocations_present?(project.id, commands)
@@ -116,7 +128,6 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign(:has_any_invocations, has_any_invocations)
       |> assign(:selected_duration_type, params["duration-type"] || "avg")
       |> assign(:active_filters, active_filters)
-      |> assign(:search, search)
       |> assign(:duration_chart_type, duration_chart_type(params["build-duration-chart-type"]))
       |> assign(:duration_scatter_group_by, scatter_group_by(params["build-duration-scatter-group-by"]))
       |> assign_duration_scatter(
@@ -132,11 +143,20 @@ defmodule TuistWeb.OnceRunsLive do
            invocation_analytics: Analytics.invocation_analytics(project.id, analytics_opts)
          }}
       end)
+      |> assign(:configuration_insights_dimension, insights_dimension)
       |> assign_async(:configuration_insights_analytics, fn ->
         {:ok,
          %{
-           configuration_insights_analytics: Analytics.build_duration_analytics_by_version(project.id, analytics_opts)
+           configuration_insights_analytics:
+             Analytics.build_duration_analytics_by(
+               project.id,
+               String.to_existing_atom(insights_dimension),
+               analytics_opts
+             )
          }}
+      end)
+      |> assign_async(:recent_runs_chart, fn ->
+        {:ok, %{recent_runs_chart: recent_runs_chart(project.id, analytics_opts)}}
       end)
 
     {:noreply, socket}
@@ -175,15 +195,6 @@ defmodule TuistWeb.OnceRunsLive do
        socket.assigns.analytics_period,
        [socket.assigns.once_kind_filter]
      )}
-  end
-
-  def handle_event("search", %{"search" => search}, socket) do
-    query =
-      socket.assigns.uri.query
-      |> Query.put("search", search)
-      |> Query.put("page", "1")
-
-    {:noreply, push_patch(socket, to: invocation_list_path(socket, URI.decode_query(query)))}
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -243,7 +254,7 @@ defmodule TuistWeb.OnceRunsLive do
   def render(assigns) do
     ~H"""
     <div id="bazel-invocations" class="bazel-invocations">
-      <div data-part="filters">
+      <div :if={@once_show_analytics} data-part="filters">
         <.date_picker
           id="once-invocations-date-range-picker"
           name="analytics-date-range"
@@ -496,14 +507,15 @@ defmodule TuistWeb.OnceRunsLive do
         <:actions>
           <.dropdown
             id="once-configuration-insights-type-dropdown"
-            label={dgettext("dashboard_projects", "Once version")}
+            label={insights_dimension_label(@configuration_insights_dimension)}
             secondary_text={dgettext("dashboard_builds", "Type:")}
           >
             <.dropdown_item
-              value="once-version"
-              label={dgettext("dashboard_projects", "Once version")}
-              patch={"?#{@uri.query}"}
-              data-selected
+              :for={dimension <- ~w(version host environment)}
+              value={dimension}
+              label={insights_dimension_label(dimension)}
+              patch={"?#{Query.put(@uri.query, "configuration-insights-type", dimension)}"}
+              data-selected={@configuration_insights_dimension == dimension}
             >
               <:right_icon><.check /></:right_icon>
             </.dropdown_item>
@@ -574,19 +586,92 @@ defmodule TuistWeb.OnceRunsLive do
         icon="subtask"
         data-part="bazel-invocations-card"
       >
-        <.card_section data-part="bazel-invocations-table-section">
-          <div data-part="filters">
-            <.form for={%{}} id="once-invocations-search-form" phx-change="search" phx-submit="search">
-              <.text_input
-                type="search"
-                id="once-invocations-search"
-                name="search"
-                placeholder={dgettext("dashboard_projects", "Search runs...")}
-                show_suffix={false}
-                value={@search}
-                phx-debounce="200"
+        <:actions :if={@once_summary_card}>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_builds", "View more")}
+            size="medium"
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/once/build-runs"}
+            disabled={Enum.empty?(@invocations)}
+          />
+        </:actions>
+        <.card_section
+          :if={@once_summary_card && !@recent_runs_chart.ok?}
+          data-part="recent-builds-card-section"
+        >
+          <div data-part="builds-chart">
+            <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
+            <.skeleton_chart />
+          </div>
+        </.card_section>
+        <.card_section
+          :if={
+            @once_summary_card && @recent_runs_chart.ok? &&
+              Enum.any?(@recent_runs_chart.result.points)
+          }
+          data-part="recent-builds-card-section"
+        >
+          <div data-part="builds-chart">
+            <div data-part="legends">
+              <.legend
+                title={successful_runs_legend(@once_resource_kind)}
+                value={@recent_runs_chart.result.successful}
+                style="primary"
               />
-            </.form>
+              <.legend
+                title={failed_runs_legend(@once_resource_kind)}
+                value={@recent_runs_chart.result.failed}
+                style="destructive"
+              />
+            </div>
+            <.chart
+              id="once-recent-runs-chart"
+              type="bar"
+              extra_options={
+                %{
+                  grid: %{width: "98%", left: "0.4%", right: "7%", height: "88%", top: "5%"},
+                  tooltip: %{valueFormat: "fn:formatMilliseconds", dateFormat: "minute"},
+                  xAxis: %{
+                    axisLabel: %{show: false},
+                    data: Enum.map(@recent_runs_chart.result.points, & &1.date)
+                  },
+                  yAxis: %{
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "fn:formatMilliseconds"
+                    }
+                  },
+                  legend: %{show: false}
+                }
+              }
+              series={[
+                %{data: @recent_runs_chart.result.points, name: @once_resource, type: "bar"}
+              ]}
+              y_axis_min={0}
+              grid_lines
+              bar_width={8}
+              bar_radius={2}
+            />
+          </div>
+        </.card_section>
+        <.card_section data-part="bazel-invocations-table-section">
+          <div :if={!@once_summary_card} data-part="filters">
+            <.dropdown
+              id="once-invocations-sort-by"
+              label={invocations_sort_label(@invocations_sort_by)}
+              secondary_text={dgettext("dashboard_builds", "Sort by:")}
+            >
+              <.dropdown_item
+                :for={column <- ~w(duration ran-at)}
+                value={column}
+                label={invocations_sort_label(column)}
+                patch={column_patch_sort(assigns, column)}
+                data-selected={@invocations_sort_by == column}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
             <.filter_dropdown
               id="once-invocations-filter-dropdown"
               label={dgettext("dashboard_projects", "Filter")}
@@ -594,13 +679,13 @@ defmodule TuistWeb.OnceRunsLive do
               active_filters={@active_filters}
             />
           </div>
-          <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <div :if={!@once_summary_card && Enum.any?(@active_filters)} data-part="active-filters">
             <.active_filter :for={filter <- @active_filters} filter={filter} />
           </div>
           <div :if={Enum.any?(@invocations)} data-part="bazel-invocations-table">
             <.table
               id="once-invocations-table"
-              rows={@invocations}
+              rows={visible_invocations(@invocations, @once_summary_card)}
               row_key={fn run -> run.invocation_id end}
               row_navigate={
                 fn invocation ->
@@ -636,6 +721,33 @@ defmodule TuistWeb.OnceRunsLive do
                   status="in_progress"
                 />
               </:col>
+              <:col :let={invocation} label={dgettext("dashboard_builds", "Branch")}>
+                <.text_cell
+                  icon="git_branch"
+                  label={
+                    if(invocation.git_branch in [nil, ""], do: "None", else: invocation.git_branch)
+                  }
+                />
+              </:col>
+              <:col :let={invocation} label={dgettext("dashboard_builds", "Commit SHA")}>
+                <.text_cell label={SHA.format_commit_sha(invocation.git_rev)} />
+              </:col>
+              <:col :let={invocation} label={dgettext("dashboard_builds", "Ran by")}>
+                <.badge_cell
+                  :if={invocation.is_ci}
+                  label={dgettext("dashboard", "CI")}
+                  icon="settings"
+                  color="information"
+                  style="light-fill"
+                />
+                <.badge_cell
+                  :if={!invocation.is_ci}
+                  label={dgettext("dashboard_projects", "Local")}
+                  icon="user"
+                  color="primary"
+                  style="light-fill"
+                />
+              </:col>
               <:col
                 :let={invocation}
                 label={dgettext("dashboard_projects", "Duration")}
@@ -647,15 +759,6 @@ defmodule TuistWeb.OnceRunsLive do
                   icon="history"
                 />
               </:col>
-              <:col :let={invocation} label={dgettext("dashboard_projects", "Cache hit rate")}>
-                <.text_cell label={cache_hit_rate(invocation.cache)} />
-              </:col>
-              <:col :let={invocation} label={dgettext("dashboard_projects", "Downloaded")}>
-                <.text_cell label={ByteFormatter.format_bytes(invocation.cache.download_bytes)} />
-              </:col>
-              <:col :let={invocation} label={dgettext("dashboard_projects", "Uploaded")}>
-                <.text_cell label={ByteFormatter.format_bytes(invocation.cache.upload_bytes)} />
-              </:col>
               <:col
                 :let={invocation}
                 label={dgettext("dashboard_projects", "Ran at")}
@@ -664,9 +767,17 @@ defmodule TuistWeb.OnceRunsLive do
               >
                 <.text_cell sublabel={DateFormatter.from_now(invocation.finished_at)} />
               </:col>
+              <:col :let={invocation} label={dgettext("dashboard_projects", "Host")}>
+                <.text_cell label={
+                  if(invocation.host_class in [nil, ""],
+                    do: dgettext("dashboard_builds", "Unknown"),
+                    else: invocation.host_class
+                  )
+                } />
+              </:col>
             </.table>
             <.pagination_group
-              :if={@total_pages > 1}
+              :if={!@once_summary_card && @total_pages > 1}
               current_page={@current_page}
               number_of_pages={@total_pages}
               page_patch={fn page -> "?#{Query.put(@uri.query, "page", to_string(page))}" end}
@@ -702,6 +813,78 @@ defmodule TuistWeb.OnceRunsLive do
 
   defp success_rate(summary) do
     if numeric(summary.total) == 0, do: nil, else: "#{Float.round(success_rate_value(summary), 1)}%"
+  end
+
+  defp invocations_sort_label("duration"), do: dgettext("dashboard_builds", "Duration")
+  defp invocations_sort_label(_ran_at), do: dgettext("dashboard_builds", "Ran at")
+
+  # An unknown or absent query value falls back to the Once release rather
+  # than reaching `String.to_existing_atom/1` with arbitrary input.
+  defp insights_dimension(type) when type in ~w(version host environment), do: type
+  defp insights_dimension(_unknown), do: "version"
+
+  defp insights_dimension_label("host"), do: dgettext("dashboard_projects", "Host")
+  defp insights_dimension_label("environment"), do: dgettext("dashboard_projects", "Environment")
+  defp insights_dimension_label(_version), do: dgettext("dashboard_projects", "Once version")
+
+  # The summary card shows only the latest handful, the way the Xcode Recent
+  # Builds card takes 7 and sends the rest to its own listing page.
+  @summary_card_rows 7
+
+  defp visible_invocations(invocations, true), do: Enum.take(invocations, @summary_card_rows)
+  defp visible_invocations(invocations, _paginated), do: invocations
+
+  defp successful_runs_legend(:tests), do: dgettext("dashboard_projects", "Passed runs")
+  defp successful_runs_legend(_builds), do: dgettext("dashboard_builds", "Successful builds")
+
+  defp failed_runs_legend(:tests), do: dgettext("dashboard_projects", "Failed runs")
+  defp failed_runs_legend(_builds), do: dgettext("dashboard_builds", "Failed builds")
+
+  # The bar-per-run chart the Xcode Recent Builds card draws above its table:
+  # newest last so the bars read left to right, coloured by status, with the
+  # legend counts taken from the same window the bars cover.
+  @recent_runs_chart_limit 30
+
+  defp recent_runs_chart(project_id, analytics_opts) do
+    {runs, _meta} =
+      Analytics.list_invocations(
+        project_id,
+        %{
+          page: 1,
+          page_size: @recent_runs_chart_limit,
+          order_by: [:finished_at],
+          order_directions: [:desc]
+        },
+        analytics_opts
+      )
+
+    points =
+      runs
+      # A run still in flight has no verdict and no duration, so charting it
+      # would draw a zero-height failure bar. The Xcode card excludes its
+      # equivalent (`processing`) states for the same reason.
+      |> Enum.filter(&(&1.status in ["success", "failure"]))
+      |> Enum.reverse()
+      |> Enum.map(fn run ->
+        %{
+          value: run.duration_ms || 0,
+          itemStyle: %{
+            color:
+              if(run.status == "success",
+                do: "var:noora-chart-primary",
+                else: "var:noora-chart-destructive"
+              )
+          },
+          date: run.finished_at,
+          status: run.status
+        }
+      end)
+
+    %{
+      points: points,
+      successful: Enum.count(points, &(&1.status == "success")),
+      failed: Enum.count(points, &(&1.status == "failure"))
+    }
   end
 
   defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands) do
@@ -906,9 +1089,6 @@ defmodule TuistWeb.OnceRunsLive do
     }
   end
 
-  defp cache_hit_rate(%{hit_rate: nil}), do: dgettext("dashboard_projects", "No cache lookups")
-  defp cache_hit_rate(%{hit_rate: hit_rate}), do: "#{hit_rate}%"
-
   def column_patch_sort(
         %{uri: uri, invocations_sort_by: invocations_sort_by, invocations_sort_order: invocations_sort_order},
         column_value
@@ -970,12 +1150,6 @@ defmodule TuistWeb.OnceRunsLive do
       }
     ]
   end
-
-  # The runs list is searched by its displayed command, which is the only
-  # human readable thing a run carries; `apply_flop_filters/2` maps
-  # `:command` onto both `command_display` and `kind`.
-  defp search_filters(""), do: []
-  defp search_filters(search), do: [%{field: :command, op: :=~, value: search}]
 
   # Only the duration widget has a per-run value worth plotting; the other
   # widgets are counts and rates aggregated over the period.
