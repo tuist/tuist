@@ -16,6 +16,7 @@ This node covers Helm assets under `infra/helm/`.
   rather than adding it to `helm/tuist/`.
 - Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
 - Support both `embedded` and `external` dependency modes when practical.
+- Embedded object storage uses the same digest-pinned `ghcr.io/coollabsio/minio` community image for the server and bundled `mc` initializer because the upstream Quay images no longer allow anonymous pulls. Keep both image pins aligned and validate changes with `helm:k3s-smoke`; managed environments use external storage.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
 - Managed PgBouncer client limits and idle cleanup live in `tuist/values-managed-common.yaml`. Keep the connection lifecycle and rollout validation in [`../cnpg/README.md`](../cnpg/README.md#client-connections-through-tailscale) aligned when changing them.
 - Grafana-managed alert queries and their operational rationale live in

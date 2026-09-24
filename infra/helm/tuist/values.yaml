@@ -3530,13 +3530,15 @@ objectStorage:
         field: secret_access_key
   embedded:
     provider: minio
+    # The upstream Quay images are no longer public. Pin the community build
+    # (including its bundled mc client) to the multi-architecture image digest.
     image:
-      repository: quay.io/minio/minio
-      tag: latest
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
       pullPolicy: IfNotPresent
     mcImage:
-      repository: quay.io/minio/mc
-      tag: latest
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
       pullPolicy: IfNotPresent
     rootUser: minio
     rootPassword: minio1234
