@@ -303,3 +303,37 @@ func TestRejectedAdmissionSurvivesRestartAndReportFailure(t *testing.T) {
 		})
 	}
 }
+
+type poisonedBackend struct{ memoryBackend }
+
+func (*poisonedBackend) Seal(Slot, string) error { return ErrPoisoned }
+func TestPoisonedImageIsDeletedAndAcknowledgedInsteadOfSealed(t *testing.T) {
+	b := &poisonedBackend{}
+	s, err := Open(t.TempDir(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.Acquire(identity(first), "p", "u"); err != nil {
+		t.Fatal(err)
+	}
+	done := func(string, string) (bool, error) { return true, nil }
+	if err := s.Reconcile(done, func(Slot, bool) (string, error) { return "seal", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if b.deleted != 1 {
+		t.Fatal("failed to discard poisoned branch")
+	}
+	if err := s.Reconcile(done, func(slot Slot, _ bool) (string, error) {
+		if slot.State != "deleted" {
+			t.Fatal("reported poisoned image as saved", slot.State)
+		}
+		return "forget", nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	slots, err := s.slots()
+	if err != nil || len(slots) != 0 {
+		t.Fatal(slots, err)
+	}
+}

@@ -54,3 +54,10 @@ require the private `/home/runner/work/_tuist_cache` root mapped to that same pa
 in the child container, in addition to the checkout: cache targets are symlinks.
 Automatic Docker-plugin wiring is not included, and that configuration needs
 its own fleet smoke test before use. macOS support is separate.
+
+Targets are attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible. For a
+workspace path, ignore the link without a trailing slash (for example `.gradle`,
+not `.gradle/`, in `.gitignore`). Paths must be a single line without control
+characters; use a plain YAML string instead of `path: |`.

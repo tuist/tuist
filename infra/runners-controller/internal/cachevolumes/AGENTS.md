@@ -13,6 +13,10 @@ HEAD publication protocol as the macOS cache. See [runbook](../../cache-volumes.
   kubelet-directory absence before unmounting deadlocks on propagated SubPath
   child mounts; directory cleanup still waits for kubelet after unmounting.
   A webhook, terminal phase, timeout or failed API request is not a writer fence.
+- Before sealing, persist a `.checking` guard, run syncfs and inspect ext4 errors,
+  then fence/unmap the device and durably rename the guard to `.verified`. A failed
+  or interrupted check permanently discards the branch; never retry a consumed
+  kernel error as healthy. Verified images may retry failed uploads.
 - Publish synchronously: detach, compress, preflight, upload, fast-forward, then
   install the accepted master. Failed/rejected uploads never become masters.
 - Local masters use generation/digest filenames; checksummed downloads are

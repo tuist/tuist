@@ -268,3 +268,7 @@ standalone binary has no packaged configuration supplying that directory, and
 plugin preparation fails before pre-command hooks without it.
 GitLab forwards the same three routing variables through RunnerSettings.
 Neither path receives node-agent or object-storage credentials or decides publication.
+
+Cache paths are symlinks, not guest bind mounts. Reject control characters and
+node_modules (including descendants) before acquiring storage. Recommend package
+download caches and ignore workspace links without trailing-slash gitignore rules.

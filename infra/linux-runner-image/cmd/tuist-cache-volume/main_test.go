@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -132,5 +133,16 @@ func TestMissingMountProofFallsBackWithoutLinkingHostDirectory(t *testing.T) {
 	data, _ := os.ReadFile(output)
 	if string(data) != "cache-hit=false\n" {
 		t.Fatalf("incorrect fallback output: %s", data)
+	}
+}
+
+func TestRejectInvalidPathsBeforeAcquiringStorage(t *testing.T) {
+	for _, path := range []string{"", "cache\n", "cache\r", "cache\t", "cache\x00", "cache\x1f", "cache\x7f", "node_modules", "./node_modules/", "project/node_modules/foo"} {
+		t.Run(path, func(t *testing.T) {
+			err := attachWithClient("key", []string{filepath.Join(t.TempDir(), "valid"), path}, t.TempDir(), nil)
+			if !errors.Is(err, errInvalidPath) {
+				t.Fatalf("expected invalid path before HTTP request, got %v", err)
+			}
+		})
 	}
 }

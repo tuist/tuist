@@ -43,6 +43,8 @@ func newLocal(t *testing.T) (*LocalImages, *testTransfer) {
 	root := t.TempDir()
 	remote := &testTransfer{generation: 1}
 	b := &LocalImages{Root: root, SizeGB: 1, MinFreeBytes: 10, Transfer: remote, FreeBytes: func(string) (uint64, error) { return 1 << 40, nil }, Mount: func(string, string) error { return nil }, Unmount: func(string, string) error { return nil }, MeasureFS: func(string) (int64, int64, error) { return 1, 100, nil }}
+	b.Check = func(string, string) error { return nil }
+	mapped := map[string]bool{}
 	b.Run = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		switch name {
 		case "cp":
@@ -58,7 +60,15 @@ func newLocal(t *testing.T) (*LocalImages, *testTransfer) {
 			return nil, os.WriteFile(args[len(args)-1], []byte("empty filesystem"), 0600)
 		case "losetup":
 			if args[0] == "--json" {
+				if mapped[args[3]] {
+					return []byte(`{"loopdevices":[{"name":"/dev/loop17"}]}`), nil
+				}
 				return json.Marshal(map[string]any{"loopdevices": []any{}})
+			}
+			if args[0] == "--detach" {
+				clear(mapped)
+			} else {
+				mapped[args[len(args)-1]] = true
 			}
 			return []byte("/dev/loop17\n"), nil
 		}
@@ -229,5 +239,74 @@ func TestInvalidatedLocalMasterIsEvictedWithoutTouchingActiveClone(t *testing.T)
 	}
 	if _, err := os.Stat(b.image(slot)); err != nil {
 		t.Fatal("deleted private branch before acknowledgement", err)
+	}
+}
+
+func TestWriteBackFailureSurvivesRestartAndCannotPublish(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	checks := 0
+	b.Check = func(string, string) error { checks++; return errors.New("ENOSPC") }
+	if err := b.Seal(slot, path); !errors.Is(err, ErrPoisoned) {
+		t.Fatal(err)
+	}
+	// Recreate the backend with a now-healthy kernel: the first error may have
+	// been consumed, but its durable guard must still reject publication.
+	restarted := &LocalImages{Root: b.Root, Transfer: remote, Run: b.Run, Unmount: b.Unmount, Check: func(string, string) error { t.Fatal("rechecked poisoned image"); return nil }}
+	if err := restarted.Seal(slot, path); !errors.Is(err, ErrPoisoned) {
+		t.Fatal(err)
+	}
+	if checks != 1 || remote.uploads != 0 {
+		t.Fatal(checks, remote.uploads)
+	}
+	os.Remove(filepath.Join(path, ".tuist-volume"))
+	if err := restarted.Delete(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(b.image(slot)); !os.IsNotExist(err) {
+		t.Fatal("poisoned branch retained", err)
+	}
+}
+
+func TestVerifiedImageRetriesUploadWithoutRecheckingUnmountedFilesystem(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	remote.fail = true
+	if err := b.Seal(slot, path); err == nil {
+		t.Fatal("ignored upload failure")
+	}
+	remote.fail = false
+	b.Check = func(string, string) error { t.Fatal("rechecked unmounted filesystem"); return nil }
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if remote.uploads != 2 {
+		t.Fatal(remote.uploads)
+	}
+}
+
+func TestInterruptedWriteBackVerificationDiscardsBranch(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := Slot{Identity: identity(first), PodUID: "p"}
+	path := t.TempDir()
+	if err := b.Attach(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(b.image(slot)+".checking", nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Seal(slot, path); !errors.Is(err, ErrPoisoned) {
+		t.Fatal(err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("published an unverified image")
 	}
 }

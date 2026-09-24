@@ -75,3 +75,7 @@ these schemas persist volume identities and per-job uses.
 - `Schemas` owns the shared OpenAPI/MCP contracts inside the Tuist boundary.
   Keep `CacheVolumes`, `Query` and `Schemas` exported from `Tuist`; MCP must not
   depend on `TuistWeb`. Validate with the Boundary compiler, which dev skips.
+
+- Public byte sums are integers, never Decimal strings. Serialize timestamps at
+  whole-second precision for the generated Swift client's default ISO8601 decoder.
+  Test measured PostgreSQL rows through JSON schema validation, not only empty fixtures.

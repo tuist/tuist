@@ -1272,7 +1272,8 @@ They reuse macOS HEAD arbitration and object storage; custom volumes remain
 Linux-only. The agent image includes ext4/loop tooling, with no Ceph dependency.
 See [host setup and rollout](cache-volumes.md).
 RunnerPool `cacheVolumeRoot`/`cacheVolumeURL` enable UID-scoped host mounts in
-runner and DinD, guarded by Kata and the storage-readiness node label. Incoming
+runner and DinD, guarded by Kata. Prefer the storage-readiness node label without
+requiring it: unavailable cache storage must not block ordinary Linux jobs. Incoming
 mount propagation must work through Kata. Staging has verified GitHub native and
 ordinary Docker jobs, Buildkite native commands, and GitLab shell jobs. Keep
 the remaining operational validation limits explicit in the rollout guide.

@@ -24,3 +24,7 @@ documented in `COMMUNITY_NOTIFICATIONS.md`.
   PR head or merge ref. Keep contributor text in plain-text Slack blocks.
 - Validate changes with `node --test scripts/community-notifications.test.cjs`
   from this directory and `actionlint workflows/community-notifications.yml`.
+
+Cache-volume distribution recovery uses the original immutable source commit from
+a partial release; finish that version before dispatching a release of newer main
+changes. Never substitute new contents beneath an existing distribution tag.

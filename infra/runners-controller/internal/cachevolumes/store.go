@@ -318,10 +318,16 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		if slot.State != "active" || !slot.CanPublish {
 			return errors.New("invalid seal decision")
 		}
-		if err = s.backend.Seal(slot, s.activePath(slot)); err != nil {
+		if err = s.backend.Seal(slot, s.activePath(slot)); errors.Is(err, ErrPoisoned) {
+			if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
+				return err
+			}
+			slot.State = "deleted"
+		} else if err != nil {
 			return err
+		} else {
+			slot.State = "sealed"
 		}
-		slot.State = "sealed"
 	case "delete":
 		if err = s.backend.Delete(slot, s.activePath(slot)); err != nil {
 			return err

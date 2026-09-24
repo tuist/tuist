@@ -14,5 +14,5 @@ docker run --rm --privileged -v "$scratch/volume.test:/volume.test:ro" -v "$PWD/
   mkdir /cache
   mount -o loop /tmp/cache-filesystem.img /cache
   trap "umount /cache" EXIT
-  CACHE_VOLUME_E2E_ROOT=/cache /volume.test -test.run TestLinuxLocalImagesE2E -test.v -test.timeout 5m
+  CACHE_VOLUME_E2E_ROOT=/cache /volume.test -test.run TestLinuxLocalImages -test.v -test.timeout 5m
 '

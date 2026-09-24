@@ -959,3 +959,29 @@ func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
 		t.Fatal("accepted cache mounts outside Kata")
 	}
 }
+
+func TestCacheReadinessIsPreferredRatherThanRequired(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+	pool.Spec.CacheVolumeURL = "http://agent:8090"
+	pod := build(t, pool)
+	if _, exists := pod.Spec.NodeSelector["tuist.dev/linux-cache-volumes"]; exists {
+		t.Fatal("cache readiness blocks ordinary jobs")
+	}
+	if pod.Spec.NodeSelector["node.cluster.x-k8s.io/pool"] != pool.Spec.FleetSelector {
+		t.Fatal("lost fleet isolation")
+	}
+	affinity := pod.Spec.Affinity.NodeAffinity
+	if affinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		t.Fatal("cache readiness is required")
+	}
+	preferences := affinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if len(preferences) != 1 || preferences[0].Preference.MatchExpressions[0].Key != "tuist.dev/linux-cache-volumes" {
+		t.Fatal("missing readiness preference", preferences)
+	}
+	pool.Spec.CacheVolumeRoot = ""
+	pool.Spec.CacheVolumeURL = ""
+	if build(t, pool).Spec.Affinity != nil {
+		t.Fatal("changed scheduling for disabled cache fleet")
+	}
+}

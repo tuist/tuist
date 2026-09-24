@@ -27,6 +27,7 @@ func (p *paths) Set(value string) error { *p = append(*p, value); return nil }
 
 var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
 var directoryPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+var errInvalidPath = errors.New("invalid cache path")
 
 func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
 
@@ -41,6 +42,9 @@ func main() {
 	}
 	if err := attach(*key, targets); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		if errors.Is(err, errInvalidPath) {
+			os.Exit(2)
+		}
 		os.Exit(1)
 	}
 }
@@ -56,8 +60,13 @@ func attachWithClient(key string, targets []string, root string, client *http.Cl
 	// Validate all paths before acquiring storage. Never replace existing content.
 	absolute := make([]string, len(targets))
 	for i, p := range targets {
-		if p == "" {
-			return errors.New("empty cache path")
+		if p == "" || strings.ContainsFunc(p, func(r rune) bool { return r < 32 || r == 127 }) {
+			return fmt.Errorf("%w: paths must be nonempty and contain no control characters", errInvalidPath)
+		}
+		for _, part := range strings.Split(filepath.Clean(p), string(filepath.Separator)) {
+			if part == "node_modules" {
+				return fmt.Errorf("%w: node_modules cannot be attached by symlink; cache the package download directory (for example ~/.npm) instead", errInvalidPath)
+			}
 		}
 		if p == "~" || strings.HasPrefix(p, "~/") {
 			home, err := os.UserHomeDir()

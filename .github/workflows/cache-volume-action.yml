@@ -37,6 +37,7 @@ jobs:
       - run: bash ci/cache-volume/integrations_test.sh
       - run: bash ci/cache-volume/publish_test.sh
       - run: bash ci/cache-volume/release_check_test.sh
+      - run: bash ci/cache-volume/prepare-release_test.sh
       - name: Install test client
         run: |
           mkdir "$RUNNER_TEMP/action-test-bin"
@@ -84,6 +85,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -101,11 +103,6 @@ jobs:
           fi
       - id: check
         run: mise run --skip-tools release:check cache-volume
-      - uses: actions/download-artifact@v4
-        if: steps.check.outputs.cache-volume-should-release == 'true'
-        with:
-          pattern: cache-volume-*
-          path: packages
       - uses: actions/checkout@v4
         if: steps.check.outputs.cache-volume-should-release == 'true'
         with:
@@ -130,27 +127,39 @@ jobs:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
           path: distributions/gitlab
           fetch-depth: 0
-      - name: Publish all provider integrations
+      - name: Prepare or recover coordinated release
+        id: prepare
         if: steps.check.outputs.cache-volume-should-release == 'true'
         env:
           VERSION: v${{ steps.check.outputs.cache-volume-next-version-number }}
+        run: bash ci/cache-volume/prepare-release.sh "$VERSION" distributions packages
+      - name: Publish all provider integrations
+        if: steps.check.outputs.cache-volume-should-release == 'true'
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.prepare.outputs.source-commit }}
         run: |
-          bash ci/cache-volume/publish.sh packages/cache-volume-action distributions/github "$VERSION" "$GITHUB_SHA"
-          bash ci/cache-volume/publish.sh packages/cache-volume-buildkite distributions/buildkite "$VERSION" "$GITHUB_SHA"
-          bash ci/cache-volume/publish.sh packages/cache-volume-gitlab distributions/gitlab "$VERSION" "$GITHUB_SHA"
+          bash ci/cache-volume/publish.sh packages/cache-volume-action distributions/github "$VERSION" "$SOURCE_COMMIT"
+          bash ci/cache-volume/publish.sh packages/cache-volume-buildkite distributions/buildkite "$VERSION" "$SOURCE_COMMIT"
+          bash ci/cache-volume/publish.sh packages/cache-volume-gitlab distributions/gitlab "$VERSION" "$SOURCE_COMMIT"
       - name: Record coordinated release
         if: steps.check.outputs.cache-volume-should-release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ github.token }}
-          target_commitish: ${{ github.sha }}
-          tag_name: ${{ steps.check.outputs.cache-volume-next-version }}
-          name: Cache Volume Integrations ${{ steps.check.outputs.cache-volume-next-version-number }}
+          target_commitish: ${{ steps.prepare.outputs.source-commit }}
+          tag_name: ${{ steps.prepare.outputs.tag }}
+          name: Cache Volume Integrations ${{ steps.prepare.outputs.version }}
           body: |
-            Linux cache-volume integrations, released together from ${{ github.sha }}.
+            Linux cache-volume integrations, released together from ${{ steps.prepare.outputs.source-commit }}.
 
-            - [GitHub action](https://github.com/tuist/cache-volume/tree/v${{ steps.check.outputs.cache-volume-next-version-number }})
-            - [Buildkite plugin](https://github.com/tuist/cache-volume-buildkite-plugin/tree/v${{ steps.check.outputs.cache-volume-next-version-number }})
-            - [GitLab CI template](https://github.com/tuist/cache-volume-gitlab/tree/v${{ steps.check.outputs.cache-volume-next-version-number }})
+            - [GitHub action](https://github.com/tuist/cache-volume/tree/${{ steps.prepare.outputs.version }})
+            - [Buildkite plugin](https://github.com/tuist/cache-volume-buildkite-plugin/tree/${{ steps.prepare.outputs.version }})
+            - [GitLab CI template](https://github.com/tuist/cache-volume-gitlab/tree/${{ steps.prepare.outputs.version }})
 
             Immutable version tags and moving major tags are available in each distribution repository.
+      - name: Release changes queued behind recovery
+        if: steps.prepare.outputs.source-commit != '' && steps.prepare.outputs.source-commit != github.sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run cache-volume-action.yml --ref main

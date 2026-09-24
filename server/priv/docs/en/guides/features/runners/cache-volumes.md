@@ -14,6 +14,14 @@ Choose a stable `key` and a `path`, then attach the volume before installing
 dependencies. The path must be empty or absent. Remove any archive cache or
 artifact restore that writes to the same directory.
 
+
+Targets are attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible. For a
+workspace path, ignore the link without a trailing slash (for example `.gradle`,
+not `.gradle/`, in `.gitignore`). Paths must be a single line without control
+characters; use a plain YAML string instead of `path: |`.
+
 ## GitHub Actions {#github-actions}
 
 Add `tuist/cache-volume@v1` before your build step:

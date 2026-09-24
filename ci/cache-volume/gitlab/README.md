@@ -69,3 +69,10 @@ Tuist embeds GitLab Runner's shell executor in the isolated Linux runner.
 A job's `image:` does not select a Docker executor. Docker child containers
 need explicit private-root mounts and separate validation. macOS support is
 not included. Caches must not contain secrets or irreplaceable data.
+
+Targets are attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible. For a
+workspace path, ignore the link without a trailing slash (for example `.gradle`,
+not `.gradle/`, in `.gitignore`). Paths must be a single line without control
+characters; use a plain YAML string instead of `path: |`.

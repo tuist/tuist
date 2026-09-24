@@ -6,6 +6,7 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
   alias Tuist.Runners.CacheVolumes.Query
   alias Tuist.Runners.CacheVolumes.Schemas, as: RunnerVolumes
   alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
@@ -111,7 +112,7 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
   end
 
   test "exposes saved lifecycle separately from hit outcomes and paginates history", %{account: account, uses: [use | _]} do
-    mounted = ~U[2026-01-02 12:00:00.000000Z]
+    mounted = ~U[2026-01-02 12:00:00.123456Z]
     use |> Ecto.Changeset.change(status: "published", warm: false, attached_at: mounted) |> Repo.update!()
 
     assert {:ok, %{jobs: [job], pagination_metadata: %{total_count: 1}}} =
@@ -120,7 +121,20 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
     assert job.cache_status == "saved"
     assert job.cache_status_description =~ "future job runs"
     assert job.cache_hit == false
-    assert job.mounted_at == DateTime.to_iso8601(mounted)
+    assert job.mounted_at == "2026-01-02T12:00:00Z"
+
+    assert_schema(:jobs, %{
+      jobs: [job],
+      pagination_metadata: %{
+        current_page: 1,
+        page_size: 1,
+        total_count: 1,
+        total_pages: 1,
+        has_next_page: false,
+        has_previous_page: false
+      }
+    })
+
     assert job.capacity_bytes == nil
     refute Map.has_key?(job, :node_name)
 
@@ -150,6 +164,34 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
     assert data.trends.hit_rate_percentage_points == 100.0
     assert Enum.any?(data.activity.points, &(&1.job_runs == 0 and is_nil(&1.hit_rate)))
     assert Enum.all?(data.storage, &is_binary(&1.at))
+  end
+
+  test "measured volumes serialize integer bytes and whole-second timestamps", %{account: account, uses: [use | _]} do
+    mounted = ~U[2026-01-02 12:00:00.123456Z]
+    Repo.update!(Ecto.Changeset.change(use, size_bytes: 1024, capacity_bytes: 20_000_000_000, attached_at: mounted))
+    Volume |> Repo.get!(use.volume_id) |> Ecto.Changeset.change(last_used_at: mounted) |> Repo.update!()
+
+    assert {:ok, volume} = Query.run(:show, account.id, %{"volume_id" => use.volume_id})
+    assert_schema(:show, volume)
+    assert volume.used_bytes === 1024
+    assert volume.capacity_bytes === 20_000_000_000
+    assert volume.last_used_at == "2026-01-02T12:00:00Z"
+
+    assert {:ok, list} = Query.run(:list, account.id, %{"name" => "alpha"})
+    assert_schema(:list, list)
+    assert list.volumes == [volume]
+  end
+
+  test "analytics serializes fractional and default periods at whole-second precision", %{account: account} do
+    for params <- [%{}, %{"start" => "2026-01-02T00:00:00.123456Z", "end" => "2026-01-03T00:00:00.654321Z"}] do
+      assert {:ok, data} = Query.run(:analytics, account.id, params)
+      assert_schema(:analytics, data)
+
+      timestamps =
+        [data.period.start, data.period.end] ++ Enum.map(data.storage, & &1.at) ++ Enum.map(data.activity.points, & &1.at)
+
+      assert Enum.all?(timestamps, &Regex.match?(~r/T\d{2}:\d{2}:\d{2}Z$/, &1))
+    end
   end
 
   defp assert_schema(action, data) do

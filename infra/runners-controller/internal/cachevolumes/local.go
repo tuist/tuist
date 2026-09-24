@@ -16,6 +16,7 @@ import (
 )
 
 var ErrConflict = errors.New("cache generation advanced")
+var ErrPoisoned = errors.New("cache image failed write-back verification")
 
 // ImageTransfer is the same upload-before-fast-forward protocol used by macOS.
 // URLs and infrastructure credentials never enter the workflow filesystem.
@@ -34,6 +35,7 @@ type LocalImages struct {
 	Run          func(context.Context, string, ...string) ([]byte, error)
 	Mount        func(string, string) error
 	Unmount      func(string, string) error
+	Check        func(string, string) error
 	MeasureFS    func(string) (int64, int64, error)
 	FreeBytes    func(string) (uint64, error)
 	locks        sync.Map
@@ -340,7 +342,7 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 	return nil
 }
 func (b *LocalImages) Seal(slot Slot, path string) error {
-	if err := b.detach(slot, path); err != nil {
+	if err := b.verify(slot, path); err != nil {
 		return err
 	}
 	archive := b.image(slot) + ".gz"
@@ -377,11 +379,53 @@ func (b *LocalImages) Seal(slot Slot, path string) error {
 	}
 	return b.recordMaster(slot, master)
 }
+
+// The guard is durable before consuming one-shot kernel write-back errors.
+// A crash or failure during verification permanently disqualifies this branch.
+// Successful verification survives upload retries without remounting the image.
+func (b *LocalImages) verify(slot Slot, path string) error {
+	image := b.image(slot)
+	if _, err := os.Stat(image + ".checking"); err == nil {
+		return ErrPoisoned
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if _, err := os.Stat(image + ".verified"); err == nil {
+		return b.detach(slot, path)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.WriteFile(image+".checking", nil, 0600); err != nil {
+		return err
+	}
+	if err := syncFile(image + ".checking"); err != nil {
+		return err
+	}
+	if err := syncFile(filepath.Dir(image)); err != nil {
+		return err
+	}
+	device, err := b.device(image)
+	if err != nil || device == "" {
+		return errors.Join(ErrPoisoned, err)
+	}
+	check := b.Check
+	if check == nil {
+		check = CheckFilesystem
+	}
+	if err := check(device, path); err != nil {
+		return errors.Join(ErrPoisoned, err)
+	}
+	if err := b.detach(slot, path); err != nil {
+		return errors.Join(ErrPoisoned, err)
+	}
+	return durableRename(image+".checking", image+".verified")
+}
+
 func (b *LocalImages) Delete(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".gz"} {
+	for _, suffix := range []string{"", ".tmp", ".gz", ".checking", ".verified"} {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -402,8 +446,10 @@ func (b *LocalImages) Keep(slot Slot, path string) error {
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	if err := os.Remove(b.image(slot)); err != nil && !os.IsNotExist(err) {
-		return err
+	for _, suffix := range []string{"", ".verified"} {
+		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }

@@ -47,12 +47,12 @@ branch, immutable version tag and moving major tag atomically. The monorepo tag
 is recorded only after all three pushes succeed. Releases are serialized;
 stale runs predating the latest monorepo release are rejected.
 
-If publication is interrupted, rerun the failed workflow at the same source
-commit. Identical already-published packages are accepted, while different
-content under an existing version fails closed. Complete a partial release
-before releasing later changes. A no-input main dispatch can recover a run when
-main still identifies the same source. No routine manual version selection is
-required. Rolling back consumers means pinning an earlier immutable tag or
+If publication is interrupted, rerun the workflow or dispatch it on current main.
+`prepare-release.sh` reads the incomplete immutable distribution tags and rebuilds
+all packages from their original `SOURCE_COMMIT`, without relying on old workflow
+artifacts. Conflicting source commits fail closed. After recovery records that
+version, the workflow dispatches a new main run to release any later changes.
+Rolling back consumers means pinning an earlier immutable tag or
 commit; a code rollback on main produces a new release instead of rewriting tags.
 
 The [GitLab include and example](../../ci/cache-volume/gitlab/README.md) compose

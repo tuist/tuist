@@ -278,5 +278,6 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   and private per-job reflink clones. They reuse macOS HEAD/object storage.
   The chart is off by default for self-hosting; managed production enables an
   idempotent provisioning init container for the bounded reflink filesystem.
-  Host preparation and agent readiness precede runner admission. See
+  Host preparation and agent readiness precede volume attachment; runner scheduling
+  only prefers ready hosts so ordinary jobs remain available. See
   [workflow setup and rollout](runners-controller/cache-volumes.md).

@@ -229,7 +229,7 @@ defmodule Tuist.Runners.CacheVolumes.Query do
   defp percent(_, 0), do: nil
   defp percent(change, previous), do: change / previous * 100
   defp iso(nil), do: nil
-  defp iso(value), do: DateTime.to_iso8601(value)
+  defp iso(value), do: value |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
   defp metadata(page, size, count) do
     %{

@@ -68,7 +68,9 @@ requests. Relevant changes merged to `main` automatically release the GitHub
 action, Buildkite plugin and GitLab template together. The existing
 `release:check` / git-cliff machinery derives their shared semantic version;
 there is no version to enter or routine manual dispatch. A no-input dispatch
-is available for recovery. See the monorepo's
+recovers incomplete releases from their original published `SOURCE_COMMIT`,
+even after `main` advances. Later changes are released in a follow-up run.
+See the monorepo's
 [release implementation](https://github.com/tuist/tuist/tree/main/ci/cache-volume).
 
 Distribution repositories need a `main` branch and write access for
@@ -76,3 +78,10 @@ Distribution repositories need a `main` branch and write access for
 not enable cache volumes on the fleet; storage rollout is independent.
 Until the first release is published, test with
 `tuist/tuist/.github/actions/cache-volume@<reviewed-commit>`.
+
+Targets are attached as symlinks. Cache download directories such as `~/.npm`
+or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
+Other tools that replace their cache directory are also incompatible. For a
+workspace path, ignore the link without a trailing slash (for example `.gradle`,
+not `.gradle/`, in `.gitignore`). Paths must be a single line without control
+characters; use a plain YAML string instead of `path: |`.

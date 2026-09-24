@@ -7,10 +7,43 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
 )
+
+func CheckFilesystem(device, path string) error {
+	target, err := targetFD(path)
+	if err != nil {
+		return err
+	}
+	defer target.Close()
+	same, err := sameDevice(target, device)
+	if err != nil {
+		return err
+	}
+	if !same {
+		return errors.New("volume not mounted during write-back verification")
+	}
+	// syncfs reports delayed loop backing-file ENOSPC/EIO; fsck alone cannot
+	// detect clean metadata whose file contents were lost during write-back.
+	if err := unix.Syncfs(int(target.Fd())); err != nil {
+		return err
+	}
+	data, err := os.ReadFile(filepath.Join("/sys/fs/ext4", filepath.Base(device), "errors_count"))
+	if err != nil {
+		return err
+	}
+	count, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return err
+	}
+	if count != 0 {
+		return errors.New("ext4 reported errors during the job")
+	}
+	return nil
+}
 
 // Open beneath the pod root and operate through held descriptors. Never follow
 // a job-controlled symlink when mounting, chmodding or unmounting host storage.

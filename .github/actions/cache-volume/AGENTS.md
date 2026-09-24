@@ -12,3 +12,6 @@ The release workflow is `.github/workflows/cache-volume-action.yml`.
   `release:check cache-volume`. Immutable tags must not be replaced; major tags
   move forward. Wrapper releases and live storage fleet enablement are separate.
 - Provider integration implementation and rollout live in `infra/runners-controller/cache-volume-integrations.md`.
+
+- Document symlink target limitations, node_modules rejection, single-line paths,
+  and workspace .gitignore rules without trailing slashes in the public README.

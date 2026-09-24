@@ -102,7 +102,10 @@ persistent systemd mount without restarting kubelet or repartitioning disks.
 Retries retain existing contents and reject size mismatches, foreign mounts,
 symlinks, and nonempty unprovisioned paths. Failure leaves the agent unready;
 the host cannot advertise volume readiness. Disabling provisioning never deletes
-the backing file or unmounts existing storage.
+the backing file or unmounts existing storage. Runner scheduling prefers ready
+hosts but does not require them; jobs on other hosts fall back to ordinary
+directories. If unprovisioned hosts have accumulated pod directories, drain those
+pods and remove only their confirmed-unused directories before retrying setup.
 
 ## Trust, publication and recovery
 
@@ -117,7 +120,11 @@ Publication remains synchronous in the existing node-agent reconciliation path;
 there is no background-upload service or detached publication queue. Linux must
 first prove the pod is absent and the host CRI reports no ready sandbox or
 non-exited container for that pod UID, then unmount and detach
-its private image. It compresses the settled image, preflights the base generation,
+its private image. Before unmounting, it checks `syncfs` and ext4 error counters
+for delayed write-back failures (including host ENOSPC). A durable `.checking`
+guard precedes that check; a failed or interrupted check disqualifies the branch
+and deletion is acknowledged normally. A `.verified` marker permits upload
+retries only after clean write-back and full loop detachment. It compresses the settled image, preflights the base generation,
 uploads it and asks the shared macOS HEAD code to fast-forward. Only an accepted
 image becomes a local master. A slow job cannot overwrite a newer generation;
 concurrent changes are not merged. A lost publication response is idempotent.
@@ -155,7 +162,7 @@ branches per host, 20 GB logical volume capacity, and a 40 GB free-space reserve
 A cold machine can restore accepted images from the existing object storage.
 Losing a host loses unpublished changes, not the last accepted remote master.
 This version restores on demand; it does not yet prewarm arbitrary custom keys
-or change dispatch affinity, because those keys are first declared inside jobs.
+or steer by a particular cached key, because keys are first declared inside jobs.
 Host/journal loss still requires operator reconciliation of usage records. Never
 infer successful erasure from Node NotReady or a timeout. Clearing increments a
 separate invalidation generation, removes the shared HEAD and schedules remote
@@ -294,3 +301,10 @@ capacity exhaustion, upload outage injection, and representative workload
 benchmarks remain outstanding operational validation. Production enablement was
 explicitly requested after these provider smokes; it does not imply those
 additional checks have passed.
+
+Review regression validation: a privileged Linux container with a 4 GB XFS
+filesystem successfully reproduced buffered writes succeeding after backing
+storage was exhausted. Sealing rejected that branch, freeing space and restarting
+the backend could not publish it, and an independent restore retained the previous
+good contents. This covers isolated filesystem exhaustion, not fleet-wide capacity
+planning, physical host loss or reboot.
