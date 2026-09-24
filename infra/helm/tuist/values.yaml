@@ -2540,6 +2540,14 @@ runnersFleetLinux:
     minWarmPoolFloor: 1
     maxReplicas: 0
     scaleDownCooldownSeconds: 300
+  # Shapes with fewer vCPUs than `packBelowVcpus` render
+  # `spec.placement.packOntoOccupiedNodes: true`: their Pods prefer hosts
+  # already running runner Pods, so small shapes fill partly used hosts
+  # and empty hosts stay free for the large shapes. 0 disables it. A
+  # shape's own `placement.packOntoOccupiedNodes` overrides the
+  # threshold either way.
+  shapePlacement:
+    packBelowVcpus: 0
   shapes: []
     # Example catalog:
     # - { vcpus: 1, memoryGb: 2 }

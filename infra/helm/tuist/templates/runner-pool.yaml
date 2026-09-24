@@ -396,6 +396,10 @@ spec:
   rollout:
     maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
   {{- end }}
+  {{- if dig "placement" "packOntoOccupiedNodes" false $pool }}
+  placement:
+    packOntoOccupiedNodes: true
+  {{- end }}
 {{- end }}
 
 {{- /*
@@ -428,6 +432,8 @@ autoscaling per-shape (a popular shape may want a higher floor).
 {{- $isDefault := dig "default" false $shape }}
 {{- $autoscaling := mergeOverwrite (deepCopy $shapeAutoscalingDefaults) (default dict $shape.autoscaling) }}
 {{- $provisioning := mergeOverwrite (deepCopy ($.Values.runnersFleetLinux.provisioning | default dict)) (default dict $shape.provisioning) }}
+{{- $packBelowVcpus := dig "packBelowVcpus" 0 ($.Values.runnersFleetLinux.shapePlacement | default dict) | int }}
+{{- $pack := dig "placement" "packOntoOccupiedNodes" (lt $vcpus $packBelowVcpus) $shape }}
 ---
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool
@@ -480,6 +486,10 @@ spec:
   {{- with $shape.rollout }}
   rollout:
     maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
+  {{- end }}
+  {{- if $pack }}
+  placement:
+    packOntoOccupiedNodes: true
   {{- end }}
 {{- end }}
 {{- end }}
