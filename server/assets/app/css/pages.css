@@ -37,6 +37,7 @@
 @import "./pages/ops/registry.css";
 @import "./pages/project_automations.css";
 @import "./pages/project_bundle_settings.css";
+@import "./pages/project_coverage_settings.css";
 @import "./pages/project_notifications.css";
 @import "./pages/project_settings.css";
 @import "./pages/run_detail.css";
@@ -47,6 +48,7 @@
 @import "./pages/runner_workflows.css";
 @import "./pages/runners.css";
 @import "./pages/connect.css";
+@import "./pages/coverage.css";
 @import "./pages/tests.css";
 @import "./pages/test_runs.css";
 @import "./pages/test_run.css";

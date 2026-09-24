@@ -105,6 +105,18 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)}
+          label={dgettext("dashboard", "Code Coverage")}
+          icon="chart_arcs"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -298,6 +310,18 @@ defmodule TuistWeb.AppLayoutComponents do
                 @current_path,
                 "/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/runs"
               )
+          }
+        />
+        <.sidebar_item
+          :if={Tuist.FeatureFlags.xcode_coverage_enabled?(@selected_account)}
+          label={dgettext("dashboard", "Code Coverage")}
+          icon="chart_arcs"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"
+            )
           }
         />
         <.sidebar_item

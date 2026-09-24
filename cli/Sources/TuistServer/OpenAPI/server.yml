@@ -61,17 +61,39 @@ components:
     TestParams:
       description: Parameters to create a single test run.
       properties:
-        build_run_id:
-          description: The UUID of an associated build run.
+        git_branch:
+          description: The git branch.
           type: string
           x-struct:
           x-validate:
-        build_system:
-          default: xcode
-          description: The build system used by the test run.
+        xcode_coverage_storage_key:
+          description: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+          type: string
+          x-struct:
+          x-validate:
+        execution_mode:
+          description: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
           enum:
-            - xcode
-            - gradle
+            - parallel
+            - serial
+          type: string
+          x-struct:
+          x-validate:
+        git_object_format:
+          description: The repository's Git object format.
+          enum:
+            - sha1
+            - sha256
+          type: string
+          x-struct:
+          x-validate:
+        scheme:
+          description: The scheme used for the test run.
+          type: string
+          x-struct:
+          x-validate:
+        merge_base_sha:
+          description: The merge base between the run's commit and the base branch, when the client could resolve it.
           type: string
           x-struct:
           x-validate:
@@ -80,8 +102,172 @@ components:
           type: string
           x-struct:
           x-validate:
-        ci_project_handle:
-          description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+        git_remote_url_origin:
+          description: The git remote URL origin.
+          type: string
+          x-struct:
+          x-validate:
+        history_fallback_reason:
+          description: Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
+          type: string
+          x-struct:
+          x-validate:
+        is_pull_request:
+          description: Whether the run was for a pull or merge request.
+          type: boolean
+          x-struct:
+          x-validate:
+        status:
+          description: The status of the test run.
+          enum:
+            - success
+            - failure
+            - skipped
+            - processing
+            - failed_processing
+          type: string
+          x-struct:
+          x-validate:
+        shard_index:
+          description: The zero-based shard index for this test result.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        only_test_identifiers:
+          description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        coverage_evidence:
+          description: "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
+          properties:
+            paths:
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            scopes:
+              items:
+                properties:
+                  files:
+                    description: Indices into `paths`.
+                    items:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  kind:
+                    description: "`test`: what one test executed. `suite`: what ran around a suite's tests and belongs to none. `target`: everything the target's processes executed."
+                    enum:
+                      - test
+                      - suite
+                      - target
+                    type: string
+                    x-struct:
+                    x-validate:
+                  lines:
+                    description: The lines the scope ran in each of `files`, in the same order, as inclusive ranges flattened (`[3, 5, 9, 9]` is lines 3 to 5 and line 9); empty for a file without line evidence. Left out when the scope has none.
+                    items:
+                      items:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  module:
+                    description: The test target.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  name:
+                    description: The test's name; empty unless the scope is a test.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  suite:
+                    description: Empty for a target and for a test outside any suite.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - kind
+                  - module
+                  - files
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            unattributed_tests:
+              description: Tests that overlapped another of their process, so nothing could be attributed to them.
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - paths
+            - scopes
+          type: object
+          x-struct:
+          x-validate:
+        git_dirty:
+          description: "Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's."
+          type: boolean
+          x-struct:
+          x-validate:
+        history_source:
+          description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+          enum:
+            - client
+            - none
+          type: string
+          x-struct:
+          x-validate:
+        build_run_id:
+          description: The UUID of an associated build run.
+          type: string
+          x-struct:
+          x-validate:
+        skip_test_identifiers:
+          description: The tests the caller asked this run to exclude.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        git_ref:
+          description: The git reference.
+          type: string
+          x-struct:
+          x-validate:
+        base_branch:
+          description: "The branch the run's commit will merge into: the pull request's base, or the project's default branch."
+          type: string
+          x-struct:
+          x-validate:
+        model_identifier:
+          description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+          type: string
+          x-struct:
+          x-validate:
+        ci_run_id:
+          description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
           type: string
           x-struct:
           x-validate:
@@ -97,38 +283,68 @@ components:
           type: string
           x-struct:
           x-validate:
-        ci_run_id:
-          description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+        ci_project_handle:
+          description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
           type: string
           x-struct:
           x-validate:
-        duration:
-          description: Duration of the run in milliseconds.
+        pull_request_number:
+          description: The pull or merge request number, when known.
           type: integer
-          x-struct:
-          x-validate:
-        git_branch:
-          description: The git branch.
-          type: string
-          x-struct:
-          x-validate:
-        git_commit_sha:
-          description: The commit SHA.
-          type: string
-          x-struct:
-          x-validate:
-        git_ref:
-          description: The git reference.
-          type: string
-          x-struct:
-          x-validate:
-        git_remote_url_origin:
-          description: The git remote URL origin.
-          type: string
           x-struct:
           x-validate:
         gradle_build_id:
           description: The UUID of an associated Gradle build.
+          type: string
+          x-struct:
+          x-validate:
+        stress_new_tests:
+          $ref: '#/components/schemas/StressNewTestsResult'
+        xcode_coverage_partial:
+          description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
+          type: boolean
+          x-struct:
+          x-validate:
+        enumerated_tests:
+          description: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
+          items:
+            properties:
+              enabled:
+                description: False when the scheme or the test plan disables the test.
+                type: boolean
+                x-struct:
+                x-validate:
+              function:
+                description: "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
+                type: string
+                x-struct:
+                x-validate:
+              module:
+                description: The test target.
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                description: The test's name as the run reports it, `testExample()`.
+                type: string
+                x-struct:
+                x-validate:
+              suite:
+                description: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - module
+              - name
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        macos_version:
+          description: The version of macOS used during the run.
           type: string
           x-struct:
           x-validate:
@@ -138,68 +354,102 @@ components:
           type: string
           x-struct:
           x-validate:
-        is_ci:
-          description: Indicates if the run was executed on a Continuous Integration (CI) system.
-          type: boolean
-          x-struct:
-          x-validate:
-        macos_version:
-          description: The version of macOS used during the run.
-          type: string
-          x-struct:
-          x-validate:
-        model_identifier:
-          description: Identifier for the model where the run was executed, such as MacBookAir10,1.
-          type: string
-          x-struct:
-          x-validate:
-        only_test_identifiers:
-          description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+        changed_files:
+          description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
           items:
-            type: string
+            properties:
+              git_blob_id:
+                description: The file's Git blob at the head; absent for a deleted file.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              hunks:
+                description: The changed line ranges in the file at the head, inclusive.
+                items:
+                  properties:
+                    end:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                    start:
+                      type: integer
+                      x-struct:
+                      x-validate:
+                  required:
+                    - start
+                    - end
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              path:
+                description: The path at the head, relative to the repository root.
+                type: string
+                x-struct:
+                x-validate:
+              previous_path:
+                description: The path before a rename.
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                enum:
+                  - added
+                  - modified
+                  - deleted
+                  - renamed
+                type: string
+                x-struct:
+                x-validate:
+              truncated:
+                description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
+                type: boolean
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - status
+            type: object
             x-struct:
             x-validate:
           type: array
           x-struct:
           x-validate:
-        scheme:
-          description: The scheme used for the test run.
-          type: string
-          x-struct:
-          x-validate:
-        shard_index:
-          description: The zero-based shard index for this test result.
-          nullable: true
-          type: integer
-          x-struct:
-          x-validate:
+        xcode_coverage:
+          $ref: '#/components/schemas/XcodeCoverage'
         shard_plan_id:
           description: The shard plan ID if this test run is part of a sharded execution.
           type: string
           x-struct:
           x-validate:
-        skip_test_identifiers:
-          description: The tests the caller asked this run to exclude.
-          items:
-            type: string
-            x-struct:
-            x-validate:
-          type: array
+        duration:
+          description: Duration of the run in milliseconds.
+          type: integer
           x-struct:
           x-validate:
-        status:
-          description: The status of the test run.
-          enum:
-            - success
-            - failure
-            - skipped
-            - processing
-            - failed_processing
+        xcode_version:
+          description: The version of Xcode used during the run.
           type: string
           x-struct:
           x-validate:
-        stress_new_tests:
-          $ref: '#/components/schemas/StressNewTestsResult'
+        build_system:
+          default: xcode
+          description: The build system used by the test run.
+          enum:
+            - xcode
+            - gradle
+          type: string
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          description: The commit SHA.
+          type: string
+          x-struct:
+          x-validate:
         test_modules:
           description: The test modules associated with the test run.
           items:
@@ -207,6 +457,14 @@ components:
               duration:
                 description: The duration of the test module in milliseconds.
                 type: integer
+                x-struct:
+                x-validate:
+              execution_mode:
+                description: Whether the module's tests executed in parallel or serially; absent when unknown.
+                enum:
+                  - parallel
+                  - serial
+                type: string
                 x-struct:
                 x-validate:
               name:
@@ -506,11 +764,9 @@ components:
           type: array
           x-struct:
           x-validate:
-        xcode_coverage:
-          $ref: '#/components/schemas/XcodeCoverage'
-        xcode_version:
-          description: The version of Xcode used during the run.
-          type: string
+        is_ci:
+          description: Indicates if the run was executed on a Continuous Integration (CI) system.
+          type: boolean
           x-struct:
           x-validate:
       required:
@@ -1211,6 +1467,30 @@ components:
         - inserted_at
         - updated_at
       title: ProjectNotificationAlert
+      type: object
+      x-struct:
+      x-validate:
+    MissingCommitListingsRequest:
+      properties:
+        repository_url:
+          description: "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+          type: string
+          x-struct:
+          x-validate:
+        shas:
+          items:
+            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            type: string
+            x-struct:
+            x-validate:
+          maxItems: 1000
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - repository_url
+        - shas
+      title: MissingCommitListingsRequest
       type: object
       x-struct:
       x-validate:
@@ -2532,6 +2812,60 @@ components:
       title: CacheActionItem
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheActionItem
+      x-validate:
+    GitHistorySettings:
+      properties:
+        commit_file_limit:
+          description: How many files of a commit's tree to list (`uploadCommitListing`); beyond it the listing is marked truncated.
+          type: integer
+          x-struct:
+          x-validate:
+        deepen_budget_seconds:
+          description: How long the client may spend deepening a shallow clone to find the merge base.
+          type: integer
+          x-struct:
+          x-validate:
+        upload_batch_size:
+          description: How many commits to send per upload request.
+          type: integer
+          x-struct:
+          x-validate:
+        window_commits:
+          description: How many commits back history is collected and kept.
+          type: integer
+          x-struct:
+          x-validate:
+        window_days:
+          description: How many days back history is collected and kept.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - window_days
+        - window_commits
+        - deepen_budget_seconds
+        - upload_batch_size
+        - commit_file_limit
+      title: GitHistorySettings
+      type: object
+      x-struct:
+      x-validate:
+    MissingCommitsResponse:
+      properties:
+        missing:
+          items:
+            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - missing
+      title: MissingCommitsResponse
+      type: object
+      x-struct:
       x-validate:
     RunnerVolumeTrends:
       additionalProperties: false
@@ -3952,6 +4286,20 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.BundleArtifact
       x-validate:
+    CoverageUploadRequest:
+      properties:
+        test_run_id:
+          description: The client-generated id of the test run the coverage belongs to.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - test_run_id
+      title: CoverageUploadRequest
+      type: object
+      x-struct:
+      x-validate:
     OrganizationList:
       description: The list of organizations the authenticated subject is part of.
       properties:
@@ -5095,6 +5443,86 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
       x-validate:
+    UploadCommitsRequest:
+      properties:
+        branch_heads:
+          description: The newest commit the client saw on each branch.
+          items:
+            properties:
+              branch:
+                type: string
+                x-struct:
+                x-validate:
+              sha:
+                description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - branch
+              - sha
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        commits:
+          items:
+            properties:
+              committed_at:
+                description: The committer date.
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              parents:
+                description: The parent SHAs, first parent first.
+                items:
+                  description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              sha:
+                description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - sha
+              - parents
+              - committed_at
+            type: object
+            x-struct:
+            x-validate:
+          maxItems: 10000
+          type: array
+          x-struct:
+          x-validate:
+        object_format:
+          description: The repository's Git object format.
+          enum:
+            - sha1
+            - sha256
+          type: string
+          x-struct:
+          x-validate:
+        repository_url:
+          description: "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - repository_url
+        - object_format
+        - commits
+      title: UploadCommitsRequest
+      type: object
+      x-struct:
+      x-validate:
     AccountToken:
       properties:
         all_projects:
@@ -6236,6 +6664,69 @@ components:
       type: integer
       x-struct:
       x-validate:
+    UploadCommitListingRequest:
+      properties:
+        complete:
+          description: Whether this request ends the listing (true by default).
+          type: boolean
+          x-struct:
+          x-validate:
+        files:
+          items:
+            properties:
+              git_blob_id:
+                description: The file's blob at the commit.
+                type: string
+                x-struct:
+                x-validate:
+              mode:
+                description: The Git file mode as an integer (33188 for 100644).
+                type: integer
+                x-struct:
+                x-validate:
+              path:
+                description: Relative to the repository root.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - git_blob_id
+            type: object
+            x-struct:
+            x-validate:
+          maxItems: 20000
+          type: array
+          x-struct:
+          x-validate:
+        files_count:
+          description: How many files the whole listing has, sent with the last request.
+          type: integer
+          x-struct:
+          x-validate:
+        repository_url:
+          description: "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+          type: string
+          x-struct:
+          x-validate:
+        sha:
+          description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+          type: string
+          x-struct:
+          x-validate:
+        truncated:
+          description: Whether the client stopped at the limit.
+          type: boolean
+          x-struct:
+          x-validate:
+      required:
+        - repository_url
+        - sha
+        - files
+      title: UploadCommitListingRequest
+      type: object
+      x-struct:
+      x-validate:
     RunsIndexBefore:
       description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
       title: RunsIndexBefore
@@ -6455,6 +6946,25 @@ components:
       type: string
       x-struct:
       x-validate:
+    CoverageUpload:
+      properties:
+        storage_key:
+          description: The key to send with the run as `xcode_coverage_storage_key`.
+          type: string
+          x-struct:
+          x-validate:
+        upload_url:
+          description: A short-lived URL to PUT the compressed coverage to.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - storage_key
+        - upload_url
+      title: CoverageUpload
+      type: object
+      x-struct:
+      x-validate:
     RunnerVolumeActivity:
       additionalProperties: false
       properties:
@@ -6504,6 +7014,38 @@ components:
         - job_runs
         - points
       title: RunnerVolumeActivity
+      type: object
+      x-struct:
+      x-validate:
+    CoverageTarget:
+      properties:
+        coverage:
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        files_count:
+          type: integer
+          x-struct:
+          x-validate:
+        name:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - name
+        - files_count
+        - covered_lines
+        - executable_lines
+        - coverage
+      title: CoverageTarget
       type: object
       x-struct:
       x-validate:
@@ -7008,6 +7550,19 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Invitation
       x-validate:
+    CoverageSettings:
+      properties:
+        inline_threshold_bytes:
+          description: Compressed coverage larger than this goes through an upload.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - inline_threshold_bytes
+      title: CoverageSettings
+      type: object
+      x-struct:
+      x-validate:
     TestModuleRunStatus:
       enum:
         - success
@@ -7274,6 +7829,216 @@ components:
       type: integer
       x-struct:
       x-validate:
+    CommitCoverage:
+      description: "A commit's coverage: the union of every run that measured it and its measured set."
+      properties:
+        complete:
+          description: Whether the commit's coverage pipeline is known to have finished (`completeness` says how).
+          type: boolean
+          x-struct:
+          x-validate:
+        completeness:
+          description: '`signal`, `inferred` or empty.'
+          type: string
+          x-struct:
+          x-validate:
+        coverage:
+          description: Line coverage over the measured product files, in percent.
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        git_commit_sha:
+          type: string
+          x-struct:
+          x-validate:
+        measured_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        measured_files_count:
+          description: Product files some run measured.
+          type: integer
+          x-struct:
+          x-validate:
+        partial:
+          type: boolean
+          x-struct:
+          x-validate:
+        partial_schemes:
+          description: The schemes only measured by runs that skipped tests on purpose.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        reported:
+          description: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
+          nullable: true
+          properties:
+            carried_from:
+              description: The commits the carried coverage was observed at.
+              items:
+                type: string
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            carried_tests_count:
+              description: Those of them whose coverage was carried forward.
+              type: integer
+              x-struct:
+              x-validate:
+            coverage:
+              type: number
+              x-struct:
+              x-validate:
+            covered_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            executable_lines:
+              type: integer
+              x-struct:
+              x-validate:
+            gap_files_count:
+              description: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+              type: integer
+              x-struct:
+              x-validate:
+            kind:
+              description: '`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: some skipped tests or files could not be carried, and the figure is a lower bound. `observed`: the runs listed no candidate tests, so what they skipped is unknown.'
+              enum:
+                - measured
+                - reported
+                - partial
+                - observed
+              type: string
+              x-struct:
+              x-validate:
+            skipped_tests_count:
+              description: The candidate tests no run of the commit executed.
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - kind
+            - coverage
+            - covered_lines
+            - executable_lines
+            - skipped_tests_count
+            - carried_tests_count
+            - gap_files_count
+            - carried_from
+          title: CoverageReported
+          type: object
+          x-struct:
+          x-validate:
+        schemes:
+          description: The schemes that measured the commit.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        targets:
+          items:
+            properties:
+              coverage:
+                type: number
+                x-struct:
+                x-validate:
+              covered_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              executable_lines:
+                type: integer
+                x-struct:
+                x-validate:
+              files_count:
+                type: integer
+                x-struct:
+                x-validate:
+              name:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - name
+              - files_count
+              - covered_lines
+              - executable_lines
+              - coverage
+            title: CoverageTarget
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        test_run_ids:
+          items:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        unmeasured_files_count:
+          description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as "Files without coverage data"; 0 when the listing is not stored.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - git_commit_sha
+        - covered_lines
+        - executable_lines
+        - coverage
+        - measured_files_count
+        - unmeasured_files_count
+        - schemes
+        - partial_schemes
+        - partial
+        - complete
+        - completeness
+        - test_run_ids
+        - targets
+      title: CommitCoverage
+      type: object
+      x-struct:
+      x-validate:
+    MissingCommitListingsResponse:
+      properties:
+        missing:
+          items:
+            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - missing
+      title: MissingCommitListingsResponse
+      type: object
+      x-struct:
+      x-validate:
     ArtifactMultipartUploadPart:
       description: Represents an multipart upload's part identified by the upload id and the part number
       properties:
@@ -7421,6 +8186,69 @@ components:
       minimum: 1
       title: BuildIssuesIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    CoverageReported:
+      description: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
+      nullable: true
+      properties:
+        carried_from:
+          description: The commits the carried coverage was observed at.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        carried_tests_count:
+          description: Those of them whose coverage was carried forward.
+          type: integer
+          x-struct:
+          x-validate:
+        coverage:
+          type: number
+          x-struct:
+          x-validate:
+        covered_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        executable_lines:
+          type: integer
+          x-struct:
+          x-validate:
+        gap_files_count:
+          description: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+          type: integer
+          x-struct:
+          x-validate:
+        kind:
+          description: '`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: some skipped tests or files could not be carried, and the figure is a lower bound. `observed`: the runs listed no candidate tests, so what they skipped is unknown.'
+          enum:
+            - measured
+            - reported
+            - partial
+            - observed
+          type: string
+          x-struct:
+          x-validate:
+        skipped_tests_count:
+          description: The candidate tests no run of the commit executed.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - kind
+        - coverage
+        - covered_lines
+        - executable_lines
+        - skipped_tests_count
+        - carried_tests_count
+        - gap_files_count
+        - carried_from
+      title: CoverageReported
+      type: object
       x-struct:
       x-validate:
     TestCase:
@@ -8329,6 +9157,30 @@ components:
       minimum: 1
       title: BuildFilesIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    MissingCommitsRequest:
+      properties:
+        repository_url:
+          description: "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+          type: string
+          x-struct:
+          x-validate:
+        shas:
+          items:
+            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            type: string
+            x-struct:
+            x-validate:
+          maxItems: 10000
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - repository_url
+        - shas
+      title: MissingCommitsRequest
+      type: object
       x-struct:
       x-validate:
     BuildFilesIndexPageSize:
@@ -10267,6 +11119,92 @@ paths:
       summary: Get a generation by ID.
       tags:
         - Generations
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/uploads:
+    post:
+      callbacks: {}
+      description: Returns where to PUT the DEFLATE-compressed coverage file (one JSON object per source file, as the client's parser writes it) for a test run the client is about to create with the given id. The run then references it through `xcode_coverage_storage_key`, and the server reads it back once the run exists.
+      operationId: createCoverageUpload
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                test_run_id:
+                  description: The client-generated id of the test run the coverage belongs to.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - test_run_id
+              title: CoverageUploadRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The run the coverage belongs to
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  storage_key:
+                    description: The key to send with the run as `xcode_coverage_storage_key`.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  upload_url:
+                    description: A short-lived URL to PUT the compressed coverage to.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - storage_key
+                  - upload_url
+                title: CoverageUpload
+                type: object
+                x-struct:
+                x-validate:
+          description: Where to upload the coverage
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get a signed URL to upload a test run's code coverage.
+      tags:
+        - Tests
   /api/cache/endpoints:
     get:
       callbacks: {}
@@ -11677,6 +12615,91 @@ paths:
       summary: List runner profiles for an account.
       tags:
         - Runners
+  /api/projects/{account_handle}/{project_handle}/tests/git-history/settings:
+    get:
+      callbacks: {}
+      description: "How much repository history the client should collect and upload with a test run: the window in days and commits, the time it may spend deepening a shallow clone, how many commits to send per upload request, and how many files of a commit's tree to list. Server defaults with the project's overrides applied."
+      operationId: getGitHistorySettings
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  commit_file_limit:
+                    description: How many files of a commit's tree to list (`uploadCommitListing`); beyond it the listing is marked truncated.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  deepen_budget_seconds:
+                    description: How long the client may spend deepening a shallow clone to find the merge base.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  upload_batch_size:
+                    description: How many commits to send per upload request.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  window_commits:
+                    description: How many commits back history is collected and kept.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  window_days:
+                    description: How many days back history is collected and kept.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - window_days
+                  - window_commits
+                  - deepen_budget_seconds
+                  - upload_batch_size
+                  - commit_file_limit
+                title: GitHistorySettings
+                type: object
+                x-struct:
+                x-validate:
+          description: The settings
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get the Git history settings in effect for a project.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/tests:
     get:
       callbacks: {}
@@ -11922,17 +12945,39 @@ paths:
             schema:
               description: Parameters to create a single test run.
               properties:
-                build_run_id:
-                  description: The UUID of an associated build run.
+                git_branch:
+                  description: The git branch.
                   type: string
                   x-struct:
                   x-validate:
-                build_system:
-                  default: xcode
-                  description: The build system used by the test run.
+                xcode_coverage_storage_key:
+                  description: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline.
+                  type: string
+                  x-struct:
+                  x-validate:
+                execution_mode:
+                  description: Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown.
                   enum:
-                    - xcode
-                    - gradle
+                    - parallel
+                    - serial
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_object_format:
+                  description: The repository's Git object format.
+                  enum:
+                    - sha1
+                    - sha256
+                  type: string
+                  x-struct:
+                  x-validate:
+                scheme:
+                  description: The scheme used for the test run.
+                  type: string
+                  x-struct:
+                  x-validate:
+                merge_base_sha:
+                  description: The merge base between the run's commit and the base branch, when the client could resolve it.
                   type: string
                   x-struct:
                   x-validate:
@@ -11941,8 +12986,172 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                ci_project_handle:
-                  description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
+                git_remote_url_origin:
+                  description: The git remote URL origin.
+                  type: string
+                  x-struct:
+                  x-validate:
+                history_fallback_reason:
+                  description: Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time.
+                  type: string
+                  x-struct:
+                  x-validate:
+                is_pull_request:
+                  description: Whether the run was for a pull or merge request.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                status:
+                  description: The status of the test run.
+                  enum:
+                    - success
+                    - failure
+                    - skipped
+                    - processing
+                    - failed_processing
+                  type: string
+                  x-struct:
+                  x-validate:
+                shard_index:
+                  description: The zero-based shard index for this test result.
+                  nullable: true
+                  type: integer
+                  x-struct:
+                  x-validate:
+                only_test_identifiers:
+                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                coverage_evidence:
+                  description: "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index."
+                  properties:
+                    paths:
+                      items:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    scopes:
+                      items:
+                        properties:
+                          files:
+                            description: Indices into `paths`.
+                            items:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          kind:
+                            description: "`test`: what one test executed. `suite`: what ran around a suite's tests and belongs to none. `target`: everything the target's processes executed."
+                            enum:
+                              - test
+                              - suite
+                              - target
+                            type: string
+                            x-struct:
+                            x-validate:
+                          lines:
+                            description: The lines the scope ran in each of `files`, in the same order, as inclusive ranges flattened (`[3, 5, 9, 9]` is lines 3 to 5 and line 9); empty for a file without line evidence. Left out when the scope has none.
+                            items:
+                              items:
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            type: array
+                            x-struct:
+                            x-validate:
+                          module:
+                            description: The test target.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          name:
+                            description: The test's name; empty unless the scope is a test.
+                            type: string
+                            x-struct:
+                            x-validate:
+                          suite:
+                            description: Empty for a target and for a test outside any suite.
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - kind
+                          - module
+                          - files
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    unattributed_tests:
+                      description: Tests that overlapped another of their process, so nothing could be attributed to them.
+                      type: integer
+                      x-struct:
+                      x-validate:
+                  required:
+                    - paths
+                    - scopes
+                  type: object
+                  x-struct:
+                  x-validate:
+                git_dirty:
+                  description: "Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's."
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                history_source:
+                  description: Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`).
+                  enum:
+                    - client
+                    - none
+                  type: string
+                  x-struct:
+                  x-validate:
+                build_run_id:
+                  description: The UUID of an associated build run.
+                  type: string
+                  x-struct:
+                  x-validate:
+                skip_test_identifiers:
+                  description: The tests the caller asked this run to exclude.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                git_ref:
+                  description: The git reference.
+                  type: string
+                  x-struct:
+                  x-validate:
+                base_branch:
+                  description: "The branch the run's commit will merge into: the pull request's base, or the project's default branch."
+                  type: string
+                  x-struct:
+                  x-validate:
+                model_identifier:
+                  description: Identifier for the model where the run was executed, such as MacBookAir10,1.
+                  type: string
+                  x-struct:
+                  x-validate:
+                ci_run_id:
+                  description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                   type: string
                   x-struct:
                   x-validate:
@@ -11958,38 +13167,68 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                ci_run_id:
-                  description: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
+                ci_project_handle:
+                  description: "The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab)."
                   type: string
                   x-struct:
                   x-validate:
-                duration:
-                  description: Duration of the run in milliseconds.
+                pull_request_number:
+                  description: The pull or merge request number, when known.
                   type: integer
-                  x-struct:
-                  x-validate:
-                git_branch:
-                  description: The git branch.
-                  type: string
-                  x-struct:
-                  x-validate:
-                git_commit_sha:
-                  description: The commit SHA.
-                  type: string
-                  x-struct:
-                  x-validate:
-                git_ref:
-                  description: The git reference.
-                  type: string
-                  x-struct:
-                  x-validate:
-                git_remote_url_origin:
-                  description: The git remote URL origin.
-                  type: string
                   x-struct:
                   x-validate:
                 gradle_build_id:
                   description: The UUID of an associated Gradle build.
+                  type: string
+                  x-struct:
+                  x-validate:
+                stress_new_tests:
+                  $ref: '#/components/schemas/StressNewTestsResult'
+                xcode_coverage_partial:
+                  description: 'With `xcode_coverage_storage_key`: whether the run left tests out on purpose.'
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                enumerated_tests:
+                  description: The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.
+                  items:
+                    properties:
+                      enabled:
+                        description: False when the scheme or the test plan disables the test.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      function:
+                        description: "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
+                        type: string
+                        x-struct:
+                        x-validate:
+                      module:
+                        description: The test target.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        description: The test's name as the run reports it, `testExample()`.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      suite:
+                        description: The suite that declares the test, the innermost one when suites nest; empty outside any suite.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - module
+                      - name
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                macos_version:
+                  description: The version of macOS used during the run.
                   type: string
                   x-struct:
                   x-validate:
@@ -11999,68 +13238,102 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                is_ci:
-                  description: Indicates if the run was executed on a Continuous Integration (CI) system.
-                  type: boolean
-                  x-struct:
-                  x-validate:
-                macos_version:
-                  description: The version of macOS used during the run.
-                  type: string
-                  x-struct:
-                  x-validate:
-                model_identifier:
-                  description: Identifier for the model where the run was executed, such as MacBookAir10,1.
-                  type: string
-                  x-struct:
-                  x-validate:
-                only_test_identifiers:
-                  description: The tests the caller asked this run to be limited to, as `Module/Suite` or `Module/Suite/testCase`. Filters Tuist itself applies, for a shard or for quarantine, are not included, since those are already known from the shard plan and the project's quarantine state.
+                changed_files:
+                  description: The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.
                   items:
-                    type: string
+                    properties:
+                      git_blob_id:
+                        description: The file's Git blob at the head; absent for a deleted file.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      hunks:
+                        description: The changed line ranges in the file at the head, inclusive.
+                        items:
+                          properties:
+                            end:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            start:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - start
+                            - end
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      path:
+                        description: The path at the head, relative to the repository root.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      previous_path:
+                        description: The path before a rename.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      status:
+                        enum:
+                          - added
+                          - modified
+                          - deleted
+                          - renamed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      truncated:
+                        description: Whether the client stopped listing this file's hunks because the diff exceeded its limits.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                    required:
+                      - path
+                      - status
+                    type: object
                     x-struct:
                     x-validate:
                   type: array
                   x-struct:
                   x-validate:
-                scheme:
-                  description: The scheme used for the test run.
-                  type: string
-                  x-struct:
-                  x-validate:
-                shard_index:
-                  description: The zero-based shard index for this test result.
-                  nullable: true
-                  type: integer
-                  x-struct:
-                  x-validate:
+                xcode_coverage:
+                  $ref: '#/components/schemas/XcodeCoverage'
                 shard_plan_id:
                   description: The shard plan ID if this test run is part of a sharded execution.
                   type: string
                   x-struct:
                   x-validate:
-                skip_test_identifiers:
-                  description: The tests the caller asked this run to exclude.
-                  items:
-                    type: string
-                    x-struct:
-                    x-validate:
-                  type: array
+                duration:
+                  description: Duration of the run in milliseconds.
+                  type: integer
                   x-struct:
                   x-validate:
-                status:
-                  description: The status of the test run.
-                  enum:
-                    - success
-                    - failure
-                    - skipped
-                    - processing
-                    - failed_processing
+                xcode_version:
+                  description: The version of Xcode used during the run.
                   type: string
                   x-struct:
                   x-validate:
-                stress_new_tests:
-                  $ref: '#/components/schemas/StressNewTestsResult'
+                build_system:
+                  default: xcode
+                  description: The build system used by the test run.
+                  enum:
+                    - xcode
+                    - gradle
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_commit_sha:
+                  description: The commit SHA.
+                  type: string
+                  x-struct:
+                  x-validate:
                 test_modules:
                   description: The test modules associated with the test run.
                   items:
@@ -12068,6 +13341,14 @@ paths:
                       duration:
                         description: The duration of the test module in milliseconds.
                         type: integer
+                        x-struct:
+                        x-validate:
+                      execution_mode:
+                        description: Whether the module's tests executed in parallel or serially; absent when unknown.
+                        enum:
+                          - parallel
+                          - serial
+                        type: string
                         x-struct:
                         x-validate:
                       name:
@@ -12367,11 +13648,9 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
-                xcode_coverage:
-                  $ref: '#/components/schemas/XcodeCoverage'
-                xcode_version:
-                  description: The version of Xcode used during the run.
-                  type: string
+                is_ci:
+                  description: Indicates if the run was executed on a Continuous Integration (CI) system.
+                  type: boolean
                   x-struct:
                   x-validate:
               required:
@@ -18130,6 +19409,106 @@ paths:
       summary: List cacheable tasks for a given build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing:
+    post:
+      callbacks: {}
+      description: Given the SHAs of the commits a client can see, returns the ones the repository's commit graph lacks, so the client uploads only those.
+      operationId: findMissingCommits
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                repository_url:
+                  description: "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+                  type: string
+                  x-struct:
+                  x-validate:
+                shas:
+                  items:
+                    description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 10000
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - repository_url
+                - shas
+              title: MissingCommitsRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The SHAs to check
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  missing:
+                    items:
+                      description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - missing
+                title: MissingCommitsResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: The SHAs the server lacks
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The repository URL names no repository
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Find which commits the server has not stored yet.
+      tags:
+        - Tests
   /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes:
     get:
       callbacks: {}
@@ -21878,6 +23257,143 @@ paths:
       summary: Time-bucketed test run duration percentiles for a project.
       tags:
         - Metrics
+  /api/projects/{account_handle}/{project_handle}/tests/git-history/commits:
+    post:
+      callbacks: {}
+      description: Adds commits and their parent edges to the repository's commit graph, oldest first for exact generation numbers, and records the newest commit seen on each given branch. Commits already stored are left untouched, so a repeated upload changes nothing.
+      operationId: uploadCommits
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                branch_heads:
+                  description: The newest commit the client saw on each branch.
+                  items:
+                    properties:
+                      branch:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      sha:
+                        description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - branch
+                      - sha
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                commits:
+                  items:
+                    properties:
+                      committed_at:
+                        description: The committer date.
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      parents:
+                        description: The parent SHAs, first parent first.
+                        items:
+                          description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      sha:
+                        description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - sha
+                      - parents
+                      - committed_at
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 10000
+                  type: array
+                  x-struct:
+                  x-validate:
+                object_format:
+                  description: The repository's Git object format.
+                  enum:
+                    - sha1
+                    - sha256
+                  type: string
+                  x-struct:
+                  x-validate:
+                repository_url:
+                  description: "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - repository_url
+                - object_format
+                - commits
+              title: UploadCommitsRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The commits
+        required: false
+      responses:
+        '204':
+          description: The commits were stored
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The repository URL names no repository
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Upload commits to the repository's commit graph.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/previews/latest:
     get:
       callbacks: {}
@@ -23303,6 +24819,255 @@ paths:
       summary: Get a shard.
       tags:
         - Shards
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/commits/{git_commit_sha}/complete:
+    post:
+      callbacks: {}
+      description: "Tells the server that every run of the commit that gathers coverage has reported, which the data alone cannot show. The commit's coverage is republished as complete and it chains into its branch's trend. Runs landing afterwards still join the commit's coverage. Meant for a final CI job that depends on every test job (`tuist coverage complete`)."
+      operationId: completeCommitCoverage
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The commit SHA.
+          in: path
+          name: git_commit_sha
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: "A commit's coverage: the union of every run that measured it and its measured set."
+                properties:
+                  complete:
+                    description: Whether the commit's coverage pipeline is known to have finished (`completeness` says how).
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  completeness:
+                    description: '`signal`, `inferred` or empty.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                  coverage:
+                    description: Line coverage over the measured product files, in percent.
+                    type: number
+                    x-struct:
+                    x-validate:
+                  covered_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  executable_lines:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  measured_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  measured_files_count:
+                    description: Product files some run measured.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  partial:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  partial_schemes:
+                    description: The schemes only measured by runs that skipped tests on purpose.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  reported:
+                    description: What the commit is covered by once the tests its runs skipped are carried forward from the ancestor they last ran at. A test is carried only when it passed there and every file it executed, and every tracked file, is unchanged. Null for a commit published before reported coverage existed.
+                    nullable: true
+                    properties:
+                      carried_from:
+                        description: The commits the carried coverage was observed at.
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      carried_tests_count:
+                        description: Those of them whose coverage was carried forward.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      coverage:
+                        type: number
+                        x-struct:
+                        x-validate:
+                      covered_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      executable_lines:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      gap_files_count:
+                        description: Files an ancestor measured that the commit's runs did not compile and whose coverage could not be carried.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      kind:
+                        description: '`measured`: the runs skipped nothing. `reported`: every skipped test was carried, so this is what a full run would measure. `partial`: some skipped tests or files could not be carried, and the figure is a lower bound. `observed`: the runs listed no candidate tests, so what they skipped is unknown.'
+                        enum:
+                          - measured
+                          - reported
+                          - partial
+                          - observed
+                        type: string
+                        x-struct:
+                        x-validate:
+                      skipped_tests_count:
+                        description: The candidate tests no run of the commit executed.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - kind
+                      - coverage
+                      - covered_lines
+                      - executable_lines
+                      - skipped_tests_count
+                      - carried_tests_count
+                      - gap_files_count
+                      - carried_from
+                    title: CoverageReported
+                    type: object
+                    x-struct:
+                    x-validate:
+                  schemes:
+                    description: The schemes that measured the commit.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  targets:
+                    items:
+                      properties:
+                        coverage:
+                          type: number
+                          x-struct:
+                          x-validate:
+                        covered_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        executable_lines:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        files_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - files_count
+                        - covered_lines
+                        - executable_lines
+                        - coverage
+                      title: CoverageTarget
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  test_run_ids:
+                    items:
+                      format: uuid
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  unmeasured_files_count:
+                    description: Source files of the commit's listing (of the kinds the runs measured, minus the excluded paths) that no run measured, shown in the dashboard as "Files without coverage data"; 0 when the listing is not stored.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - git_commit_sha
+                  - covered_lines
+                  - executable_lines
+                  - coverage
+                  - measured_files_count
+                  - unmeasured_files_count
+                  - schemes
+                  - partial_schemes
+                  - partial
+                  - complete
+                  - completeness
+                  - test_run_ids
+                  - targets
+                title: CommitCoverage
+                type: object
+                x-struct:
+                x-validate:
+          description: The commit's coverage, complete
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run or commit was not found, or gathered no coverage
+      summary: Signal that a commit's coverage pipeline finished.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}:
     get:
       callbacks: {}
@@ -23743,6 +25508,126 @@ paths:
       summary: List captured log lines for a runner job.
       tags:
         - Runners
+  /api/projects/{account_handle}/{project_handle}/tests/git-history/listings:
+    post:
+      callbacks: {}
+      description: "Stores the files of a commit's tree with their blobs, as `git ls-files --stage` lists them at a clean checkout, capped at the project's `commit_file_limit`. A large listing is sent in several requests; the last one carries `complete: true`, which records the listing as stored. Repeating a request changes nothing."
+      operationId: uploadCommitListing
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                complete:
+                  description: Whether this request ends the listing (true by default).
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                files:
+                  items:
+                    properties:
+                      git_blob_id:
+                        description: The file's blob at the commit.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      mode:
+                        description: The Git file mode as an integer (33188 for 100644).
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      path:
+                        description: Relative to the repository root.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - path
+                      - git_blob_id
+                    type: object
+                    x-struct:
+                    x-validate:
+                  maxItems: 20000
+                  type: array
+                  x-struct:
+                  x-validate:
+                files_count:
+                  description: How many files the whole listing has, sent with the last request.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                repository_url:
+                  description: "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+                  type: string
+                  x-struct:
+                  x-validate:
+                sha:
+                  description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                  type: string
+                  x-struct:
+                  x-validate:
+                truncated:
+                  description: Whether the client stopped at the limit.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+              required:
+                - repository_url
+                - sha
+                - files
+              title: UploadCommitListingRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The listing
+        required: false
+      responses:
+        '204':
+          description: The listing was stored
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The repository URL names no repository
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Upload a commit's file listing.
+      tags:
+        - Tests
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -26284,6 +28169,106 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/tests/git-history/listings/missing:
+    post:
+      callbacks: {}
+      description: "Given commit SHAs, returns the ones whose file listing (every file of the commit's tree with its blob) the server lacks, so a clean checkout uploads it once per commit. The listing is what coverage is measured against, where the project's tracked files are read, and what evidence reuse compares."
+      operationId: findMissingCommitListings
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                repository_url:
+                  description: "The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped."
+                  type: string
+                  x-struct:
+                  x-validate:
+                shas:
+                  items:
+                    description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 1000
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - repository_url
+                - shas
+              title: MissingCommitListingsRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: The SHAs to check
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  missing:
+                    items:
+                      description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - missing
+                title: MissingCommitListingsResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: The SHAs whose listing the server lacks
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The repository URL names no repository
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Find which commits have no file listing stored yet.
+      tags:
+        - Tests
   /api/accounts/{account_handle}/tokens/{token_name}:
     delete:
       callbacks: {}
@@ -30333,6 +32318,67 @@ paths:
                 x-validate:
               style: simple
       summary: List test module runs for a test run.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/coverage/settings:
+    get:
+      callbacks: {}
+      description: The size, in bytes of the DEFLATE-compressed coverage, above which a client that processed the result bundle itself uploads the coverage to object storage (see `createCoverageUpload`) instead of sending it inline with the test run.
+      operationId: getCoverageSettings
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  inline_threshold_bytes:
+                    description: Compressed coverage larger than this goes through an upload.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - inline_threshold_bytes
+                title: CoverageSettings
+                type: object
+                x-struct:
+                x-validate:
+          description: The settings
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project was not found
+      summary: Get the code coverage upload settings for a project.
       tags:
         - Tests
   /api/projects/{account_handle}/{project_handle}/bazel/cache-events:

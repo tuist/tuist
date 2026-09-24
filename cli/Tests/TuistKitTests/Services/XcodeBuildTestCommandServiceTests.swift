@@ -41,6 +41,7 @@ struct XcodeBuildTestCommandServiceTests {
     private let shardService = MockShardServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let uploadBuildRunService = MockUploadBuildRunServicing()
+    private let testEnumerationService = MockTestEnumerationServicing()
     private let subject: XcodeBuildTestCommandService
 
     init() {
@@ -72,6 +73,13 @@ struct XcodeBuildTestCommandServiceTests {
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
             .willReturn(URL(string: "https://tuist.dev/test")!)
 
+        given(testEnumerationService)
+            .record(
+                resultBundlePath: .any, target: .any, scheme: .any, destination: .any, rosetta: .any,
+                derivedDataPath: .any, testPlan: .any, xcodebuildArguments: .any
+            )
+            .willReturn(nil)
+
         subject = XcodeBuildTestCommandService(
             fileSystem: fileSystem,
             xcodeBuildController: xcodeBuildController,
@@ -82,6 +90,7 @@ struct XcodeBuildTestCommandServiceTests {
             derivedDataLocator: derivedDataLocator,
             xcActivityLogController: xcActivityLogController,
             uploadResultBundleService: uploadResultBundleService,
+            testEnumerationService: testEnumerationService,
             xcResultService: xcResultService,
             rootDirectoryLocator: rootDirectoryLocator,
             testQuarantineService: testQuarantineService,

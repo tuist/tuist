@@ -42,15 +42,20 @@ defmodule Tuist.Processor.XCResultProcessor do
       try do
         result = process_archive(archive_path, temp_dir, Keyword.get(opts, :read_coverage, false))
 
-        with {:ok, parsed_data} <- result do
-          OpenTelemetry.Tracer.with_span "xcresult.upload_attachments" do
-            set_span_attribute("xcresult.attachment_count", count_attachments(parsed_data))
-            upload_attachments(parsed_data, bucket, opts)
-          end
+        with {:ok, parsed_data} <- result,
+             {:ok, parsed_data} <- upload_attachments_in_span(parsed_data, bucket, opts) do
+          relocate_coverage(parsed_data)
         end
       after
         cleanup_temp(temp_dir)
       end
+    end
+  end
+
+  defp upload_attachments_in_span(parsed_data, bucket, opts) do
+    OpenTelemetry.Tracer.with_span "xcresult.upload_attachments" do
+      set_span_attribute("xcresult.attachment_count", count_attachments(parsed_data))
+      upload_attachments(parsed_data, bucket, opts)
     end
   end
 
@@ -75,6 +80,25 @@ defmodule Tuist.Processor.XCResultProcessor do
       {:error, _} = error -> error
     end
   end
+
+  # The parser streams the coverage to a file beside the bundle, one JSON object
+  # per source file, rather than returning it as a term. The bundle's directory
+  # is removed on the way out, so the file moves to a place of its own; whoever
+  # gets `coverage_path` owns it from here (see `Tuist.Tests.Coverage.rows/2`).
+  defp relocate_coverage(%{"coverage_path" => path} = parsed_data) when is_binary(path) do
+    destination = Path.join(System.tmp_dir!(), "coverage_#{System.unique_integer([:positive])}.ndjson")
+
+    case File.rename(path, destination) do
+      :ok ->
+        {:ok, Map.put(parsed_data, "coverage_path", destination)}
+
+      {:error, reason} ->
+        Logger.warning("xcresult coverage could not be kept for publishing: #{inspect(reason)}")
+        {:ok, Map.drop(parsed_data, ["coverage_path", "coverage_partial", "coverage_file_count"])}
+    end
+  end
+
+  defp relocate_coverage(parsed_data), do: {:ok, parsed_data}
 
   defp parse_xcresult_with_telemetry(xcresult_path, root_dir) do
     with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do

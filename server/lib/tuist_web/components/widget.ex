@@ -113,6 +113,11 @@ defmodule TuistWeb.Widget do
 
   attr(:trend_label, :string, required: false, doc: "The trend label of the widget.")
 
+  attr(:caption, :string,
+    default: nil,
+    doc: "Optional line under the value, for a widget without a trend."
+  )
+
   attr(:trend_type, :atom,
     default: :regular,
     values: [:regular, :inverse, :neutral],
@@ -222,6 +227,9 @@ defmodule TuistWeb.Widget do
             label={@trend_value_label}
           />
           <span data-part="label">{@trend_label}</span>
+        </div>
+        <div :if={@caption && !@trend_value} data-part="trend">
+          <span data-part="label">{@caption}</span>
         </div>
       <% end %>
     </.card_section>

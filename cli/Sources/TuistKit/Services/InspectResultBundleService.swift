@@ -66,6 +66,8 @@ public protocol UploadResultBundleServicing {
 public struct UploadResultBundleService: UploadResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
+    private let gitHistoryService: GitHistoryServicing
+    private let coverageUploadService: CoverageUploadServicing
     private let createCrashReportService: CreateCrashReportServicing
     private let createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing
     private let dateService: DateServicing
@@ -83,6 +85,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
+        gitHistoryService: GitHistoryServicing = GitHistoryService(),
+        coverageUploadService: CoverageUploadServicing = CoverageUploadService(),
         createCrashReportService: CreateCrashReportServicing = CreateCrashReportService(),
         createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing = CreateTestCaseRunAttachmentService(),
         dateService: DateServicing = DateService(),
@@ -99,6 +103,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
+        self.gitHistoryService = gitHistoryService
+        self.coverageUploadService = coverageUploadService
         self.createCrashReportService = createCrashReportService
         self.createTestCaseRunAttachmentService = createTestCaseRunAttachmentService
         self.dateService = dateService
@@ -151,7 +157,17 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
 
         // The server that receives a locally processed run has no Xcode to read the coverage
         // with, so the client reads it, through the same parser the server runs on a bundle.
+        // The execution modes and the enumerated tests were recorded into the bundle after the
+        // summary was parsed.
         var testSummary = testSummary
+        if let resultBundlePath {
+            let bundle = URL(fileURLWithPath: resultBundlePath.pathString)
+            testSummary = testSummary
+                .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
+                .applying(enumeration: TestEnumeration.read(fromResultBundle: bundle))
+        }
+        var coverageUpload: XcodeCoverageUpload?
+        var testRunId: String?
         if let resultBundlePath,
            let manifest = await coverageManifest(
                resultBundlePath: resultBundlePath,
@@ -161,15 +177,37 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
                skipTestIdentifiers: skipTestIdentifiers
            )
         {
-            testSummary.coverage = try await xcResultService.parseCoverage(path: resultBundlePath, manifest: manifest)
+            // The evidence's paths are the compiler's; the manifest is what ties them to the
+            // repository, as it does for the coverage itself.
+            testSummary = testSummary.applying(
+                coverageEvidence: TestCoverageEvidence
+                    .read(fromResultBundle: URL(fileURLWithPath: resultBundlePath.pathString))?
+                    .inRepository(manifest: manifest)
+            )
+            if let prepared = await coverageUploadService.prepare(
+                resultBundlePath: resultBundlePath,
+                manifest: manifest,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            ) {
+                testSummary.coverage = prepared.inline
+                coverageUpload = prepared.upload
+                testRunId = prepared.testRunId
+            }
         }
 
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
+        let gitHistory = await gitHistoryService.collect(
+            gitInfo: gitInfo,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
         let test = try await createTestService.createTest(
             fullHandle: fullHandle,
             serverURL: serverURL,
-            id: nil,
+            id: testRunId,
             testSummary: testSummary,
             buildRunId: buildRunId,
             gitBranch: gitInfo.branch,
@@ -188,7 +226,15 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             shardIndex: shardIndex,
             onlyTestIdentifiers: onlyTestIdentifiers,
             skipTestIdentifiers: skipTestIdentifiers,
-            stressNewTests: stressNewTests
+            stressNewTests: stressNewTests,
+            gitHistory: gitHistory?.payload,
+            coverageUpload: coverageUpload
+        )
+        await gitHistoryService.upload(
+            gitHistory,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
         )
 
         let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
@@ -268,6 +314,12 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
+        let gitHistory = await gitHistoryService.collect(
+            gitInfo: gitInfo,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
 
         let testRunId = UUID().uuidString.lowercased()
 
@@ -326,7 +378,15 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             shardIndex: shardIndex,
             onlyTestIdentifiers: onlyTestIdentifiers,
             skipTestIdentifiers: skipTestIdentifiers,
-            stressNewTests: stressNewTests
+            stressNewTests: stressNewTests,
+            gitHistory: gitHistory?.payload,
+            coverageUpload: nil
+        )
+        await gitHistoryService.upload(
+            gitHistory,
+            workingDirectory: gitInfoDirectory,
+            fullHandle: fullHandle,
+            serverURL: serverURL
         )
 
         return test
@@ -380,23 +440,6 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         }
     }
 
-    private func testCaseRunsByIdentity(
-        testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
-    ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
-        testCaseRuns.reduce(into: [:]) { result, run in
-            let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
-            result[key] = run
-        }
-    }
-
-    private func testCaseRunIdentityKey(moduleName: String, suiteName: String, name: String) -> String {
-        if suiteName.isEmpty {
-            return "\(moduleName)/\(name)"
-        } else {
-            return "\(moduleName)/\(suiteName)/\(name)"
-        }
-    }
-
     private func writeQuarantinedTests(
         _ quarantinedTests: [TestIdentifier],
         to resultBundlePath: AbsolutePath
@@ -419,6 +462,25 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             return try await gitController.topLevelGitDirectory(workingDirectory: workingDirectory)
         } else {
             return try await rootDirectoryLocator.locate(from: workingDirectory)
+        }
+    }
+}
+
+extension UploadResultBundleService {
+    private func testCaseRunsByIdentity(
+        testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
+    ) -> [String: Components.Schemas.RunsTest.test_case_runsPayloadPayload] {
+        testCaseRuns.reduce(into: [:]) { result, run in
+            let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
+            result[key] = run
+        }
+    }
+
+    private func testCaseRunIdentityKey(moduleName: String, suiteName: String, name: String) -> String {
+        if suiteName.isEmpty {
+            return "\(moduleName)/\(name)"
+        } else {
+            return "\(moduleName)/\(suiteName)/\(name)"
         }
     }
 }

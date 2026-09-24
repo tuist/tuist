@@ -6565,6 +6565,73 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "create_test/1 with Git history" do
+    test "stores the run's place in history and the files it changed" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature",
+          git_commit_sha: "head",
+          base_branch: "main",
+          merge_base_sha: "base",
+          is_pull_request: true,
+          pull_request_number: 42,
+          git_object_format: "sha1",
+          history_source: "client",
+          changed_files: [
+            %{
+              path: "Sources/A.swift",
+              status: "modified",
+              git_blob_id: "blobA",
+              hunks: [%{start: 3, end: 5}, %{start: 10, end: 10}]
+            },
+            %{
+              path: "Sources/New.swift",
+              previous_path: "Sources/Old.swift",
+              status: "renamed",
+              git_blob_id: "blobN",
+              hunks: [],
+              truncated: true
+            },
+            %{path: "Sources/Gone.swift", status: "deleted"}
+          ]
+        )
+
+      {:ok, stored} = Tests.get_test(test_run.id)
+
+      assert {stored.base_branch, stored.merge_base_sha, stored.is_pull_request, stored.pull_request_number} ==
+               {"main", "base", true, 42}
+
+      assert {stored.git_object_format, stored.history_source, stored.history_fallback_reason} == {"sha1", "client", ""}
+
+      files =
+        ClickHouseRepo.all(
+          from(f in Tuist.Tests.TestRunChangedFile,
+            where: f.test_run_id == ^test_run.id,
+            order_by: f.path,
+            select: {f.path, f.previous_path, f.status, f.git_blob_id, f.hunk_starts, f.hunk_ends, f.truncated}
+          )
+        )
+
+      assert files == [
+               {"Sources/A.swift", "", "modified", "blobA", [3, 10], [5, 10], false},
+               {"Sources/Gone.swift", "", "deleted", "", [], [], false},
+               {"Sources/New.swift", "Sources/Old.swift", "renamed", "blobN", [], [], true}
+             ]
+    end
+
+    test "defaults to no history when the client sent none" do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+      {:ok, stored} = Tests.get_test(test_run.id)
+
+      assert {stored.base_branch, stored.merge_base_sha, stored.is_pull_request, stored.history_source} ==
+               {"", "", false, ""}
+    end
+  end
+
   describe "update_test_case/3 quarantine" do
     test "mutes a test case" do
       project = ProjectsFixtures.project_fixture()
@@ -8592,6 +8659,7 @@ defmodule Tuist.TestsTest do
             is_flaky: true,
             is_new: false,
             is_quarantined: false,
+            has_coverage_evidence: false,
             duration: 100,
             inserted_at: NaiveDateTime.utc_now(),
             module_name: "FlakyTestModule",
@@ -11654,6 +11722,72 @@ defmodule Tuist.TestsTest do
       {:clickhouse_query, query} -> drain_clickhouse_queries([query | acc])
     after
       0 -> Enum.reverse(acc)
+    end
+  end
+
+  describe "create_test/1 with the repository, dirty checkouts and execution mode" do
+    test "records the run's repository from its remote, whether the checkout was dirty, and how the tests executed" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          scheme: "App",
+          git_branch: "main",
+          git_commit_sha: "abc",
+          git_remote_url_origin: "git@github.com:Acme/App.git",
+          git_dirty: true,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          execution_mode: "parallel",
+          test_modules: [
+            %{name: "AppTests", status: "success", duration: 100, execution_mode: "serial", test_cases: []},
+            %{name: "CoreTests", status: "success", duration: 100, test_cases: []}
+          ]
+        })
+
+      {:ok, stored} = Tests.get_test(run.id)
+      assert {stored.execution_mode, stored.git_dirty} == {"parallel", true}
+      assert stored.git_repository_id == Tuist.GitHistory.repository_id(project.account_id, "https://github.com/acme/app")
+
+      modes =
+        ClickHouseRepo.all(
+          from(m in Tuist.Tests.TestModuleRun,
+            where: m.test_run_id == ^run.id,
+            select: {m.name, m.execution_mode},
+            order_by: m.name
+          )
+        )
+
+      assert modes == [{"AppTests", "serial"}, {"CoreTests", ""}]
+    end
+
+    test "leaves a run without them at the defaults" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      {:ok, run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          scheme: "App",
+          git_branch: "main",
+          git_commit_sha: "abc",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: []
+        })
+
+      {:ok, stored} = Tests.get_test(run.id)
+      assert {stored.execution_mode, stored.git_dirty, stored.git_repository_id} == {"", false, 0}
     end
   end
 end

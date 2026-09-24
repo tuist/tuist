@@ -340,6 +340,91 @@ defmodule Tuist.Environment do
     end
   end
 
+  @coverage_retention_defaults %{files: 90, runs: 365}
+  @coverage_retention_environment_variables %{
+    files: "TUIST_COVERAGE_FILE_RETENTION_DAYS",
+    runs: "TUIST_COVERAGE_RUN_RETENTION_DAYS"
+  }
+
+  @doc """
+  How long coverage rows are kept in ClickHouse, in days: `files` for the
+  per-file detail (`coverage_files`) and `runs` for the run totals the trend
+  reads (`coverage_runs`). The tables' time-to-live is set from these when
+  they are created or `mix tuist.coverage.retention` re-applies them.
+  """
+  def coverage_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    Map.new(@coverage_retention_defaults, fn {kind, default} ->
+      variable = Map.fetch!(@coverage_retention_environment_variables, kind)
+      {kind, parse_artifact_retention_days(Map.get(environment, variable), variable) || default}
+    end)
+  end
+
+  @doc """
+  How long a commit's coverage (`coverage_commits`, in PostgreSQL) is kept,
+  in days, by when the commit was made: `commits` for the default branch and
+  any branch (`TUIST_COVERAGE_COMMIT_RETENTION_DAYS`, three years by default,
+  so a project's trend reaches that far back) and `pull_requests` for the
+  commits pull requests added (`TUIST_COVERAGE_PULL_REQUEST_COMMIT_RETENTION_DAYS`,
+  90 by default).
+  """
+  def coverage_commit_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    for {kind, variable, default} <- [
+          {:commits, "TUIST_COVERAGE_COMMIT_RETENTION_DAYS", 1095},
+          {:pull_requests, "TUIST_COVERAGE_PULL_REQUEST_COMMIT_RETENTION_DAYS", 90}
+        ],
+        into: %{} do
+      {kind, parse_artifact_retention_days(Map.get(environment, variable), variable) || default}
+    end
+  end
+
+  @doc """
+  The size, in bytes of the DEFLATE-compressed coverage, above which a client
+  that processed the result bundle itself uploads the coverage to object
+  storage instead of sending it inline with the run. Set with
+  `TUIST_COVERAGE_INLINE_THRESHOLD_BYTES`; 5 MB by default, well under the
+  request body limit the inline form is held to.
+  """
+  def coverage_inline_threshold_bytes(environment \\ System.get_env()) when is_map(environment) do
+    case Map.get(environment, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") do
+      nil -> 5_000_000
+      value -> parse_artifact_retention_days(value, "TUIST_COVERAGE_INLINE_THRESHOLD_BYTES") || 5_000_000
+    end
+  end
+
+  @doc """
+  How many runs a coverage totals recompute handles per job, from
+  `TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE`; 500 by default.
+  """
+  def coverage_recompute_batch_size(environment \\ System.get_env()) when is_map(environment) do
+    parse_artifact_retention_days(
+      Map.get(environment, "TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE"),
+      "TUIST_COVERAGE_RECOMPUTE_BATCH_SIZE"
+    ) ||
+      500
+  end
+
+  @git_history_environment_variables %{
+    window_days: "TUIST_GIT_HISTORY_WINDOW_DAYS",
+    window_commits: "TUIST_GIT_HISTORY_WINDOW_COMMITS",
+    deepen_budget_seconds: "TUIST_GIT_HISTORY_DEEPEN_BUDGET_SECONDS",
+    upload_batch_size: "TUIST_GIT_HISTORY_UPLOAD_BATCH_SIZE",
+    commit_file_limit: "TUIST_GIT_HISTORY_COMMIT_FILE_LIMIT"
+  }
+
+  @doc """
+  The server-wide Git history settings set through the environment, as a map
+  of the keys `Tuist.GitHistory.settings/1` merges over its defaults. Only the
+  variables that are set appear, each a positive integer.
+  """
+  def git_history_defaults(environment \\ System.get_env()) when is_map(environment) do
+    Enum.reduce(@git_history_environment_variables, %{}, fn {key, variable}, acc ->
+      case parse_artifact_retention_days(Map.get(environment, variable), variable) do
+        nil -> acc
+        value -> Map.put(acc, key, value)
+      end
+    end)
+  end
+
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
     Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
       case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do

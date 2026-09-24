@@ -92,12 +92,27 @@ public struct XCResultParser: Sendable {
         attachmentsDirectory: AbsolutePath? = nil
     ) async throws -> TestSummary? {
         let testOutput = try await loadTestOutput(path: path)
-        return try await parseTestOutput(
+        let summary = try await parseTestOutput(
             testOutput,
             rootDirectory: rootDirectory,
             attachmentsDirectory: attachmentsDirectory,
             xcresultPath: path
         )
+        let bundle = URL(fileURLWithPath: path.pathString)
+        return summary
+            .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
+            .applying(enumeration: TestEnumeration.read(fromResultBundle: bundle))
+            .applying(coverageEvidence: Self.coverageEvidence(inResultBundle: bundle))
+    }
+
+    /// The evidence a client wrote into the bundle, tied to the repository by the coverage
+    /// manifest beside it. Nil without either: evidence over paths nobody can place is no use.
+    static func coverageEvidence(inResultBundle bundle: URL) -> TestCoverageEvidence? {
+        guard let evidence = TestCoverageEvidence.read(fromResultBundle: bundle),
+              let data = try? Data(contentsOf: bundle.appendingPathComponent(XcodeCoverageManifest.fileName)),
+              let manifest = try? JSONDecoder().decode(XcodeCoverageManifest.self, from: data)
+        else { return nil }
+        return evidence.inRepository(manifest: manifest)
     }
 
     /// Reads the bundle's code coverage against the ``XcodeCoverageManifest`` the client wrote
@@ -110,6 +125,18 @@ public struct XCResultParser: Sendable {
             from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
         )
         return try await coverageParser.parse(resultBundlePath: path, manifest: manifest)
+    }
+
+    /// The same, streamed to `output` as one JSON object per source file, for bundles too large
+    /// to hold in memory.
+    public func parseCoverage(path: AbsolutePath, into output: AbsolutePath) async throws -> XcodeCoverageSummary? {
+        let manifestPath = path.appending(component: XcodeCoverageManifest.fileName)
+        guard try await fileSystem.exists(manifestPath) else { return nil }
+        let manifest = try JSONDecoder().decode(
+            XcodeCoverageManifest.self,
+            from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
+        )
+        return try await coverageParser.parse(resultBundlePath: path, manifest: manifest, into: output)
     }
 
     public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {
@@ -554,6 +581,8 @@ public struct XCResultParser: Sendable {
             duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
         }
 
+        let identifier = node.nodeIdentifier?.split(separator: "/").last.map(String.init)
+
         return TestCase(
             name: name,
             testSuite: suiteName,
@@ -562,7 +591,8 @@ public struct XCResultParser: Sendable {
             status: status,
             failures: failures,
             repetitions: repetitions,
-            arguments: arguments
+            arguments: arguments,
+            identifier: identifier == name ? nil : identifier
         )
     }
 
