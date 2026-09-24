@@ -10,6 +10,8 @@ defmodule TuistWeb.API.OIDCControllerTest do
   alias Tuist.OIDC.ScopeRules
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  require Logger
+
   describe "POST /api/auth/oidc/token" do
     test "returns access token with cache write access when OIDC token is valid and project has VCS connection", %{
       conn: conn

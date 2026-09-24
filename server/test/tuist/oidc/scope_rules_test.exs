@@ -129,6 +129,15 @@ defmodule Tuist.OIDC.ScopeRulesTest do
       assert "add at least one branch, workflow, or environment pattern" in errors_on(changeset).refs
     end
 
+    test "stores project rules without an account" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, rule} = ScopeRules.put_project_rule(project, "project:cache:write", %{refs: ["refs/heads/main"]})
+
+      assert rule.project_id == project.id
+      assert is_nil(rule.account_id)
+    end
+
     test "rejects account scopes on a project" do
       project = ProjectsFixtures.project_fixture()
 

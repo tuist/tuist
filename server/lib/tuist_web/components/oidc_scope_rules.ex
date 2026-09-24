@@ -72,7 +72,7 @@ defmodule TuistWeb.Components.OIDCScopeRules do
                       name="refs"
                       value={patterns_value(@rules, scope, :refs)}
                       placeholder="refs/heads/main"
-                      error={Map.get(@errors, scope)}
+                      error={field_error(@errors, scope, :refs)}
                     />
                   </div>
                   <div data-part="schedule-row">
@@ -84,6 +84,7 @@ defmodule TuistWeb.Components.OIDCScopeRules do
                       type="basic"
                       name="job_workflow_refs"
                       value={patterns_value(@rules, scope, :job_workflow_refs)}
+                      error={field_error(@errors, scope, :job_workflow_refs)}
                       placeholder="org/repo/.github/workflows/release.yml@**"
                     />
                   </div>
@@ -96,6 +97,7 @@ defmodule TuistWeb.Components.OIDCScopeRules do
                       type="basic"
                       name="environments"
                       value={patterns_value(@rules, scope, :environments)}
+                      error={field_error(@errors, scope, :environments)}
                       placeholder="release"
                     />
                   </div>
@@ -211,7 +213,7 @@ defmodule TuistWeb.Components.OIDCScopeRules do
         assign(
           socket,
           :oidc_rule_errors,
-          Map.put(socket.assigns.oidc_rule_errors, scope, changeset_error(changeset))
+          Map.put(socket.assigns.oidc_rule_errors, scope, changeset_errors(changeset))
         )
     end
   end
@@ -226,13 +228,10 @@ defmodule TuistWeb.Components.OIDCScopeRules do
     |> put_flash(:info, dgettext("dashboard", "OIDC rule removed."))
   end
 
-  def handle_rule_event("close_oidc_rule_modal", params, socket, callbacks) do
-    socket = assign(socket, :oidc_rule_errors, %{})
-
-    case params do
-      %{"scope" => scope} -> push_event(socket, "close-modal", %{id: "#{callbacks.id}-#{slug(scope)}-modal"})
-      _ -> socket
-    end
+  def handle_rule_event("close_oidc_rule_modal", %{"scope" => scope}, socket, callbacks) do
+    socket
+    |> assign(:oidc_rule_errors, %{})
+    |> push_event("close-modal", %{id: "#{callbacks.id}-#{slug(scope)}-modal"})
   end
 
   def rules_by_scope(rules), do: Map.new(rules, &{&1.scope, &1})
@@ -249,14 +248,21 @@ defmodule TuistWeb.Components.OIDCScopeRules do
     |> Enum.reject(&(&1 == ""))
   end
 
-  defp changeset_error(changeset) do
+  # Errors keyed by the input they belong to. Errors on fields without an input
+  # (such as the scope) show on the first one.
+  defp changeset_errors(changeset) do
     changeset
     |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
       Enum.reduce(opts, message, fn {key, value}, acc -> String.replace(acc, "%{#{key}}", to_string(value)) end)
     end)
-    |> Enum.flat_map(fn {_field, messages} -> messages end)
-    |> Enum.join(". ")
+    |> Enum.group_by(
+      fn {field, _messages} -> if field in ScopeRule.fields(), do: field, else: :refs end,
+      fn {_field, messages} -> messages end
+    )
+    |> Map.new(fn {field, messages} -> {field, messages |> List.flatten() |> Enum.join(". ")} end)
   end
+
+  defp field_error(errors, scope, field), do: errors |> Map.get(scope, %{}) |> Map.get(field)
 
   defp patterns_label(rules, scope, field) do
     case patterns_value(rules, scope, field) do

@@ -85,7 +85,7 @@ defmodule TuistWeb.API.OIDCController do
          {:ok, account} <- single_account(projects, claims.repository),
          {withheld_scopes, failures} = ScopeRules.evaluate(account, projects, claims),
          {:ok, access_token} <- generate_token(account, projects, withheld_scopes) do
-      log_exchange(claims, account, failures)
+      log_exchange(claims, account, withheld_scopes, failures)
       ProjectProviders.record_exchange(projects, claims[:provider])
 
       conn
@@ -196,11 +196,16 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp log_exchange(claims, account, failures) do
+  defp log_exchange(claims, account, withheld_scopes, failures) do
+    withheld =
+      withheld_scopes
+      |> Enum.sort()
+      |> Enum.map_join(";", fn {scope, ids} -> "#{scope}=#{Enum.join(ids, ",")}" end)
+
     Logger.info(
       "OIDC token exchanged for account #{account.id}: repository=#{claims.repository} " <>
         "provider=#{claims[:provider]} ref=#{claims[:ref]} job_workflow_ref=#{claims[:job_workflow_ref]} " <>
-        "environment=#{claims[:environment]} withheld_scopes=#{Enum.map_join(failures, ",", & &1.scope)}"
+        "environment=#{claims[:environment]} withheld_scopes=#{withheld}"
     )
 
     Enum.each(failures, fn failure ->

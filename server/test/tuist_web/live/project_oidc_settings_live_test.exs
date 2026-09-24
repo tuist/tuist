@@ -104,4 +104,32 @@ defmodule TuistWeb.ProjectOIDCSettingsLiveTest do
              "Bitrise and CircleCI runs lose write access when a rule applies"
            )
   end
+
+  test "shows a validation error on the field it belongs to", %{conn: conn, organization: organization} do
+    project =
+      ProjectsFixtures.project_fixture(
+        account: organization.account,
+        vcs_connection: [repository_full_handle: "tuist/settings-rules-field-errors"]
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/oidc")
+
+    html =
+      lv
+      |> form("#project-oidc-scope-rules-project-cache-write-form", %{
+        "scope" => "project:cache:write",
+        "refs" => "refs/heads/main",
+        "job_workflow_refs" => Enum.map_join(1..21, ",", &"org/repo/.github/workflows/w#{&1}.yml@**"),
+        "environments" => ""
+      })
+      |> render_submit()
+
+    erroring_inputs =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("[data-part=wrapper][data-error]")
+      |> Enum.flat_map(&Floki.attribute(&1, "input", "id"))
+
+    assert erroring_inputs == ["project-oidc-scope-rules-project-cache-write-job-workflow-refs"]
+  end
 end

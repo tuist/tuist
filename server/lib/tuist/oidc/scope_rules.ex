@@ -19,20 +19,20 @@ defmodule Tuist.OIDC.ScopeRules do
   end
 
   def list_account_rules(%Account{id: account_id}) do
-    Repo.all(from r in ScopeRule, where: r.account_id == ^account_id and is_nil(r.project_id), order_by: r.scope)
+    Repo.all(from r in ScopeRule, where: r.account_id == ^account_id, order_by: r.scope)
   end
 
   def put_project_rule(%Project{} = project, scope, attrs) do
     existing = Repo.get_by(ScopeRule, project_id: project.id, scope: scope) || %ScopeRule{}
 
     existing
-    |> ScopeRule.changeset(Map.merge(attrs, %{account_id: project.account_id, project_id: project.id, scope: scope}))
+    |> ScopeRule.changeset(Map.merge(attrs, %{account_id: nil, project_id: project.id, scope: scope}))
     |> Repo.insert_or_update()
   end
 
   def put_account_rule(%Account{} = account, scope, attrs) do
     existing =
-      Repo.one(from r in ScopeRule, where: r.account_id == ^account.id and is_nil(r.project_id) and r.scope == ^scope) ||
+      Repo.get_by(ScopeRule, account_id: account.id, scope: scope) ||
         %ScopeRule{}
 
     existing
@@ -46,9 +46,7 @@ defmodule Tuist.OIDC.ScopeRules do
   end
 
   def delete_account_rule(%Account{id: account_id}, scope) do
-    Repo.delete_all(
-      from r in ScopeRule, where: r.account_id == ^account_id and is_nil(r.project_id) and r.scope == ^scope
-    )
+    Repo.delete_all(from r in ScopeRule, where: r.account_id == ^account_id and r.scope == ^scope)
 
     :ok
   end
@@ -66,22 +64,25 @@ defmodule Tuist.OIDC.ScopeRules do
     rules =
       Repo.all(
         from r in ScopeRule,
-          where: r.project_id in ^project_ids or (r.account_id == ^account_id and is_nil(r.project_id))
+          where: r.project_id in ^project_ids or r.account_id == ^account_id
       )
 
-    rules
-    |> Enum.sort_by(&{&1.scope, &1.project_id || 0})
-    |> Enum.reduce({%{}, []}, fn rule, {withheld, failures} ->
-      case match(rule, claims) do
-        :ok ->
-          {withheld, failures}
+    {withheld, failures} =
+      rules
+      |> Enum.sort_by(&{&1.scope, &1.project_id || 0})
+      |> Enum.reduce({%{}, []}, fn rule, {withheld, failures} ->
+        case match(rule, claims) do
+          :ok ->
+            {withheld, failures}
 
-        {:error, field, value} ->
-          resource_id = rule.project_id || account_id
-          failure = failure(rule, projects_by_id, field, value)
-          {Map.update(withheld, rule.scope, [resource_id], &(&1 ++ [resource_id])), failures ++ [failure]}
-      end
-    end)
+          {:error, field, value} ->
+            resource_id = rule.project_id || account_id
+            failure = failure(rule, projects_by_id, field, value)
+            {Map.update(withheld, rule.scope, [resource_id], &[resource_id | &1]), [failure | failures]}
+        end
+      end)
+
+    {Map.new(withheld, fn {scope, ids} -> {scope, Enum.reverse(ids)} end), Enum.reverse(failures)}
   end
 
   @doc """

@@ -43,9 +43,7 @@ defmodule Tuist.OIDCTest do
                provider: :github_actions,
                ref: "refs/heads/main",
                job_workflow_ref: "tuist/tuist/.github/workflows/release.yml@refs/heads/main",
-               workflow_ref: "tuist/tuist/.github/workflows/release.yml@refs/heads/main",
-               environment: "production",
-               event_name: "push"
+               environment: "production"
              }
     end
 

@@ -25,19 +25,11 @@ defmodule Tuist.Cache do
   def accessible_handles(resource, opts \\ []) do
     %{
       accounts: accessible_account_handles(resource),
-      projects:
-        resource
-        |> accessible_projects(opts)
-        |> reject_withheld_cache_writes(resource)
-        |> project_handles(),
+      projects: accessible_project_handles(resource, opts),
       payment_required: payment_required_handles(resource)
     }
   end
 
-  # Cache nodes read a handle listed here as read and write access. A project
-  # whose cache write an OIDC scope rule withheld must not be listed, or a node
-  # that falls back to these handles would hand the write back. Its read access
-  # travels in the cache grants instead.
   defp reject_withheld_cache_writes(projects, %AuthenticatedAccount{withheld_scopes: %{"project:cache:write" => ids}})
        when is_list(ids) do
     Enum.reject(projects, &(&1.id in ids))
@@ -221,9 +213,17 @@ defmodule Tuist.Cache do
   def accessible_account_handles(%Project{}), do: []
   def accessible_account_handles(_), do: []
 
+  @doc """
+  Handles of the projects the resource can read and write in the cache.
+
+  Cache nodes read a listed handle as both, so projects whose cache write an
+  OIDC scope rule withheld are left out; their read access travels in the
+  cache grants instead.
+  """
   def accessible_project_handles(resource, opts \\ []) do
     resource
     |> accessible_projects(opts)
+    |> reject_withheld_cache_writes(resource)
     |> project_handles()
   end
 

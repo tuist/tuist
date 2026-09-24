@@ -2,8 +2,8 @@ defmodule Tuist.OIDC.ScopeRule do
   @moduledoc """
   A rule that an OIDC-exchanged token must satisfy to carry a write scope.
 
-  A rule with a `project_id` gates a `project:*` scope for that project. A rule
-  without one gates an `account:*` scope for the account. Each field is a list
+  A rule belongs to either a project, gating a `project:*` scope for it, or an
+  account, gating an `account:*` scope for it; never both. Each field is a list
   of patterns matched against the corresponding GitHub Actions claim; an empty
   field is unconstrained, but at least one field must be set.
   """
@@ -49,7 +49,8 @@ defmodule Tuist.OIDC.ScopeRule do
   def changeset(rule \\ %__MODULE__{}, attrs) do
     rule
     |> cast(attrs, [:account_id, :project_id, :scope | @fields])
-    |> validate_required([:account_id, :scope])
+    |> validate_required([:scope])
+    |> validate_owner()
     |> update_change(:refs, &normalize_patterns/1)
     |> update_change(:job_workflow_refs, &normalize_patterns/1)
     |> update_change(:environments, &normalize_patterns/1)
@@ -68,6 +69,19 @@ defmodule Tuist.OIDC.ScopeRule do
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
     |> Enum.uniq()
+  end
+
+  defp validate_owner(changeset) do
+    case {get_field(changeset, :account_id), get_field(changeset, :project_id)} do
+      {nil, nil} ->
+        add_error(changeset, :scope, "must belong to a project or an account")
+
+      {account_id, project_id} when not is_nil(account_id) and not is_nil(project_id) ->
+        add_error(changeset, :scope, "can't belong to both a project and an account")
+
+      _ ->
+        changeset
+    end
   end
 
   defp validate_scope_level(changeset) do

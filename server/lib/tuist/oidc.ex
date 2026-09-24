@@ -102,9 +102,7 @@ defmodule Tuist.OIDC do
     %{
       ref: claims["ref"],
       job_workflow_ref: claims["job_workflow_ref"],
-      workflow_ref: claims["workflow_ref"],
-      environment: claims["environment"],
-      event_name: claims["event_name"]
+      environment: claims["environment"]
     }
   end
 

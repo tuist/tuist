@@ -489,4 +489,22 @@ defmodule Tuist.CacheTest do
       :telemetry.detach(handler_id)
     end
   end
+
+  describe "accessible_project_handles/2 with withheld cache writes" do
+    test "leaves out projects whose cache write an OIDC scope rule withheld" do
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      other = ProjectsFixtures.project_fixture(account_id: project.account_id, preload: [:account])
+
+      subject = %AuthenticatedAccount{
+        account: project.account,
+        scopes: ["ci"],
+        all_projects: false,
+        project_ids: [project.id, other.id],
+        withheld_scopes: %{"project:cache:write" => [project.id]}
+      }
+
+      assert Cache.accessible_project_handles(subject) == ["#{other.account.name}/#{other.name}"]
+      assert Cache.accessible_handles(subject).projects == ["#{other.account.name}/#{other.name}"]
+    end
+  end
 end
