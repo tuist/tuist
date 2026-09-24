@@ -32,6 +32,13 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results.
 
+- Linux cache-volume tests cover tenant/node scoping, private PR reads, trusted
+  publication, success gating, retries, generation invalidation, usage analytics
+  and retention. Lifecycle tests use the real database row locks and queries.
+  Storage coverage includes account totals, missing measurements, size-change
+  history, retry deduplication, deletion acknowledgements and cascading retention.
+  Controller coverage must distinguish orphan deletion instructions from the
+  final `forget` acknowledgement for an authenticated deleted-state report.
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.
 
 - Kura rename regressions cover stable workload/peer identity with migrating client endpoints, retired-handle ownership, production rollout gating, historical identity backfill, mesh authentication, original CA enrollment, usage attribution and signed analytics ingestion through original/intermediate/current account handles. Endpoint migration defaults off even for already-renamed accounts; test actor isolation, independence from the rename flag, preserved deployed hosts/aliases on image updates, observation failures, paused expiry, and readiness-delayed publication after opt-in. Migration SQL tests use transaction-local shadow tables. URL-expiry coverage checks the exact 90-day boundary, independent deadlines, rename-back, automatic manifest reconciliation, and signup/rename refusal even after a client URL expires.

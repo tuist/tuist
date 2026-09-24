@@ -456,6 +456,18 @@ jobs:
             ghcr.io/tuist/tuist-runners-controller:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
             ghcr.io/tuist/tuist-runners-controller:latest
 
+      - name: Build and push cache volume agent
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          target: cache-volumes
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-runner-cache-volumes:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
+            ghcr.io/tuist/tuist-runner-cache-volumes:latest
+
       - name: Upload runners-controller artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -1217,6 +1229,11 @@ jobs:
                 return 0
               fi
             done
+            if [ "$key" = runners-controller ] && image_missing tuist/tuist-runner-cache-volumes "${tag##*@}"; then
+              echo "::error::Refusing to tag ${tag}: the matching cache volume agent image is not published."
+              echo "${key}-tagged=false" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
 
             if git ls-remote --tags --exit-code origin "refs/tags/$tag" >/dev/null 2>&1; then
               echo "Tag $tag already exists on origin"

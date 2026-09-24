@@ -427,6 +427,14 @@ defmodule TuistWeb.AppLayoutComponents do
           selected={String.starts_with?(@current_path, runner_jobs_path)}
         />
         <.sidebar_item
+          label={dgettext("dashboard_runners", "Volumes")}
+          icon="database"
+          navigate={~p"/#{@selected_account.name}/runners/volumes"}
+          selected={
+            String.starts_with?(@current_path, ~p"/#{@selected_account.name}/runners/volumes")
+          }
+        />
+        <.sidebar_item
           :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
           label={dgettext("dashboard", "Profiles")}
           icon="category"

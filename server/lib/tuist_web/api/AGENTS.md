@@ -15,3 +15,7 @@ This area owns the OpenAPI spec and schema definitions for the server API.
 - Business logic: `server/lib/tuist/AGENTS.md`
 
 - `Schemas.Builds.BuildStep` owns step properties, query parameters and errors for the three build systems. Preserve source-specific opaque ID formats and Xcode’s non-null log contract.
+
+- `Tuist.Runners.CacheVolumes.Schemas` defines the shared public volume response and input
+  contracts used by HTTP, MCP and the generated Swift client. Keep nullability,
+  pagination bounds and time-range semantics aligned across all three.

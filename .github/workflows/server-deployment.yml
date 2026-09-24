@@ -51,6 +51,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      staging_platform_revision:
+        description: Restore an existing staging platform Helm revision instead of applying this commit's platform chart
+        required: false
       kura_controller_image_tag:
         description: Pre-built Kura controller image tag; omit to preserve the live controller during a server-only re-promotion
         required: false
@@ -85,6 +88,10 @@ on:
         required: false
   workflow_call:
     inputs:
+      staging_platform_revision:
+        description: Existing staging platform Helm revision to restore and retain for this deployment
+        required: false
+        type: string
       environment:
         description: Target environment (staging | canary | production)
         required: true
@@ -639,7 +646,20 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Restore the selected staging platform revision
+        if: inputs.staging_platform_revision != ''
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          PLATFORM_REVISION: ${{ inputs.staging_platform_revision }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET_ENVIRONMENT" != staging || ! "$PLATFORM_REVISION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "A platform revision override requires staging and a positive Helm revision."
+            exit 1
+          fi
+          helm rollback platform "$PLATFORM_REVISION" --namespace platform --wait --timeout 15m
       - name: Run k8s:install-platform
+        if: inputs.staging_platform_revision == ''
         # CLOUDFLARE_API_TOKEN is read from the in-cluster Secret the bootstrap
         # script created (CI is cluster-admin) instead of being added as a
         # second GitHub secret. ::add-mask:: registers the value with Actions

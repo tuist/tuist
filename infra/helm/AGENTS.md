@@ -17,6 +17,9 @@ This node covers Helm assets under `infra/helm/`.
 - Model infrastructure dependencies with capability names such as `objectStorage`, not provider names such as `minio`.
 - Support both `embedded` and `external` dependency modes when practical.
 - Keep local validation simple: `helm template` first, then a small-cluster install path such as `kind`.
+- The K3s smoke task builds its MinIO/mc image from checksum-pinned upstream
+  release binaries and imports it into the disposable cluster. Existing-context
+  runs must preload that image; the smoke values never pull it from a registry.
 - Managed PgBouncer client limits and idle cleanup live in `tuist/values-managed-common.yaml`. Keep the connection lifecycle and rollout validation in [`../cnpg/README.md`](../cnpg/README.md#client-connections-through-tailscale) aligned when changing them.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
@@ -53,3 +56,20 @@ This node covers Helm assets under `infra/helm/`.
 - Runner Kura uses `platform`'s `kura-runners` ingress-nginx DaemonSet with the shared streaming config. Keep direct-source enforcement (forwarded headers, real IP and PROXY protocol disabled), HTTP/gRPC source allowlists, and disabled ingress status publication together. Private DNS comes from the controller DNSEndpoint. Managed Tuist values enable the namespace-scoped gateway readiness read role. `kuraFleet.replicas` counts hosts; the catalog configures two process replicas per account. See `infra/kura-controller/private-runner-rollouts.md`.
 
 - Private gateway-backed Kura pods carry `tuist.dev/host-network-gateway=true`. `tuist/templates/kura-gateway-network-policy.yaml` allows TCP 4000 from Cilium host/remote-node identities, including cross-host proxying; Kubernetes namespace/ipBlock selectors do not cover this hop. Keep it gated by `kuraController.privateGateway.enabled` with the gateway read permission so self-hosted installs do not require Cilium.
+
+- Linux cache volumes require a bounded reflink filesystem. The
+  node agent uses local loop-mounted images and the existing macOS object-storage
+  infrastructure; no Ceph Secret or pool values remain. Managed production opts
+  into idempotent host provisioning through a privileged init container; other
+  installs can supply a pre-provisioned filesystem. The init container enters the
+  host mount namespace and installs the persistent systemd mount before agent
+  readiness. It never reformats existing images or replaces another mount.
+  See `../runners-controller/cache-volumes.md`.
+- Staging custom-volume smoke validation uses the preallocated XFS mount at
+  `/var/lib/kubelet/tuist-runner-cache` on its Linux runner's data partition;
+  the root partition is too small for the default 200 GB backing file. Keep
+  its agent image pinned to a tested commit and retain the mount while any
+  private branches are live. Production enables provisioning and resolves the
+  agent image from the matching controller release through normal deployment.
+  Keep `tuist/values-ci.yaml` supplied with a controller image tag so static
+  production rendering exercises the cache-volume agent's shared-tag fallback.

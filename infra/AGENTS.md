@@ -259,6 +259,7 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 
 - **Tuist server** (managed) is deployed to our self-hosted CAPI Kubernetes clusters via the CI workflows:
   - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
+  - When staging has a platform experiment that must survive an application smoke deployment, `staging_platform_revision` restores that existing Helm revision through the normal deployment identity instead of applying the branch's platform chart. Verify the revision with `helm history platform -n platform` first. This override is rejected outside staging; omitting it keeps normal platform reconciliation.
 - `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
 - **Kura runtime (hosted)** pins the newest `kura@X.Y.0-canary.N` tag contained in the deployed commit (falling back to the newest stable for commits that predate canaries). The cascade publishes that canary itself: when `kura/` changed, `server-production-deployment.yml` calls `kura-release.yml` before its canary and hotfix legs. Fresh staging deploys still build and pin `sha-<commit>` from the deployed commit. The `kura_runtime_image_tag` input overrides it for one deploy. Self-hosted Kura (the `kura` chart's `appVersion`, GHCR `:latest`, GitHub "Latest") still moves only on `kura-promote.yml`.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
@@ -273,3 +274,11 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 - Keep the main Tuist chart (`helm/tuist/`) provider-agnostic. Managed-cluster-specific behavior hides behind feature flags (`managedSecrets`, `externalSecrets`) that default to self-host-safe values.
 - Don't let `helm/k8s-monitoring/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
 - When a new managed-cluster operational step becomes reproducible, document it in `k8s/onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.
+
+- Linux runner cache volumes use a dedicated privileged local-image agent
+  and private per-job reflink clones. They reuse macOS HEAD/object storage.
+  The chart is off by default for self-hosting; managed production enables an
+  idempotent provisioning init container for the bounded reflink filesystem.
+  Host preparation and agent readiness precede volume attachment; runner scheduling
+  only prefers ready hosts so ordinary jobs remain available. See
+  [workflow setup and rollout](runners-controller/cache-volumes.md).

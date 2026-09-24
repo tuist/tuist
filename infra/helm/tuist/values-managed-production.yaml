@@ -1761,6 +1761,16 @@ runnersController:
 # `/api/internal/runners/desired_replicas` rolling-P95 signal.
 runnersFleetLinux:
   enabled: true
+  # Converge existing and replacement hosts through the normal deployment.
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
+    maxSlots: 100
+    minFreeGB: 40
+    volumeGB: 20
+    provisioning:
+      enabled: true
+      sizeGB: 200
   name: runners-linux
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with

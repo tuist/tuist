@@ -65,8 +65,21 @@ jobs:
         working-directory: infra/runners-controller
         run: go vet ./...
 
+  test-filesystems:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    # The agent runs on the host kernel, not Kata's minimal guest kernel.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/runners-controller/go.mod
+          cache-dependency-path: infra/runners-controller/go.sum
+      - name: Exercise local cache images on Linux
+        run: infra/runners-controller/scripts/test-cache-filesystem.sh
+
   build:
-    needs: test
+    needs: [test, test-filesystems]
     if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
@@ -86,7 +99,15 @@ jobs:
           {
             echo "tags<<EOF"
             echo "${IMAGE}:sha-${GIT_SHA}"
-            echo "${IMAGE}:latest"
+            if [ "$GITHUB_REF" = refs/heads/main ]; then echo "${IMAGE}:latest"; fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "cache_tags<<EOF"
+            echo "${{ env.REGISTRY }}/tuist/tuist-runner-cache-volumes:sha-${GIT_SHA}"
+            if [ "$GITHUB_REF" = refs/heads/main ]; then
+              echo "${{ env.REGISTRY }}/tuist/tuist-runner-cache-volumes:latest"
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
@@ -98,3 +119,16 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=runners-controller
           cache-to: type=gha,mode=max,scope=runners-controller
+
+      - name: Build storage agent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          target: cache-volumes
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.cache_tags }}
+          cache-from: type=gha,scope=runner-cache-volumes
+          cache-to: type=gha,mode=max,scope=runner-cache-volumes

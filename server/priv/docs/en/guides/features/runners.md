@@ -69,6 +69,11 @@ Your current limits are shown alongside each chart. If your workflows regularly 
     details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
     link="/guides/features/runners/profiles"
 />
+  <.home_card
+    title="Cache volumes"
+    details="Keep dependency directories between Linux jobs with a private writable copy for each run."
+    link="/guides/features/runners/cache-volumes"
+/>
 </.home_cards>
 
 ## Why Tuist Runners {#why-tuist-runners}
