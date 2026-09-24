@@ -174,17 +174,38 @@ defmodule Tuist.Tests.Coverage.History do
 
       ref ->
         project.id
-        |> Commits.all(fn query ->
-          query
-          |> where([c], c.ref_id == ^ref.id)
-          |> in_period(opts)
-          |> order_by([c], desc: c.position)
-        end)
+        |> point_rows(ref.id, opts)
         |> Enum.map(&(&1 |> with_coverage() |> Map.put(:measured, true)))
         |> chain()
         |> Enum.filter(& &1.chained)
         |> Enum.reverse()
     end
+  end
+
+  # Chaining decides which commits the trend draws, and a commit chains
+  # against the one chained before it, so every measured commit of the
+  # period is read, newest first; only the columns the chaining rule and the
+  # chart need, not the runs and the carried ancestors each row also holds.
+  defp point_rows(project_id, ref_id, opts) do
+    from(c in CoverageCommit,
+      where: c.project_id == ^project_id and c.ref_id == ^ref_id and c.executable_lines > 0,
+      order_by: [desc: c.position],
+      select: %{
+        git_commit_sha: c.git_commit_sha,
+        committed_at: c.committed_at,
+        covered_lines: c.covered_lines,
+        executable_lines: c.executable_lines,
+        unmeasured_files_count: c.unmeasured_files_count,
+        reported_covered_lines: c.reported_covered_lines,
+        reported_executable_lines: c.reported_executable_lines,
+        reported_kind: c.reported_kind,
+        schemes: c.schemes,
+        partial_schemes: c.partial_schemes,
+        complete: c.complete
+      }
+    )
+    |> in_period(opts)
+    |> Repo.all()
   end
 
   # Positions follow the graph, and the period follows when the commits were

@@ -201,16 +201,27 @@ defmodule TuistWeb.XcodeOverviewLive do
         :coverage_query,
         params |> Map.filter(fn {key, _} -> String.starts_with?(key, "coverage-") end) |> URI.encode_query()
       )
-      |> assign_async(:coverage_analytics, fn ->
+      |> assign_coverage_points(project, period, trend_period)
+    else
+      socket |> assign(:coverage_analytics, nil) |> assign(:coverage_trend, nil)
+    end
+  end
+
+  # The widget follows the page's period and the chart the section's own; on
+  # the same period, which is the default, the series is read once for both.
+  defp assign_coverage_points(socket, project, period, trend_period) do
+    if same_period?(period, trend_period) do
+      assign_async(socket, [:coverage_analytics, :coverage_trend], fn ->
         points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
 
         {:ok,
-         %{
-           coverage_analytics: %{
-             latest: List.last(points),
-             trend: Components.period_trend(points)
-           }
-         }}
+         %{coverage_analytics: coverage_widget(points), coverage_trend: Components.chart_points(points, trend_period)}}
+      end)
+    else
+      socket
+      |> assign_async(:coverage_analytics, fn ->
+        points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
+        {:ok, %{coverage_analytics: coverage_widget(points)}}
       end)
       |> assign_async(:coverage_trend, fn ->
         points =
@@ -220,10 +231,14 @@ defmodule TuistWeb.XcodeOverviewLive do
 
         {:ok, %{coverage_trend: points}}
       end)
-    else
-      socket |> assign(:coverage_analytics, nil) |> assign(:coverage_trend, nil)
     end
   end
+
+  defp coverage_widget(points), do: %{latest: List.last(points), trend: Components.period_trend(points)}
+
+  # Both periods end at the time they were computed, a moment apart.
+  defp same_period?({start_a, end_a}, {start_b, end_b}),
+    do: abs(DateTime.diff(start_a, start_b)) < 60 and abs(DateTime.diff(end_a, end_b)) < 60
 
   defp assign_build_time_analytics(socket, "ci", analytics_opts) do
     assign_async(socket, :build_time_analytics, fn ->
