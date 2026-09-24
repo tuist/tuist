@@ -128,8 +128,7 @@ jobs:
       # which publish canary / RC / stable image tags on their own weekly
       # release-train schedule. This pipeline's deploy tail resolves the
       # Kura runtime tag to the newest `kura@` canary in the deployed commit
-      # (server-deployment.yml); kura-release.yml dispatches this workflow
-      # after each canary so a Kura-only merge also deploys.
+      # (server-deployment.yml), and a Kura change is deployable below.
       helm-should-release: ${{ steps.check.outputs.helm-should-release }}
       helm-next-version: ${{ steps.check.outputs.helm-next-version }}
       helm-next-version-number: ${{ steps.check.outputs.helm-next-version-number }}
@@ -177,7 +176,8 @@ jobs:
         # chart changes (CNPG operator, cert-manager, ingress-nginx, ESO,
         # metrics-server) deploy on merge via platform-install — without it a
         # platform-only change skips build and the whole cascade, merging green
-        # but never reaching the cluster.
+        # but never reaching the cluster. kura/ is included because hosted
+        # environments run the Kura canary for the deployed commit.
         env:
           BEFORE: ${{ github.event.before }}
         run: |
@@ -189,7 +189,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base" "${{ github.sha }}" \
-            | grep -qE '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
+            | grep -qE '^(server/|codebase-search/|registry/|tuist_common/|noora/|kura/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "deployable-changed=false" >> "$GITHUB_OUTPUT"

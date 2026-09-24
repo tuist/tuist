@@ -298,7 +298,7 @@ The CI pipeline will fail if any `.po` files are modified by anyone other than `
 The application deploys to our self-hosted CAPI Kubernetes clusters on Hetzner via Helm. See `infra/AGENTS.md` for the full layout.
 
 - Push to `main` triggers `.github/workflows/server-production-deployment.yml`, which cascades canary → acceptance tests → production (hotfix fast-path available).
-- Hosted Kura follows `main` too: deploys pin the newest `kura@X.Y.0-canary.N` in the deployed commit, and `kura-release.yml` dispatches the cascade after each canary. Pass `kura_runtime_image_tag` to `server-deployment.yml` to pin another tag (e.g. a stable one) for a deploy.
+- Hosted Kura follows `main` too: deploys pin the newest `kura@X.Y.0-canary.N` in the deployed commit, and a `kura/` change triggers the cascade. Pass `kura_runtime_image_tag` to `server-deployment.yml` to pin another tag (e.g. a stable one) for a deploy.
 - Single-environment deploys use `.github/workflows/server-deployment.yml` via `workflow_dispatch`.
 - Chart and per-env values live in `infra/helm/tuist/` (`values-managed-{staging,canary,production}.yaml`).
 

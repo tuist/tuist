@@ -13,10 +13,9 @@ name: Kura Canary Release
 # main's canary advances to the following minor.
 #
 # Hosted environments run these canaries: server-deployment.yml pins the
-# newest `kura@` canary in the deployed commit, and the `deploy` job below
-# dispatches the server deploy cascade once a canary is published, so a
-# Kura change reaches hosted production like a server change does. The
-# RC/stable train only serves self-hosted operators.
+# newest `kura@` canary in the deployed commit, and a Kura change triggers
+# the server deploy cascade like a server change does. The RC/stable train
+# only serves self-hosted operators.
 on:
   push:
     branches:
@@ -93,16 +92,3 @@ jobs:
       make_latest: false
       prerelease: true
     secrets: inherit
-
-  deploy:
-    name: Deploy canary to hosted environments
-    needs: build-publish
-    runs-on: tuist-linux
-    timeout-minutes: 5
-    permissions:
-      actions: write
-    steps:
-      - name: Dispatch Server Production Deployment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run server-production-deployment.yml --repo "${{ github.repository }}" --ref main
