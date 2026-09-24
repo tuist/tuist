@@ -262,8 +262,9 @@ defmodule Tuist.Kura.PlacementProposals do
       primary: primary_from(placer_rows, live),
       # A primary with no placement row behind it was never decided: it came
       # from the resolution chain, which is a guess. So is one first placement
-      # steered off a full region (`PlacerRegion.guess?/1`): its row holds the
-      # account against a room reading that moves, not against evidence.
+      # steered off a full region, or one the project-creation seed placed
+      # where the project was created (`PlacerRegion.guess?/1`): its row holds
+      # the account against a reading that moves, not against evidence.
       # Applying anything records a decision, so this flips once and stays
       # flipped.
       primary_decided?: Enum.any?(placer_rows, &(&1.role == :primary and not PlacerRegion.guess?(&1))),

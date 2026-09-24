@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -14,9 +13,11 @@ import TuistCore
 import TuistGit
 import TuistKit
 import TuistNooraTesting
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistTestSupport
 import TuistXcodeBuildProducts
 import XcodeGraph
 
@@ -184,7 +185,7 @@ struct ShareCommandServiceTests {
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -301,7 +302,7 @@ struct ShareCommandServiceTests {
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -401,7 +402,7 @@ struct ShareCommandServiceTests {
         )
 
         // Then
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test func share_xcode_app_when_no_app_specified() async throws {
@@ -572,7 +573,7 @@ struct ShareCommandServiceTests {
                 updateProgress: .any
             )
             .called(1)
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -723,7 +724,7 @@ struct ShareCommandServiceTests {
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -792,7 +793,7 @@ struct ShareCommandServiceTests {
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -876,7 +877,7 @@ struct ShareCommandServiceTests {
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -936,7 +937,7 @@ struct ShareCommandServiceTests {
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -994,7 +995,7 @@ struct ShareCommandServiceTests {
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -1048,7 +1049,7 @@ struct ShareCommandServiceTests {
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)

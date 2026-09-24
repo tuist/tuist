@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -44,6 +46,91 @@ func TestCustomRuleReconcileReadOnlyDoesNotWrite(t *testing.T) {
 	}
 	if cf.addCalls != 0 || cf.updateCalls != 0 || cf.createCalls != 0 {
 		t.Fatalf("read_only must not write: add=%d update=%d create=%d", cf.addCalls, cf.updateCalls, cf.createCalls)
+	}
+}
+
+// TestCustomRuleCreateSkipRule_SendsPhases proves the skip action
+// support: a create-new CR with action=skip and phases set sends the
+// wire payload Cloudflare expects for a Super Bot Fight Mode bypass on
+// the matched paths (see
+// https://developers.cloudflare.com/waf/custom-rules/skip/). This is
+// the mechanism that lets us keep SBFM on for the browser dashboard
+// while exempting the CLI and machine-facing APIs.
+func TestCustomRuleCreateSkipRule_SendsPhases(t *testing.T) {
+	cr := sampleCustomRule("uid-skip-create")
+	cr.Spec.Mode = cfv1alpha1.ReconcileModeActive
+	cr.Spec.Action = "skip"
+	cr.Spec.Description = "Skip SBFM on machine/CLI paths"
+	cr.Spec.Expression = `starts_with(http.request.uri.path, "/api/")`
+	cr.Spec.ActionParameters = &cfv1alpha1.ActionParameters{Phases: []string{"http_request_sbfm"}}
+	cr.Finalizers = []string{finalizer}
+
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeCF{ruleset: &cloudflare.Ruleset{ID: "custom-ruleset"}}
+	r := &CloudflareCustomRuleReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if cf.addCalls != 1 {
+		t.Fatalf("add calls = %d, want 1", cf.addCalls)
+	}
+	added := cf.lastAdded
+	if added.Action != "skip" {
+		t.Errorf("action = %q, want skip", added.Action)
+	}
+	if len(added.ActionParameters) == 0 {
+		t.Fatalf("action_parameters missing from wire body: %+v", added)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(added.ActionParameters, &got); err != nil {
+		t.Fatalf("decode action_parameters: %v", err)
+	}
+	phases, ok := got["phases"].([]any)
+	if !ok || len(phases) != 1 || phases[0] != "http_request_sbfm" {
+		t.Fatalf("phases wire body = %v, want [http_request_sbfm]", got["phases"])
+	}
+}
+
+// TestCustomRuleAdoptSkipRule_DetectsPhasesDrift proves adopt-mode drift
+// detection notices a change to the skip rule's action_parameters
+// (e.g. someone flipped the phase in the dashboard), which is the
+// only field that changes on a `skip` rule outside of expression.
+func TestCustomRuleAdoptSkipRule_DetectsPhasesDrift(t *testing.T) {
+	cr := sampleCustomRule("uid-skip-adopt-drift")
+	cr.Spec.Mode = cfv1alpha1.ReconcileModeActive
+	cr.Spec.Action = "skip"
+	cr.Spec.Description = "Skip SBFM on machine/CLI paths"
+	cr.Spec.Expression = `starts_with(http.request.uri.path, "/api/")`
+	cr.Spec.ActionParameters = &cfv1alpha1.ActionParameters{Phases: []string{"http_request_sbfm"}}
+	cr.Spec.Adopt = &cfv1alpha1.AdoptRule{RuleID: "dashboard-skip"}
+	cr.Spec.CreateNewRule = false
+	cr.Finalizers = []string{finalizer}
+
+	live := cloudflare.Rule{
+		ID:               "dashboard-skip",
+		Ref:              "dashboard-skip",
+		Description:      "Skip SBFM on machine/CLI paths",
+		Expression:       `starts_with(http.request.uri.path, "/api/")`,
+		Action:           "skip",
+		Enabled:          true,
+		ActionParameters: json.RawMessage(`{"phases":["http_ratelimit"]}`), // wrong phase
+	}
+	scheme := newTestScheme(t)
+	kClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cr).WithStatusSubresource(cr).Build()
+	cf := &fakeCF{ruleset: &cloudflare.Ruleset{ID: "custom-ruleset", Rules: []cloudflare.Rule{live}}}
+	r := &CloudflareCustomRuleReconciler{Client: kClient, Scheme: scheme, CF: cf}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: cr.Name}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if cf.updateCalls != 1 {
+		t.Fatalf("update calls = %d, want 1 (phase drift should be corrected)", cf.updateCalls)
+	}
+	sent := cf.lastUpdated
+	if !strings.Contains(string(sent.ActionParameters), "http_request_sbfm") {
+		t.Errorf("action_parameters wire body missing corrected phase: %s", sent.ActionParameters)
 	}
 }
 

@@ -64,9 +64,22 @@ defmodule Tuist.ClickHouse.Endpoints do
 
   @doc """
   The database a started repository is pointed at.
+
+  Only some of these repositories carry a `:database` in their configuration.
+  The read-path ones are configured with a URL and nothing else, and reading
+  their configuration for it raised `KeyError`, which is what broke
+  `Tuist.Release.check_clickhouse_reads` the first time it ran with the
+  migration-ledger comparison in it. Those are asked of the connection.
   """
   def database(repo) do
-    repo.config() |> Keyword.fetch!(:database) |> to_string()
+    case Keyword.fetch(repo.config(), :database) do
+      {:ok, database} ->
+        to_string(database)
+
+      :error ->
+        %{rows: [[database]]} = repo.query!("SELECT currentDatabase()", [], log: false)
+        to_string(database)
+    end
   end
 
   @doc """

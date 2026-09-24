@@ -1,6 +1,14 @@
 {
   "components": [
     {
+      "name": "tuist-ex",
+      "tag_prefix": "tuist-ex@",
+      "tag_regex": "^tuist-ex@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "tuist_ex/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["tuist_ex/**/*"]
+    },
+    {
       "name": "cli",
       "tag_prefix": "",
       "tag_regex": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
@@ -56,7 +64,17 @@
       "tag_regex": "^server@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "server/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["server/**/*"]
+      "include_paths": [
+        "server/**/*",
+        "tuist_common/**/*",
+        "noora/**/*",
+        "mise/tasks/server/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/server-release.yml",
+        ".github/workflows/server-rc.yml",
+        ".github/workflows/server-promote.yml",
+        ".github/workflows/server-build-publish.yml"
+      ]
     },
     {
       "name": "cache",
@@ -67,12 +85,34 @@
       "include_paths": ["cache/**/*"]
     },
     {
+      "name": "atlas",
+      "tag_prefix": "atlas@",
+      "tag_regex": "^atlas@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "atlas/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": [
+        "atlas/**/*",
+        "infra/helm/atlas/**/*",
+        "infra/k8s/atlas/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/atlas-release.yml"
+      ]
+    },
+    {
       "name": "kura",
       "tag_prefix": "kura@",
       "tag_regex": "^kura@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "kura/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["kura/**/*"]
+      "include_paths": [
+        "kura/**/*",
+        "mise/tasks/kura/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/kura-release.yml",
+        ".github/workflows/kura-rc.yml",
+        ".github/workflows/kura-promote.yml",
+        ".github/workflows/kura-build-publish.yml"
+      ]
     },
     {
       "name": "gradle",

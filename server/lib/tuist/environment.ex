@@ -55,6 +55,22 @@ defmodule Tuist.Environment do
     end
   end
 
+  # Long-form name of the current deployment environment, matching what
+  # cache/registry/kura already ship and what the Sentry ecosystem
+  # expects. Alert rules and dashboards filter on string equality, so
+  # every service that reports errors has to agree on the same spelling.
+  def deploy_env_name do
+    case env() do
+      :prod -> "production"
+      :can -> "canary"
+      :stag -> "staging"
+      :preview -> "preview"
+      :dev -> "development"
+      :test -> "test"
+      other -> Atom.to_string(other)
+    end
+  end
+
   def server_version_identifier do
     System.get_env("TUIST_SERVER_VERSION_IDENTIFIER") ||
       if dev?() do
@@ -282,6 +298,46 @@ defmodule Tuist.Environment do
 
   def turnstile_secret_key(secrets \\ secrets()) do
     System.get_env("TUIST_TURNSTILE_SECRET_KEY") || get([:turnstile, :secret_key], secrets)
+  end
+
+  @doc """
+  Whether the public-page Turnstile challenge is armed on this
+  deployment. Read straight off the env at request time so an ops
+  flip via `helm upgrade --set env.TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED`
+  is picked up without a full restart on the next pod rotation.
+  """
+  def public_page_challenge_enabled? do
+    truthy?(System.get_env("TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED", "0"))
+  end
+
+  @doc """
+  True when the public-page challenge should be enforced on this
+  deployment. Same shape as `turnstile_required?/0`: only the
+  tuist-hosted plane is gated so on-premise installs are not
+  interfering with their own dashboards.
+  """
+  def public_page_challenge_required? do
+    tuist_hosted?() and public_page_challenge_enabled?()
+  end
+
+  @doc """
+  How long a solved Turnstile challenge counts as fresh in the
+  session, in seconds. Default is four hours so a legitimate anon
+  visitor browsing across multiple public projects during a work
+  session only sees the interstitial once, while a stale session
+  from a shared device still expires within one workday.
+  """
+  def public_page_challenge_freshness do
+    case System.get_env("TUIST_PUBLIC_PAGE_CHALLENGE_FRESHNESS_SECONDS") do
+      value when is_binary(value) and value != "" ->
+        case Integer.parse(value) do
+          {seconds, _} when seconds > 0 -> seconds
+          _ -> 4 * 60 * 60
+        end
+
+      _ ->
+        4 * 60 * 60
+    end
   end
 
   def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
@@ -513,8 +569,26 @@ defmodule Tuist.Environment do
   def kura_pressure_inactive_days, do: positive_env_integer("TUIST_KURA_PRESSURE_INACTIVE_DAYS", 60)
 
   @doc """
-  Days an account-region's demand must have been tracked before it can be
-  archived, however old the recorded demand looks.
+  Days a Pro Kura instance may stay in service without storing anything before it
+  is drained and reclaimed, measured from when it entered service.
+
+  Read from `TUIST_KURA_UNUSED_DAYS`.
+  """
+  def kura_unused_days, do: positive_env_integer("TUIST_KURA_UNUSED_DAYS", 7)
+
+  @doc """
+  Hours an Air instance may stay in service without storing anything before
+  it is reclaimed. Its unused-instance tracking grace is capped at this window;
+  sufficient storage telemetry is still required.
+
+  Read from `TUIST_KURA_AIR_UNUSED_HOURS`.
+  """
+  def kura_air_unused_hours, do: positive_env_integer("TUIST_KURA_AIR_UNUSED_HOURS", 24)
+
+  @doc """
+  Days an account-region's demand must have been tracked before inactivity
+  archival, however old the recorded demand looks. For never-used Air instances,
+  this grace is capped at `kura_air_unused_hours/0`.
 
   This is what makes enabling archival against freshly backfilled data safe, so
   it defaults to a week. Staging sets it to zero, where the backfill is not the
@@ -558,18 +632,16 @@ defmodule Tuist.Environment do
   Cron schedule for the Kura archival sweep, which decides that an instance
   has gone a full inactive window without cache demand.
 
-  Daily by default, matching the 90-day production window: deciding more often
-  than the window's own granularity changes nothing. It is configurable so a
-  deployment running a short window can sweep at a matching cadence, since a
-  daily sweep against a one-day window would leave an instance eligible for up
-  to another day before anything looked at it.
+  Hourly by default so an unused Air instance is considered within an hour of
+  its eligibility window, rather than waiting until midnight.
+  Deployments can override the cadence to match their lifecycle windows.
 
   Read from `TUIST_KURA_ARCHIVAL_SWEEP_CRON`.
   """
   def kura_archival_sweep_cron do
     case System.get_env("TUIST_KURA_ARCHIVAL_SWEEP_CRON") do
-      nil -> "@daily"
-      "" -> "@daily"
+      nil -> "@hourly"
+      "" -> "@hourly"
       schedule -> String.trim(schedule)
     end
   end
@@ -797,6 +869,10 @@ defmodule Tuist.Environment do
 
   def faro_collector_url(secrets \\ secrets()) do
     System.get_env("TUIST_FARO_COLLECTOR_URL") || get([:faro, :collector_url], secrets)
+  end
+
+  def faro_receiver_url do
+    System.get_env("TUIST_FARO_RECEIVER_URL")
   end
 
   def object_storage_provider(secrets \\ secrets()) do
@@ -1583,6 +1659,24 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Returns the bucket size for the anonymous per-scope dashboard rate limiter.
+
+  Applied on top of the per-subject dashboard limit and keyed by
+  `(method, account_handle[, project_handle])` for unauthenticated requests,
+  so a scraper distributed across many IPs is caught in aggregate.
+
+  The default values are:
+  - 600 requests per minute per scope for canary environments
+  - 120 requests per minute per scope for other environments
+  """
+  def public_project_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:public_project_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 600, else: 120
+    end
+  end
+
+  @doc """
   Returns the bucket size for the MCP rate limiter.
 
   The default values are:
@@ -1816,6 +1910,16 @@ defmodule Tuist.Environment do
   """
   def runners_macos_pool_name_prefix do
     System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
+  Raw Xcode version entries for the macOS fleet, as `config/runtime.exs`
+  parses them from `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (defaults in
+  `config/config.exs`). `Tuist.Runners.Catalog.xcode_versions/0`
+  normalizes and orders them.
+  """
+  def runner_macos_xcode_versions do
+    Application.get_env(:tuist, :runner_macos_xcode_versions, [])
   end
 
   @doc """

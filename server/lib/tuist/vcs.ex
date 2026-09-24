@@ -25,6 +25,7 @@ defmodule Tuist.VCS do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.RemoteURL
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
@@ -354,6 +355,7 @@ defmodule Tuist.VCS do
     schedule_in = flush_interval_seconds + 1
 
     args
+    |> RemoteURL.strip_credentials_from_params()
     |> CommentWorker.new(schedule_in: schedule_in)
     |> Oban.insert()
   end
@@ -845,28 +847,38 @@ defmodule Tuist.VCS do
          test_run_url: test_run_url,
          project: project
        }) do
-    metrics_data = TestsAnalytics.test_runs_metrics(project.id, test_runs)
-    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+    metrics_map = project.id |> TestsAnalytics.test_runs_metrics(test_runs) |> Map.new(&{&1.test_run_id, &1})
+    runs = Enum.map(test_runs, &{&1, Map.fetch!(metrics_map, &1.id)})
+    any_run? = fn field -> Enum.any?(runs, fn {_test_run, metrics} -> Map.fetch!(metrics, field) end) end
 
-    rows =
-      Enum.map_join(test_runs, "", fn test_run ->
-        test_run_metrics = Map.get(metrics_map, test_run.id)
+    columns =
+      Enum.filter(
+        [
+          {"Scheme", true,
+           fn {test_run, _metrics} ->
+             scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+             "[#{scheme}](#{test_run_url.(%{project: project, test_run: test_run})})"
+           end},
+          {"Status", true, fn {test_run, _metrics} -> get_test_run_status_text(test_run) end},
+          {"Module cache hit rate", any_run?.(:module_cache_hit_rate),
+           fn {_test_run, metrics} -> metrics.module_cache_hit_rate || "-" end},
+          {"Xcode cache hit rate", any_run?.(:xcode_cache_hit_rate),
+           fn {_test_run, metrics} -> metrics.xcode_cache_hit_rate || "-" end},
+          {"Test modules", true, fn {_test_run, metrics} -> test_modules_text(metrics) end},
+          {"Commit", true, fn {test_run, _metrics} -> commit_link(test_run.git_commit_sha, git_remote_url_origin) end}
+        ],
+        fn {_header, shown?, _cell} -> shown? end
+      )
 
-        test_url = test_run_url.(%{project: project, test_run: test_run})
-        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-
-        cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
-        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
-        skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
-        ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
-
-        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | #{commit_link(test_run.git_commit_sha, git_remote_url_origin)} |\n"
-      end)
-
-    "| Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |\n" <>
-      "|:-:|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
-      rows
+    "| #{Enum.map_join(columns, " | ", fn {header, _, _} -> header end)} |\n" <>
+      "|#{Enum.map_join(columns, "|", fn _ -> ":-:" end)}|\n" <>
+      Enum.map_join(runs, "", fn run -> "| #{Enum.map_join(columns, " | ", fn {_, _, cell} -> cell.(run) end)} |\n" end)
   end
+
+  defp test_modules_text(%{has_selective_testing_data: true} = metrics),
+    do: "#{metrics.ran_test_modules}/#{metrics.ran_test_modules + metrics.skipped_test_modules}"
+
+  defp test_modules_text(metrics), do: metrics.ran_test_modules
 
   defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
 
@@ -936,9 +948,10 @@ defmodule Tuist.VCS do
   defp get_flaky_tests_body(%{test_runs: test_runs, project: project}) do
     # Batched lookup: one round-trip against `test_case_runs_by_test_run` for
     # every test run on the PR instead of N. This is the dominant query in the
-    # post-CI burst when several schemes report at once.
+    # post-CI burst when several schemes report at once. The comment only lists
+    # test cases, so the runs' failures and repetitions are not loaded.
     flaky_runs_by_test_run_id =
-      test_runs |> Enum.map(& &1.id) |> Tests.get_flaky_runs_for_test_runs()
+      test_runs |> Enum.map(& &1.id) |> Tests.get_flaky_runs_for_test_runs(details: false)
 
     flaky_tests_by_run =
       test_runs

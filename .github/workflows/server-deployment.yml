@@ -308,8 +308,14 @@ jobs:
           # cache for every stage (deps.compile, builder, og-images).
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
+          # TUIST_VERSION is baked into the image as the value Sentry reports as
+          # `release`. The Dockerfile default is `0.0.0`, so without this line
+          # every hosted-server event lands in Atlas without a release tag.
+          # Reuse the image tag so the Atlas release matches the image the pod
+          # runs (`sha-<12chars>`).
           build-args: |
             TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
       - uses: docker/build-push-action@v6
@@ -743,7 +749,12 @@ jobs:
             "$probe" "$1" "$2"
           }
 
-          # $1 tag prefix, $2 GHCR repository the version is pinned into.
+          # $1 tag prefix, $2 GHCR repository the version is pinned into,
+          # $3 reachability: "merged" (default) restricts to tags reachable
+          # from DEPLOY_SHA (per-commit stable release model); "any" allows
+          # tags anywhere in the repo (release-branch stable model, where
+          # the promoted tag lives on releases/<component>-X.Y.x and is not
+          # --merged into main).
           # An empty $2 skips the publication check: the macOS runner image
           # fans one semver out into a `macos-<xcode>-<semver>` tag per Xcode
           # profile, so there is no single manifest to probe here. The
@@ -751,8 +762,14 @@ jobs:
           resolve() {
             prefix="$1"
             repository="${2:-}"
+            reachability="${3:-merged}"
+            if [ "$reachability" = "any" ]; then
+              tag_args=(--list "${prefix}*")
+            else
+              tag_args=(--list "${prefix}*" --merged "$DEPLOY_SHA")
+            fi
             versions="$(
-              git tag --list "${prefix}*" --merged "$DEPLOY_SHA" \
+              git tag "${tag_args[@]}" \
                 | sed "s|^${prefix}||" \
                 | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
                 | sort -rV
@@ -768,7 +785,12 @@ jobs:
 
           {
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@' 'tuist/tuist-xcresult-processor')"
-            echo "KURA_RUNTIME_TAG=$(resolve 'kura@' 'tuist/kura')"
+            # Kura is promoted from releases/kura-X.Y.x on the weekly
+            # kura-promote train, so the stable tag lives on a commit that
+            # is not --merged into main. Use "any" reachability to pick it
+            # up regardless of ancestry; the GHCR publication check still
+            # guards against a phantom tag.
+            echo "KURA_RUNTIME_TAG=$(resolve 'kura@' 'tuist/kura' any)"
             echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@' 'tuist/tuist-linux-runner')"
             echo "CAPI_TAG=$(resolve 'capi-scaleway@' 'tuist/capi-provider-scaleway-applesilicon')"

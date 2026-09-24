@@ -23,7 +23,7 @@ def wait_until_ready(process, port):
             raise RuntimeError('Kura exited during startup')
         connection = http.client.HTTPConnection('127.0.0.1', port, timeout=1)
         try:
-            connection.request('GET', '/up')
+            connection.request('GET', '/ready')
             if connection.getresponse().status == 200:
                 return
         except (OSError, http.client.HTTPException):

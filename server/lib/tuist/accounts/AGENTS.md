@@ -8,7 +8,7 @@ This context owns business logic and data related to accounts, users, organizati
 - Issue and validate account/user tokens, device codes, and invitations.
 - Resolve organization membership and role assignments.
 - Own the WorkOS auth.md registration state machine, including service-signed identity assertions, browser claims, scheduled registration expiry, exchanged access-token records, audit events, and provider security events.
-- The account usage worker queues Air limit notifications through `Tuist.Billing.AirUsageNotifications` after refreshing usage for the execution time, so delayed jobs cannot overwrite current-month counts with the previous month. `UserNotifier.air_usage_email/3` builds the HTML and plain-text email in the recipient’s preferred locale for delivery and previews.
+- The account usage worker refreshes remote cache hits and metered cache egress and requests, then queues Air limit notifications through `Tuist.Billing.AirUsageNotifications` for the execution time, so delayed jobs cannot overwrite current-month counts with the previous month. `UserNotifier.air_usage_email/3` builds the HTML and plain-text email in the recipient’s preferred locale for delivery and previews.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -23,3 +23,5 @@ This context owns business logic and data related to accounts, users, organizati
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+- Account handles are reserved for the account lifetime, including retired names. The database initializes and protects `kura_tenant_id`; do not cast or update it from account attributes. `Accounts.update_account/2` gates Kura account renames until compatible runtimes are deployed. See `../kura/AGENTS.md`.

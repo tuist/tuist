@@ -5,4 +5,5 @@ resources:
   - browser-telemetry-bot-filter.yaml
   - custom-firewall-rules.yaml
   - public-pages-rate-limit.yaml
+  - skip-sbfm-api-paths.yaml
   - verified-crawlers-rate-limit.yaml

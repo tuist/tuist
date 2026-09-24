@@ -23,21 +23,23 @@ We offer a self-hosted version of the Tuist server for organizations that requir
 
 ## Release cadence {#release-cadence}
 
-We release new versions of Tuist continuously as new releasable changes land on main. We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility.
+The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the [Tuist CLI's release schedule](/en/cli/release-channels).
 
-The major component is used to flag breaking changes in the Tuist server that will require coordination with the on-premise users. You should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
+We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility. The major component is used to flag breaking changes in the Tuist server that will require coordination with self-hosted users; you should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
+
+See the <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> page for how each channel is cut, how to pin one in your deployment, and the recommended strategy for keeping production on a slow-moving stable line while a staging environment soaks the upcoming release.
 
 ## Continuous deployment {#continuous-deployment}
 
-We strongly recommend setting up a continuous deployment pipeline that automatically deploys the latest version of Tuist every day. This ensures you always have access to the latest features, improvements, and security updates.
+We recommend keeping production pinned to a stable minor line (for example `ghcr.io/tuist/tuist:1.351`), so day-to-day upgrades ship only backported fixes. Stable lines are promoted every Monday at 06:00 UTC after a week-long soak on the release-candidate channel; a staging environment on canary or on the current release-candidate tag will catch regressions before they reach your users. See <.localized_link href="/guides/server/self-host/release-channels">Release channels</.localized_link> for the recommended pinning strategy.
 
-Here's an example GitHub Actions workflow that checks for and deploys new versions daily:
+If you would rather absorb new features as they become stable without touching your manifests, pin `:latest`. The tag moves once a week on Monday morning, so schedule your deploy window accordingly. Here's an example GitHub Actions workflow that checks for and deploys the latest stable image on that cadence:
 
 ```yaml
 name: Update Tuist Server
 on:
   schedule:
-    - cron: '0 3 * * *' # Run daily at 3 AM UTC
+    - cron: '0 8 * * 1' # Mondays 08:00 UTC, after the weekly stable promote
   workflow_dispatch: # Allow manual runs
 
 jobs:

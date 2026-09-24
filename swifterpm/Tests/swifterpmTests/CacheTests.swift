@@ -80,31 +80,31 @@ struct CacheTests {
     }
 
     @Test
-    func registryCachePathsIncludeRegistryURLAndChecksum() async throws {
+    func registryCachePathsSeparateRegistriesAndVersions() async throws {
         try await withTemporaryDirectory { root in
             let cache = try await Cache(root: root)
 
             let source = cache.registrySourcePath(
                 identity: "example.package",
                 version: "1.2.3",
-                registryURL: "https://registry.example.com",
-                checksum: "abcdef1234567890"
+                registryURL: "https://registry.example.com"
             )
             let otherRegistrySource = cache.registrySourcePath(
                 identity: "example.package",
                 version: "1.2.3",
-                registryURL: "https://other.example.com",
-                checksum: "abcdef1234567890"
+                registryURL: "https://other.example.com"
             )
-            let otherChecksumSource = cache.registrySourcePath(
+            let otherVersionSource = cache.registrySourcePath(
                 identity: "example.package",
-                version: "1.2.3",
-                registryURL: "https://registry.example.com",
-                checksum: "1234567890abcdef"
+                version: "1.2.4",
+                registryURL: "https://registry.example.com"
             )
 
             #expect(source != otherRegistrySource)
-            #expect(source != otherChecksumSource)
+            #expect(source != otherVersionSource)
+            // The checksum identifies the payload, not its location, so it lives in a marker
+            // inside the directory. That keeps the path probeable without a registry request.
+            #expect(!source.path.contains("abcdef1234567890"))
             #expect(
                 cache.registryArchivePath(
                     identity: "example.package",
@@ -140,8 +140,7 @@ struct CacheTests {
             let registrySourcePath = cache.registrySourcePath(
                 identity: "example.bad/package",
                 version: "1.2.3\nbeta",
-                registryURL: "https://registry.example.com",
-                checksum: "abcdef1234567890"
+                registryURL: "https://registry.example.com"
             ).path
             let registryArchivePath = cache.registryArchivePath(
                 identity: "example.bad/package",

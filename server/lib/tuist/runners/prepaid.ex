@@ -85,8 +85,9 @@ defmodule Tuist.Runners.Prepaid do
   ## Top-ups and expiry
 
   Minutes belong to the month they were bought for. Every grant
-  expires at the end of the billing period the paying invoice covered,
-  so nothing rolls over: what an account does not spend that month is
+  expires a few days after the billing period the paying invoice
+  covered, late enough for the invoice closing that period to draw on it
+  and too early for the next one, so nothing rolls over: what an account does not spend that month is
   gone, and next month's minutes arrive on their own invoice.
 
   Neither top-ups nor expiry need machinery here. Every prepaid line
@@ -111,12 +112,36 @@ defmodule Tuist.Runners.Prepaid do
   not go through costs the customer nothing rather than billing them
   for minutes they never got.
 
-  `grant_for_paid_invoice/1` remains the backstop for a prepaid line
+  `grant_for_invoice/1` remains the backstop for a prepaid line
   that reaches an invoice without a grant — a charge whose withdrawal
   also failed, or a line raised in Stripe directly. It skips lines
   already granted, matching the invoice item id the up-front grant
   recorded as well as the line id, since a line and the invoice item it
   came from are different objects with different ids.
+
+  ## A standing monthly level
+
+  A customer on a recurring arrangement needs minutes every cycle, and
+  minutes die with their period, so the arrangement is a licensed item on
+  the account's own subscription: the prepaid Price, with the quantity in
+  minutes. Stripe bills it on every renewal invoice, and
+  `grant_for_invoice/1` grants the credit when that invoice is finalized,
+  about an hour after the period opens, rather than when it is paid. A grant
+  is effective only from when it is created, so one made on a late payment
+  could miss the invoice closing its period and expire before the next one.
+  A renewal line whose period has already ended is refused for the same
+  reason. It recognises the line by its price, because a subscription line
+  carries the subscription's metadata rather than the item's, and dates the
+  grant from the period the line was billed for.
+
+  Keeping the arrangement on the subscription leaves recurrence, retries
+  and deduplication to Stripe. There is one renewal invoice per period and
+  one line for the item on it, and the grant is keyed on that line, so a
+  redelivered or reordered webhook cannot grant a period twice.
+
+  Only monthly subscriptions can carry it for now. In classic billing mode
+  every item on a subscription shares one interval, so a monthly item
+  cannot sit on an annual term.
 
   ## Trials are not this
 
@@ -134,6 +159,7 @@ defmodule Tuist.Runners.Prepaid do
   alias Tuist.Billing.Invoices
   alias Tuist.KeyValueStore
   alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.Trials
 
   require Logger
 
@@ -174,8 +200,17 @@ defmodule Tuist.Runners.Prepaid do
 
   @balance_cache_ttl to_timeout(minute: 5)
 
+  # Stripe applies a grant only to an invoice whose period ends before the
+  # grant expires, and the invoice closing a period ends exactly when the
+  # period does, so a grant expiring at that instant never pays for the
+  # usage it was bought for. Stripe finalizes that invoice within 72 hours
+  # even when its invoice.created webhook keeps failing, and the next
+  # period's invoice is a month away.
+  @expiry_grace_days 4
+
   @doc """
-  Creates a credit grant for every prepaid line on a paid invoice.
+  Creates a credit grant for every prepaid line on a finalized or paid
+  invoice.
 
   Returns `{:ok, grants}` with the grants it created, `{:ok,
   :not_prepaid}` for an invoice carrying no marked line (the
@@ -186,11 +221,15 @@ defmodule Tuist.Runners.Prepaid do
 
   `{:error, :no_runner_prices_configured}` is the state every
   environment is in until the runner Prices are created. It is a
-  retryable condition, not a dead end: the money is collected and the
+  retryable condition, not a dead end: the charge is billed and the
   grant is still owed, so the caller must keep the job alive rather
   than drop it.
+
+  `{:error, {:standing_period_ended, line_id}}` is a standing renewal
+  line whose period ended before it was granted. A grant made now could
+  pay for no invoice, so none is made.
   """
-  def grant_for_paid_invoice(invoice) do
+  def grant_for_invoice(invoice) do
     with {:ok, customer_id} <- customer_id(invoice),
          {:ok, invoice_id} <- invoice_id(invoice),
          {:ok, lines} <- Invoices.list_lines(invoice_id) do
@@ -211,7 +250,7 @@ defmodule Tuist.Runners.Prepaid do
       lines
       |> Enum.reject(&granted?(granted_line_ids, &1))
       |> Enum.reduce_while({:ok, []}, fn line, {:ok, acc} ->
-        case grant_line(customer_id, invoice_id, line, currency, expires_at) do
+        case grant_line(customer_id, invoice_id, line, currency, line_expires_at(line, expires_at)) do
           {:ok, grant} -> {:cont, {:ok, [grant | acc]}}
           {:error, reason} -> {:halt, {:error, reason}}
         end
@@ -226,7 +265,8 @@ defmodule Tuist.Runners.Prepaid do
   defp grant_line(customer_id, invoice_id, line, currency, expires_at) do
     metadata = line_metadata(line)
 
-    with {:ok, platforms} <- platforms_from_metadata(metadata),
+    with :ok <- ensure_period_open(line),
+         {:ok, platforms} <- line_platforms(line, metadata),
          {:ok, amount} <- line_amount(line),
          {:ok, ratio_bp} <- funding_ratio_bp(metadata),
          {:ok, price_ids} <- price_ids(platforms) do
@@ -271,7 +311,55 @@ defmodule Tuist.Runners.Prepaid do
   end
 
   defp prepaid_line?(line) do
-    line |> line_metadata() |> platforms_from_metadata() != :not_prepaid
+    standing_line?(line) or line |> line_metadata() |> platforms_from_metadata() != :not_prepaid
+  end
+
+  defp standing_line?(line) do
+    case {Billing.runner_prepaid_price_id(), Map.get(line, :price)} do
+      {price_id, %{id: price_id}} when is_binary(price_id) -> true
+      _ -> false
+    end
+  end
+
+  # A standing renewal carries no marker, since its metadata is the
+  # subscription's, so it takes the default scope of every runner Price.
+  defp line_platforms(line, metadata) do
+    if standing_line?(line), do: {:ok, @platforms}, else: platforms_from_metadata(metadata)
+  end
+
+  # A standing renewal is dated from the period its own line was billed for.
+  # The account's recorded period can still be the one that just closed when
+  # the renewal is granted, which would expire the new minutes almost at once.
+  defp line_expires_at(line, account_expires_at) do
+    case standing_period_end(line) do
+      %DateTime{} = period_end -> past_period_end(period_end)
+      nil -> account_expires_at
+    end
+  end
+
+  # Stripe applies a grant only to an invoice whose period ends at or after
+  # the grant becomes effective, and a grant becomes effective when it is
+  # created. Granted after its period ends, a standing renewal misses the
+  # invoice closing that period and expires before the next one.
+  defp ensure_period_open(line) do
+    case standing_period_end(line) do
+      %DateTime{} = period_end ->
+        if DateTime.after?(Tuist.Time.utc_now(), period_end),
+          do: {:error, {:standing_period_ended, line_id(line)}},
+          else: :ok
+
+      nil ->
+        :ok
+    end
+  end
+
+  defp standing_period_end(line) do
+    with true <- standing_line?(line),
+         %{end: period_end} when is_integer(period_end) <- Map.get(line, :period) do
+      DateTime.from_unix!(period_end)
+    else
+      _ -> nil
+    end
   end
 
   defp line_id(line), do: Map.get(line, :id)
@@ -365,9 +453,9 @@ defmodule Tuist.Runners.Prepaid do
   items onto the next invoice it generates; nothing here has to know
   when the period closes.
 
-  The credit is not granted now. It is granted when that invoice is
-  paid, by `grant_for_paid_invoice/1`, so credit never exists ahead of
-  the money behind it.
+  The credit is granted as the charge is created, so the account can run
+  on it immediately. `grant_for_invoice/1` grants a line that reaches an
+  invoice without one.
 
   An account with no subscription never has an invoice generated, so a
   pending item on one would sit unbilled indefinitely. Callers should
@@ -447,6 +535,109 @@ defmodule Tuist.Runners.Prepaid do
   defp grant_target(account, minutes, opts), do: bill_prepaid_minutes(account, minutes, opts)
 
   @doc """
+  The standing monthly prepaid minutes `account`'s subscription carries, as
+  `{:ok, minutes}`, where `0` means it carries none.
+
+  Read from the subscription item rather than stored here, because the item
+  is what Stripe bills each renewal and so is the arrangement itself.
+  Answers `{:error, :no_prepaid_price_configured}` until the environment has
+  a prepaid Price, `{:error, :no_subscription}` for an account with nothing
+  to carry the item, and `{:error, :not_monthly}` for a subscription that
+  does not renew monthly.
+  """
+  def standing_minutes(%Account{} = account) do
+    with {:ok, price_id} <- standing_price_id(),
+         {:ok, subscription_id} <- standing_subscription_id(account),
+         {:ok, subscription} <- Stripe.Subscription.retrieve(subscription_id),
+         :ok <- ensure_monthly(subscription) do
+      {:ok, subscription |> standing_item(price_id) |> item_quantity()}
+    end
+  end
+
+  @doc """
+  Sets the standing monthly prepaid minutes on `account`'s subscription,
+  replacing whatever it carries, and answers `{:ok, minutes}`. `0` removes
+  the item.
+
+  Changes the subscription without proration, which is what leaves the
+  running cycle alone: the item is first billed on the next renewal invoice,
+  and `grant_for_invoice/1` grants the minutes once that invoice is
+  finalized. Refuses an account on a runner trial, whose usage is never invoiced,
+  so the credit would have nothing to pay for. Clearing is always allowed.
+  """
+  def set_standing_minutes(%Account{} = account, minutes) when is_integer(minutes) and minutes >= 0 do
+    with {:ok, price_id} <- standing_price_id(),
+         {:ok, subscription_id} <- standing_subscription_id(account),
+         :ok <- ensure_not_on_trial(account, minutes),
+         {:ok, subscription} <- Stripe.Subscription.retrieve(subscription_id),
+         :ok <- ensure_monthly(subscription),
+         {:ok, _result} <-
+           apply_standing_change(subscription_id, standing_item(subscription, price_id), price_id, minutes) do
+      {:ok, minutes}
+    end
+  end
+
+  defp apply_standing_change(_subscription_id, nil, _price_id, 0), do: {:ok, :unchanged}
+  defp apply_standing_change(_subscription_id, %{quantity: minutes}, _price_id, minutes), do: {:ok, :unchanged}
+
+  defp apply_standing_change(subscription_id, nil, price_id, minutes),
+    do: update_standing_item(subscription_id, %{price: price_id, quantity: minutes})
+
+  defp apply_standing_change(subscription_id, %{id: item_id}, _price_id, 0),
+    do: update_standing_item(subscription_id, %{id: item_id, deleted: true})
+
+  defp apply_standing_change(subscription_id, %{id: item_id}, _price_id, minutes),
+    do: update_standing_item(subscription_id, %{id: item_id, quantity: minutes})
+
+  defp update_standing_item(subscription_id, item) do
+    Stripe.Subscription.update(subscription_id, %{items: [item], proration_behavior: "none"})
+  end
+
+  defp standing_price_id do
+    case Billing.runner_prepaid_price_id() do
+      nil -> {:error, :no_prepaid_price_configured}
+      price_id -> {:ok, price_id}
+    end
+  end
+
+  defp standing_subscription_id(account) do
+    case Billing.get_current_active_subscription(account) do
+      %{subscription_id: subscription_id} when is_binary(subscription_id) -> {:ok, subscription_id}
+      _ -> {:error, :no_subscription}
+    end
+  end
+
+  defp ensure_not_on_trial(_account, 0), do: :ok
+
+  defp ensure_not_on_trial(account, _minutes) do
+    if Trials.on_trial?(account), do: {:error, :on_runner_trial}, else: :ok
+  end
+
+  # In classic billing mode every item on a subscription shares one
+  # interval, so a monthly prepaid item can only join a monthly subscription.
+  defp ensure_monthly(subscription) do
+    if Enum.all?(subscription_items(subscription), &monthly_item?/1), do: :ok, else: {:error, :not_monthly}
+  end
+
+  defp monthly_item?(%{price: %{recurring: %{interval: interval} = recurring}}),
+    do: interval == "month" and Map.get(recurring, :interval_count, 1) == 1
+
+  defp monthly_item?(_item), do: true
+
+  defp subscription_items(%{items: %{data: items}}) when is_list(items), do: items
+  defp subscription_items(_subscription), do: []
+
+  defp standing_item(subscription, price_id) do
+    Enum.find(subscription_items(subscription), fn
+      %{price: %{id: ^price_id}} -> true
+      _item -> false
+    end)
+  end
+
+  defp item_quantity(%{quantity: quantity}) when is_integer(quantity), do: quantity
+  defp item_quantity(_item), do: 0
+
+  @doc """
   Re-reads the balance and replaces the cached copy with it.
 
   Callers that have just changed the grants need this: `balance/2` is
@@ -501,9 +692,9 @@ defmodule Tuist.Runners.Prepaid do
 
   defp grant_id(grant), do: Map.get(grant, :id) || Map.get(grant, "id")
 
-  # The minutes are granted here rather than on `invoice.paid`, so the
-  # account can spend them the moment they are sold. The charge still
-  # rides the next monthly bill.
+  # The minutes are granted here rather than when the invoice carrying the
+  # charge is finalized, so the account can spend them the moment they are
+  # sold. The charge still rides the next monthly bill.
   #
   # A failure here withdraws the charge it was granted against, so a
   # sale that does not go through costs the customer nothing.
@@ -637,8 +828,8 @@ defmodule Tuist.Runners.Prepaid do
   defp minutes_for(cents), do: div(cents * 10, @macos_on_demand_rate)
 
   # Minutes belong to the month they were bought for and do not roll
-  # over, so the grant dies with the billing period the invoice paid
-  # for — capped at a month, because runner items ride the account's own
+  # over, so the grant dies just after the billing period the invoice
+  # paid for — capped at a month, because runner items ride the account's own
   # subscription and an annual enterprise term reports a year-long
   # period. Dating a grant from that would hand each of those accounts a
   # year of minutes to bank. An account Stripe reports no period for
@@ -649,11 +840,13 @@ defmodule Tuist.Runners.Prepaid do
 
     with {:ok, account} <- Accounts.get_account_from_customer_id(customer_id),
          {_period_start, period_end} <- Billing.current_billing_period(account) do
-      Enum.min([period_end, monthly], DateTime)
+      if DateTime.after?(period_end, monthly), do: monthly, else: past_period_end(period_end)
     else
       _ -> monthly
     end
   end
+
+  defp past_period_end(period_end), do: DateTime.add(period_end, @expiry_grace_days, :day)
 
   defp grant_amount_cents(grant) do
     grant

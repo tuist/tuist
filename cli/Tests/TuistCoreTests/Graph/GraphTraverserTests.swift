@@ -4525,6 +4525,52 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    func test_runPathSearchPaths_excludes_xcframeworks_and_keeps_frameworks() throws {
+        // Given
+        let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
+        let project = Project.test(path: "/path/a", targets: [unitTests])
+        let frameworkDependency = GraphDependency.testFramework(
+            path: "/frameworks/Framework.framework",
+            binaryPath: "/frameworks/Framework.framework/Framework",
+            linking: .dynamic
+        )
+        let xcframeworkDependency = GraphDependency.testXCFramework(
+            path: "/binaries/hash-a/Cached.xcframework",
+            linking: .dynamic
+        )
+        let foreignXCFrameworkDependency = GraphDependency.foreignBuildOutput(
+            .init(name: "Foreign", path: "/binaries/hash-b/Foreign.xcframework", linking: .dynamic)
+        )
+        let foreignFrameworkDependency = GraphDependency.foreignBuildOutput(
+            .init(name: "ForeignFramework", path: "/foreign/ForeignFramework.framework", linking: .dynamic)
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: unitTests.name, path: project.path): Set([
+                    frameworkDependency,
+                    xcframeworkDependency,
+                    foreignXCFrameworkDependency,
+                    foreignFrameworkDependency,
+                ]),
+                frameworkDependency: Set(),
+                xcframeworkDependency: Set(),
+                foreignXCFrameworkDependency: Set(),
+                foreignFrameworkDependency: Set(),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            try AbsolutePath(validating: "/foreign"),
+            try AbsolutePath(validating: "/frameworks"),
+        ])
+    }
+
     func test_runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
         // Given
         let app = Target.test(name: "App", product: .app)

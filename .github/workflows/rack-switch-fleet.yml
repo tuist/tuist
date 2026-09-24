@@ -1,0 +1,164 @@
+# The rack switch fleet's guards, run without a human.
+#
+# Most of this suite exists to catch an edit that looks like tidying: moving the
+# two storage nodes onto one ToR, recording a management link on the MS-01 NIC
+# that has no AMT, putting two probes on one Modbus address. Those are made by
+# someone who has never read the pull request that introduced them, months from
+# now, and a guard that only fires when somebody remembers to run it locally is
+# not much better than a comment.
+#
+# It needs no hardware: everything runs against a committed transcript taken off
+# a live switch and against a fake switch on PATH.
+#
+# Linux, not macOS, because the guards worth running on every pull request are
+# pure data and cost seconds here. The handful of cases that drive the TFTP path
+# skip themselves: `route -n get`, `ipconfig getifaddr` and a launchd `tftpd` are
+# macOS-only, which is fine for a tool run from an operator's laptop. The safety
+# property those cases exist for, that a pushed configuration always carries a
+# login, is checked separately and runs everywhere.
+name: Rack Switches
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/rack-switch-fleet/**
+      - infra/rack-switch-prep/**
+      - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - infra/helm/omada/**
+      - infra/helm/rack-edge/sites/**
+      - mise/tasks/rack/**
+      - .github/workflows/rack-switch-fleet.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/rack-switch-fleet/**
+      - infra/rack-switch-prep/**
+      - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+      - infra/helm/omada/**
+      - infra/helm/rack-edge/sites/**
+      - mise/tasks/rack/**
+      - .github/workflows/rack-switch-fleet.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rack-switches-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+
+jobs:
+  checks:
+    name: Render, lint, and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          # Only what this needs. Installing the whole toolchain to run jq and
+          # bats would cost minutes per pull request.
+          install_args: jq bats helm
+          cache: "false"
+
+      # The committed configs are the reviewed artefact. If they no longer match
+      # what the site definition renders, the diff a reviewer read is not the
+      # one that would be applied.
+      - name: The rendered configs match the site definition
+        run: mise run rack:fleet render --check
+
+      - name: Test the fleet configuration
+        run: mise run rack:fleet-test
+
+      # The console bring-up had no tests at all, and it is the one that runs
+      # first at a new site, on a machine that is not the one it was written on.
+      - name: Test the console bring-up
+        run: mise run rack:prep-test
+
+      # The Omada wrapper is an evaluation and is not deployed by any workflow,
+      # so nothing else would notice it going stale.
+      - name: The Omada chart still renders
+        run: |
+          set -euo pipefail
+          helm dependency update infra/helm/omada
+          helm template omada infra/helm/omada \
+            -f infra/helm/omada/values.yaml \
+            -f infra/helm/omada/values-staging.yaml > /dev/null
+          echo "renders"
+
+      - name: Lint the shell
+        run: |
+          set -euo pipefail
+          command -v shellcheck >/dev/null || (sudo apt-get update && sudo apt-get install -y shellcheck)
+          # From inside the directory, so the sourced libraries resolve.
+          (cd infra/rack-switch-fleet && shellcheck -x fleet.sh ztp.sh edge-join.sh omada.sh lib/*.sh)
+          shellcheck mise/tasks/rack/*.sh
+
+      # A hash in git history cannot be removed without rewriting it, and every
+      # export off a switch carries one. backup redacts and probe-tftp writes
+      # outside the repository; this is the check that both stay true.
+      - name: No credential hash is committed
+        run: |
+          set -euo pipefail
+          # Hash-shaped, not the bare prefix: a test that asserts an object
+          # contains no `$1$` writes that literal itself, and flagging it taught
+          # nothing. A real crypt hash is the prefix plus a long run of
+          # non-quote, non-space characters.
+          # shellcheck disable=SC2016  # the pattern is literal, not to be expanded
+          if git grep -nE '\$1\$[^ "'"'"']{8,}' -- infra/rack-switch-fleet/ | grep -v EXAMPLEHASHNOTREAL; then
+            echo "a credential hash reached infra/rack-switch-fleet; see AGENTS.md" >&2
+            exit 1
+          fi
+          echo "clean"
+
+  # The switches' desired state follows git into the cluster its rack belongs
+  # to: kubernetes.namespace in each site definition, which is staging while
+  # BER1 is at home. Status is not written here: rack:fleet publish records
+  # what it observed, from a machine that can reach the switches, which CI
+  # cannot.
+  objects:
+    name: RackSwitch objects into the rack's cluster
+    needs: checks
+    if: github.repository == 'tuist/tuist' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: server-k8s-staging
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked jq kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" \
+            --vault "tuist-k8s-staging" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Apply the CRD and each site's objects
+        run: |
+          set -euo pipefail
+          # server-deployment.yml applies the same file. Applying it here too
+          # means the objects never race the first server deploy after it lands.
+          kubectl apply -f infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
+          kubectl wait --for condition=established --timeout=60s crd/rackswitches.tuist.dev
+          for site in infra/rack-switch-fleet/sites/*.json; do
+            name="$(basename "$site" .json)"
+            namespace="$(jq -r '.kubernetes.namespace // empty' "$site")"
+            [ -n "$namespace" ] || continue
+            kubectl apply -n "$namespace" -f "infra/rack-switch-fleet/k8s/$name/"
+          done

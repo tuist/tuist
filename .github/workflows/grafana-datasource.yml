@@ -33,7 +33,7 @@ jobs:
     name: Typecheck
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
@@ -48,7 +48,7 @@ jobs:
     name: Lint
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
@@ -63,7 +63,7 @@ jobs:
     name: Test
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
@@ -78,7 +78,7 @@ jobs:
     name: Build
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
@@ -93,7 +93,7 @@ jobs:
     name: Go Format
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
@@ -107,7 +107,7 @@ jobs:
     name: Go Vet
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install
@@ -121,7 +121,7 @@ jobs:
     name: Go Tests
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise-install

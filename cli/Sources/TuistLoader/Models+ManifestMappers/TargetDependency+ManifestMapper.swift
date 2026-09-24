@@ -157,7 +157,8 @@ extension XcodeGraph.ForeignBuild.Input {
         case let .glob(path):
             let resolvedPath = try generatorPaths.resolve(path: path)
             let pattern = String(resolvedPath.pathString.dropFirst())
-            let matchedPaths = try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().sorted()
+            let matchedPaths = try await fileSystem.manifestGlob(directory: AbsolutePath.root, include: [pattern]).collect()
+                .sorted()
             if matchedPaths.isEmpty {
                 AlertController.current.warning(.alert(
                     "Foreign build glob input '\(resolvedPath.pathString)' matched no files. Verify the path is correct, otherwise Xcode will not detect changes to the matched files and the foreign build script may not re-run."

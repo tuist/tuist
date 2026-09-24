@@ -1757,7 +1757,7 @@
         "id": 522,
         "type": "stat",
         "title": "Local warmth delivered",
-        "description": "Share of dispatched jobs whose account master already existed on the host and was clonefiled into the branch (warm), vs a cold first job. Higher is better \u2014 it is the payoff of the volume: affinity routing jobs to hosts that hold their master. The Prometheus-side proxy for local-cache-hit share (the per-artifact command_events local_cache_hits share is tracked in ClickHouse).",
+        "description": "Share of dispatched jobs whose own volume master already existed on the host and was clonefiled into the branch (warm), vs a seeded or cold one. Higher is better \u2014 it is the payoff of the volume: affinity routing jobs to hosts that hold their master. The Prometheus-side proxy for local-cache-hit share (the per-artifact command_events local_cache_hits share is tracked in ClickHouse).",
         "datasource": "$datasource",
         "gridPos": {
           "h": 5,
@@ -1818,7 +1818,7 @@
         "id": 523,
         "type": "stat",
         "title": "Resident masters (fleet)",
-        "description": "Total resident per-account cache master images across all hosts. Divided by the fleet size it is the 'how many accounts does each host keep hot' signal.",
+        "description": "Total resident cache master images (one per account volume) across all hosts. Divided by the fleet size it is the 'how many volumes does each host keep hot' signal.",
         "datasource": "$datasource",
         "gridPos": {
           "h": 5,
@@ -1995,8 +1995,8 @@
       {
         "id": 526,
         "type": "timeseries",
-        "title": "Materialize warm vs cold / sec",
-        "description": "Post-dispatch materializations by whether the dispatched account's master already existed on the host (warm) or not (cold first job). warm/(warm+cold) is the 'Local warmth delivered' stat.",
+        "title": "Materialize warm vs seeded vs cold / sec",
+        "description": "Post-dispatch materializations by where the branch's image came from: the job's own volume master (warm), the account's tuist-cache master for a repository volume with no master on the host (seeded, starts warm at base generation 0), or nothing (cold first job). warm/total is the 'Local warmth delivered' stat.",
         "datasource": "$datasource",
         "gridPos": {
           "h": 8,
@@ -2050,6 +2050,13 @@
             "expr": "sum(rate(tart_kubelet_cache_volume_materialize_total{result=\"cold\",env=\"$env\"}[$__rate_interval]))",
             "legendFormat": "cold",
             "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_materialize_total{result=\"seeded\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "seeded",
+            "refId": "C"
           }
         ]
       },

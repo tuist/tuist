@@ -10,11 +10,18 @@ import XcodeGraph
 
 public enum TargetManifestMapperError: FatalError, Equatable {
     case nonSpecificGeneratedResource(targetName: String, generatedSource: AbsolutePath)
+    case missingLocalPackageTestDependency(target: String, product: String)
 
     public var type: ErrorType { .abort }
 
     public var description: String {
         switch self {
+        case let .missingLocalPackageTestDependency(target, product):
+            return """
+            The local package test target `\(target)` depends on `\(product)`, which is not a configured external dependency. \
+            Add the package providing `\(product)` to `Tuist/Package.swift` and run `tuist install`. \
+            Dependencies used only by tests of a dependency package are not resolved automatically by SwiftPM.
+            """
         case let .nonSpecificGeneratedResource(targetName: targetName, generatedSource: generatedSource):
             return "Generated source files must be explicit. The target \(targetName) has a generated source file at \(generatedSource.pathString) that has a glob pattern."
         }
@@ -57,11 +64,18 @@ extension XcodeGraph.Target {
         var dependencies: [XcodeGraph.TargetDependency] = []
         var externalXCFrameworkDependencies = Set<XcodeGraph.TargetDependency>()
         for manifestDependency in manifest.dependencies {
-            let mappedDependencies = try XcodeGraph.TargetDependency.from(
-                manifest: manifestDependency,
-                generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
-            )
+            let mappedDependencies: [XcodeGraph.TargetDependency]
+            do {
+                mappedDependencies = try XcodeGraph.TargetDependency.from(
+                    manifest: manifestDependency,
+                    generatorPaths: generatorPaths,
+                    externalDependencies: externalDependencies
+                )
+            } catch let TargetDependencyMapperError.invalidExternalDependency(product)
+                where manifest.metadata.tags.contains(TargetTags.localSwiftPackageTest)
+            {
+                throw TargetManifestMapperError.missingLocalPackageTestDependency(target: name, product: product)
+            }
 
             if case .external = manifestDependency {
                 for mappedDependency in mappedDependencies {
@@ -239,7 +253,7 @@ extension XcodeGraph.Target {
 
                 let pattern = String(resolvedPath.pathString.dropFirst())
                 let matchedPaths = try await fileSystem
-                    .glob(directory: AbsolutePath.root, include: [pattern])
+                    .manifestGlob(directory: AbsolutePath.root, include: [pattern])
                     .collect()
                     .sorted()
 

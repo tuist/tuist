@@ -43,6 +43,59 @@ exec > >(tee -a "${STATE_DIR}/buildkite-hook.log") 2>&1
 # collapses on merge and the hook can resend freely.
 CHUNK_LINES=5000
 
+# The job's outcome, settled before anything can skip reporting it.
+#
+# BUILDKITE_COMMAND_EXIT_STATUS covers the command phase alone.
+# BUILDKITE_LAST_HOOK_EXIT_STATUS is the exit status of the hook that ran
+# immediately before this one, and the agent resets it as each hook
+# completes, so it adds at most the last post-command hook's failure.
+#
+# The agent runs pre-exit hooks global first, then the repository's, then
+# the plugins', so this hook cannot see a failure raised only by one of
+# those; such a job is reported here as passing, and so is one whose
+# automatic artifact upload failed, which sets neither variable. Buildkite's
+# own verdict is out of reach for a stack: the Stacks API exposes a job's
+# state but not its exit status, and the REST API would need a token far
+# broader than the cluster token this integration asks for.
+exit_status=${BUILDKITE_COMMAND_EXIT_STATUS:-1}
+if [ "${exit_status}" = "0" ] && [ -n "${BUILDKITE_LAST_HOOK_EXIT_STATUS:-}" ] \
+   && [ "${BUILDKITE_LAST_HOOK_EXIT_STATUS}" != "0" ]; then
+  echo "$(date -u +%FT%TZ) buildkite-hook: command succeeded but a later hook exited ${BUILDKITE_LAST_HOOK_EXIT_STATUS}; reporting failure"
+  exit_status="${BUILDKITE_LAST_HOOK_EXIT_STATUS}"
+fi
+
+# These land in a JSON number literal. Anything non-numeric would make the
+# report unparseable, and the window is recorded nowhere else.
+case "${exit_status}" in
+  '' | *[!0-9]*)
+    echo "$(date -u +%FT%TZ) buildkite-hook: unusable exit status '${exit_status}'; reporting failure"
+    exit_status=1
+    ;;
+esac
+
+# The executor sets BUILDKITE_JOB_CANCELLED for the hooks that run after it
+# is told to cancel, and that includes this one. Read as a literal "true",
+# since it lands in a JSON boolean below.
+cancelled=false
+if [ "${BUILDKITE_JOB_CANCELLED:-}" = "true" ]; then
+  cancelled=true
+fi
+
+# The macOS teardown reads this, together with the agent's final exit
+# status, to decide whether the job's cache volume may be promoted. This is
+# its only record of a cancel and its proof that the job ran; the exit status
+# covers the failures above that this hook cannot see. Written ahead of the
+# credential check, since a job that cannot report its outcome to Tuist still
+# ended one way or the other.
+if [ "${cancelled}" = "true" ]; then
+  job_result=canceled
+elif [ "${exit_status}" = "0" ]; then
+  job_result=succeeded
+else
+  job_result=failed
+fi
+printf '%s' "${job_result}" >"${STATE_DIR}/job-result" 2>/dev/null || true
+
 if [ -f "${JOB_ENV}" ]; then
   # shellcheck disable=SC1090
   source "${JOB_ENV}"
@@ -113,7 +166,7 @@ json.dump({"lines": lines, "first_line_number": int(sys.argv[1])}, sys.stdout)
 }
 
 report_finish() {
-  local body http attempt exit_status
+  local body http attempt
   body=$(mktemp)
 
   # The billable window is measured server-side and is not reported from
@@ -121,40 +174,13 @@ report_finish() {
   # credential, and a job that timed its own work could bill itself for
   # nothing. The server ends the window when this request lands, which is
   # why the finish is posted before the log upload rather than after.
-  #
-  # BUILDKITE_COMMAND_EXIT_STATUS covers the command phase alone.
-  # BUILDKITE_LAST_HOOK_EXIT_STATUS is the exit status of the hook that
-  # ran immediately before this one, and the agent resets it as each hook
-  # completes, so it adds at most the last post-command hook's failure.
-  #
-  # The agent runs pre-exit hooks global first, then the repository's,
-  # then the plugins', so this hook cannot see a failure raised only by
-  # one of those; such a job is reported here as passing. Buildkite's own
-  # verdict is out of reach for a stack: the Stacks API exposes a job's
-  # state but not its exit status, and the REST API would need a token
-  # far broader than the cluster token this integration asks for.
-  exit_status=${BUILDKITE_COMMAND_EXIT_STATUS:-1}
-  if [ "${exit_status}" = "0" ] && [ -n "${BUILDKITE_LAST_HOOK_EXIT_STATUS:-}" ] \
-     && [ "${BUILDKITE_LAST_HOOK_EXIT_STATUS}" != "0" ]; then
-    echo "$(date -u +%FT%TZ) buildkite-hook: command succeeded but a later hook exited ${BUILDKITE_LAST_HOOK_EXIT_STATUS}; reporting failure"
-    exit_status="${BUILDKITE_LAST_HOOK_EXIT_STATUS}"
-  fi
-
-  # These land in a JSON number literal. Anything non-numeric would make
-  # the report unparseable, and the window is recorded nowhere else.
-  case "${exit_status}" in
-    '' | *[!0-9]*)
-      echo "$(date -u +%FT%TZ) buildkite-hook: unusable exit status '${exit_status}'; reporting failure"
-      exit_status=1
-      ;;
-  esac
 
   # A cancelled job reports separately: a cancel is not a failure and must
   # not read as one on the dashboard.
   cat >"${body}" <<JSON
 {
   "exit_status": ${exit_status},
-  "cancelled": ${BUILDKITE_BUILD_CANCELLING:-false}
+  "cancelled": ${cancelled}
 }
 JSON
 

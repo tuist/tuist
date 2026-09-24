@@ -172,7 +172,7 @@ k8s-monitoring:
         // production-only.
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|outbox_messages|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state)|tuist_clickhouse_.*|tuist_repo_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
           target_label = "__tmp_nonprod_keep"
           replacement = "keep"
           action = "replace"
@@ -210,6 +210,27 @@ k8s-monitoring:
         write_relabel_config {
           source_labels = ["__name__"]
           regex = "kura_(analytics_batch_duration_seconds|artifact_egress_duration_seconds|artifact_egress_throughput_bytes_per_second|artifact_write_size_bytes|auth_backend_request_duration_seconds|auth_decision_duration_seconds|file_descriptor_wait_seconds|file_operation_duration_seconds|internal_backfill_http_request_duration_seconds|manifest_index_rebuild_duration_seconds|response_stream_wait_duration_seconds|segment_refresh_duration_seconds)_bucket"
+          action = "drop"
+        }
+        // Kura runs one StatefulSet pod per cache node. Its public latency
+        // histograms below therefore multiply every node by 17 classic
+        // buckets, even though the dashboards only need an approximate
+        // percentile and the count/sum series for rates and mean latency.
+        // Keep every other bucket so histogram_quantile remains useful, but
+        // remove alternating buckets. This takes the request families from
+        // 17 to 10 buckets (and the multipart family from 15 to 8) without
+        // changing labels or making duplicate remote-write series.
+        //
+        // kura_replication_request_duration_seconds keeps every bucket. Since
+        // pull replication it only times catch-up passes (backfill_entries,
+        // backfill_bodies, backfill_artifact), labelled by operation alone, so
+        // it is cheap, and it is the only latency signal when a node is
+        // bootstrapping or rejoining. Thinned buckets overstated its p99 by
+        // 50-75%.
+        write_relabel_config {
+          source_labels = ["cluster", "__name__", "le"]
+          separator = ";"
+          regex = "tuist-production;kura_(http_request_duration_seconds|public_request_latency_seconds|multipart_upload_admission_duration_seconds)_bucket;(0.002|0.008|0.032|0.128|0.512|2.048|8.192)"
           action = "drop"
         }
 
@@ -251,6 +272,10 @@ k8s-monitoring:
         # Keep all failed and slow traces, then retain a representative sample
         # of healthy traffic. Sampling after the trace completes preserves the
         # diagnostic traces that head-based sampling could discard.
+        #
+        # Policies are OR'ed, so exclusions live inside `and` policies: a
+        # string_attribute sub-policy with invert_match fails the `and` when
+        # any span in the trace carries one of the listed routes.
         tailSampling:
           enabled: true
           decisionWait: 15s
@@ -258,17 +283,64 @@ k8s-monitoring:
           decisionCache: null
           numTraces: 5000
           expectedNewTracesPerSec: 100
+          # The upstream default (4MB) is smaller than the ingress Alloy's HTTP
+          # body cap (20MiB), so the loadbalancing exporter re-emits Kura's
+          # accepted trace batches to this sampler and they are rejected here
+          # as ResourceExhausted, dropping every batch. Match the ingress cap
+          # so the internal Alloy-to-Alloy hop stops throwing away work the
+          # front door already admitted.
+          receiver:
+            otlp:
+              grpc:
+                maxReceivedMessageSize: 20MB
           policies:
             - name: errors
               type: status_code
               status_codes:
                 - ERROR
+            # Kura's pull replication holds peer reads open by design:
+            # /_internal/sync/forward and the region listing on
+            # /_internal/backfill/entries wait up to KURA_SYNC_LONG_POLL_SECS
+            # (25s) for new rows. Nearly every one of those traces crosses 2s,
+            # so a plain latency policy retained all of them and they were
+            # most of Kura's stored traces. They still fall through to the
+            # errors policy and the healthy sample below.
             - name: slow
-              type: latency
-              threshold_ms: 2000
+              type: and
+              and:
+                and_sub_policy:
+                  - name: slower-than-2s
+                    type: latency
+                    threshold_ms: 2000
+                  - name: not-a-long-poll
+                    type: string_attribute
+                    key: http.route
+                    values:
+                      - ^/_internal/sync/forward$
+                      - ^/_internal/backfill/entries$
+                    enabled_regex_matching: true
+                    invert_match: true
+            # Errors and traces slower than 2s are retained above. Keep a
+            # smaller representative sample for healthy traffic to contain
+            # trace ingestion and downstream service-graph cost. Healthy probe
+            # traces (kubelet /up and /ready, metrics scrapes, rollout polls
+            # and the peer /_internal/status health check) carry no diagnostic
+            # value, so they are only kept when they fail or run slow.
             - name: healthy-sample
-              type: probabilistic
-              sampling_percentage: 10
+              type: and
+              and:
+                and_sub_policy:
+                  - name: sample-5-percent
+                    type: probabilistic
+                    sampling_percentage: 5
+                  - name: not-a-probe
+                    type: string_attribute
+                    key: http.route
+                    values:
+                      - ^/(up|ready|metrics|status/rollout)$
+                      - ^/_internal/status$
+                    enabled_regex_matching: true
+                    invert_match: true
           collector:
             alloy:
               resources:
@@ -608,7 +680,10 @@ k8s-monitoring:
         selector = "{service_name=~\"kura-.*-ingress-nginx\", tmp_response_status=~\"2[0-9]{2}|404\"}"
 
         stage.sampling {
-          rate = 0.1
+          // Kura request volume is high and routine 2xx/404 lines are not
+          // useful at the current 10% rate. Keep every error and sample one
+          // percent of normal traffic for capacity and adoption analysis.
+          rate = 0.01
           drop_counter_reason = "kura_ingress_request_sampling"
         }
       }
@@ -717,6 +792,17 @@ k8s-monitoring:
       metricsPortNumber: "prometheus.io/port"
       metricsPath: "prometheus.io/path"
       metricsScheme: "prometheus.io/scheme"
+    # Kura pods export a large per-node metric surface, so they scrape every
+    # 65 seconds instead of the global 60. Set here rather than as a pod
+    # annotation so changing it never restarts the Kura fleet. These rules run
+    # after the chart's own __scrape_interval__ default, so they override it.
+    extraDiscoveryRules: |
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+        regex = "kura"
+        target_label = "__scrape_interval__"
+        replacement = "65s"
+      }
     metricsTuning:
       excludeMetrics:
         # Cilium's event timestamps, BPF map gauges, and agent-internal
@@ -725,9 +811,16 @@ k8s-monitoring:
         # pod/map/endpoint fan-out and are not queried by any dashboard or
         # alert in this repo. Re-add a specific name here if a Cilium
         # integration dashboard is ever installed.
+        #
+        # cilium_bpf_map_pressure is deliberately NOT excluded. A full policy
+        # map surfaces as `Policy denied` drops, indistinguishable from a real
+        # NetworkPolicy denial (see alerts.md, "Kura cache rejecting runner
+        # traffic"), so it has to be ruled out from metrics. Its fan-out is
+        # small: one series per agent per global map, and per-endpoint policy
+        # maps collapse into a single `cilium_policy_v2*` max that Cilium only
+        # emits above 10% fill.
         - cilium_event_ts
         - cilium_bpf_map_capacity
-        - cilium_bpf_map_pressure
         - cilium_bpf_map_ops_total
         - cilium_agent_bootstrap_seconds
         - cilium_api_limiter_.*
@@ -1743,6 +1836,91 @@ k8s-monitoring:
           }
         }
 
+        // Regional Kura ingress controllers (`kura-<region>-ingress-nginx`).
+        // They run host-network on the Kura boxes and are the only place a
+        // malformed response between client and Kura shows up: status `009`
+        // or `000` with a healthy upstream, or a 502 on gRPC. Kura's own
+        // latency and error metrics stay clean while that happens.
+        //
+        // Scraped here rather than through annotationAutodiscovery so the
+        // metric set can be cut to the request counter. The controller also
+        // exports per-Ingress request, response and upstream histograms, and
+        // every Kura instance owns two Ingresses, so its full output grows with
+        // every account admitted to a region.
+        discovery.kubernetes "tuist_kura_ingress_nginx" {
+          role = "pod"
+          namespaces {
+            names = ["platform"]
+          }
+          selectors {
+            role = "pod"
+            label = "app.kubernetes.io/component=controller"
+          }
+        }
+
+        discovery.relabel "tuist_kura_ingress_nginx" {
+          targets = discovery.kubernetes.tuist_kura_ingress_nginx.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex = "kura-.+-ingress-nginx"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_ip"]
+            target_label = "__address__"
+            replacement = "$1:10254"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            regex = "kura-(.+)-ingress-nginx"
+            target_label = "kura_gateway"
+            replacement = "$1"
+          }
+        }
+
+        prometheus.scrape "tuist_kura_ingress_nginx" {
+          targets = discovery.relabel.tuist_kura_ingress_nginx.output
+          forward_to = [prometheus.relabel.tuist_kura_ingress_nginx.receiver]
+          job_name = "kura-ingress-nginx"
+          scrape_interval = "60s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
+        prometheus.relabel "tuist_kura_ingress_nginx" {
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          rule {
+            source_labels = ["__name__"]
+            regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
+            action = "keep"
+          }
+        }
+
     # filesystem-log-reader mounts /var/log so the DaemonSet can tail pod
     # logs from disk (matches the podLogsViaLoki feature).
     alloy-logs:
@@ -1779,6 +1957,145 @@ k8s-monitoring:
           - key: tuist.dev/runner-cache
             operator: Exists
             effect: NoSchedule
+    # Pod logs from a rack's edge node (the rack-edge DaemonSet, see
+    # infra/rack-switch-fleet/AGENTS.md), which alloy-logs cannot collect.
+    # The Cilium agent never runs on that node, so a pod there on the pod
+    # network reaches neither cluster Services nor cluster DNS, and the API
+    # server cannot reach its tailnet-addressed kubelet, so `kubectl logs`
+    # times out too.
+    #
+    # This collector runs on the node's host network instead and reads
+    # /var/log/pods itself. It pushes to the receiver's loki.source.api on
+    # 3100 at the receiver's tailnet name, the path the Mac minis use, so the
+    # Grafana Cloud credential never reaches the node. Enabled per env in
+    # values-<env>.yaml where a rack's edge node is joined.
+    alloy-rack-edge:
+      enabled: false
+      controller:
+        type: daemonset
+        hostNetwork: true
+        # The node's own resolver, which answers tailnet names:
+        # rack:edge-join points the kubelet's resolv.conf at
+        # systemd-resolved's stub.
+        dnsPolicy: Default
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: tuist.dev/rack-edge
+                      operator: Exists
+        tolerations:
+          - key: tuist.dev/rack-edge
+            operator: Exists
+            effect: NoSchedule
+        volumes:
+          extra:
+            - name: storage
+              hostPath:
+                path: /var/lib/tuist-alloy-rack-edge
+                type: DirectoryOrCreate
+      alloy:
+        mounts:
+          varlog: true
+          extra:
+            - name: storage
+              mountPath: /var/lib/alloy
+        # Read positions survive a restart on the node. The receiver stamps
+        # each line with the time it arrives, so a restart that read the
+        # files again from the start would ship them again as new lines.
+        storagePath: /var/lib/alloy
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      # There is no API access from the node, so namespace, pod and container
+      # come from the log file's path, /var/log/pods/<namespace>_<pod>_<uid>/
+      # <container>/<n>.log, and service_name falls back to the container,
+      # as it does for pods without an app.kubernetes.io/name label.
+      extraConfig: |
+        local.file_match "rack_edge_pod_logs" {
+          path_targets = [{"__path__" = "/var/log/pods/*/*/*.log"}]
+        }
+
+        discovery.relabel "rack_edge_pod_logs" {
+          targets = local.file_match.rack_edge_pod_logs.targets
+          rule {
+            source_labels = ["__path__"]
+            regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
+            target_label = "namespace"
+            replacement = "$1"
+          }
+          rule {
+            source_labels = ["__path__"]
+            regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
+            target_label = "pod"
+            replacement = "$2"
+          }
+          rule {
+            source_labels = ["__path__"]
+            regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
+            target_label = "container"
+            replacement = "$3"
+          }
+          rule {
+            source_labels = ["__path__"]
+            regex = "/var/log/pods/([^_]+)_([^_]+)_[^/]+/([^/]+)/.*"
+            target_label = "job"
+            replacement = "$1/$3"
+          }
+          rule {
+            source_labels = ["container"]
+            target_label = "service_name"
+          }
+          rule {
+            source_labels = ["namespace"]
+            target_label = "service_namespace"
+          }
+          rule {
+            source_labels = ["namespace", "pod", "container"]
+            separator = "."
+            target_label = "service_instance_id"
+          }
+        }
+
+        loki.source.file "rack_edge_pod_logs" {
+          targets = discovery.relabel.rack_edge_pod_logs.output
+          forward_to = [loki.process.rack_edge_pod_logs.receiver]
+        }
+
+        loki.process "rack_edge_pod_logs" {
+          stage.cri {}
+
+          stage.labels {
+            values = {
+              flags = "",
+              stream = "",
+            }
+          }
+
+          stage.structured_metadata {
+            values = {
+              pod = "pod",
+              service_instance_id = "service_instance_id",
+            }
+          }
+
+          stage.label_drop {
+            values = ["filename", "pod", "service_instance_id"]
+          }
+
+          forward_to = [loki.write.tuist_alloy_receiver.receiver]
+        }
+
+        loki.write "tuist_alloy_receiver" {
+          endpoint {
+            url = "http://{{ required "alloy-rack-edge pushes to the receiver's tailnet name: set tailscale.com/hostname on collectors.alloy-receiver.service.annotations" (dig "alloy-receiver" "service" "annotations" "tailscale.com/hostname" "" .Values.collectors) }}.taild6d7bb.ts.net:3100/loki/api/v1/push"
+          }
+        }
     # Kubernetes Events must come from exactly one replica — otherwise
     # every pod watches the event stream and emits duplicate log lines.
     alloy-singleton:
