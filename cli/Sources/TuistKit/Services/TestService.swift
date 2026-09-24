@@ -856,7 +856,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             mode: mode,
             onlyTestIdentifiers: testTargets.map(\.description),
             skipTestIdentifiers: skipTestTargets.map(\.description),
-            stressNewTests: stressResult
+            stressNewTests: stressResult,
+            // The run's selective-testing hits weren't skipped by this shard.
+            selectiveTestingTargets: []
         )
 
         if let selectiveTestingGraph = shard.selectiveTestingGraph {
@@ -2386,7 +2388,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
     }
 
-    /// `nil` when selective testing didn't apply. `targets` scopes the count to a scheme's test targets.
+    /// `nil` when selective testing didn't apply to `targets`, or to the whole run when `targets` is `nil`.
     private func selectiveTestingSkippedTestModules(in targets: Set<GraphTarget>?) async -> Int? {
         let cacheItems = await RunMetadataStorage.current.selectiveTestingCacheItems
         let scopedCacheItems = if let targets {

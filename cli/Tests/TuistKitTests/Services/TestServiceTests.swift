@@ -5090,6 +5090,96 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
+    func test_run_testWithoutBuilding_shard_doesNotReportTheRunsSelectiveTestingHitsAsSkippedByTheShard() async throws {
+        // Given
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"])
+                )
+            )
+
+        await runMetadataStorage.update(
+            selectiveTestingCacheItems: [
+                path: [
+                    "AppTests": .test(name: "AppTests", source: .miss, cacheCategory: .selectiveTests),
+                    "CoreTests": .test(name: "CoreTests", source: .miss, cacheCategory: .selectiveTests),
+                    "UITests": .test(name: "UITests", source: .miss, cacheCategory: .selectiveTests),
+                    "FeatureTests": .test(name: "FeatureTests", source: .remote, cacheCategory: .selectiveTests),
+                    "NetworkTests": .test(name: "NetworkTests", source: .local, cacheCategory: .selectiveTests),
+                ],
+            ]
+        )
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(
+                TestResultStatuses(testCases: [
+                    .init(name: "testExample", testSuite: "AppSuite", module: "AppTests", status: .passed),
+                ])
+            )
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                schemeName: "App",
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 0
+            )
+        }
+
+        // Then
+        let testRunReports = await runMetadataStorage.testRunReports
+        XCTAssertEqual(
+            testRunReports,
+            [
+                RunReportTestRun(
+                    scheme: "App",
+                    totalTests: 1,
+                    skippedTests: 0,
+                    failedTestNames: [],
+                    ranTestModules: 1,
+                    skippedTestModules: nil
+                ),
+            ]
+        )
+    }
+
     func test_run_testWithoutBuilding_shard_routesSelectiveTestHashesToLocalStorage_whenNoUpload() async throws {
         // Given
         let path = try temporaryPath()
