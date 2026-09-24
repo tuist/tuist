@@ -97,6 +97,8 @@ Every component uses the same three channels:
 
 Canary and RC builds are published as GitHub prereleases (never marked "Latest", never move `:latest` on GHCR, never pushed to Homebrew for the CLI), so package managers and image resolvers only pick them up on explicit opt-in. Canary always targets the next unreleased minor: once an RC line is cut, `main`'s canary advances to the following minor.
 
+Hosted Tuist does not wait for the stable train: the server deploys per commit, and hosted Kura runs the newest Kura canary.
+
 You never hand-pick version numbers. Every channel's next version is derived from the existing git tags by `mise/tasks/<component>/release/channel-version.sh`, which the workflows below invoke.
 
 Release branches are namespaced per component (`releases/server-X.Y.x`, `releases/kura-X.Y.x`, `releases/X.Y.x` for the CLI) so the three components' lines never collide at the same minor.

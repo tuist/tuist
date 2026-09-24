@@ -12,10 +12,11 @@ name: Kura Canary Release
 # Canary always targets the next unreleased minor: once an RC line is cut,
 # main's canary advances to the following minor.
 #
-# NOTE: this workflow is orthogonal to server-production-deployment.yml.
-# The hosted server's deploy tail resolves the Kura runtime image tag from
-# git at deploy time (server-deployment.yml resolves `kura@` semvers), so
-# it continues to pick up the most recent stable Kura release automatically.
+# Hosted environments run these canaries: server-deployment.yml pins the
+# newest `kura@` canary in the deployed commit, and the `deploy` job below
+# dispatches the server deploy cascade once a canary is published, so a
+# Kura change reaches hosted production like a server change does. The
+# RC/stable train only serves self-hosted operators.
 on:
   push:
     branches:
@@ -92,3 +93,16 @@ jobs:
       make_latest: false
       prerelease: true
     secrets: inherit
+
+  deploy:
+    name: Deploy canary to hosted environments
+    needs: build-publish
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch Server Production Deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run server-production-deployment.yml --repo "${{ github.repository }}" --ref main

@@ -126,10 +126,10 @@ jobs:
       # Server and Kura releases moved out of this pipeline into
       # server-{release,rc,promote}.yml and kura-{release,rc,promote}.yml,
       # which publish canary / RC / stable image tags on their own weekly
-      # release-train schedule. This pipeline's deploy tail continues to
-      # resolve the Kura runtime tag from `git tag -l 'kura@*'` at deploy
-      # time (server-deployment.yml), so hosted deploys pick up the
-      # newest promoted Kura on the next merge.
+      # release-train schedule. This pipeline's deploy tail resolves the
+      # Kura runtime tag to the newest `kura@` canary in the deployed commit
+      # (server-deployment.yml); kura-release.yml dispatches this workflow
+      # after each canary so a Kura-only merge also deploys.
       helm-should-release: ${{ steps.check.outputs.helm-should-release }}
       helm-next-version: ${{ steps.check.outputs.helm-next-version }}
       helm-next-version-number: ${{ steps.check.outputs.helm-next-version-number }}
@@ -1590,20 +1590,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-          # Full history + tags to resolve the same kura@ release tag the
+          # Full history + tags to resolve the same kura@ canary tag the
           # canary deploy pinned.
           fetch-depth: 0
       - name: Wait for the canary Kura rollout to complete
         run: |
           set -euo pipefail
-          # No --merged filter: the promoted kura@ tag now lives on
-          # releases/kura-X.Y.x, which is not ancestor of main HEAD. This
-          # matches how server-deployment.yml's resolver picks the tag the
-          # canary was actually deployed with.
-          kura_tag="$(git tag --list 'kura@*' \
+          # Mirrors server-deployment.yml's resolver: the newest canary this
+          # commit contains, else (commits predating canaries) the newest
+          # stable tag.
+          kura_tag="$(git tag --list 'kura@*' --merged "${{ github.sha }}" \
             | sed 's|^kura@||' \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-            | sort -V | tail -n1)"
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
+            | sort -V | tail -n1 || true)"
+          if [ -z "$kura_tag" ]; then
+            kura_tag="$(git tag --list 'kura@*' \
+              | sed 's|^kura@||' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V | tail -n1 || true)"
+          fi
           if [ -z "$kura_tag" ]; then
             echo "No kura@ release tag reachable from this commit; nothing to gate."
             exit 0
