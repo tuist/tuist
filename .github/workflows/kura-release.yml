@@ -1,6 +1,6 @@
 name: Kura Canary Release
 
-# Every Kura-touching commit to main publishes a canary prerelease
+# Every Kura change on main publishes a canary prerelease
 # (kura@X.Y.0-canary.N). Canaries are the bleeding edge: marked as a GitHub
 # prerelease, never moved to "Latest", and never push :latest on GHCR, so
 # self-hosted operators pinning `ghcr.io/tuist/kura:<semver>` or `:latest`
@@ -12,22 +12,14 @@ name: Kura Canary Release
 # Canary always targets the next unreleased minor: once an RC line is cut,
 # main's canary advances to the following minor.
 #
-# Hosted environments run these canaries: server-deployment.yml pins the
-# newest `kura@` canary in the deployed commit, and a Kura change triggers
-# the server deploy cascade like a server change does. The RC/stable train
-# only serves self-hosted operators.
+# server-production-deployment.yml calls this workflow when kura/ changed,
+# before its deploy cascade, because hosted environments run the newest
+# canary in the deployed commit (server-deployment.yml). Publishing inside
+# that serialized run guarantees the canary exists before the deploy
+# resolves it. The RC/stable train only serves self-hosted operators.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - kura/**
-      - mise/tasks/kura/**
-      - mise/tasks/release/components.json
-      - .github/workflows/kura-release.yml
-      - .github/workflows/kura-rc.yml
-      - .github/workflows/kura-promote.yml
-      - .github/workflows/kura-build-publish.yml
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: write
