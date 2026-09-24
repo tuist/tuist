@@ -49,8 +49,8 @@ const (
 )
 
 // RackInstall publishes installs for rack Linux hosts to netboot. The rack's
-// boot server (the rack-boot DaemonSet on its edge node) serves what the
-// operator writes to the <fleet>-boot Secret.
+// boot server (the rack-boot DaemonSet on the site's edge nodes) serves what
+// the operator writes to the <fleet>-boot Secret.
 type RackInstall struct {
 	// FleetName names the fleet's Secrets: <fleet>-ssh, whose public half
 	// every install authorizes, <fleet>-boot, which the boot server serves,
@@ -70,9 +70,11 @@ func rackConsoleSecretName(fleet string) string { return fleet + "-console" }
 
 // reconcileInstall publishes an install for a host that has never joined the
 // tailnet, or whose reinstall was requested, and withdraws it once a new
-// device shows the install ran. A requested reinstall of a running host is
-// started by setting its firmware to netboot once and rebooting it. It returns
-// how soon to look again, zero for the usual interval.
+// device shows the install ran. An edge's install is published only while
+// another edge of its site is connected to serve it, or once the edge was
+// rebooted into it. A requested reinstall of a running host is started by
+// setting its firmware to netboot once and rebooting it. It returns how soon to
+// look again, zero for the usual interval.
 func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *infrav1.RackLinuxHost) (time.Duration, error) {
 	if r.Install == nil {
 		return 0, nil
@@ -115,11 +117,23 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 	}
 	switch host.Spec.Role {
 	case "edge":
-		if err := r.withdrawInstall(ctx, host); err != nil {
+		served, err := r.anotherEdgeServes(ctx, host)
+		if err != nil {
 			return 0, err
 		}
+		if served || (inst != nil && inst.TriggeredAt != nil) {
+			break
+		}
+		if inst != nil {
+			if err := r.withdrawInstall(ctx, host); err != nil {
+				return 0, err
+			}
+			r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallWithdrawn",
+				"Withdrew install %s: no other edge of site %s is on the tailnet to serve it", inst.KeyID, host.Spec.Location.Site)
+		}
 		conditions.MarkFalse(host, InstalledCondition, "ServesTheNetboot", clusterv1.ConditionSeverityWarning,
-			"%s runs the rack's boot server, so it cannot netboot from it; install it from a stick written by rack:write-install-usb", host.Name)
+			"no other edge of site %s is on the tailnet to serve %s's netboot; install it from a stick written by rack:write-install-usb",
+			host.Spec.Location.Site, host.Name)
 		return 0, nil
 	case "storage":
 		conditions.MarkFalse(host, InstalledCondition, "NoStorageLayout", clusterv1.ConditionSeverityWarning,
@@ -261,6 +275,23 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		key.ID, host.Name, host.Spec.BootMAC, strings.Join(host.Spec.Tailnet.Tags, ","), expires.UTC().Format(time.RFC3339))
 	log.FromContext(ctx).Info("published a rack host install", "host", host.Name, "key", key.ID)
 	return nil
+}
+
+// anotherEdgeServes reports whether another edge of the host's site is
+// connected to the tailnet, so its boot server can serve the host's netboot.
+func (r *RackLinuxHostReconciler) anotherEdgeServes(ctx context.Context, host *infrav1.RackLinuxHost) (bool, error) {
+	hosts := &infrav1.RackLinuxHostList{}
+	if err := r.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
+		return false, err
+	}
+	for i := range hosts.Items {
+		h := &hosts.Items[i]
+		if h.Name != host.Name && h.Spec.Role == "edge" && h.Spec.Location.Site == host.Spec.Location.Site &&
+			h.Status.Tailnet != nil && h.Status.Tailnet.Connected {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // installServed reports whether the boot Secret still carries the published

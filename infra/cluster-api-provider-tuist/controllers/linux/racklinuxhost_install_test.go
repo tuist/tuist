@@ -321,15 +321,144 @@ func TestRackInstallWithdrawsWhenTheReinstallIsCancelled(t *testing.T) {
 	}
 }
 
-func TestRackInstallNeverPublishesForTheEdge(t *testing.T) {
+func installableEdge() *infrav1.RackLinuxHost {
 	host := edgeHost()
 	host.Spec.BootMAC = svcMAC
-	h := newInstallHarness(t, host)
+	return host
+}
+
+func otherEdge(name, namespace, site, role string, connected bool) *infrav1.RackLinuxHost {
+	host := edgeHost()
+	host.Name, host.Namespace = name, namespace
+	host.Spec.Role = role
+	host.Spec.Location.Site = site
+	host.Status.Tailnet = &infrav1.RackLinuxHostTailnetStatus{DeviceID: name + "-device", Name: name + ".example.ts.net", Address: "100.64.0.20", Connected: connected}
+	return host
+}
+
+func TestRackInstallPublishesForAnEdgeAnotherEdgeOfItsSiteServes(t *testing.T) {
+	h := newInstallHarness(t, installableEdge(), otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true))
 	got := h.reconcile(t, "ber1-edge")
-	if len(h.api.minted) != 0 || got.Status.Install != nil || h.boot(t) != nil {
-		t.Fatalf("minted %v install %+v", h.api.minted, got.Status.Install)
+
+	if len(h.api.minted) != 1 || h.api.minted[0] != "tag:tuist-rack-edge" {
+		t.Fatalf("minted %v, want one key tagged with the edge's tags", h.api.minted)
+	}
+	if got.Status.Install == nil || got.Status.Install.BootMAC != svcMAC {
+		t.Fatalf("install %+v", got.Status.Install)
+	}
+	boot := h.boot(t)
+	for _, suffix := range []string{".ipxe", ".user-data", ".meta-data"} {
+		if _, ok := boot[svcMACPath+suffix]; !ok {
+			t.Errorf("%s is not published", suffix)
+		}
+	}
+	if !strings.Contains(string(boot[svcMACPath+".user-data"]), "hostname: ber1-edge") {
+		t.Error("the published seed is not the edge's")
+	}
+	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "WaitingForNetboot" {
+		t.Fatalf("Installed %+v", c)
+	}
+}
+
+func TestRackInstallNeverPublishesForAnEdgeNoOtherEdgeServes(t *testing.T) {
+	for name, others := range map[string][]runtime.Object{
+		"the only edge":                  nil,
+		"the other edge is disconnected": {otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", false)},
+		"the other edge is off the tailnet": {func() runtime.Object {
+			o := otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true)
+			o.Status.Tailnet = nil
+			return o
+		}()},
+		"the other edge is in another site":      {otherEdge("fra1-edge", rackTestNamespace, "fra1", "edge", true)},
+		"the other edge is in another namespace": {otherEdge("ber1-edge-b", "tuist-production", "ber1", "edge", true)},
+		"the connected host is not an edge":      {otherEdge("ber1-svc", rackTestNamespace, "ber1", "services", true)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newInstallHarness(t, append([]runtime.Object{installableEdge()}, others...)...)
+			got := h.reconcile(t, "ber1-edge")
+			if len(h.api.minted) != 0 || got.Status.Install != nil || h.boot(t) != nil {
+				t.Fatalf("minted %v install %+v", h.api.minted, got.Status.Install)
+			}
+			c := conditions.Get(got, InstalledCondition)
+			if c == nil || c.Reason != "ServesTheNetboot" || !strings.Contains(c.Message, "no other edge of site ber1") || !strings.Contains(c.Message, "rack:write-install-usb") {
+				t.Fatalf("Installed %+v", c)
+			}
+		})
+	}
+}
+
+func TestRackInstallWithdrawsAnEdgeInstallWhoseServingEdgeWentAway(t *testing.T) {
+	host := installableEdge()
+	host.Annotations = map[string]string{RackReinstallAnnotation: "true"}
+	h := newInstallHarness(t, host, otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true))
+	h.api.devices = []tailnet.Device{edgeDevice("old", "ber1-edge", "2026-09-01T00:00:00Z", true, "100.64.0.7")}
+
+	got := h.reconcile(t, "ber1-edge")
+	if got.Status.Install == nil || got.Status.Install.PreviousDeviceID != "old" {
+		t.Fatalf("install %+v, want one published while ber1-edge-b serves", got.Status.Install)
+	}
+
+	serving := &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge-b"}, serving); err != nil {
+		t.Fatal(err)
+	}
+	serving.Status.Tailnet.Connected = false
+	if err := h.c.Status().Update(context.Background(), serving); err != nil {
+		t.Fatal(err)
+	}
+
+	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	got = h.reconcile(t, "ber1-edge")
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the edge into a netboot no other edge serves")
+	}
+	if got.Status.Install != nil {
+		t.Fatalf("install %+v, want it withdrawn", got.Status.Install)
+	}
+	for _, suffix := range []string{".user-data", ".meta-data", ".ipxe"} {
+		if _, ok := h.boot(t)[svcMACPath+suffix]; ok {
+			t.Errorf("%s is still published", suffix)
+		}
 	}
 	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "ServesTheNetboot" {
+		t.Fatalf("Installed %+v", c)
+	}
+}
+
+func TestRackInstallKeepsAnEdgeInstallItAlreadyRebootedIntoWhenItsServingEdgeDrops(t *testing.T) {
+	host := installableEdge()
+	host.Annotations = map[string]string{RackReinstallAnnotation: "true"}
+	h := newInstallHarness(t, host, otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true))
+	h.api.devices = []tailnet.Device{edgeDevice("old", "ber1-edge", "2026-09-01T00:00:00Z", true, "100.64.0.7")}
+
+	h.reconcile(t, "ber1-edge")
+	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	got := h.reconcile(t, "ber1-edge")
+	if len(h.runner.runs) != 1 || got.Status.Install == nil || got.Status.Install.TriggeredAt == nil {
+		t.Fatalf("runs %d install %+v, want the edge rebooted into its netboot", len(h.runner.runs), got.Status.Install)
+	}
+
+	serving := &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge-b"}, serving); err != nil {
+		t.Fatal(err)
+	}
+	serving.Status.Tailnet.Connected = false
+	if err := h.c.Status().Update(context.Background(), serving); err != nil {
+		t.Fatal(err)
+	}
+
+	h.now = h.now.Add(time.Minute)
+	got = h.reconcile(t, "ber1-edge")
+	if got.Status.Install == nil {
+		t.Fatal("withdrew the install the edge was already rebooted into")
+	}
+	if _, ok := h.boot(t)[svcMACPath+".ipxe"]; !ok {
+		t.Error("the install's iPXE script is no longer published")
+	}
+	if len(h.runner.runs) != 1 {
+		t.Fatalf("rebooted the edge %d times", len(h.runner.runs))
+	}
+	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "Reinstalling" {
 		t.Fatalf("Installed %+v", c)
 	}
 }

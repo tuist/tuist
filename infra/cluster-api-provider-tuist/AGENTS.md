@@ -620,13 +620,16 @@ Secret lost them; `status.install` records the key, the MAC and the device the
 install replaces. The fleet key's public half and `--rack-linux-authorized-key`
 are authorized, and the console password is minted once per host into
 `<fleet>-console`. A reinstall of a connected host sets `BootNext` to its PXE
-entry for the MAC over SSH, two minutes after publishing, and reboots it, once. A new device other than the
-replaced one withdraws the install and removes the annotation. `edge` hosts run
-the boot server and get no install; `storage` has no layout yet. The `Installed`
-condition says which step a host is on. The same controller scales the
-MachineDeployment labelled `tuist.dev/rack-pool=<pool>` up to the number of the
-pool's hosts on the tailnet, never down, so the chart can declare a host before
-it is installed.
+entry for the MAC over SSH, two minutes after publishing, and reboots it, once.
+A new device other than the replaced one withdraws the install and removes the
+annotation. An `edge` host gets an install only while another `edge` of the
+same `spec.location.site` is connected to the tailnet to serve it, or once it
+was rebooted into it; otherwise its install is withdrawn and it is installed
+from a stick. `storage` has no layout
+yet. The `Installed` condition says which step a host is on. The same
+controller scales the MachineDeployment labelled `tuist.dev/rack-pool=<pool>` up
+to the number of the pool's hosts on the tailnet, never down, so the chart can
+declare a host before it is installed.
 
 **The kubelet's identity is `system:node:<host>`, not an operator-minted
 ServiceAccount.** The converge script exits 42 when the kubelet has no valid
