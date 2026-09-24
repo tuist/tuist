@@ -794,9 +794,10 @@ Both edges are to advertise the same Tailscale subnet routes once the data
 center's networks exist, so the tailnet fails over between them too. Nothing
 advertises a route today: at home the management prefix is the house network.
 
-**Reading the pod's logs.** The API server cannot reach the kubelet at a tailnet
-address, the same as for the Mac minis, so `kubectl logs` and `exec` time out
-for these nodes. The pod's logs are in Loki like any other pod's:
+**Reading the pod's logs.** `kubectl logs` and `exec` reach the edges' kubelets
+through a proxy Pod per node (see "Logs and exec" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
+The pod's logs are also in Loki like any other pod's:
 
 ```
 {cluster="tuist-staging", namespace="omada", container="dhcp"}

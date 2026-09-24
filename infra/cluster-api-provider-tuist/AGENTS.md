@@ -671,8 +671,23 @@ kubectl get rlm -o wide             # machines: host, phase, last converge
 kubectl describe rlm <name>         # HostConverged / TailnetReady / NodeReady, events
 ```
 
-The API server cannot reach a kubelet at a tailnet address, so `kubectl logs`
-and `exec` time out for these nodes, as for the Mac minis.
+**Logs and exec.** The API server cannot reach a tailnet address, so each host
+also gets a kubelet egress Service, `rack-linux-<host>-kubelet`, outside the
+ProxyGroup. The Tailscale operator runs a proxy Pod of its own for it, which
+forwards every port to the host's tailnet address. The kubelet runs with
+`--cloud-provider=external` and leaves the Node's addresses to the operator
+(`rack_kubelet_address.go`): InternalIP is the tailnet address, ExternalIP the
+proxy Pod's address while that Pod is Ready, and Hostname the host's name. The
+staging API server dials ExternalIP first, so `kubectl logs`, `exec` and
+`port-forward` go through the proxy, and the ExternalIP follows the Pod when it
+moves. The operator also lifts `node.cloudprovider.kubernetes.io/uninitialized`
+once the addresses are set, without waiting for the proxy. Until the proxy Pod
+is Ready, `logs` and `exec` time out as for the Mac minis.
+
+```bash
+kubectl -n tailscale-operator get pod -l tailscale.com/parent-resource=rack-linux-<host>-kubelet -o wide
+kubectl get node <host> -o jsonpath='{.status.addresses}'
+```
 
 ## Host macOS updates
 

@@ -95,6 +95,9 @@ func rackKubeletUnit(o rackConvergeOptions) string {
 		"--hostname-override=" + o.NodeName,
 		"--node-ip=" + o.NodeIP,
 		"--node-labels=" + sortedLabels(rackNodeLabels(o.NodeLabels)),
+		// The operator owns the node's addresses and adds one the control
+		// plane can reach (rack_kubelet_address.go).
+		"--cloud-provider=external",
 	} {
 		args.WriteString(" \\\n  " + a)
 	}

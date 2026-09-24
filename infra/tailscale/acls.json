@@ -360,13 +360,15 @@
 			"ip":  ["tcp:22"],
 		},
 
-		// Staging cluster → the BER1 rack's Linux nodes, on SSH only: the
-		// operator joins each one over its own tailnet address and keeps it
-		// converged (RackLinuxMachine), through the macmini-egress ProxyGroup.
+		// Staging cluster → the BER1 rack's Linux nodes. SSH: the operator
+		// joins each one over its own tailnet address and keeps it converged
+		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
+		// API server reaches each node's kubelet (logs, exec, port-forward)
+		// through the node's own kubelet proxy Pod, which the operator runs.
 		{
 			"src": ["tag:tuist-k8s-staging"],
 			"dst": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
-			"ip":  ["tcp:22"],
+			"ip":  ["tcp:22", "tcp:10250"],
 		},
 
 		// The BER1 switches → the Omada controller in the staging cluster, on
@@ -386,8 +388,8 @@
 
 		// The BER1 edge node → the staging Alloy receiver's loki.source.api.
 		// The node's pod logs (alloy-rack-edge in infra/helm/k8s-monitoring)
-		// have no other way into Loki: the API server cannot reach the node's
-		// kubelet, and the node has no route to cluster Services.
+		// have no other way into Loki: the node has no route to cluster
+		// Services.
 		{
 			"src": ["tag:tuist-rack-edge"],
 			"dst": ["tag:tuist-k8s-staging"],
@@ -625,7 +627,12 @@
 	"tests": [
 		{
 			"src": "tag:tuist-k8s-staging",
-			"accept": ["tag:tuist-rack-edge:22", "tag:tuist-rack-node:22"],
+			"accept": [
+				"tag:tuist-rack-edge:22",
+				"tag:tuist-rack-node:22",
+				"tag:tuist-rack-edge:10250",
+				"tag:tuist-rack-node:10250",
+			],
 		},
 		{
 			"src": "tag:tuist-k8s-staging",

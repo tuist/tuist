@@ -160,3 +160,11 @@ func TestParseControlPlaneVersion(t *testing.T) {
 		t.Fatal("parsed a version without a patch release")
 	}
 }
+
+// The kubelet leaves the node's addresses to the operator, which adds the one
+// the API server can reach.
+func TestRackConvergeScriptLeavesTheNodeAddressesToTheOperator(t *testing.T) {
+	if script := renderRackConvergeScript(edgeConvergeOptions()); !strings.Contains(script, "--cloud-provider=external") {
+		t.Fatal("the kubelet would overwrite the addresses the operator sets")
+	}
+}

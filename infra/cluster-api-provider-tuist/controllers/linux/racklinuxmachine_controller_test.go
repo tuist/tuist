@@ -131,7 +131,7 @@ func newRackMachineHarness(t *testing.T, cpVersion string, objs ...runtime.Objec
 		t.Fatal(err)
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.RackLinuxHost{}, &infrav1.RackLinuxMachine{}).Build()
+		WithStatusSubresource(&infrav1.RackLinuxHost{}, &infrav1.RackLinuxMachine{}, &corev1.Node{}).Build()
 	runner := &fakeRunner{}
 	r := &RackLinuxMachineReconciler{
 		Client:             c,

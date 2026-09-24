@@ -199,6 +199,9 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 	if err := r.egress().ensure(ctx, r.Client, host); err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
 	}
+	if err := r.reconcileNodeAddresses(ctx, host, node); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	opts, holdReason, err := r.convergeOptions(ctx, machine, host)
 	if err != nil {
@@ -703,6 +706,7 @@ func (r *RackLinuxMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&infrav1.RackLinuxMachine{}).
 		Watches(&clusterv1.Machine{}, handler.EnqueueRequestsFromMapFunc(rackLinuxMachineForCAPIMachine)).
 		Watches(&infrav1.RackLinuxHost{}, handler.EnqueueRequestsFromMapFunc(r.machinesForHost)).
+		Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.machineForKubeletProxy)).
 		Complete(r)
 }
 
