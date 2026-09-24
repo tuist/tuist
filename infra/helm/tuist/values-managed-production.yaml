@@ -523,39 +523,66 @@ postgresql:
       destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
-  # The in-cluster ClickHouse (spec #73). Off until the machines exist: with
-  # `enabled: true` and no node in the `clickhouse` pool the StatefulSet's pods
-  # and their volume stay Pending and `helm --wait` fails the deploy.
-  #
-  # Turning it on is step 2 of the rollout plan in the pull request. Nothing
-  # here is reachable before that, and every step after it is a separate deploy
-  # with its own gate.
-  #
-  # The machines are no longer the only gate. The `clickhouse` pool is two
-  # nodes, and the local PersistentVolume this chart renders binds on the pool
-  # label rather than a node name, so with one volume and two candidate nodes
-  # nothing stops the scheduler placing the pod on the node that does not hold
-  # the data. A volume per host has to land before this can be `true`, at one
-  # replica as much as at two.
+  # The in-cluster ClickHouse (spec #73), running alongside ClickHouse Cloud
+  # while the copy is built. `mode` stays `external` in
+  # `values-managed-common.yaml`: Cloud is the system of record until the
+  # cutover, and this workload takes backfilled history and shadow writes
+  # until then. Staging and canary have both finished that sequence, canary on
+  # 2026-09-17 and staging on 2026-09-22.
   managed:
-    enabled: false
-    # One replica to begin with, which is the shape staging proved end to end,
-    # so the copy and the soak can start as soon as a box lands. A second one
-    # needs its own box, named in `persistence.localVolume.nodeNames`.
+    enabled: true
+    # Two from the start, one per AX102-4 in the `clickhouse` pool
+    # (#3080350 and #3080353, FSN1-DC5). Canary proved the shape on
+    # 2026-09-22: a joining replica clones from its peer and stays out of the
+    # Service until `/replicas_status` says it has caught up.
     #
-    # A single replica is not the shape to *finish* on: after the cutover the
-    # system of record would live on one machine, with the backups below as the
-    # only other copy.
-    replicas: 1
-    keeper:
-      replicas: 1
-    # The dataset was 1.69 TiB in September and grows about 0.25 TiB a month,
-    # so this is roughly a year of headroom on the box's 7.68 TB. The local PV
-    # is not a quota — the pod can use whatever `/data` has — so this is a
-    # statement of intent rather than a limit, and the number to watch is the
-    # filesystem's.
+    # Two is also where this has to finish. After the cutover the system of
+    # record cannot live on one machine with only the backups below beside it.
+    # Starting at two avoids the two-deploy dance canary needed to add its
+    # second replica, where the configuration a joining replica fetches from
+    # has to reach the running one first.
+    replicas: 2
     persistence:
+      # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
+      # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
+      # September and grows about 0.25 TiB a month, so that is over a year of
+      # headroom even at a 70% fill target.
+      #
+      # The local PV is not a quota. The pod can use whatever `/data` has, so
+      # this is a statement of intent and the number to watch is the
+      # filesystem's.
       size: 3000Gi
+      localVolume:
+        # Replica `i` runs on `nodeNames[i]`, each with its volume reserved
+        # for that ordinal. CAPI generates these names, so replacing a box
+        # means editing this and rebuilding that replica from its peer.
+        nodeNames:
+          - bm-tuist-md-clickhouse-dp8tk-bnhcr-4fcqx
+          - bm-tuist-md-clickhouse-dp8tk-bnhcr-964hd
+    keeper:
+      # Three, unlike staging and canary, because this cluster starts fresh:
+      # a quorum that tolerates losing a member costs nothing to stand up now
+      # and is a membership change on a live ensemble later, where members
+      # started with the larger configuration can elect a leader between
+      # themselves holding none of the existing member's metadata.
+      #
+      # Keeper runs on the general pool rather than these two boxes, so one
+      # machine failing cannot take both a data replica and the quorum.
+      replicas: 3
+    # Reachable over the tailnet as well as in-cluster, because the
+    # xcresult-processor is not on the pod network: it runs in a Tart VM on
+    # the macOS fleet, so the Service name every other writer resolves does
+    # not resolve for it. Without this it mirrors nothing while Cloud is the
+    # system of record, and writes nothing once this server is.
+    #
+    # `tag:tuist-k8s-production` rather than the fleet's own tag: the proxy
+    # node is created by this cluster's operator, and the wrong tag makes the
+    # operator refuse with `requested tags are invalid or not permitted`,
+    # leaving no proxy and a hostname that never resolves.
+    tailscale:
+      enabled: true
+      hostname: tuist-clickhouse-production
+      tags: tag:tuist-k8s-production
     backup:
       enabled: true
 
