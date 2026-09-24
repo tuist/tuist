@@ -35,6 +35,8 @@ defmodule Tuist.Repo.Migrations.ScopeCacheVolumesByPlatform do
   end
 
   def down do
+    # Read-only guard prevents collapsing stored macOS identities during rollback.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     DO $$ BEGIN
       IF EXISTS (SELECT 1 FROM runner_cache_volumes WHERE platform <> 'linux') THEN
@@ -67,6 +69,8 @@ defmodule Tuist.Repo.Migrations.ScopeCacheVolumesByPlatform do
          )
 
     alter table(:runner_cache_volumes) do
+      # The guard above permits removing only the redundant Linux default.
+      # excellent_migrations:safety-assured-for-next-line column_removed
       remove :platform
     end
   end

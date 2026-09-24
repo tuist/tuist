@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -37,6 +38,10 @@ type CustomVolumes struct {
 	HTTP                                       *http.Client
 	Running                                    func(context.Context, string) (bool, error)
 	ready                                      atomic.Bool
+	tokenMu                                    sync.Mutex
+	tokenValue                                 string
+	tokenUntil                                 time.Time
+	lastReport                                 time.Time
 }
 
 func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
@@ -63,13 +68,23 @@ func (c *CustomVolumes) Share(pod *corev1.Pod) (string, error) {
 }
 
 func (c *CustomVolumes) token(ctx context.Context) (string, error) {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+	if c.tokenValue != "" && time.Now().Before(c.tokenUntil) {
+		return c.tokenValue, nil
+	}
 	ttl := int64(600)
 	token, err := c.Kube.CoreV1().ServiceAccounts(c.Namespace).CreateToken(ctx, c.ServiceAccount,
 		&authenticationv1.TokenRequest{Spec: authenticationv1.TokenRequestSpec{ExpirationSeconds: &ttl}}, metav1.CreateOptions{})
 	if err != nil {
 		return "", err
 	}
-	return token.Status.Token, nil
+	c.tokenValue = token.Status.Token
+	c.tokenUntil = time.Now().Add(5 * time.Minute)
+	if expiry := token.Status.ExpirationTimestamp.Time.Add(-30 * time.Second); !token.Status.ExpirationTimestamp.IsZero() && expiry.Before(c.tokenUntil) {
+		c.tokenUntil = expiry
+	}
+	return c.tokenValue, nil
 }
 
 func (c *CustomVolumes) request(ctx context.Context, operation string, body any, result any) (int, error) {
@@ -221,7 +236,7 @@ func (c *CustomVolumes) report(slot cachevolumes.Slot, gone bool) (string, error
 	var result struct {
 		Action string `json:"action"`
 	}
-	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS}, &result)
+	_, err := c.request(ctx, "report", map[string]any{"id": slot.ID, "node_name": c.Node, "state": slot.State, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": nil}, &result)
 	return result.Action, err
 }
 
@@ -238,6 +253,10 @@ func (c *CustomVolumes) reconcile(ctx context.Context) error {
 			log.FromContext(ctx).Error(err, "custom cache request", "pod", pod.Name)
 		}
 	}
+	if time.Since(c.lastReport) < 30*time.Second {
+		return nil
+	}
+	c.lastReport = time.Now()
 	if err = c.Store.Reconcile(c.gone, c.report); err != nil {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -120,5 +121,33 @@ func TestCustomVolumeMailboxUsesHostIdentity(t *testing.T) {
 	action, err := c.report(cachevolumes.Slot{Identity: cachevolumes.Identity{ID: id, Scope: scope}, PodUID: "host-uid", State: "active"}, false)
 	if err != nil || action != "hold" {
 		t.Fatalf("unmounted report: %s %v", action, err)
+	}
+}
+
+func TestCustomVolumeReusesAndRefreshesHostToken(t *testing.T) {
+	kube := fake.NewSimpleClientset()
+	requests := 0
+	kube.PrependReactor("create", "serviceaccounts", func(ktesting.Action) (bool, runtime.Object, error) {
+		requests++
+		return true, &authenticationv1.TokenRequest{Status: authenticationv1.TokenRequestStatus{Token: "host-only", ExpirationTimestamp: metav1.NewTime(time.Now().Add(time.Minute))}}, nil
+	})
+	c := &CustomVolumes{Kube: kube, Namespace: "runners", ServiceAccount: "cache-agent"}
+	for range 2 {
+		if token, err := c.token(context.Background()); err != nil || token != "host-only" {
+			t.Fatal(token, err)
+		}
+	}
+	if requests != 1 {
+		t.Fatalf("minted %d tokens before expiry", requests)
+	}
+	if time.Until(c.tokenUntil) > 31*time.Second {
+		t.Fatal("ignored API token expiration")
+	}
+	c.tokenUntil = time.Now().Add(-time.Second)
+	if _, err := c.token(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 2 {
+		t.Fatal("did not refresh expiring token")
 	}
 }
