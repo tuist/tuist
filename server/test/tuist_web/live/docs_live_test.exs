@@ -92,6 +92,13 @@ defmodule TuistWeb.DocsLiveTest do
                render_patch(lv, "/en/docs/guides/features/bundle-size?tab=size")
     end
 
+    test "navigates to the new page when a connected mount lands on a moved page", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:live_redirect, %{to: "/en/docs/guides/features/bundle-insights"}}} =
+               live_redirect(lv, to: "/en/docs/guides/features/bundle-size")
+    end
+
     test "redirects externally when the moved page lives on another site", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
 
