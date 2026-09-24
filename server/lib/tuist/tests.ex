@@ -72,9 +72,8 @@ defmodule Tuist.Tests do
   @active_window_days 14
   @short_cache_ttl to_timeout(second: 10)
   @unscoped_test_suite_runs_lookback_days 7
-  # ClickHouse query parameters are encoded in the request address. Ten thousand
-  # identifiers stay comfortably below its default one-mebibyte limit while
-  # still covering the small explicit-state sets this path is designed for.
+  # Above this many test cases with an explicit state, the listing joins the
+  # states instead of filtering by their ids.
   @max_preloaded_test_case_states 10_000
   # Sortable duration fields the listing exposes, each backed by a matching
   # aggregate state on `test_case_duration_daily_stats_per_case`. They are
@@ -1359,35 +1358,10 @@ defmodule Tuist.Tests do
   end
 
   defp resolve_test_case_states(project_id, test_case_ids) do
-    resolve_test_case_states(project_id, test_case_ids, [])
-  end
-
-  defp resolve_test_case_states(_project_id, [], _opts), do: %{}
-
-  defp resolve_test_case_states(project_id, test_case_ids, opts) do
-    query = test_case_states_subquery(project_id)
-
-    query =
-      if is_nil(test_case_ids) do
-        query
-      else
-        where(query, [state], state.test_case_id in ^test_case_ids)
-      end
-
-    query =
-      case Keyword.fetch(opts, :limit) do
-        {:ok, limit} -> limit(query, ^limit)
-        :error -> query
-      end
-
-    repo_opts =
-      case Keyword.fetch(opts, :settings) do
-        {:ok, settings} -> [settings: settings]
-        :error -> []
-      end
-
-    query
-    |> ClickHouseRepo.all(repo_opts)
+    test_case_ids
+    |> all_by_uuid_chunks(fn ids ->
+      where(test_case_states_subquery(project_id), [state], state.test_case_id in ^ids)
+    end)
     |> Map.new(fn state ->
       {state.test_case_id, normalize_test_case_state(state)}
     end)
@@ -1665,10 +1639,20 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  # ClickHouse rejects requests with more than `http_max_fields` (1,000) form
-  # fields, and `in ^ids` binds one field per id. `query_fun` receives each
-  # chunk to bind as a single `Array(UUID)` parameter; the chunk size keeps that
-  # parameter below `http_max_field_value_size` (128 KiB).
+  @doc """
+  Loads the arguments of the given test case runs, in batches. Pass it as the
+  preload function of `TestCaseRun`'s `:arguments` when preloading a whole
+  test run, whose test case runs are too many for a single query.
+  """
+  def list_test_case_run_arguments(test_case_run_ids) do
+    all_by_uuid_chunks(test_case_run_ids, fn ids ->
+      from(argument in TestCaseRunArgument, where: argument.test_case_run_id in ^ids)
+    end)
+  end
+
+  # A list of ids binds as a single `Array(UUID)` parameter (see
+  # `Tuist.ClickHouse.ArrayInParams`), which must stay below ClickHouse's
+  # `http_max_field_value_size` (128 KiB). `query_fun` receives each chunk.
   @uuid_lookup_batch_size 2_000
 
   defp all_by_uuid_chunks(ids, query_fun) do
@@ -3015,13 +2999,27 @@ defmodule Tuist.Tests do
 
   defp apply_resolved_state_ids(query, true, _matching_ids, []), do: query
 
-  defp apply_resolved_state_ids(query, true, _matching_ids, non_matching_ids),
-    do: where(query, [test_case], test_case.id not in ^non_matching_ids)
+  defp apply_resolved_state_ids(query, true, _matching_ids, non_matching_ids) do
+    condition =
+      non_matching_ids
+      |> Enum.chunk_every(@uuid_lookup_batch_size)
+      |> Enum.map(fn ids -> dynamic([test_case], test_case.id not in ^ids) end)
+      |> Enum.reduce(fn condition, acc -> dynamic(^acc and ^condition) end)
+
+    where(query, ^condition)
+  end
 
   defp apply_resolved_state_ids(query, false, [], _non_matching_ids), do: where(query, false)
 
-  defp apply_resolved_state_ids(query, false, matching_ids, _non_matching_ids),
-    do: where(query, [test_case], test_case.id in ^matching_ids)
+  defp apply_resolved_state_ids(query, false, matching_ids, _non_matching_ids) do
+    condition =
+      matching_ids
+      |> Enum.chunk_every(@uuid_lookup_batch_size)
+      |> Enum.map(fn ids -> dynamic([test_case], test_case.id in ^ids) end)
+      |> Enum.reduce(fn condition, acc -> dynamic(^acc or ^condition) end)
+
+    where(query, ^condition)
+  end
 
   defp apply_joined_control_plane_filter(filter, query) do
     op = Map.get(filter, :op, :==)
@@ -4526,16 +4524,11 @@ defmodule Tuist.Tests do
       )
 
     latest_candidate_runs =
-      if candidate_ids == [] do
-        []
-      else
-        from(t in Test,
-          where: t.id in ^candidate_ids,
-          order_by: [asc: t.id, desc: t.inserted_at]
-        )
-        |> ClickHouseRepo.all()
-        |> Enum.uniq_by(& &1.id)
-      end
+      candidate_ids
+      |> all_by_uuid_chunks(fn ids ->
+        from(t in Test, where: t.id in ^ids, order_by: [asc: t.id, desc: t.inserted_at])
+      end)
+      |> Enum.uniq_by(& &1.id)
 
     stale_runs =
       Enum.filter(
@@ -4558,18 +4551,15 @@ defmodule Tuist.Tests do
     test_run_ids = Enum.map(sharded_runs, & &1.id)
 
     plans =
-      from(sp in Tuist.Shards.ShardPlan,
-        where: sp.id in ^shard_plan_ids
-      )
-      |> ClickHouseRepo.all()
+      shard_plan_ids
+      |> all_by_uuid_chunks(fn ids -> from(sp in Tuist.Shards.ShardPlan, where: sp.id in ^ids) end)
       |> Map.new(&{&1.id, &1})
 
     reported =
-      from(sr in ShardRun,
-        where: sr.test_run_id in ^test_run_ids,
-        select: {sr.test_run_id, sr.shard_index}
-      )
-      |> ClickHouseRepo.all()
+      test_run_ids
+      |> all_by_uuid_chunks(fn ids ->
+        from(sr in ShardRun, where: sr.test_run_id in ^ids, select: {sr.test_run_id, sr.shard_index})
+      end)
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
 
     missing_shard_runs =
