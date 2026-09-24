@@ -39,6 +39,12 @@ defmodule Tuist.AtlasWorkloadIdentityTest do
              AtlasWorkloadIdentity.verify(token, policy)
   end
 
+  test "rejects tokens without a key id, even against a single-key JWKS", %{policy: policy, signer: signer} do
+    token = token(%{}, signer, %{"alg" => "RS256"})
+
+    assert {:error, :invalid_signature} = AtlasWorkloadIdentity.verify(token, policy)
+  end
+
   test "rejects tokens for another audience", %{policy: policy, signer: signer} do
     token = token(%{"aud" => ["other"], "sub" => "system:serviceaccount:atlas-production:atlas"}, signer)
 
@@ -156,7 +162,7 @@ defmodule Tuist.AtlasWorkloadIdentityTest do
     assert {:error, :invalid_signature} = AtlasWorkloadIdentity.verify(token, policy)
   end
 
-  defp token(claims, signer) do
+  defp token(claims, signer, header \\ %{"alg" => "RS256", "kid" => "atlas-key"}) do
     now = DateTime.to_unix(DateTime.utc_now())
 
     base_claims = %{
@@ -173,7 +179,7 @@ defmodule Tuist.AtlasWorkloadIdentityTest do
     }
 
     jwt = JOSE.JWT.from_map(Map.merge(base_claims, claims))
-    {_, token} = signer |> JOSE.JWT.sign(%{"alg" => "RS256", "kid" => "atlas-key"}, jwt) |> JOSE.JWS.compact()
+    {_, token} = signer |> JOSE.JWT.sign(header, jwt) |> JOSE.JWS.compact()
     token
   end
 
