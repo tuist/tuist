@@ -194,7 +194,7 @@ defmodule TuistWeb.API.CacheController do
       %User{} = user ->
         user_account_name = Accounts.get_account_from_user(user).name
 
-        "You are logged in as '#{user_account_name}', which is not a member of '#{account_handle}', so it cannot use its remote cache. Log in with an account that belongs to '#{account_handle}', or ask one of its admins to invite '#{user_account_name}'."
+        "You are logged in as '#{user_account_name}', which is not a member of '#{account_handle}', so you can't use the remote cache of '#{account_handle}'. Log in with an account that belongs to '#{account_handle}', or ask one of its admins to invite '#{user_account_name}'."
 
       _ ->
         "The credentials in use cannot access the remote cache of '#{account_handle}'."
