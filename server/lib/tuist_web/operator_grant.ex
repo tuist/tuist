@@ -392,7 +392,7 @@ defmodule TuistWeb.OperatorGrant do
     case AtlasWorkloadIdentity.verify(token) do
       {:ok, _principal} ->
         case operator_from_conn(conn) do
-          %User{} = user -> if Accounts.tuist_operator?(user), do: assign(conn, :atlas_operator, user), else: conn
+          %User{} = user -> if Accounts.tuist_operator?(user), do: attach_atlas_operator_user(conn, user), else: conn
           nil -> conn
         end
 
@@ -411,6 +411,14 @@ defmodule TuistWeb.OperatorGrant do
         |> json(%{error: "atlas_identity_rejected"})
         |> halt()
     end
+  end
+
+  # Server-side trace of operator access through Atlas, independent of Atlas'
+  # own audit log. `Tuist.MCP.Authorization` adds the account when a read
+  # actually uses it.
+  defp attach_atlas_operator_user(conn, %User{email: email} = user) do
+    Logger.metadata(atlas_operator_email: email)
+    assign(conn, :atlas_operator, user)
   end
 
   # An OAuth access token authenticates as the account it was issued for, so the

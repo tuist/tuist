@@ -11,6 +11,8 @@ defmodule Tuist.MCP.AuthorizationTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  require Logger
+
   # A Tuist operator reaching a customer's data over MCP authenticates with an
   # OAuth access token, which resolves to an `AuthenticatedAccount` in
   # `current_subject` — the subject MCP authorization consults first. The
@@ -177,6 +179,28 @@ defmodule Tuist.MCP.AuthorizationTest do
 
     test "reads a customer account", %{project: project, operator: operator} do
       assert MCPAuthorization.authorize_request(atlas_conn(operator).assigns, :read, project.account, :project)
+    end
+
+    test "logs the customer account a read used operator access for", %{project: project, operator: operator} do
+      assert MCPAuthorization.authorize_request(atlas_conn(operator).assigns, :read, project, :project)
+
+      assert Logger.metadata()[:atlas_operator_read_account_id] == project.account_id
+    end
+
+    test "logs nothing when the operator reads their own account", %{operator: operator} do
+      own_project = ProjectsFixtures.project_fixture(account_id: operator.account.id)
+      %{assigns: assigns} = atlas_conn(operator)
+      assigns = put_in(assigns.current_subject.all_projects, true)
+
+      assert MCPAuthorization.authorize_request(assigns, :read, own_project, :project)
+
+      assert Logger.metadata()[:atlas_operator_read_account_id] == nil
+    end
+
+    test "logs nothing when the read is refused", %{project: project, operator: operator} do
+      refute MCPAuthorization.authorize_request(atlas_conn(operator).assigns, :update, project, :project)
+
+      assert Logger.metadata()[:atlas_operator_read_account_id] == nil
     end
 
     test "is refused when the token does not carry the mcp scope", %{project: project, operator: operator} do

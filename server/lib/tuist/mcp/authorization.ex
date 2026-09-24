@@ -7,6 +7,8 @@ defmodule Tuist.MCP.Authorization do
   alias Tuist.Authorization
   alias Tuist.Authorization.Checks
 
+  require Logger
+
   def authorize(subject, action, resource, category) do
     Authorization.authorize(:"#{category}_#{action}", subject, resource) == :ok
   end
@@ -54,7 +56,13 @@ defmodule Tuist.MCP.Authorization do
          %User{email: email} = operator when is_binary(email) <- assigns[:atlas_operator],
          account_id when not is_nil(account_id) <- Checks.object_account_id(resource) do
       grant = %{tier: :read, account_id: account_id, sub: email, exp: System.system_time(:second) + 60}
-      authorize(%{operator | operator_grant: grant}, :read, resource, category)
+
+      if authorize(%{operator | operator_grant: grant}, :read, resource, category) do
+        Logger.metadata(atlas_operator_read_account_id: account_id)
+        true
+      else
+        false
+      end
     else
       _ -> false
     end

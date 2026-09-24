@@ -75,11 +75,26 @@ this reconciles the log against the grants that were actually issued.
 The server does not emit a `route` field on every record, so the path is
 `request_path`.
 
+**Reads through Atlas without a grant.** Operators calling the MCP server
+through Atlas can read any customer account without a grant. Those requests
+carry `atlas_operator_email`, and `atlas_operator_read_account_id` on the ones
+that used operator access, as structured metadata:
+
+```logql
+{cluster="tuist-production", namespace="tuist"}
+  | atlas_operator_read_account_id != ""
+  | line_format "{{.atlas_operator_email}} {{.atlas_operator_read_account_id}} {{.request_path}} {{.status}}"
+```
+
+Atlas records the tool and arguments of each of these calls as
+`mcp.tool_called` in its audit log, so the two should agree.
+
 **From the tuist-ops database**, the grants that were issued and why.
 
 **A finding is** a grant identifier appearing in the logs with no matching
 issued grant, which would mean a forged or replayed grant, or a grant whose
-recorded justification does not match what was actually accessed.
+recorded justification does not match what was actually accessed. For reads through Atlas, a finding is an operator read in the server logs
+with no matching `mcp.tool_called` row in Atlas.
 
 ## 3. Authentication failures
 

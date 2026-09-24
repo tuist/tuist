@@ -9,6 +9,8 @@ defmodule TuistWeb.MCPAtlasIdentityTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  require Logger
+
   # Drives `/mcp` through the router with a real OAuth access token, the shape
   # Atlas proxies every call in, so the plug and the authorization fallback are
   # exercised together.
@@ -110,6 +112,8 @@ defmodule TuistWeb.MCPAtlasIdentityTest do
     result = tool_result(conn)
     refute result["isError"]
     assert result["structuredContent"]["full_handle"] == "#{project.account.name}/#{project.name}"
+    assert Logger.metadata()[:atlas_operator_email] == operator.email
+    assert Logger.metadata()[:atlas_operator_read_account_id] == project.account_id
   end
 
   test "the same operator calling directly is refused", %{conn: conn, project: project, operator: operator} do
