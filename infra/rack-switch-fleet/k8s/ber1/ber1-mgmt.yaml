@@ -296,3 +296,7 @@ spec:
       purpose: management
       peer: ber1-svc
       detail: services/i226-lm
+    - port: 48
+      purpose: edge
+      peer: ber1-edge
+      detail: edge/i226-v

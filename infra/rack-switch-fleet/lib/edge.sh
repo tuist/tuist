@@ -97,10 +97,6 @@ SCRIPT
   [ -n "$provisioning" ] && echo "ip addr replace $provisioning dev $interface"
   local s
   for s in "${behind[@]}"; do echo "ip route replace $s/32 dev $interface src $edge_address"; done
-  # The SG3452's DHCP client (firmware 1.30) sets the broadcast flag and then
-  # ignores broadcast replies, so the netdev table addresses each known
-  # switch's replies to its MAC, matched on the client hardware address in the
-  # reply (36 bytes into the UDP header).
   # A netbooting installer can take its default route from either of its DHCP
   # leases, the provisioning one through this node or its uplinks' one, so
   # the provisioning range is translated onto the uplinks too.
@@ -108,6 +104,10 @@ SCRIPT
   if [ "$netboot" = true ]; then
     uplinks="    oifname != { \"tailscale0\", \"$interface\" } ip saddr $(fleet_network "$provisioning") masquerade"
   fi
+  # The SG3452's DHCP client (firmware 1.30) sets the broadcast flag and then
+  # ignores broadcast replies, so the netdev table addresses each known
+  # switch's replies to its MAC, matched on the client hardware address in the
+  # reply (36 bytes into the UDP header).
   cat <<SCRIPT
 nft -f - <<'NFT'
 table ip tuist_mgmt_path
@@ -179,13 +179,17 @@ CONF
   fi
   [ -n "$controller" ] && echo "dhcp-option=138,$controller"
   if [ "$(jq -r '.management.edge.netboot // false' "$site_file")" = true ]; then
-    # x86-64 UEFI firmware (client architectures 7 and 9) netboots Ubuntu's
-    # signed shim from the rack's boot server on the provisioning address,
-    # which serves each host the install the cluster's operator published for
-    # it, and nothing to a host without one.
+    # x86-64 UEFI firmware (client architectures 7 and 9) netboots iPXE from
+    # the rack's boot server on the provisioning address, and iPXE, which says
+    # so in its user class, the script that asks the server for the host's
+    # install; a host with none published gets nothing. The offers carry no
+    # vendor class: with PXEClient in it the firmware asks a PXE boot server
+    # on port 4011 for the file instead of reading the one the offer names.
     echo "dhcp-match=set:netboot,option:client-arch,7"
     echo "dhcp-match=set:netboot,option:client-arch,9"
-    echo "dhcp-boot=tag:netboot,bootx64.efi,,${provisioning%/*}"
+    echo "dhcp-userclass=set:ipxe,iPXE"
+    echo "dhcp-boot=tag:netboot,tag:!ipxe,snponly.efi,,${provisioning%/*}"
+    echo "dhcp-boot=tag:ipxe,boot.ipxe,,${provisioning%/*}"
   fi
   return 0
 }

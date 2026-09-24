@@ -2058,22 +2058,25 @@ STUB
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp89s0 noprefixroute"* ]]
-    [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp89s0 src 192.168.0.10"* ]]
-    [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp89s0"* ]]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
+    [[ "$output" == *"ip route replace 192.168.0.13/32 dev enp87s0 src 192.168.0.10"* ]]
+    [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp87s0"* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade'* ]]
     [[ "$output" != *"ip route replace 192.168.0.11"* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
     [[ "$output" != *"advertise-routes"* ]]
 }
 
-@test "a netbooting site hands UEFI firmware the signed shim from the boot server" {
+@test "a netbooting site hands UEFI firmware iPXE, and iPXE its script, from the boot server" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-match=set:netboot,option:client-arch,7"* ]]
     [[ "$output" == *"dhcp-match=set:netboot,option:client-arch,9"* ]]
-    [[ "$output" == *"dhcp-boot=tag:netboot,bootx64.efi,,192.168.50.1"* ]]
+    [[ "$output" == *"dhcp-userclass=set:ipxe,iPXE"* ]]
+    [[ "$output" == *"dhcp-boot=tag:netboot,tag:!ipxe,snponly.efi,,192.168.50.1"* ]]
+    [[ "$output" == *"dhcp-boot=tag:ipxe,boot.ipxe,,192.168.50.1"* ]]
+    [[ "$output" != *"vendor-class"* ]]
     jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"
     run fleet_edge_dhcp "$BATS_TEST_TMPDIR/nonetboot.json"
     [ "$status" -eq 0 ]
@@ -2084,7 +2087,7 @@ STUB
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *'oifname != { "tailscale0", "enp89s0" } ip saddr 192.168.50.0/24 masquerade'* ]]
+    [[ "$output" == *'oifname != { "tailscale0", "enp87s0" } ip saddr 192.168.50.0/24 masquerade'* ]]
     jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/nonetboot.json"
     [ "$status" -eq 0 ]
@@ -2109,8 +2112,8 @@ STUB
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
     run cat "$bin/log"
-    [[ "${lines[0]}" == "ip link set enp89s0 up" ]]
-    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp89s0 noprefixroute"* ]]
+    [[ "${lines[0]}" == "ip link set enp87s0 up" ]]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
     [ "$(grep -c '^nft -f -$' "$bin/log")" -eq 1 ]
     [[ "$output" == *"delete table ip tuist_mgmt_path"* ]]
     [[ "$output" == *"delete table netdev tuist_rack_dhcp"* ]]
@@ -2121,12 +2124,12 @@ STUB
     bin="$BATS_TEST_TMPDIR/edge-uplink"
     edge_run_stub "$bin"
     fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp89s0 sh "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0 sh "$bin/mgmt-path.sh"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"enp89s0 carries this node's default route"* ]]
+    [[ "$output" == *"enp87s0 carries this node's default route"* ]]
     [ ! -s "$bin/log" ]
     # a route on a VLAN of the port is not the port itself
-    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp89s0.10 sh "$bin/mgmt-path.sh"
+    run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_DEFAULT_DEV=enp87s0.10 sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
 }
 
@@ -2146,18 +2149,18 @@ STUB
     bin="$BATS_TEST_TMPDIR/edge-moved"
     edge_run_stub "$bin"
     fleet_edge_path "$SITE_FILE" > "$bin/mgmt-path.sh"
-    addrs='5: enp87s0    inet 192.168.0.10/24 scope global noprefixroute enp87s0
-5: enp87s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp87s0
+    addrs='5: enp89s0    inet 192.168.0.10/24 scope global noprefixroute enp89s0
+5: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0
 2: enp2s0f0np0    inet 192.168.0.157/24 brd 192.168.0.255 scope global dynamic enp2s0f0np0
-3: enp89s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp89s0'
+3: enp87s0    inet 192.168.50.1/24 brd 192.168.50.255 scope global enp87s0'
     run env PATH="$bin:$PATH" FAKE_LOG="$bin/log" FAKE_ADDRS="$addrs" sh "$bin/mgmt-path.sh"
     [ "$status" -eq 0 ]
     run cat "$bin/log"
-    [[ "$output" == *"ip addr del 192.168.0.10/24 dev enp87s0"* ]]
-    [[ "$output" == *"ip addr del 192.168.50.1/24 dev enp87s0"* ]]
+    [[ "$output" == *"ip addr del 192.168.0.10/24 dev enp89s0"* ]]
+    [[ "$output" == *"ip addr del 192.168.50.1/24 dev enp89s0"* ]]
     [[ "$output" != *"del 192.168.0.157/24"* ]]
-    [[ "$output" != *"del 192.168.50.1/24 dev enp89s0"* ]]
-    [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp89s0"* ]]
+    [[ "$output" != *"del 192.168.50.1/24 dev enp87s0"* ]]
+    [[ "$output" == *"ip addr replace 192.168.50.1/24 dev enp87s0"* ]]
 }
 
 @test "a site whose edge node names no switch port renders no edge files" {
@@ -2791,12 +2794,12 @@ STUB
 @test "the edge node hands the switches behind it their site address and their controller" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
-    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp89s0 noprefixroute"* ]]
+    [[ "$output" == *"ip addr replace 192.168.0.10/24 dev enp87s0 noprefixroute"* ]]
     # replies to a known switch go to its MAC, since the SG3452 ignores broadcast ones
     [[ "$output" == *"udp sport 67 udp dport 68 @th,288,48 0xa82948feb4be ether daddr set a8:29:48:fe:b4:be"* ]]
     run fleet_edge_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"interface=enp89s0"* ]]
+    [[ "$output" == *"interface=enp87s0"* ]]
     [[ "$output" == *"dhcp-host=a8:29:48:fe:b4:be,192.168.0.13,ber1-mgmt,infinite"* ]]
     [[ "$output" == *"dhcp-option=tag:known,option:router,192.168.0.10"* ]]
     [[ "$output" == *"dhcp-range=set:provisioning,192.168.50.100,192.168.50.150,255.255.255.0,1h"* ]]
