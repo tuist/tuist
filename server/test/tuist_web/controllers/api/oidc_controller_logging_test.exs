@@ -6,8 +6,6 @@ defmodule TuistWeb.API.OIDCControllerLoggingTest do
   alias Tuist.OIDC.ScopeRules
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  require Logger
-
   test "logs withheld scopes with the resources they were withheld for", %{conn: conn} do
     project =
       ProjectsFixtures.project_fixture(
