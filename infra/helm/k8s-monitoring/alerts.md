@@ -2080,7 +2080,7 @@ gcx alert rules get kura-rollout-paused
 Push only this directory. Pulling or pushing every `alertrules` resource would
 touch the UI-managed rules too.
 
-Three consequences of creating a rule through gcx:
+Four consequences of creating a rule through gcx:
 
 - **Read-only in the UI.** Rules pushed through the resource API get
   provenance `api`, so the Grafana UI shows them as provisioned and will not
@@ -2090,6 +2090,15 @@ Three consequences of creating a rule through gcx:
   two sit outside the `Cache` group and carry their own `trigger.interval` of
   5 minutes, the same cadence the `Cache` group uses. Routing does not depend
   on the group: the policy tree groups by folder and `alertname`.
+- **Only some identities can delete them, and none of them through the UI.** The
+  UI refuses to delete a provisioned rule. The `gcx login` OAuth grant also
+  lacks the `grafana-api:delete` scope, so `gcx resources delete` and
+  `DELETE /api/v1/provisioning/alert-rules/<uid>` both return 403. Deleting
+  one needs a service account token with delete rights, which an org admin
+  has to create. That is also the only way to move these rules into a group
+  or make them UI-editable: an update cannot change provenance (`409
+  provenanceMismatch`), so the rule has to be deleted and recreated through
+  the provisioning API with `X-Disable-Provenance: true`.
 - **Server-side dry-run is not supported.** `--dry-run` only checks that the
   files parse; a bad field (for example `noDataState: OK` instead of `Ok`) only
   surfaces as a 403 on the real push.
