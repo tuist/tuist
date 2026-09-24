@@ -84,6 +84,30 @@ defmodule TuistWeb.DocsLiveTest do
     end
   end
 
+  describe "redirected docs URLs reached without an HTTP request" do
+    test "navigates to the new page on a live patch to a moved page", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:live_redirect, %{to: "/en/docs/guides/features/bundle-insights?tab=size"}}} =
+               render_patch(lv, "/en/docs/guides/features/bundle-size?tab=size")
+    end
+
+    test "redirects externally when the moved page lives on another site", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+
+      assert {:error, {:redirect, %{to: "https://projectdescription.tuist.dev/documentation/projectdescription"}}} =
+               render_patch(lv, "/en/docs/references/project-description")
+    end
+
+    test "still raises not found for pages without a redirect", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs/guides/install-tuist")
+      Process.flag(:trap_exit, true)
+
+      assert {{%TuistWeb.Errors.NotFoundError{}, _stacktrace}, _call} =
+               catch_exit(render_patch(lv, "/en/docs/guides/does-not-exist"))
+    end
+  end
+
   describe "docs pages" do
     test "puts the page-owned template variables in a signed image URL", %{conn: conn} do
       {:ok, _live_view, html} = live(conn, ~p"/en/docs/guides/install-tuist")
