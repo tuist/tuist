@@ -9,8 +9,6 @@ defmodule TuistWeb.MCPAtlasIdentityTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  require Logger
-
   # Drives `/mcp` through the router with a real OAuth access token, the shape
   # Atlas proxies every call in, so the plug and the authorization fallback are
   # exercised together.

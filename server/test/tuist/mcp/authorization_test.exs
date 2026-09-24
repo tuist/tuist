@@ -11,8 +11,6 @@ defmodule Tuist.MCP.AuthorizationTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  require Logger
-
   # A Tuist operator reaching a customer's data over MCP authenticates with an
   # OAuth access token, which resolves to an `AuthenticatedAccount` in
   # `current_subject` — the subject MCP authorization consults first. The

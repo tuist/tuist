@@ -7,8 +7,6 @@ defmodule Tuist.MCP.Authorization do
   alias Tuist.Authorization
   alias Tuist.Authorization.Checks
 
-  require Logger
-
   def authorize(subject, action, resource, category) do
     Authorization.authorize(:"#{category}_#{action}", subject, resource) == :ok
   end
