@@ -47,9 +47,10 @@ use crate::{
         ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
         ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
         ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
-        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
-        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS,
-        SEGMENT_FREE_SPACE_MARGIN, SYNC_FEED_TRIM_BATCH_ROWS,
+        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS,
+        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
+        SEGMENT_EVICTION_MAX_BATCH_BYTES, SEGMENT_EVICTION_YIELD_ROWS, SEGMENT_FREE_SPACE_MARGIN,
+        SYNC_FEED_TRIM_BATCH_ROWS,
     },
     failpoints::{FailpointName, FailpointSet},
     file_cache::{
@@ -1307,6 +1308,17 @@ impl Store {
             DB::open_cf_descriptors(&options, db_path, cfs)
                 .map_err(|error| format!("failed to open RocksDB: {error}"))?,
         );
+        // The option has no setter in the Rust bindings, so it is applied once
+        // open; it takes effect from the next memtable, not the one live now.
+        let key_value = db
+            .cf_handle(ROCKSDB_CF_KEY_VALUE)
+            .ok_or_else(|| "missing key_value column family".to_string())?;
+        let max_range_deletions = ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS.to_string();
+        db.set_options_cf(
+            &key_value,
+            &[("memtable_max_range_deletions", max_range_deletions.as_str())],
+        )
+        .map_err(|error| format!("failed to cap memtable range deletions: {error}"))?;
         io.metrics()
             .update_manifest_cache_capacity_bytes(config.manifest_cache_max_bytes);
         io.metrics().update_manifest_index_entries(0);
@@ -7921,7 +7933,10 @@ impl Store {
         );
         let floor = self.sync_feed.floor();
         let cap = self.sync_feed.cap();
-        if ticket.seq().saturating_sub(floor) > cap {
+        // Overshoot by a batch before trimming back: every trim is a range
+        // delete from key 0, so a trim per write under a pinned cap stacks
+        // nested tombstones that RocksDB fragments quadratically.
+        if ticket.seq().saturating_sub(floor) > cap.saturating_add(sync_feed_cap_trim_slack(cap)) {
             let new_floor = ticket.seq() - cap;
             self.stage_sync_feed_trim(batch, new_floor);
             self.sync_feed.raise_floor(new_floor);
@@ -10265,6 +10280,13 @@ fn load_sync_feed_state(db: &DB, cap: u64) -> Result<SyncFeedState, String> {
     ))
 }
 
+/// Rows the feed may hold past its cap before a cap trim drops back to it:
+/// the consumer trim's batch, shrunk for caps smaller than a batch so a tiny
+/// test cap still bounds the feed to twice itself.
+fn sync_feed_cap_trim_slack(cap: u64) -> u64 {
+    SYNC_FEED_TRIM_BATCH_ROWS.min(cap)
+}
+
 /// Marks every staged feed row of a landed batch committed, in one place so
 /// no commit path forgets it.
 fn commit_sync_feed_tickets(tickets: Vec<SyncFeedTicket>) {
@@ -10381,6 +10403,40 @@ mod tests {
     };
 
     const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn key_value_memtable_switches_once_it_holds_the_range_delete_cap() {
+        let (_temp_dir, _config, store) = temp_store();
+        let cf = store.cf(ROCKSDB_CF_KEY_VALUE);
+        let active_entries = || {
+            store
+                .db
+                .property_int_value_cf(cf, "rocksdb.num-entries-active-mem-table")
+                .expect("read memtable property")
+                .expect("memtable property is present")
+        };
+        // The cap is applied after open, so it reaches the next memtable.
+        store.db.put_cf(cf, b"test/seed", b"v").expect("seed");
+        store.db.flush_cf(cf).expect("switch memtable");
+
+        for index in 0..ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS {
+            store
+                .db
+                .delete_range_cf(cf, format!("test/{index:05}"), format!("test/{index:05}~"))
+                .expect("range delete");
+        }
+        assert_eq!(
+            active_entries(),
+            u64::from(ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS)
+        );
+        // RocksDB switches the full memtable at the start of the next write.
+        store.db.put_cf(cf, b"test/next", b"v").expect("next write");
+        assert_eq!(
+            active_entries(),
+            1,
+            "the memtable holding the cap's worth of range deletes was switched out"
+        );
+    }
 
     #[test]
     fn read_bytes_at_returns_exact_requested_range() {
