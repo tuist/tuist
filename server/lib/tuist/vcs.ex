@@ -70,7 +70,7 @@ defmodule Tuist.VCS do
         "https://app.bitrise.io/build/#{run_id}"
 
       {"circleci", project_handle} when project_handle != "" ->
-        "https://app.circleci.com/pipelines/github/#{project_handle}/#{run_id}"
+        "https://app.circleci.com/jobs/github/#{project_handle}/#{run_id}"
 
       {"buildkite", project_handle} when project_handle != "" ->
         "https://buildkite.com/#{project_handle}/builds/#{run_id}"

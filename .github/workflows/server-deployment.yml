@@ -308,8 +308,14 @@ jobs:
           # cache for every stage (deps.compile, builder, og-images).
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
+          # TUIST_VERSION is baked into the image as the value Sentry reports as
+          # `release`. The Dockerfile default is `0.0.0`, so without this line
+          # every hosted-server event lands in Atlas without a release tag.
+          # Reuse the image tag so the Atlas release matches the image the pod
+          # runs (`sha-<12chars>`).
           build-args: |
             TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
       - uses: docker/build-push-action@v6
@@ -1175,14 +1181,14 @@ jobs:
           # `kubectl patch` to it survives every later deploy: the RunnerPool
           # `linux-4vcpu-16gb` sat at `maxReplicas: 8` from 2026-08-14 while the
           # chart said 120, capping the pool at a fifteenth of its siblings.
-          # Reassert the ceiling keys so the chart is the source of truth again.
+          # `minWarmPoolFloor` drifts the same way. Reassert these keys so the
+          # chart is the source of truth again.
           #
-          # Scoped to the two keys nothing else writes. `minWarmPoolFloor` is
-          # excluded because live values are owned by other field managers, and
-          # `spec.replicas` because the chart only seeds it and the
-          # runners-controller owns it from then on. Reasserting either would
-          # have this step fight the controller on every deploy.
-          echo "::group::Reassert chart-owned RunnerPool scaling ceiling"
+          # Scoped to the keys nothing else writes. `spec.replicas` is excluded
+          # because the chart only seeds it and the runners-controller owns it
+          # from then on. Reasserting it would have this step fight the
+          # controller on every deploy.
+          echo "::group::Reassert chart-owned RunnerPool scaling settings"
           runner_pools_render="$(mktemp)"
           if helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
                "${helm_values_args[@]}" \
@@ -1204,6 +1210,7 @@ jobs:
                             | {name: .metadata.name, namespace: .metadata.namespace,
                                autoscaling: (.spec.autoscaling
                                  | with_entries(select(.key | . == "maxReplicas"
+                                                         or . == "minWarmPoolFloor"
                                                          or . == "scaleDownCooldownSeconds")))}
                             | select(.autoscaling != {})]
                           | .[]'
@@ -1243,7 +1250,7 @@ jobs:
                 continue
               fi
 
-              echo "RunnerPool $pool_namespace/$pool_name: scaling ceiling drifted from the chart; reasserting."
+              echo "RunnerPool $pool_namespace/$pool_name: scaling settings drifted from the chart; reasserting."
               echo "  live:  $have"
               echo "  chart: $want"
               kubectl -n "$pool_namespace" patch runnerpool "$pool_name" --type=merge \

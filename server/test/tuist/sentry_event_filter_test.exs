@@ -63,6 +63,18 @@ defmodule Tuist.SentryEventFilterTest do
       assert SentryEventFilter.before_send(event) == false
     end
 
+    test "drops CSRF token errors as background scanner noise" do
+      event = event(%{original_exception: %Plug.CSRFProtection.InvalidCSRFTokenError{}})
+
+      assert SentryEventFilter.before_send(event) == false
+    end
+
+    test "keeps cross-origin JS request errors so layout regressions still page us" do
+      event = event(%{original_exception: %Plug.CSRFProtection.InvalidCrossOriginRequestError{}})
+
+      assert SentryEventFilter.before_send(event) == event
+    end
+
     test "keeps other exceptions" do
       event = event(%{original_exception: %RuntimeError{message: "boom"}})
 

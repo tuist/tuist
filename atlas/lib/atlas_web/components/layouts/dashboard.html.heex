@@ -65,6 +65,12 @@
           navigate={~p"/"}
           selected={@current_path == ~p"/"}
         />
+        <.sidebar_item
+          label={gettext("Tasks")}
+          icon="circle_check"
+          navigate={~p"/tasks"}
+          selected={@current_path == ~p"/tasks"}
+        />
       </.sidebar_group>
       <.sidebar_group
         id="sidebar-commercial"

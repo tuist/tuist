@@ -153,7 +153,7 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/guides/server/self-host/kura", "/guides/features/cache/self-hosting"},
     {:exact, "/guides/environments/continuous-integration", "/guides/integrations/continuous-integration"},
     {:exact, "/guides/environments/automate/continuous-integration", "/guides/integrations/continuous-integration"},
-    {:prefix, "/guides/automate/", "/guides/environments/"},
+    {:prefix_discard, "/guides/automate/", "/guides/integrations/continuous-integration"},
     {:prefix, "/guides/develop/", "/guides/features/"},
     {:exact, "/server/introduction/accounts-and-projects", "/guides/server/accounts-and-projects"},
     {:exact, "/server/introduction/authentication", "/guides/server/authentication"},
