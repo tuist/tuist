@@ -679,17 +679,20 @@ defmodule Atlas.MCP.Proxy do
   # sent to upstreams configured for it. Without one (dev, test) the header is
   # left off and the upstream falls back to the user's own access.
   #
-  # The Slack agent runs every conversation as one fixed operator, so sending it
-  # there would let anyone who can talk to the agent read any customer account.
+  # Only the MCP transport, where each caller is the person they authenticated
+  # as, gets it. Anything else (the Slack agent runs every conversation as one
+  # fixed operator) would hand operator reads to whoever can reach it, so an
+  # unset or unknown interface gets nothing.
   defp atlas_identity_token(%Server{atlas_identity_header: nil}, _conn), do: nil
-  defp atlas_identity_token(%Server{}, %{assigns: %{audit_interface: "slack"}}), do: nil
 
-  defp atlas_identity_token(%Server{}, _conn) do
+  defp atlas_identity_token(%Server{}, %{assigns: %{audit_interface: "mcp"}}) do
     case TuistServer.workload_identity_token() do
       {:ok, token} -> token
       {:error, _reason} -> nil
     end
   end
+
+  defp atlas_identity_token(%Server{}, _conn), do: nil
 
   defp auth_token(%Server{auth_type: :bearer_token, bearer_token: token}, _conn), do: {:ok, token}
   defp auth_token(%Server{auth_type: :none}, _conn), do: {:ok, nil}

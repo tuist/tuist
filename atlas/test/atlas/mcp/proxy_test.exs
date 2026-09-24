@@ -370,7 +370,7 @@ defmodule Atlas.MCP.ProxyTest do
 
   test "sends Atlas' workload identity to an upstream configured for it" do
     stub(Config, :get, fn -> atlas_identity_proxy_config() end)
-    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+    conn = %{assigns: %{current_user: %User{id: "user-1"}, audit_interface: "mcp"}}
 
     stub(Atlas.TuistServer, :workload_identity_token, fn -> {:ok, "sa-token"} end)
 
@@ -387,7 +387,7 @@ defmodule Atlas.MCP.ProxyTest do
 
   test "leaves the workload identity off when no token is available" do
     stub(Config, :get, fn -> atlas_identity_proxy_config() end)
-    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+    conn = %{assigns: %{current_user: %User{id: "user-1"}, audit_interface: "mcp"}}
 
     stub(Atlas.TuistServer, :workload_identity_token, fn -> {:error, "not configured"} end)
 
@@ -402,26 +402,33 @@ defmodule Atlas.MCP.ProxyTest do
     assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
   end
 
-  test "never sends the workload identity for the Slack agent" do
-    stub(Config, :get, fn -> atlas_identity_proxy_config() end)
-    conn = %{assigns: %{current_user: %User{id: "user-1"}, audit_interface: "slack"}}
+  for {label, assigns} <- [
+        {"the Slack agent", %{audit_interface: "slack"}},
+        {"a caller that names no interface", %{}},
+        {"an unknown interface", %{audit_interface: "email"}}
+      ] do
+    @assigns assigns
+    test "never sends the workload identity for #{label}" do
+      stub(Config, :get, fn -> atlas_identity_proxy_config() end)
+      conn = %{assigns: Map.put(@assigns, :current_user, %User{id: "user-1"})}
 
-    reject(Atlas.TuistServer, :workload_identity_token, 0)
+      reject(Atlas.TuistServer, :workload_identity_token, 0)
 
-    expect(Req, :post, fn %Req.Request{} = request ->
-      refute Map.has_key?(request.headers, "x-tuist-atlas-identity")
-      initialize_response(request)
-    end)
+      expect(Req, :post, fn %Req.Request{} = request ->
+        refute Map.has_key?(request.headers, "x-tuist-atlas-identity")
+        initialize_response(request)
+      end)
 
-    expect_initialized_notification()
-    expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
+      expect_initialized_notification()
+      expect_tools_list([%{"name" => "get_test_run", "annotations" => %{"readOnlyHint" => true}}])
 
-    assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
+      assert [%{"name" => "tuist__get_test_run"}] = Proxy.list_hoisted_tools(conn)
+    end
   end
 
   test "never sends the workload identity to an upstream not configured for it" do
     stub(Config, :get, fn -> read_only_proxy_config() end)
-    conn = %{assigns: %{current_user: %User{id: "user-1"}}}
+    conn = %{assigns: %{current_user: %User{id: "user-1"}, audit_interface: "mcp"}}
 
     reject(Atlas.TuistServer, :workload_identity_token, 0)
 
