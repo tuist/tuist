@@ -22,31 +22,30 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     ]
   }
 
+  @test_modules [
+    %{
+      name: "AppTests",
+      status: "success",
+      duration: 10,
+      test_cases: [
+        %{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 5},
+        %{name: "unattributed()", test_suite_name: "SwiftTests", status: "success", duration: 5},
+        %{name: "skipped()", test_suite_name: "SwiftTests", status: "skipped", duration: 0}
+      ]
+    }
+  ]
+
   setup do
     project = ProjectsFixtures.project_fixture()
-
-    {:ok, test} =
-      RunsFixtures.test_fixture(
-        project_id: project.id,
-        test_modules: [
-          %{
-            name: "AppTests",
-            status: "success",
-            duration: 10,
-            test_cases: [
-              %{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 5},
-              %{name: "unattributed()", test_suite_name: "SwiftTests", status: "success", duration: 5},
-              %{name: "skipped()", test_suite_name: "SwiftTests", status: "skipped", duration: 0}
-            ]
-          }
-        ]
-      )
-
+    {:ok, test} = RunsFixtures.test_fixture(project_id: project.id, test_modules: @test_modules)
     %{project: project, test_run: test}
   end
 
-  test "summarizes how much of the run has evidence", %{test_run: test_run} do
-    Evidence.record(test_run, @evidence)
+  test "summarizes how much of the run has evidence", %{project: project} do
+    # Ingested as a run reports it, so its test case runs carry the flag the
+    # count of tests without evidence reads.
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(project_id: project.id, test_modules: @test_modules, coverage_evidence: @evidence)
 
     assert Evidence.summary(test_run) == %{
              tests: 2,
@@ -165,6 +164,15 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
     assert %{tests: []} = Evidence.covering(test_run, "Sources/Math.swift", line: 6)
     # Only the file is known there: the test may have run the line.
     assert %{tests: [%{name: "testAdd()", lines: nil}]} = Evidence.covering(test_run, "Sources/Text.swift", line: 6)
+  end
+
+  test "names the tests a report holds evidence of their own for, as record/3 stores them", %{project: project} do
+    # `outOfRange()` points only at a path the report does not have, so
+    # nothing is stored for it; suites, targets and unknown kinds are no test's.
+    assert Evidence.tests_with_evidence(project.id, @evidence) ==
+             MapSet.new([{"testAdd()", "AppTests", "MathTests"}, {"resolves(a/b:)", "AppTests", "MathTests"}])
+
+    assert Evidence.tests_with_evidence(project.id, nil) == MapSet.new()
   end
 
   test "reads a test's latest evidence from the run its test case runs flag", %{project: project} do

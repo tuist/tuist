@@ -272,21 +272,26 @@ defmodule Tuist.Tests.Coverage.Evidence do
     scopes = value(evidence, :scopes, [])
 
     if scopes != [] and Coverage.enabled_for_project?(project_id) do
-      scopes |> Enum.map(&test_identity/1) |> Enum.reject(&is_nil/1) |> MapSet.new()
+      paths_count = evidence |> value(:paths, []) |> length()
+      scopes |> Enum.map(&evidence_identity(&1, paths_count)) |> Enum.reject(&is_nil/1) |> MapSet.new()
     else
       MapSet.new()
     end
   end
 
   # A test scope's `{name, module_name, suite_name}`, as a test case run is
-  # keyed, when `record/3` stores rows for it.
-  defp test_identity(scope) do
+  # keyed, when `record/3` stores rows for it: at least one of its files
+  # points at a reported path.
+  defp evidence_identity(scope, paths_count) do
     name = value(scope, :name, "")
     module_name = value(scope, :module, "")
 
-    if value(scope, :kind, "") == "test" and name != "" and module_name != "" and value(scope, :files, []) != [],
-      do: {name, module_name, value(scope, :suite, "") || ""}
+    if value(scope, :kind, "") == "test" and name != "" and module_name != "" and
+         scope |> value(:files, []) |> Enum.any?(&valid_file_index?(&1, paths_count)),
+       do: {name, module_name, value(scope, :suite, "") || ""}
   end
+
+  defp valid_file_index?(index, paths_count), do: is_integer(index) and index >= 0 and index < paths_count
 
   @doc """
   The latest run that holds evidence of the test's own, with the files it
@@ -374,23 +379,19 @@ defmodule Tuist.Tests.Coverage.Evidence do
   defp scope_rank("suite"), do: 1
   defp scope_rank(_), do: 2
 
+  # The run's tests that ran without evidence of their own: those none of
+  # whose test case runs the run flagged (`has_coverage_evidence`, set from
+  # the same report that stored the evidence).
   defp tests_without_evidence(project_id, test_run_id) do
-    with_evidence =
-      from(f in subquery(latest_rows_query(project_id, test_run_id)),
-        where: f.scope_kind == "test",
-        select: f.scope_id
-      )
-
-    ClickHouseRepo.one(
+    without =
       from(r in TestCaseRun,
         where: r.project_id == ^project_id and r.test_run_id == ^test_run_id and r.status != "skipped",
-        where:
-          fragment("concat(?, ?, ?, ?, ?)", r.module_name, ^@separator, r.suite_name, ^@separator, r.name) not in subquery(
-            with_evidence
-          ),
-        select: fragment("uniqExact(?, ?, ?)", r.module_name, r.suite_name, r.name)
+        group_by: [r.module_name, r.suite_name, r.name],
+        having: fragment("max(?) = false", r.has_coverage_evidence),
+        select: %{name: r.name}
       )
-    ) || 0
+
+    ClickHouseRepo.one(from(t in subquery(without), select: count())) || 0
   end
 
   defp files_count(project_id, test_run_id) do
@@ -460,7 +461,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
 
       files
       |> Enum.zip(Stream.concat(lines, Stream.repeatedly(fn -> [] end)))
-      |> Enum.filter(fn {index, _ranges} -> is_integer(index) and index >= 0 and index < tuple_size(paths) end)
+      |> Enum.filter(fn {index, _ranges} -> valid_file_index?(index, tuple_size(paths)) end)
       |> Enum.uniq_by(&elem(&1, 0))
       |> Enum.map(fn {index, ranges} ->
         line_numbers = line_numbers(ranges)
