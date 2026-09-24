@@ -626,20 +626,35 @@ defmodule Tuist.Tests.Coverage.Commits do
     )
   end
 
-  @doc "The commit's files with the runs' reports merged, without line data, by path."
+  @doc """
+  The commit's files with the runs' reports merged, without line data, by
+  path; `paths:` narrows them to those paths.
+  """
   def merged_files(project_id, sha, opts \\ []) do
-    case run_ids(project_id, sha) do
-      [] ->
+    case {run_ids(project_id, sha), Keyword.get(opts, :paths)} do
+      {[], _paths} ->
         []
 
-      ids ->
-        ClickHouseRepo.all(
-          from(f in subquery(Coverage.merged_files_query_for_runs(project_id, ids, Coverage.excluded(project_id, opts))),
-            order_by: f.path
-          )
-        )
+      {_ids, []} ->
+        []
+
+      {ids, nil} ->
+        ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), order_by: f.path))
+
+      {ids, paths} ->
+        # One HTTP form field per bound path, which ClickHouse caps.
+        paths
+        |> Enum.uniq()
+        |> Enum.chunk_every(900)
+        |> Enum.flat_map(fn chunk ->
+          ClickHouseRepo.all(from(f in subquery(merged_query(project_id, ids, opts)), where: f.path in ^chunk))
+        end)
+        |> Enum.sort_by(& &1.path)
     end
   end
+
+  defp merged_query(project_id, ids, opts),
+    do: Coverage.merged_files_query_for_runs(project_id, ids, Coverage.excluded(project_id, opts))
 
   @doc """
   The commit's targets with their file count and line totals, least covered

@@ -331,13 +331,10 @@ defmodule Tuist.Tests.Coverage.Comparison do
       end
 
     partial = partial?(summary)
-    measured_files = Commits.merged_files(project.id, sha, excluded: excluded)
     carried? = partial and Map.get(summary, :reported_kind) == "reported"
-    head_files = head_files(project, sha, measured_files, carried?, excluded)
-
-    baseline_files = if baseline, do: Commits.merged_files(project.id, baseline.commit, excluded: excluded), else: []
-    baseline = baseline && with_retained_totals(baseline, baseline_files)
-    head_totals = with_retained_totals(summary, measured_files)
+    sides = sides(project, sha, baseline, carried?, excluded)
+    baseline = baseline && with_totals(baseline, sides.baseline_totals)
+    head_totals = with_totals(summary, sides.head_totals)
 
     commit =
       sha
@@ -362,21 +359,178 @@ defmodule Tuist.Tests.Coverage.Comparison do
         baseline_reason: baseline_reason,
         total_delta: total_delta(commit, baseline, partial),
         schemes: scheme_rows(project.id, sha, (baseline && baseline.commit) || scheme_baseline(baseline_reason)),
-        targets: target_deltas(head_files, baseline_files, baseline, selective?(partial, carried?)),
-        files: file_deltas(head_files, baseline_files, baseline, selective?(partial, carried?))
+        targets: target_deltas(sides.head_targets, sides.baseline_targets, baseline, selective?(partial, carried?)),
+        files: file_deltas(sides.file_pairs, baseline, selective?(partial, carried?))
       },
-      patch(project, head, measured_files)
+      patch(project, head, sides.patch_files)
     )
   end
 
+  # What the comparison reads from both commits' files: each side's totals,
+  # each target's, the files as `{path, head, baseline}` pairs, and the
+  # head's rows for the patch.
+  #
   # A commit whose skipped tests were all carried forward is compared target
   # by target and file by file with what a full run would have measured, not
   # with what its runs happened to execute: a file only a skipped test covers
-  # did not fall. Its own totals and its patch stay what was measured.
-  defp head_files(project, sha, measured_files, true, excluded),
-    do: Reported.merged_files(project, sha, measured_files, excluded: excluded)
+  # did not fall. Its own totals and its patch stay what was measured. It
+  # reads its files whole, since what they were carried from is resolved
+  # here. Any other
+  # commit has ClickHouse do the work where the files are, and only returns
+  # the files whose counts differ between the two commits or that one of them
+  # lacks: the rest are most of a commit's files and none of them is listed.
+  defp sides(project, sha, baseline, true = _carried?, excluded) do
+    measured_files = Commits.merged_files(project.id, sha, excluded: excluded)
+    head_files = Reported.merged_files(project, sha, measured_files, excluded: excluded)
+    baseline_files = if baseline, do: Commits.merged_files(project.id, baseline.commit, excluded: excluded), else: []
 
-  defp head_files(_project, _sha, measured_files, false, _excluded), do: measured_files
+    %{
+      head_totals: totals_of(measured_files),
+      baseline_totals: totals_of(baseline_files),
+      head_targets: totals_by_target(head_files),
+      baseline_targets: totals_by_target(baseline_files),
+      file_pairs: if(baseline, do: file_pairs(head_files, baseline_files), else: []),
+      patch_files: measured_files
+    }
+  end
+
+  defp sides(project, sha, baseline, false = _carried?, excluded) do
+    head = files_query(project.id, sha, excluded)
+    base = baseline && files_query(project.id, baseline.commit, excluded)
+
+    [head_side, baseline_side, file_pairs] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> query_side(head) end,
+        fn -> query_side(base) end,
+        fn -> if baseline, do: changed_file_pairs(head, base), else: [] end
+      ])
+
+    %{
+      head_totals: head_side.totals,
+      baseline_totals: baseline_side.totals,
+      head_targets: head_side.targets,
+      baseline_targets: baseline_side.targets,
+      file_pairs: file_pairs,
+      patch_files: nil
+    }
+  end
+
+  # The commit's files with its runs' reports merged, as a query; nil when no
+  # run of the commit is retained.
+  defp files_query(project_id, sha, excluded) do
+    case Commits.run_ids(project_id, sha) do
+      [] -> nil
+      ids -> Coverage.merged_files_query_for_runs(project_id, ids, excluded)
+    end
+  end
+
+  # A side's totals and each target's, in one pass over its files: a file
+  # counts toward every target that compiled it and once toward the total.
+  defp query_side(nil), do: %{totals: nil, targets: %{}}
+
+  defp query_side(files) do
+    case ClickHouseRepo.one(
+           from(f in subquery(files),
+             select: %{
+               files: count(f.path),
+               covered_lines: fragment("toUInt64(sum(?))", f.covered_lines),
+               executable_lines: fragment("toUInt64(sum(?))", f.executable_lines),
+               # One sumMap for every value, a file count among them: sumMap
+               # drops a key whose values all sum to zero, and a target
+               # always has files.
+               targets:
+                 fragment(
+                   "sumMap(?, arrayMap(t -> toUInt64(?), ?), arrayMap(t -> toUInt64(?), ?), arrayMap(t -> toUInt64(1), ?))",
+                   f.targets,
+                   f.covered_lines,
+                   f.targets,
+                   f.executable_lines,
+                   f.targets,
+                   f.targets
+                 )
+             }
+           )
+         ) do
+      %{files: 0} ->
+        %{totals: nil, targets: %{}}
+
+      side ->
+        {names, covered, executable, _files} = side.targets
+
+        %{
+          totals: %{covered_lines: side.covered_lines, executable_lines: side.executable_lines},
+          targets:
+            [names, covered, executable]
+            |> Enum.zip()
+            |> Map.new(fn {name, covered, executable} ->
+              {name, %{covered_lines: covered, executable_lines: executable}}
+            end)
+        }
+    end
+  end
+
+  # The files whose counts differ between the head and the baseline, or that
+  # one of them lacks, joined by path in ClickHouse. A baseline with no
+  # retained run lists every head file, as it has nothing to match.
+  defp changed_file_pairs(nil, nil), do: []
+
+  defp changed_file_pairs(head, nil) do
+    head
+    |> ClickHouseRepo.all()
+    |> Enum.map(&{&1.path, counts(&1), nil})
+  end
+
+  defp changed_file_pairs(nil, base) do
+    base
+    |> ClickHouseRepo.all()
+    |> Enum.map(&{&1.path, nil, counts(&1)})
+  end
+
+  defp changed_file_pairs(head, base) do
+    from(h in subquery(head),
+      full_join: b in subquery(base),
+      on: h.path == b.path,
+      where:
+        h.path == "" or b.path == "" or h.covered_lines != b.covered_lines or h.executable_lines != b.executable_lines,
+      select: %{
+        head_path: h.path,
+        base_path: b.path,
+        head_covered: h.covered_lines,
+        head_executable: h.executable_lines,
+        base_covered: b.covered_lines,
+        base_executable: b.executable_lines
+      }
+    )
+    |> ClickHouseRepo.all(settings: [join_use_nulls: 0])
+    |> Enum.map(fn row ->
+      {
+        if(row.head_path == "", do: row.base_path, else: row.head_path),
+        if(row.head_path != "", do: %{covered_lines: row.head_covered, executable_lines: row.head_executable}),
+        if(row.base_path != "", do: %{covered_lines: row.base_covered, executable_lines: row.base_executable})
+      }
+    end)
+  end
+
+  defp counts(file), do: %{covered_lines: file.covered_lines, executable_lines: file.executable_lines}
+
+  defp file_pairs(head_files, baseline_files) do
+    head_by_path = Map.new(head_files, &{&1.path, &1})
+    baseline_by_path = Map.new(baseline_files, &{&1.path, &1})
+
+    head_by_path
+    |> Map.keys()
+    |> MapSet.new()
+    |> MapSet.union(MapSet.new(Map.keys(baseline_by_path)))
+    |> Enum.map(&{&1, Map.get(head_by_path, &1), Map.get(baseline_by_path, &1)})
+  end
+
+  defp totals_of([]), do: nil
+
+  defp totals_of(files),
+    do: %{
+      covered_lines: files |> Enum.map(& &1.covered_lines) |> Enum.sum(),
+      executable_lines: files |> Enum.map(& &1.executable_lines) |> Enum.sum()
+    }
 
   defp selective?(partial, carried?), do: partial and not carried?
 
@@ -415,14 +569,8 @@ defmodule Tuist.Tests.Coverage.Comparison do
 
   # The published totals predate any later change to the exclusions; the
   # files, while retained, give the totals under the current ones.
-  defp with_retained_totals(figure, []), do: figure
-
-  defp with_retained_totals(figure, files) do
-    Map.merge(figure, %{
-      covered_lines: files |> Enum.map(& &1.covered_lines) |> Enum.sum(),
-      executable_lines: files |> Enum.map(& &1.executable_lines) |> Enum.sum()
-    })
-  end
+  defp with_totals(figure, nil), do: figure
+  defp with_totals(figure, totals), do: Map.merge(figure, totals)
 
   # Each scheme's own total at the head and at the baseline: the rows shown
   # under "any scheme", where a pooled total would compare unlike sets.
@@ -484,8 +632,12 @@ defmodule Tuist.Tests.Coverage.Comparison do
   """
   def patch(%Project{} = project, %{sha: sha} = head, head_files \\ nil) do
     excluded = ExcludedPaths.pattern_for_project(project)
-    head_files = head_files || Commits.merged_files(project.id, sha, excluded: excluded)
     changed = changed_files_for_commit(project.id, sha)
+
+    # Only the changed files' rows are read: the patch is about nothing else.
+    head_files =
+      head_files ||
+        Commits.merged_files(project.id, sha, excluded: excluded, paths: Enum.map(changed, & &1.path))
 
     if changed == [] and head.merge_base_sha == "" do
       %{patch: %{status: :unavailable, reason: :no_history, detail: head.history_fallback_reason}, gaps: []}
@@ -694,10 +846,7 @@ defmodule Tuist.Tests.Coverage.Comparison do
     )
   end
 
-  defp target_deltas(head_files, baseline_files, baseline, partial) do
-    head_targets = totals_by_target(head_files)
-    baseline_targets = totals_by_target(baseline_files)
-
+  defp target_deltas(head_targets, baseline_targets, baseline, partial) do
     head_targets
     |> Map.keys()
     |> MapSet.new()
@@ -728,19 +877,13 @@ defmodule Tuist.Tests.Coverage.Comparison do
   # say nothing about the change. On a partial measurement a file no test
   # executed cannot be compared, and a file only the baseline has may simply
   # not have been exercised, so neither is listed.
-  defp file_deltas(_head_files, _baseline_files, nil, _partial), do: []
+  defp file_deltas(_file_pairs, nil, _partial), do: []
 
-  defp file_deltas(head_files, baseline_files, baseline, partial) do
-    head_by_path = Map.new(head_files, &{&1.path, &1})
-    baseline_by_path = Map.new(baseline_files, &{&1.path, &1})
-
-    head_by_path
-    |> Map.keys()
-    |> MapSet.new()
-    |> MapSet.union(MapSet.new(Map.keys(baseline_by_path)))
-    |> Enum.map(fn path ->
+  defp file_deltas(file_pairs, baseline, partial) do
+    file_pairs
+    |> Enum.map(fn {path, current, previous} ->
       path
-      |> entry(Map.get(head_by_path, path), Map.get(baseline_by_path, path), baseline, partial)
+      |> entry(current, previous, baseline, partial)
       |> Map.put(:path, path)
     end)
     |> Enum.filter(fn entry ->

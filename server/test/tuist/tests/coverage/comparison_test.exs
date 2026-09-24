@@ -266,6 +266,30 @@ defmodule Tuist.Tests.Coverage.ComparisonTest do
       assert comparison.gaps == [%{path: "Sources/New.swift", executable_lines: 3}]
     end
 
+    test "lists the files that moved or that one side lacks, and none that stayed", %{
+      project: project,
+      account: account
+    } do
+      # Untested.swift is gone from the head; Format.swift did not move.
+      pr =
+        pr_run(project, account, [
+          file("Sources/Add.swift", "add2", ["Calculator"], [1, 1, 0, 0]),
+          file("Sources/Format.swift", "format1", ["Formatter"], [1, 1]),
+          file("Sources/New.swift", "new1", ["Calculator"], [1, 0])
+        ])
+
+      comparison = Comparison.compare(project, pr)
+
+      assert [
+               %{path: "Sources/Add.swift", coverage: 50.0, baseline_coverage: 100.0, delta: -50.0},
+               %{path: "Sources/New.swift", coverage: 50.0, baseline_coverage: nil, delta: nil},
+               %{path: "Sources/Untested.swift", coverage: nil, baseline_coverage: +0.0, delta: nil}
+             ] = Enum.sort_by(comparison.files, & &1.path)
+
+      assert {comparison.baseline.covered_lines, comparison.baseline.executable_lines} == {6, 8}
+      assert [%{name: "Calculator"}, %{name: "Formatter", delta: +0.0}] = Enum.sort_by(comparison.targets, & &1.name)
+    end
+
     test "unions the runs that measured the commit: a line any of them covered is covered", %{
       project: project,
       account: account
