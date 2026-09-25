@@ -22,6 +22,12 @@
     padding: 0;
   }
 
+  /* Page state stated in passing, under a section's header. */
+  & [data-part="caption"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
   & [data-part="analytics-content"] {
     display: flex;
     flex-direction: column;

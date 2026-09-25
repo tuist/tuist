@@ -43,14 +43,34 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert has_element?(lv, "#widget-coverage", "66.7%")
     assert has_element?(lv, "#widget-covered-lines", "4")
     assert has_element?(lv, "#widget-executable-lines", "6")
-    assert has_element?(lv, "#coverage-incomplete")
+    refute has_element?(lv, ".noora-alert")
+    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Pending"
     assert has_element?(lv, "#coverage-gap-files-table", "A.swift")
 
     Commits.signal_complete(project, "b")
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
-    refute has_element?(lv, "#coverage-incomplete")
-    assert lv |> element("#coverage-detail [data-part='badges']") |> render() =~ "Complete"
+    assert lv |> element("#coverage-detail [data-part='status']") |> render() =~ "Complete"
+  end
+
+  test "states a partial run as a badge beside the status, not as a banner", %{
+    conn: conn,
+    base: base,
+    organization: organization,
+    project: project
+  } do
+    CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/A.swift", [1, 0])], %{
+      git_commit_sha: "a",
+      partial: true
+    })
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/a")
+
+    assert has_element?(lv, "#coverage-detail [data-part='badges'] [data-part='partial']", "Partial run")
+    refute has_element?(lv, ".noora-alert")
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b")
+    refute has_element?(lv, "#coverage-detail [data-part='partial']")
   end
 
   test "lists the commit's targets, files and runs in their own tabs", %{conn: conn, base: base, run: run} do
