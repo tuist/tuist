@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -33,8 +34,17 @@ func (capturingSink) Enabled(int) bool                 { return true }
 func (s capturingSink) WithValues(...any) logr.LogSink { return s }
 func (s capturingSink) WithName(string) logr.LogSink   { return s }
 
-func (capturingSink) Error(_ error, msg string, _ ...any) { recordLogMessage(msg) }
-func (capturingSink) Info(_ int, msg string, _ ...any)    { recordLogMessage(msg) }
+func (capturingSink) Error(_ error, msg string, kv ...any) { recordLogMessage(withValues(msg, kv)) }
+func (capturingSink) Info(_ int, msg string, kv ...any)    { recordLogMessage(withValues(msg, kv)) }
+
+// withValues appends the call's key/value pairs so a test can assert on them;
+// tests matching a message by substring are unaffected.
+func withValues(msg string, kv []any) string {
+	for i := 0; i+1 < len(kv); i += 2 {
+		msg += fmt.Sprintf(" %v=%v", kv[i], kv[i+1])
+	}
+	return msg
+}
 
 // controller-runtime's delegating logger can only be fulfilled ONCE, and it
 // falls back to a null logger 30s after start if nothing has fulfilled it, so
@@ -340,4 +350,40 @@ func startTestConvergeWorker(t *testing.T, m *VolumeManager) *ConvergeWorker {
 		<-done
 	})
 	return w
+}
+
+// The materialize counter has no account label, so this line is the only way to
+// tell a warm rate that moved from a mix of accounts that did.
+func TestMaterializeLogsTheAccountAndResult(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		seed  bool
+		total uint64
+		want  string
+	}{
+		{name: "warm", seed: true, total: 100 * gib, want: "result=warm"},
+		{name: "cold", total: 100 * gib, want: "result=cold"},
+		{name: "declined", total: gib / 2, want: "result=declined"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			messages := captureLogs(t)
+			root := t.TempDir()
+			m := NewVolumeManager(root, 1, &fakeBackend{totalBytes: tc.total, perMaster: gib, root: root})
+			if tc.seed {
+				seedMasterGen(t, m, "42", masterImageContent("42"), 3)
+			}
+			att := mustAllocate(t, m, "vm-1")
+			store := NewStore()
+			store.Put("ns", "pod", &Entry{VMName: "vm-1", Volume: att, VolumeStatusDir: t.TempDir()})
+			r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+			r.maybeMaterializeVolume(materializePod("42", ""))
+
+			for _, msg := range messages() {
+				if strings.HasPrefix(msg, "materialized cache volume") && strings.Contains(msg, "account=42") && strings.Contains(msg, tc.want) {
+					return
+				}
+			}
+			t.Fatalf("no materialize line with account=42 and %s; got %v", tc.want, messages())
+		})
+	}
 }
