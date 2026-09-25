@@ -3,6 +3,7 @@ module github.com/tuist/tuist/infra/cluster-api-provider-tuist
 go 1.25.0
 
 require (
+	github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.3
 	github.com/ovh/go-ovh v1.9.0
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.31
 	golang.org/x/crypto v0.52.0
@@ -14,7 +15,8 @@ require (
 )
 
 require (
-	github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.3 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/sirupsen/logrus v1.10.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 
