@@ -74,6 +74,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
       |> where([e], e.project_id == ^project_id)
       |> join(:inner, [e], r in Run, on: r.id == e.once_run_id)
       |> where([_, r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> maybe_filter_run_environment(opts)
       |> select([e, _], %{
         download_bytes:
           fragment(

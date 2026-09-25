@@ -27,17 +27,20 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   which is every `once build`.
   """
   def publish(%Run{} = run) do
-    # The transport replays a batch whenever an ack is lost, so
-    # `RunCompleted` can arrive more than once. The run row would dedupe on
-    # its derived id, but `create_test/1` appends its module, suite and case
-    # children, so a second publish silently doubles every test case.
-    if is_nil(run.test_report_published_at) do
-      case OnceEvents.list_test_case_runs(run) do
-        [] -> {:ok, :no_test_cases}
-        case_runs -> publish_cases(run, case_runs)
-      end
-    else
-      {:ok, :already_published}
+    case OnceEvents.list_test_case_runs(run) do
+      [] ->
+        {:ok, :no_test_cases}
+
+      case_runs ->
+        # The transport replays a batch whenever an ack is lost, so
+        # `RunCompleted` can arrive more than once, possibly on two pods at
+        # once. Claiming before publishing keeps `create_test/1` from
+        # appending a second copy of every module, suite and case, which it
+        # would, because it generates fresh ids for those children.
+        case OnceEvents.claim_test_report_publication(run) do
+          :already_published -> {:ok, :already_published}
+          :ok -> publish_cases(run, case_runs)
+        end
     end
   end
 
@@ -51,11 +54,12 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
 
         case Tests.create_test(attributes) do
           {:ok, test} ->
-            # Only after the write, so a failure leaves the run publishable.
-            OnceEvents.mark_test_report_published(run)
             {:ok, test}
 
           {:error, changeset} ->
+            # Give the claim back, otherwise a transient failure would leave
+            # the run marked published and its results permanently absent.
+            OnceEvents.release_test_report_publication(run)
             Logger.warning("once: could not publish test report: #{inspect(changeset.errors)}")
 
             {:error, :persistence}

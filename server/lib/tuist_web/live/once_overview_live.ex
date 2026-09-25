@@ -71,7 +71,10 @@ defmodule TuistWeb.OnceOverviewLive do
        }}
     end)
     |> assign_async(:build_summary, fn ->
-      {:ok, %{build_summary: summary_with_trends(project.id, analytics_period, @build_commands)}}
+      {:ok,
+       %{
+         build_summary: summary_with_trends(project.id, analytics_period, @build_commands, analytics_environment)
+       }}
     end)
     |> assign_async([:recent_builds, :builds_duration_analytics, :builds_summary], fn ->
       {:ok,

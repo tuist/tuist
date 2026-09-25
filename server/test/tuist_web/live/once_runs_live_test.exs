@@ -7,6 +7,7 @@ defmodule TuistWeb.OnceRunsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.OnceEvents
+  alias Tuist.OnceEvents.Analytics
 
   setup %{project: project, organization: organization} do
     project = project |> Ecto.Changeset.change(build_system: :once) |> Tuist.Repo.update!()
@@ -415,6 +416,24 @@ defmodule TuistWeb.OnceRunsLiveTest do
     render_async(view, 2_000)
     refute render(view) =~ "7.3s"
 
+    # The scatter is a different query behind the same widget, asserted at the
+    # analytics layer because the chart only renders once its widget is also
+    # selected. Without the environment it brings excluded runs back, so
+    # toggling the chart type would silently widen the selection.
+    scatter = fn opts ->
+      project.id
+      |> Analytics.duration_scatter_data(opts)
+      |> Map.fetch!(:series)
+      |> Enum.flat_map(& &1.data)
+      |> Enum.map(&List.last(&1.value))
+    end
+
+    base = [commands: ["test"], group_by: :host]
+
+    assert 7331 in scatter.(Keyword.put(base, :is_ci, true))
+    refute 7331 in scatter.(Keyword.put(base, :is_ci, false))
+    assert 7331 in scatter.(base)
+
     # An unknown value falls back to unfiltered rather than crashing.
     {:ok, view, _} = live(conn, path <> "?analytics-environment=bogus")
     render_async(view, 2_000)
@@ -447,7 +466,7 @@ defmodule TuistWeb.OnceRunsLiveTest do
 
   defp categories(project_id, dimension, opts) do
     project_id
-    |> Tuist.OnceEvents.Analytics.build_duration_analytics_by(dimension, opts)
+    |> Analytics.build_duration_analytics_by(dimension, opts)
     |> Enum.map(& &1.category)
   end
 

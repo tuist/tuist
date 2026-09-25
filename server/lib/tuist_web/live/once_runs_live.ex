@@ -137,7 +137,8 @@ defmodule TuistWeb.OnceRunsLive do
         duration_chart_type(params["build-duration-chart-type"]),
         scatter_group_by(params["build-duration-scatter-group-by"]),
         analytics_period,
-        commands
+        commands,
+        analytics_environment
       )
       |> assign_async([:invocation_summary, :invocation_analytics], fn ->
         {:ok,
@@ -200,7 +201,8 @@ defmodule TuistWeb.OnceRunsLive do
        type,
        socket.assigns.duration_scatter_group_by,
        socket.assigns.analytics_period,
-       [socket.assigns.once_kind_filter]
+       [socket.assigns.once_kind_filter],
+       socket.assigns.analytics_environment
      )}
   end
 
@@ -1232,21 +1234,24 @@ defmodule TuistWeb.OnceRunsLive do
   defp scatter_group_by("version"), do: "version"
   defp scatter_group_by(_host), do: "host"
 
-  defp assign_duration_scatter(socket, "scatter", group_by, period, commands) do
+  defp assign_duration_scatter(socket, "scatter", group_by, period, commands, environment) do
     project_id = socket.assigns.selected_project.id
 
+    # Without the environment the scatter brings back runs the line chart
+    # excludes, so toggling the chart type silently widens the selection.
     opts =
       period
       |> period_opts()
       |> Keyword.put(:commands, commands)
       |> Keyword.put(:group_by, String.to_existing_atom(group_by))
+      |> put_environment(environment)
 
     assign_async(socket, :duration_chart, fn ->
       {:ok, %{duration_chart: {:scatter, Analytics.duration_scatter_data(project_id, opts)}}}
     end)
   end
 
-  defp assign_duration_scatter(socket, _line, _group_by, _period, _commands) do
+  defp assign_duration_scatter(socket, _line, _group_by, _period, _commands, _environment) do
     assign(socket, :duration_chart, AsyncResult.ok(:line))
   end
 end

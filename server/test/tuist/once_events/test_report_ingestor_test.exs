@@ -4,7 +4,10 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
 
   import Ecto.Query
 
+  alias Once.Events.V1.RunEvent
+  alias Once.Events.V1.TestCaseCompleted
   alias Tuist.OnceEvents
+  alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.TestReportIngestor
   alias Tuist.Tests.Test.Buffer
   alias Tuist.Tests.TestCaseRun
@@ -156,22 +159,57 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     assert test.status == "failure"
   end
 
-  test "every Once case result maps onto the shared enum", %{run: run} do
-    # The shared column is Enum8('success', 'failure', 'skipped'), so an
-    # unmapped result is a write error rather than a silent coercion.
-    for {result, _expected} <- [
-          {"passed", "success"},
-          {"failed", "failure"},
-          {"errored", "failure"},
-          {"timed_out", "failure"},
-          {"cancelled", "skipped"},
-          {"unknown", "skipped"},
-          {"unspecified", "skipped"}
-        ] do
-      stage_case(run, %{case_id: result, name: result, result: result})
+  test "every Once case result maps onto the shared enum", %{run: run, project: project} do
+    # Driven through the projector rather than by writing staged strings, so
+    # the proto values a client actually sends are what gets mapped. An
+    # earlier version of this test wrote the strings directly and missed that
+    # unknown results were being recorded as passes.
+    results = [
+      {:TEST_CASE_RESULT_PASSED, "success"},
+      {:TEST_CASE_RESULT_FAILED, "failure"},
+      {:TEST_CASE_RESULT_SKIPPED, "skipped"},
+      {:TEST_CASE_RESULT_ERRORED, "failure"},
+      {:TEST_CASE_RESULT_TIMED_OUT, "failure"},
+      {:TEST_CASE_RESULT_CANCELLED, "skipped"},
+      {:TEST_CASE_RESULT_UNKNOWN, "skipped"},
+      {:TEST_CASE_RESULT_UNSPECIFIED, "skipped"}
+    ]
+
+    for {result, _expected} <- results do
+      Projector.project(
+        %RunEvent{
+          epoch_ms: 1_789_405_000_000,
+          payload:
+            {:test_case_completed,
+             %TestCaseCompleted{
+               test_case_execution_id: "cargo_aqua",
+               suite_id: "unit",
+               case_id: to_string(result),
+               name: to_string(result),
+               attempt: 1,
+               result: result
+             }}
+        },
+        project.id,
+        run.run_id
+      )
     end
 
-    assert {:ok, _test} = TestReportIngestor.publish(finalize(run))
+    assert {:ok, test} = TestReportIngestor.publish(finalize(run, 1))
+
+    Buffer.flush()
+
+    stored =
+      TestCaseRun
+      |> where([c], c.test_run_id == ^test.id)
+      |> select([c], {c.name, c.status})
+      |> Tuist.IngestRepo.all()
+      |> Map.new()
+
+    for {result, expected} <- results do
+      assert stored[to_string(result)] == expected,
+             "#{result} should store as #{expected}, got #{inspect(stored[to_string(result)])}"
+    end
   end
 
   test "an interrupted run does not manufacture failures", %{run: run} do
@@ -194,8 +232,11 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     # derived id, but the module, suite and case children are appended, so
     # without a publication guard a replay silently doubles every test case.
     # Asserting on the returned run alone did not catch that.
-    reloaded = OnceEvents.get_run(project.id, run.run_id)
-    assert {:ok, :already_published} = TestReportIngestor.publish(reloaded)
+    # Both callers hold the run as it was BEFORE the first publish, which is
+    # what two pods projecting the same replayed event would have. A read
+    # check would let both through; the claim is a conditional update.
+    assert {:ok, :already_published} = TestReportIngestor.publish(finalized)
+    assert {:ok, :already_published} = TestReportIngestor.publish(finalized)
 
     Buffer.flush()
 

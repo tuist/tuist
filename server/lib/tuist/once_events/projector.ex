@@ -395,7 +395,11 @@ defmodule Tuist.OnceEvents.Projector do
   defp test_case_result(:TEST_CASE_RESULT_ERRORED), do: "errored"
   defp test_case_result(:TEST_CASE_RESULT_TIMED_OUT), do: "timed_out"
   defp test_case_result(:TEST_CASE_RESULT_CANCELLED), do: "cancelled"
-  defp test_case_result(_), do: "passed"
+  # Never invent a pass. `TEST_CASE_RESULT_UNKNOWN`, the unspecified zero
+  # value and anything a newer client sends all mean the case reached no
+  # verdict, and the shared test store maps that to skipped rather than
+  # success. Defaulting to "passed" recorded them as green.
+  defp test_case_result(_), do: "unknown"
 
   defp extract_failure_message(nil), do: nil
 

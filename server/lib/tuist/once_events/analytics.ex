@@ -123,6 +123,7 @@ defmodule Tuist.OnceEvents.Analytics do
       Run
       |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
       |> maybe_filter_kinds(commands)
+      |> maybe_filter_environment(opts)
       |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
       |> where([r], not is_nil(r.wall_ms) and r.wall_ms > 0)
       |> order_by([r], desc: r.started_at)

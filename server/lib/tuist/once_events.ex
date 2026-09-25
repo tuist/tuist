@@ -32,15 +32,34 @@ defmodule Tuist.OnceEvents do
   # ---- Writes -----------------------------------------------------------
 
   @doc """
-  Record that `run`'s results reached the shared test store, so a replayed
-  `RunCompleted` does not publish them a second time.
+  Claim the right to publish `run`'s results to the shared test store,
+  returning `:ok` to exactly one caller and `:already_published` to the rest.
+
+  The claim is a conditional update rather than a read followed by a write:
+  two projectors handling the same replayed `RunCompleted` would both pass a
+  read check and then append a second copy of every module, suite and case,
+  since `Tuist.Tests.create_test/1` generates fresh ids for those children.
   """
-  def mark_test_report_published(%Run{} = run) do
+  def claim_test_report_publication(%Run{} = run) do
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
 
+    {claimed, _} =
+      Run
+      |> where([r], r.id == ^run.id and is_nil(r.test_report_published_at))
+      |> Repo.update_all(set: [test_report_published_at: now, updated_at: now])
+
+    if claimed == 1, do: :ok, else: :already_published
+  end
+
+  @doc """
+  Release a claim taken by `claim_test_report_publication/1` when publishing
+  failed, so the run can be retried on the next `RunCompleted` replay rather
+  than being permanently skipped.
+  """
+  def release_test_report_publication(%Run{} = run) do
     Run
     |> where([r], r.id == ^run.id)
-    |> Repo.update_all(set: [test_report_published_at: now, updated_at: now])
+    |> Repo.update_all(set: [test_report_published_at: nil])
 
     :ok
   end
