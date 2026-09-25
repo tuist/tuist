@@ -97,7 +97,9 @@ defmodule Tuist.Tests.Coverage.Reported do
       # out to cover, which is what an ancestor's files are read back over.
       covered_schemes = (schemes ++ Enum.map(unmeasured, & &1.scheme)) |> Enum.reject(&(&1 in [nil, ""])) |> Enum.uniq()
 
-      case skipped_tests(project, repository_id, sha, run_ids, schemes) do
+      hits = selective_testing_hits(project.id, repository_id, run_ids)
+
+      case skipped_tests(project, repository_id, sha, {run_ids, hits}, schemes) do
         :not_enumerated ->
           result(observed, "observed", [], [], 0, [])
 
@@ -105,7 +107,7 @@ defmodule Tuist.Tests.Coverage.Reported do
           result(observed, "measured", [], [], 0, [])
 
         skipped ->
-          carry(project, repository_id, sha, {run_ids, covered_schemes}, observed, skipped, excluded)
+          carry(project, repository_id, sha, {run_ids, hits, covered_schemes}, observed, skipped, excluded)
       end
     end
   end
@@ -146,12 +148,13 @@ defmodule Tuist.Tests.Coverage.Reported do
     )
   end
 
-  defp carry(project, repository_id, sha, {run_ids, schemes}, observed, skipped, excluded) do
+  defp carry(project, repository_id, sha, {run_ids, hits, schemes}, observed, skipped, excluded) do
     context = %{
       project: project,
       repository_id: repository_id,
       sha: sha,
       run_ids: run_ids,
+      hits: hits,
       observed: observed,
       blobs: run_blobs(project.id, run_ids),
       excluded: ExcludedPaths.compile(excluded)
@@ -275,10 +278,10 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   # The enabled candidates of the commit's runs that none of them executed.
-  defp skipped_tests(project, repository_id, sha, run_ids, schemes) do
+  defp skipped_tests(project, repository_id, sha, {run_ids, hits}, schemes) do
     candidates =
       Enum.uniq_by(
-        enumerated(project.id, run_ids) ++ inherited_candidates(project, repository_id, sha, run_ids, schemes),
+        enumerated(project.id, run_ids) ++ inherited_candidates(project, repository_id, sha, {run_ids, hits}, schemes),
         & &1.test_case_id
       )
 
@@ -338,11 +341,11 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.uniq()
   end
 
-  defp inherited_candidates(_project, repository_id, _sha, _run_ids, _schemes) when repository_id in [nil, 0], do: []
+  defp inherited_candidates(_project, repository_id, _sha, _runs, _schemes) when repository_id in [nil, 0], do: []
 
-  defp inherited_candidates(project, repository_id, sha, run_ids, schemes) do
+  defp inherited_candidates(project, repository_id, sha, {run_ids, hits}, schemes) do
     silent = silent_schemes(project.id, sha, run_ids, schemes)
-    skipped_modules = selectively_skipped_modules(project.id, run_ids)
+    skipped_modules = hits |> Enum.map(& &1.name) |> Enum.uniq()
 
     if silent == [] and skipped_modules == [] do
       []
@@ -383,21 +386,20 @@ defmodule Tuist.Tests.Coverage.Reported do
     end)
   end
 
-  # A generated project prunes the test targets selective testing skips from
-  # the workspace, so the run that skipped them never lists their tests, and a
-  # test that is not a candidate cannot be carried. The command event names
-  # the targets it skipped because their inputs matched a run that passed;
-  # their candidates come from the nearest ancestor run of the same scheme
-  # that listed them. A target that is merely absent (taken out of the
-  # scheme, or deleted) is not a hit, so nothing is inherited for it.
-  defp selectively_skipped_modules(_project_id, []), do: []
+  # The targets selective testing skipped in the commit's runs, with the
+  # hash that matched, read once for both uses: a generated project prunes
+  # them from the workspace, so the run that skipped them never lists their
+  # tests, and a test that is not a candidate cannot be carried; their
+  # candidates come from the nearest ancestor run of the same scheme that
+  # listed them. A target that is merely absent (taken out of the scheme, or
+  # deleted) is not a hit, so nothing is inherited for it. Both uses need
+  # the repository, so without one nothing is read.
+  defp selective_testing_hits(_project_id, repository_id, _run_ids) when repository_id in [nil, 0], do: []
 
-  defp selectively_skipped_modules(project_id, run_ids) do
+  defp selective_testing_hits(project_id, _repository_id, run_ids) do
     project_id
     |> target_hashes(run_ids)
     |> Enum.filter(&(&1.hit in ["local", "remote"]))
-    |> Enum.map(& &1.name)
-    |> Enum.uniq()
   end
 
   defp inherit_modules(_project_id, _ranked, _schemes, []), do: []
@@ -512,11 +514,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   # cannot: Swift Testing without the attribution trait, and tests that ran in
   # parallel.
   defp carry_targets(acc, context, skipped, source_runs, validity) do
-    hits =
-      context.project.id
-      |> target_hashes(context.run_ids)
-      |> Enum.filter(&(&1.hit in ["local", "remote"]))
-      |> Map.new(&{&1.name, &1.hash})
+    hits = Map.new(context.hits, &{&1.name, &1.hash})
 
     by_module = skipped |> Enum.filter(&Map.has_key?(hits, &1.module_name)) |> Enum.group_by(& &1.module_name)
 
@@ -571,23 +569,24 @@ defmodule Tuist.Tests.Coverage.Reported do
 
   # The selective-testing hash and hit each run's command event reported per
   # target. A run that ignored selective testing still hashes its targets,
-  # and reports them as misses.
+  # and reports them as misses. The targets are read by command event, which
+  # their table's `proj_by_command_event` projection is ordered by: joined
+  # to the events, nothing bounded the read of a table ordered by time.
   defp target_hashes(_project_id, []), do: []
 
   defp target_hashes(project_id, run_ids) do
-    run_ids
+    events = command_events(project_id, run_ids)
+
+    events
+    |> Map.keys()
     |> Coverage.id_chunks()
-    |> Enum.flat_map(fn runs ->
+    |> Enum.flat_map(fn ids ->
       ClickHouseRepo.all(
         from(t in XcodeTarget,
-          join: e in Event,
-          on: e.id == t.command_event_id,
-          where:
-            t.project_id == ^project_id and e.project_id == ^project_id and e.test_run_id in ^runs and
-              not is_nil(t.selective_testing_hash),
+          where: t.command_event_id in ^ids and not is_nil(t.selective_testing_hash),
           distinct: true,
           select: %{
-            test_run_id: e.test_run_id,
+            command_event_id: t.command_event_id,
             name: t.name,
             hash: t.selective_testing_hash,
             hit: t.selective_testing_hit
@@ -595,6 +594,21 @@ defmodule Tuist.Tests.Coverage.Reported do
         )
       )
     end)
+    |> Enum.map(fn target ->
+      target |> Map.delete(:command_event_id) |> Map.put(:test_run_id, events[target.command_event_id])
+    end)
+    |> Enum.uniq()
+  end
+
+  defp command_events(project_id, run_ids) do
+    run_ids
+    |> Coverage.id_chunks()
+    |> Enum.flat_map(fn runs ->
+      ClickHouseRepo.all(
+        from(e in Event, where: e.project_id == ^project_id and e.test_run_id in ^runs, select: {e.id, e.test_run_id})
+      )
+    end)
+    |> Map.new()
   end
 
   # The targets that had a failing test in the run their evidence comes from.

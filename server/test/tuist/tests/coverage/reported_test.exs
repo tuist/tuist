@@ -2,6 +2,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Tests
@@ -355,6 +356,38 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              gap_files_count: 0,
              carried_from: ["base"]
            } = Reported.compute(project, "head")
+  end
+
+  test "reads the runs' selective-testing hashes by command event, once per set of runs", %{
+    project: project,
+    account: account
+  } do
+    target_only_runs(project, account)
+
+    report = fn
+      %Ecto.Query{from: %{source: {"xcode_targets", _schema}}, joins: joins} ->
+        send(self(), {:xcode_targets_query, joins})
+
+      _query ->
+        :ok
+    end
+
+    stub(ClickHouseRepo, :all, fn query ->
+      report.(query)
+      call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    stub(ClickHouseRepo, :all, fn query, opts ->
+      report.(query)
+      call_original(ClickHouseRepo, :all, [query, opts])
+    end)
+
+    assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
+
+    # The head's runs, then the runs the target's evidence comes from.
+    assert_received {:xcode_targets_query, []}
+    assert_received {:xcode_targets_query, []}
+    refute_received {:xcode_targets_query, _joins}
   end
 
   test "carries no target whose inputs hashed differently where its evidence comes from", %{
