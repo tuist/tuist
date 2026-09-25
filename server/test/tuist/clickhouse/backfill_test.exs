@@ -216,6 +216,15 @@ defmodule Tuist.ClickHouse.BackfillTest do
     test "bounds the reading threads, which the container's missing CPU limit does not" do
       assert Backfill.copy_settings()[:max_threads] in 1..8
     end
+
+    test "writes on more than one thread and feeds materialized views in parallel" do
+      # ClickHouse's defaults are a single insert thread and one view at a
+      # time, which held `test_case_runs` and its ~20 views to one core of 30.
+      settings = Backfill.copy_settings()
+
+      assert settings[:max_insert_threads] > 1
+      assert settings[:parallel_view_processing] == 1
+    end
   end
 
   describe "slices/2" do
