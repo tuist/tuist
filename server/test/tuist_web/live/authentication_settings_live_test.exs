@@ -591,16 +591,11 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               ~s(#sso-login-domain-verification [data-part="domain-verification-result"][data-status="success"]),
-               "The login domain has been verified."
-             )
-
-      assert has_element?(
-               lv,
                ~s([data-section="login-domain"] [data-part="domain-verification-status"][data-status="verified"])
              )
 
       refute has_element?(lv, "#verify-sso-login-domain-button")
+      refute has_element?(lv, "#sso-login-domain-verification")
       refute render(lv) =~ "Pending verification"
     end
 
@@ -628,7 +623,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               ~s(#sso-login-domain-verification [data-part="domain-verification-result"][data-status="error"]),
+               ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
                "No TXT record with the verification value was found at _tuist-verification.customer.example. DNS changes can take a while to propagate"
              )
 
@@ -660,19 +655,19 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
       lv |> element("#verify-sso-login-domain-button") |> render_click()
-      assert has_element?(lv, "#sso-login-domain-verification-result")
+      assert has_element?(lv, "#sso-login-domain-verification-error")
 
       lv
       |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "Customer.Example"}})
       |> render_change()
 
-      assert has_element?(lv, "#sso-login-domain-verification-result")
+      assert has_element?(lv, "#sso-login-domain-verification-error")
 
       lv
       |> form("#sso-form", %{"sso" => %{"sso_login_domain" => "other.example"}})
       |> render_change()
 
-      refute has_element?(lv, "#sso-login-domain-verification-result")
+      refute has_element?(lv, "#sso-login-domain-verification-error")
     end
 
     test "offers the verification record as a TXT record with copy buttons", %{
@@ -741,7 +736,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               ~s(#sso-login-domain-verification [data-part="domain-verification-result"][data-status="error"]),
+               ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
                "Save the login domain before verifying it."
              )
 

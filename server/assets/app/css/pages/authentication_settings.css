@@ -352,7 +352,7 @@
     padding-top: var(--noora-spacing-7);
     width: 100%;
 
-    & > [data-part="domain-verification-result"].phx-click-loading {
+    & > [data-part="domain-verification-error"].phx-click-loading {
       display: none;
     }
 

@@ -212,15 +212,15 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         socket.assigns.organization
       )
 
-    domain_verification_result =
+    domain_verification_error =
       if normalize_domain(form_params["sso_login_domain"]) ==
            normalize_domain(socket.assigns.current_form_params["sso_login_domain"]),
-         do: socket.assigns.domain_verification_result
+         do: socket.assigns.domain_verification_error
 
     socket
     |> assign(
       current_form_params: form_params,
-      domain_verification_result: domain_verification_result,
+      domain_verification_error: domain_verification_error,
       sso_automatic_enrollment:
         if(custom_provider_without_verified_domain? and not legacy_automatic_enrollment?,
           do: false,
@@ -275,38 +275,34 @@ defmodule TuistWeb.AuthenticationSettingsLive do
             {:noreply,
              socket
              |> assign(:organization, organization)
-             |> assign(
-               :domain_verification_result,
-               {"success", dgettext("dashboard_account", "The login domain has been verified.")}
-             )}
+             |> assign(:domain_verification_error, nil)}
 
           {:error, :verification_record_not_found} ->
             {:noreply,
              assign(
                socket,
-               :domain_verification_result,
-               {"error",
-                dgettext(
-                  "dashboard_account",
-                  "No TXT record with the verification value was found at %{record_name}. DNS changes can take a while to propagate, so try again in a few minutes.",
-                  record_name: Accounts.sso_login_domain_record_name(organization)
-                )}
+               :domain_verification_error,
+               dgettext(
+                 "dashboard_account",
+                 "No TXT record with the verification value was found at %{record_name}. DNS changes can take a while to propagate, so try again in a few minutes.",
+                 record_name: Accounts.sso_login_domain_record_name(organization)
+               )
              )}
 
           {:error, :login_domain_not_configured} ->
             {:noreply,
              assign(
                socket,
-               :domain_verification_result,
-               {"error", dgettext("dashboard_account", "Configure and save a login domain first.")}
+               :domain_verification_error,
+               dgettext("dashboard_account", "Configure and save a login domain first.")
              )}
 
           {:error, changeset} ->
             {:noreply,
              assign(
                socket,
-               :domain_verification_result,
-               {"error", changeset_error_message(changeset)}
+               :domain_verification_error,
+               changeset_error_message(changeset)
              )}
         end
 
@@ -314,8 +310,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         {:noreply,
          assign(
            socket,
-           :domain_verification_result,
-           {"error", dgettext("dashboard_account", "Save the login domain before verifying it.")}
+           :domain_verification_error,
+           dgettext("dashboard_account", "Save the login domain before verifying it.")
          )}
     end
   end
@@ -611,7 +607,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     |> assign(selected_provider: provider)
     |> assign(current_form_params: form_data)
     |> assign(form: to_form(form_data, as: "sso"))
-    |> assign(domain_verification_result: nil)
+    |> assign(domain_verification_error: nil)
   end
 
   defp assign_saved_state(socket) do

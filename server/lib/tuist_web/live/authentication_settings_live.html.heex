@@ -340,7 +340,7 @@
             size="medium"
             phx-click={
               JS.push("verify_sso_login_domain",
-                loading: "#sso-login-domain-verification-result"
+                loading: "#sso-login-domain-verification-error"
               )
             }
           />
@@ -349,19 +349,19 @@
           :if={
             domain_verification_shown?(@organization, @form) and
               (Accounts.sso_login_domain_awaiting_record?(@organization) or
-                 not is_nil(@domain_verification_result))
+                 not is_nil(@domain_verification_error))
           }
           id="sso-login-domain-verification"
           data-part="domain-verification"
         >
           <.alert
-            :if={@domain_verification_result}
-            id="sso-login-domain-verification-result"
-            data-part="domain-verification-result"
-            status={elem(@domain_verification_result, 0)}
+            :if={@domain_verification_error}
+            id="sso-login-domain-verification-error"
+            data-part="domain-verification-error"
+            status="error"
             type="secondary"
             size="small"
-            title={elem(@domain_verification_result, 1)}
+            title={@domain_verification_error}
           />
           <div
             :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
