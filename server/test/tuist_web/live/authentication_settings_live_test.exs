@@ -695,8 +695,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               "#sso-login-domain-verification",
-               "Add this TXT record at your DNS provider for customer.example, then click Verify domain."
+               ~s([data-part="label"] [data-part="description"]),
+               "Add the TXT record below at your DNS provider, then click Verify domain."
              )
 
       assert has_element?(lv, ~s(#sso-login-domain-verification [data-part="domain-record"]), "TXT")

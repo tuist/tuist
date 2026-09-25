@@ -847,6 +847,29 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   defp oauth2_form_provider?(provider), do: provider in @oauth2_form_providers
 
+  defp domain_verification_shown?(organization, form) do
+    not is_nil(organization.sso_login_domain) and organization.sso_login_domain == form[:sso_login_domain].value
+  end
+
+  defp domain_record_instruction(organization, form) do
+    cond do
+      not domain_verification_shown?(organization, form) ->
+        nil
+
+      Accounts.sso_login_domain_expiring?(organization) ->
+        dgettext(
+          "dashboard_account",
+          "The TXT record below no longer resolves. Publish it again at your DNS provider, then click Verify domain."
+        )
+
+      is_nil(organization.sso_login_domain_verified_at) ->
+        dgettext("dashboard_account", "Add the TXT record below at your DNS provider, then click Verify domain.")
+
+      true ->
+        nil
+    end
+  end
+
   attr :id, :string, required: true
   attr :value, :string, required: true
   attr :copy_label, :string, required: true

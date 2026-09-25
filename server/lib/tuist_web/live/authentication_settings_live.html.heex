@@ -283,14 +283,15 @@
             <%= if @organization.sso_login_domain_verified_at do %>
               {dgettext(
                 "dashboard_account",
-                "This domain is used to find the provider and determines which email addresses are trusted for automatic enrollment and identity linking. It is independent of the provider URL."
+                "Used to find your provider and to decide which email addresses to trust."
               )}
             <% else %>
               {dgettext(
                 "dashboard_account",
-                "Once verified, this domain is used to find the provider and determines which email addresses can be trusted for automatic enrollment and identity linking. It is independent of the provider URL."
+                "Once verified, used to find your provider and to decide which email addresses to trust."
               )}
             <% end %>
+            {domain_record_instruction(@organization, @form)}
           </span>
         </div>
         <div data-part="field">
@@ -302,23 +303,17 @@
           />
 
           <div
-            :if={
-              @organization.sso_login_domain &&
-                @organization.sso_login_domain == @form[:sso_login_domain].value
-            }
+            :if={domain_verification_shown?(@organization, @form)}
             id="sso-login-domain-verification"
             data-part="domain-verification"
           >
             <%= cond do %>
               <% Accounts.sso_login_domain_expiring?(@organization) -> %>
                 <span data-part="domain-verification-status" data-status="expiring">
-                  {dgettext("dashboard_account", "Verification expiring")}
-                </span>
-                <span data-part="domain-verification-description">
                   {dngettext(
                     "dashboard_account",
-                    "The TXT record no longer resolves. Publish it again at your DNS provider and click Verify domain, or this domain loses its verification in %{count} day.",
-                    "The TXT record no longer resolves. Publish it again at your DNS provider and click Verify domain, or this domain loses its verification in %{count} days.",
+                    "Expires in %{count} day",
+                    "Expires in %{count} days",
                     Accounts.sso_login_domain_days_until_expiry(@organization)
                   )}
                 </span>
@@ -329,13 +324,6 @@
               <% true -> %>
                 <span data-part="domain-verification-status" data-status="pending">
                   {dgettext("dashboard_account", "Pending verification")}
-                </span>
-                <span data-part="domain-verification-description">
-                  {dgettext(
-                    "dashboard_account",
-                    "Add this TXT record at your DNS provider for %{domain}, then click Verify domain.",
-                    domain: @organization.sso_login_domain
-                  )}
                 </span>
             <% end %>
             <%= if Accounts.sso_login_domain_awaiting_record?(@organization) do %>
