@@ -1,0 +1,147 @@
+name: Linux Build Cache Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache_key:
+        description: Unique experiment key; reuse for cold and warm runs
+        required: true
+        type: string
+      phase:
+        description: Run baseline, cold, then warm after publication
+        type: choice
+        options: [baseline, cold, warm]
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  # Reviewed main commit, fixed across all phases and never dispatch-selected.
+  SOURCE_SHA: 92ad9c2d908ca7c2aa12aa1f9559f86e9992f894
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_CEILING_PATHS: ${{ github.workspace }}
+
+concurrency:
+  group: build-cache-benchmark-${{ inputs.cache_key }}
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: ${{ matrix.workload }} / ${{ inputs.phase }}
+    runs-on: tuist-linux-large
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - workload: kura
+            tools: rust bazel
+            cache: bazel-cache
+          - workload: registry
+            tools: erlang elixir
+            cache: mix-cache
+    env:
+      PHASE: ${{ inputs.phase }}
+      WORKLOAD: ${{ matrix.workload }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tuist/tuist
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      # Read only reviewed helpers from the default branch running this workflow.
+      # Keeping them separate allows benchmarking on runners-benchmark before merge.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .benchmark
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: ${{ matrix.tools }}
+          working_directory: ${{ matrix.workload }}
+      - name: Install native build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - name: Start attachment timer
+        env:
+          CACHE_DIRECTORY: ${{ matrix.cache }}
+        run: |
+          echo "CACHE_PATH=$RUNNER_TEMP/$CACHE_DIRECTORY" >> "$GITHUB_ENV"
+          echo "CACHE_START=$(date +%s%N)" >> "$GITHUB_ENV"
+      - uses: ./.benchmark/.github/actions/setup-bazel-volumes
+        if: matrix.workload == 'kura'
+        id: bazel
+        with:
+          enabled: ${{ inputs.phase != 'baseline' }}
+          key: benchmark-${{ inputs.cache_key }}-kura
+      - uses: ./.benchmark/.github/actions/setup-mix-volumes
+        if: matrix.workload == 'registry'
+        id: mix
+        with:
+          enabled: ${{ inputs.phase != 'baseline' }}
+          working-directory: registry
+          key: benchmark-${{ inputs.cache_key }}-registry
+      - name: Verify mounted cache and source
+        env:
+          CACHE_HIT: ${{ steps.bazel.outputs.cache-hit || steps.mix.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          echo "CACHE_MS=$(( ($(date +%s%N) - CACHE_START) / 1000000 ))" >> "$GITHUB_ENV"
+          if [ "$PHASE" = baseline ]; then
+            test ! -L "$CACHE_PATH"
+          else
+            expected=false
+            if [ "$PHASE" = warm ]; then expected=true; fi
+            test "$CACHE_HIT" = "$expected"
+            test -L "$CACHE_PATH"
+            test -s "$(dirname "$(readlink -f "$CACHE_PATH")")/.tuist-volume"
+            if [ "$PHASE" = warm ]; then
+              test "$(cat "$CACHE_PATH/.benchmark-source")" = "$SOURCE_SHA"
+            else
+              test ! -e "$CACHE_PATH/.benchmark-source"
+            fi
+            printf '%s' "$SOURCE_SHA" > "$CACHE_PATH/.benchmark-source"
+          fi
+      - name: Build and measure
+        working-directory: ${{ matrix.workload }}
+        env:
+          MIX_ENV: prod
+        run: |
+          set -euo pipefail
+          start=$(date +%s%N)
+          if [ "$WORKLOAD" = kura ]; then
+            ../.github/scripts/retry-bazel-command.sh bazel build //:kura
+            test -x bazel-bin/kura
+          else
+            mix local.hex --force
+            mix local.rebar --force
+            mix deps.get --check-locked
+            mix compile --warnings-as-errors
+            test -s _build/prod/lib/tuist_registry/ebin/tuist_registry.app
+          fi
+          echo "WORKLOAD_MS=$(( ($(date +%s%N) - start) / 1000000 ))" >> "$GITHUB_ENV"
+      - name: Record measurement
+        env:
+          CACHE_HIT: ${{ steps.bazel.outputs.cache-hit || steps.mix.outputs.cache-hit }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/build-cache-results"
+          bytes=$(du -sbL "$CACHE_PATH" | cut -f1)
+          jq -n --arg source "$SOURCE_SHA" --arg phase "$PHASE" --arg workload "$WORKLOAD" \
+            --arg hit "$CACHE_HIT" --argjson cache_ms "$CACHE_MS" --argjson workload_ms "$WORKLOAD_MS" \
+            --argjson bytes "$bytes" \
+            '{source:$source, phase:$phase, workload:$workload, hit:$hit, cache_ms:$cache_ms, workload_ms:$workload_ms, bytes:$bytes}' \
+            > "$RUNNER_TEMP/build-cache-results/$WORKLOAD-$PHASE.json"
+          {
+            echo '| Workload | Phase | Attachment (ms) | Build (ms) | Cache hit |'
+            echo '| --- | --- | ---: | ---: | --- |'
+            echo "| $WORKLOAD | $PHASE | $CACHE_MS | $WORKLOAD_MS | $CACHE_HIT |"
+            echo
+            echo 'Same source and tuist-linux-large profile. Empty-cache baseline; no remote Bazel cache.'
+            echo 'Timing excludes checkout, tools, native prerequisite installation, queueing and post-job publication.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-cache-${{ matrix.workload }}-${{ inputs.phase }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/build-cache-results/*.json

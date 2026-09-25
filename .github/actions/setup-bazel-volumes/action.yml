@@ -1,0 +1,33 @@
+name: Setup Bazel cache volumes
+description: Retain Bazel downloads and content-addressed outputs on Tuist Linux runners.
+inputs:
+  enabled:
+    description: Set false for an empty-cache benchmark baseline.
+    default: "true"
+  key:
+    description: Cache namespace, shared between a job and its fork variant.
+    required: true
+outputs:
+  cache-hit:
+    description: Whether the cache volume restored a saved snapshot.
+    value: ${{ steps.volume.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/cache-volume
+      if: inputs.enabled == 'true'
+      id: volume
+      with:
+        key: ${{ inputs.key }}
+        path: ${{ runner.temp }}/bazel-cache
+    - name: Configure local Bazel caches
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/bazel-cache/repository" "$RUNNER_TEMP/bazel-cache/disk"
+        {
+          echo "common --repository_cache=$RUNNER_TEMP/bazel-cache/repository"
+          echo "build --disk_cache=$RUNNER_TEMP/bazel-cache/disk"
+          echo "build --experimental_disk_cache_gc_max_size=12G"
+          echo "build --experimental_disk_cache_gc_max_age=7d"
+          echo "build --experimental_disk_cache_gc_idle_delay=0s"
+        } >> "$HOME/.bazelrc"

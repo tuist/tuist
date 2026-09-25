@@ -8,12 +8,16 @@ on:
       - registry/**
       - tuist_common/**
       - .github/workflows/registry.yml
+      - .github/actions/setup-mix-volumes/**
+      - .github/actions/cache-volume/**
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - registry/**
       - tuist_common/**
       - .github/workflows/registry.yml
+      - .github/actions/setup-mix-volumes/**
+      - .github/actions/cache-volume/**
   merge_group: {}
 
 permissions:
@@ -41,17 +45,14 @@ jobs:
     if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            registry/deps
-            registry/_build
-          key: registry-mix-${{ hashFiles('registry/mix.lock') }}
       - uses: ./.github/actions/mise
         with:
           install_args: "erlang elixir ruby"
           working_directory: registry
+      - uses: ./.github/actions/setup-mix-volumes
+        with:
+          working-directory: registry
+          key: ci-registry-${{ github.job }}-v1
       - name: Install dependencies
         run: mise run install
       - name: Check format
@@ -64,17 +65,14 @@ jobs:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            registry/deps
-            registry/_build
-          key: registry-mix-${{ hashFiles('registry/mix.lock') }}
       - uses: ./.github/actions/mise
         with:
           install_args: "erlang elixir ruby"
           working_directory: registry
+      - uses: ./.github/actions/setup-mix-volumes
+        with:
+          working-directory: registry
+          key: ci-registry-${{ github.job }}-v1
       - name: Install dependencies
         run: mise run install
       - name: Run Credo
@@ -87,17 +85,14 @@ jobs:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            registry/deps
-            registry/_build
-          key: registry-mix-${{ hashFiles('registry/mix.lock') }}
       - uses: ./.github/actions/mise
         with:
           install_args: "erlang elixir ruby"
           working_directory: registry
+      - uses: ./.github/actions/setup-mix-volumes
+        with:
+          working-directory: registry
+          key: ci-registry-${{ github.job }}-v1
       - name: Install dependencies
         run: mise run install
       - name: Run tests
@@ -110,17 +105,14 @@ jobs:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            registry/deps
-            registry/_build
-          key: registry-mix-${{ hashFiles('registry/mix.lock') }}
       - uses: ./.github/actions/mise
         with:
           install_args: "erlang elixir ruby"
           working_directory: registry
+      - uses: ./.github/actions/setup-mix-volumes
+        with:
+          working-directory: registry
+          key: ci-registry-${{ github.job }}-v1
       - name: Install dependencies
         run: mise run install
       - name: Compile with MIX_ENV=prod

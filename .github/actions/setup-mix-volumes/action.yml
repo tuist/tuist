@@ -1,0 +1,42 @@
+name: Setup Mix cache volumes
+description: Retain Mix dependencies and build artifacts, isolated by project, job and installed toolchain.
+inputs:
+  enabled:
+    description: Set false for an empty-cache benchmark baseline.
+    default: "true"
+  working-directory:
+    description: Mix project directory. Install Elixir and Erlang before invoking this action.
+    required: true
+  key:
+    description: Job-specific cache namespace.
+    required: true
+outputs:
+  cache-hit:
+    description: Whether the cache volume restored a saved snapshot.
+    value: ${{ steps.volume.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Identify the Mix toolchain
+      id: toolchain
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      run: |
+        version=$(elixir -e 'IO.write("#{System.version()}-#{:erlang.system_info(:version)}")')
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+    - uses: ./.github/actions/cache-volume
+      if: inputs.enabled == 'true'
+      id: volume
+      with:
+        key: ${{ inputs.key }}-${{ steps.toolchain.outputs.version }}-${{ hashFiles(format('{0}/mix.lock', inputs.working-directory)) }}
+        path: ${{ runner.temp }}/mix-cache
+    - name: Connect Mix cache directories
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
+      run: |
+        for directory in deps _build; do
+          mkdir -p "$RUNNER_TEMP/mix-cache/$directory"
+          if [ -d "$directory" ] && [ ! -L "$directory" ]; then rmdir "$directory"; fi
+          test ! -e "$directory" && test ! -L "$directory"
+          ln -s "$RUNNER_TEMP/mix-cache/$directory" "$directory"
+        done
