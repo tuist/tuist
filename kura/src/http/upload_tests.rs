@@ -347,7 +347,10 @@ async fn upload_of_existing_blob_over_real_http1_keeps_the_connection_reusable()
                 .as_bytes(),
             )
             .await?;
-        writer.write_all(&[7_u8; 16]).await
+        writer.write_all(&[7_u8; 16]).await?;
+        // Keep the write side open like a proxy does: Hyper closes a connection
+        // that half-closes mid-request without answering it.
+        Ok::<_, std::io::Error>(writer)
     });
 
     let mut received = Vec::new();
@@ -357,7 +360,7 @@ async fn upload_of_existing_blob_over_real_http1_keeps_the_connection_reusable()
     )
     .await
     .unwrap();
-    let _ = client.await.unwrap();
+    drop(client.await.unwrap());
     server.abort();
 
     let received = String::from_utf8_lossy(&received);
