@@ -418,7 +418,7 @@ public struct GitController: GitControlling {
     /// The pull request number from a `refs/pull/<n>/...` ref (which the CI variables above are
     /// folded into), or GitLab's merge request id.
     static func pullRequestNumber(ref: String?, environment: [String: String]) -> Int? {
-        if let ref, let match = ref.wholeMatch(of: /refs\/(?:pull|merge-requests)\/(\d+)\/.*/) {
+        if let ref, let match = ref.wholeMatch(of: #/refs/(?:pull|merge-requests)/(\d+)/.*/#) {
             return Int(match.1)
         }
         return ["CI_MERGE_REQUEST_IID"].compactMap { environment[$0] }.compactMap(Int.init).first
