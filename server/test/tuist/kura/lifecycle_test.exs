@@ -1495,7 +1495,8 @@ defmodule Tuist.Kura.LifecycleTest do
       # waits for is the destination coming up, which happens on that cadence.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1510,6 +1511,7 @@ defmodule Tuist.Kura.LifecycleTest do
       account = account(plan: :enterprise)
       source = active_instance(account)
       destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1632,7 +1634,8 @@ defmodule Tuist.Kura.LifecycleTest do
       # again — holding its volume and its slot forever.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
       {:ok, _retiring} = PlacerRegions.mark_retiring(account, @region)
@@ -1687,7 +1690,8 @@ defmodule Tuist.Kura.LifecycleTest do
       # here, which the inactivity rules get no say in.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1709,7 +1713,8 @@ defmodule Tuist.Kura.LifecycleTest do
       # margin would tear the instance down under live builds.
       account = account(plan: :enterprise)
       source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1728,7 +1733,8 @@ defmodule Tuist.Kura.LifecycleTest do
     test "tears the retired instance down once its drain window has elapsed" do
       account = account(plan: :enterprise)
       _source = active_instance(account)
-      _destination = active_instance_in(account, "eu-west")
+      destination = active_instance_in(account, "eu-west")
+      mark_stable_ready(destination, account)
       with_demand(account, 0)
       {:ok, _held} = PlacerRegions.put_primary(account, @region)
       {:ok, _primary} = PlacerRegions.put_primary(account, "eu-west")
@@ -1882,6 +1888,18 @@ defmodule Tuist.Kura.LifecycleTest do
     account
     |> reload_lifecycle()
     |> Ecto.Changeset.change(%{drain_started_at: started_at})
+    |> Repo.update!()
+  end
+
+  defp mark_stable_ready(server, account) do
+    server
+    |> Ecto.Changeset.change(
+      stable_endpoint: %{
+        "host" => StableEndpoint.host(account),
+        "ready" => true,
+        "checked_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+    )
     |> Repo.update!()
   end
 

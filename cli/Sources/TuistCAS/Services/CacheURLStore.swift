@@ -55,40 +55,17 @@ public struct CacheURLStore: CacheURLStoring {
 }
 
 public enum CacheURLStoreError: LocalizedError, Equatable {
-    case noEndpointsAvailable
-    case endpointBeingPrepared
-    case noReachableEndpoints
     case invalidURL(String)
     case invalidAccountHandle(String?)
     case missingEndpointOverride
-    /// Retained for source compatibility with callers of the legacy resolver.
-    case forbidden(String)
-
-    public var isTransientAbsence: Bool {
-        switch self {
-        case .noEndpointsAvailable, .endpointBeingPrepared, .noReachableEndpoints:
-            true
-        case .invalidURL, .invalidAccountHandle, .missingEndpointOverride, .forbidden:
-            false
-        }
-    }
-
     public var errorDescription: String? {
         switch self {
-        case .noEndpointsAvailable:
-            return "No cache endpoints are available."
-        case .endpointBeingPrepared:
-            return "The remote cache is being prepared and has no endpoint yet."
-        case .noReachableEndpoints:
-            return "None of the cache endpoints are reachable."
         case let .invalidURL(url):
             return "Invalid cache endpoint URL: \(url)."
         case let .invalidAccountHandle(handle):
             return "A valid account handle is required to derive the cache endpoint: \(handle ?? "missing")."
         case .missingEndpointOverride:
             return "Set TUIST_CACHE_ENDPOINT to the cache URL for your self-hosted server."
-        case let .forbidden(message):
-            return message
         }
     }
 }

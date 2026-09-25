@@ -21,12 +21,12 @@ struct CacheStorageFactoryingLocalFallbackTests {
             .willReturn(localCacheStorage)
     }
 
-    @Test func uses_the_local_cache_and_warns_while_the_remote_cache_is_being_prepared() async throws {
+    @Test func uses_the_local_cache_when_an_explicit_endpoint_is_missing() async throws {
         // Given
         let alertController = AlertController()
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.endpointBeingPrepared)
+            .willThrow(CacheURLStoreError.missingEndpointOverride)
 
         // When
         _ = try await AlertController.$current.withValue(alertController) {
@@ -39,7 +39,7 @@ struct CacheStorageFactoryingLocalFallbackTests {
             .called(1)
         #expect(
             alertController.warnings().map(\.message).map { $0.plain() } == [
-                "The remote cache is still being prepared.",
+                "Remote caching requires TUIST_CACHE_ENDPOINT for this server.",
             ]
         )
     }
@@ -49,7 +49,7 @@ struct CacheStorageFactoryingLocalFallbackTests {
         let alertController = AlertController()
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.endpointBeingPrepared)
+            .willThrow(CacheURLStoreError.missingEndpointOverride)
 
         // When
         try await AlertController.$current.withValue(alertController) {
@@ -61,53 +61,9 @@ struct CacheStorageFactoryingLocalFallbackTests {
         #expect(alertController.warnings().count == 1)
     }
 
-    @Test func uses_the_local_cache_when_no_remote_cache_endpoint_is_available() async throws {
-        // Given
-        let alertController = AlertController()
-        given(cacheStorageFactory)
-            .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.noEndpointsAvailable)
-
-        // When
-        _ = try await AlertController.$current.withValue(alertController) {
-            try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: .test())
-        }
-
-        // Then
-        verify(cacheStorageFactory)
-            .cacheLocalStorage()
-            .called(1)
-        #expect(
-            alertController.warnings().map(\.message).map { $0.plain() } == [
-                "No remote cache endpoint is available.",
-            ]
-        )
-    }
-
-    @Test func uses_the_local_cache_and_relays_why_when_the_account_refuses_the_caller() async throws {
-        // Given
-        let alertController = AlertController()
-        let message = "You are logged in as 'stranger', which is not a member of 'acme'."
-        given(cacheStorageFactory)
-            .cacheStorage(config: .any)
-            .willThrow(CacheURLStoreError.forbidden(message))
-
-        // When
-        _ = try await AlertController.$current.withValue(alertController) {
-            try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: .test())
-        }
-
-        // Then
-        verify(cacheStorageFactory)
-            .cacheLocalStorage()
-            .called(1)
-        #expect(alertController.warnings().map(\.message).map { $0.plain() } == [message])
-    }
-
     @Test(arguments: [
         CacheURLStoreError.invalidURL("not a url") as Error,
         CacheURLStoreError.invalidAccountHandle(nil),
-        CacheURLStoreError.missingEndpointOverride,
         RefreshAuthTokenServiceError.unauthorized("Invalid token"),
     ])
     func rethrows_errors_that_waiting_does_not_fix(error: Error) async throws {

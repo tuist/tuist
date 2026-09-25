@@ -21,3 +21,5 @@
 - Warn when a failed case matches an older suite-based mute but now reports a
   different class identity. Do not transfer that policy automatically: multiple
   classes may have shared the old identity.
+
+- Setup probes and credential-helper responses use project-scoped cache-token exchange, preserving the signed origin used by cold activation. Bound returned token expiry with the existing safety margin; only a missing exchange endpoint (404) falls back to the raw credential for older self-hosted servers. Endpoint derivation remains local and does not register demand.

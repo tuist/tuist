@@ -13,16 +13,10 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 )
 
 var handlePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$`)
-
-type route struct {
-	target  *url.URL
-	expires time.Time
-}
 
 // Servers is an explicit environment allowlist, never derived from request URLs.
 type Servers map[string]string
@@ -34,8 +28,7 @@ type Gateway struct {
 	Wait      time.Duration
 	Poll      time.Duration
 	slots     chan struct{}
-	routesMu  sync.Mutex
-	routes    map[string]route
+	streams   chan struct{}
 }
 
 func New(servers Servers, concurrency int) *Gateway {
@@ -43,7 +36,7 @@ func New(servers Servers, concurrency int) *Gateway {
 		Servers:   servers,
 		Control:   &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 		Transport: &http.Transport{Proxy: nil, ForceAttemptHTTP2: true, MaxIdleConns: 128, MaxIdleConnsPerHost: 8, MaxConnsPerHost: 32, IdleConnTimeout: 30 * time.Second, TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 30 * time.Second},
-		Wait:      20 * time.Second, Poll: 2 * time.Second, slots: make(chan struct{}, concurrency),
+		Wait:      20 * time.Second, Poll: 2 * time.Second, slots: make(chan struct{}, concurrency), streams: make(chan struct{}, concurrency),
 	}
 }
 
@@ -85,15 +78,16 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		unforwardedFailure(w, r, http.StatusUnauthorized)
 		return
 	}
+	admitted := true
 	select {
 	case g.slots <- struct{}{}:
-		defer func() { <-g.slots }()
+		defer func() {
+			if admitted {
+				<-g.slots
+			}
+		}()
 	default:
 		unforwardedFailure(w, r, http.StatusTooManyRequests)
-		return
-	}
-	if target := g.cachedRoute(r.Host); target != nil {
-		g.proxy(w, r, target)
 		return
 	}
 	// Bound only activation, not the lifetime of the artifact stream. Leave its
@@ -101,6 +95,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), g.Wait)
 	defer cancel()
 	started := time.Now()
+	waited := false
 	for {
 		target, status := g.resolve(ctx, server, strings.ToLower(r.Host), authorization)
 		if status != http.StatusAccepted && status != http.StatusOK {
@@ -108,11 +103,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if target != nil {
-			slog.Info("cache activation ready", "environment", env, "wait_ms", time.Since(started).Milliseconds())
-			g.cacheRoute(r.Host, target)
+			if waited {
+				slog.Info("cache activation ready", "environment", env, "wait_ms", time.Since(started).Milliseconds())
+			}
+			<-g.slots
+			admitted = false
 			g.proxy(w, r, target)
 			return
 		}
+		waited = true
 		timer := time.NewTimer(g.Poll)
 		select {
 		case <-ctx.Done():
@@ -122,44 +121,6 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case <-timer.C:
 		}
 	}
-}
-
-// Routing alone is cached, never authorization. Every forwarded request still
-// carries its own credential and is authorized by Kura. This also avoids making
-// long-lived clients with a cached wildcard answer query the control plane for
-// every blob after their instance has activated.
-func (g *Gateway) cachedRoute(host string) *url.URL {
-	g.routesMu.Lock()
-	defer g.routesMu.Unlock()
-	if route, ok := g.routes[host]; ok && time.Now().Before(route.expires) {
-		return route.target
-	}
-	delete(g.routes, host)
-	return nil
-}
-
-func (g *Gateway) cacheRoute(host string, target *url.URL) {
-	g.routesMu.Lock()
-	defer g.routesMu.Unlock()
-	if g.routes == nil {
-		g.routes = make(map[string]route)
-	}
-	if len(g.routes) >= 1024 {
-		for key, route := range g.routes {
-			if !time.Now().Before(route.expires) {
-				delete(g.routes, key)
-			}
-		}
-	}
-	if len(g.routes) < 1024 {
-		g.routes[host] = route{target: target, expires: time.Now().Add(30 * time.Second)}
-	}
-}
-
-func (g *Gateway) forgetRoute(host string) {
-	g.routesMu.Lock()
-	defer g.routesMu.Unlock()
-	delete(g.routes, host)
 }
 
 func (g *Gateway) resolve(ctx context.Context, server, host, authorization string) (*url.URL, int) {
@@ -177,7 +138,7 @@ func (g *Gateway) resolve(ctx context.Context, server, host, authorization strin
 	switch resp.StatusCode {
 	case http.StatusAccepted:
 		return nil, http.StatusAccepted
-	case http.StatusUnauthorized, http.StatusForbidden, http.StatusPaymentRequired, http.StatusNotFound, http.StatusTooManyRequests:
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusPaymentRequired, http.StatusConflict, http.StatusNotFound, http.StatusTooManyRequests:
 		return nil, resp.StatusCode
 	case http.StatusOK:
 	default:
@@ -199,7 +160,13 @@ func (g *Gateway) resolve(ctx context.Context, server, host, authorization strin
 }
 
 func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, target *url.URL) {
-	host := r.Host
+	select {
+	case g.streams <- struct{}{}:
+		defer func() { <-g.streams }()
+	default:
+		unforwardedFailure(w, r, http.StatusTooManyRequests)
+		return
+	}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(p *httputil.ProxyRequest) {
 			p.SetURL(target)
@@ -218,7 +185,6 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, target *url.URL)
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, _ error) {
-			g.forgetRoute(host)
 			failure(w, r, http.StatusServiceUnavailable)
 		},
 	}
@@ -235,6 +201,10 @@ func unforwardedFailure(w http.ResponseWriter, r *http.Request, status int) {
 }
 
 func failure(w http.ResponseWriter, r *http.Request, status int) {
+	message := http.StatusText(status)
+	if status == http.StatusConflict {
+		message = "This account requires an explicit cache endpoint; set TUIST_CACHE_ENDPOINT"
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	if status == http.StatusServiceUnavailable || status == http.StatusTooManyRequests {
 		w.Header().Set("Retry-After", "2")
@@ -246,6 +216,8 @@ func failure(w http.ResponseWriter, r *http.Request, status int) {
 			code = "16"
 		case http.StatusForbidden, http.StatusPaymentRequired:
 			code = "7"
+		case http.StatusConflict:
+			code = "9"
 		case http.StatusNotFound:
 			code = "5"
 		case http.StatusTooManyRequests:
@@ -253,11 +225,11 @@ func failure(w http.ResponseWriter, r *http.Request, status int) {
 		}
 		w.Header().Set("Content-Type", "application/grpc")
 		w.Header().Set("Grpc-Status", code)
-		w.Header().Set("Grpc-Message", http.StatusText(status))
+		w.Header().Set("Grpc-Message", message)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	http.Error(w, http.StatusText(status), status)
+	http.Error(w, message, status)
 }
 
 // Server keeps both the waiting request headers and accepted streams bounded.

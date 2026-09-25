@@ -620,6 +620,8 @@ defmodule TuistWeb.API.CacheControllerTest do
       project = ProjectsFixtures.project_fixture(account: organization.account, preload: [:account])
       conn = Plug.Conn.assign(conn, :current_subject, project)
 
+      stub(TuistWeb.RemoteIp, :origin, fn _ -> "SG" end)
+
       # When
       conn = post(conn, ~p"/api/cache/token")
 
@@ -629,6 +631,7 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       handle = "#{project.account.name}/#{project.name}"
       {:ok, claims} = Tuist.CacheGuardian.decode_and_verify(token)
+      assert claims["cache_origin"] == "SG"
       assert claims["cache_grants"]["project"]["read"] == [handle]
       assert claims["cache_grants"]["project"]["write"] == [handle]
     end

@@ -126,6 +126,7 @@ defmodule Tuist.OAuth.Introspection do
       active: true,
       iss: issuer(),
       sub: claims["sub"],
+      cache_origin: claims["cache_origin"],
       cache_grants: grants,
       cache_payment_required: Map.get(claims, "cache_payment_required", [])
     }

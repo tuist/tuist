@@ -30,7 +30,9 @@ projection, not arbitrary custom endpoints. The gateway never returns those
 URLs to clients and never redirects credentials or proxies back to itself.
 
 Activation waits at most 20 seconds, polling every two seconds. At most 128
-requests per pod can be admitted, including active proxy streams. Upload bodies
+activation waits and, independently, 128 proxy streams per pod can be admitted.
+A stream releases its activation slot before forwarding, so long transfers cannot
+prevent other accounts from starting provisioning. Upload bodies
 remain unread during the wait, using transport backpressure. Once ready, the
 original HTTP or HTTP/2 gRPC request streams to the regional node, which performs
 its normal artifact-level authorization. The gateway never replays uploads.
@@ -54,6 +56,32 @@ teardown coordination is separate work and does not block removing public
 demand registration. Staging validation must cover a timeout followed by a
 successful retry, rather than require every activation to finish within 20 seconds.
 
+The existing cache-token exchange signs the trusted edge's coarse origin into
+the JWT. Activation verifies that token and uses its origin for regional
+ordering and demand persistence before enqueueing provisioning. It never uses
+the gateway's location or caller-supplied geo headers. Raw credentials and old
+JWTs without the claim remain unattributed; existing placement evidence/defaults
+apply. The token reflects the exchange location for at most its 30-minute TTL.
+Bazel setup, its credential helper, and `tuist cache config` exchange scoped
+tokens too. The Xcode proxy keeps a separate token provider per project and
+refreshes each JWT near expiry; it never shares one project's grant with another.
+An older self-hosted server returning 404 keeps the raw-credential compatibility
+path. Direct proxy integrations without a CLI keep their explicitly supplied
+bearer and have no signed origin unless they supply an exchanged token.
+
+Stable DNS intent is independent of the `kura_stable_hostname` flag. That flag
+now controls only legacy `/endpoints` hand-out. Disabling it must not withdraw
+a hostname that new clients derive locally. All public regions must support
+stable DNS before CLI release; private regions remain excluded.
+
+Self-hosted servers and accounts using custom or registered endpoints require
+`TUIST_CACHE_ENDPOINT`. Without the override, self-hosted builds and the Xcode
+proxy use local storage with a warning; explicit remote configuration commands
+report the missing setting. Activation refuses custom/registered accounts with
+HTTP 409 or gRPC FAILED_PRECONDITION and enqueues no managed storage. Migrate
+those endpoint settings before adopting a new CLI; legacy discovery remains
+available to older versions.
+
 Fresh, nonempty public usage reports from trusted managed Kura nodes refresh the
 account demand clock. Old rollup replays, empty reports, peer replication and
 self-hosted reports do not keep managed storage reserved. Existing legacy
@@ -63,8 +91,11 @@ unused instance allocated indefinitely. No Kura runtime change is required.
 
 Publishing an exact regional record switches new DNS resolutions to the normal
 route. A client holding the wildcard answer or an existing connection can still
-use the proxy. It caches only routing for 30 seconds (at most 1,024 hosts),
-never authorization; every request carries its own credential to Kura. Withdrawal keeps
+use the proxy. Every request revalidates control-plane routing; no host-only
+route cache can pin another origin to a region or reuse a draining target.
+Only active, non-moving instances in desired regions with fresh stable readiness
+are eligible. This adds a control lookup while a client retains the wildcard
+answer, avoiding a separate invalidation protocol. Withdrawal keeps
 the existing provider-confirmation and drain barriers. After all exact records
 are gone, the wildcard makes the next authenticated request able to wake the
 account. The fallback does not require retaining a dormant KuraInstance or PVC.
@@ -78,7 +109,9 @@ wildcard. The internal handler and usage-based demand tracking are additive.
 
 Before releasing the new CLI:
 
-1. Deploy the server handler and image containing `/cache-activation` to each
+1. Audit registered/custom endpoints and configure explicit overrides for their
+   CLI environments. Confirm every managed public region has stable DNS support.
+   Deploy the server handler and image containing `/cache-activation` to each
    environment. Keep the CLI draft unreleased until activation is reachable.
 2. Validate the gateway against a staging fixture using an explicit local DNS
    override or a test ingress target. Do not publish competing environment-wide

@@ -848,6 +848,10 @@ impl Remote {
         ));
     }
 
+    pub fn refresh_token(&self, lead: Duration) {
+        self.tokens.refresh_if_expiring(lead);
+    }
+
     pub fn downloaded_blob_bytes(&self) -> u64 {
         self.downloaded_blob_bytes.load(Ordering::Relaxed)
     }

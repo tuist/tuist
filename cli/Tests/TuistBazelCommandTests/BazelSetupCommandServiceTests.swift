@@ -23,7 +23,7 @@ struct BazelSetupCommandServiceTests {
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
     private let fileSystem = FileSystem()
 
-    private func makeSubject(cacheURL: URL? = nil, cacheURLStoreError: CacheURLStoreError? = nil) -> (
+    private func makeSubject(cacheURL: URL? = nil, cacheURLStoreError: CacheURLStoreError? = nil, cacheToken: String? = nil) -> (
         subject: BazelSetupCommandService,
         serverAuthenticationController: MockServerAuthenticationControlling,
         configLoader: MockConfigLoading,
@@ -32,6 +32,14 @@ struct BazelSetupCommandServiceTests {
         let serverEnvironmentService = MockServerEnvironmentServicing()
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let cacheURLStore = MockCacheURLStoring()
+        let tokenService = MockGetCacheTokenServicing()
+        if let cacheToken {
+            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
+                .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
+        } else {
+            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
+                .willThrow(GetCacheTokenServiceError.unknownError(404))
+        }
         let remoteCacheProbeService = MockRemoteCacheProbing()
         let configLoader = MockConfigLoading()
 
@@ -61,6 +69,7 @@ struct BazelSetupCommandServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             serverAuthenticationController: serverAuthenticationController,
             cacheURLStore: cacheURLStore,
+            getCacheTokenService: tokenService,
             remoteCacheProbeService: remoteCacheProbeService,
             fullHandleService: FullHandleService(),
             configLoader: configLoader,
@@ -87,6 +96,17 @@ struct BazelSetupCommandServiceTests {
 
     private func canonicalPathString(_ path: AbsolutePath) -> String {
         URL(fileURLWithPath: path.pathString).resolvingSymlinksInPath().path
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func probe_uses_the_scoped_cache_token() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, authentication, _, probe) = makeSubject(cacheToken: "scoped-cache-token")
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        try await subject.run(directory: directory.pathString)
+        verify(probe).probe(endpoint: .any, accountHandle: .any, instanceName: .any, token: .value("scoped-cache-token"))
+            .called(1)
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
@@ -624,11 +644,11 @@ struct BazelSetupCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
-    func run_succeeds_without_remote_settings_while_the_remote_cache_is_being_prepared() async throws {
+    func run_succeeds_without_remote_settings_when_the_explicit_endpoint_is_missing() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject(
-            cacheURLStoreError: .endpointBeingPrepared
+            cacheURLStoreError: .missingEndpointOverride
         )
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
@@ -655,16 +675,16 @@ struct BazelSetupCommandServiceTests {
             .called(0)
         #expect(
             AlertController.current.warnings().map(\.message).map { $0.plain() } == [
-                "The remote cache is still being prepared.",
+                "Remote caching requires TUIST_CACHE_ENDPOINT for this server.",
             ]
         )
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
-    func run_removes_a_stale_remote_cache_while_the_remote_cache_is_being_prepared() async throws {
+    func run_removes_a_stale_remote_cache_when_the_explicit_endpoint_is_missing() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _, _) = makeSubject(cacheURLStoreError: .endpointBeingPrepared)
+        let (subject, serverAuthenticationController, _, _) = makeSubject(cacheURLStoreError: .missingEndpointOverride)
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))

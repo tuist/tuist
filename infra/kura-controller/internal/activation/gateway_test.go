@@ -116,7 +116,7 @@ func TestRejectsWithoutProvisioning(t *testing.T) {
 }
 
 func TestControlPlaneRefusalsAndUnsafeTargets(t *testing.T) {
-	for _, status := range []int{401, 403, 402, 404, 429, 500, 302} {
+	for _, status := range []int{401, 403, 402, 404, 409, 429, 500, 302} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			g := New(Servers{"production": "https://tuist.dev"}, 1)
 			g.Control.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
@@ -233,7 +233,7 @@ func TestGRPCStreamingAndTrailers(t *testing.T) {
 	}
 }
 
-func TestCachedRouteStillForwardsEachRequestsCredential(t *testing.T) {
+func TestEveryRequestRevalidatesRoutingAndForwardsCredential(t *testing.T) {
 	g := New(Servers{"production": "https://tuist.dev"}, 1)
 	var controls atomic.Int32
 	g.Control.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
@@ -260,16 +260,8 @@ func TestCachedRouteStillForwardsEachRequestsCredential(t *testing.T) {
 			t.Fatalf("credential %s: %d", token, w.Code)
 		}
 	}
-	if controls.Load() != 1 {
-		t.Fatalf("route not cached: %d", controls.Load())
-	}
-	g.routesMu.Lock()
-	route := g.routes["acme.cache.tuist.dev"]
-	route.expires = time.Now().Add(-time.Second)
-	g.routes["acme.cache.tuist.dev"] = route
-	g.routesMu.Unlock()
-	if g.cachedRoute("acme.cache.tuist.dev") != nil {
-		t.Fatal("expired route retained")
+	if controls.Load() != 2 {
+		t.Fatalf("routing was not revalidated: %d", controls.Load())
 	}
 }
 
@@ -288,9 +280,6 @@ func TestProxyFailureDoesNotReplayUpload(t *testing.T) {
 	g.ServeHTTP(w, request("acme.cache.tuist.dev"))
 	if w.Code != 503 || calls != 1 || w.Header().Get("X-Tuist-Cache-Activation") != "" {
 		t.Fatalf("%d attempts, status %d", calls, w.Code)
-	}
-	if g.cachedRoute("acme.cache.tuist.dev") != nil {
-		t.Fatal("failed route retained")
 	}
 }
 
@@ -339,5 +328,53 @@ func TestActivationTimeoutThenClientRetry(t *testing.T) {
 				t.Fatalf("retry failed: %d %s %v uploads=%d", second.Code, second.Body, second.Header(), uploads)
 			}
 		})
+	}
+}
+
+func TestProxyStreamsDoNotHoldActivationSlots(t *testing.T) {
+	g := New(Servers{"production": "https://tuist.dev"}, 1)
+	g.Wait = 5 * time.Millisecond
+	g.Poll = time.Millisecond
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+	g.Control.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Query().Get("host") == "cold.cache.tuist.dev" {
+			return &http.Response{StatusCode: 202, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"endpoint":"https://acme-eu.kura.tuist.dev"}`))}, nil
+	})
+	g.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
+		close(entered)
+		<-release
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(""))}, nil
+	})
+	go func() { defer close(done); g.ServeHTTP(httptest.NewRecorder(), request("acme.cache.tuist.dev")) }()
+	<-entered
+	defer func() { close(release); <-done }()
+	cold := httptest.NewRecorder()
+	g.ServeHTTP(cold, request("cold.cache.tuist.dev"))
+	if cold.Code != 503 {
+		t.Fatalf("cold activation was starved: %d", cold.Code)
+	}
+	warm := httptest.NewRecorder()
+	g.ServeHTTP(warm, request("acme.cache.tuist.dev"))
+	if warm.Code != 429 || warm.Header().Get("X-Tuist-Cache-Activation") != "pending" {
+		t.Fatalf("streams were not bounded: %d", warm.Code)
+	}
+}
+
+func TestCredentialAndConfigurationFailuresAreNotRetryableGRPC(t *testing.T) {
+	for status, code := range map[int]string{401: "16", 403: "7", 409: "9"} {
+		r := request("acme.cache.tuist.dev")
+		r.Header.Set("Content-Type", "application/grpc")
+		w := httptest.NewRecorder()
+		unforwardedFailure(w, r, status)
+		if w.Header().Get("Grpc-Status") != code || w.Header().Get("X-Tuist-Cache-Activation") != "" {
+			t.Fatalf("status %d: %v", status, w.Header())
+		}
+		if status == 409 && !strings.Contains(w.Header().Get("Grpc-Message"), "TUIST_CACHE_ENDPOINT") {
+			t.Fatal("missing configuration guidance")
+		}
 	}
 }

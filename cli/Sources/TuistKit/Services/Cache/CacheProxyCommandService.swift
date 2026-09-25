@@ -67,7 +67,7 @@ struct CacheProxyCommandService {
         let endpoint = try await remoteEndpoint(serverURL: serverURL, accountHandle: accountHandle)
 
         // Hand the proxy its config via the environment. The proxy fetches and
-        // refreshes its bearer itself by shelling out to `tuist auth token`
+        // refreshes project-scoped bearers through `tuist cache config --json`
         // (TUIST_CAS_TUIST_BIN), so no token is written here.
         setenv("TUIST_CAS_REMOTE_GRPC_URL", endpoint?.absoluteString ?? "", 1)
         setenv("TUIST_CAS_SERVER_URL", serverURL.absoluteString, 1)
@@ -165,22 +165,14 @@ struct CacheProxyCommandService {
         }
     #endif
 
-    /// The endpoint to start the proxy against, or `nil` when the account has none serving yet or the
-    /// logged-in account cannot use it.
-    ///
-    /// An account whose cache is still being prepared has no endpoint, and refusing to start over
-    /// that would leave Xcode retrying a socket nobody listens on. The proxy starts local-only
-    /// instead and adopts the endpoint once its periodic resolution finds one.
-    private func remoteEndpoint(serverURL: URL, accountHandle: String?) async throws -> URL? {
+    /// Start local-only when a self-hosted server has no explicit cache endpoint.
+    /// Hosted cold caches wake on their first real request through the stable hostname.
+    func remoteEndpoint(serverURL: URL, accountHandle: String?) async throws -> URL? {
         do {
             return try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-        } catch let error as CacheURLStoreError where error.isTransientAbsence {
-            Logger.current.debug(
-                "No cache endpoint is serving \(serverURL.absoluteString) yet (\(error.localizedDescription)). Starting the cache proxy without one."
-            )
-            return nil
-        } catch let CacheURLStoreError.forbidden(message) {
-            Logger.current.warning("\(message) Starting the cache proxy without a remote cache.")
+        } catch CacheURLStoreError.missingEndpointOverride {
+            Logger.current
+                .warning("Set TUIST_CACHE_ENDPOINT to enable remote caching. Starting the cache proxy with local storage only.")
             return nil
         }
     }

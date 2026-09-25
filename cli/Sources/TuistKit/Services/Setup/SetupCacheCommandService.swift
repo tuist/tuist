@@ -3,7 +3,6 @@ import Foundation
 import Path
 import struct TSCUtility.Version
 import TuistAlert
-import TuistCAS
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
@@ -102,7 +101,6 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     private let cacheSocketService: CacheSocketServicing
     private let resourceLocator: ResourceLocating
     private let xcodeController: XcodeControlling
-    private let cacheURLStore: CacheURLStoring
     private let cacheDaemonStartupTimeout: Duration
 
     init(
@@ -117,7 +115,6 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         cacheSocketService: CacheSocketServicing = CacheSocketService(),
         resourceLocator: ResourceLocating = ResourceLocator(),
         xcodeController: XcodeControlling = XcodeController.current,
-        cacheURLStore: CacheURLStoring = CacheURLStore(),
         cacheDaemonStartupTimeout: Duration = .seconds(10)
     ) {
         self.launchAgentService = launchAgentService
@@ -131,29 +128,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         self.cacheSocketService = cacheSocketService
         self.resourceLocator = resourceLocator
         self.xcodeController = xcodeController
-        self.cacheURLStore = cacheURLStore
         self.cacheDaemonStartupTimeout = cacheDaemonStartupTimeout
-    }
-
-    /// Registers hosted cache demand before starting the proxy. The proxy can start locally while
-    /// provisioning completes and use the stable hostname when DNS and the cache become ready.
-    private func prepareRemoteCache(fullHandle: String, serverURL: URL) async {
-        let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
-        do {
-            _ = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-        } catch CacheURLStoreError.endpointBeingPrepared {
-            AlertController.current.warning(.alert(
-                "The remote cache is still being prepared.",
-                takeaway: "Builds use the local compilation cache until it is ready, and start using the remote cache without running setup again."
-            ))
-        } catch let CacheURLStoreError.forbidden(message) {
-            AlertController.current.warning(.alert(
-                "\(message)",
-                takeaway: "Builds use the local compilation cache."
-            ))
-        } catch {
-            Logger.current.debug("Could not check the remote cache endpoint for \(fullHandle): \(error.localizedDescription)")
-        }
     }
 
     /// The project's default branch, which is what a trunk-scoped cache snapshot is
@@ -378,7 +353,6 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             upload: config.xcodeCache.upload,
             storeSizeLimit: config.xcodeCache.storeSizeLimit
         )
-        await prepareRemoteCache(fullHandle: fullHandle, serverURL: serverURL)
         let casPlugin = try await installCASPlugin()
         try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
 

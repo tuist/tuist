@@ -6,6 +6,9 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
   alias Tuist.Cache
   alias Tuist.Environment
   alias Tuist.Kura.Demand
+  alias Tuist.Kura.PlacerRegions
+  alias Tuist.Kura.Registrations
+  alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -38,20 +41,20 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
   end
 
   test "an archived account wakes without retaining a cache pod", %{conn: conn, account: account, token: token} do
-    server = KuraFixtures.active_server_fixture(account)
+    server = ready_server(account)
     server |> Ecto.Changeset.change(status: :archived, url: nil) |> Repo.update!()
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(202)
     assert_enqueued(worker: ProvisionOnDemandWorker, args: %{account_id: account.id})
   end
 
   test "serving accounts return a regional URL, never the stable hostname", %{conn: conn, account: account, token: token} do
-    server = KuraFixtures.active_server_fixture(account)
+    server = ready_server(account)
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(200) == %{"endpoint" => server.url}
     refute_enqueued(worker: ProvisionOnDemandWorker)
   end
 
   test "ordinary credentials and exchanged cache credentials both work", %{conn: conn, account: account, user: user} do
-    server = KuraFixtures.active_server_fixture(account)
+    server = ready_server(account)
     {:ok, token, _} = Tuist.Authentication.encode_and_sign(user)
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(200) == %{"endpoint" => server.url}
   end
@@ -60,10 +63,10 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
     other = ProjectsFixtures.project_fixture()
     {:ok, foreign, _} = Cache.issue_cache_token(other)
     {:ok, expired, _} = Cache.issue_cache_token(project, ttl: -60)
-    reject(Demand, :record, 1)
+    reject(Demand, :record, 3)
 
-    for token <- [foreign, expired, "invalid"] do
-      assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(403)
+    for {token, status} <- [{foreign, 403}, {expired, 401}, {"invalid", 401}] do
+      assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(status)
     end
 
     refute_enqueued(worker: ProvisionOnDemandWorker)
@@ -83,7 +86,7 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
 
     subject = %Tuist.Accounts.AuthenticatedAccount{account: account, scopes: [], all_projects: true}
     {:ok, empty_token, _} = Cache.issue_cache_token(subject)
-    reject(Demand, :record, 1)
+    reject(Demand, :record, 3)
     assert conn |> activate("#{account.name}.cache.tuist.dev", empty_token) |> json_response(403)
   end
 
@@ -111,7 +114,7 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
     user = Repo.preload(user, :account, force: true)
     project = ProjectsFixtures.project_fixture(account_id: account.id)
     {:ok, token, _} = Cache.issue_cache_token(project)
-    server = KuraFixtures.active_server_fixture(renamed)
+    server = ready_server(renamed)
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(200) == %{"endpoint" => server.url}
     stub(Tuist.Kura.Identity, :client_handles, fn _ -> [user.account.name] end)
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(403)
@@ -127,5 +130,70 @@ defmodule TuistWeb.Internal.KuraActivationControllerTest do
     stub(Environment, :tuist_hosted?, fn -> false end)
     assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(403)
     refute_enqueued(worker: ProvisionOnDemandWorker)
+  end
+
+  test "custom and registered endpoints never trigger managed provisioning", %{conn: conn, account: account, token: token} do
+    account |> Ecto.Changeset.change(custom_cache_endpoints_enabled: true) |> Repo.update!()
+    reject(Demand, :record, 3)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(409)
+    account |> Ecto.Changeset.change(custom_cache_endpoints_enabled: false) |> Repo.update!()
+    stub(Registrations, :list_endpoints, fn _ -> [%{}] end)
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(409)
+    refute_enqueued(worker: ProvisionOnDemandWorker)
+  end
+
+  test "signed origin is persisted before the cold provisioning job", %{conn: conn, account: account, project: project} do
+    {:ok, token, _} = Cache.issue_cache_token(project, origin: "SG")
+
+    expect(Demand, :record, fn id, origin, opts ->
+      assert id == account.id
+      assert origin == "SG"
+      assert opts[:persist_origin]
+    end)
+
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(202)
+    assert_enqueued(worker: ProvisionOnDemandWorker)
+  end
+
+  test "signed origin orders regional routes and draining or stale routes are excluded", %{
+    conn: conn,
+    account: account,
+    project: project
+  } do
+    eu = ready_server(account, "eu-west")
+    apac = ready_server(account, "ap-southeast")
+    {:ok, _} = PlacerRegions.put_secondary(account, "eu-west")
+    {:ok, token, _} = Cache.issue_cache_token(project, origin: "SG")
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(200) == %{"endpoint" => apac.url}
+    apac |> Ecto.Changeset.change(move_phase: :moving_out) |> Repo.update!()
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(200) == %{"endpoint" => eu.url}
+    eu |> Ecto.Changeset.change(stable_endpoint: nil) |> Repo.update!()
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(202)
+    refute_enqueued(worker: ProvisionOnDemandWorker)
+  end
+
+  test "forged geo headers on the gateway request are not placement evidence", %{
+    conn: conn,
+    account: account,
+    token: token
+  } do
+    expect(Demand, :record, fn _, origin, _ -> assert origin == nil end)
+    conn = conn |> put_req_header("cf-ipcountry", "SG") |> put_req_header("x-forwarded-for", "1.1.1.1")
+    assert conn |> activate("#{account.name}.cache.tuist.dev", token) |> json_response(202)
+  end
+
+  defp ready_server(account, region \\ "eu-west") do
+    {:ok, _} = PlacerRegions.put_primary(account, region)
+
+    account
+    |> KuraFixtures.active_server_fixture(region: region)
+    |> Ecto.Changeset.change(
+      stable_endpoint: %{
+        "host" => StableEndpoint.host(account),
+        "ready" => true,
+        "checked_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+    )
+    |> Repo.update!()
   end
 end

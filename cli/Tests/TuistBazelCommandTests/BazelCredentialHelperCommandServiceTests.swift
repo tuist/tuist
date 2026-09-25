@@ -16,6 +16,7 @@ struct BazelCredentialHelperCommandServiceTests {
     private struct RefreshError: Error {}
 
     private func makeSubject(
+        cacheToken: String? = nil,
         date: @escaping () -> Date = { Date() }
     ) -> (
         subject: BazelCredentialHelperCommandService,
@@ -24,10 +25,18 @@ struct BazelCredentialHelperCommandServiceTests {
         let serverEnvironmentService = MockServerEnvironmentServicing()
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let configLoader = MockConfigLoading()
+        let tokenService = MockGetCacheTokenServicing()
+        if let cacheToken {
+            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
+                .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
+        } else {
+            given(tokenService).getCacheToken(serverURL: .any, fullHandle: .any)
+                .willThrow(GetCacheTokenServiceError.unknownError(404))
+        }
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(Tuist.test(url: serverURL))
+            .willReturn(Tuist.test(fullHandle: "account/project", url: serverURL))
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)
@@ -37,10 +46,21 @@ struct BazelCredentialHelperCommandServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             serverAuthenticationController: serverAuthenticationController,
             configLoader: configLoader,
+            getCacheTokenService: tokenService,
             date: date
         )
 
         return (subject, serverAuthenticationController)
+    }
+
+    @Test(.withMockedEnvironment())
+    func credentials_return_a_scoped_cache_token_with_bounded_expiry() async throws {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let (subject, authentication) = makeSubject(cacheToken: "scoped-cache-token", date: { now })
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        let response = try await subject.credentials(helperCommand: "get", directory: nil)
+        #expect(response.headers == ["Authorization": ["Bearer scoped-cache-token"]])
+        #expect(response.expires == ISO8601DateFormatter().string(from: now.addingTimeInterval(1740)))
     }
 
     @Test(.withMockedEnvironment())

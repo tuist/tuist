@@ -12,3 +12,5 @@
 - See [rollout and migration](../../../../../kura/docs/account-renames.md) and the identity, migration, mesh-controller and usage-controller regression suites.
 
 - `Activation` authenticates wildcard-gateway requests before recording demand or enqueueing immediate provisioning. Resolve only current/unexpired client handles, isolate environments, enforce billing, and return managed regional URLs to avoid proxy loops. The cache backend still authorizes the full artifact request. Trusted managed usage reports refresh active accounts' demand; stale, empty, peer and self-hosted reports do not. See `infra/kura-controller/activation.md`.
+
+- Stable DNS intent is independent of the legacy hand-out flag; never withdraw new clients' derived hostnames when that flag is disabled. Activation selects only fresh stable-ready, non-moving instances in desired regions. Invalid/expired credentials return 401; valid credentials without tenant grants return 403. Signed cache-token origins preserve coarse placement attribution; never trust geo headers relayed by the gateway. Custom/registered endpoints require an explicit CLI override and must not trigger managed provisioning.

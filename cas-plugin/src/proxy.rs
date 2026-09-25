@@ -1986,8 +1986,7 @@ pub struct Proxy {
     // Monotonic base for per-path last-used timestamps (see PathState.last_used).
     epoch: Instant,
     // One REAPI client per account/project instance, created on first use.
-    // All share the machine's endpoint + token; only the instance the request
-    // is scoped to differs. This is what lets one proxy serve every project.
+    // Each client has its own project-scoped token provider.
     // Each client is stamped with the endpoint generation it was built
     // against, because a client outlives the address it dialled. Publication
     // and adoption cannot be ordered against each other -- two first-sight
@@ -2196,7 +2195,7 @@ impl Proxy {
                 grpc_url,
                 instance: reapi::reapi_instance(instance).to_string(),
             },
-            self.tokens.clone(),
+            self.tokens.for_instance(instance),
         );
         if let Some(parent) = self.registry_path.as_deref().and_then(Path::parent) {
             remote.enable_chunk_cache(parent.join("download-chunks-v1"), instance);
@@ -4381,6 +4380,16 @@ impl Proxy {
     /// mode or for opaque, non-expiring tokens.
     pub fn maintain_token(&self, lead: std::time::Duration) {
         self.tokens.refresh_if_expiring(lead);
+        let remotes: Vec<_> = self
+            .remotes
+            .lock()
+            .unwrap()
+            .values()
+            .map(|(_, remote)| remote.clone())
+            .collect();
+        for remote in remotes {
+            remote.refresh_token(lead);
+        }
     }
 
     /// Re-resolves the machine's cache endpoint, at most once per `interval`.
@@ -4528,7 +4537,7 @@ impl Proxy {
                     grpc_url: self.grpc_url.read().unwrap().clone(),
                     instance: reapi::reapi_instance(instance).to_string(),
                 },
-                self.tokens.clone(),
+                self.tokens.for_instance(instance),
             )
         });
         remote.reachable()

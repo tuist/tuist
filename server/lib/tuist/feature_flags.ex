@@ -4,11 +4,9 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
 
   @doc """
-  Whether the account may advertise and receive its managed stable cache
-  hostname. Canary is automatically enabled. Every other environment requires
-  the `:kura_stable_hostname` flag for the account or for everyone. The same
-  flag controls advertising intent and URL hand-out; readiness still gates
-  publication and endpoint selection.
+  Whether legacy endpoint discovery may hand out the stable hostname. Canary
+  enables this automatically; other environments use the account/global flag.
+  DNS publication is independent because new CLIs derive that hostname locally.
   """
   def kura_stable_hostname_enabled?(account) do
     Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)

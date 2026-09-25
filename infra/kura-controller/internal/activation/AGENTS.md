@@ -9,3 +9,5 @@ This package is a stateless HTTP/gRPC streaming proxy for the wildcard DNS fallb
 - Tests use local control planes and HTTP/2 upstreams. Run `GOWORK=off go test -race ./internal/activation ./cmd/cache-activation` from the controller module.
 - Deployment and DNS opt-ins remain off until the rollout in [activation.md](../../activation.md) is validated. No per-account pod or PVC belongs to this gateway.
 - Only pre-forwarding 429/503 responses carry `X-Tuist-Cache-Activation: pending`. Strip that header from upstream responses and omit it after proxy failures; it permits safe retries of otherwise non-idempotent uploads.
+
+- Activation waits and proxy streams have separate bounded admission pools. Release the activation slot before streaming. Resolve each request afresh; a host-only routing cache loses origin selection and can retain drained targets.

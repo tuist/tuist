@@ -20,6 +20,7 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let configLoader: ConfigLoading
+    private let getCacheTokenService: GetCacheTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let fileSystem: FileSysteming
     private let date: () -> Date
@@ -33,20 +34,12 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     /// in-flight requests and clock skew between the developer machine and the cache.
     private static let expirySafetyMargin: TimeInterval = 60
 
-    /// How long the endpoint refresh may hold the helper open.
-    ///
-    /// Bazel is waiting on this process, and the endpoint it already has is
-    /// working -- it is the one the credential just issued is for. So a
-    /// resolution that cannot finish promptly is not worth a build's time; the
-    /// next invocation tries again, and Bazel invokes the helper once per
-    /// credential lifetime regardless.
-    private static let endpointResolutionTimeout: Duration = .seconds(2)
-
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         configLoader: ConfigLoading = ConfigLoader(),
         cacheURLStore: CacheURLStoring = CacheURLStore(),
+        getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
         fileSystem: FileSysteming = FileSystem(),
         date: @escaping () -> Date = { Date() }
     ) {
@@ -54,6 +47,7 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         self.serverAuthenticationController = serverAuthenticationController
         self.configLoader = configLoader
         self.cacheURLStore = cacheURLStore
+        self.getCacheTokenService = getCacheTokenService
         self.fileSystem = fileSystem
         self.date = date
     }
@@ -83,9 +77,8 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
     }
 
     /// Migrates an existing regional cache URL to the account's stable hostname, or applies an explicit override.
-    /// Bazel reads this file at startup, so the change takes effect on the next build. The bounded lookup also
-    /// registers cache demand; a control-plane outage must not hold up credential delivery indefinitely.
-    /// Read and write the file after the lookup so cancellation cannot leave a partial configuration.
+    /// Resolution is local; the first cache request activates cold capacity.
+    /// Bazel reads this file at startup, so changes take effect on the next build.
     private func refreshBazelrcEndpoint(
         directory: String?,
         bazelrcDirectory: String?
@@ -103,17 +96,8 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
             let accountHandle = String(fullHandle.split(separator: "/")[0])
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-            // Only the network-bound half is raced against the deadline.
-            var resolved: URL?
-            try? await withTimeout(
-                Self.endpointResolutionTimeout,
-                onTimeout: {},
-                action: {
-                    resolved = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-                }
-            )
-
-            guard let cacheURL = resolved, let host = cacheURL.host else { return }
+            let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+            guard let host = cacheURL.host else { return }
             let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
 
             let contents = try await fileSystem.readTextFile(at: bazelrcPath)
@@ -145,6 +129,20 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         guard var token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
         else {
             throw BazelCredentialHelperCommandServiceError.notAuthenticated
+        }
+
+        if let fullHandle = config.fullHandle {
+            do {
+                let cacheToken = try await getCacheTokenService.getCacheToken(serverURL: serverURL, fullHandle: fullHandle)
+                return BazelCredentialHelperResponse(
+                    headers: ["Authorization": ["Bearer \(cacheToken.token)"]],
+                    expires: ISO8601DateFormatter().string(from: date().addingTimeInterval(
+                        max(0, TimeInterval(cacheToken.expiresIn) - Self.expirySafetyMargin)
+                    ))
+                )
+            } catch GetCacheTokenServiceError.unknownError(404) {
+                // Retain raw credentials for older self-hosted servers.
+            }
         }
 
         // If a refreshable user token is already within the safety margin of expiring,

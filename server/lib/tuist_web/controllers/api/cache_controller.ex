@@ -326,7 +326,7 @@ defmodule TuistWeb.API.CacheController do
         {:ok, token, _claims} =
           conn
           |> Authentication.authenticated_subject()
-          |> Cache.issue_cache_token(scope: params[:full_handle])
+          |> Cache.issue_cache_token(scope: params[:full_handle], origin: RemoteIp.origin(conn))
 
         json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
 

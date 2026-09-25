@@ -14,6 +14,14 @@ defmodule Tuist.Kura.UsageTest do
 
   setup :set_mimic_from_context
 
+  test "failed ingestion does not refresh managed demand" do
+    account = AccountsFixtures.user_fixture().account
+    event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => System.system_time(:second)})
+    expect(IngestRepo, :insert_all, fn UsageEvent, _ -> raise "ingest unavailable" end)
+    reject(Demand, :record, 1)
+    assert_raise RuntimeError, "ingest unavailable", fn -> Usage.create_events([event]) end
+  end
+
   test "fresh managed traffic refreshes demand once per account" do
     account = AccountsFixtures.user_fixture().account
     expect(Demand, :record, fn id -> assert id == account.id end)
