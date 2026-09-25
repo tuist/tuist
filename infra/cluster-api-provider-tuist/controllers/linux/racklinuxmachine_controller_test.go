@@ -518,3 +518,20 @@ func TestRackLinuxMachineWithNoHostWaits(t *testing.T) {
 		t.Fatalf("machine %+v runs %d", m, len(h.runner.runs))
 	}
 }
+
+// A host reinstalled from an install the operator published is held to the
+// host key that install gave it from its first dial, before the host
+// controller has pinned it, rather than trusted on first use.
+func TestRackLinuxMachineHoldsANewInstallToTheHostKeyItWasGiven(t *testing.T) {
+	host := claimedEdgeHost("dev-2")
+	host.Status.Install = &infrav1.RackLinuxHostInstallStatus{KeyID: "kMINT1CNTRL", PreviousDeviceID: "dev-1", HostKeyFingerprint: "SHA256:given"}
+	machine := edgeMachine()
+	machine.Status.TailnetDeviceID = "dev-1"
+	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, machine)...)
+
+	h.reconcile(t)
+
+	if len(h.runner.runs) != 1 || h.runner.runs[0].pinned != "SHA256:given" {
+		t.Fatalf("runs %+v; the new install is held to the key it was given", h.runner.runs)
+	}
+}

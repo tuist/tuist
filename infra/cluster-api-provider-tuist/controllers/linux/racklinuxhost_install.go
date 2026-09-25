@@ -558,17 +558,9 @@ func prepareRackHostSSH(ctx context.Context, c client.Client, creds *credentials
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	pinKey := rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
-	known := ""
-	if pin, err := creds.GetMachineBootstrap(ctx, pinKey); err != nil {
-		return nil, nil, nil, fmt.Errorf("read the host key pin: %w", err)
-	} else if pin != nil {
-		known = pin.HostFingerprint
-	}
-	// A new install the operator gave a host key to is held to it, even before
-	// the host controller pins it.
-	if inst := host.Status.Install; known == "" && inst != nil && inst.HostKeyFingerprint != "" && inst.PreviousDeviceID != host.Status.Tailnet.DeviceID {
-		known = inst.HostKeyFingerprint
+	pinKey, known, err := rackHostKnownKey(ctx, creds, host)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	hk = bootstrap.NewHostKeyState(known)
 	return key, hk, func() {
@@ -578,6 +570,25 @@ func prepareRackHostSSH(ctx context.Context, c client.Client, creds *credentials
 			}
 		}
 	}, nil
+}
+
+// rackHostKnownKey is the SSH host key fingerprint a rack host's current
+// tailnet device is held to, and the key its pin is kept under: the pin, else,
+// for the device of a new install the operator gave a host key, that key.
+// Empty means the first key the host presents is trusted and pinned.
+func rackHostKnownKey(ctx context.Context, creds *credentials.Manager, host *infrav1.RackLinuxHost) (pinKey, known string, err error) {
+	pinKey = rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
+	pin, err := creds.GetMachineBootstrap(ctx, pinKey)
+	if err != nil {
+		return "", "", fmt.Errorf("read the host key pin: %w", err)
+	}
+	if pin != nil && pin.HostFingerprint != "" {
+		return pinKey, pin.HostFingerprint, nil
+	}
+	if inst := host.Status.Install; inst != nil && inst.HostKeyFingerprint != "" && inst.PreviousDeviceID != host.Status.Tailnet.DeviceID {
+		return pinKey, inst.HostKeyFingerprint, nil
+	}
+	return pinKey, "", nil
 }
 
 // renderBootInstallerOnceScript sets BootNext to the host's installer and
