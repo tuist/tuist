@@ -10,7 +10,7 @@ setup() {
   RACK_BOOT_SOURCE_ONLY=1
   # shellcheck source=/dev/null
   source "$ROOT/infra/helm/tuist/files/rack-boot.sh"
-  set +eu
+  set +u
 }
 
 publish() {
