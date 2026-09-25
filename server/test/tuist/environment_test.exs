@@ -355,6 +355,13 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "coverage_max_inflated_bytes/1" do
+    test "defaults to 2 GB and reads the environment" do
+      assert Environment.coverage_max_inflated_bytes(%{}) == 2_000_000_000
+      assert Environment.coverage_max_inflated_bytes(%{"TUIST_COVERAGE_MAX_INFLATED_BYTES" => "1024"}) == 1024
+    end
+  end
+
   describe "coverage_recompute_batch_size/1" do
     test "defaults to 500 and reads the environment" do
       assert Environment.coverage_recompute_batch_size(%{}) == 500
