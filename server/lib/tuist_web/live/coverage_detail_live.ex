@@ -23,6 +23,11 @@ defmodule TuistWeb.CoverageDetailLive do
   # How many rows the overview's files hold: a highlight, not a listing.
   @highlight_size 5
 
+  # A run's coverage joins its commit a few seconds after the run lands
+  # (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads once
+  # after a burst of runs rather than once per run, before the fold.
+  @reload_delay to_timeout(second: 15)
+
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if !FeatureFlags.xcode_coverage_enabled?(account) do
       raise NotFoundError, dgettext("dashboard_tests", "Code coverage is not enabled for this account.")
@@ -32,6 +37,7 @@ defmodule TuistWeb.CoverageDetailLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Code Coverage")} · #{account.name}/#{project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("tests"))
+      |> assign(:reload_scheduled, false)
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -63,14 +69,30 @@ defmodule TuistWeb.CoverageDetailLive do
     coverage_file_href(account.name, project.name, path, %{commit: subject.sha, tab: tab})
   end
 
-  def handle_info({:test_created, _test_run}, socket) do
-    {:noreply,
-     socket
-     |> assign_subject(socket.assigns.params)
-     |> assign_tab(socket.assigns.current_params)}
+  def handle_info({:test_created, %{git_commit_sha: sha}}, %{assigns: %{subject: %{sha: sha}}} = socket) do
+    {:noreply, schedule_reload(socket)}
+  end
+
+  def handle_info(:reload, %{assigns: %{selected_project: project, subject: subject}} = socket) do
+    socket = assign(socket, :reload_scheduled, false)
+
+    # A commit whose coverage is gone (past its retention) keeps the page it
+    # had rather than crashing it.
+    if Commits.measured?(project.id, subject.sha) do
+      {:noreply, socket |> assign_subject(socket.assigns.params) |> assign_tab(socket.assigns.current_params)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info(_event, socket), do: {:noreply, socket}
+
+  defp schedule_reload(%{assigns: %{reload_scheduled: true}} = socket), do: socket
+
+  defp schedule_reload(socket) do
+    Process.send_after(self(), :reload, @reload_delay)
+    assign(socket, :reload_scheduled, true)
+  end
 
   defp assign_subject(socket, params) do
     sha = params["git_commit_sha"]

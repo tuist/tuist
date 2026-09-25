@@ -7,6 +7,7 @@ defmodule TuistWeb.CoverageLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -120,6 +121,28 @@ defmodule TuistWeb.CoverageLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?analytics-selected-widget=bogus")
 
       assert render(element(lv, "#coverage-chart")) =~ "Code coverage"
+    end
+
+    test "reloads once after a burst of the branch's runs, and ignores other branches'", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0])])
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      send(lv.pid, {:test_created, %Test{git_branch: "feature"}})
+      refute :sys.get_state(lv.pid).socket.assigns.reload_scheduled
+
+      send(lv.pid, {:test_created, %Test{git_branch: "main"}})
+      send(lv.pid, {:test_created, %Test{git_branch: "main"}})
+      assert :sys.get_state(lv.pid).socket.assigns.reload_scheduled
+
+      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1])])
+      send(lv.pid, :reload)
+
+      assert has_element?(lv, "#widget-coverage", "100.0%")
+      refute :sys.get_state(lv.pid).socket.assigns.reload_scheduled
     end
 
     test "reads the page once, when the socket connects", %{

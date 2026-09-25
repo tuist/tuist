@@ -29,6 +29,11 @@ defmodule TuistWeb.CoverageLive do
 
   @widgets ~w(coverage covered_lines executable_lines unmeasured_files)
 
+  # A run's coverage joins its commit's figure a few seconds after the run
+  # lands (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads
+  # once after a burst of runs rather than once per run, before the fold.
+  @reload_delay to_timeout(second: 15)
+
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if !FeatureFlags.xcode_coverage_enabled?(account) do
       raise NotFoundError, dgettext("dashboard_tests", "Code coverage is not enabled for this account.")
@@ -38,6 +43,7 @@ defmodule TuistWeb.CoverageLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Code Coverage")} · #{account.name}/#{project.name} · Tuist")
       |> assign(OpenGraph.og_image_assigns("tests"))
+      |> assign(:reload_scheduled, false)
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -98,8 +104,12 @@ defmodule TuistWeb.CoverageLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
-  def handle_info({:test_created, _test_run}, socket) do
-    {:noreply, assign_page(socket, socket.assigns.current_params)}
+  def handle_info({:test_created, %{git_branch: branch}}, %{assigns: %{branch: branch}} = socket) do
+    {:noreply, schedule_reload(socket)}
+  end
+
+  def handle_info(:reload, socket) do
+    {:noreply, socket |> assign(:reload_scheduled, false) |> assign_page(socket.assigns.current_params)}
   end
 
   def handle_info(_event, socket), do: {:noreply, socket}
@@ -166,6 +176,13 @@ defmodule TuistWeb.CoverageLive do
   end
 
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
+
+  defp schedule_reload(%{assigns: %{reload_scheduled: true}} = socket), do: socket
+
+  defp schedule_reload(socket) do
+    Process.send_after(self(), :reload, @reload_delay)
+    assign(socket, :reload_scheduled, true)
+  end
 
   defp selected_widget(widget) when widget in @widgets, do: widget
   defp selected_widget(_widget), do: "coverage"
