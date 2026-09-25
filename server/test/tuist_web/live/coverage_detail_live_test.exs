@@ -4,9 +4,11 @@ defmodule TuistWeb.CoverageDetailLiveTest do
   use TuistTestSupport.Cases.StubCase, dashboard_project: true
   use Mimic
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -71,6 +73,25 @@ defmodule TuistWeb.CoverageDetailLiveTest do
 
     {:ok, lv, _html} = live(conn, base <> "/commits/b")
     refute has_element?(lv, "#coverage-detail [data-part='partial']")
+  end
+
+  test "reloads for the commit's own runs only, and keeps the page when its coverage is gone", %{
+    conn: conn,
+    base: base,
+    project: project
+  } do
+    {:ok, lv, _html} = live(conn, base <> "/commits/b")
+
+    send(lv.pid, {:test_created, %Test{git_commit_sha: "a"}})
+    refute :sys.get_state(lv.pid).socket.assigns.reload_scheduled
+
+    send(lv.pid, {:test_created, %Test{git_commit_sha: "b"}})
+    assert :sys.get_state(lv.pid).socket.assigns.reload_scheduled
+
+    Tuist.Repo.delete_all(from(c in Tuist.Tests.CoverageCommit, where: c.project_id == ^project.id))
+    send(lv.pid, :reload)
+
+    assert has_element?(lv, "#widget-coverage", "66.7%")
   end
 
   test "lists the commit's targets, files and runs in their own tabs", %{conn: conn, base: base, run: run} do
