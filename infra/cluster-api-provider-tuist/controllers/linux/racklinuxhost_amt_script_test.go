@@ -30,7 +30,7 @@ func newAMTHost(t *testing.T, mode int, address string) amtHost {
 	rpc := fmt.Sprintf(`#!/usr/bin/env bash
 state=%[1]q
 read -r mode address < "$state"
-echo "$* password=${AMT_PASSWORD:+set} cert=${PROVISIONING_CERT:+set}" >> %[2]q
+echo "$* password=${AMT_PASSWORD:+set} cert=${PROVISIONING_CERT:+set} mebx=${MEBX_PASSWORD:+set}" >> %[2]q
 case "$1" in
 amtinfo)
   names=("not activated" "client control mode" "admin control mode")
@@ -54,6 +54,14 @@ activate)
     ;;
   esac
   ;;
+configure)
+  [ "$mode" = 2 ] && [ -n "${AMT_PASSWORD:-}" ] || exit 12
+  case "$2" in
+  mebx) [ -n "${MEBX_PASSWORD:-}" ] || exit 13 ;;
+  wired) echo "2 $4" > "$state" ;;
+  esac
+  echo '{"status":"success"}'
+  ;;
 esac
 `, h.state, h.calls)
 	bin := filepath.Join(dir, "bin")
@@ -72,7 +80,7 @@ esac
 	return h
 }
 
-func (h amtHost) run(t *testing.T, a *amtActivation) (amtScriptResult, string) {
+func (h amtHost) run(t *testing.T, a *amtRun) (amtScriptResult, string) {
 	t.Helper()
 	bash, err := exec.LookPath("bash")
 	if err != nil {
@@ -93,14 +101,14 @@ func (h amtHost) run(t *testing.T, a *amtActivation) (amtScriptResult, string) {
 	return result, string(calls)
 }
 
-var testActivation = &amtActivation{Password: "Aa1!secret-password-xx", PFX: "UEZY", PFXPassword: "pfx-pass"}
+var testActivation = &amtRun{Password: "Aa1!secret-password-xx", PFX: "UEZY", PFXPassword: "pfx-pass"}
 
 func TestAMTScriptActivatesThroughClientControlMode(t *testing.T) {
 	h := newAMTHost(t, 0, "0.0.0.0")
 
 	result, calls := h.run(t, testActivation)
 
-	if !result.activated || result.activationExit != 0 || result.info.ControlMode != "admin control mode" || result.info.Wired.Address != "192.168.50.112" {
+	if step, ok := result.steps["activate"]; !ok || step.exit != 0 || result.info.ControlMode != "admin control mode" || result.info.Wired.Address != "192.168.50.112" {
 		t.Fatalf("result %+v\ncalls:\n%s", result, calls)
 	}
 	ccm := strings.Index(calls, "activate --ccm --skipIPRenew --json password=set")
@@ -121,7 +129,7 @@ func TestAMTScriptUpgradesClientControlMode(t *testing.T) {
 
 	result, calls := h.run(t, testActivation)
 
-	if !result.activated || result.activationExit != 0 || result.info.ControlMode != "admin control mode" {
+	if step, ok := result.steps["activate"]; !ok || step.exit != 0 || result.info.ControlMode != "admin control mode" {
 		t.Fatalf("result %+v\ncalls:\n%s", result, calls)
 	}
 	if strings.Contains(calls, "--ccm") {
@@ -134,7 +142,7 @@ func TestAMTScriptReportsAFailedUpgrade(t *testing.T) {
 
 	result, _ := h.run(t, testActivation)
 
-	if !result.activated || result.activationExit != 10 || !strings.Contains(result.activationOutput, "returned 5") ||
+	if step := result.steps["activate"]; step.exit != 10 || !strings.Contains(step.output, "returned 5") ||
 		result.info.ControlMode != "client control mode" {
 		t.Fatalf("result %+v", result)
 	}
@@ -145,7 +153,69 @@ func TestAMTScriptOnlyReadsAnActivatedAMT(t *testing.T) {
 
 	result, calls := h.run(t, testActivation)
 
-	if result.activated || strings.Contains(calls, "activate") {
-		t.Fatalf("activated an activated AMT:\n%s", calls)
+	if len(result.steps) != 0 || strings.Contains(calls, "activate") || strings.Contains(calls, "configure") {
+		t.Fatalf("acted on an activated AMT with nothing to configure:\n%s", calls)
+	}
+}
+
+var testConfiguration = &amtRun{Password: "Aa1!secret-password-xx", MEBxPassword: "Bb2!secret-mebx-xxxxxx",
+	Address: "192.168.50.21", Mask: "255.255.255.0", Gateway: "192.168.50.1"}
+
+// Activated AMT gets the MEBx password and the static address, with the
+// secrets in the environment of those runs only.
+func TestAMTScriptConfiguresActivatedAMT(t *testing.T) {
+	h := newAMTHost(t, 2, "192.168.50.112")
+
+	result, calls := h.run(t, testConfiguration)
+
+	if result.steps["mebx"].exit != 0 || result.steps["wired"].exit != 0 || result.info.Wired.Address != "192.168.50.21" {
+		t.Fatalf("result %+v\ncalls:\n%s", result, calls)
+	}
+	for _, want := range []string{
+		"configure mebx --json password=set cert= mebx=set",
+		"configure wired --ipaddress 192.168.50.21 --subnetmask 255.255.255.0 --gateway 192.168.50.1 --primarydns 192.168.50.1 --json password=set",
+	} {
+		if !strings.Contains(calls, want) {
+			t.Fatalf("calls lack %q:\n%s", want, calls)
+		}
+	}
+	if strings.Contains(calls, "secret") || strings.Contains(calls, "activate") {
+		t.Fatalf("calls:\n%s", calls)
+	}
+}
+
+func TestAMTScriptLeavesAnAddressThatIsAlreadyAMTs(t *testing.T) {
+	h := newAMTHost(t, 2, "192.168.50.21")
+
+	result, calls := h.run(t, &amtRun{Password: testConfiguration.Password, Address: "192.168.50.21", Mask: "255.255.255.0", Gateway: "192.168.50.1"})
+
+	if _, ok := result.steps["wired"]; ok || strings.Contains(calls, "configure") {
+		t.Fatalf("configured AMT's address again:\n%s", calls)
+	}
+}
+
+// Activation and configuration run together: a pre-provisioned AMT ends the
+// run activated, with its MEBx password and address.
+func TestAMTScriptActivatesAndConfigures(t *testing.T) {
+	h := newAMTHost(t, 0, "0.0.0.0")
+	run := *testConfiguration
+	run.PFX, run.PFXPassword = "UEZY", "pfx-pass"
+
+	result, calls := h.run(t, &run)
+
+	if result.steps["activate"].exit != 0 || result.steps["mebx"].exit != 0 || result.steps["wired"].exit != 0 ||
+		result.info.ControlMode != "admin control mode" || result.info.Wired.Address != "192.168.50.21" {
+		t.Fatalf("result %+v\ncalls:\n%s", result, calls)
+	}
+}
+
+// Client control mode has no MEBx password to set.
+func TestAMTScriptConfiguresOnlyAdminControlMode(t *testing.T) {
+	h := newAMTHost(t, 1, "0.0.0.0")
+
+	result, calls := h.run(t, testConfiguration)
+
+	if len(result.steps) != 0 || strings.Contains(calls, "configure") {
+		t.Fatalf("configured client control mode:\n%s", calls)
 	}
 }

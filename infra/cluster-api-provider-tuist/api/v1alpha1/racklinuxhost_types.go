@@ -57,6 +57,18 @@ type RackLinuxHostAMT struct {
 	// AMT.
 	// +optional
 	Activate bool `json:"activate,omitempty"`
+
+	// Address is the static IPv4 address, with its prefix length, the
+	// operator gives activated AMT on the management segment, so AMT keeps
+	// one address whatever happens to the host. Unset, AMT takes one by DHCP.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$`
+	// +optional
+	Address string `json:"address,omitempty"`
+
+	// Gateway is the segment's gateway, which a static address needs.
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
+	// +optional
+	Gateway string `json:"gateway,omitempty"`
 }
 
 // RackLinuxHostTailnet is the identity a host's install key joins it as.
@@ -151,6 +163,20 @@ type RackLinuxHostAMTStatus struct {
 	// ActivationError is why that attempt failed.
 	// +optional
 	ActivationError string `json:"activationError,omitempty"`
+
+	// MEBxPasswordSet reports that the operator replaced MEBx's factory
+	// password with the one it keeps in the host's AMT Secret.
+	// +optional
+	MEBxPasswordSet bool `json:"mebxPasswordSet,omitempty"`
+
+	// LastConfiguration is when the operator last configured activated AMT
+	// (its MEBx password, its address), and ConfigurationError why that
+	// failed.
+	// +optional
+	LastConfiguration *metav1.Time `json:"lastConfiguration,omitempty"`
+
+	// +optional
+	ConfigurationError string `json:"configurationError,omitempty"`
 
 	// LastPowerAction is the last power change the operator asked AMT for.
 	// +optional

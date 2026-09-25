@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -60,16 +61,24 @@ type RackAMT struct {
 	ProvisioningSecret string
 }
 
-// amtActivation is what a script that may activate AMT carries.
-type amtActivation struct {
-	Password    string
-	PFX         string
-	PFXPassword string
+// amtRun is what a run of the AMT script does besides reading AMT's state,
+// and the secrets it takes to do it.
+type amtRun struct {
+	// Password is AMT's admin password.
+	Password string
+	// PFX and PFXPassword, the provisioning certificate, activate AMT.
+	PFX, PFXPassword string
+	// MEBxPassword, when set, replaces MEBx's password on activated AMT.
+	MEBxPassword string
+	// Address, Mask and Gateway, when set, give activated AMT a static
+	// address.
+	Address, Mask, Gateway string
 }
 
 // reconcileAMT takes the host's AMT to admin control mode when the host asks
-// for it and AMT is not there yet, and otherwise reads AMT's state now and
-// then. It returns when to look again.
+// for it and AMT is not there yet, then configures it (its MEBx password, its
+// static address), and otherwise reads AMT's state now and then. It returns
+// when to look again.
 func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav1.RackLinuxHost) time.Duration {
 	if host.Spec.AMT == nil || !host.Spec.AMT.Activate {
 		conditions.Delete(host, AMTActivatedCondition)
@@ -83,19 +92,39 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	if host.Status.Tailnet == nil || !host.Status.Tailnet.Connected {
 		return 0
 	}
+	address, err := amtStaticAddress(host.Spec.AMT)
+	if err != nil {
+		conditions.MarkFalse(host, AMTActivatedCondition, "InvalidAddress", clusterv1.ConditionSeverityWarning, "%v", err)
+		return 0
+	}
 
 	now := r.now()
 	status := host.Status.AMT
-	var activation *amtActivation
-	if status == nil || status.ControlMode == "" || status.ControlMode == amtPreProvisioning || status.ControlMode == amtClientControl {
+	activate := status == nil || status.ControlMode == "" || status.ControlMode == amtPreProvisioning || status.ControlMode == amtClientControl
+	configure := !activate && (!status.MEBxPasswordSet || (address != nil && status.Address != address.ip))
+	switch {
+	case activate:
 		if status != nil && status.ActivationError != "" && status.LastActivation != nil {
 			if wait := status.LastActivation.Add(amtActivationBackoff).Sub(now); wait > 0 {
 				return wait
 			}
 		}
+	case configure:
+		if status.ConfigurationError != "" && status.LastConfiguration != nil {
+			if wait := status.LastConfiguration.Add(amtActivationBackoff).Sub(now); wait > 0 {
+				return wait
+			}
+		}
+	case status.ObservedAt != nil:
+		if wait := status.ObservedAt.Add(amtObserveAfter(status)).Sub(now); wait > 0 {
+			return wait
+		}
+	}
+
+	var run *amtRun
+	if activate || configure {
 		var reason string
-		var err error
-		activation, reason, err = r.amtActivation(ctx, host)
+		run, reason, err = r.amtRun(ctx, host, activate, status == nil || !status.MEBxPasswordSet, address)
 		if err != nil {
 			conditions.MarkFalse(host, AMTActivatedCondition, "AMTSecretsUnreadable", clusterv1.ConditionSeverityWarning, "%v", err)
 			return time.Minute
@@ -104,14 +133,10 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 			conditions.MarkFalse(host, AMTActivatedCondition, "NoProvisioningCertificate", clusterv1.ConditionSeverityWarning, "%s", reason)
 			return 10 * time.Minute
 		}
-	} else if status.ObservedAt != nil {
-		if wait := status.ObservedAt.Add(amtObserveAfter(status)).Sub(now); wait > 0 {
-			return wait
-		}
 	}
 
 	out, runErr := runOnRackHost(ctx, r.Client, r.CredentialsManager, r.AMT.FleetName, r.egress(), r.RunScript,
-		host, renderAMTScript(activation), amtScriptTimeout)
+		host, renderAMTScript(run), amtScriptTimeout)
 	result, parseErr := parseAMTScriptOutput(out)
 	if parseErr != nil {
 		err := parseErr
@@ -124,25 +149,23 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	}
 
 	observed := metav1.NewTime(now)
-	next := &infrav1.RackLinuxHostAMTStatus{
-		ControlMode: amtControlMode(result.info.ControlMode),
-		Version:     result.info.Version,
-		Link:        result.info.Wired.LinkStatus,
-		Address:     result.info.Wired.Address,
-		ObservedAt:  &observed,
-	}
+	next := &infrav1.RackLinuxHostAMTStatus{}
 	if status != nil {
-		next.LastActivation = status.LastActivation
-		next.ActivationError = status.ActivationError
+		next = status.DeepCopy()
 	}
-	if result.activated {
+	next.ControlMode = amtControlMode(result.info.ControlMode)
+	next.Version = result.info.Version
+	next.Link = result.info.Wired.LinkStatus
+	next.Address = result.info.Wired.Address
+	next.ObservedAt = &observed
+	if step, ok := result.steps["activate"]; ok {
 		next.LastActivation = &observed
 		next.ActivationError = ""
 		switch {
-		case result.activationExit != 0:
-			next.ActivationError = truncateMessage(fmt.Sprintf("rpc activate exit %d: %s", result.activationExit, result.activationOutput))
+		case step.exit != 0:
+			next.ActivationError = truncateMessage("rpc activate " + step.String())
 		case next.ControlMode != amtAdminControl:
-			next.ActivationError = truncateMessage(fmt.Sprintf("rpc activate succeeded, and AMT reports %q: %s", result.info.ControlMode, result.activationOutput))
+			next.ActivationError = truncateMessage(fmt.Sprintf("rpc activate succeeded, and AMT reports %q: %s", result.info.ControlMode, step.output))
 		}
 		if next.ActivationError == "" {
 			r.Recorder.Event(host, corev1.EventTypeNormal, "AMTActivated", "Activated AMT in admin control mode")
@@ -150,6 +173,7 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 			r.Recorder.Eventf(host, corev1.EventTypeWarning, "AMTActivationFailed", "%s", next.ActivationError)
 		}
 	}
+	r.recordAMTConfiguration(host, next, result, &observed)
 	host.Status.AMT = next
 
 	if next.ControlMode == amtAdminControl {
@@ -164,53 +188,134 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	return amtObserveInterval
 }
 
-// amtActivation reads the provisioning certificate and the host's admin
-// password, generating and storing the password first if the host has none,
-// so an activation never sets a password the operator did not keep. A
-// non-empty reason means the certificate is missing.
-func (r *RackLinuxHostReconciler) amtActivation(ctx context.Context, host *infrav1.RackLinuxHost) (*amtActivation, string, error) {
-	namespace := r.CredentialsManager.Namespace
-	provisioning := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: r.AMT.ProvisioningSecret}, provisioning); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, fmt.Sprintf("the Secret %s/%s holding the AMT provisioning certificate does not exist", namespace, r.AMT.ProvisioningSecret), nil
+// recordAMTConfiguration records the configuration steps a run took.
+func (r *RackLinuxHostReconciler) recordAMTConfiguration(host *infrav1.RackLinuxHost, next *infrav1.RackLinuxHostAMTStatus,
+	result amtScriptResult, observed *metav1.Time) {
+	var done, failed []string
+	for _, name := range []string{"mebx", "wired"} {
+		step, ok := result.steps[name]
+		switch {
+		case !ok:
+			continue
+		case step.exit != 0:
+			failed = append(failed, fmt.Sprintf("rpc configure %s %s", name, step))
+		case name == "mebx":
+			next.MEBxPasswordSet = true
+			done = append(done, "set the MEBx password")
+		default:
+			done = append(done, "gave AMT the address "+next.Address)
 		}
-		return nil, "", fmt.Errorf("read the AMT provisioning certificate: %w", err)
 	}
-	pfx, pfxPassword := string(provisioning.Data["pfx"]), string(provisioning.Data["password"])
-	if pfx == "" || pfxPassword == "" {
-		return nil, fmt.Sprintf("the Secret %s/%s lacks pfx or password", namespace, r.AMT.ProvisioningSecret), nil
+	if len(done) == 0 && len(failed) == 0 {
+		return
+	}
+	next.LastConfiguration = observed
+	next.ConfigurationError = truncateMessage(strings.Join(failed, "; "))
+	if len(done) > 0 {
+		r.Recorder.Eventf(host, corev1.EventTypeNormal, "AMTConfigured", "Configured AMT: %s", strings.Join(done, ", "))
+	}
+	if len(failed) > 0 {
+		r.Recorder.Eventf(host, corev1.EventTypeWarning, "AMTConfigurationFailed", "%s", next.ConfigurationError)
+	}
+}
+
+// amtAddress is a static address for AMT.
+type amtAddress struct {
+	ip, mask, gateway string
+}
+
+// amtStaticAddress is the static address spec asks for, nil when it asks for
+// none.
+func amtStaticAddress(spec *infrav1.RackLinuxHostAMT) (*amtAddress, error) {
+	if spec.Address == "" {
+		return nil, nil
+	}
+	ip, network, err := net.ParseCIDR(spec.Address)
+	if err != nil || ip.To4() == nil {
+		return nil, fmt.Errorf("spec.amt.address %q is not an IPv4 address with its prefix length", spec.Address)
+	}
+	gateway := net.ParseIP(spec.Gateway)
+	if gateway == nil || gateway.To4() == nil || !network.Contains(gateway) {
+		return nil, fmt.Errorf("spec.amt.address %s needs spec.amt.gateway, an IPv4 address in %s", spec.Address, network)
+	}
+	return &amtAddress{ip: ip.String(), mask: net.IP(network.Mask).String(), gateway: gateway.String()}, nil
+}
+
+// amtRun reads what a run that activates or configures AMT needs: the host's
+// admin and MEBx passwords, generated and stored first when the host has none,
+// so a run never sets a password the operator did not keep, and, to activate,
+// the provisioning certificate. A non-empty reason means the certificate is
+// missing.
+func (r *RackLinuxHostReconciler) amtRun(ctx context.Context, host *infrav1.RackLinuxHost, activate, mebx bool, address *amtAddress) (*amtRun, string, error) {
+	namespace := r.CredentialsManager.Namespace
+	run := &amtRun{}
+	if activate {
+		provisioning := &corev1.Secret{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: r.AMT.ProvisioningSecret}, provisioning); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil, fmt.Sprintf("the Secret %s/%s holding the AMT provisioning certificate does not exist", namespace, r.AMT.ProvisioningSecret), nil
+			}
+			return nil, "", fmt.Errorf("read the AMT provisioning certificate: %w", err)
+		}
+		run.PFX, run.PFXPassword = string(provisioning.Data["pfx"]), string(provisioning.Data["password"])
+		if run.PFX == "" || run.PFXPassword == "" {
+			return nil, fmt.Sprintf("the Secret %s/%s lacks pfx or password", namespace, r.AMT.ProvisioningSecret), nil
+		}
 	}
 
 	name := amtSecretName(host)
 	secret := &corev1.Secret{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, secret)
 	switch {
-	case err == nil:
-		if password := string(secret.Data["password"]); validAMTPassword(password) {
-			return &amtActivation{Password: password, PFX: pfx, PFXPassword: pfxPassword}, "", nil
+	case apierrors.IsNotFound(err):
+		secret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+				Labels:    map[string]string{"app.kubernetes.io/component": "rack-amt", "tuist.dev/rack-linux-host": host.Name},
+			},
+			Type: corev1.SecretTypeOpaque,
+			Data: map[string][]byte{"username": []byte("admin")},
 		}
-		return nil, "", fmt.Errorf("the Secret %s/%s holds no valid AMT password", namespace, name)
-	case !apierrors.IsNotFound(err):
+	case err != nil:
 		return nil, "", fmt.Errorf("read the AMT password: %w", err)
 	}
-	password, err := generateAMTPassword()
-	if err != nil {
-		return nil, "", err
+	if secret.Data == nil {
+		secret.Data = map[string][]byte{}
 	}
-	secret = &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    map[string]string{"app.kubernetes.io/component": "rack-amt", "tuist.dev/rack-linux-host": host.Name},
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{"username": []byte("admin"), "password": []byte(password)},
+	generated := false
+	for _, key := range []string{"password", "mebx-password"} {
+		if _, ok := secret.Data[key]; ok {
+			continue
+		}
+		password, err := generateAMTPassword()
+		if err != nil {
+			return nil, "", err
+		}
+		secret.Data[key] = []byte(password)
+		generated = true
 	}
-	if err := r.Create(ctx, secret); err != nil {
-		return nil, "", fmt.Errorf("store the AMT password: %w", err)
+	switch {
+	case secret.ResourceVersion == "":
+		if err := r.Create(ctx, secret); err != nil {
+			return nil, "", fmt.Errorf("store the AMT passwords: %w", err)
+		}
+	case generated:
+		if err := r.Update(ctx, secret); err != nil {
+			return nil, "", fmt.Errorf("store the AMT passwords: %w", err)
+		}
 	}
-	return &amtActivation{Password: password, PFX: pfx, PFXPassword: pfxPassword}, "", nil
+	run.Password = string(secret.Data["password"])
+	if !validAMTPassword(run.Password) || !validAMTPassword(string(secret.Data["mebx-password"])) {
+		return nil, "", fmt.Errorf("the Secret %s/%s holds no valid AMT or MEBx password", namespace, name)
+	}
+	if mebx {
+		run.MEBxPassword = string(secret.Data["mebx-password"])
+	}
+	if address != nil {
+		run.Address, run.Mask, run.Gateway = address.ip, address.mask, address.gateway
+	}
+	return run, "", nil
 }
 
 // amtSecretName is the Secret holding a host's AMT admin credentials. It
@@ -220,15 +325,20 @@ func amtSecretName(host *infrav1.RackLinuxHost) string {
 }
 
 // renderAMTScript installs rpc on the host if it is missing and prints AMT's
-// state after a `--- amtinfo` line. With an activation, it first takes AMT to
-// admin control mode, between `--- activate` and `--- activate exit <status>`.
-// AMT checks the provisioning certificate against the DHCP domain, and learns
+// state after a `--- amtinfo` line. Each step it takes first prints its output
+// between `--- <step>` and `--- <step> exit <status>`.
+//
+// With a certificate, it takes AMT to admin control mode (activate). AMT
+// checks the provisioning certificate against the DHCP domain, and learns
 // that only from a lease of its own, which it takes once activated: so a
 // pre-provisioned AMT is activated in client control mode, given time to take
-// its lease, and then upgraded, as is an AMT left in client control mode. The secrets
-// reach rpc only through the environment of its activations, so they appear on
-// no command line and in no file.
-func renderAMTScript(a *amtActivation) string {
+// its lease, and then upgraded, as is an AMT left in client control mode.
+// Activated AMT then gets the MEBx password (mebx) and the static address
+// (wired) the run carries.
+//
+// The secrets reach rpc only through the environment of the runs that need
+// them, so they appear on no command line and in no file.
+func renderAMTScript(a *amtRun) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, `set -euo pipefail
 rpc=%[1]s
@@ -246,12 +356,20 @@ info() { timeout 120 "$rpc" amtinfo --json --ver --mode --lan 2>/dev/null; }
 		fmt.Fprintf(&b, `amt_password=%s
 provisioning_cert=%s
 provisioning_cert_password=%s
+mebx_password=%s
+static_address=%s
+static_mask=%s
+static_gateway=%s
 activate() {
   AMT_PASSWORD="$amt_password" PROVISIONING_CERT="$provisioning_cert" PROVISIONING_CERT_PASSWORD="$provisioning_cert_password" \
     timeout --kill-after=10 300 "$rpc" activate "$@" --skipIPRenew --json 2>&1
 }
+configure() {
+  AMT_PASSWORD="$amt_password" MEBX_PASSWORD="$mebx_password" \
+    timeout --kill-after=10 120 "$rpc" configure "$@" --json 2>&1
+}
 mode=$(info | jq -r .controlMode)
-if [ "$mode" = 'not activated' ] || [ "$mode" = 'client control mode' ]; then
+if [ -n "$provisioning_cert" ] && { [ "$mode" = 'not activated' ] || [ "$mode" = 'client control mode' ]; }; then
   echo '--- activate'
   status=0
   if [ "$mode" = 'not activated' ]; then
@@ -265,9 +383,25 @@ if [ "$mode" = 'not activated' ] || [ "$mode" = 'client control mode' ]; then
     activate --acm || status=$?
   fi
   echo "--- activate exit $status"
+  mode=$(info | jq -r .controlMode)
 fi
-unset amt_password provisioning_cert provisioning_cert_password
-`, shellSingleQuote(a.Password), shellSingleQuote(a.PFX), shellSingleQuote(a.PFXPassword))
+if [ "$mode" = 'admin control mode' ]; then
+  if [ -n "$mebx_password" ]; then
+    echo '--- mebx'
+    status=0
+    configure mebx || status=$?
+    echo "--- mebx exit $status"
+  fi
+  if [ -n "$static_address" ] && [ "$(info | jq -r .wiredAdapter.ipAddress)" != "$static_address" ]; then
+    echo '--- wired'
+    status=0
+    configure wired --ipaddress "$static_address" --subnetmask "$static_mask" --gateway "$static_gateway" --primarydns "$static_gateway" || status=$?
+    echo "--- wired exit $status"
+  fi
+fi
+unset amt_password provisioning_cert provisioning_cert_password mebx_password
+`, shellSingleQuote(a.Password), shellSingleQuote(a.PFX), shellSingleQuote(a.PFXPassword), shellSingleQuote(a.MEBxPassword),
+			shellSingleQuote(a.Address), shellSingleQuote(a.Mask), shellSingleQuote(a.Gateway))
 	}
 	b.WriteString("echo '--- amtinfo'\ninfo\n")
 	return b.String()
@@ -282,30 +416,41 @@ type amtInfo struct {
 	} `json:"wiredAdapter"`
 }
 
+// amtStep is one step the AMT script took: its exit status and output.
+type amtStep struct {
+	exit   int
+	output string
+}
+
+func (s amtStep) String() string {
+	return fmt.Sprintf("exit %d: %s", s.exit, s.output)
+}
+
 type amtScriptResult struct {
-	info             amtInfo
-	activated        bool
-	activationExit   int
-	activationOutput string
+	info  amtInfo
+	steps map[string]amtStep
 }
 
 func parseAMTScriptOutput(out string) (amtScriptResult, error) {
-	var res amtScriptResult
-	const activateMarker, exitMarker, infoMarker = "--- activate\n", "--- activate exit ", "--- amtinfo\n"
-	if i := strings.Index(out, activateMarker); i >= 0 {
-		rest := out[i+len(activateMarker):]
-		j := strings.Index(rest, exitMarker)
-		if j < 0 {
-			return res, fmt.Errorf("the activation did not finish: %s", truncateMessage(rest))
+	res := amtScriptResult{steps: map[string]amtStep{}}
+	const infoMarker = "--- amtinfo\n"
+	for _, step := range []string{"activate", "mebx", "wired"} {
+		start, end := "--- "+step+"\n", "--- "+step+" exit "
+		i := strings.Index(out, start)
+		if i < 0 {
+			continue
 		}
-		line, _, _ := strings.Cut(rest[j+len(exitMarker):], "\n")
+		rest := out[i+len(start):]
+		j := strings.Index(rest, end)
+		if j < 0 {
+			return res, fmt.Errorf("the %s step did not finish: %s", step, truncateMessage(rest))
+		}
+		line, _, _ := strings.Cut(rest[j+len(end):], "\n")
 		code, err := strconv.Atoi(strings.TrimSpace(line))
 		if err != nil {
-			return res, fmt.Errorf("unreadable activation exit status %q", line)
+			return res, fmt.Errorf("unreadable %s exit status %q", step, line)
 		}
-		res.activated = true
-		res.activationExit = code
-		res.activationOutput = strings.TrimSpace(rest[:j])
+		res.steps[step] = amtStep{exit: code, output: strings.TrimSpace(rest[:j])}
 	}
 	i := strings.LastIndex(out, infoMarker)
 	if i < 0 {

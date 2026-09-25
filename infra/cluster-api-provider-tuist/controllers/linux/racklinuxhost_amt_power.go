@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -124,31 +125,45 @@ func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.Ra
 	if creds.Username == "" {
 		creds.Username = "admin"
 	}
-	via, err := r.amtTunnelHost(ctx, host)
+	vias, err := r.amtTunnelHosts(ctx, host)
 	if err != nil {
 		return err
 	}
-	record.Via = via.Name
 	powerFn := r.AMTPower
 	if powerFn == nil {
 		powerFn = r.powerAMTOverSSH
 	}
-	presented, err := powerFn(ctx, via, amt.Address, creds, state)
-	if err != nil {
-		return err
-	}
-	if creds.TLSSHA256 == "" && presented != "" {
-		secret.Data[amtTLSPinKey] = []byte(presented)
-		if err := r.Update(ctx, secret); err != nil {
-			return fmt.Errorf("pin AMT's TLS certificate in %s: %w", name, err)
+	var missed []string
+	for _, via := range vias {
+		presented, err := powerFn(ctx, via, amt.Address, creds, state)
+		if errors.Is(err, errAMTNotOnLink) {
+			missed = append(missed, err.Error())
+			continue
 		}
+		record.Via = via.Name
+		if err != nil {
+			return err
+		}
+		if creds.TLSSHA256 == "" && presented != "" {
+			secret.Data[amtTLSPinKey] = []byte(presented)
+			if err := r.Update(ctx, secret); err != nil {
+				return fmt.Errorf("pin AMT's TLS certificate in %s: %w", name, err)
+			}
+		}
+		return nil
 	}
-	return nil
+	return fmt.Errorf("no edge of site %q reaches AMT at %s: %s", host.Spec.Location.Site, amt.Address, strings.Join(missed, "; "))
 }
 
-// amtTunnelHost is the connected edge of host's site to reach AMT through:
-// another edge first, then the host itself.
-func (r *RackLinuxHostReconciler) amtTunnelHost(ctx context.Context, host *infrav1.RackLinuxHost) (*infrav1.RackLinuxHost, error) {
+// errAMTNotOnLink is an edge that cannot put a request on AMT's link: it is
+// unreachable, or AMT's address is not on one of its links. Only the edge
+// holding the site's floating addresses has an address on the management
+// segment.
+var errAMTNotOnLink = errors.New("not on AMT's link")
+
+// amtTunnelHosts are the connected edges of host's site to reach AMT through,
+// in the order to try them: other edges first, then the host itself.
+func (r *RackLinuxHostReconciler) amtTunnelHosts(ctx context.Context, host *infrav1.RackLinuxHost) ([]*infrav1.RackLinuxHost, error) {
 	list := &infrav1.RackLinuxHostList{}
 	if err := r.List(ctx, list, ctrlclient.InNamespace(host.Namespace)); err != nil {
 		return nil, fmt.Errorf("list the site's edges: %w", err)
@@ -174,16 +189,36 @@ func (r *RackLinuxHostReconciler) amtTunnelHost(ctx context.Context, host *infra
 	if len(edges) == 0 {
 		return nil, fmt.Errorf("no edge of site %q is on the tailnet to reach AMT through", host.Spec.Location.Site)
 	}
-	return edges[0], nil
+	return edges, nil
 }
 
+// powerAMTOverSSH sends the power change through via's SSH session once via
+// shows AMT's address is on one of its links. It returns errAMTNotOnLink,
+// before sending anything, when via is unreachable or routes the address
+// through a gateway.
 func (r *RackLinuxHostReconciler) powerAMTOverSSH(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error) {
+	if net.ParseIP(address) == nil {
+		return "", fmt.Errorf("AMT's address %q is not an IP address", address)
+	}
 	var presented string
+	connected := false
 	err := withRackHostSSH(ctx, r.Client, r.CredentialsManager, r.AMT.FleetName, r.egress(), via, amtPowerTimeout, func(c *ssh.Client) error {
-		var err error
+		connected = true
+		session, err := c.NewSession()
+		if err != nil {
+			return fmt.Errorf("%w: open a session on %s: %v", errAMTNotOnLink, via.Name, err)
+		}
+		route, err := session.Output("ip -o route get " + address)
+		session.Close()
+		if err != nil || strings.Contains(string(route), " via ") {
+			return fmt.Errorf("%w: %s does not reach %s on a link of its own (%s)", errAMTNotOnLink, via.Name, address, strings.TrimSpace(string(route)))
+		}
 		presented, err = requestAMTPower(ctx, c.DialContext, address, creds, state)
 		return err
 	})
+	if err != nil && !connected {
+		return "", fmt.Errorf("%w: %v", errAMTNotOnLink, err)
+	}
 	return presented, err
 }
 

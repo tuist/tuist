@@ -1761,6 +1761,8 @@ rackLinuxFleet:
   #     positionU: 10
   #     amt:
   #       activate: true       # activate its AMT; see amt below
+  #       address: 192.168.50.21/24   # a static AMT address; needs gateway
+  #       gateway: 192.168.50.1
   hosts: []
 
   # Intel AMT's provisioning certificate (`pfx`, a base64 PKCS#12 carrying the
