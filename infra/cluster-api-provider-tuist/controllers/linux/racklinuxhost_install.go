@@ -210,8 +210,8 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		return wait, nil
 	}
 	if !device.Connected {
-		// The MS-01 boots its install stick first, so a power cycle boots the
-		// installer.
+		// The firmware reaches the install stick after the disk, so this
+		// installs a host whose disk no longer boots.
 		if err := r.recordAMTPower(ctx, host, "cycle"); err != nil {
 			r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not power-cycle %s through AMT into its installer: %v", host.Name, err)
 			conditions.MarkFalse(host, InstalledCondition, "ReinstallNotStarted", clusterv1.ConditionSeverityWarning, "%v", err)
