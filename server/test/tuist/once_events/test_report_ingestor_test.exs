@@ -7,6 +7,7 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.TestReportIngestor
   alias Tuist.Tests.Test.Buffer
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
@@ -61,9 +62,76 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
   end
 
   defp case_run_count(test_run_id) do
-    Tuist.Tests.TestCaseRun
+    TestCaseRun
     |> where([c], c.test_run_id == ^test_run_id)
     |> Tuist.IngestRepo.aggregate(:count)
+  end
+
+  test "a case that failed then passed on retry is recorded as flaky", %{run: run, project: project} do
+    # Once retries in place and reports each attempt as its own event, so the
+    # repetitions are the only evidence of flakiness.
+    stage_case(run, %{case_id: "a", name: "a", attempt: 1, result: "failed", duration_ms: 10})
+    stage_case(run, %{case_id: "a", name: "a", attempt: 2, result: "passed", duration_ms: 12})
+
+    assert {:ok, test} = TestReportIngestor.publish(finalize(run))
+
+    # The verdict is the final attempt's, and the run is marked flaky.
+    assert test.status == "success"
+    assert test.is_flaky
+
+    Buffer.flush()
+    assert {:ok, %{is_flaky: true}} = Tuist.Tests.get_test(test.id)
+    assert project.id == test.project_id
+  end
+
+  test "a case that keeps failing is not flaky", %{run: run} do
+    stage_case(run, %{case_id: "a", name: "a", attempt: 1, result: "failed"})
+    stage_case(run, %{case_id: "a", name: "a", attempt: 2, result: "failed"})
+
+    assert {:ok, test} = TestReportIngestor.publish(finalize(run, 1))
+
+    refute test.is_flaky
+    assert test.status == "failure"
+  end
+
+  test "retries collapse to one case rather than counting twice", %{run: run} do
+    stage_case(run, %{case_id: "a", name: "a", attempt: 1, result: "failed", duration_ms: 10})
+    stage_case(run, %{case_id: "a", name: "a", attempt: 2, result: "passed", duration_ms: 12})
+    stage_case(run, %{case_id: "b", name: "b", attempt: 1, result: "passed", duration_ms: 5})
+
+    assert {:ok, first} = TestReportIngestor.publish(finalize(run))
+
+    Buffer.flush()
+    assert case_run_count(first.id) == 2
+  end
+
+  test "a quarantined case is flagged on the published run", %{run: run, project: project} do
+    stage_case(run, %{case_id: "muted_one", name: "muted_one", result: "failed"})
+
+    # Quarantine the case before the run started. Without the marking step the
+    # shared store never learns it is quarantined, so it keeps failing runs.
+    identity = Tuist.Tests.generate_test_case_id(project.id, "muted_one", "cargo_aqua", "unit")
+
+    Tuist.IngestRepo.insert_all(Tuist.Tests.TestCaseState, [
+      %{
+        project_id: project.id,
+        test_case_id: identity,
+        state: "muted",
+        is_flaky: true,
+        inserted_at: DateTime.utc_now() |> DateTime.add(-7200, :second) |> DateTime.to_naive()
+      }
+    ])
+
+    assert {:ok, test} = TestReportIngestor.publish(finalize(run, 1))
+
+    Buffer.flush()
+
+    quarantined =
+      TestCaseRun
+      |> where([c], c.test_run_id == ^test.id and c.is_quarantined == true)
+      |> Tuist.IngestRepo.aggregate(:count)
+
+    assert quarantined == 1
   end
 
   test "a build run with no test cases publishes nothing", %{run: run} do

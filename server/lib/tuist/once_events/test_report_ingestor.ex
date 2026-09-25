@@ -64,7 +64,7 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   end
 
   defp test_attributes(project, %Run{} = run, case_runs) do
-    test_modules = test_modules(case_runs)
+    test_modules = case_runs |> test_modules() |> mark_quarantined_cases(project, run)
 
     %{
       # Derived from the run rather than generated, so republishing the same
@@ -93,7 +93,7 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
     case_runs
     |> Enum.group_by(& &1.target_execution_id)
     |> Enum.map(fn {target, target_cases} ->
-      test_cases = Enum.map(target_cases, &test_case/1)
+      test_cases = aggregate_test_cases(target_cases)
 
       %{
         name: target,
@@ -105,13 +105,63 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
     end)
   end
 
-  defp test_case(case_run) do
-    %{
-      name: case_run.name || case_run.case_id,
-      test_suite_name: case_run.suite_id || case_run.target_execution_id,
-      status: shared_status(case_run.result),
-      duration: case_run.duration_ms || 0
-    }
+  # One entry per case, carrying every attempt as a repetition. Once retries a
+  # failing case in place and reports each attempt as its own event, so
+  # collapsing them to the last one would throw away the only evidence of
+  # flakiness: `Tuist.Tests` decides a case is flaky when its repetitions hold
+  # both a success and a failure.
+  defp aggregate_test_cases(case_runs) do
+    case_runs
+    |> Enum.group_by(&{&1.suite_id || &1.target_execution_id, &1.case_id || &1.name})
+    |> Enum.map(fn {_identity, attempts} ->
+      attempts = Enum.sort_by(attempts, &(&1.attempt || 1))
+      last = List.last(attempts)
+
+      %{
+        name: last.name || last.case_id,
+        test_suite_name: last.suite_id || last.target_execution_id,
+        # The verdict is the final attempt's: a case that passed on retry
+        # passed, and is recorded as flaky through its repetitions instead.
+        status: shared_status(last.result),
+        duration: Enum.sum(Enum.map(attempts, &(&1.duration_ms || 0))),
+        repetitions: repetitions(attempts)
+      }
+    end)
+  end
+
+  defp repetitions(attempts) do
+    attempts
+    |> Enum.with_index(1)
+    |> Enum.map(fn {attempt, number} ->
+      %{
+        name: "Attempt #{number}",
+        repetition_number: number,
+        status: shared_status(attempt.result),
+        duration: attempt.duration_ms || 0
+      }
+    end)
+  end
+
+  # Without this a quarantined case keeps failing runs for Once, because the
+  # shared store only knows a case is quarantined if the report says so. The
+  # state is read as of the run's start so a case quarantined afterwards does
+  # not retroactively change a finished run.
+  defp mark_quarantined_cases(test_modules, project, %Run{} = run) do
+    identities =
+      for module <- test_modules, test_case <- module.test_cases do
+        Tests.generate_test_case_id(project.id, test_case.name, module.name, test_case.test_suite_name)
+      end
+
+    states = Tests.get_test_case_states_at(project.id, identities, run.started_at || run.finalized_at)
+
+    Enum.map(test_modules, fn module ->
+      Map.update!(module, :test_cases, fn cases ->
+        Enum.map(cases, fn test_case ->
+          id = Tests.generate_test_case_id(project.id, test_case.name, module.name, test_case.test_suite_name)
+          Map.put(test_case, :is_quarantined, states[id].state in Tests.active_quarantine_states())
+        end)
+      end)
+    end)
   end
 
   defp suites_from_cases(test_cases) do
