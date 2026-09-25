@@ -1065,42 +1065,34 @@ public class GraphTraverser: GraphTraversing {
             return false
         }
 
-        // First pass: iterative DFS from each root child, collecting the reachable subgraph in
-        // visit order. Stops at terminals (their subtrees are irrelevant beyond their own
-        // inclusion) and at nodes already cached (we reuse their memoised result in the second
-        // pass). The root itself is not enqueued — we compute its result at the end from its
-        // children's cached sets, so the cache always holds the "descendant" semantics.
-        var order: [GraphDependency] = []
+        // Iterative post-order DFS from each root child. A node is pushed back as expanded below
+        // its uncached children, so its set is computed only after every child it unions is
+        // cached. Traversal stops at terminals and at nodes already cached. The root itself is
+        // not enqueued, so the cache always holds the "descendant" semantics.
         var visited = Set<GraphDependency>()
-        var stack: [GraphDependency] = []
-        for child in rootChildren where cache[child] == nil {
-            stack.append(child)
-        }
-        while let node = stack.popLast() {
-            guard visited.insert(node).inserted else { continue }
-            guard cache[node] == nil else { continue }
-            order.append(node)
-            guard !terminal(node) else { continue }
-            for child in graph.dependencies[node, default: []] where cache[child] == nil {
-                stack.append(child)
-            }
-        }
-
-        // Second pass: reverse-visit order guarantees children are cached before their parents
-        // in a DAG. Each node's set is its own inclusion plus its (non-terminal) children's.
-        for node in order.reversed() where cache[node] == nil {
-            var result: Set<GraphDependency> = []
-            if case let .xcframework(xcframework) = node, includes(xcframework) {
-                result.insert(node)
-            }
-            if !terminal(node) {
-                for child in graph.dependencies[node, default: []] {
-                    if let childResult = cache[child] {
-                        result.formUnion(childResult)
+        var stack: [(node: GraphDependency, expanded: Bool)] = rootChildren.map { ($0, false) }
+        while let (node, expanded) = stack.popLast() {
+            if expanded {
+                var result: Set<GraphDependency> = []
+                if case let .xcframework(xcframework) = node, includes(xcframework) {
+                    result.insert(node)
+                }
+                if !terminal(node) {
+                    for child in graph.dependencies[node, default: []] {
+                        if let childResult = cache[child] {
+                            result.formUnion(childResult)
+                        }
                     }
                 }
+                cache[node] = result
+                continue
             }
-            cache[node] = result
+            guard cache[node] == nil, visited.insert(node).inserted else { continue }
+            stack.append((node, true))
+            guard !terminal(node) else { continue }
+            for child in graph.dependencies[node, default: []] where cache[child] == nil {
+                stack.append((child, false))
+            }
         }
 
         // Combine the root's children's cached sets. The root itself never matches `includes`
