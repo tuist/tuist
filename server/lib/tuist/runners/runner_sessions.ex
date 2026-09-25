@@ -313,6 +313,24 @@ defmodule Tuist.Runners.RunnerSessions do
   end
 
   @doc """
+  The `%{account_id, repository}` pairs that ran the most jobs on `fleet_name`
+  since `since`, most first, at most `limit`. A macOS host prefetches the cache
+  masters these jobs use, so the next one it is handed can start warm.
+  """
+  def recent_demand(fleet_name, %DateTime{} = since, limit)
+      when is_binary(fleet_name) and is_integer(limit) and limit > 0 do
+    Repo.all(
+      from(s in RunnerSession,
+        where: s.fleet_name == ^fleet_name and s.started_at >= ^since and not is_nil(s.account_id),
+        group_by: [s.account_id, s.repository],
+        order_by: [desc: count(s.id), desc: max(s.started_at), asc: s.account_id, asc: s.repository],
+        limit: ^limit,
+        select: %{account_id: s.account_id, repository: s.repository}
+      )
+    )
+  end
+
+  @doc """
   Open sessions per fleet that have already passed the six-hour safety
   bound — the rows `p95_concurrent_last_hour/1` clamps out of the
   forecast and that `occupied_counts_per_fleet/0` has stopped counting.

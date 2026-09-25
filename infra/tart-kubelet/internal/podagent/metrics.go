@@ -188,15 +188,30 @@ var cacheVolumePromoteTotal = prometheus.NewCounterVec(
 )
 
 // cacheVolumeConvergedTotal counts background fast-forwards of this host's
-// master to the account's HEAD — a host that was behind pulling the latest
-// master after a job started (off the job-start path), so the next job on it
-// starts fresher. A high rate relative to materialize means hosts are
+// master to the volume's HEAD — a host that was behind pulling the latest
+// master off every job's critical path, so the next job on it starts fresher. A high rate relative to materialize means hosts are
 // frequently stale (jobs spread thin across hosts, or the cache churns fast).
 var cacheVolumeConvergedTotal = prometheus.NewCounter(
 	prometheus.CounterOpts{
 		Name: "tart_kubelet_cache_volume_converged_total",
-		Help: "Materialize-time master fast-forwards to the account's HEAD.",
+		Help: "Background master fast-forwards to the volume's HEAD.",
 	},
+)
+
+// cacheVolumeConvergeTotal counts the converge worker's attempts by what queued
+// them and how they ended. source is "job" (a job for the volume ran here and
+// relayed its HEAD) or "prefetch" (the server listed it for this host's fleet).
+// result is "converged", "current" (nothing to adopt), "yielded" (a job landed
+// and the download paused), "too_large" (larger than the volume can keep),
+// "no_room" (no space without evicting what it may not), "unverifiable" (the
+// object does not reproduce the HEAD's digest), "expired" (queued past its
+// download URL) or "failed".
+var cacheVolumeConvergeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_total",
+		Help: "Converge worker attempts, by what queued them and how they ended.",
+	},
+	[]string{"source", "result"},
 )
 
 // cacheVolumeResidentCount is the number of resident master images on this
@@ -343,6 +358,7 @@ func init() {
 		cacheVolumeMaterializeTotal,
 		cacheVolumePromoteTotal,
 		cacheVolumeConvergedTotal,
+		cacheVolumeConvergeTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 		cacheVolumeEnabled,
@@ -429,10 +445,15 @@ func RecordVolumeMaterialized(source MaterializeSource) {
 	cacheVolumeMaterializeTotal.WithLabelValues(string(source)).Inc()
 }
 
-// RecordVolumeConverged increments the count of materialize-time master
-// fast-forwards to the account's HEAD.
+// RecordVolumeConverged increments the count of background master
+// fast-forwards to the volume's HEAD.
 func RecordVolumeConverged() {
 	cacheVolumeConvergedTotal.Inc()
+}
+
+// RecordVolumeConverge counts one converge worker attempt.
+func RecordVolumeConverge(source convergeSource, result string) {
+	cacheVolumeConvergeTotal.WithLabelValues(string(source), result).Inc()
 }
 
 // RecordVolumeResident publishes the resident master count and root free

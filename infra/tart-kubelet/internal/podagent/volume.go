@@ -168,6 +168,10 @@ type volumeBackend interface {
 	// (statfs). Ground truth for admission and watermarks: per-file sizes
 	// cannot be summed because CoW clones share blocks.
 	freeBytes(root string) (uint64, error)
+	// capacityBytes reports the size of the filesystem holding root: the quota
+	// of the runner-cache volume, which bounds how large a master this host can
+	// keep at all.
+	capacityBytes(root string) (uint64, error)
 	// isMounted reports whether root is an actually-mounted volume rather than
 	// a stale/absent mountpoint on the boot filesystem. freeBytes cannot tell
 	// the two apart — df against a bare mountpoint dir happily reports the boot
@@ -353,11 +357,13 @@ func (m *VolumeManager) BranchImage(att VolumeAttachment) string {
 	return filepath.Join(att.BranchPath, branchImageName)
 }
 
-// ConvergeStagingDir is scratch on the runner-cache volume where a downloaded
-// HEAD image is written before InstallMaster replaces the local master with it —
-// on the same volume as the masters so the clone stays a same-volume CoW op.
-func (m *VolumeManager) ConvergeStagingDir(vm string) string {
-	return filepath.Join(m.Root, convergeDirName, vm)
+// ConvergeStagingDir is scratch on the runner-cache volume where a HEAD image for
+// (account, volume) is downloaded before InstallMaster replaces the local master
+// with it — on the same volume as the masters so the clone stays a same-volume
+// CoW op. Keyed by the volume rather than by a VM so a download that yields to a
+// job resumes from the bytes it already has.
+func (m *VolumeManager) ConvergeStagingDir(account, volume string) string {
+	return filepath.Join(m.Root, convergeDirName, account, volume)
 }
 
 // convergeDirName is the top-level scratch dir for convergence downloads. It
@@ -988,8 +994,8 @@ func (m *VolumeManager) SweepBranches() error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	// Convergence scratch is per-job too, so it can't survive a restart either
-	// (a live VM's convergence completed before its job started).
+	// A partial convergence download is only resumed by the in-memory queue that
+	// started it, which a restart empties.
 	_ = os.RemoveAll(filepath.Join(m.Root, convergeDirName))
 	entries, err := os.ReadDir(m.branchesRoot())
 	if err != nil {
@@ -1261,6 +1267,82 @@ func (m *VolumeManager) lowWatermarkBytes() uint64 {
 }
 
 var errNoRoom = errors.New("runner-cache root has no room for a cache volume")
+
+// errMasterTooLargeToKeep: the master is larger than the runner-cache volume can
+// hold while keeping the watermark free, so the evictor would drop it as soon as
+// it was installed.
+var errMasterTooLargeToKeep = errors.New("cache master is larger than this host can keep")
+
+// errNoRoomToConverge: the download would take the volume below the space the
+// watermark and admission need, and the convergence may not evict for it.
+var errNoRoomToConverge = errors.New("runner-cache root has no room to download this master")
+
+// PrepareConvergeSpace makes room for the remaining bytes of a total-byte HEAD
+// image before its download continues, and declines one this host could not
+// keep. It must run before any byte lands: a download that fills the volume
+// fails, and it takes the space admitted jobs are growing into with it.
+//
+// Room means the download still leaves what the evictor keeps free, or what
+// admission needs for every reserved branch plus one more, whichever is larger,
+// so neither drops the master the moment it is installed. With mayEvict, LRU
+// masters other than key are evicted for it, as admission does for a job; a
+// prefetch for a volume that has not run here passes false and only uses space
+// that is already free.
+func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uint64, mayEvict bool) error {
+	capacity, err := m.backend.capacityBytes(m.Root)
+	if err != nil {
+		return err
+	}
+	watermark := m.lowWatermarkBytes()
+	if capacity <= watermark || total > capacity-watermark {
+		return errMasterTooLargeToKeep
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	headroom := watermark
+	if admission := m.capBytes() * uint64(len(m.reserved)+1); admission > headroom {
+		headroom = admission
+	}
+	want := remaining + headroom
+	if !mayEvict {
+		free, err := m.backend.freeBytes(m.Root)
+		if err != nil {
+			return err
+		}
+		if free < want {
+			return errNoRoomToConverge
+		}
+		return nil
+	}
+	if _, err := m.ensureFreeLocked(want, key); err != nil {
+		if errors.Is(err, errNoRoom) {
+			return errNoRoomToConverge
+		}
+		return err
+	}
+	return nil
+}
+
+// HasMaster reports whether the (account, volume) master is resident.
+func (m *VolumeManager) HasMaster(account, volume string) bool {
+	if !m.Enabled() {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.hasMasterLocked(masterKey{account: account, volume: volume})
+}
+
+// jobsRunning is how many branches are materialized for a job and not yet
+// finalized: VMs that are running a job rather than waiting for one.
+func (m *VolumeManager) jobsRunning() int {
+	if !m.Enabled() {
+		return 0
+	}
+	return m.reservedBranches()
+}
 
 var errAdmissionDeclined = errors.New("cache volume admission declined")
 

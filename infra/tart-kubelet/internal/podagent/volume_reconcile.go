@@ -1,15 +1,12 @@
 package podagent
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -431,6 +428,11 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// fast-forward only if HEAD is still at this generation — so a job that built
 	// on a stale master cannot clobber a newer HEAD.
 	writeBaseGeneration(entry.VolumeStatusDir, baseGeneration)
+	// A HEAD this host already proved does not reproduce its digest is staged
+	// for this job to relay with its promote. The converge worker usually runs
+	// after the job that relayed that HEAD has gone, so this job is the one that
+	// can let the server retire it.
+	stageUnverifiableHead(entry.VolumeStatusDir, r.Converge.DisprovedDigest(account, volume))
 	// Drop the host-written materialization marker so a kubelet restart can tell
 	// this (materialized) branch from an idle VM's boot-created empty cache dir.
 	r.Volumes.MarkMaterialized(entry.Volume)
@@ -446,14 +448,11 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	}
 	RecordVolumeMaterialized(source)
 
-	// Converge the on-disk master toward the volume's HEAD in the background,
-	// off the job-start critical path. The running job already holds its own
-	// CoW branch, so refreshing the master (an atomic swap of a separate dir)
-	// never touches the job in flight — it just makes the NEXT job on this host
-	// start from the account's current warm set instead of paying remote misses
-	// for the delta. Best-effort and self-limiting: one goroutine per VM
-	// (materialize runs at most once per VM), bounded by a download deadline.
-	go r.convergeMaster(entry.VMName, entry.VolumeStatusDir, entry.Volume.VolumeName, account)
+	// Queue the volume's HEAD for the host's converge worker, off the job-start
+	// critical path. The running job already holds its own CoW branch, so
+	// refreshing the master never touches the job in flight — it makes the NEXT
+	// job on this host start from the volume's current warm set.
+	go r.queueConvergence(entry.VMName, entry.VolumeStatusDir, entry.Volume.VolumeName, account)
 }
 
 // writeCacheReady drops the cache-ready marker into the writable status share.
@@ -768,25 +767,19 @@ func readVolumeHead(statusDir string) *volumeHead {
 	return &h
 }
 
-// convergeMaster fast-forwards this host's master for the (account, volume) to
-// that volume's HEAD when the host is behind, by downloading the latest master
-// archive and atomically swapping it in. Runs in the background off the
-// job-start critical path (see maybeMaterializeVolume): it refreshes the master
-// dir, which the in-flight job's CoW branch does not reference, so the NEXT job
-// clonefiles the fresher set. Takes plain values, not the shared *Entry, so it
-// can't race the reconciler mutating that entry. Best-effort and bounded: no
-// HEAD, already-current, or any download/extract failure leaves the local
-// master untouched (the status quo — jobs just pay a few remote misses).
-func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account string) {
-	if r.Volumes == nil || !r.Volumes.Enabled() {
+// queueConvergence hands the volume's HEAD, as the job's guest relays it, to the
+// host's converge worker, which fast-forwards the master off every job's
+// critical path. Runs in the background of materialize: it waits for the guest
+// to stage the HEAD, then returns. Takes plain values, not the shared *Entry, so
+// it can't race the reconciler mutating that entry.
+func (r *Reconciler) queueConvergence(vmName, statusDir, volumeName, account string) {
+	if r.Volumes == nil || !r.Volumes.Enabled() || r.Converge == nil {
 		return
 	}
 	// Wait (bounded) for the guest to stage the HEAD. The guest writes
 	// volume-head.json only after it receives the dispatch response, which the
-	// server returns after stamping the label that triggered this convergence,
-	// so the file lands a beat later than this goroutine starts. Reading it once
-	// would usually miss it and permanently skip convergence; since this runs in
-	// the background, it can afford to wait for the file to appear.
+	// server returns after stamping the label that triggered this, so the file
+	// lands a beat later than this goroutine starts.
 	logger := log.Log.WithName("volume")
 	head := awaitVolumeHead(statusDir, r.ConvergeHeadWaitInterval, r.ConvergeHeadWaitAttempts)
 	// Each of these three used to share one silent `return`, which made the most
@@ -809,104 +802,21 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
 		return
 	}
-	// Skip if this host's master is already at or past the HEAD generation. The
-	// generation is monotonic (the server only ever fast-forwards it), so a local
-	// generation >= the HEAD's means this host already holds that HEAD (or its own
-	// newer promote) and has nothing to adopt.
+	// The healthy no-op, logged so it can be told apart from a convergence that
+	// failed or never ran. The worker checks again before it downloads, since a
+	// promote can land in between.
 	if local, err := r.Volumes.MasterGeneration(account, volumeName); err == nil && local >= head.Generation {
-		// The healthy no-op. Logged so it can be told apart from a convergence
-		// that failed or never ran, which is the distinction that matters when
-		// asking why a fleet is not converging.
 		logger.Info("converge: host already at or past the HEAD; nothing to adopt",
 			"vm", vmName, "account", account, "volume", volumeName,
 			"local_generation", local, "head_generation", head.Generation)
 		return
 	}
-
-	staging := r.Volumes.ConvergeStagingDir(vmName)
-	_ = os.RemoveAll(staging)
-	if err := os.MkdirAll(staging, 0o755); err != nil {
-		logger.Error(err, "converge: mkdir staging", "vm", vmName)
-		return
-	}
-	defer os.RemoveAll(staging)
-
-	image := filepath.Join(staging, convergeImageName)
-	if err := downloadMasterImage(head.DownloadURL, image); err != nil {
-		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
-		return
-	}
-	// Verify the downloaded bytes against the HEAD's content digest before
-	// anything parses them: the promoting guest hashed the settled image file,
-	// so anything short of bit-for-bit equality — corruption in the object
-	// store, on the wire, or in this host's RAM — declines here. This is the
-	// check the inventory digest below cannot make: that one hashes entry names
-	// and sizes, so a flipped bit INSIDE a cached file sails through it.
-	//
-	// The same measure-vs-mismatch split as the inventory check applies: a
-	// hashing failure is a local read fault that says nothing about the object
-	// and declines quietly, while a hash that differs is proof about the object,
-	// reproducible on every host — staged for the guest to report so the server
-	// can retire a HEAD nothing can adopt (see stageUnverifiableHead).
-	if head.ContentDigest != "" {
-		got, err := fileSHA256(image)
-		switch {
-		case err != nil:
-			logger.Error(err, "converge: cannot hash the downloaded image; keeping local master",
-				"vm", vmName, "account", account, "volume", volumeName, "want", head.ContentDigest)
-			return
-		case got != head.ContentDigest:
-			logger.Info("converge: image content hash does not match HEAD; keeping local master",
-				"vm", vmName, "account", account, "want", head.ContentDigest, "got", got)
-			stageUnverifiableHead(statusDir, head.Digest)
-			return
-		}
-	}
-	// Verify the downloaded image's inventory matches the HEAD digest before
-	// adopting it, so the host never records a generation for an image that isn't
-	// the one the HEAD advertised. On mismatch, stay on the local master (status
-	// quo). With content-addressed HEAD keys a mismatch is rare, but a stale
-	// presigned URL or a partial download can still surface one.
-	//
-	// Being unable to MEASURE the image and measuring a DIFFERENT image are kept
-	// apart. The first is a local fault (the read-only attach failed, the disk is
-	// unhappy) and says nothing about the object, so it declines quietly. The
-	// second is proof about the object itself, reproducible on every host that
-	// fetches it — and since the account cannot promote past a HEAD it cannot
-	// adopt, that proof is the only thing that can unwedge it, so it is staged for
-	// the guest to report (see stageUnverifiableHead).
-	if head.Digest != "" {
-		got, err := r.Volumes.ImageDigest(image)
-		switch {
-		case err != nil:
-			logger.Error(err, "converge: cannot measure the downloaded image; keeping local master",
-				"vm", vmName, "account", account, "volume", volumeName, "want", head.Digest)
-			return
-		case got != head.Digest:
-			logger.Info("converge: image digest does not match HEAD; keeping local master",
-				"vm", vmName, "account", account, "want", head.Digest, "got", got)
-			stageUnverifiableHead(statusDir, head.Digest)
-			return
-		}
-	}
-	// Adopt the HEAD wholesale: a plain generation-gated whole-image replace. HEAD
-	// is a monotonic fast-forward lineage (the server rejects any bump that does
-	// not build on the current tip), so replacing a behind master with it strands
-	// nothing — the local master is meant to match HEAD exactly.
-	installed, err := r.Volumes.InstallMaster(account, volumeName, image, head.Generation)
-	if err != nil {
-		logger.Error(err, "converge: install master", "vm", vmName, "account", account)
-		return
-	}
-	if !installed {
-		// A promote or another convergence moved the master past this HEAD while
-		// the download was in flight, so the generation gate declined the swap.
-		logger.Info("converge: master moved past this HEAD mid-download; discarding",
-			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
-		return
-	}
-	RecordVolumeConverged()
-	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+	r.Converge.Enqueue(convergeRequest{
+		key:       masterKey{account: account, volume: volumeName},
+		head:      *head,
+		source:    convergeSourceJob,
+		statusDir: statusDir,
+	})
 }
 
 // unverifiableHeadFile carries, into the writable status share, the HEAD digest
@@ -956,18 +866,6 @@ func awaitVolumeHead(statusDir string, interval time.Duration, attempts int) *vo
 	return readVolumeHead(statusDir)
 }
 
-// convergeImageName is the downloaded HEAD image inside the convergence staging
-// dir. It deliberately does NOT use the master image's name: staging lives under
-// Root, and a file named like a master could be picked up by the master scan.
-const convergeImageName = "head.sparseimage"
-
-// convergeDownloadTimeout bounds the HEAD image fetch. The object is the cache
-// image itself — gigabytes, not a manifest — so the ceiling is generous. It runs
-// in the background off the job-start path, so a slow fetch delays only the NEXT
-// job's warmth; the bound just keeps a stalled transfer from leaking a goroutine
-// and staging disk forever.
-const convergeDownloadTimeout = 30 * time.Minute
-
 // fileSHA256 returns the lowercase hex SHA-256 of the file's bytes — the same
 // digest the promoting guest computed over its settled image and the object
 // store verified at ingest, so all three measure the identical byte stream.
@@ -977,30 +875,12 @@ func fileSHA256(path string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
+	noPageCache(f)
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// downloadMasterImage fetches the account's master image from a presigned URL to
-// dst. The object IS the image — a settled APFS filesystem carrying the
-// symlinks, xattrs and modes the cache needs — so there is nothing to unpack.
-func downloadMasterImage(url, dst string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), convergeDownloadTimeout)
-	defer cancel()
-
-	// No -L: a presigned object-storage URL is fetched directly (200, no
-	// redirect), so refuse to follow redirects — that removes redirect-based
-	// SSRF where a hostile/misconfigured endpoint bounces this host to an
-	// internal address. The server also validates the URL host is public before
-	// handing it over (see volume_head_payload).
-	if out, err := exec.CommandContext(ctx, "curl", "-fsS", "-o", dst, url).CombinedOutput(); err != nil {
-		_ = os.Remove(dst)
-		return fmt.Errorf("curl master image: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	return nil
 }
 
 // finalizeVolume promotes or discards the entry's cache-volume branch and
