@@ -319,8 +319,8 @@
   & [data-part="cell"][title] {
     position: relative;
     z-index: 1;
-    width: fit-content;
     cursor: help;
+    width: fit-content;
   }
 
   & [data-part="status"][title] {
