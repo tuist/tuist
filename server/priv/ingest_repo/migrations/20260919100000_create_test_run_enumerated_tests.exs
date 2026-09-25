@@ -33,6 +33,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestRunEnumeratedTests do
       `inserted_at` DateTime64(6) DEFAULT now()
     )
     ENGINE = #{Migration.engine("ReplacingMergeTree(inserted_at)")}
+    PARTITION BY toYYYYMM(inserted_at)
     ORDER BY (project_id, test_run_id, test_case_id)
     TTL toDateTime(inserted_at) + INTERVAL #{retention.files} DAY
     """)

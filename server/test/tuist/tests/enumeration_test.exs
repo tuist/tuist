@@ -4,7 +4,9 @@ defmodule Tuist.Tests.EnumerationTest do
 
   import Ecto.Query
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Enumeration
   alias Tuist.Tests.TestCaseRun
@@ -98,6 +100,18 @@ defmodule Tuist.Tests.EnumerationTest do
     Enumeration.record(test, [%{module: "AppTests", suite: "MathTests", name: "testSubtract()"}])
 
     assert CoverageFixtures.enumerated_tests(test) == []
+  end
+
+  test "partitions the table by month, so its retention drops whole partitions" do
+    # ClickHouse runs no DDL introspection inside the sandbox's transaction.
+    %{rows: [[partition_key]]} =
+      Sandbox.unboxed_run(IngestRepo, fn ->
+        IngestRepo.query!(
+          "SELECT partition_key FROM system.tables WHERE database = currentDatabase() AND name = 'test_run_enumerated_tests'"
+        )
+      end)
+
+    assert partition_key == "toYYYYMM(inserted_at)"
   end
 
   describe "a failure storing them" do
