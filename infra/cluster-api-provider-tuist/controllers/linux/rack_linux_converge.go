@@ -254,8 +254,6 @@ sed -ri '/\sswap\s/s/^([^#])/#\1/' /etc/fstab
 	}
 	b.WriteString(`if [ -n "${dirty[network]:-}" ]; then networkctl reload; fi
 `)
-	b.WriteString(findInstallStickShell)
-	b.WriteString(keepInstallStickFirstShell)
 	b.WriteString(heredoc("/etc/systemd/system.conf.d/10-tuist-watchdog.conf", "0644", "systemd", watchdogDropInContent))
 	b.WriteString(`if [ -n "${dirty[systemd]:-}" ]; then systemctl daemon-reexec; fi
 
@@ -372,29 +370,3 @@ LinkLocalAddressing=no
 IPv6AcceptRA=no
 `, mac)
 }
-
-// keepInstallStickFirstShell puts the install stick first in the firmware's
-// BootOrder, so every boot, a power cycle through AMT included, goes through
-// its installer, which boots the installed system again unless an install is
-// published for the host. It moves the firmware's own entry for the stick,
-// which the firmware keeps, and gives the stick an entry when it has none. A
-// host without a stick keeps its BootOrder. It needs find_install_stick
-// (findInstallStickShell) and the converge's changed array.
-const keepInstallStickFirstShell = `if command -v efibootmgr >/dev/null && find_install_stick; then
-  partuuid=$(lsblk -no PARTUUID "$stick_esp" | tr 'A-F' 'a-f')
-  stick_entry() {
-    efibootmgr -v | awk -v id="$partuuid" 'id != "" && /^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ && index(tolower($0), id) { print substr($1, 5, 4); exit }'
-  }
-  entry=$(stick_entry)
-  if [ -z "$entry" ]; then
-    efibootmgr -q -C -d "$stick_disk" -p "${stick_esp##*[!0-9]}" -L 'tuist install stick' -l '\EFI\BOOT\BOOTX64.EFI'
-    entry=$(stick_entry)
-  fi
-  order=$(efibootmgr | sed -n 's/^BootOrder: //p')
-  if [ -n "$entry" ] && [ "${order%%,*}" != "$entry" ]; then
-    rest=$(printf '%s\n' "$order" | tr ',' '\n' | { grep -vix "$entry" || true; } | paste -sd, -)
-    efibootmgr -q -o "$entry${rest:+,$rest}"
-    changed+=("BootOrder=$entry")
-  fi
-fi
-`

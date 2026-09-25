@@ -37,6 +37,22 @@ const powerStateChangeResponse = `<?xml version="1.0" encoding="UTF-8"?>
 </a:Envelope>
 `
 
+// fakeAMTResponse answers one WS-MAN request as AMT does, by its action.
+func fakeAMTResponse(body, powerReturnValue string) string {
+	envelope := func(inner string) string {
+		return `<?xml version="1.0" encoding="UTF-8"?><a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope" xmlns:g="http://example/g"><a:Header></a:Header><a:Body>` + inner + `</a:Body></a:Envelope>`
+	}
+	switch {
+	case strings.Contains(body, "CIM_BootConfigSetting/ChangeBootOrder"):
+		return envelope(`<g:ChangeBootOrder_OUTPUT><g:ReturnValue>0</g:ReturnValue></g:ChangeBootOrder_OUTPUT>`)
+	case strings.Contains(body, "CIM_BootService/SetBootConfigRole"):
+		return envelope(`<g:SetBootConfigRole_OUTPUT><g:ReturnValue>0</g:ReturnValue></g:SetBootConfigRole_OUTPUT>`)
+	case strings.Contains(body, "AMT_BootSettingData"):
+		return envelope(`<g:AMT_BootSettingData><g:ElementName>Intel(r) AMT Boot Configuration Settings</g:ElementName><g:InstanceID>Intel(r) AMT:BootSettingData 0</g:InstanceID><g:OwningEntity>Intel(r) AMT</g:OwningEntity><g:EnforceSecureBoot>false</g:EnforceSecureBoot></g:AMT_BootSettingData>`)
+	}
+	return strings.Replace(powerStateChangeResponse, "%s", powerReturnValue, 1)
+}
+
 // fakeAMT answers WS-MAN over TLS behind digest authentication, as an
 // activated AMT does on 16993.
 func fakeAMT(t *testing.T, returnValue string, bodies *[]string, authorizations *[]string) (dial func(context.Context, string, string) (net.Conn, error), dialled *[]string, fingerprint string) {
@@ -52,7 +68,7 @@ func fakeAMT(t *testing.T, returnValue string, bodies *[]string, authorizations 
 		*bodies = append(*bodies, string(body))
 		*authorizations = append(*authorizations, auth)
 		w.Header().Set("Content-Type", "application/soap+xml; charset=UTF-8")
-		_, _ = io.WriteString(w, strings.Replace(powerStateChangeResponse, "%s", returnValue, 1))
+		_, _ = io.WriteString(w, fakeAMTResponse(string(body), returnValue))
 	}))
 	t.Cleanup(server.Close)
 	sum := sha256.Sum256(server.Certificate().Raw)
@@ -68,7 +84,7 @@ func TestRequestAMTPowerAsksAMTOverDigestWSMANAndPinsItsCertificate(t *testing.T
 	var bodies, authorizations []string
 	dial, dialled, fingerprint := fakeAMT(t, "0", &bodies, &authorizations)
 
-	pinned, err := requestAMTPower(context.Background(), dial, "192.168.50.112", amtCredentials{Username: "admin", Password: "Secret-Pa55!"}, power.PowerCycleOffHard)
+	pinned, err := requestAMTPower(context.Background(), dial, "192.168.50.112", amtCredentials{Username: "admin", Password: "Secret-Pa55!"}, amtPowerChange{state: power.PowerCycleOffHard})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +103,7 @@ func TestRequestAMTPowerAsksAMTOverDigestWSMANAndPinsItsCertificate(t *testing.T
 	}
 
 	if _, err := requestAMTPower(context.Background(), dial, "192.168.50.112",
-		amtCredentials{Username: "admin", Password: "Secret-Pa55!", TLSSHA256: strings.ToUpper(fingerprint)}, power.PowerOn); err != nil {
+		amtCredentials{Username: "admin", Password: "Secret-Pa55!", TLSSHA256: strings.ToUpper(fingerprint)}, amtPowerChange{state: power.PowerOn}); err != nil {
 		t.Fatalf("refused the pinned certificate: %v", err)
 	}
 }
@@ -97,7 +113,7 @@ func TestRequestAMTPowerRefusesACertificateOtherThanThePinnedOne(t *testing.T) {
 	dial, _, _ := fakeAMT(t, "0", &bodies, &authorizations)
 
 	_, err := requestAMTPower(context.Background(), dial, "192.168.50.112",
-		amtCredentials{Username: "admin", Password: "Secret-Pa55!", TLSSHA256: strings.Repeat("ab", 32)}, power.PowerOn)
+		amtCredentials{Username: "admin", Password: "Secret-Pa55!", TLSSHA256: strings.Repeat("ab", 32)}, amtPowerChange{state: power.PowerOn})
 	if err == nil || len(bodies) != 0 {
 		t.Fatalf("err = %v, bodies %v; want the request refused before it is sent", err, bodies)
 	}
@@ -107,7 +123,7 @@ func TestRequestAMTPowerReportsARefusal(t *testing.T) {
 	var bodies, authorizations []string
 	dial, _, _ := fakeAMT(t, "2", &bodies, &authorizations)
 
-	_, err := requestAMTPower(context.Background(), dial, "192.168.50.112", amtCredentials{Username: "admin", Password: "Secret-Pa55!"}, power.PowerOn)
+	_, err := requestAMTPower(context.Background(), dial, "192.168.50.112", amtCredentials{Username: "admin", Password: "Secret-Pa55!"}, amtPowerChange{state: power.PowerOn})
 	if err == nil || !strings.Contains(err.Error(), "2") {
 		t.Fatalf("err = %v, want AMT's return value", err)
 	}
@@ -117,6 +133,7 @@ type powerCall struct {
 	via, address string
 	creds        amtCredentials
 	state        power.PowerState
+	netboot      bool
 }
 
 func activatedAMTEdge(annotation string) *infrav1.RackLinuxHost {
@@ -137,8 +154,8 @@ func amtSecret(password string) *corev1.Secret {
 }
 
 func recordPower(calls *[]powerCall) amtPowerFunc {
-	return func(_ context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error) {
-		*calls = append(*calls, powerCall{via: via.Name, address: address, creds: creds, state: state})
+	return func(_ context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, change amtPowerChange) (string, error) {
+		*calls = append(*calls, powerCall{via: via.Name, address: address, creds: creds, state: change.state, netboot: change.netboot})
 		return "c692252b", nil
 	}
 }
@@ -217,7 +234,7 @@ func TestRackAMTPowerRefusesAnUnknownAction(t *testing.T) {
 	if len(*calls) != 0 {
 		t.Fatal("made a power change for an unknown action")
 	}
-	if last := got.Status.AMT.LastPowerAction; last == nil || !strings.Contains(last.Error, "on, off, cycle or reset") {
+	if last := got.Status.AMT.LastPowerAction; last == nil || !strings.Contains(last.Error, "on, off, cycle, reset or pxe") {
 		t.Fatalf("lastPowerAction %+v", last)
 	}
 }
@@ -255,14 +272,14 @@ func TestRackInstallPowerCyclesAnOfflineHostThroughAMT(t *testing.T) {
 
 	h.now = installEpoch.Add(rackBootPropagation + time.Second)
 	got := h.reconcile(t, "ber1-svc")
-	want := powerCall{via: "ber1-edge-a", address: "192.168.50.113", creds: amtCredentials{Username: "admin", Password: "Stored-Pa55!"}, state: power.PowerCycleOffHard}
+	want := powerCall{via: "ber1-edge-a", address: "192.168.50.113", creds: amtCredentials{Username: "admin", Password: "Stored-Pa55!"}, state: power.PowerCycleOffHard, netboot: true}
 	if len(calls) != 1 || calls[0] != want {
 		t.Fatalf("power calls %+v, want %+v", calls, want)
 	}
 	if got.Status.Install == nil || got.Status.Install.TriggeredAt == nil {
 		t.Fatalf("install %+v, want it triggered", got.Status.Install)
 	}
-	if last := got.Status.AMT.LastPowerAction; last == nil || last.Action != "cycle" || last.Error != "" {
+	if last := got.Status.AMT.LastPowerAction; last == nil || last.Action != "pxe" || last.Error != "" {
 		t.Fatalf("lastPowerAction %+v", last)
 	}
 
@@ -279,7 +296,7 @@ func TestRackInstallLeavesAnOfflineHostWithoutAMTToAPerson(t *testing.T) {
 	h := newInstallHarness(t, host, otherEdge("ber1-edge-a", rackTestNamespace, "ber1", "edge", true))
 	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false)}
 	h.r.AMT = &RackAMT{FleetName: rackTestFleet, ProvisioningSecret: amtTestProvisioningSecret}
-	h.r.AMTPower = func(context.Context, *infrav1.RackLinuxHost, string, amtCredentials, power.PowerState) (string, error) {
+	h.r.AMTPower = func(context.Context, *infrav1.RackLinuxHost, string, amtCredentials, amtPowerChange) (string, error) {
 		t.Fatal("powered a host whose AMT is not activated")
 		return "", nil
 	}
@@ -328,11 +345,11 @@ func TestRackAMTPowerPinsAMTsCertificate(t *testing.T) {
 func TestRackAMTPowerGoesThroughTheEdgeOnAMTsLink(t *testing.T) {
 	h, calls := newPowerHarness(t, activatedAMTEdge("reset"), otherConnectedEdge(), amtSecret("Stored-Pa55!"))
 	record := recordPower(calls)
-	h.r.AMTPower = func(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error) {
+	h.r.AMTPower = func(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, change amtPowerChange) (string, error) {
 		if via.Name == "ber1-edge-b" {
 			return "", fmt.Errorf("%w: ber1-edge-b routes 192.168.50.112 through a gateway", errAMTNotOnLink)
 		}
-		return record(ctx, via, address, creds, state)
+		return record(ctx, via, address, creds, change)
 	}
 
 	got := h.reconcile(t, "ber1-edge")
@@ -349,7 +366,7 @@ func TestRackAMTPowerGoesThroughTheEdgeOnAMTsLink(t *testing.T) {
 func TestRackAMTPowerDoesNotRetryARefusalElsewhere(t *testing.T) {
 	h, _ := newPowerHarness(t, activatedAMTEdge("cycle"), otherConnectedEdge(), amtSecret("Stored-Pa55!"))
 	var vias []string
-	h.r.AMTPower = func(_ context.Context, via *infrav1.RackLinuxHost, _ string, _ amtCredentials, _ power.PowerState) (string, error) {
+	h.r.AMTPower = func(_ context.Context, via *infrav1.RackLinuxHost, _ string, _ amtCredentials, _ amtPowerChange) (string, error) {
 		vias = append(vias, via.Name)
 		return "", fmt.Errorf("AMT at 192.168.50.112 refused power state 5: return value 2")
 	}
@@ -358,5 +375,75 @@ func TestRackAMTPowerDoesNotRetryARefusalElsewhere(t *testing.T) {
 
 	if len(vias) != 1 || !strings.Contains(got.Status.AMT.LastPowerAction.Error, "refused") {
 		t.Fatalf("tried %v, last %+v", vias, got.Status.AMT.LastPowerAction)
+	}
+}
+
+// A network boot sets AMT's next boot to the network, the way AMT takes it:
+// clear the boot order, write the boot settings, make the configuration the
+// next one, choose the source, then power-cycle.
+func TestRequestAMTPowerNetbootsThroughAMTsBootConfiguration(t *testing.T) {
+	var bodies, authorizations []string
+	dial, _, _ := fakeAMT(t, "0", &bodies, &authorizations)
+
+	if _, err := requestAMTPower(context.Background(), dial, "192.168.50.22", amtCredentials{Username: "admin", Password: "Secret-Pa55!"},
+		amtPowerChange{state: power.PowerCycleOffHard, netboot: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	var steps []string
+	for _, b := range bodies {
+		switch {
+		case strings.Contains(b, "ChangeBootOrder") && strings.Contains(b, "Force PXE Boot"):
+			steps = append(steps, "order=pxe")
+		case strings.Contains(b, "ChangeBootOrder"):
+			steps = append(steps, "order=none")
+		case strings.Contains(b, "SetBootConfigRole"):
+			steps = append(steps, "role")
+		case strings.Contains(b, "AMT_BootSettingData") && strings.Contains(b, "transfer/Put"):
+			steps = append(steps, "settings")
+		case strings.Contains(b, "AMT_BootSettingData"):
+			steps = append(steps, "read")
+		case strings.Contains(b, "RequestPowerStateChange"):
+			steps = append(steps, "power")
+		}
+	}
+	if got, want := strings.Join(steps, ","), "read,order=none,settings,role,order=pxe,power"; got != want {
+		t.Fatalf("steps %s, want %s", got, want)
+	}
+}
+
+func TestRequestAMTPowerLeavesTheBootAloneWithoutANetboot(t *testing.T) {
+	var bodies, authorizations []string
+	dial, _, _ := fakeAMT(t, "0", &bodies, &authorizations)
+
+	if _, err := requestAMTPower(context.Background(), dial, "192.168.50.22", amtCredentials{Username: "admin", Password: "Secret-Pa55!"},
+		amtPowerChange{state: power.PowerCycleOffHard}); err != nil {
+		t.Fatal(err)
+	}
+	if len(bodies) != 1 || !strings.Contains(bodies[0], "RequestPowerStateChange") {
+		t.Fatalf("sent %d requests, want only the power change", len(bodies))
+	}
+}
+
+// AMT's network boot reaches the firmware's first network entry, not the boot
+// MAC, so the install is published under the machine's SMBIOS UUID too, which
+// the boot server serves the host's iPXE script under.
+func TestRackInstallPublishesUnderTheMachinesUUID(t *testing.T) {
+	host := svcHost()
+	host.Annotations = map[string]string{RackReinstallAnnotation: "true"}
+	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", UUID: "04450c00-63f4-11f1-81f4-3582298d5c00"}
+	h := newInstallHarness(t, host)
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", true)}
+
+	h.reconcile(t, "ber1-svc")
+
+	if got := string(h.boot(t)[svcMACPath+".uuid"]); got != "04450c00-63f4-11f1-81f4-3582298d5c00" {
+		t.Fatalf("published UUID %q", got)
+	}
+
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false), svcDevice("new", "2026-09-24T08:20:00Z", true)}
+	h.reconcile(t, "ber1-svc")
+	if _, ok := h.boot(t)[svcMACPath+".uuid"]; ok {
+		t.Fatal("the UUID stayed published after the install ran")
 	}
 }

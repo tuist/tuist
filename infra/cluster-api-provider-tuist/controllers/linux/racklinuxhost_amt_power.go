@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman"
+	amtboot "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/amt/boot"
+	cimboot "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/boot"
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/power"
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/client"
 	"golang.org/x/crypto/ssh"
@@ -26,8 +28,8 @@ import (
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 )
 
-// AMTPowerAnnotation asks a host's AMT for a power change: on, off, cycle or
-// reset. The operator makes it once, records it in status.amt.lastPowerAction
+// AMTPowerAnnotation asks a host's AMT for a power change: on, off, cycle,
+// reset, or pxe (a power cycle into the network boot). The operator makes it once, records it in status.amt.lastPowerAction
 // and removes the annotation.
 const AMTPowerAnnotation = "tuist.dev/amt-power"
 
@@ -37,11 +39,21 @@ const amtPowerTimeout = time.Minute
 // certificate AMT presented to the first power change.
 const amtTLSPinKey = "tls-sha256"
 
-var amtPowerStates = map[string]power.PowerState{
-	"on":    power.PowerOn,
-	"off":   power.PowerOffHard,
-	"cycle": power.PowerCycleOffHard,
-	"reset": power.MasterBusReset,
+// amtPowerChange is a power change and, for a network boot, the boot it
+// forces.
+type amtPowerChange struct {
+	state power.PowerState
+	// netboot has the next boot go to the network: AMT's Force PXE Boot, which
+	// boots the firmware's first network entry.
+	netboot bool
+}
+
+var amtPowerActions = map[string]amtPowerChange{
+	"on":    {state: power.PowerOn},
+	"off":   {state: power.PowerOffHard},
+	"cycle": {state: power.PowerCycleOffHard},
+	"reset": {state: power.MasterBusReset},
+	"pxe":   {state: power.PowerCycleOffHard, netboot: true},
 }
 
 // amtCredentials is how the operator logs in to a host's AMT.
@@ -54,7 +66,7 @@ type amtCredentials struct {
 
 // amtPowerFunc asks AMT at address for a power change through via's SSH
 // session, and returns the SHA-256 of the TLS certificate AMT presented.
-type amtPowerFunc func(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error)
+type amtPowerFunc func(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, change amtPowerChange) (string, error)
 
 // reconcileAMTPower makes the power change the host's annotation asks for.
 // AMT answers on the management segment, which only the edges are on, so the
@@ -98,9 +110,9 @@ func (r *RackLinuxHostReconciler) recordAMTPower(ctx context.Context, host *infr
 }
 
 func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.RackLinuxHost, action string, record *infrav1.RackLinuxHostAMTPowerAction) error {
-	state, ok := amtPowerStates[action]
+	change, ok := amtPowerActions[action]
 	if !ok {
-		return fmt.Errorf("%q is not a power action; use on, off, cycle or reset", action)
+		return fmt.Errorf("%q is not a power action; use on, off, cycle, reset or pxe", action)
 	}
 	amt := host.Status.AMT
 	if amt.ControlMode != amtAdminControl && amt.ControlMode != amtClientControl {
@@ -135,7 +147,7 @@ func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.Ra
 	}
 	var missed []string
 	for _, via := range vias {
-		presented, err := powerFn(ctx, via, amt.Address, creds, state)
+		presented, err := powerFn(ctx, via, amt.Address, creds, change)
 		if errors.Is(err, errAMTNotOnLink) {
 			missed = append(missed, err.Error())
 			continue
@@ -196,7 +208,7 @@ func (r *RackLinuxHostReconciler) amtTunnelHosts(ctx context.Context, host *infr
 // shows AMT's address is on one of its links. It returns errAMTNotOnLink,
 // before sending anything, when via is unreachable or routes the address
 // through a gateway.
-func (r *RackLinuxHostReconciler) powerAMTOverSSH(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error) {
+func (r *RackLinuxHostReconciler) powerAMTOverSSH(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, change amtPowerChange) (string, error) {
 	if net.ParseIP(address) == nil {
 		return "", fmt.Errorf("AMT's address %q is not an IP address", address)
 	}
@@ -213,7 +225,7 @@ func (r *RackLinuxHostReconciler) powerAMTOverSSH(ctx context.Context, via *infr
 		if err != nil || strings.Contains(string(route), " via ") {
 			return fmt.Errorf("%w: %s does not reach %s on a link of its own (%s)", errAMTNotOnLink, via.Name, address, strings.TrimSpace(string(route)))
 		}
-		presented, err = requestAMTPower(ctx, c.DialContext, address, creds, state)
+		presented, err = requestAMTPower(ctx, c.DialContext, address, creds, change)
 		return err
 	})
 	if err != nil && !connected {
@@ -228,7 +240,7 @@ func (r *RackLinuxHostReconciler) powerAMTOverSSH(ctx context.Context, via *infr
 // to creds.TLSSHA256 when that is set. It returns the SHA-256 of the
 // certificate AMT presented.
 func requestAMTPower(ctx context.Context, dial func(ctx context.Context, network, addr string) (net.Conn, error),
-	address string, creds amtCredentials, state power.PowerState) (string, error) {
+	address string, creds amtCredentials, change amtPowerChange) (string, error) {
 	var presented string
 	transport := &http.Transport{
 		DialContext:       dial,
@@ -264,12 +276,49 @@ func requestAMTPower(ctx context.Context, dial func(ctx context.Context, network
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	response, err := messages.CIM.PowerManagementService.RequestPowerStateChange(state)
+	if change.netboot {
+		if err := amtBootFromNetwork(messages); err != nil {
+			return "", fmt.Errorf("set AMT at %s to boot from the network: %w", address, err)
+		}
+	}
+	response, err := messages.CIM.PowerManagementService.RequestPowerStateChange(change.state)
 	if err != nil {
-		return "", fmt.Errorf("ask AMT at %s for power state %d: %w", address, state, err)
+		return "", fmt.Errorf("ask AMT at %s for power state %d: %w", address, change.state, err)
 	}
 	if rv := response.Body.RequestPowerStateChangeResponse.ReturnValue; rv != 0 {
-		return "", fmt.Errorf("AMT at %s refused power state %d: return value %d", address, state, rv)
+		return "", fmt.Errorf("AMT at %s refused power state %d: return value %d", address, change.state, rv)
 	}
 	return presented, nil
+}
+
+// amtBootFromNetwork sets AMT's next boot to the network, the way AMT takes
+// it: the boot order cleared, the boot settings written back without any
+// override of their own, the configuration made the next one, and the source
+// chosen.
+func amtBootFromNetwork(m wsman.Messages) error {
+	current, err := m.AMT.BootSettingData.Get()
+	if err != nil {
+		return fmt.Errorf("read the boot settings: %w", err)
+	}
+	settings := current.Body.BootSettingDataGetResponse
+	if _, err := m.CIM.BootConfigSetting.ChangeBootOrder(""); err != nil {
+		return fmt.Errorf("clear the boot order: %w", err)
+	}
+	if _, err := m.AMT.BootSettingData.Put(amtboot.BootSettingDataRequest{
+		H:                 "http://intel.com/wbem/wscim/1/amt-schema/1/AMT_BootSettingData",
+		ElementName:       settings.ElementName,
+		InstanceID:        settings.InstanceID,
+		OwningEntity:      settings.OwningEntity,
+		EnforceSecureBoot: settings.EnforceSecureBoot,
+		FirmwareVerbosity: settings.FirmwareVerbosity,
+	}); err != nil {
+		return fmt.Errorf("write the boot settings: %w", err)
+	}
+	if _, err := m.CIM.BootService.SetBootConfigRole("Intel(r) AMT: Boot Configuration 0", 1); err != nil {
+		return fmt.Errorf("make the boot configuration the next one: %w", err)
+	}
+	if _, err := m.CIM.BootConfigSetting.ChangeBootOrder(cimboot.PXE); err != nil {
+		return fmt.Errorf("choose the network boot: %w", err)
+	}
+	return nil
 }

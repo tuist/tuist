@@ -60,6 +60,33 @@ publish() {
   [ -z "$(ls "$STATE/http/hosts" 2>/dev/null)" ]
 }
 
+# AMT boots a dead host from its network, which PXE-boots from the firmware's
+# first network entry, not necessarily the NIC the install is published for,
+# so the install is also served under the machine's SMBIOS UUID.
+@test "a complete install is also served under the machine's UUID, and withdrawn with it" {
+  publish 38-05-25-3a-de-d3 one
+  echo 04450c00-63f4-11f1-81f4-3582298d5c00 >"$SEEDS/38-05-25-3a-de-d3.uuid"
+  run sync_seeds
+  [ "$(cat "$STATE/http/hosts/04450c00-63f4-11f1-81f4-3582298d5c00.ipxe")" = "#!ipxe one" ]
+
+  publish 38-05-25-3a-de-d3 two
+  sync_seeds
+  [ "$(cat "$STATE/http/hosts/04450c00-63f4-11f1-81f4-3582298d5c00.ipxe")" = "#!ipxe two" ]
+
+  rm "$SEEDS"/38-05-25-3a-de-d3.*
+  run sync_seeds
+  [ ! -e "$STATE/http/hosts/04450c00-63f4-11f1-81f4-3582298d5c00.ipxe" ]
+}
+
+@test "a UUID that is not one is not served" {
+  publish 38-05-25-3a-de-d3 one
+  echo "../../etc/passwd" >"$SEEDS/38-05-25-3a-de-d3.uuid"
+  publish aa-bb-cc-dd-ee-ff other
+  echo 04450C00-63F4-11F1-81F4-3582298D5C00 >"$SEEDS/aa-bb-cc-dd-ee-ff.uuid"
+  sync_seeds
+  [ -z "$(ls "$STATE/http/hosts" | grep -Ev "^(38-05-25-3a-de-d3|aa-bb-cc-dd-ee-ff)")" ]
+}
+
 @test "prepare verifies the ISO, serves its kernel over HTTP and iPXE over TFTP" {
   bin="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$bin"
@@ -94,7 +121,7 @@ EOF
   [ "$(cat "$STATE/http/ubuntu/vmlinuz")" = "extracted casper/vmlinuz" ]
   [ "$(cat "$STATE/http/ubuntu/initrd")" = "extracted casper/initrd" ]
   [ "$(cat "$STATE/tftp/snponly.efi")" = ipxe ]
-  grep -qx 'chain http://192.168.50.1:8480/hosts/${mac:hexhyp}.ipxe || exit 1' "$STATE/tftp/boot.ipxe"
+  grep -qx 'chain http://192.168.50.1:8480/hosts/${mac:hexhyp}.ipxe || chain http://192.168.50.1:8480/hosts/${uuid}.ipxe || exit 1' "$STATE/tftp/boot.ipxe"
   [ ! -e "$STATE/tftp/grub" ]
 
   run prepare

@@ -761,7 +761,10 @@ A failed configuration is recorded in `status.amt.configurationError` and
 retried after an hour; it does not take `AMTActivated` down.
 
 **`tuist.dev/amt-power` powers a host through AMT** (`racklinuxhost_amt_power.go`):
-`on`, `off` (hard), `cycle` (hard power cycle) or `reset`. The operator makes
+`on`, `off` (hard), `cycle` (hard power cycle), `reset`, or `pxe` (a power cycle
+into the network boot: the boot order cleared, the boot settings written back,
+the configuration made the next one, and Force PXE Boot chosen, which boots the
+firmware's first network entry). The operator makes
 the change once, records it in `status.amt.lastPowerAction` and removes the
 annotation. AMT answers on the management segment, where only the active edge
 (the one holding the site's floating addresses) has an address, so the operator
@@ -769,10 +772,13 @@ tries the connected edges of the host's site (other edges first, the host itself
 last), takes the first whose `ip route get` puts AMT's address on a link of its
 own, and sends WS-MAN with digest authentication to AMT's address (`status.amt.address`) on its TLS port, 16993, through it: an activated AMT serves WS-MAN only there, with a self-signed certificate. The first power change pins that certificate's SHA-256 as `tls-sha256` in the `<host>-amt` Secret, and later ones hold AMT to it; a reactivated AMT needs the key deleted.
 It needs AMT activated and the host's `<host>-amt` Secret, not the host itself:
-a host that is off the tailnet is powered too. The converge keeps the install
-stick first in `BootOrder` (the installed Ubuntu takes the front for itself), so
-a power cycle boots the stick's installer, which installs a published install
-or hands the machine straight back to its disk.
+a host that is off the tailnet is powered too. The MS-01's firmware keeps a fixed
+boot order, the installed disk first, and rewrites `BootOrder` at every boot, so
+a power cycle boots the disk; a reinstall requested for a host off the tailnet
+uses `pxe` instead, and the install is published under the machine's SMBIOS
+UUID (`status.amt.uuid`, from AMT) as well as its boot MAC, so the boot server
+serves it to whichever NIC netboots. That needs the host's firmware set up to
+netboot (network stack on, Secure Boot off).
 
 ```bash
 kubectl patch rlh <host> --type merge -p '{"spec":{"amt":{"activate":true}}}'

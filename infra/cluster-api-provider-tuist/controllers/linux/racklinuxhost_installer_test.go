@@ -13,7 +13,7 @@ import (
 // the firmware's boot entries (a stateful efibootmgr), its disks, and what
 // mounting a USB disk finds.
 type installerHost struct {
-	bin, calls, entries, order string
+	bin, calls string
 }
 
 const installerEntries = `Boot0001* UEFI PXEv4 (MAC:5847CA7A1B2C)	PciRoot(0x0)/Pci(0x1c,0x0)/Pci(0x0,0x0)/MAC(5847ca7a1b2c,0)/IPv4(0.0.0.0,0,DHCP,0.0.0.0,0.0.0.0,0.0.0.0)
@@ -28,12 +28,9 @@ Boot0007* tuist install stick	HD(2,GPT,0badf00d-0000-0000-0000-000000000000,0x79
 func newInstallerHost(t *testing.T, usb ...string) installerHost {
 	t.Helper()
 	dir := t.TempDir()
-	h := installerHost{bin: filepath.Join(dir, "bin"), calls: filepath.Join(dir, "calls"), entries: filepath.Join(dir, "entries"), order: filepath.Join(dir, "order")}
-	state := h.entries
+	h := installerHost{bin: filepath.Join(dir, "bin"), calls: filepath.Join(dir, "calls")}
+	state := filepath.Join(dir, "entries")
 	if err := os.WriteFile(state, []byte(installerEntries), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(h.order, []byte("0004,0001,0002,0003\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Mkdir(h.bin, 0o755); err != nil {
@@ -56,14 +53,12 @@ func newInstallerHost(t *testing.T, usb ...string) installerHost {
 		"efibootmgr": `echo "efibootmgr $*" >>"` + h.calls + `"
 state="` + state + `"
 case "$*" in
-  ""|-v) printf 'BootCurrent: 0004\nBootOrder: %s\n' "$(cat "` + h.order + `")"; cat "$state" ;;
-  "-q -o "*) echo "$3" >"` + h.order + `" ;;
+  ""|-v) printf 'BootCurrent: 0004\nBootOrder: 0004,0001,0002,0003\n'; cat "$state" ;;
   "-q -b "*" -B") grep -v "^Boot$3" "$state" >"$state.new"; mv "$state.new" "$state" ;;
   "-q -C "*) printf 'Boot0008* %s\tHD(%s,GPT,feedface-0000-0000-0000-000000000000,0x796998,0x27b0)/File(%s)\n' "$8" "$6" "${10}" >>"$state" ;;
 esac`,
 		"lsblk": `case "$*" in
   "-dnpo NAME,TRAN,TYPE") printf '` + strings.ReplaceAll(disks, "\n", `\n`) + `' ;;
-  "-no PARTUUID "*) echo feedface-0000-0000-0000-000000000000 ;;
   "-lnpo NAME,PARTTYPE "*) case "$3" in
 ` + parts + `  esac ;;
 esac`,
@@ -159,83 +154,5 @@ func TestBootInstallerOnceRefusesAHostWithNeither(t *testing.T) {
 	}
 	if calls, _ := os.ReadFile(h.calls); strings.Contains(string(calls), "-n ") {
 		t.Fatalf("set BootNext: %s", calls)
-	}
-}
-
-// runStickFirst runs the converge's install-stick step on the fake host and
-// returns what it recorded as changed.
-func (h installerHost) runStickFirst(t *testing.T) string {
-	t.Helper()
-	bash, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("no bash")
-	}
-	cmd := exec.Command(bash, "-s")
-	cmd.Stdin = strings.NewReader("set -euo pipefail\nchanged=()\n" + findInstallStickShell + keepInstallStickFirstShell + `echo "changed=${changed[*]:-none}"` + "\n")
-	cmd.Env = append(os.Environ(), "PATH="+h.bin+":"+os.Getenv("PATH"))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
-	return string(out)
-}
-
-func (h installerHost) bootOrder(t *testing.T) string {
-	t.Helper()
-	order, err := os.ReadFile(h.order)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return strings.TrimSpace(string(order))
-}
-
-// A host boots its install stick first, so a power cycle through AMT boots
-// the installer: the firmware's own entry for the stick, which it keeps, goes
-// to the front of BootOrder.
-func TestConvergeKeepsTheInstallStickFirst(t *testing.T) {
-	h := newInstallerHost(t, "stick")
-	entries, _ := os.ReadFile(h.entries)
-	firmware := "Boot0005* UEFI: SanDisk, Partition 2\tPciRoot(0x0)/Pci(0x14,0x0)/USB(13,0)/HD(2,GPT,FEEDFACE-0000-0000-0000-000000000000,0x7968a8,0x27b0)\n"
-	if err := os.WriteFile(h.entries, append(entries, firmware...), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	out := h.runStickFirst(t)
-
-	if got := h.bootOrder(t); got != "0005,0004,0001,0002,0003" {
-		t.Fatalf("BootOrder %s, want the stick first\n%s", got, out)
-	}
-	if !strings.Contains(out, "changed=BootOrder=0005") {
-		t.Fatalf("output %q", out)
-	}
-	calls, _ := os.ReadFile(h.calls)
-	if strings.Contains(string(calls), "-C") {
-		t.Fatalf("created an entry beside the firmware's:\n%s", calls)
-	}
-
-	out = h.runStickFirst(t)
-	if !strings.Contains(out, "changed=none") {
-		t.Fatalf("changed an order that already had the stick first: %q", out)
-	}
-}
-
-// Without a firmware entry for the stick, it gets one of its own.
-func TestConvergeGivesTheInstallStickAnEntry(t *testing.T) {
-	h := newInstallerHost(t, "stick")
-
-	h.runStickFirst(t)
-
-	if got := h.bootOrder(t); got != "0008,0004,0001,0002,0003" {
-		t.Fatalf("BootOrder %s, want the new stick entry first", got)
-	}
-}
-
-func TestConvergeLeavesTheBootOrderOfAHostWithoutAStick(t *testing.T) {
-	h := newInstallerHost(t, "other")
-
-	out := h.runStickFirst(t)
-
-	if got := h.bootOrder(t); got != "0004,0001,0002,0003" || !strings.Contains(out, "changed=none") {
-		t.Fatalf("BootOrder %s, output %q", got, out)
 	}
 }
