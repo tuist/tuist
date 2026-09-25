@@ -143,8 +143,9 @@ PXE entry for its `bootMAC`, over SSH and reboots it. It does this once: a host 
 reports `Installed` False with `ReinstallDidNotBoot` after half an hour, and
 removing the annotation and setting it again tries again. A host that is off
 the tailnet cannot be reached over SSH; with its AMT activated the operator
-power-cycles it through AMT instead, once, and the install stick it boots
-first installs the published install. Without AMT, boot its stick by hand.
+power-cycles it through AMT instead, once. That boots the install stick only
+when the disk no longer boots: the installed Ubuntu is first in `BootOrder`.
+Otherwise, and without AMT, boot its stick by hand.
 The new install registers a new tailnet device; once it is connected the host controller deletes
 the old one and renames the new one to the host's name, and the machine
 controller joins the host afresh.

@@ -207,3 +207,12 @@ func TestRackConvergeScriptDropsTheManagementPortWithoutABootMAC(t *testing.T) {
 		t.Fatal("a host whose boot MAC was removed keeps its management port configuration")
 	}
 }
+
+// The converge keeps the install stick first in the host's boot order, which
+// the installed Ubuntu takes for itself, so a power cycle through AMT boots it.
+func TestRackConvergeScriptKeepsTheInstallStickFirst(t *testing.T) {
+	script := renderRackConvergeScript(edgeConvergeOptions())
+	if !strings.Contains(script, findInstallStickShell) || !strings.Contains(script, keepInstallStickFirstShell) {
+		t.Fatal("the converge does not keep the install stick first")
+	}
+}
