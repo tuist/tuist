@@ -176,6 +176,29 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert :ok = perform_job(CommitWorker, %{"project_id" => -1, "git_commit_sha" => "abc123"})
   end
 
+  test "the fold waits out the buffer the run's row is flushed through", %{project: project} do
+    flush_seconds = div(Tuist.Environment.clickhouse_flush_interval_ms(), 1000)
+    before = DateTime.utc_now()
+
+    assert {:ok, job} = CommitWorker.enqueue(project.id, "abc123")
+    assert DateTime.diff(job.scheduled_at, before) >= flush_seconds + 1
+  end
+
+  test "a later report never pulls a later scheduled fold forward", %{project: project} do
+    assert {:ok, refold} = CommitWorker.enqueue_refold(project.id, "abc123", 600)
+    assert {:ok, _job} = CommitWorker.enqueue(project.id, "abc123")
+
+    assert [job] = all_enqueued(worker: CommitWorker)
+    assert job.id == refold.id
+    assert DateTime.compare(job.scheduled_at, refold.scheduled_at) == :eq
+
+    # A later report still pushes a sooner fold back.
+    Repo.update_all(from(j in Oban.Job, where: j.id == ^job.id), set: [scheduled_at: DateTime.utc_now()])
+    assert {:ok, _job} = CommitWorker.enqueue(project.id, "abc123")
+    assert [pushed] = all_enqueued(worker: CommitWorker)
+    assert DateTime.after?(pushed.scheduled_at, DateTime.add(DateTime.utc_now(), 1, :second))
+  end
+
   test "reads a commit's runs when the ancestor window holds more shas than ClickHouse takes parameters",
        %{project: project, account: account} do
     CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
