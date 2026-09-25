@@ -26,6 +26,7 @@ package credentials
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -140,7 +141,7 @@ func (m *Manager) upsertMachineBootstrap(ctx context.Context, machineName string
 				Name:      name,
 				Labels: map[string]string{
 					"tuist.dev/managed-by": "capi-scaleway-applesilicon",
-					"tuist.dev/machine":    machineName,
+					"tuist.dev/machine":    labelValue(machineName),
 				},
 			},
 			Type: corev1.SecretTypeOpaque,
@@ -158,4 +159,14 @@ func (m *Manager) upsertMachineBootstrap(ctx context.Context, machineName string
 		return fmt.Errorf("update machine bootstrap secret: %w", err)
 	}
 	return nil
+}
+
+// labelValue is as much of s as a label value holds: nothing selects Secrets by
+// the machine label, so a name longer than that, such as a rack host's pin key
+// of its UUID and tailnet device, is cut short.
+func labelValue(s string) string {
+	if len(s) > 63 {
+		s = s[:63]
+	}
+	return strings.TrimRight(s, "-_.")
 }

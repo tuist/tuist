@@ -433,12 +433,9 @@ func (r *RackLinuxMachineReconciler) converge(
 	if err != nil {
 		return err
 	}
-	pinKey := rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
-	known := ""
-	if creds, err := r.CredentialsManager.GetMachineBootstrap(ctx, pinKey); err != nil {
-		return fmt.Errorf("read the host key pin: %w", err)
-	} else if creds != nil {
-		known = creds.HostFingerprint
+	pinKey, known, err := rackHostKnownKey(ctx, r.CredentialsManager, host)
+	if err != nil {
+		return err
 	}
 	hk := bootstrap.NewHostKeyState(known)
 	defer func() {
@@ -638,11 +635,11 @@ func (r *RackLinuxMachineReconciler) leave(ctx context.Context, machine *infrav1
 		return
 	}
 	key, err := r.CredentialsManager.ReadFleetSSHKey(ctx, r.FleetName)
+	var known string
 	if err == nil {
-		known := ""
-		if creds, pinErr := r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey(host.Name, tailnetDeviceID(host))); pinErr == nil && creds != nil {
-			known = creds.HostFingerprint
-		}
+		_, known, err = rackHostKnownKey(ctx, r.CredentialsManager, host)
+	}
+	if err == nil {
 		run := r.RunScript
 		if run == nil {
 			run = runRackScriptOverSSH
