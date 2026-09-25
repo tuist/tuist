@@ -130,10 +130,53 @@ defmodule TuistWeb.OnceRunsLiveTest do
     assert row_count(view) == 3
     assert has_element?(view, "#once-invocations-filter-dropdown")
 
-    # No search box anywhere: Xcode's Build Runs has none, and the filter
-    # dropdown is the control that narrows the listing.
+    # Build Runs leads with Sort by and has no search box, matching Xcode's
+    # Build Runs page. Test Runs is the other way round, covered below.
+    assert has_element?(view, "#once-invocations-sort-by")
     refute has_element?(view, "#once-invocations-search-form")
-    refute render(view) =~ "Search runs"
+  end
+
+  test "the Test Runs listing is searched, not sorted, the way Xcode's is", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    at = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+    for name <- ["alpha", "beta"] do
+      {:ok, run} =
+        OnceEvents.upsert_run(%{
+          project_id: project.id,
+          run_id: UUIDv7.generate(),
+          kind: "test",
+          command_display: "once test //crates/#{name}",
+          started_at: at
+        })
+
+      {:ok, _} =
+        OnceEvents.finalize_run(run, %{
+          finalization: "finalized",
+          exit_status: 0,
+          wall_ms: 1000,
+          finalized_at: at
+        })
+    end
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/once/test-runs")
+    render_async(view, 2_000)
+
+    # Xcode's Test Runs page leads with a search box and carries no Sort by.
+    assert has_element?(view, "#once-invocations-search-form")
+    assert has_element?(view, "#once-invocations-filter-dropdown")
+    refute has_element?(view, "#once-invocations-sort-by")
+
+    assert row_count(view) == 2
+
+    view |> form("#once-invocations-search-form", %{search: "beta"}) |> render_change()
+    render_async(view, 2_000)
+
+    assert row_count(view) == 1
+    assert has_element?(view, "#once-invocations-table", "beta")
   end
 
   test "Configuration Insights splits on version, host and environment", %{

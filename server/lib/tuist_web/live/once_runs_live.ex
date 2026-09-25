@@ -81,9 +81,11 @@ defmodule TuistWeb.OnceRunsLive do
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
     insights_dimension = insights_dimension(params["configuration-insights-type"])
     analytics_environment = analytics_environment(params["analytics-environment"])
+    search = String.trim(params["search"] || "")
 
     filters =
       [%{field: :project_id, op: :==, value: project.id}] ++
+        search_filters(search) ++
         Filter.Operations.convert_filters_to_flop(active_filters)
 
     commands = [socket.assigns.once_kind_filter]
@@ -145,6 +147,7 @@ defmodule TuistWeb.OnceRunsLive do
            invocation_analytics: Analytics.invocation_analytics(project.id, analytics_opts)
          }}
       end)
+      |> assign(:search, search)
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
       |> assign(:configuration_insights_dimension, insights_dimension)
@@ -199,6 +202,15 @@ defmodule TuistWeb.OnceRunsLive do
        socket.assigns.analytics_period,
        [socket.assigns.once_kind_filter]
      )}
+  end
+
+  def handle_event("search", %{"search" => search}, socket) do
+    query =
+      socket.assigns.uri.query
+      |> Query.put("search", search)
+      |> Query.put("page", "1")
+
+    {:noreply, push_patch(socket, to: invocation_list_path(socket, URI.decode_query(query)))}
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -676,7 +688,29 @@ defmodule TuistWeb.OnceRunsLive do
         </.card_section>
         <.card_section data-part="bazel-invocations-table-section">
           <div :if={!@once_summary_card} data-part="filters">
+            <%!-- Xcode's Test Runs page leads with a search box and its Build
+            Runs page with a Sort by dropdown, so each Once page follows its
+            own counterpart rather than picking one for both. --%>
+            <.form
+              :if={@once_resource_kind == :tests}
+              for={%{}}
+              id="once-invocations-search-form"
+              phx-change="search"
+              phx-submit="search"
+              phx-debounce="200"
+            >
+              <.text_input
+                type="search"
+                id="once-invocations-search"
+                name="search"
+                placeholder={dgettext("dashboard_tests", "Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@search}
+              />
+            </.form>
             <.dropdown
+              :if={@once_resource_kind != :tests}
               id="once-invocations-sort-by"
               label={invocations_sort_label(@invocations_sort_by)}
               secondary_text={dgettext("dashboard_builds", "Sort by:")}
@@ -1159,6 +1193,11 @@ defmodule TuistWeb.OnceRunsLive do
   defp put_environment(opts, "ci"), do: Keyword.put(opts, :is_ci, true)
   defp put_environment(opts, "local"), do: Keyword.put(opts, :is_ci, false)
   defp put_environment(opts, _any), do: opts
+
+  # The runs list is searched by its displayed command, which is the only
+  # free-text field a Once run carries.
+  defp search_filters(""), do: []
+  defp search_filters(search), do: [%{field: :command, op: :=~, value: search}]
 
   defp analytics_environment(environment) when environment in ~w(any local ci), do: environment
   defp analytics_environment(_unknown), do: "any"
