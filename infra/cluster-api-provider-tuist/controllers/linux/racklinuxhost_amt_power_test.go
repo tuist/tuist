@@ -308,7 +308,7 @@ func TestRackInstallPowerCyclesAnOfflineHostThroughAMT(t *testing.T) {
 		t.Fatal("power-cycled the host before the boot server could serve its install")
 	}
 
-	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	h.servable(t, svcUUID)
 	got := h.reconcile(t, svcUUID)
 	// The power state read of the earlier reconcile pinned AMT's certificate.
 	want := powerCall{via: "ber1-edge-a", address: "192.168.50.113", creds: amtCredentials{Username: "admin", Password: "Stored-Pa55!", TLSSHA256: "c692252b"}, state: power.PowerCycleOffHard, netboot: true}
@@ -338,7 +338,6 @@ func TestRackInstallLeavesAnOfflineHostWithoutAMTToAPerson(t *testing.T) {
 		return amtResponse{}, nil
 	}
 
-	h.now = installEpoch.Add(rackBootPropagation + time.Second)
 	got := h.reconcile(t, svcUUID)
 
 	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "WaitingForNetboot" || !strings.Contains(c.Message, "by hand") {

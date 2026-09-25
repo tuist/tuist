@@ -42,6 +42,7 @@ type TailnetAPI interface {
 	DeleteDevice(ctx context.Context, nodeID string) error
 	RenameDevice(ctx context.Context, nodeID, name string) error
 	CreateAuthKey(ctx context.Context, tags []string, expiry time.Duration, description string) (tailnet.AuthKey, error)
+	DeleteAuthKey(ctx context.Context, id string) error
 }
 
 // RackLinuxHostReconciler takes a host through its life. It finds the tailnet

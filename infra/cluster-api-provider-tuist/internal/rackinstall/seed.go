@@ -28,6 +28,10 @@ type Seed struct {
 	TailnetKey   string
 	TailnetKeyID string
 	Built        time.Time
+	// HostKey, when set, is the SSH host key the install gives the host. A
+	// seed baked into a per-host stick has none, and the host generates its
+	// own.
+	HostKey HostKey
 }
 
 // ModprobePath holds ModprobeConf, which keeps the MS-01's Bluetooth driver
@@ -75,6 +79,11 @@ func (s Seed) validate() error {
 	if !strings.HasPrefix(s.PasswordHash, "$") || strings.ContainsAny(s.PasswordHash, "\"\\\n ") {
 		return fmt.Errorf("the console password hash is not a crypt(3) hash")
 	}
+	if s.HostKey != (HostKey{}) {
+		if err := s.HostKey.validate(); err != nil {
+			return err
+		}
+	}
 	if len(s.AuthorizedKeys) == 0 {
 		return fmt.Errorf("no authorized keys for %s", s.Host)
 	}
@@ -103,6 +112,10 @@ func UserData(s Seed) (string, error) {
 		fmt.Fprintf(&keys, "      - \"%s\"\n", key)
 	}
 	tags := strings.Join(s.TailnetTags, ",")
+	hostKey := ""
+	if s.HostKey != (HostKey{}) {
+		hostKey = "    - |\n" + indent(hostKeyCommand(s.HostKey), "      ")
+	}
 	built := s.Built.UTC().Format("2006-01-02T15:04:05Z")
 
 	return fmt.Sprintf(`#cloud-config
@@ -197,10 +210,10 @@ autoinstall:
       mkdir -p /target/etc/modprobe.d
       cat > /target%[11]s <<'TUIST_EOF'
 %[12]s      TUIST_EOF
-`, s.Host, s.User, s.PasswordHash, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+%[13]s`, s.Host, s.User, s.PasswordHash, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
-		ModprobePath, indent(ModprobeConf, "      ")), nil
+		ModprobePath, indent(ModprobeConf, "      "), hostKey), nil
 }
 
 // handover boots the rack install on this machine's disks that match selects

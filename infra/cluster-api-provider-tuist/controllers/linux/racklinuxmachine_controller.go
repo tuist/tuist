@@ -367,6 +367,7 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 		NodeTaints:     host.Spec.Node.Taints,
 		ManagementMAC:  host.Status.BootMAC,
 		APIServerURL:   server,
+		KubernetesAPI:  server,
 	}, "", nil
 }
 

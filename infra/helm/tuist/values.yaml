@@ -1782,12 +1782,11 @@ rackLinuxFleet:
   # People's SSH keys every netbooted install authorizes beside the fleet key.
   authorizedKeys: []
 
-  # The rack's boot server, on its edge nodes. The operator publishes an install
-  # for each host that is not on the tailnet yet, or whose reinstallGeneration
-  # asks for one, and the host installs itself when it netboots or boots its
-  # stick.
-  # The site definition's management.edge.netboot points the edge node's DHCP
-  # here.
+  # The rack's boot server (cmd/rack-boot, from the operator's image), on each
+  # edge node of the site. The operator publishes an install for each host that
+  # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
+  # the host installs itself when it netboots or boots its stick. The site
+  # definition's management.edge.netboot points the edge node's DHCP here.
   boot:
     enabled: false
     site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
@@ -1795,10 +1794,6 @@ rackLinuxFleet:
     # rack-edge pod puts on the edge node's switch port.
     address: ""
     httpPort: 8480
-    image:
-      # The rack-edge image, which carries iPXE.
-      repository: ghcr.io/tuist/rack-edge
-      tag: ""
     iso:
       url: https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso
       sha256: 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8

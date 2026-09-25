@@ -318,6 +318,39 @@ spec:
                       description: Version is the AMT firmware's.
                       type: string
                   type: object
+                boot:
+                  description: |-
+                    Boot is what the site's boot server reports about the published install.
+                    The boot server writes it, and nothing else.
+                  properties:
+                    keyID:
+                      description: KeyID is the join key of the install it reports on.
+                      type: string
+                    servableAt:
+                      description: |-
+                        ServableAt is when a boot server holding the site's provisioning address
+                        first held the install, ready to serve it. The operator reboots a host
+                        into its install only after.
+                      format: date-time
+                      type: string
+                    servedAddress:
+                      type: string
+                    servedAt:
+                      description: ServedAt is when the seed was first handed out.
+                      format: date-time
+                      type: string
+                    servedTo:
+                      description: |-
+                        ServedTo is the MAC the install's seed was handed out to, and
+                        ServedAddress the address that asked. The boot server hands the seed to
+                        no other MAC.
+                      type: string
+                    server:
+                      description: Server is the edge whose boot server reported last.
+                      type: string
+                  required:
+                    - keyID
+                  type: object
                 bootMAC:
                   description: |-
                     BootMAC is the boot MAC in effect: spec.bootMAC, or the management port
@@ -410,22 +443,6 @@ spec:
                       description: |-
                         PreviousDeviceID is the host's tailnet device when the install was
                         published; a different device is the install having run.
-                      type: string
-                    servableAt:
-                      description: |-
-                        ServableAt is when a boot server holding the site's provisioning address
-                        first served the install's boot script.
-                      format: date-time
-                      type: string
-                    servedAt:
-                      description: |-
-                        ServedAt is when a boot server handed the install's seed out, which it
-                        does once, to the machine whose DHCP lease is on one of the host's
-                        NICs.
-                      format: date-time
-                      type: string
-                    servedTo:
-                      description: ServedTo is the address and MAC the seed went to.
                       type: string
                     triggeredAt:
                       description: TriggeredAt is when the operator rebooted the host into the install.

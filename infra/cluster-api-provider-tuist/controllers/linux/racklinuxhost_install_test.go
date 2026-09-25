@@ -36,6 +36,11 @@ func (f *fakeTailnet) CreateAuthKey(_ context.Context, tags []string, expiry tim
 	return tailnet.AuthKey{ID: id, Key: "tskey-auth-" + id + "-secret", Expires: installEpoch.Add(expiry).Format(time.RFC3339)}, nil
 }
 
+func (f *fakeTailnet) DeleteAuthKey(_ context.Context, id string) error {
+	f.revoked = append(f.revoked, id)
+	return nil
+}
+
 func svcHost() *infrav1.RackLinuxHost {
 	return &infrav1.RackLinuxHost{
 		ObjectMeta: metav1.ObjectMeta{Name: svcUUID, Namespace: rackTestNamespace},
@@ -136,6 +141,24 @@ func (h *installHarness) boot(t *testing.T) map[string][]byte {
 	return secret.Data
 }
 
+// servable reports the host's published install servable, as the boot server
+// holding the site's provisioning address does.
+func (h *installHarness) servable(t *testing.T, name string) {
+	t.Helper()
+	host := &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: name}, host); err != nil {
+		t.Fatal(err)
+	}
+	if host.Status.Install == nil {
+		t.Fatal("no install is published")
+	}
+	at := metav1.NewTime(h.now)
+	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: host.Status.Install.KeyID, Server: "ber1-edge-b", ServableAt: &at}
+	if err := h.c.Status().Update(context.Background(), host); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func withInstall(host *infrav1.RackLinuxHost, keyID, previous string, offered time.Time, triggered *time.Time) *infrav1.RackLinuxHost {
 	host.Status.Install = &infrav1.RackLinuxHostInstallStatus{
 		KeyID:            keyID,
@@ -166,6 +189,8 @@ func publishedBoot(keyID string) *corev1.Secret {
 			svcMACPath + ".user-data":     []byte("#cloud-config " + keyID),
 			svcMACPath + ".meta-data":     []byte("instance-id: x"),
 			svcMACPath + ".ipxe":          []byte("#!ipxe"),
+			svcMACPath + ".uuid":          []byte(svcUUID),
+			svcMACPath + ".install":       []byte(keyID),
 			"aa-bb-cc-dd-ee-ff.ipxe":      []byte("another host"),
 			"aa-bb-cc-dd-ee-ff.user-data": []byte("another host"),
 			"aa-bb-cc-dd-ee-ff.meta-data": []byte("another host"),
@@ -217,6 +242,12 @@ func TestRackInstallPublishesAnInstallForAHostNotOnTheTailnet(t *testing.T) {
 	if string(boot[svcMACPath+".uuid"]) != svcUUID {
 		t.Errorf("uuid %q, want the host's, which a network boot from another NIC asks for", boot[svcMACPath+".uuid"])
 	}
+	if string(boot[svcMACPath+".install"]) != "kMINT1CNTRL" {
+		t.Errorf("install %q, want the join key's ID, which the boot server reports on", boot[svcMACPath+".install"])
+	}
+	if !strings.HasPrefix(inst.HostKeyFingerprint, "SHA256:") || !strings.Contains(userData, "/target/etc/ssh/ssh_host_ed25519_key") {
+		t.Errorf("host key %q; the install gives the host the key the operator trusts it by", inst.HostKeyFingerprint)
+	}
 
 	console := &corev1.Secret{}
 	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: rackTestFleet + "-console"}, console); err != nil {
@@ -265,26 +296,6 @@ func TestRackInstallMintsOneKeyWhileTheCacheLagsBehindTheInstall(t *testing.T) {
 	}
 }
 
-func TestRackInstallKeepsAPublishedInstallUntilItNeedsRenewing(t *testing.T) {
-	h := newInstallHarness(t, withInstall(svcHost(), "kOLDCNTRL", "", installEpoch.Add(-time.Hour), nil), publishedBoot("kOLDCNTRL"))
-	host := h.reconcile(t, svcUUID)
-	if len(h.api.minted) != 0 || host.Status.Install.KeyID != "kOLDCNTRL" {
-		t.Fatalf("minted %v, install %+v; a fresh offer is kept", h.api.minted, host.Status.Install)
-	}
-
-	triggered := installEpoch.Add(-20 * time.Hour)
-	h = newInstallHarness(t, withInstall(reinstalling(), "kOLDCNTRL", "old", installEpoch.Add(-20*time.Hour), &triggered), publishedBoot("kOLDCNTRL"))
-	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false)}
-	host = h.reconcile(t, svcUUID)
-	inst := host.Status.Install
-	if len(h.api.minted) != 1 || inst.KeyID != "kMINT1CNTRL" || inst.PreviousDeviceID != "old" || inst.TriggeredAt == nil || inst.Generation != 1 {
-		t.Fatalf("minted %v, install %+v; a renewal keeps what the install replaces, that it was started and its generation", h.api.minted, inst)
-	}
-	if !strings.Contains(string(h.boot(t)[svcMACPath+".user-data"]), "kMINT1CNTRL") {
-		t.Fatal("the renewed key is not published")
-	}
-}
-
 func TestRackInstallWithdrawsTheInstallOnceTheHostJoins(t *testing.T) {
 	h := newInstallHarness(t, withInstall(svcHost(), "kMINT1CNTRL", "", installEpoch.Add(-30*time.Minute), nil), publishedBoot("kMINT1CNTRL"))
 	h.api.devices = []tailnet.Device{svcDevice("new", "2026-09-24T07:50:00Z", true)}
@@ -324,7 +335,7 @@ func TestRackInstallReinstallsARunningHost(t *testing.T) {
 		t.Fatal("rebooted the host before the boot server could serve its install")
 	}
 
-	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	h.servable(t, svcUUID)
 	got = h.reconcile(t, svcUUID)
 	if len(h.runner.runs) != 1 {
 		t.Fatalf("runs %d, want the netboot-once script", len(h.runner.runs))
@@ -410,7 +421,7 @@ func TestRackInstallDoesNotRebootAHostThatShouldBeOff(t *testing.T) {
 	h := newInstallHarness(t, host)
 	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", true)}
 	h.reconcile(t, svcUUID)
-	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	h.servable(t, svcUUID)
 	got := h.reconcile(t, svcUUID)
 	for _, run := range h.runner.runs {
 		if strings.Contains(run.script, "efibootmgr") {
@@ -523,7 +534,7 @@ func TestRackInstallWithdrawsAnEdgeInstallWhoseServingEdgeWentAway(t *testing.T)
 		t.Fatal(err)
 	}
 
-	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	h.servable(t, edgeUUID)
 	got = h.reconcile(t, edgeUUID)
 	if len(h.runner.runs) != 0 {
 		t.Fatal("rebooted the edge into a netboot no other edge serves")
@@ -546,7 +557,7 @@ func TestRackInstallKeepsAnEdgeInstallItAlreadyRebootedIntoWhenItsServingEdgeDro
 	h.api.devices = []tailnet.Device{edgeDevice("old", "ber1-edge", "2026-09-01T00:00:00Z", true, "100.64.0.7")}
 
 	h.reconcile(t, edgeUUID)
-	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	h.servable(t, edgeUUID)
 	got := h.reconcile(t, edgeUUID)
 	if len(h.runner.runs) != 1 || got.Status.Install == nil || got.Status.Install.TriggeredAt == nil {
 		t.Fatalf("runs %d install %+v, want the edge rebooted into its netboot", len(h.runner.runs), got.Status.Install)
@@ -655,5 +666,102 @@ func drainEvents(h *installHarness) []string {
 		default:
 			return out
 		}
+	}
+}
+
+// The operator reboots a host into its install once the boot server holding
+// the site's provisioning address reports it servable, however long that
+// takes, and not on another install's report.
+func TestRackInstallRebootsAHostOnlyOnceTheBootServerServesItsInstall(t *testing.T) {
+	h := newInstallHarness(t, reinstalling())
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", true)}
+	h.reconcile(t, svcUUID)
+
+	h.now = installEpoch.Add(time.Hour)
+	h.update(t, svcUUID, func(*infrav1.RackLinuxHost) {})
+	stale := &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: svcUUID}, stale); err != nil {
+		t.Fatal(err)
+	}
+	at := metav1.NewTime(installEpoch)
+	stale.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kEARLIERCNTRL", ServableAt: &at}
+	if err := h.c.Status().Update(context.Background(), stale); err != nil {
+		t.Fatal(err)
+	}
+	got := h.reconcile(t, svcUUID)
+	if len(h.runner.runs) != 0 {
+		t.Fatal("rebooted the host before the boot server reported its install servable")
+	}
+	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "WaitingForBootServer" || !strings.Contains(c.Message, "192.168.50.1") {
+		t.Fatalf("Installed %+v", c)
+	}
+
+	h.servable(t, svcUUID)
+	got = h.reconcile(t, svcUUID)
+	if len(h.runner.runs) != 1 || got.Status.Install.TriggeredAt == nil {
+		t.Fatalf("runs %d install %+v, want the host rebooted into its install", len(h.runner.runs), got.Status.Install)
+	}
+}
+
+// A join key lives two hours. One not yet handed out is renewed well before it
+// expires; one a host already fetched is kept until it expires, since renewing
+// it would not reach that installer.
+func TestRackInstallRenewsAJoinKeyOnlyWhileNoHostHasIt(t *testing.T) {
+	if rackInstallKeyLifetime != 2*time.Hour {
+		t.Fatalf("join keys live %v", rackInstallKeyLifetime)
+	}
+	offered := installEpoch.Add(-rackInstallKeyLifetime + rackInstallRenewBefore - time.Minute)
+
+	h := newInstallHarness(t, withInstall(svcHost(), "kOLDCNTRL", "", installEpoch.Add(-30*time.Minute), nil), publishedBoot("kOLDCNTRL"))
+	if host := h.reconcile(t, svcUUID); len(h.api.minted) != 0 || host.Status.Install.KeyID != "kOLDCNTRL" {
+		t.Fatalf("minted %v, install %+v; a fresh offer is kept", h.api.minted, host.Status.Install)
+	}
+
+	h = newInstallHarness(t, withInstall(svcHost(), "kOLDCNTRL", "", offered, nil), publishedBoot("kOLDCNTRL"))
+	host := h.reconcile(t, svcUUID)
+	if len(h.api.minted) != 1 || host.Status.Install.KeyID != "kMINT1CNTRL" {
+		t.Fatalf("minted %v, install %+v; a key nobody fetched is renewed before it expires", h.api.minted, host.Status.Install)
+	}
+	if len(h.api.revoked) != 1 || h.api.revoked[0] != "kOLDCNTRL" {
+		t.Fatalf("revoked %v, want the key it replaced", h.api.revoked)
+	}
+
+	served := withInstall(svcHost(), "kOLDCNTRL", "", offered, nil)
+	at := metav1.NewTime(installEpoch.Add(-10 * time.Minute))
+	served.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kOLDCNTRL", ServableAt: &at, ServedTo: svcMAC, ServedAt: &at}
+	h = newInstallHarness(t, served, publishedBoot("kOLDCNTRL"))
+	if host := h.reconcile(t, svcUUID); len(h.api.minted) != 0 || host.Status.Install.KeyID != "kOLDCNTRL" {
+		t.Fatalf("minted %v, install %+v; a key a host fetched is kept", h.api.minted, host.Status.Install)
+	}
+	h.now = offered.Add(rackInstallKeyLifetime + time.Minute)
+	if host := h.reconcile(t, svcUUID); len(h.api.minted) != 1 || host.Status.Install.KeyID != "kMINT1CNTRL" {
+		t.Fatalf("minted %v, install %+v; an expired key is renewed", h.api.minted, host.Status.Install)
+	}
+}
+
+// The operator trusts the new install by the host key it gave it, rather than
+// by whatever answers first on the new device.
+func TestRackInstallTrustsTheNewInstallByTheHostKeyItGaveIt(t *testing.T) {
+	host := withInstall(svcHost(), "kMINT1CNTRL", "", installEpoch.Add(-30*time.Minute), nil)
+	host.Status.Install.HostKeyFingerprint = "SHA256:operatorgenerated"
+	h := newInstallHarness(t, host, publishedBoot("kMINT1CNTRL"))
+	h.api.devices = []tailnet.Device{svcDevice("new", "2026-09-24T07:50:00Z", true)}
+
+	got := h.reconcile(t, svcUUID)
+	if got.Status.Install != nil {
+		t.Fatalf("install %+v, want it withdrawn", got.Status.Install)
+	}
+	pin, err := h.r.CredentialsManager.GetMachineBootstrap(context.Background(), rackLinuxPinKey(svcUUID, "new"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pin == nil || pin.HostFingerprint != "SHA256:operatorgenerated" {
+		t.Fatalf("pin %+v, want the install's host key", pin)
+	}
+	if len(h.api.revoked) != 1 || h.api.revoked[0] != "kMINT1CNTRL" {
+		t.Fatalf("revoked %v, want the withdrawn install's key", h.api.revoked)
+	}
+	if _, ok := h.boot(t)[svcMACPath+".install"]; ok {
+		t.Fatal("the withdrawn install's key ID is still published")
 	}
 }

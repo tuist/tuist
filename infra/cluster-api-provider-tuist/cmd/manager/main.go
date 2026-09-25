@@ -734,14 +734,8 @@ func main() {
 		os.Exit(1)
 	}
 	if rackInstall != nil {
-		if err := mgr.Add(&linux.RackLinuxDiscovery{
-			Client:             mgr.GetClient(),
-			CredentialsManager: credsManager,
-			FleetName:          rackInstall.FleetName,
-			EgressNamespace:    egressNamespace,
-			EgressProxyGroup:   egressProxyGroup,
-		}); err != nil {
-			setupLog.Error(err, "setup RackLinuxDiscovery")
+		if err := mgr.Add(&linux.RackLinuxCandidates{Client: mgr.GetClient()}); err != nil {
+			setupLog.Error(err, "setup RackLinuxCandidates")
 			os.Exit(1)
 		}
 	}

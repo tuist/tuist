@@ -28,7 +28,6 @@ on:
       - infra/rack-nodes/**
       - infra/cluster-api-provider-tuist/internal/rackinstall/**
       - infra/cluster-api-provider-tuist/cmd/rack-seed/**
-      - infra/helm/tuist/files/rack-boot.sh
       - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/omada/**
@@ -43,7 +42,6 @@ on:
       - infra/rack-nodes/**
       - infra/cluster-api-provider-tuist/internal/rackinstall/**
       - infra/cluster-api-provider-tuist/cmd/rack-seed/**
-      - infra/helm/tuist/files/rack-boot.sh
       - infra/helm/tuist/values-managed-*.yaml
       - infra/helm/tuist/crds/tuist.dev_rackswitches.yaml
       - infra/helm/omada/**

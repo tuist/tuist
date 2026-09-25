@@ -84,7 +84,7 @@ rules:
       - racklinuxhosts/finalizers
       - racklinuxmachines/status
       - racklinuxmachines/finalizers
-      # What the rack discovery heard from each machine a stick announced.
+      # Which host declares each machine a rack boot server listed.
       - racklinuxcandidates/status
       - failoverips/status
     verbs: [get, update, patch]

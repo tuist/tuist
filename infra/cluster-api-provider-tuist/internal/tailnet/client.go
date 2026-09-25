@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -175,6 +176,28 @@ func (c *Client) CreateAuthKey(ctx context.Context, tags []string, expiry time.D
 	return out, nil
 }
 
+// DeleteAuthKey revokes a join key. One the tailnet no longer knows, because a
+// host used it or it expired, is already gone.
+func (c *Client) DeleteAuthKey(ctx context.Context, id string) error {
+	err := c.do(ctx, http.MethodDelete, "/api/v2/tailnet/"+url.PathEscape(c.tailnet())+"/keys/"+url.PathEscape(id), nil, nil)
+	var status *statusError
+	if errors.As(err, &status) && status.code == http.StatusNotFound {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("revoke join key %s: %w", id, err)
+	}
+	return nil
+}
+
+// statusError is a response outside 2xx.
+type statusError struct {
+	code int
+	msg  string
+}
+
+func (e *statusError) Error() string { return e.msg }
+
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
 	token, err := c.accessToken(ctx)
 	if err != nil {
@@ -208,7 +231,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		c.mu.Unlock()
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("%s %s: HTTP %d: %s", method, path, resp.StatusCode, strings.TrimSpace(string(payload)))
+		return &statusError{code: resp.StatusCode, msg: fmt.Sprintf("%s %s: HTTP %d: %s", method, path, resp.StatusCode, strings.TrimSpace(string(payload)))}
 	}
 	if out == nil {
 		return nil

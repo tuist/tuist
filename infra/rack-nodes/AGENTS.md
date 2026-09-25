@@ -25,8 +25,10 @@ only the first edge of a site is installed from a stick of its own.
   publishes each host's install, finds the host on the tailnet and joins it.
   See "Rack-owned Linux hosts" in its AGENTS.md.
 - **The boot server** (`rackLinuxFleet.boot`, a DaemonSet in the tuist chart
-  running `files/rack-boot.sh` on both edges) serves what the operator
-  publishes, on the site's provisioning address, from whichever edge holds it.
+  running the operator's `rack-boot` on both edges) serves what the operator
+  publishes, on the site's provisioning address, from whichever edge holds it,
+  hands each install's seed to its host alone, and lists the machines sticks
+  announce as RackLinuxCandidates.
   It serves nothing until it has the installer ISO, so each edge offers its
   verified ISO, and only it, on its address on the edges' VRRP link (`vrrp0`),
   and a freshly installed edge fetches it from there before the internet, which
@@ -101,10 +103,12 @@ hostname under `DECLAREDAS`, and stays.
 
 For a host that is not on the tailnet yet, or whose `reinstallGeneration` is
 above the generation it was installed for, the host controller mints a join key
-and writes three files under the boot MAC to the `<fleet>-boot` Secret: the
-autoinstall `user-data` and `meta-data`, and an iPXE script, with the host's
-UUID beside them. The boot server mirrors the Secret within a
-minute or two. The chain a netbooting host goes through:
+and an SSH host key and writes three files under the boot MAC to the
+`<fleet>-boot` Secret: the autoinstall `user-data` and `meta-data`, and an iPXE
+script, with the host's UUID and the join key's ID beside them. The boot server
+watches the Secret, and the edge holding the provisioning address reports the
+install servable on the host's `status.boot`; the operator reboots a running
+host into it only then. The chain a netbooting host goes through:
 
 1. The firmware's PXE asks the active edge's dnsmasq for an address and gets one
    in the provisioning range, with iPXE's Secure Boot shim (`snponly-shim.efi`)
@@ -119,15 +123,20 @@ minute or two. The chain a netbooting host goes through:
    boots them through Ubuntu's shim from the ISO (iPXE's `shim` command), which
    verifies the kernel under Secure Boot; the kernel downloads the ISO into
    memory (`url=`), keeps its DHCP on the NIC that netbooted (`BOOTIF`), and
-   reads the seed from `/hosts/<mac>/`.
+   reads the seed from `/hosts/<mac>/`. The boot server hands `user-data`, which
+   carries the join key and the host key, only to one of the host's MACs, as
+   its neighbor table shows the address that asked, and after the first to
+   that MAC alone (`status.boot.servedTo`).
 4. The install is the same as a stick's: Ubuntu with network configuration for
-   the SFP+ uplinks only, the fleet key, and a first-boot unit that joins the
-   tailnet with the single-use key.
+   the SFP+ uplinks only, the fleet key, the operator's host key in place of
+   the ones the package generated (cloud-init told not to replace it), and a
+   first-boot unit that joins the tailnet with the single-use key, which lives
+   two hours.
 5. Once a tailnet device that is not the one the install replaced shows up, the
    host controller withdraws the install, so the key stops being served, and
    removes the annotation.
 
-The iPXE is the iPXE project's Secure Boot build (pinned in the rack-edge
+The iPXE is the iPXE project's Secure Boot build (pinned in the operator's
 image): a shim signed by Microsoft's UEFI CA 2011, the CA that signs Ubuntu's
 shim, which loads the `snponly.efi` signed by the iPXE project's CA. The shim
 finds that file from the boot file name in the DHCP packet's file field, which
@@ -325,7 +334,7 @@ the operator refuses to join the node until it does.
 ## Tests
 
 `mise run rack:nodes-test` renders the stick's seed against fake `op` and
-`curl`, and runs the boot server's script against a fake Secret and ISO
-(`tests/boot.bats`); it runs in the Rack Switches workflow. The netboot seed,
-the iPXE script and the install lifecycle are Go tests in the operator
-(`internal/rackinstall`, `controllers/linux/racklinuxhost_install_test.go`).
+`curl`; it runs in the Rack Switches workflow. The boot server, the netboot
+seed, the iPXE script and the install lifecycle are Go tests in the operator
+(`internal/rackboot`, `internal/rackinstall`,
+`controllers/linux/racklinuxhost_install_test.go`).

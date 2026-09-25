@@ -153,7 +153,6 @@ func TestRackLinuxHostDeleteKeepsTheFinalizerWhileTheTailnetFails(t *testing.T) 
 	}
 }
 
-
 // A deleted host's Machine goes first: its RackLinuxMachine stops the kubelet
 // over the tailnet and deletes the Node, so the host's devices stay until the
 // Machine is gone.

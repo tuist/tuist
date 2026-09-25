@@ -33,6 +33,7 @@ type fakeTailnet struct {
 	deleteErr error
 	renamed   map[string]string
 	minted    []string
+	revoked   []string
 }
 
 func (f *fakeTailnet) Devices(context.Context) ([]tailnet.Device, error) {

@@ -149,6 +149,11 @@ type RackLinuxHostStatus struct {
 	// +optional
 	Install *RackLinuxHostInstallStatus `json:"install,omitempty"`
 
+	// Boot is what the site's boot server reports about the published install.
+	// The boot server writes it, and nothing else.
+	// +optional
+	Boot *RackLinuxHostBootStatus `json:"boot,omitempty"`
+
 	// Power is the host's power state as AMT reports it.
 	// +optional
 	Power *RackLinuxHostPowerStatus `json:"power,omitempty"`
@@ -220,24 +225,40 @@ type RackLinuxHostInstallStatus struct {
 	// +optional
 	HostKeyFingerprint string `json:"hostKeyFingerprint,omitempty"`
 
-	// ServableAt is when a boot server holding the site's provisioning address
-	// first served the install's boot script.
-	// +optional
-	ServableAt *metav1.Time `json:"servableAt,omitempty"`
-
-	// ServedAt is when a boot server handed the install's seed out, which it
-	// does once, to the machine whose DHCP lease is on one of the host's
-	// NICs.
-	// +optional
-	ServedAt *metav1.Time `json:"servedAt,omitempty"`
-
-	// ServedTo is the address and MAC the seed went to.
-	// +optional
-	ServedTo string `json:"servedTo,omitempty"`
-
 	// TriggeredAt is when the operator rebooted the host into the install.
 	// +optional
 	TriggeredAt *metav1.Time `json:"triggeredAt,omitempty"`
+}
+
+// RackLinuxHostBootStatus is what a site's boot server reports about the
+// install published for a host. It describes the install with KeyID, and is
+// stale once another is published.
+type RackLinuxHostBootStatus struct {
+	// KeyID is the join key of the install it reports on.
+	KeyID string `json:"keyID"`
+
+	// Server is the edge whose boot server reported last.
+	// +optional
+	Server string `json:"server,omitempty"`
+
+	// ServableAt is when a boot server holding the site's provisioning address
+	// first held the install, ready to serve it. The operator reboots a host
+	// into its install only after.
+	// +optional
+	ServableAt *metav1.Time `json:"servableAt,omitempty"`
+
+	// ServedTo is the MAC the install's seed was handed out to, and
+	// ServedAddress the address that asked. The boot server hands the seed to
+	// no other MAC.
+	// +optional
+	ServedTo string `json:"servedTo,omitempty"`
+
+	// +optional
+	ServedAddress string `json:"servedAddress,omitempty"`
+
+	// ServedAt is when the seed was first handed out.
+	// +optional
+	ServedAt *metav1.Time `json:"servedAt,omitempty"`
 }
 
 // RackLinuxHostPowerStatus is a host's power state as AMT reports it.

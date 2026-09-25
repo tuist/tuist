@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"net/url"
 	"strings"
 	"time"
 
@@ -30,11 +31,15 @@ const (
 	// It is False while an install is published for the host to boot.
 	InstalledCondition clusterv1.ConditionType = "Installed"
 
-	rackInstallKeyLifetime = 24 * time.Hour
-	rackInstallRenewBefore = 6 * time.Hour
-	// rackBootPropagation covers the kubelet refreshing the boot server's
-	// Secret volume, so a host is not rebooted before its install is served.
-	rackBootPropagation      = 2 * time.Minute
+	// A join key lives rackInstallKeyLifetime. One no host fetched yet is
+	// renewed rackInstallRenewBefore it expires, which leaves an installer that
+	// fetches it last that long to install and join.
+	rackInstallKeyLifetime = 2 * time.Hour
+	rackInstallRenewBefore = 45 * time.Minute
+	// rackBootServerPoll is how soon the operator looks again for the boot
+	// server's report that an install is servable, besides the report itself
+	// waking it.
+	rackBootServerPoll       = 30 * time.Second
 	rackReinstallBootTimeout = 30 * time.Minute
 	rackBootInstallerTimeout = time.Minute
 	rackConsolePasswordChars = 24
@@ -92,6 +97,11 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 	}
 
 	if inst != nil && device != nil && device.DeviceID != inst.PreviousDeviceID {
+		if inst.HostKeyFingerprint != "" {
+			if err := r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey(host.Name, device.DeviceID), inst.HostKeyFingerprint); err != nil {
+				return 0, fmt.Errorf("trust %s's new install by its host key: %w", host.Spec.Hostname, err)
+			}
+		}
 		if err := r.withdrawInstall(ctx, host); err != nil {
 			return 0, err
 		}
@@ -149,7 +159,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		return 0, nil
 	}
 
-	if inst == nil || inst.Generation != generation || now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore)) || !r.installServed(ctx, inst) {
+	if inst == nil || inst.Generation != generation || renewDue(host, inst, now) || !r.installServed(ctx, inst) {
 		previous := ""
 		var triggered *metav1.Time
 		switch {
@@ -199,11 +209,12 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "offline, and AMT cannot reboot it", now)
 		return 0, nil
 	}
-	if wait := inst.OfferedAt.Add(rackBootPropagation).Sub(now); wait > 0 {
-		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-			"rebooting %s into install %s once the boot server serves it", host.Spec.Hostname, inst.KeyID)
+	if !bootServes(host, inst) {
+		conditions.MarkFalse(host, InstalledCondition, "WaitingForBootServer", clusterv1.ConditionSeverityInfo,
+			"install %s is published; %s is rebooted into it once the boot server holding %s reports it servable",
+			inst.KeyID, host.Spec.Hostname, r.Install.provisioningAddress())
 		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "waiting for the boot server to serve the install", now)
-		return wait, nil
+		return rackBootServerPoll, nil
 	}
 	if !device.Connected {
 		// AMT boots the firmware's first network entry, which finds the install
@@ -256,6 +267,10 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	if err != nil {
 		return err
 	}
+	hostKey, err := rackinstall.NewHostKey()
+	if err != nil {
+		return err
+	}
 	key, err := r.Tailnet.CreateAuthKey(ctx, host.Spec.Tailnet.Tags, rackInstallKeyLifetime, "install of "+host.Spec.Hostname+" ("+host.Name+")")
 	if err != nil {
 		return err
@@ -270,6 +285,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		TailnetKey:     key.Key,
 		TailnetKeyID:   key.ID,
 		Built:          now,
+		HostKey:        hostKey,
 	}
 	userData, err := rackinstall.UserData(seed)
 	if err != nil {
@@ -291,9 +307,14 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		secret.Data[mac+".meta-data"] = []byte(rackinstall.MetaData(seed))
 		secret.Data[mac+".ipxe"] = []byte(rackinstall.IPXEScript(r.Install.ServerURL, host.Status.BootMAC))
 		secret.Data[mac+".uuid"] = []byte(host.Name)
+		secret.Data[mac+".install"] = []byte(key.ID)
 		return nil
 	}); err != nil {
+		r.revokeKey(ctx, key.ID)
 		return fmt.Errorf("write the install to Secret %s: %w", secret.Name, err)
+	}
+	if replaced := host.Status.Install; replaced != nil && replaced.KeyID != key.ID {
+		r.revokeKey(ctx, replaced.KeyID)
 	}
 
 	expires := now.Add(rackInstallKeyLifetime)
@@ -301,13 +322,14 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		expires = t
 	}
 	host.Status.Install = &infrav1.RackLinuxHostInstallStatus{
-		KeyID:            key.ID,
-		BootMAC:          host.Status.BootMAC,
-		Generation:       host.Spec.ReinstallGeneration,
-		PreviousDeviceID: previous,
-		OfferedAt:        metav1.NewTime(now),
-		ExpiresAt:        metav1.NewTime(expires),
-		TriggeredAt:      triggered,
+		KeyID:              key.ID,
+		BootMAC:            host.Status.BootMAC,
+		Generation:         host.Spec.ReinstallGeneration,
+		PreviousDeviceID:   previous,
+		OfferedAt:          metav1.NewTime(now),
+		ExpiresAt:          metav1.NewTime(expires),
+		HostKeyFingerprint: hostKey.Fingerprint,
+		TriggeredAt:        triggered,
 	}
 	r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallPublished",
 		"Published install %s for %s to boot from %s, with a single-use join key tagged %s valid until %s",
@@ -338,15 +360,53 @@ func (r *RackLinuxHostReconciler) anotherEdgeServes(ctx context.Context, host *i
 }
 
 // installServed reports whether the boot Secret still carries the published
-// install's iPXE script, which it no longer does once someone deleted the
-// Secret.
+// install, which it no longer does once someone deleted the Secret.
 func (r *RackLinuxHostReconciler) installServed(ctx context.Context, inst *infrav1.RackLinuxHostInstallStatus) bool {
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: r.CredentialsManager.Namespace, Name: rackBootSecretName(r.Install.FleetName)}, secret); err != nil {
 		return false
 	}
-	_, ok := secret.Data[rackinstall.MACPath(inst.BootMAC)+".ipxe"]
-	return ok
+	mac := rackinstall.MACPath(inst.BootMAC)
+	_, ok := secret.Data[mac+".ipxe"]
+	return ok && string(secret.Data[mac+".install"]) == inst.KeyID
+}
+
+// renewDue reports whether the install's join key is to be replaced: shortly
+// before it expires while no host has fetched it, and once it expired.
+func renewDue(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallStatus, now time.Time) bool {
+	if now.After(inst.ExpiresAt.Time) {
+		return true
+	}
+	boot := host.Status.Boot
+	handedOut := boot != nil && boot.KeyID == inst.KeyID && boot.ServedTo != ""
+	return !handedOut && now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore))
+}
+
+// bootServes reports whether the boot server holding the site's provisioning
+// address reported the install servable.
+func bootServes(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallStatus) bool {
+	boot := host.Status.Boot
+	return boot != nil && boot.KeyID == inst.KeyID && boot.ServableAt != nil
+}
+
+// provisioningAddress is the site's provisioning address, where the boot
+// server answers.
+func (i *RackInstall) provisioningAddress() string {
+	if u, err := url.Parse(i.ServerURL); err == nil && u.Hostname() != "" {
+		return u.Hostname()
+	}
+	return i.ServerURL
+}
+
+// revokeKey revokes a join key no install carries any more. A key that
+// outlives this still expires on its own.
+func (r *RackLinuxHostReconciler) revokeKey(ctx context.Context, id string) {
+	if r.Tailnet == nil || id == "" {
+		return
+	}
+	if err := r.Tailnet.DeleteAuthKey(ctx, id); err != nil {
+		log.FromContext(ctx).Error(err, "revoke a join key no install carries", "key", id)
+	}
 }
 
 // withdrawInstall removes the host's published install, whose join key the
@@ -365,7 +425,7 @@ func (r *RackLinuxHostReconciler) withdrawInstall(ctx context.Context, host *inf
 	default:
 		mac := rackinstall.MACPath(inst.BootMAC)
 		changed := false
-		for _, suffix := range []string{".user-data", ".meta-data", ".ipxe", ".uuid", ".grub.cfg"} {
+		for _, suffix := range []string{".user-data", ".meta-data", ".ipxe", ".uuid", ".install", ".grub.cfg"} {
 			if _, ok := secret.Data[mac+suffix]; ok {
 				delete(secret.Data, mac+suffix)
 				changed = true
@@ -377,6 +437,7 @@ func (r *RackLinuxHostReconciler) withdrawInstall(ctx context.Context, host *inf
 			}
 		}
 	}
+	r.revokeKey(ctx, inst.KeyID)
 	host.Status.Install = nil
 	return nil
 }
@@ -487,6 +548,11 @@ func prepareRackHostSSH(ctx context.Context, c client.Client, creds *credentials
 		return nil, nil, nil, fmt.Errorf("read the host key pin: %w", err)
 	} else if pin != nil {
 		known = pin.HostFingerprint
+	}
+	// A new install the operator gave a host key to is held to it, even before
+	// the host controller pins it.
+	if inst := host.Status.Install; known == "" && inst != nil && inst.HostKeyFingerprint != "" && inst.PreviousDeviceID != host.Status.Tailnet.DeviceID {
+		known = inst.HostKeyFingerprint
 	}
 	hk = bootstrap.NewHostKeyState(known)
 	return key, hk, func() {

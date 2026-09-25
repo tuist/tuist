@@ -37,6 +37,8 @@ const (
 	// with, so a run that changed files and failed before restarting the
 	// daemons is followed by one that restarts them.
 	rackAppliedHashPath = "/var/lib/tuist/rack-converge.hash"
+
+	rackKubernetesAPIPath = "/etc/tuist/kubernetes-api"
 )
 
 // rackConvergeOptions is everything the converge script renders from.
@@ -56,6 +58,11 @@ type rackConvergeOptions struct {
 	// ManagementMAC is the management port's, the one AMT shares with the
 	// host: the host's boot MAC.
 	ManagementMAC string
+
+	// KubernetesAPI is the API server the kubelet uses, written to
+	// rackKubernetesAPIPath for the pods on the node that talk to it: a rack
+	// node reaches no Service address.
+	KubernetesAPI string
 
 	// APIServerURL and BootstrapToken, when the token is set, make the run
 	// write a bootstrap kubeconfig and wait for the kubelet's certificate.
@@ -306,6 +313,7 @@ apt-mark hold kubelet >/dev/null
 	b.WriteString(heredoc("/etc/cni/net.d/10-tuist-rack-local.conflist", "0644", "cni", rackLocalCNIConfig()))
 	b.WriteString(heredoc(kubeletClientCAPath, "0644", "kubelet", string(o.ClusterCAPEM)))
 	b.WriteString(heredoc("/var/lib/kubelet/config.yaml", "0644", "kubelet", rackKubeletConfig(o)))
+	b.WriteString(heredoc(rackKubernetesAPIPath, "0644", "api", o.KubernetesAPI))
 	b.WriteString(heredoc("/etc/systemd/system/kubelet.service", "0644", "kubelet", rackKubeletUnit(o)))
 	if o.BootstrapToken != "" {
 		b.WriteString(heredoc(rackBootstrapKubeconfigPath, "0600", "kubelet",

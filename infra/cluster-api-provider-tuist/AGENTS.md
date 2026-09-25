@@ -624,19 +624,27 @@ identity is safe.
 and an older one of the host is not, the host controller deletes the older one
 and renames the newest to the hostname. Two connected devices are left alone
 and reported as `DuplicateDevices`. The machine reconciler keys reinstalls off
-the device ID: a new one re-pins the SSH host key.
+the device ID: a new one is held to the SSH host key the install gave it
+(below), or, for an install the operator did not publish (a per-host stick),
+pinned to the first key it presents.
 
 **The host controller publishes installs** (`racklinuxhost_install.go`,
 rendered by `internal/rackinstall`) when `--rack-linux-fleet-name` and
 `--rack-linux-install-server-url` are set: for a host with no tailnet device
 yet, and for one whose `spec.reinstallGeneration` is above
-`status.provisioning.installedGeneration`. It mints a join key for the host's
-tags (a day's lifetime, renewed six hours before it expires), and writes the
-autoinstall seed and an iPXE script under the boot MAC to the `<fleet>-boot`
-Secret, which the rack boot server serves, again whenever the Secret lost them,
-with the host's UUID beside them for a network boot from another NIC.
-`status.install` records the key, the MAC, the generation and the device the
-install replaces. The boot MAC is `spec.bootMAC`, or the management port the
+`status.provisioning.installedGeneration`. It mints a single-use join key for the host's
+tags and an ed25519 SSH host key, and writes the autoinstall seed, which carries
+both, and an iPXE script under the boot MAC to the `<fleet>-boot` Secret, which
+the rack boot server serves, again whenever the Secret lost them, with the
+host's UUID and the key's ID beside them. `status.install` records the key, the
+MAC, the generation, the device the install replaces and the host key's
+fingerprint. A join key lives two hours: one no host fetched yet is renewed 45
+minutes before it expires, and one a host fetched is kept until it expires,
+since a new one would not reach that installer. A key the Secret no longer
+carries, renewed or withdrawn, is revoked. When the install's device joins, the
+host controller pins its host key for that device before recording the device,
+so the machine reconciler's first dial is held to the key the operator
+generated rather than trusting the first one it sees. The boot MAC is `spec.bootMAC`, or the management port the
 machine announced (its `RackLinuxCandidate`, below), in `status.bootMAC`; a
 host with neither is `Registering` until its stick announces it. The fleet
 key's public half and `--rack-linux-authorized-key` are authorized, and the
@@ -645,9 +653,10 @@ controller reads each host through the manager's uncached `APIReader`: CAPI's
 patch helper writes conditions before the rest of the status, and a reconcile
 that read the host from the cache in between would mint a second key. A host's
 installer is its install stick, which fetches the seed for its MAC from the boot
-server (`rackinstall.StickUserData`), or a netboot. A reinstall of a connected
-host sets `BootNext` over SSH, two minutes after publishing, and reboots it,
-once: to a boot entry the script creates for a USB disk carrying
+server (`rackinstall.StickUserData`), or a netboot. A host is rebooted into an install
+only once the boot server holding the site's provisioning address reported it
+servable in `status.boot` (`WaitingForBootServer` until then). A reinstall of a
+connected host sets `BootNext` over SSH and reboots it, once: to a boot entry the script creates for a USB disk carrying
 `nocloud/tuist-install-stick`, or else to the PXE entry for the MAC; one of a
 host off the tailnet power-cycles it through AMT into its network boot (below).
 A host with `spec.online: false` is not rebooted into an install. A new device
@@ -660,17 +669,48 @@ serve it, or once it was rebooted into it; otherwise its install is withdrawn
 and it is installed from a stick. `storage` has no layout yet. The `Installed`
 condition says which step a host is on.
 
-**Machines announce themselves** (`racklinux_discovery.go`). While nothing is
-published for it, a machine's install stick posts its SMBIOS UUID, serial,
-product and NICs to the boot server's `cgi-bin/announce` (`files/rack-boot.sh`),
-which keeps each under its UUID in `/var/lib/tuist-rack-boot/announced` for a
-day. Once a minute the discovery reads every connected edge's announcements over
-SSH, the same way the reinstall reaches a host, and keeps one
-`RackLinuxCandidate` per machine with the newest announcement and the boot MAC
-it names (its i226-LM). It marks a candidate with the hostname of the
-`RackLinuxHost` named after its UUID, and drops an undeclared one no edge has
-heard from for a week; a declared one stays, since its host takes its boot MAC
-and model (`status.hardware`) from it.
+**The rack's boot server** (`cmd/rack-boot`, `internal/rackboot`) runs from the
+operator's image as the chart's `<fleet>-boot` DaemonSet on each edge node of
+the site, with host networking. It binds TFTP and HTTP to the provisioning
+address with `IP_FREEBIND`, so the edge holding the address (keepalived's
+master) answers and the other takes over the moment the address moves. It
+watches the `<fleet>-boot` Secret through the API (its Role reads that Secret
+alone) and serves, over TFTP, iPXE's Secure Boot shim, the signed iPXE, both
+baked into the image at `/opt/rack-netboot`, and `boot.ipxe`; over HTTP, each
+host's iPXE script by its boot MAC and by its UUID, its seed, and the
+installer's kernel, initrd, Ubuntu shim and ISO. The ISO is downloaded once per
+checksum into `/var/lib/tuist-rack-boot` on the node, from another edge over
+the edges' link (`vrrp0`, where each offers its verified ISO and nothing else)
+before the internet, verified, and the rest extracted from it. A rack node
+reaches no Service address, so it reads the API server from
+`/etc/tuist/kubernetes-api`, which the converge writes. The edge holding the
+address reports each install it holds servable in the host's `status.boot`,
+keyed by the install's join key, and the operator writes nothing there.
+
+**An install's seed goes to its host once.** The seed carries the join key and
+the host key, so the boot server hands `user-data` only to a machine on its
+segment whose MAC, read from the kernel's neighbor table for the address that
+asked, is the host's boot MAC or one of the NICs it announced; it records that
+MAC in `status.boot.servedTo` before answering, and from then on hands the seed
+to that MAC alone. It checks the host's `status.install` first, so a superseded
+install is not handed out from a stale Secret. A seed that could not be
+recorded is not handed out. The rest of an install is not secret.
+
+**Machines announce themselves.** While nothing is published for it, a
+machine's install stick posts its SMBIOS UUID, serial, product and NICs to the
+boot server's `cgi-bin/announce`, which accepts only those lines, at most 4096
+bytes, and keeps a `RackLinuxCandidate` per machine, named after its UUID, with
+the boot MAC it names (its i226-LM), for at most 256 machines. Its Role creates
+candidates and patches their status; it reads and patches hosts' status for
+`status.boot` and nothing else of them. The operator (`racklinux_candidates.go`)
+marks each candidate with the hostname of the `RackLinuxHost` named after its
+UUID, and drops an undeclared one no boot server has heard from for a week; a
+declared one stays, since its host takes its boot MAC and model
+(`status.hardware`) from it.
+
+Not yet done: the boot server trusts a MAC, which a machine on the segment can
+spoof. Attesting the host through its TPM before handing the seed out would
+close that.
 
 **A rename is a new `spec.hostname`.** The host keeps its UUID, its Machine and
 its providerID. The host controller finds the host's recorded device although
@@ -707,7 +747,8 @@ CNI (`10.254.254.0/24`) are all in place before the kubelet first starts.
 containerd or the kubelet when their configuration changed, when they are not
 running, or when the host has not finished a converge of this configuration
 (`/var/lib/tuist/rack-converge.hash`), and installs exactly the kubelet release
-the control plane runs, never downgrading. It exits 43 on a host kubeadm joined.
+the control plane runs, never downgrading. It writes the API server the kubelet
+uses to `/etc/tuist/kubernetes-api` for the pods on the node that talk to it. It exits 43 on a host kubeadm joined.
 The reconciler converges when the rendered configuration's hash changes (an
 operator image, a control plane patch release, a new tailnet address), on a new
 tailnet device, every five minutes while the Node is NotReady, and hourly
@@ -877,6 +918,7 @@ infra/cluster-api-provider-tuist/
 │   ├── scalewayelasticmetalmachine_types.go (+ …template)
 │   ├── dediboxmachine_types.go (+ …template)
 │   ├── ovhdedicatedmachine_types.go (+ …template)
+│   ├── racklinuxhost_types.go / racklinuxmachine_types.go / racklinuxcandidate_types.go
 │   ├── tuistcluster_types.go
 │   └── zz_generated.deepcopy.go
 ├── controllers/
@@ -891,23 +933,32 @@ infra/cluster-api-provider-tuist/
 │   ├── tuistcluster_controller.go
 │   ├── fleetspread_controller.go
 │   ├── orphan_reclaimer.go
-│   └── linux/      # the 3 Linux fleet kinds (Dedibox / OVH / Elastic Metal)
+│   └── linux/      # the Linux fleet kinds (Dedibox / OVH / Elastic Metal / rack)
 │       ├── dediboxmachine_controller.go
 │       ├── ovhdedicatedmachine_controller.go
 │       ├── scalewayelasticmetalmachine_controller.go
+│       ├── racklinuxhost_*.go       # rack hosts: install, Machine, AMT, power, retirement
+│       ├── racklinuxmachine_controller.go / rack_linux_converge.go  # rack join + converge
+│       ├── racklinux_candidates.go  # tidies what the rack boot servers list
 │       ├── linux_cloudinit.go       # shared self-join script + kubelet config (Layers 2+3)
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
 │       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers (the rack's remote reboot)
 │   ├── scaleway/     # Scaleway SDK wrapper
+│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
+│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
+│   ├── tailnet/      # Tailscale API: devices and join keys
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
+├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
+├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
 ├── Dockerfile      # cross-builds the darwin/arm64 host artifacts (tart-kubelet,
-│                   # tuist-log-shipper, tailscale) alongside the linux manager
+│                   # tuist-log-shipper, tailscale) alongside the linux manager,
+│                   # rack-boot and the signed iPXE it serves
 └── AGENTS.md (this file)
 ```
 
