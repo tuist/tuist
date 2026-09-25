@@ -16,17 +16,6 @@ on:
       - .trivyignore
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - server/**
-      - tuist_common/**
-      - noora/**
-      - .github/workflows/server.yml
-      - .github/actions/setup-server-mix/action.yml
-      - .github/actions/mise/action.yml
-      - server/pnpm-lock.yaml
-      - noora/aube-lock.yaml
-      - mise/tasks/marketing/**
-      - .trivyignore
   merge_group: {}
 
 permissions:
@@ -55,11 +44,51 @@ defaults:
     working-directory: server
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    if: github.repository == 'tuist/tuist'
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Detect server changes
+        id: filter
+        working-directory: ${{ github.workspace }}
+        env:
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              # HEAD is the PR's test-merge commit; its first parent is the base branch.
+              base="HEAD^1"
+              ;;
+            merge_group)
+              git fetch --no-tags --depth=1 origin "$MERGE_GROUP_BASE_SHA"
+              base="$MERGE_GROUP_BASE_SHA"
+              ;;
+            *)
+              # push runs are already narrowed by the workflow-level paths filter.
+              echo "server=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          git diff --no-renames --name-only "$base" HEAD > "$RUNNER_TEMP/changed.txt"
+          cat "$RUNNER_TEMP/changed.txt"
+          if grep -qE '^(server/|tuist_common/|noora/|mise/tasks/marketing/|\.github/workflows/server\.yml$|\.github/actions/(setup-server-mix|mise)/action\.yml$|\.trivyignore$)' "$RUNNER_TEMP/changed.txt"; then
+            echo "server=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "server=false" >> "$GITHUB_OUTPUT"
+          fi
   swift-test:
     name: Swift Tests (XCActivityLogParser)
     runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:
       run:
         working-directory: server/native/xcactivitylog_nif
@@ -78,7 +107,8 @@ jobs:
     name: Swift Tests (XCResultParser)
     runs-on: tuist-macos-27-0
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     defaults:
       run:
         working-directory: server/native/xcresult_nif
@@ -101,7 +131,8 @@ jobs:
     # pattern as `setup-server-mix` callers.
     runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -237,7 +268,8 @@ jobs:
     # headroom this job had before the default was downsized (#11052).
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     # Local `mix test` compiles only the "en" locale for fast cold builds
     # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
     # locale set so the `:locale`-tagged i18n tests run and are covered here.
@@ -296,7 +328,8 @@ jobs:
     # publish, so the three cannot drift apart.
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     env:
       # Matches the Test job. Several locale assertions live in tests that carry
       # no `:locale` tag, so they run either way and fail against the "en"-only
@@ -359,7 +392,8 @@ jobs:
     name: Credo
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist'
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -371,7 +405,8 @@ jobs:
     name: Format
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise
@@ -399,7 +434,8 @@ jobs:
     name: Image budget
     runs-on: tuist-linux
     timeout-minutes: 5
-    if: github.repository == 'tuist/tuist'
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
       - name: Install image inspection tools
@@ -419,7 +455,8 @@ jobs:
     name: esbuild
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -463,7 +500,8 @@ jobs:
     name: Security
     runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -484,7 +522,8 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
     runs-on: tuist-linux-large
     timeout-minutes: 75
-    if: github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -601,7 +640,8 @@ jobs:
     # 4 vCPU / 16 GB shape restores the headroom from before #11052.
     runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    needs: changes
+    if: needs.changes.outputs.server == 'true' && github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     services:
       postgres:
         image: postgres:16
