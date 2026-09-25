@@ -623,7 +623,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               ~s([data-section="login-domain"] [data-part="field"] [data-part="domain-verification-error"][data-status="error"]),
+               ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
                "No TXT record with the verification value was found at _tuist-verification.customer.example. DNS changes can take a while to propagate"
              )
 
@@ -736,7 +736,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               ~s([data-section="login-domain"] [data-part="field"] [data-part="domain-verification-error"][data-status="error"]),
+               ~s(#sso-login-domain-verification [data-part="domain-verification-error"][data-status="error"]),
                "Save the login domain before verifying it."
              )
 
