@@ -181,8 +181,10 @@ defmodule Tuist.Tests.Coverage.Comparison do
       position = GitHistory.position(head.repository_id, start_sha) ->
         {ref_id, start_position} = position
 
-        nearest_on_segments(project_id, head, ref_id, start_position, since, 0) ||
-          {:error, no_ancestor(head, start_sha, settings)}
+        case Commits.nearest_on_segments(project_id, ref_id, start_position, head.sha, since) do
+          {candidate, depth} -> {:ok, {candidate, depth}}
+          nil -> {:error, no_ancestor(head, start_sha, settings)}
+        end
 
       true ->
         walk_candidate(project_id, head, start_sha, since, settings)
@@ -196,24 +198,6 @@ defmodule Tuist.Tests.Coverage.Comparison do
 
       _ ->
         nil
-    end
-  end
-
-  defp nearest_on_segments(_project_id, _head, nil, _position, _since, _depth), do: nil
-
-  defp nearest_on_segments(project_id, head, ref_id, position, since, depth) do
-    case Commits.nearest_on_ref(project_id, ref_id, position, head.sha, since) do
-      nil ->
-        case GitHistory.get_ref(ref_id) do
-          %{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
-            nearest_on_segments(project_id, head, parent_id, fork, since, depth + position - fork)
-
-          _ ->
-            nil
-        end
-
-      candidate ->
-        {:ok, {candidate, depth + position - candidate.position}}
     end
   end
 

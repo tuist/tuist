@@ -333,20 +333,109 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   @doc """
   The newest published commit with measured lines at or below `position` on
-  a ref's segment, other than `except`, or nil: one index probe, the step a
-  baseline takes per segment of the first-parent tree.
+  a ref's segment, other than `except` and, unless `since` is nil, published
+  since `since`, or nil: one index probe, the step a baseline takes per
+  segment of the first-parent tree.
   """
   def nearest_on_ref(project_id, ref_id, position, except, since) do
     CoverageCommit
     |> where(
       [c],
       c.project_id == ^project_id and c.ref_id == ^ref_id and c.position <= ^position and
-        c.git_commit_sha != ^except and c.executable_lines > 0 and c.inserted_at >= ^since
+        c.git_commit_sha != ^except and c.executable_lines > 0
     )
+    |> published_since(since)
     |> order_by([c], desc: c.position)
     |> limit(1)
     |> Repo.one()
     |> row()
+  end
+
+  defp published_since(query, nil), do: query
+  defp published_since(query, since), do: where(query, [c], c.inserted_at >= ^since)
+
+  @doc """
+  The nearest published commit with measured lines at or below `position` on
+  a ref's segment, going on below the fork on the ref it forked from, as
+  `{row, distance}` with the distance in first parents, or nil: a probe per
+  segment of the first-parent tree. `except` and `since` as in
+  `nearest_on_ref/5`.
+  """
+  def nearest_on_segments(project_id, ref_id, position, except, since),
+    do: nearest_on_segments(project_id, ref_id, position, except, since, 0)
+
+  defp nearest_on_segments(_project_id, nil, _position, _except, _since, _distance), do: nil
+
+  defp nearest_on_segments(project_id, ref_id, position, except, since, distance) do
+    case nearest_on_ref(project_id, ref_id, position, except, since) do
+      nil ->
+        case GitHistory.get_ref(ref_id) do
+          %{parent_ref_id: parent_id, fork_position: fork} when not is_nil(parent_id) ->
+            nearest_on_segments(project_id, parent_id, fork, except, since, distance + position - fork)
+
+          _ ->
+            nil
+        end
+
+      commit ->
+        {commit, distance + position - commit.position}
+    end
+  end
+
+  @doc """
+  The nearest published commit with measured lines among a commit's
+  ancestors, merged-in ones included, the commit itself left out, as
+  `{sha, distance}`, or nil.
+
+  The first-parent tree bounds the walk: the nearest measured commit on the
+  commit's first parents is `distance` away along the refs' segments, so a
+  closer one merged in is within that depth and the walk goes no deeper.
+  Only when no first parent within the window was measured does the walk
+  cover the window.
+  """
+  def nearest_measured_ancestor(project_id, repository_id, sha) do
+    nearest =
+      case first_parent_distance(project_id, repository_id, sha) do
+        nil -> nil
+        distance -> nearest_within(project_id, repository_id, sha, distance)
+      end
+
+    nearest || GitHistory.nearest_ancestor(repository_id, sha, measured_shas(project_id, sha))
+  end
+
+  defp first_parent_distance(project_id, repository_id, sha) do
+    {unowned, owned} = repository_id |> GitHistory.first_parents_to_segment(sha) |> Enum.split_with(&is_nil(&1.ref_id))
+    measured = measured_among(project_id, unowned |> Enum.map(& &1.sha) |> List.delete(sha))
+
+    case Enum.find(unowned, &MapSet.member?(measured, &1.sha)) do
+      %{depth: depth} ->
+        depth
+
+      nil ->
+        with [%{depth: depth, ref_id: ref_id, position: position}] <- owned,
+             {_commit, distance} <- nearest_on_segments(project_id, ref_id, position, sha, nil) do
+          depth + distance
+        else
+          _ -> nil
+        end
+    end
+  end
+
+  defp nearest_within(project_id, repository_id, sha, max_depth) do
+    ancestors = repository_id |> GitHistory.ancestors(sha, max_depth: max_depth) |> Enum.reject(&(elem(&1, 1) == 0))
+    measured = measured_among(project_id, Enum.map(ancestors, &elem(&1, 0)))
+    Enum.find(ancestors, fn {ancestor, _depth} -> MapSet.member?(measured, ancestor) end)
+  end
+
+  defp measured_among(_project_id, []), do: MapSet.new()
+
+  defp measured_among(project_id, shas) do
+    from(c in CoverageCommit,
+      where: c.project_id == ^project_id and c.git_commit_sha in ^shas and c.executable_lines > 0,
+      select: c.git_commit_sha
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   @doc "Whether the project published any commit with measured lines since `since`, other than `except`."
