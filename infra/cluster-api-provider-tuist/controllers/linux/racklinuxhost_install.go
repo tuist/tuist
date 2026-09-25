@@ -524,24 +524,13 @@ label='tuist install stick'
 entries() {
   efibootmgr | awk -v label="$label" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { name = substr($0, 9); sub(/^[* ] /, "", name); sub(/\t.*/, "", name); if (name == label) print substr($1, 5, 4) }'
 }
-entry= via=
-for disk in $(lsblk -dnpo NAME,TRAN,TYPE | awk '$2 == "usb" && $3 == "disk" {print $1}'); do
-  esp=$(lsblk -lnpo NAME,PARTTYPE "$disk" | awk 'tolower($2) == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $1; exit}')
-  [ -n "$esp" ] || continue
-  mnt=$(mktemp -d)
-  stick=
-  if mount -o ro -t iso9660 "$disk" "$mnt" 2>/dev/null; then
-    [ -f "$mnt/nocloud/%[3]s" ] && stick=1
-    umount "$mnt"
-  fi
-  rmdir "$mnt"
-  [ -n "$stick" ] || continue
+%[3]sentry= via=
+if find_install_stick; then
   for old in $(entries); do efibootmgr -q -b "$old" -B; done
-  efibootmgr -q -C -d "$disk" -p "${esp##*[!0-9]}" -L "$label" -l '\EFI\BOOT\BOOTX64.EFI'
+  efibootmgr -q -C -d "$stick_disk" -p "${stick_esp##*[!0-9]}" -L "$label" -l '\EFI\BOOT\BOOTX64.EFI'
   entry=$(entries | head -n 1)
-  via="the install stick $disk"
-  break
-done
+  via="the install stick $stick_disk"
+fi
 if [ -z "$entry" ]; then
   entry=$(efibootmgr -v | awk -v mac="$mac" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { l = tolower($0); if (index(l, "mac(" mac) && index(l, "ipv4(") && !index(l, "uri(")) { print substr($1, 5, 4); exit } }')
   via="the network"
@@ -554,8 +543,32 @@ fi
 efibootmgr -q -n "$entry"
 echo "tuist-install: BootNext=$entry, $via"
 nohup sh -c 'sleep 3; systemctl reboot' >/dev/null 2>&1 &
-`, strings.ReplaceAll(strings.ToLower(mac), ":", ""), mac, rackinstall.StickMarker)
+`, strings.ReplaceAll(strings.ToLower(mac), ":", ""), mac, findInstallStickShell)
 }
+
+// findInstallStickShell defines find_install_stick, which sets stick_disk and
+// stick_esp to the disk and EFI partition of the USB install stick, whose ISO
+// carries the marker, and fails when no USB disk is one.
+var findInstallStickShell = `find_install_stick() {
+  stick_disk= stick_esp=
+  for disk in $(lsblk -dnpo NAME,TRAN,TYPE | awk '$2 == "usb" && $3 == "disk" {print $1}'); do
+    esp=$(lsblk -lnpo NAME,PARTTYPE "$disk" | awk 'tolower($2) == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $1; exit}')
+    [ -n "$esp" ] || continue
+    mnt=$(mktemp -d)
+    found=
+    if mount -o ro -t iso9660 "$disk" "$mnt" 2>/dev/null; then
+      [ -f "$mnt/nocloud/` + rackinstall.StickMarker + `" ] && found=1
+      umount "$mnt"
+    fi
+    rmdir "$mnt"
+    if [ -n "$found" ]; then
+      stick_disk=$disk stick_esp=$esp
+      return 0
+    fi
+  done
+  return 1
+}
+`
 
 // scaleUpPool raises the replicas of the MachineDeployment claiming the host's
 // pool to the number of the pool's hosts on the tailnet, so a host joins the
