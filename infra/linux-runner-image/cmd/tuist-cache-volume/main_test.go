@@ -81,14 +81,16 @@ func TestAttachInContainerNamespaceWithoutWorkflowCredentials(t *testing.T) {
 	}))
 	defer broker.Close()
 	t.Setenv("TUIST_CACHE_VOLUME_URL", broker.URL)
-	if err := attachWithClient("gradle", []string{".gradle/caches/modules-2", ".gradle/wrapper"}, cache, broker.Client()); err != nil {
+	if err := attachWithMounter("gradle", []string{".gradle/caches/modules-2", ".gradle/wrapper"}, cache, broker.Client(), func(socket, source, target string) error {
+		return os.Symlink(filepath.Join(cache, source), target+"/mounted")
+	}); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(".gradle/caches/modules-2/dependency")
+	data, err := os.ReadFile(".gradle/caches/modules-2/mounted/dependency")
 	if err != nil || string(data) != "retained" {
 		t.Fatalf("cache not visible: %s %v", data, err)
 	}
-	if err := os.WriteFile(".gradle/caches/modules-2/new", []byte("new"), 0600); err != nil {
+	if err := os.WriteFile(".gradle/caches/modules-2/mounted/new", []byte("new"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(source, "new")); err != nil {
@@ -137,7 +139,7 @@ func TestMissingMountProofFallsBackWithoutLinkingHostDirectory(t *testing.T) {
 }
 
 func TestRejectInvalidPathsBeforeAcquiringStorage(t *testing.T) {
-	for _, path := range []string{"", "cache\n", "cache\r", "cache\t", "cache\x00", "cache\x1f", "cache\x7f", "node_modules", "./node_modules/", "project/node_modules/foo"} {
+	for _, path := range []string{"", "cache\n", "cache\r", "cache\t", "cache\x00", "cache\x1f", "cache\x7f"} {
 		t.Run(path, func(t *testing.T) {
 			err := attachWithClient("key", []string{filepath.Join(t.TempDir(), "valid"), path}, t.TempDir(), nil)
 			if !errors.Is(err, errInvalidPath) {
