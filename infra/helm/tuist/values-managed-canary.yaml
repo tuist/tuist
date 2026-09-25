@@ -376,6 +376,17 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
+  stableDNS:
+    enabled: true
+    hostedZoneId: Z046862130S1WUMPV7Z3P
+    ownerId: tuist-canary-cache
+    externalSecret:
+      enabled: true
+      item: cache-dns-controller
+  publicWildcardCertificate:
+    dnsNames:
+      - "*.kura.tuist.dev"
+      - "*.cache.tuist.dev"
   privateGateway:
     enabled: true
   resources:

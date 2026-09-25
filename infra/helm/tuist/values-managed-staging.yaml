@@ -32,6 +32,17 @@ pdcAgent:
     - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
 kuraController:
+  stableDNS:
+    enabled: true
+    hostedZoneId: Z046862130S1WUMPV7Z3P
+    ownerId: tuist-staging-cache
+    externalSecret:
+      enabled: true
+      item: cache-dns-controller
+  publicWildcardCertificate:
+    dnsNames:
+      - "*.kura.tuist.dev"
+      - "*.cache.tuist.dev"
   privateGateway:
     enabled: true
   telemetry:
@@ -1174,6 +1185,12 @@ runnersController:
 # virtio-fs.
 runnersFleetLinux:
   enabled: true
+  # Staging validation of local custom cache volumes (PR #13488).
+  cacheVolumes:
+    enabled: true
+    hostPath: /var/lib/kubelet/tuist-runner-cache
+    image:
+      tag: sha-a1c278970fe8
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux

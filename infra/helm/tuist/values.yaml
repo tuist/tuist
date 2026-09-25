@@ -174,6 +174,16 @@ pdcAgent:
 
 kuraController:
   enabled: false
+  stableDNS:
+    enabled: false
+    hostedZoneId: ""
+    ownerId: ""
+    secretName: kura-cache-dns
+    drain: 3720s
+    externalSecret:
+      enabled: false
+      storeName: onepassword
+      item: ""
   # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
   # changes the pod template and rolls these instances. No RBAC grant needed.
   # Requires a Kura runtime image with built-in connectivity telemetry.
@@ -2524,6 +2534,19 @@ runnersFleet:
 #      the operator-provisioned host count can accommodate; Pending
 #      Pods are the signal to provision more hosts).
 runnersFleetLinux:
+  # Opt-in; hostPath MUST be a dedicated reflink-capable filesystem separate from kubelet.
+  cacheVolumes:
+    enabled: false
+    hostPath: /var/lib/tuist-runner-cache
+    maxSlots: 100
+    minFreeGB: 40 # Includes room for a private image and its publication archive.
+    volumeGB: 20
+    provisioning:
+      enabled: false
+      sizeGB: 200
+    image:
+      repository: ghcr.io/tuist/tuist-runner-cache-volumes
+      tag: "" # Defaults to the matching runnersController.image.tag release.
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and
@@ -3606,13 +3629,15 @@ objectStorage:
         field: secret_access_key
   embedded:
     provider: minio
+    # The upstream Quay images are no longer public. Pin the community build
+    # (including its bundled mc client) to the multi-architecture image digest.
     image:
-      repository: quay.io/minio/minio
-      tag: latest
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
       pullPolicy: IfNotPresent
     mcImage:
-      repository: quay.io/minio/mc
-      tag: latest
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
       pullPolicy: IfNotPresent
     rootUser: minio
     rootPassword: minio1234

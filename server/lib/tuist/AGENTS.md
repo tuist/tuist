@@ -127,3 +127,23 @@ This directory contains the core business logic and domain modules for the serve
 
 - Cache-endpoint resolution with no Kura endpoint enqueues `Workers.ProvisionOnDemandWorker` (one per account at a time), which runs `Lifecycle.provision_account/2` with the tick's eligibility rules, applies each instance coming up via `Reconciler.reconcile_server/1`, and hands it to `Workers.AwaitActivationWorker`, which checks `Reconciler.activate_when_ready/1` about twice a second and never applies. Activation asks whether the public host's record is published through `Tuist.DNS.record_published/1`, which queries the zone's authoritative nameservers instead of the pod's caching resolver. The tick hands every `:provisioning` server whose deployment it applies to the same worker; rollouts of serving instances are not polled. The minute tick stays the authority for everything these paths miss.
 - `Kura.Lifecycle` reclaims an active public instance that has stored nothing since it entered service after `Environment.kura_air_unused_hours/0` (24 hours) on Air or `Environment.kura_unused_days/0` (seven days) on Pro, checked hourly by default. Air caps the unused-path tracking grace at its unused window; inactivity and Pro retain the full tracking grace. Enterprise and keep-warm instances remain exempt. Both plans require `kura_storage_rollups` with snapshots on every full service day, at least 90% of the expected 15-minute snapshots across the region's replicas, and no live segment bytes or evictions. Each date's contribution is capped at the elapsed service time on that date. Partial boundary days may be absent because provisioning and rollup delivery can cross midnight; sparse telemetry or a missing full day is never read as empty. An `:unused` archival is provisioned again only by demand recorded after it, and the project-creation seed declines while `Demand.unused_hold?/1` holds.
+
+- `Kura.StableEndpoint` derives managed stable-host intent independently of image rollouts, including drain-pending rows. `FeatureFlags.kura_stable_hostname_enabled?/1` uses the single `kura_stable_hostname` account/global FunWithFlags opt-in in staging and production, absent by default. Canary enables automatically. No server rollout environment switches or account allowlist remain. Gate both advertising intent and hand-out so unselected accounts publish no stable records; disabling the flag requests withdrawal through the existing drain. Placement demotion does not alter advertising. Retirement waits for a stable-ready survivor; the controller owns provider-confirmed withdrawal and the post-withdrawal drain. Persist readiness in `kura_servers.stable_endpoint` so the reconciler and every web replica share it even without Redis. Endpoint requests use this projection, preserving the original controller timestamp and checking generation at observation; absent/stale evidence falls back to regional URLs after three minutes. Archival and cold return clear the projection. See `../../../infra/cache-dns/README.md`.
+- Stable readiness tolerates up to 30 seconds of forward controller clock skew.
+  Intent synchronization is bounded to eight concurrent workers and avoids
+  unchanged projection writes; it still runs during flag rollback to withdraw
+  existing CR intent. Endpoint resolution reuses the managed-server projection
+  and reads the account flag once. Custom URLs are appended only after stable
+  hand-out, preserving the absent-instance provisioning and fallback paths.
+
+- `Runners.CacheVolumes` owns Linux snapshot identities, publication generations
+  and user-visible usage history. Authorize against the actual executed runner
+  job and GitHub App metadata. PRs read private clones; only successful trusted
+  default-branch jobs publish. Deletion locks the same volume row
+  as publication and increment the generation. Allocation admission and report
+  validation, measurement updates, and lifecycle decisions remain inside their
+  caller's transaction and locks when extracted into private helpers. Browser reads/mutations are
+  account-scoped. Agents acknowledge physical deletion separately; do not treat
+  invalidation as erasure. See
+  [`infra/runners-controller/cache-volumes.md`](../../../infra/runners-controller/cache-volumes.md).
+  Schema/lifecycle rules: [`runners/cache_volumes/AGENTS.md`](runners/cache_volumes/AGENTS.md).

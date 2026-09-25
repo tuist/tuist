@@ -91,6 +91,12 @@ if [[ "$USE_CURRENT_CONTEXT" != "1" ]]; then
 
     export KUBECONFIG
     KUBECONFIG="$(k3d kubeconfig write "$CLUSTER")"
+
+    # MinIO's public container repositories no longer serve these images.
+    # Build from checksum-pinned upstream binaries and load only into this cluster.
+    docker build -f "${ROOT}/infra/mise/tasks/helm/smoke-storage.Dockerfile" \
+        -t tuist-helm-smoke-storage:local "${ROOT}/infra/mise/tasks/helm"
+    k3d image import tuist-helm-smoke-storage:local --cluster "$CLUSTER"
 fi
 
 wait_for_apiserver

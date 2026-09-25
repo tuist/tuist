@@ -32,7 +32,22 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Automation publication concurrency tests use independent unsandboxed PostgreSQL sessions with explicit fixture cleanup. Verify row locks are available during external actions, competing publishers are excluded, and cancellation stops remaining tests while preserving in-flight results.
 
+- Linux cache-volume tests cover tenant/node scoping, private PR reads, trusted
+  publication, success gating, retries, generation invalidation, usage analytics
+  and retention. Lifecycle tests use the real database row locks and queries.
+  Storage coverage includes account totals, missing measurements, size-change
+  history, retry deduplication, deletion acknowledgements and cascading retention.
+  Controller coverage must distinguish orphan deletion instructions from the
+  final `forget` acknowledgement for an authenticated deleted-state report.
 - Kura unused-instance lifecycle tests must cover the shorter Air window and tracking grace, unchanged Pro window, snapshot coverage across midnight provisioning/rollup delays, sparse or missing full-day telemetry, replica counts, capped per-day sample contributions, and the reset after returning from archive.
 
+- Stable cache hostname regressions cover environment collisions, distinct AWS metro tags, private exclusion, all-region readiness, stale generations/timestamps, account opt-in, flag withdrawal, demotion, and drain intent. Staging and production require the same account/global `kura_stable_hostname` opt-in for both intent and hand-out; canary enables automatically. Do not reintroduce server environment rollout toggles or account allowlists. Readiness must survive a reader's empty process-local cache through the shared PostgreSQL projection, and archival/cold return must clear that projection. Controller tests separately exercise gateway/provider publication gates and withdrawal through failures and restart.
+- Include archived accounts with custom endpoints, reserved email-derived handles
+  and collisions, bounded clock skew, concurrent stable synchronization, unchanged
+  projection writes, and a single managed-server query per endpoint resolution.
+- Cover stable endpoint hand-out and placement moves into `sa-west`, `eu-east`,
+  and `us-central`; the source must keep advertising until the survivor's stable
+  readiness is observed. Catalog coverage must include every public host-network
+  region with unique AWS tags, and unsupported survivors must block retirement.
 - Kura rename regressions cover stable workload/peer identity with migrating client endpoints, retired-handle ownership, production rollout gating, historical identity backfill, mesh authentication, original CA enrollment, usage attribution and signed analytics ingestion through original/intermediate/current account handles. Endpoint migration defaults off even for already-renamed accounts; test actor isolation, independence from the rename flag, preserved deployed hosts/aliases on image updates, observation failures, paused expiry, and readiness-delayed publication after opt-in. Migration SQL tests use transaction-local shadow tables. URL-expiry coverage checks the exact 90-day boundary, independent deadlines, rename-back, automatic manifest reconciliation, and signup/rename refusal even after a client URL expires.
 - Standalone deployment-credential rename tests use accounts with no managed server or self-hosted-client rows. Registration and peer discovery must accept the permanent tenant, explain current/intermediate handles with authenticated 409 responses without creating endpoint rows, and disclose no tenant for invalid credentials or unknown handles.

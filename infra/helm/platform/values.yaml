@@ -362,6 +362,7 @@ external-dns:
     # a dozen Cloudflare API calls per sync, which syncing on events multiplies;
     # at 5,000 it is one.
     - --cloudflare-dns-records-per-page=5000
+    - --exclude-domains=cache.tuist.dev
   # Limit which records external-dns will touch; be explicit for prod safety.
   domainFilters:
     - tuist.dev
@@ -636,3 +637,17 @@ kura-runners-ingress-nginx:
       compute-full-forwarded-for: "false"
     metrics:
       enabled: true
+
+# Delegated managed-cache DNS. Inert until the zone and scoped credentials exist.
+cacheDNS:
+  enabled: false
+  hostedZoneId: ""
+  ownerId: ""
+  image: registry.k8s.io/external-dns/external-dns:v0.15.1
+  secretName: cache-dns-writer
+  solverSecretName: cache-dns-solver
+  externalSecret:
+    enabled: false
+    storeName: onepassword
+    writerItem: ""
+    solverItem: ""

@@ -176,6 +176,9 @@ defmodule Tuist.Kura.Server do
     # image observation regardless of endpoint readiness.
     field :last_ready_at, :utc_datetime
 
+    # Shared stable-host readiness, retaining the controller's observation time.
+    field :stable_endpoint, :map
+
     # When the reconciler first saw the region template render a public host
     # different from `url`. Set only while such a change is outstanding, and the
     # clock the endpoint probe is held on so it cannot resolve the new host
@@ -286,6 +289,15 @@ defmodule Tuist.Kura.Server do
     ])
     |> validate_storage_claim()
     |> validate_status_and_image()
+    |> clear_stable_endpoint_on_lifecycle_reset()
+  end
+
+  defp clear_stable_endpoint_on_lifecycle_reset(changeset) do
+    if get_change(changeset, :status) in [:archived, :provisioning] do
+      put_change(changeset, :stable_endpoint, nil)
+    else
+      changeset
+    end
   end
 
   @doc """

@@ -55,6 +55,16 @@ clickhouse:
 
 objectStorage:
   embedded:
+    # Built and imported by helm:k3s-smoke. With USE_CURRENT_CONTEXT=1, load
+    # this image into the existing K3s cluster before running the task.
+    image:
+      repository: tuist-helm-smoke-storage
+      tag: local
+      pullPolicy: Never
+    mcImage:
+      repository: tuist-helm-smoke-storage
+      tag: local
+      pullPolicy: Never
     persistence:
       size: 1Gi
     resources:

@@ -49,7 +49,7 @@ public struct SettingsContentHasher: SettingsContentHashing {
 
     private func hash(_ settingsDictionary: SettingsDictionary) throws -> String {
         let filteredSettings = settingsDictionary.compactMap { key, value -> (String, SettingValue)? in
-            guard !Self.isCompilationCacheSetting(key) else { return nil }
+            guard !Self.isCompilationCacheSetting(key), key != Self.prefixMappingRootDirectorySetting else { return nil }
             let filteredValue = filterProductNeutralFlags(from: value)
             return filteredValue.map { (key, $0) }
         }
@@ -71,6 +71,15 @@ public struct SettingsContentHasher: SettingsContentHashing {
     private static func isCompilationCacheSetting(_ key: String) -> Bool {
         key.hasPrefix("COMPILATION_CACHE_")
     }
+
+    /// The root directory `XcodeCachePrefixMappingWorkspaceMapper` writes for the
+    /// `SWIFT_OTHER_PREFIX_MAPPINGS` and `CLANG_OTHER_PREFIX_MAPPINGS` it generates.
+    ///
+    /// Those mappings reference this setting instead of embedding the path, and are
+    /// hashed as written. The path itself differs between checkouts of the same
+    /// repository, git worktrees included, while the placeholders it maps to, which are
+    /// what reach the built product, don't.
+    private static let prefixMappingRootDirectorySetting = "TUIST_PREFIX_MAPPING_ROOT_DIR"
 
     private func filterProductNeutralFlags(from value: SettingValue) -> SettingValue? {
         guard case let .array(elements) = value else {

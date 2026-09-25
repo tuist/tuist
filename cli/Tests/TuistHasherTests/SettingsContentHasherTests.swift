@@ -250,4 +250,50 @@ struct SettingsContentHasherCompilationCacheTests {
         // When / Then
         #expect(try await subject.hash(settings: plain) != subject.hash(settings: withRealFlag))
     }
+
+    /// Git worktrees of one repository differ only in the root directory that the
+    /// generated prefix mappings reference, and must land on the same hash.
+    @Test func hash_ignoresPrefixMappingRootDirectory() async throws {
+        // Given
+        let subject = makeSubject()
+        let mappings: SettingValue = .array([
+            "$(inherited)",
+            "\"$(TUIST_PREFIX_MAPPING_ROOT_DIR)/Tuist/.build=/^spm\"",
+            "\"$(TUIST_PREFIX_MAPPING_ROOT_DIR)=/^root\"",
+        ])
+        let mainCheckout = settings(base: [
+            "TUIST_PREFIX_MAPPING_ROOT_DIR": .string("/Users/dev/app"),
+            "SWIFT_OTHER_PREFIX_MAPPINGS": mappings,
+            "CLANG_OTHER_PREFIX_MAPPINGS": mappings,
+        ])
+        let worktree = settings(base: [
+            "TUIST_PREFIX_MAPPING_ROOT_DIR": .string("/Users/dev/worktrees/feature branch"),
+            "SWIFT_OTHER_PREFIX_MAPPINGS": mappings,
+            "CLANG_OTHER_PREFIX_MAPPINGS": mappings,
+        ])
+
+        // When / Then
+        #expect(try await subject.hash(settings: mainCheckout) == subject.hash(settings: worktree))
+    }
+
+    /// Both sides of a mapping reach the built product: `/repo=/^shared` records
+    /// `/^shared/Shared/main.swift` where `/repo/Shared=/^shared` records `/^shared/main.swift`.
+    @Test func hash_keepsPrefixMappingValues() async throws {
+        // Given
+        let subject = makeSubject()
+        let repository = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/repo=/^shared"]),
+        ])
+        let sharedDirectory = settings(base: [
+            "SWIFT_OTHER_PREFIX_MAPPINGS": .array(["$(inherited)", "/repo/Shared=/^shared"]),
+        ])
+        let unmapped = settings(base: [:])
+
+        // When
+        let repositoryHash = try await subject.hash(settings: repository)
+
+        // Then
+        #expect(try await repositoryHash != subject.hash(settings: sharedDirectory))
+        #expect(try await repositoryHash != subject.hash(settings: unmapped))
+    }
 }

@@ -28,6 +28,10 @@ registry:
   image:
     tag: validation
 
+runnersController:
+  image:
+    tag: validation
+
 runnersFleet:
   runnerImageSemver: validation
 
