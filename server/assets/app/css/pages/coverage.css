@@ -199,25 +199,18 @@
 }
 
 /* Paired lists — where the latest commit is thinnest, and where coverage
-   rose and fell most — as the Tests page pairs its test case lists. */
+   rose and fell most — stacked, so file paths keep the card's full width
+   and an empty list takes one line rather than half the card. */
 #coverage,
 #coverage-detail {
   & [data-part="movements-sections"],
   & [data-part="gaps-sections"] {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     gap: var(--noora-spacing-3);
 
     & > * {
-      /* Tables shrink with their column rather than widening the row. */
-      flex: 1 1 0;
       min-width: 0;
-    }
-
-    @media (max-width: 768px) {
-      & {
-        flex-direction: column;
-      }
     }
   }
 
