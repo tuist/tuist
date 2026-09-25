@@ -4,7 +4,7 @@
 
 setup() {
   ROOT="$(git rev-parse --show-toplevel)"
-  export STATE="$BATS_TEST_TMPDIR/state" SEEDS="$BATS_TEST_TMPDIR/seeds" NETBOOT="$BATS_TEST_TMPDIR/netboot"
+  export STATE="$BATS_TEST_TMPDIR/state" SEEDS="$BATS_TEST_TMPDIR/seeds" NETBOOT="$BATS_TEST_TMPDIR/netboot" PEER_WAIT=0
   mkdir -p "$SEEDS" "$NETBOOT"
   echo ipxe >"$NETBOOT/snponly.efi"
   echo shim >"$NETBOOT/snponly-shim.efi"
@@ -130,6 +130,88 @@ EOF
   run prepare
   [ "$status" -eq 0 ]
   [ "$(wc -l <"$BATS_TEST_TMPDIR/downloads")" -eq 2 ]
+}
+
+# A freshly installed edge fetches the ISO from another edge over the link the
+# edges' keepalived speaks over, at the rack's own speed, and from the internet
+# only when no edge has it.
+edge_link() {
+  bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$bin"
+  cat >"$bin/ip" <<'EOF'
+#!/bin/sh
+case "$*" in
+  "-o -4 addr show dev vrrp0") echo "8: vrrp0    inet 10.255.255.2/29 scope global vrrp0" ;;
+esac
+EOF
+  # The other edge at .1 offers the ISO its checksum file names; nothing
+  # answers at the link's other addresses.
+  cat >"$bin/curl" <<'EOF'
+#!/bin/sh
+out=
+while [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; -*) shift;; *) url="$1"; shift;; esac; done
+echo "$url" >>"$BATS_TEST_TMPDIR/fetched"
+case "$url" in
+  http://10.255.255.1:8480/ubuntu.iso.sha256) echo "${PEER_SUM:-good}" ;;
+  http://10.255.255.1:8480/ubuntu.iso) echo "${PEER_ISO:-iso bytes}" >"$out" ;;
+  http://10.255.255.*) exit 7 ;;
+  *) echo "iso bytes" >"$out" ;;
+esac
+EOF
+  cat >"$bin/bsdtar" <<'EOF'
+#!/bin/sh
+echo "extracted $3"
+EOF
+  cat >"$bin/sha256sum" <<'EOF'
+#!/bin/sh
+read -r sum file
+[ "$sum" = good ] && ! grep -q corrupt "$file"
+EOF
+  chmod +x "$bin"/*
+  PATH="$bin:$PATH"
+  ISO_URL=https://releases.example/ubuntu.iso ISO_SHA256=good BOOT_ADDRESS=192.168.50.1 HTTP_PORT=8480
+}
+
+@test "a fresh edge fetches the ISO from another edge over the edges' link, not the internet" {
+  edge_link
+  run prepare
+  [ "$status" -eq 0 ]
+  [ "$(cat "$STATE/http/ubuntu/ubuntu.iso")" = "iso bytes" ]
+  grep -qx "http://10.255.255.1:8480/ubuntu.iso" "$BATS_TEST_TMPDIR/fetched"
+  [ -z "$(grep -e releases.example -e 10.255.255.2: "$BATS_TEST_TMPDIR/fetched")" ]
+}
+
+@test "an edge whose ISO is another release, or does not verify, is passed over for the internet" {
+  edge_link
+  export PEER_SUM=other
+  run prepare
+  [ "$status" -eq 0 ]
+  [ -z "$(grep -x http://10.255.255.1:8480/ubuntu.iso "$BATS_TEST_TMPDIR/fetched")" ]
+  grep -qx "https://releases.example/ubuntu.iso" "$BATS_TEST_TMPDIR/fetched"
+
+  rm -rf "$STATE" "$BATS_TEST_TMPDIR/fetched"
+  export PEER_SUM=good PEER_ISO=corrupt
+  run prepare
+  [ "$status" -eq 0 ]
+  [ "$(cat "$STATE/http/ubuntu/ubuntu.iso")" = "iso bytes" ]
+  grep -qx "https://releases.example/ubuntu.iso" "$BATS_TEST_TMPDIR/fetched"
+}
+
+@test "an edge offers the other edges its verified ISO, and nothing else, on its own link address" {
+  edge_link
+  cat >"$bin/busybox-extras" <<'EOF'
+#!/bin/sh
+echo "$@" >"$BATS_TEST_TMPDIR/httpd"
+EOF
+  chmod +x "$bin/busybox-extras"
+  prepare
+  [ "$(ls "$STATE/peer" | tr '\n' ' ')" = "ubuntu.iso ubuntu.iso.sha256 " ]
+  [ "$(cat "$STATE/peer/ubuntu.iso.sha256")" = good ]
+  [ "$STATE/peer/ubuntu.iso" -ef "$STATE/http/ubuntu/ubuntu.iso" ]
+
+  serve_peer
+  wait
+  [ "$(cat "$BATS_TEST_TMPDIR/httpd")" = "httpd -f -p 10.255.255.2:8480 -h $STATE/peer" ]
 }
 
 # A machine whose stick finds no install published announces itself, so the
