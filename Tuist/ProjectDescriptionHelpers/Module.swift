@@ -394,7 +394,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
+             .acceptanceTesting, .simulator, .testing, .environmentTesting,
              .constants, .environment, .swifterPMCore,
              .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe, .macOSSDK,

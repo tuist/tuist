@@ -24,6 +24,15 @@ import Testing
         })
     }
 
+    @Test(.timeLimit(.minutes(1))) func finishesWhenCommandsWriteOutputAndExitImmediately() async throws {
+        for iteration in 0 ..< 300 {
+            let output = try await CommandRunner()
+                .run(arguments: ["/bin/sh", "-c", "printf 'output \(iteration)'"])
+                .concatenatedString()
+            #expect(output == "output \(iteration)")
+        }
+    }
+
     @Test func reportsNonzeroExitWithStandardError() async throws {
         let stream = CommandRunner().run(arguments: ["/bin/sh", "-c", "printf failure >&2; exit 3"])
 
