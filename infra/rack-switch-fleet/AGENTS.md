@@ -746,7 +746,9 @@ files no longer match it:
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
 - With `management.edge.netboot`, x86-64 UEFI firmware on the provisioning
-  range also gets iPXE (`snponly.efi`), and iPXE its script, from the
+  range also gets iPXE's Secure Boot shim (`snponly-shim.efi`, which loads
+  `snponly.efi`, with the name kept in the packet's file field), and iPXE its
+  script, from the
   provisioning address, where the rack boot server (`rackLinuxFleet.boot` in
   the tuist chart, on both edges) serves the installs the operator publishes,
   and the path translates the provisioning range onto the node's uplinks,

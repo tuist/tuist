@@ -39,7 +39,8 @@ const (
 	amtActivationBackoff = time.Hour
 	amtObserveInterval   = time.Hour
 	// amtAddressInterval is how soon an activated AMT without an address, which
-	// it takes by DHCP after the activation, is looked at again.
+	// it takes by DHCP after the activation, is looked at again, and how long
+	// AMT given its static address is left before it is given it again.
 	amtAddressInterval = 2 * time.Minute
 
 	amtPreProvisioning = "pre-provisioning"
@@ -102,7 +103,8 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	now := r.now()
 	status := host.Status.AMT
 	activate := status == nil || status.ControlMode == "" || status.ControlMode == amtPreProvisioning || status.ControlMode == amtClientControl
-	configure := !activate && (!status.MEBxPasswordSet || (address != nil && status.Address != address.ip))
+	// AMT without a link reports no address, whatever it was given.
+	configure := !activate && (!status.MEBxPasswordSet || (address != nil && status.Link != "down" && status.Address != address.ip))
 	switch {
 	case activate:
 		if status != nil && status.ActivationError != "" && status.LastActivation != nil {
@@ -111,8 +113,13 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 			}
 		}
 	case configure:
-		if status.ConfigurationError != "" && status.LastConfiguration != nil {
-			if wait := status.LastConfiguration.Add(amtActivationBackoff).Sub(now); wait > 0 {
+		// AMT reports its old address for a while after it is given a static one.
+		if status.LastConfiguration != nil {
+			backoff := amtAddressInterval
+			if status.ConfigurationError != "" {
+				backoff = amtActivationBackoff
+			}
+			if wait := status.LastConfiguration.Add(backoff).Sub(now); wait > 0 {
 				return wait
 			}
 		}

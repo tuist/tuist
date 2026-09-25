@@ -2211,12 +2211,14 @@ STUB
     [[ "$output" == *"dhcp-match=set:netboot,option:client-arch,9"* ]]
     [[ "$output" == *"dhcp-userclass=set:ipxe,iPXE"* ]]
     [[ "$output" == *"dhcp-boot=tag:netboot,tag:!ipxe,snponly-shim.efi,,192.168.50.1"* ]]
+    [[ "$output" == *$'\n'"dhcp-no-override"$'\n'* ]]
     [[ "$output" == *"dhcp-boot=tag:ipxe,boot.ipxe,,192.168.50.1"* ]]
     [[ "$output" != *"vendor-class"* ]]
     jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"
     run fleet_edge_dhcp "$BATS_TEST_TMPDIR/nonetboot.json"
     [ "$status" -eq 0 ]
     [[ "$output" != *"dhcp-boot"* ]]
+    [[ "$output" != *"dhcp-no-override"* ]]
 }
 
 @test "a netbooting site translates the provisioning range onto the uplinks, and only then" {
