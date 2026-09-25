@@ -188,7 +188,7 @@ defmodule Tuist.Tests.Coverage.History do
   # chart need, not the runs and the carried ancestors each row also holds.
   defp point_rows(project_id, ref_id, opts) do
     from(c in CoverageCommit,
-      where: c.project_id == ^project_id and c.ref_id == ^ref_id and c.executable_lines > 0,
+      where: c.project_id == ^project_id and c.ref_id == ^ref_id,
       order_by: [desc: c.position],
       select: %{
         git_commit_sha: c.git_commit_sha,
@@ -204,6 +204,7 @@ defmodule Tuist.Tests.Coverage.History do
         complete: c.complete
       }
     )
+    |> Commits.comparable()
     |> in_period(opts)
     |> Repo.all()
   end

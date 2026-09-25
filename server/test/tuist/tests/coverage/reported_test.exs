@@ -461,6 +461,50 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert Commits.fully_carried?(row)
   end
 
+  test "a fully carried commit is in the branch's history and trend, and lists what it carried", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.seed_history(account, [], branch_heads: [{"main", "head"}])
+    base_run(project, account)
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+
+    {:ok, _} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1,
+        status: "success",
+        scheme: "App",
+        git_branch: "main",
+        git_remote_url_origin: CoverageFixtures.remote_url(),
+        git_commit_sha: "head",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: []
+      })
+
+    assert Commits.fully_carried?(Commits.recompute(project, "head"))
+
+    assert %{"head" => _row} = Commits.by_shas(project.id, ["head"])
+    assert "head" in Enum.map(Commits.all(project.id), & &1.git_commit_sha)
+
+    assert [%{git_commit_sha: "base", coverage: 71.4}, %{git_commit_sha: "head", coverage: 71.4, chained: true}] =
+             History.branch_points(project, "main")
+
+    assert [%{git_commit_sha: "head", measured: true, coverage: 71.4} | _] =
+             History.branch_history(project, "main").commits
+
+    assert {[%{path: "Sources/Math.swift", covered_lines: 2}, %{path: "Sources/Text.swift", covered_lines: 3}], 2} =
+             Commits.list_files(project.id, "head", 1, 10)
+
+    assert [%{name: "App", files_count: 2, covered_lines: 5, executable_lines: 7}] = Commits.targets(project.id, "head")
+
+    assert %{carried_lines: [1, 2, 3], covered_lines: 3} =
+             Commits.file_detail(project.id, "head", "Sources/Text.swift")
+  end
+
   test "carries nothing for a test one of whose files changed", %{project: project, account: account} do
     base_run(project, account)
     head_run(project, account, head_files(git_blob_id: "blob-changed"))
