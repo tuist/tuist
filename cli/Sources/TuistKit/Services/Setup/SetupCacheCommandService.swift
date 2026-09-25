@@ -600,13 +600,14 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             environmentVariables["TUIST_CAS_PREFETCH"] = "keys"
         }
 
-        // Not read by the proxy, which resolves the Xcode it loads its CAS plugin
-        // from by itself, once, when it starts. Recording the one it resolves
-        // makes a machine switched to another Xcode a changed configuration,
-        // which a running proxy has to be restarted for.
-        let developerDirectory = try? await xcodeController.systemDeveloperDirectory()
+        // The proxy loads its CAS plugin from this Xcode once, when it starts, and
+        // launchd would otherwise hand it the system-wide selection even when this
+        // job selected another Xcode through `DEVELOPER_DIR`. Passing it also makes
+        // a switch to another Xcode a changed configuration, which a running proxy
+        // has to be restarted for.
+        let developerDirectory = try? await xcodeController.developerDirectory()
         if let developerDirectory {
-            environmentVariables["TUIST_CAS_PROXY_DEVELOPER_DIR"] = developerDirectory.pathString
+            environmentVariables["DEVELOPER_DIR"] = developerDirectory.pathString
         }
 
         // One proxy per machine. Boot out any legacy per-project cache daemon so
