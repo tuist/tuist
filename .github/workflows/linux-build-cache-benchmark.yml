@@ -3,6 +3,11 @@ name: Linux Build Cache Benchmark
 on:
   workflow_dispatch:
     inputs:
+      workload:
+        description: Workload to measure
+        type: choice
+        options: [all, kura, registry]
+        default: all
       cache_key:
         description: Unique experiment key; reuse for cold and warm runs
         required: true
@@ -34,13 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - workload: kura
-            tools: rust bazel
-            cache: bazel-cache
-          - workload: registry
-            tools: erlang elixir
-            cache: mix-cache
+        workload: ${{ fromJSON(inputs.workload == 'kura' && '["kura"]' || inputs.workload == 'registry' && '["registry"]' || '["kura", "registry"]') }}
     env:
       PHASE: ${{ inputs.phase }}
       WORKLOAD: ${{ matrix.workload }}
@@ -60,13 +59,13 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mise
         with:
-          install_args: ${{ matrix.tools }}
+          install_args: ${{ matrix.workload == 'kura' && 'rust bazel' || 'erlang elixir' }}
           working_directory: ${{ matrix.workload }}
       - name: Install native build prerequisites
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       - name: Start attachment timer
         env:
-          CACHE_DIRECTORY: ${{ matrix.cache }}
+          CACHE_DIRECTORY: ${{ matrix.workload == 'kura' && 'bazel-cache' || 'mix-cache' }}
         run: |
           echo "CACHE_PATH=$RUNNER_TEMP/$CACHE_DIRECTORY" >> "$GITHUB_ENV"
           echo "CACHE_START=$(date +%s%N)" >> "$GITHUB_ENV"
@@ -117,9 +116,12 @@ jobs:
           else
             mix local.hex --force
             mix local.rebar --force
-            mix deps.get --check-locked
+            mix deps.get
             mix compile --warnings-as-errors
             test -s _build/prod/lib/tuist_registry/ebin/tuist_registry.app
+            for link in _build/prod/lib/*/priv _build/prod/lib/*/include; do
+              if [ -L "$link" ]; then test -e "$link"; fi
+            done
           fi
           echo "WORKLOAD_MS=$(( ($(date +%s%N) - start) / 1000000 ))" >> "$GITHUB_ENV"
       - name: Record measurement

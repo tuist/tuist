@@ -40,3 +40,6 @@ runs:
           test ! -e "$directory" && test ! -L "$directory"
           ln -s "$RUNNER_TEMP/mix-cache/$directory" "$directory"
         done
+        cache_root=$(readlink -f "$RUNNER_TEMP/mix-cache")
+        echo "MIX_DEPS_PATH=$cache_root/deps" >> "$GITHUB_ENV"
+        echo "MIX_BUILD_ROOT=$cache_root/_build" >> "$GITHUB_ENV"
