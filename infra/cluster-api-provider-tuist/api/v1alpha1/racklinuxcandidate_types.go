@@ -63,7 +63,7 @@ type RackLinuxCandidateStatus struct {
 	// +optional
 	LastSeen *metav1.Time `json:"lastSeen,omitempty"`
 
-	// DeclaredAs names the RackLinuxHost whose bootMAC is one of its NICs.
+	// DeclaredAs is the hostname of the RackLinuxHost named after its UUID.
 	// +optional
 	DeclaredAs string `json:"declaredAs,omitempty"`
 }
@@ -79,11 +79,12 @@ type RackLinuxCandidateStatus struct {
 // +kubebuilder:printcolumn:name="Product",type=string,priority=1,JSONPath=".status.product"
 // +kubebuilder:printcolumn:name="SeenBy",type=string,priority=1,JSONPath=".status.seenBy"
 
-// RackLinuxCandidate is a machine on a rack's management segment whose install
-// stick found no install published for it: a box to declare in
-// rackLinuxFleet.hosts, with the bootMAC it lists, rather than one whose MAC
-// someone reads off its label. The operator keeps it from the stick's
-// announcements to the boot server and drops it after a week without one.
+// RackLinuxCandidate is a machine on a rack's management segment as its install
+// stick announced it, named after its SMBIOS UUID: a box to declare in
+// rackLinuxFleet.hosts by that UUID, rather than one whose MAC someone reads
+// off its label. The RackLinuxHost declaring it takes its boot MAC and model
+// from it. The operator keeps it from the stick's announcements, and drops an
+// undeclared one after a week without one.
 type RackLinuxCandidate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

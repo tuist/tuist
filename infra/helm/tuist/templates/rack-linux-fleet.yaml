@@ -1,40 +1,42 @@
 {{- if and .Values.capi.enabled .Values.rackLinuxFleet.enabled }}
 {{- $fleetName := include "tuist.rackLinuxFleetName" . }}
-{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
-{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
-{{- $poolPrefix := required "rackLinuxFleet.pool is required; it prefixes each role's claim pool and is the environment boundary between racks" .Values.rackLinuxFleet.pool }}
 {{- /*
 Rack-owned Linux machines: one RackLinuxHost per box, rendered from
-`rackLinuxFleet.hosts`, and one MachineDeployment per role claiming from the
-pool `<pool>-<role>`. A role's labels and taints come from
-`rackLinuxFleet.roles.<role>` and reach the Node at its first registration.
+`rackLinuxFleet.hosts` and named after the machine's SMBIOS UUID, which
+`kubectl get rlc` lists once the box's install stick has announced it. The
+operator keeps a CAPI Machine for each host, which makes it a node. A role's
+labels and taints come from `rackLinuxFleet.roles.<role>` and reach the Node at
+its first registration.
 */ -}}
-{{- $roles := dict }}
 {{- range $host := .Values.rackLinuxFleet.hosts }}
-{{- $hostName := required "each rackLinuxFleet.hosts entry needs a name" $host.name }}
-{{- $role := required (printf "rackLinuxFleet.hosts[%s].role is required" $hostName) $host.role }}
-{{- $_ := set $roles $role (add1 (get $roles $role | default 0)) }}
-{{- if empty $host.tailnetTags }}
-{{- fail (printf "rackLinuxFleet.hosts[%s].tailnetTags is required: a device is only this host when it carries them" $hostName) }}
+{{- $uuid := lower (required "each rackLinuxFleet.hosts entry needs the machine's uuid" $host.uuid) }}
+{{- if not (regexMatch "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" $uuid) }}
+{{- fail (printf "rackLinuxFleet.hosts[].uuid %q is not an SMBIOS UUID" $host.uuid) }}
+{{- end }}
+{{- $hostname := required (printf "rackLinuxFleet.hosts[%s].hostname is required" $uuid) $host.hostname }}
+{{- $role := required (printf "rackLinuxFleet.hosts[%s].role is required" $hostname) $host.role }}
+{{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
+{{- $tags := $host.tailnetTags | default $roleConfig.tailnetTags | default $.Values.rackLinuxFleet.tailnetTags }}
+{{- if empty $tags }}
+{{- fail (printf "rackLinuxFleet.hosts[%s].tailnetTags (or its role's, or rackLinuxFleet.tailnetTags) is required: a device is only this host when it carries them" $hostname) }}
 {{- end }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: RackLinuxHost
 metadata:
-  name: {{ $hostName }}
+  name: {{ $uuid }}
   namespace: {{ $.Release.Namespace }}
   annotations:
     helm.sh/resource-policy: keep
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: rack-linux-fleet
-    tuist.dev/rack-pool: {{ printf "%s-%s" $poolPrefix $role }}
 spec:
-  pool: {{ printf "%s-%s" $poolPrefix $role }}
+  hostname: {{ $hostname }}
   role: {{ $role }}
   sshUser: {{ $host.sshUser | default $.Values.rackLinuxFleet.sshUser | default "tuist" }}
   location:
-    site: {{ required (printf "rackLinuxFleet.hosts[%s].site is required; it composes the providerID" $hostName) (coalesce $host.site $.Values.rackLinuxFleet.site) | quote }}
+    site: {{ required (printf "rackLinuxFleet.hosts[%s].site is required; it composes the providerID" $hostname) (coalesce $host.site $.Values.rackLinuxFleet.site) | quote }}
     {{- with $host.rack }}
     rack: {{ . | quote }}
     {{- end }}
@@ -43,90 +45,37 @@ spec:
     {{- end }}
   tailnet:
     tags:
-      {{- toYaml $host.tailnetTags | nindent 6 }}
+      {{- toYaml $tags | nindent 6 }}
   {{- with $host.bootMAC }}
   bootMAC: {{ lower . | quote }}
   {{- end }}
-  {{- if and $host.amt $host.amt.activate }}
-  amt:
-    activate: true
-    {{- with $host.amt.address }}
-    address: {{ . | quote }}
-    gateway: {{ required (printf "rackLinuxFleet.hosts[%s].amt.gateway is required with amt.address" $hostName) $host.amt.gateway | quote }}
+  {{- if or $roleConfig.nodeLabels $roleConfig.nodeTaints }}
+  node:
+    {{- with $roleConfig.nodeLabels }}
+    labels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $roleConfig.nodeTaints }}
+    taints:
+      {{- toYaml . | nindent 6 }}
     {{- end }}
   {{- end }}
-{{- end }}
-{{- range $role := keys $roles | sortAlpha }}
-{{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
-{{- $machineSpec := dict "adoptPool" (printf "%s-%s" $poolPrefix $role) "fleetName" $fleetName }}
-{{- with $roleConfig.nodeLabels }}
-{{- $_ := set $machineSpec "nodeLabels" . }}
-{{- end }}
-{{- with $roleConfig.nodeTaints }}
-{{- $_ := set $machineSpec "nodeTaints" . }}
-{{- end }}
-{{- $deploymentName := printf "%s-%s" $fleetName $role }}
-{{- $templateName := printf "%s-%s" $deploymentName (toYaml $machineSpec | sha256sum | trunc 8) }}
----
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: RackLinuxMachineTemplate
-metadata:
-  name: {{ $templateName }}
-  namespace: {{ $.Release.Namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-  labels:
-    {{- include "tuist.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: rack-linux-fleet
-    tuist.dev/fleet: {{ $deploymentName }}
-spec:
-  template:
-    spec:
-      {{- toYaml $machineSpec | nindent 6 }}
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineDeployment
-metadata:
-  name: {{ $deploymentName }}
-  namespace: {{ $.Release.Namespace }}
-  # A chart revision without the rack (a rollback, another branch's deploy)
-  # leaves its nodes joined.
-  annotations:
-    helm.sh/resource-policy: keep
-  labels:
-    {{- include "tuist.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: rack-linux-fleet
-    tuist.dev/fleet: {{ $deploymentName }}
-    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
-    tuist.dev/rack-pool: {{ printf "%s-%s" $poolPrefix $role }}
-spec:
-  clusterName: {{ $clusterName }}
-  # The operator scales it up as the pool's hosts come onto the tailnet, so a
-  # host declared before it is installed does not hold up a deploy; the chart
-  # keeps whatever it scaled to.
-  {{- $live := lookup "cluster.x-k8s.io/v1beta1" "MachineDeployment" $.Release.Namespace $deploymentName }}
-  replicas: {{ if $live }}{{ $live.spec.replicas | default 0 }}{{ else }}0{{ end }}
-  # A host is re-joined by deleting its Machine; the replacement claims the
-  # same box.
-  strategy:
-    type: OnDelete
-  selector:
-    matchLabels:
-      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
-      tuist.dev/fleet: {{ $deploymentName }}
-  template:
-    metadata:
-      labels:
-        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
-        tuist.dev/fleet: {{ $deploymentName }}
-    spec:
-      clusterName: {{ $clusterName }}
-      bootstrap:
-        dataSecretName: {{ $bootstrapSecret }}
-      infrastructureRef:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-        kind: RackLinuxMachineTemplate
-        name: {{ $templateName }}
+  online: {{ ternary $host.online true (hasKey $host "online") }}
+  {{- with $host.reinstallGeneration }}
+  reinstallGeneration: {{ . }}
+  {{- end }}
+  {{- with $host.amt }}
+  amt:
+    {{- if hasKey . "activate" }}
+    activate: {{ .activate }}
+    {{- end }}
+    {{- with .address }}
+    address: {{ . | quote }}
+    {{- end }}
+    {{- with .gateway }}
+    gateway: {{ . | quote }}
+    {{- end }}
+  {{- end }}
 {{- end }}
 {{- if .Values.rackLinuxFleet.sshExternalSecret.enabled }}
 ---
@@ -214,26 +163,73 @@ spec:
 {{- if .Values.rackLinuxFleet.boot.enabled }}
 {{- $boot := .Values.rackLinuxFleet.boot }}
 {{- $bootSite := required "rackLinuxFleet.boot runs on the site's edge node; set rackLinuxFleet.site or boot.site" (coalesce $boot.site .Values.rackLinuxFleet.site) }}
+{{- $bootName := printf "%s-boot" $fleetName }}
 ---
+# The rack's boot server (cmd/rack-boot in the operator's image), on each edge
+# node of the site: TFTP and HTTP on the provisioning address, which the edge
+# holding it answers on, serving the installs the operator publishes to the
+# <fleet>-boot Secret. The edge node's DHCP points netbooting firmware here
+# (management.edge.netboot in the site definition).
 apiVersion: v1
-kind: ConfigMap
+kind: ServiceAccount
 metadata:
-  name: {{ $fleetName }}-boot
+  name: {{ $bootName }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: rack-boot
-data:
-  rack-boot.sh: |
-    {{- .Files.Get "files/rack-boot.sh" | nindent 4 }}
 ---
-# The rack's boot server, on its edge node: TFTP and HTTP on the provisioning
-# address, serving the installs the operator publishes to the <fleet>-boot
-# Secret (files/rack-boot.sh). The edge node's DHCP points netbooting firmware
-# here (management.edge.netboot in the site definition).
+# It reads the boot Secret and nothing else of the namespace's Secrets; lists
+# the machines install sticks announce as RackLinuxCandidates; and reports on a
+# host's status.boot that its install is servable and whom its seed went to.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $bootName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-boot
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [{{ $bootName }}]
+    verbs: [get, list, watch]
+  - apiGroups: [infrastructure.cluster.x-k8s.io]
+    resources: [racklinuxcandidates]
+    verbs: [get, list, watch, create]
+  - apiGroups: [infrastructure.cluster.x-k8s.io]
+    resources: [racklinuxcandidates/status]
+    verbs: [patch]
+  - apiGroups: [infrastructure.cluster.x-k8s.io]
+    resources: [racklinuxhosts]
+    verbs: [get]
+  - apiGroups: [infrastructure.cluster.x-k8s.io]
+    resources: [racklinuxhosts/status]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $bootName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-boot
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $bootName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $bootName }}
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ $fleetName }}-boot
+  name: {{ $bootName }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: rack-boot
@@ -247,14 +243,12 @@ spec:
       labels:
         app.kubernetes.io/component: rack-boot
         tuist.dev/rack-edge: {{ $bootSite }}
-      annotations:
-        checksum/script: {{ .Files.Get "files/rack-boot.sh" | sha256sum }}
     spec:
+      serviceAccountName: {{ $bootName }}
       hostNetwork: true
       # The node's own resolvers: a rack node has no route to the cluster's DNS
       # Service, and the ISO comes from releases.ubuntu.com.
       dnsPolicy: Default
-      automountServiceAccountToken: false
       enableServiceLinks: false
       nodeSelector:
         tuist.dev/rack-edge: {{ $bootSite }}
@@ -269,48 +263,54 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
         - name: boot
-          image: "{{ $boot.image.repository }}:{{ required "rackLinuxFleet.boot.image.tag is required" $boot.image.tag }}"
-          imagePullPolicy: IfNotPresent
-          command: [sh, /opt/rack-boot/rack-boot.sh]
+          image: "{{ .Values.macosFleet.image.repository }}:{{ .Values.macosFleet.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.macosFleet.image.pullPolicy }}
+          command: [/usr/local/bin/rack-boot]
+          args:
+            - --address={{ required "rackLinuxFleet.boot.address is the site's provisioning address" $boot.address }}
+            - --http-port={{ $boot.httpPort }}
+            - --iso-url={{ required "rackLinuxFleet.boot.iso.url is required" $boot.iso.url }}
+            - --iso-sha256={{ required "rackLinuxFleet.boot.iso.sha256 is required" $boot.iso.sha256 }}
+            - --secret={{ $bootName }}
+            - --site={{ $bootSite }}
           env:
-            - name: BOOT_ADDRESS
-              value: {{ required "rackLinuxFleet.boot.address is the site's provisioning address" $boot.address | quote }}
-            - name: HTTP_PORT
-              value: {{ $boot.httpPort | quote }}
-            - name: ISO_URL
-              value: {{ required "rackLinuxFleet.boot.iso.url is required" $boot.iso.url | quote }}
-            - name: ISO_SHA256
-              value: {{ required "rackLinuxFleet.boot.iso.sha256 is required" $boot.iso.sha256 | quote }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           securityContext:
+            # Root for the state directory on the node; the only capability is
+            # TFTP's port 69.
+            runAsUser: 0
+            runAsNonRoot: false
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-              # TFTP's port 69.
               add: [NET_BIND_SERVICE]
           resources:
             {{- toYaml $boot.resources | nindent 12 }}
           volumeMounts:
-            - name: script
-              mountPath: /opt/rack-boot
-              readOnly: true
-            - name: seeds
-              mountPath: /etc/rack-boot/seeds
-              readOnly: true
             - name: state
               mountPath: /var/lib/tuist-rack-boot
+            - name: kubernetes-api
+              mountPath: /etc/tuist/kubernetes-api
+              readOnly: true
       volumes:
-        - name: script
-          configMap:
-            name: {{ $fleetName }}-boot
-        # Written by the operator; absent until it publishes a first install.
-        - name: seeds
-          secret:
-            secretName: {{ $fleetName }}-boot
-            optional: true
         # On the node, so a restarted pod does not download the ISO again.
         - name: state
           hostPath:
             path: /var/lib/tuist-rack-boot
             type: DirectoryOrCreate
+        # The API server the node's kubelet uses, which the operator's converge
+        # writes: a rack node reaches no Service address.
+        - name: kubernetes-api
+          hostPath:
+            path: /etc/tuist/kubernetes-api
+            type: File
 {{- end }}
 {{- end }}

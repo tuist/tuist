@@ -19,6 +19,7 @@ type fakeAPI struct {
 	renamed    map[string]string
 	deleted    []string
 	keyRequest []byte
+	revoked    []string
 }
 
 func (f *fakeAPI) server(t *testing.T) *httptest.Server {
@@ -49,6 +50,10 @@ func (f *fakeAPI) server(t *testing.T) *httptest.Server {
 			body, _ := io.ReadAll(r.Body)
 			f.keyRequest = body
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "kNEW", "key": "tskey-auth-kNEW-secret", "expires": "2026-09-24T00:00:00Z"})
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v2/tailnet/-/keys/kUSED":
+			w.WriteHeader(http.StatusNotFound)
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/v2/tailnet/-/keys/"):
+			f.revoked = append(f.revoked, strings.TrimPrefix(r.URL.Path, "/api/v2/tailnet/-/keys/"))
 		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/v2/device/"):
 			f.deleted = append(f.deleted, strings.TrimPrefix(r.URL.Path, "/api/v2/device/"))
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/name"):
@@ -183,5 +188,23 @@ func TestClientMintsASingleUseTaggedKey(t *testing.T) {
 	}
 	if req.ExpirySeconds != 10800 || req.Description != "rack install ber1-svc" {
 		t.Fatalf("request %+v", req)
+	}
+}
+
+// A join key an install no longer carries is revoked, and one the tailnet no
+// longer knows, because a host used it or it expired, is already gone.
+func TestClientRevokesAJoinKey(t *testing.T) {
+	api := &fakeAPI{}
+	srv := api.server(t)
+	c := &Client{ClientID: "id", ClientSecret: "secret", BaseURL: srv.URL}
+
+	if err := c.DeleteAuthKey(context.Background(), "kOLD"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteAuthKey(context.Background(), "kUSED"); err != nil {
+		t.Fatalf("a key the tailnet no longer knows: %v", err)
+	}
+	if len(api.revoked) != 1 || api.revoked[0] != "kOLD" {
+		t.Fatalf("revoked %v", api.revoked)
 	}
 }

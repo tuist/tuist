@@ -73,3 +73,11 @@ func (s *SecretTailnetAPI) CreateAuthKey(ctx context.Context, tags []string, exp
 	}
 	return c.CreateAuthKey(ctx, tags, expiry, description)
 }
+
+func (s *SecretTailnetAPI) DeleteAuthKey(ctx context.Context, id string) error {
+	c, err := s.current(ctx)
+	if err != nil {
+		return err
+	}
+	return c.DeleteAuthKey(ctx, id)
+}

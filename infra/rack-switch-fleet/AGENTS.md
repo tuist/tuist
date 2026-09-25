@@ -767,8 +767,8 @@ The pod uses host networking, with NET_ADMIN (and NET_RAW for keepalived and
 dnsmasq, and NET_BIND_SERVICE for dnsmasq) rather than privileged. The kernel
 loads the bonding and VLAN modules on the first `ip link add`. Its image
 (`edge/Dockerfile`, built by `rack-edge-image.yml`) carries only dnsmasq,
-iproute2, nftables and keepalived, plus what the boot server runs from the
-same image: busybox's httpd, curl, bsdtar and Ubuntu's build of iPXE.
+iproute2, nftables and keepalived. The rack's boot server runs from the
+operator's image instead, which carries iPXE's Secure Boot build.
 
 An edge node is declared in `rackLinuxFleet.hosts` of the tuist chart's values
 for the rack's environment, with the `edge` role, whose

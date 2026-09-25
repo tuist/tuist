@@ -16,17 +16,17 @@ rack_host_json() {
     echo "error: rackLinuxFleet is not enabled in $values" >&2
     return 2
   fi
-  entry="$(jq -c --arg h "$host" '(.hosts // [])[] | select(.name == $h)' <<<"$fleet")"
+  entry="$(jq -c --arg h "$host" '(.hosts // [])[] | select(.hostname == $h or ((.uuid // "") | ascii_downcase) == ($h | ascii_downcase))' <<<"$fleet")"
   if [ -z "$entry" ]; then
     echo "error: $host is not in rackLinuxFleet.hosts in $values" >&2
-    echo "known hosts: $(jq -r '[(.hosts // [])[].name] | join(", ")' <<<"$fleet")" >&2
+    echo "known hosts: $(jq -r '[(.hosts // [])[].hostname] | join(", ")' <<<"$fleet")" >&2
     return 2
   fi
   jq -n --argjson fleet "$fleet" --argjson host "$entry" --arg env "$env" '{
-    name: $host.name,
+    name: $host.hostname,
     role: $host.role,
     sshUser: ($host.sshUser // $fleet.sshUser // "tuist"),
-    tailnetTags: ($host.tailnetTags // []),
+    tailnetTags: ($host.tailnetTags // $fleet.roles[$host.role].tailnetTags // $fleet.tailnetTags // []),
     vault: ("tuist-k8s-" + $env),
     sshItem: ($fleet.sshExternalSecret.item // ""),
     tailscaleItem: ($fleet.tailscale.externalSecret.item // "")

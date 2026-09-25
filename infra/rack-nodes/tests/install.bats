@@ -48,9 +48,13 @@ render() {
   render_autoinstall "$BATS_TEST_TMPDIR/seed" "${1:-$HOST_JSON}" "$BATS_TEST_TMPDIR/password" "$BATS_TEST_TMPDIR/keys" "$BATS_TEST_TMPDIR/tailnet-key" kTEST1CNTRL
 }
 
-@test "the host comes from the env's chart values" {
+@test "the host comes from the env's chart values, by its hostname or its UUID" {
+  run rack_host_json staging 44312e80-1dc6-11f1-853e-8f903547d200
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.name' <<<"$output")" = ber1-edge-a ]
   run rack_host_json staging ber1-edge-a
   [ "$status" -eq 0 ]
+  [ "$(jq -r '.name' <<<"$output")" = ber1-edge-a ]
   [ "$(jq -r '.role' <<<"$output")" = edge ]
   [ "$(jq -c '.tailnetTags' <<<"$output")" = '["tag:tuist-rack-edge"]' ]
   [ "$(jq -r '.vault' <<<"$output")" = tuist-k8s-staging ]

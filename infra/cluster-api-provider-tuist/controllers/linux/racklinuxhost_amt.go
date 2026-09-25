@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 )
@@ -61,6 +62,33 @@ type RackAMT struct {
 	// the provisioning certificate as a base64 PKCS#12 (`pfx`) and its
 	// `password`.
 	ProvisioningSecret string
+	// Products are the hardware models, as their SMBIOS vendor and product
+	// name, whose AMT is activated unless a host sets spec.amt.activate.
+	Products []string
+	// AddressRange is the range, a CIDR, the operator gives activated AMT
+	// static addresses from, and Gateway the gateway of the segment it is on
+	// with the segment's prefix length (192.168.50.1/24), which the address
+	// AMT gets carries. A host's spec.amt.address takes precedence.
+	AddressRange string
+	Gateway      string
+}
+
+// amtWanted reports whether the operator activates the host's AMT:
+// spec.amt.activate when set, else whether the machine is a model the fleet
+// lists.
+func (r *RackLinuxHostReconciler) amtWanted(host *infrav1.RackLinuxHost) bool {
+	if host.Spec.AMT.Activate != nil {
+		return *host.Spec.AMT.Activate
+	}
+	if r.AMT == nil || host.Status.Hardware == nil {
+		return false
+	}
+	for _, product := range r.AMT.Products {
+		if product != "" && product == host.Status.Hardware.Product {
+			return true
+		}
+	}
+	return false
 }
 
 // amtRun is what a run of the AMT script does besides reading AMT's state,
@@ -82,7 +110,7 @@ type amtRun struct {
 // static address), and otherwise reads AMT's state now and then. It returns
 // when to look again.
 func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav1.RackLinuxHost) time.Duration {
-	if host.Spec.AMT == nil || !host.Spec.AMT.Activate {
+	if !r.amtWanted(host) {
 		conditions.Delete(host, AMTActivatedCondition)
 		return 0
 	}
@@ -94,7 +122,7 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	if host.Status.Tailnet == nil || !host.Status.Tailnet.Connected {
 		return 0
 	}
-	address, err := amtStaticAddress(host.Spec.AMT)
+	address, err := r.amtAddress(ctx, host)
 	if err != nil {
 		conditions.MarkFalse(host, AMTActivatedCondition, "InvalidAddress", clusterv1.ConditionSeverityWarning, "%v", err)
 		return 0
@@ -242,19 +270,133 @@ type amtAddress struct {
 
 // amtStaticAddress is the static address spec asks for, nil when it asks for
 // none.
-func amtStaticAddress(spec *infrav1.RackLinuxHostAMT) (*amtAddress, error) {
-	if spec.Address == "" {
-		return nil, nil
-	}
-	ip, network, err := net.ParseCIDR(spec.Address)
+func amtStaticAddress(cidr, gatewayAddress string) (*amtAddress, error) {
+	ip, network, err := net.ParseCIDR(cidr)
 	if err != nil || ip.To4() == nil {
-		return nil, fmt.Errorf("spec.amt.address %q is not an IPv4 address with its prefix length", spec.Address)
+		return nil, fmt.Errorf("the AMT address %q is not an IPv4 address with its prefix length", cidr)
 	}
-	gateway := net.ParseIP(spec.Gateway)
+	gateway := net.ParseIP(gatewayAddress)
 	if gateway == nil || gateway.To4() == nil || !network.Contains(gateway) {
-		return nil, fmt.Errorf("spec.amt.address %s needs spec.amt.gateway, an IPv4 address in %s", spec.Address, network)
+		return nil, fmt.Errorf("the AMT address %s needs a gateway, an IPv4 address in %s", cidr, network)
 	}
 	return &amtAddress{ip: ip.String(), mask: net.IP(network.Mask).String(), gateway: gateway.String()}, nil
+}
+
+// amtAddress is the static address the host's AMT gets: spec.amt.address, or
+// one the operator takes from the fleet's range and records in
+// status.amt.assignedAddress, so the host keeps it. A host without either
+// leaves AMT on DHCP.
+func (r *RackLinuxHostReconciler) amtAddress(ctx context.Context, host *infrav1.RackLinuxHost) (*amtAddress, error) {
+	gateway := host.Spec.AMT.Gateway
+	if gateway == "" && r.AMT != nil {
+		gateway, _, _ = strings.Cut(r.AMT.Gateway, "/")
+	}
+	if host.Spec.AMT.Address != "" {
+		address, err := amtStaticAddress(host.Spec.AMT.Address, gateway)
+		if err == nil {
+			r.assignAMTAddress(host, host.Spec.AMT.Address)
+		}
+		return address, err
+	}
+	if r.AMT == nil || r.AMT.AddressRange == "" {
+		return nil, nil
+	}
+	assigned, err := r.allocateAMTAddress(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	r.assignAMTAddress(host, assigned)
+	return amtStaticAddress(assigned, gateway)
+}
+
+func (r *RackLinuxHostReconciler) assignAMTAddress(host *infrav1.RackLinuxHost, cidr string) {
+	if host.Status.AMT == nil {
+		host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{}
+	}
+	host.Status.AMT.AssignedAddress = cidr
+}
+
+// allocateAMTAddress takes the host an address from the fleet's range: the one
+// it was given before while it is still in the range and no other host holds
+// it, else the one AMT has now if that is free, else the lowest free one.
+func (r *RackLinuxHostReconciler) allocateAMTAddress(ctx context.Context, host *infrav1.RackLinuxHost) (string, error) {
+	_, network, err := net.ParseCIDR(r.AMT.AddressRange)
+	if err != nil || network.IP.To4() == nil {
+		return "", fmt.Errorf("the fleet's AMT address range %q is not an IPv4 CIDR", r.AMT.AddressRange)
+	}
+	prefix, _ := network.Mask.Size()
+	gateway := net.ParseIP(r.AMT.Gateway)
+	if ip, segment, err := net.ParseCIDR(r.AMT.Gateway); err == nil {
+		if !segment.Contains(network.IP) {
+			return "", fmt.Errorf("the fleet's AMT address range %s is not on the segment of its gateway %s", r.AMT.AddressRange, r.AMT.Gateway)
+		}
+		gateway = ip
+		prefix, _ = segment.Mask.Size()
+	}
+	var reader client.Reader = r.Client
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+	hosts := &infrav1.RackLinuxHostList{}
+	if err := reader.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
+		return "", fmt.Errorf("list rack Linux hosts: %w", err)
+	}
+	taken := map[string]bool{}
+	for i := range hosts.Items {
+		h := &hosts.Items[i]
+		if h.Name == host.Name {
+			continue
+		}
+		if h.Spec.AMT.Address != "" {
+			taken[strings.Split(h.Spec.AMT.Address, "/")[0]] = true
+		}
+		if h.Status.AMT != nil && h.Status.AMT.AssignedAddress != "" {
+			taken[strings.Split(h.Status.AMT.AssignedAddress, "/")[0]] = true
+		}
+	}
+	usable := func(ip net.IP) bool {
+		ip4 := ip.To4()
+		return ip4 != nil && network.Contains(ip4) && !ip4.Equal(network.IP) && !ip4.Equal(amtBroadcast(network)) &&
+			!ip4.Equal(gateway) && !taken[ip4.String()]
+	}
+	withPrefix := func(ip net.IP) string { return fmt.Sprintf("%s/%d", ip.To4(), prefix) }
+	if s := host.Status.AMT; s != nil && s.AssignedAddress != "" {
+		if ip, _, err := net.ParseCIDR(s.AssignedAddress); err == nil && usable(ip) {
+			return withPrefix(ip), nil
+		}
+	}
+	if s := host.Status.AMT; s != nil && s.Address != "" {
+		if ip := net.ParseIP(s.Address); ip != nil && usable(ip) {
+			return withPrefix(ip), nil
+		}
+	}
+	for ip := amtNext(network.IP.To4()); network.Contains(ip); ip = amtNext(ip) {
+		if usable(ip) {
+			return withPrefix(ip), nil
+		}
+	}
+	return "", fmt.Errorf("no address is left in the fleet's AMT range %s", r.AMT.AddressRange)
+}
+
+func amtNext(ip net.IP) net.IP {
+	next := make(net.IP, len(ip))
+	copy(next, ip)
+	for i := len(next) - 1; i >= 0; i-- {
+		next[i]++
+		if next[i] != 0 {
+			break
+		}
+	}
+	return next
+}
+
+func amtBroadcast(network *net.IPNet) net.IP {
+	ip := network.IP.To4()
+	broadcast := make(net.IP, len(ip))
+	for i := range ip {
+		broadcast[i] = ip[i] | ^network.Mask[i]
+	}
+	return broadcast
 }
 
 // amtRun reads what a run that activates or configures AMT needs: the host's

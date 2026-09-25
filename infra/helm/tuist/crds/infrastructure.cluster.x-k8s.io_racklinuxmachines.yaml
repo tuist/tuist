@@ -21,8 +21,8 @@ spec:
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .status.rackLinuxHost
-          name: Host
+        - jsonPath: .status.nodeName
+          name: Node
           type: string
         - jsonPath: .status.phase
           name: Phase
@@ -66,57 +66,18 @@ spec:
               type: object
             spec:
               description: |-
-                RackLinuxMachineSpec is the workload shape of one rack Linux node. The box
-                comes from the RackLinuxHost it claims, so a MachineDeployment can clone it.
+                RackLinuxMachineSpec is one rack Linux host as a node. The operator creates
+                it, and the CAPI Machine that owns it, for each RackLinuxHost, under the
+                host's name.
               properties:
-                adoptPool:
-                  description: AdoptPool is the RackLinuxHost pool this machine claims from.
+                host:
+                  description: Host is the RackLinuxHost this machine is.
                   type: string
-                fleetName:
-                  description: |-
-                    FleetName names the `<fleetName>-ssh` Secret holding the key the
-                    install stick authorizes. It is read, never minted.
-                  type: string
-                nodeLabels:
-                  additionalProperties:
-                    type: string
-                  description: |-
-                    NodeLabels are registered with the Node on top of the labels every rack
-                    Linux node carries.
-                  type: object
-                nodeTaints:
-                  description: NodeTaints are registered with the Node.
-                  items:
-                    description: |-
-                      The node this Taint is attached to has the "effect" on
-                      any pod that does not tolerate the Taint.
-                    properties:
-                      effect:
-                        description: |-
-                          Required. The effect of the taint on pods
-                          that do not tolerate the taint.
-                          Valid effects are NoSchedule, PreferNoSchedule and NoExecute.
-                        type: string
-                      key:
-                        description: Required. The taint key to be applied to a node.
-                        type: string
-                      timeAdded:
-                        description: |-
-                          TimeAdded represents the time at which the taint was added.
-                          It is only written for NoExecute taints.
-                        format: date-time
-                        type: string
-                      value:
-                        description: The taint value corresponding to the taint key.
-                        type: string
-                    required:
-                      - effect
-                      - key
-                    type: object
-                  type: array
                 providerID:
-                  description: ProviderID is rack-linux://<site>/<host>, set once a host is claimed.
+                  description: ProviderID is rack-linux://<site>/<host UUID>.
                   type: string
+              required:
+                - host
               type: object
             status:
               description: RackLinuxMachineStatus is the observed state of one rack Linux node.
@@ -197,10 +158,13 @@ spec:
                   description: LastConvergeTime is when the host last converged successfully.
                   format: date-time
                   type: string
-                phase:
+                nodeName:
+                  description: |-
+                    NodeName is the name the host joined the cluster under: its hostname
+                    when it joined. A host whose hostname changed joins again under the
+                    new one.
                   type: string
-                rackLinuxHost:
-                  description: RackLinuxHost is the host this machine holds.
+                phase:
                   type: string
                 ready:
                   description: Ready is true while the Node is Ready.
