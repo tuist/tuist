@@ -19,6 +19,9 @@ Attach after checkout and before Gradle populates its directories:
 - run: ./gradlew test
 ```
 
+Always run Gradle, even on cache hits: it resolves dependencies and determines
+which tasks need to run.
+
 Keep existing runner labels and container images. Native and container jobs use
 identical action inputs. Do not restore archive caches into these paths. If you
 set `GRADLE_USER_HOME`, use paths beneath that location. Paths must be absent or
@@ -36,27 +39,6 @@ last use, and job history; clear a volume. Clearing
 invalidates old clones immediately for publication and clears the saved head.
 Running jobs finish with their private copies. Physical reclamation follows
 teardown; unavailable agents remain pending. A future use of the key starts fresh.
-
-## Elixir
-
-For Elixir, attach `deps` and `_build` after checkout and Erlang/Elixir setup:
-
-```yaml
-- uses: tuist/cache-volume@v1
-  with:
-    key: elixir-deps
-    path: deps
-- uses: tuist/cache-volume@v1
-  with:
-    key: elixir-build
-    path: _build
-- run: mix deps.get
-- run: mix test
-```
-
-Always run the Mix commands, even on cache hits: Mix handles dependency and
-compiler invalidation. For a project in `server/`, use `server/deps` and
-`server/_build` and run the commands from that directory.
 
 ## Inputs and output
 
