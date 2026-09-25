@@ -331,6 +331,18 @@ defmodule TuistWeb.Coverage.Components do
 
   def period_trend(_series), do: nil
 
+  @doc """
+  How much a count moved from a series' first point to its last, as a
+  percentage of the first, or nil when there is nothing to compare.
+  """
+  def count_trend([first | [_ | _] = rest], field) do
+    from = Map.get(first, field) || 0
+    to = Map.get(List.last(rest), field) || 0
+    if from > 0, do: Float.round((to - from) / from * 100, 1)
+  end
+
+  def count_trend(_series, _field), do: nil
+
   @doc "The directory a file sits in, or nil for one at the repository's root."
   def parent_dir(path) do
     case Path.dirname(path) do
@@ -570,11 +582,23 @@ defmodule TuistWeb.Coverage.Components do
   attr :id, :string, required: true
   attr :points, :list, required: true, doc: "The trend's points, oldest first (`History.branch_points/3`)."
 
+  attr :metric, :string,
+    default: "coverage",
+    values: ~w(coverage covered_lines executable_lines unmeasured_files),
+    doc: "What the chart plots: the coverage percentage, or one of the counts behind it."
+
   @doc """
   A branch's coverage over time, one point per chained commit: the chart the
-  Code Coverage page leads with, and the project's overview repeats.
+  Code Coverage page leads with, and the project's overview repeats. The
+  Code Coverage page's widgets switch it to one of the counts behind the
+  figure.
   """
   def coverage_trend_chart(assigns) do
+    assigns =
+      assigns
+      |> assign(:unit, if(assigns.metric == "coverage", do: "%", else: ""))
+      |> assign(:series_name, metric_label(assigns.metric))
+
     ~H"""
     <.chart
       id={@id}
@@ -602,18 +626,18 @@ defmodule TuistWeb.Coverage.Components do
             splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
             axisLabel: %{
               color: "var:noora-surface-label-secondary",
-              formatter: "{value}%"
+              formatter: "{value}" <> @unit
             }
           },
           legend: %{show: false},
-          tooltip: %{valueFormat: "{value}%"}
+          tooltip: %{valueFormat: "{value}" <> @unit}
         }
       }
       series={[
         %{
           color: "var:noora-chart-primary",
-          data: Enum.map(@points, &[point_time(&1), &1.coverage]),
-          name: dgettext("dashboard_tests", "Code coverage"),
+          data: Enum.map(@points, &[point_time(&1), metric_value(&1, @metric)]),
+          name: @series_name,
           type: "line",
           smooth: 0.1,
           symbol: "circle",
@@ -621,8 +645,18 @@ defmodule TuistWeb.Coverage.Components do
         }
       ]}
       y_axis_min={0}
-      y_axis_max={100}
+      y_axis_max={if @metric == "coverage", do: 100}
     />
     """
   end
+
+  defp metric_value(point, "coverage"), do: point.coverage
+  defp metric_value(point, "covered_lines"), do: point.covered_lines
+  defp metric_value(point, "executable_lines"), do: point.executable_lines
+  defp metric_value(point, "unmeasured_files"), do: Map.get(point, :unmeasured_files_count) || 0
+
+  defp metric_label("coverage"), do: dgettext("dashboard_tests", "Code coverage")
+  defp metric_label("covered_lines"), do: dgettext("dashboard_tests", "Covered lines")
+  defp metric_label("executable_lines"), do: dgettext("dashboard_tests", "Executable lines")
+  defp metric_label("unmeasured_files"), do: dgettext("dashboard_tests", "Files without coverage data")
 end

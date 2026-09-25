@@ -77,6 +77,51 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#coverage-chart")
     end
 
+    test "every widget shows its change over the period and switches the chart to its metric", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])], %{
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200, :second)
+      })
+
+      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0, 0, 0])])
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert has_element?(lv, "#widget-coverage-covered-lines [data-part='trend']", "+100.0%")
+      assert has_element?(lv, "#widget-coverage-executable-lines [data-part='trend']", "+50.0%")
+      assert render(element(lv, "#coverage-chart")) =~ "Code coverage"
+
+      lv |> element("[phx-value-widget='executable_lines']") |> render_click()
+
+      assert render(element(lv, "#coverage-chart")) =~ "Executable lines"
+      assert has_element?(lv, "[phx-value-widget='executable_lines'][data-selected]")
+      assert_push_event(lv, "replace-url", %{url: "?analytics-selected-widget=executable_lines"})
+    end
+
+    test "opens on the widget the address selects, and on coverage for an unknown one", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0])])
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/coverage?analytics-selected-widget=covered_lines"
+        )
+
+      assert render(element(lv, "#coverage-chart")) =~ "Covered lines"
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?analytics-selected-widget=bogus")
+
+      assert render(element(lv, "#coverage-chart")) =~ "Code coverage"
+    end
+
     test "reads the page once, when the socket connects", %{
       conn: conn,
       organization: organization,

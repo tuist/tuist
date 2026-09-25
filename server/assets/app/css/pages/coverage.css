@@ -100,11 +100,11 @@
     height: 200px;
   }
 
+  /* The section holding the chart pads it already. */
   & [data-part="analytics-chart"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-7);
-    padding: var(--noora-spacing-5);
   }
 
   & > [data-part="analytics"],

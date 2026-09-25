@@ -71,8 +71,11 @@
             }
             value={"#{@latest.coverage}%"}
             legend_color="primary"
-            trend_value={@trend}
+            trend_value={@trends["coverage"]}
             trend_label={dgettext("dashboard_tests", "over the period")}
+            phx_click="select_widget"
+            phx_value_widget="coverage"
+            selected={@selected_widget == "coverage"}
           />
           <.widget
             id="widget-coverage-covered-lines"
@@ -84,6 +87,12 @@
               )
             }
             value={format_number(@latest.covered_lines)}
+            legend_color="primary"
+            trend_value={@trends["covered_lines"]}
+            trend_label={dgettext("dashboard_tests", "over the period")}
+            phx_click="select_widget"
+            phx_value_widget="covered_lines"
+            selected={@selected_widget == "covered_lines"}
           />
           <.widget
             id="widget-coverage-executable-lines"
@@ -95,6 +104,13 @@
               )
             }
             value={format_number(@latest.executable_lines)}
+            legend_color="primary"
+            trend_value={@trends["executable_lines"]}
+            trend_type={:neutral}
+            trend_label={dgettext("dashboard_tests", "over the period")}
+            phx_click="select_widget"
+            phx_value_widget="executable_lines"
+            selected={@selected_widget == "executable_lines"}
           />
           <.widget
             id="widget-coverage-unmeasured-files"
@@ -106,11 +122,18 @@
               )
             }
             value={format_number(Map.get(@latest, :unmeasured_files_count) || 0)}
+            legend_color="primary"
+            trend_value={@trends["unmeasured_files"]}
+            trend_type={:inverse}
+            trend_label={dgettext("dashboard_tests", "over the period")}
+            phx_click="select_widget"
+            phx_value_widget="unmeasured_files"
+            selected={@selected_widget == "unmeasured_files"}
           />
         </div>
         <.card_section :if={@latest}>
           <div data-part="analytics-chart">
-            <.coverage_trend_chart id="coverage-chart" points={@points} />
+            <.coverage_trend_chart id="coverage-chart" points={@points} metric={@selected_widget} />
           </div>
         </.card_section>
         <.coverage_empty
