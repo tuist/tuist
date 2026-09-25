@@ -43,6 +43,9 @@ const (
 	// it takes by DHCP after the activation, is looked at again, and how long
 	// AMT given its static address is left before it is given it again.
 	amtAddressInterval = 2 * time.Minute
+	// amtAfterFirstRead is how soon a host's AMT is looked at again after it was
+	// first read, to be activated or configured.
+	amtAfterFirstRead = 5 * time.Second
 
 	amtPreProvisioning = "pre-provisioning"
 	amtClientControl   = "client"
@@ -122,18 +125,26 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	if host.Status.Tailnet == nil || !host.Status.Tailnet.Connected {
 		return 0
 	}
-	address, err := r.amtAddress(ctx, host)
-	if err != nil {
-		conditions.MarkFalse(host, AMTActivatedCondition, "InvalidAddress", clusterv1.ConditionSeverityWarning, "%v", err)
-		return 0
+	status := host.Status.AMT
+	// AMT is read before anything is asked of it: the address it keeps is the
+	// one it has, when that is free, and an activated one is not activated
+	// again.
+	read := status == nil || status.ObservedAt == nil
+	var address *amtAddress
+	if !read {
+		var err error
+		if address, err = r.amtAddress(ctx, host); err != nil {
+			conditions.MarkFalse(host, AMTActivatedCondition, "InvalidAddress", clusterv1.ConditionSeverityWarning, "%v", err)
+			return 0
+		}
 	}
 
 	now := r.now()
-	status := host.Status.AMT
-	activate := status == nil || status.ControlMode == "" || status.ControlMode == amtPreProvisioning || status.ControlMode == amtClientControl
+	activate := !read && (status.ControlMode == "" || status.ControlMode == amtPreProvisioning || status.ControlMode == amtClientControl)
 	// AMT without a link reports no address, whatever it was given.
-	configure := !activate && (!status.MEBxPasswordSet || (address != nil && status.Link != "down" && status.Address != address.ip))
+	configure := !read && !activate && (!status.MEBxPasswordSet || (address != nil && status.Link != "down" && status.Address != address.ip))
 	switch {
+	case read:
 	case activate:
 		if status != nil && status.ActivationError != "" && status.LastActivation != nil {
 			if wait := status.LastActivation.Add(amtActivationBackoff).Sub(now); wait > 0 {
@@ -151,7 +162,7 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 				return wait
 			}
 		}
-	case status.ObservedAt != nil:
+	default:
 		if wait := status.ObservedAt.Add(amtObserveAfter(status)).Sub(now); wait > 0 {
 			return wait
 		}
@@ -160,7 +171,8 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	var run *amtRun
 	if activate || configure {
 		var reason string
-		run, reason, err = r.amtRun(ctx, host, activate, status == nil || !status.MEBxPasswordSet, address)
+		var err error
+		run, reason, err = r.amtRun(ctx, host, activate, !status.MEBxPasswordSet, address)
 		if err != nil {
 			conditions.MarkFalse(host, AMTActivatedCondition, "AMTSecretsUnreadable", clusterv1.ConditionSeverityWarning, "%v", err)
 			return time.Minute
@@ -219,17 +231,24 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	r.recordAMTConfiguration(host, next, result, requested, &observed)
 	host.Status.AMT = next
 
+	// After the first read, what AMT needs is asked of it right away.
+	after := func(d time.Duration) time.Duration {
+		if read {
+			return amtAfterFirstRead
+		}
+		return d
+	}
 	if next.ControlMode == amtAdminControl {
 		next.ActivationError = ""
 		conditions.MarkTrue(host, AMTActivatedCondition)
-		return amtObserveAfter(next)
+		return after(amtObserveAfter(next))
 	}
 	if next.ActivationError != "" {
 		conditions.MarkFalse(host, AMTActivatedCondition, "ActivationFailed", clusterv1.ConditionSeverityWarning, "%s", next.ActivationError)
 		return amtActivationBackoff
 	}
 	conditions.MarkFalse(host, AMTActivatedCondition, "NotActivated", clusterv1.ConditionSeverityInfo, "AMT reports %q", result.info.ControlMode)
-	return amtObserveInterval
+	return after(amtObserveInterval)
 }
 
 // recordAMTConfiguration records the configuration steps a run took.

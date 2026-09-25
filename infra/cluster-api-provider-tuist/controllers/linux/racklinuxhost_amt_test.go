@@ -38,6 +38,15 @@ func amtEdge() *infrav1.RackLinuxHost {
 	return h
 }
 
+// preProvisionedEdge is an edge asking for AMT whose AMT the operator read
+// and found not activated.
+func preProvisionedEdge() *infrav1.RackLinuxHost {
+	h := amtEdge()
+	observed := metav1.NewTime(installEpoch.Add(-time.Minute))
+	h.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "pre-provisioning", Link: "up", Address: "0.0.0.0", ObservedAt: &observed}
+	return h
+}
+
 func provisioningSecret() *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: amtTestProvisioningSecret, Namespace: rackTestNamespace},
@@ -77,7 +86,7 @@ func (h *installHarness) amtPassword(t *testing.T) string {
 }
 
 func TestRackAMTActivatesAPreProvisionedHostWhenAsked(t *testing.T) {
-	h := newAMTHarness(t, amtEdge(), provisioningSecret())
+	h := newAMTHarness(t, preProvisionedEdge(), provisioningSecret())
 	h.runner.reply = func(_, script string) string {
 		return "--- activate\n{\"status\":\"success\"}\n--- activate exit 0\n--- amtinfo\n" +
 			amtInfoJSON("admin control mode", "up", "192.168.50.112")
@@ -120,7 +129,7 @@ func TestRackAMTActivatesAPreProvisionedHostWhenAsked(t *testing.T) {
 }
 
 func TestRackAMTRecordsAFailedActivationAndBacksOff(t *testing.T) {
-	h := newAMTHarness(t, amtEdge(), provisioningSecret())
+	h := newAMTHarness(t, preProvisionedEdge(), provisioningSecret())
 	h.runner.reply = func(_, _ string) string {
 		return "--- activate\n{\"status\":\"failed\",\"error\":\"ActivationFailed\"}\n--- activate exit 102\n--- amtinfo\n" +
 			amtInfoJSON("not activated", "up", "0.0.0.0")
@@ -166,7 +175,7 @@ func TestRackAMTLeavesAHostThatDoesNotAskForIt(t *testing.T) {
 }
 
 func TestRackAMTWaitsForTheProvisioningCertificate(t *testing.T) {
-	h := newAMTHarness(t, amtEdge())
+	h := newAMTHarness(t, preProvisionedEdge())
 
 	got := h.reconcile(t, edgeUUID)
 
@@ -508,6 +517,11 @@ const ms01Product = "Micro Computer (HK) Tech Limited Venus Series"
 // A host whose hardware the fleet lists has its AMT activated without asking,
 // and one that says no keeps it as it is.
 func TestRackAMTActivatesTheAMTOfTheModelsTheFleetLists(t *testing.T) {
+	observedEdge := func() *infrav1.RackLinuxHost {
+		h := preProvisionedEdge()
+		h.Spec.AMT.Activate = nil
+		return h
+	}
 	announced := &infrav1.RackLinuxCandidate{
 		ObjectMeta: metav1.ObjectMeta{Name: edgeUUID, Namespace: rackTestNamespace},
 		Status:     infrav1.RackLinuxCandidateStatus{UUID: edgeUUID, Product: ms01Product},
@@ -516,15 +530,18 @@ func TestRackAMTActivatesTheAMTOfTheModelsTheFleetLists(t *testing.T) {
 		return "--- activate\n{\"status\":\"success\"}\n--- activate exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	h := newAMTHarness(t, edgeHost(), announced, provisioningSecret())
+	h := newAMTHarness(t, observedEdge(), announced, provisioningSecret())
 	h.r.AMT.Products = []string{ms01Product}
 	h.runner.reply = reply
 	got := h.reconcile(t, edgeUUID)
 	if len(h.amtRuns()) != 1 || !conditions.IsTrue(got, AMTActivatedCondition) {
 		t.Fatalf("runs %d status %+v; a listed model is activated", len(h.amtRuns()), got.Status.AMT)
 	}
+	if !strings.Contains(h.amtRuns()[0].script, `"$rpc" activate`) {
+		t.Fatal("the run did not activate AMT")
+	}
 
-	declined := edgeHost()
+	declined := observedEdge()
 	no := false
 	declined.Spec.AMT.Activate = &no
 	h = newAMTHarness(t, declined, announced, provisioningSecret())
@@ -535,7 +552,7 @@ func TestRackAMTActivatesTheAMTOfTheModelsTheFleetLists(t *testing.T) {
 		t.Fatal("activated the AMT of a host that said no")
 	}
 
-	h = newAMTHarness(t, edgeHost(), announced, provisioningSecret())
+	h = newAMTHarness(t, observedEdge(), announced, provisioningSecret())
 	h.r.AMT.Products = []string{"Some Other Box"}
 	h.runner.reply = reply
 	h.reconcile(t, edgeUUID)
@@ -580,5 +597,37 @@ func TestRackAMTTakesAStaticAddressFromTheFleetsRange(t *testing.T) {
 				t.Fatalf("reassigned %q", again.Status.AMT.AssignedAddress)
 			}
 		})
+	}
+}
+
+// The operator reads a host's AMT before it changes anything, so a host
+// declared again for a box whose AMT it already activated keeps AMT's address
+// rather than being given the lowest free one.
+func TestRackAMTReadsAMTBeforeChangingIt(t *testing.T) {
+	h := newAMTHarness(t, amtEdge(), provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.r.AMT.AddressRange, h.r.AMT.Gateway = "192.168.50.16/28", "192.168.50.1/24"
+	h.runner.reply = func(_, script string) string {
+		var steps string
+		if strings.Contains(script, "static_address='") {
+			steps = "--- wired\n{\"status\":\"success\"}\n--- wired exit 0\n--- mebx\n{\"status\":\"success\"}\n--- mebx exit 0\n"
+		}
+		return steps + "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.21")
+	}
+
+	got := h.reconcile(t, edgeUUID)
+	runs := h.amtRuns()
+	if len(runs) != 1 || strings.Contains(runs[0].script, "static_address=") || strings.Contains(runs[0].script, " activate ") {
+		t.Fatalf("runs %d; the first only reads AMT", len(runs))
+	}
+	if amt := got.Status.AMT; amt == nil || amt.ControlMode != "admin" || amt.Address != "192.168.50.21" || amt.ObservedAt == nil {
+		t.Fatalf("status %+v", amt)
+	}
+
+	got = h.reconcile(t, edgeUUID)
+	if got.Status.AMT.AssignedAddress != "192.168.50.21/24" {
+		t.Fatalf("assigned %q, want the address AMT has", got.Status.AMT.AssignedAddress)
+	}
+	if runs := h.amtRuns(); len(runs) != 2 || strings.Contains(runs[1].script, "static_address='192.168.50.17'") {
+		t.Fatalf("runs %d; AMT was moved off its address", len(runs))
 	}
 }
