@@ -5,8 +5,10 @@ defmodule TuistWeb.Oauth.IntrospectControllerTest do
   alias Boruta.Oauth.Client
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.Kura.SelfHostedClients
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup :set_mimic_from_context
@@ -144,6 +146,91 @@ defmodule TuistWeb.Oauth.IntrospectControllerTest do
         })
 
       assert json_response(conn, 200) == %{"active" => false}
+    end
+
+    test "introspects tenant-scoped for a self-hosted cache client", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "self-hosted-org", creator: user)
+      BillingFixtures.subscription_fixture(account_id: organization.account.id, plan: :enterprise)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      {:ok, {client, client_secret}} =
+        SelfHostedClients.create_self_hosted_client(organization.account, %{name: "node"})
+
+      conn =
+        post(conn, "/oauth2/introspect", %{
+          client_id: client.client_id,
+          client_secret: client_secret,
+          token: user.token
+        })
+
+      assert %{
+               "active" => true,
+               "cache_grants" => %{
+                 "account" => %{"read" => account_reads},
+                 "project" => %{"read" => project_reads}
+               }
+             } = json_response(conn, 200)
+
+      assert account_reads == [organization.account.name]
+      assert project_reads == ["#{organization.account.name}/#{project.name}"]
+    end
+
+    test "rejects a self-hosted cache client with a wrong secret", %{conn: conn} do
+      organization = AccountsFixtures.organization_fixture(name: "self-hosted-wrong")
+
+      {:ok, {client, _client_secret}} =
+        SelfHostedClients.create_self_hosted_client(organization.account, %{name: "node"})
+
+      conn =
+        post(conn, "/oauth2/introspect", %{
+          client_id: client.client_id,
+          client_secret: "wrong-secret",
+          token: "any-token"
+        })
+
+      assert json_response(conn, 401) == %{
+               "error" => "invalid_client",
+               "error_description" => "Invalid client_id or client_secret."
+             }
+    end
+
+    test "reports a foreign tenant's token inactive to a self-hosted cache client", %{conn: conn} do
+      organization = AccountsFixtures.organization_fixture(name: "self-hosted-tenant")
+      BillingFixtures.subscription_fixture(account_id: organization.account.id, plan: :enterprise)
+
+      {:ok, {client, client_secret}} =
+        SelfHostedClients.create_self_hosted_client(organization.account, %{name: "node"})
+
+      foreign_user = AccountsFixtures.user_fixture(preload: [:account])
+
+      conn =
+        post(conn, "/oauth2/introspect", %{
+          client_id: client.client_id,
+          client_secret: client_secret,
+          token: foreign_user.token
+        })
+
+      assert json_response(conn, 200) == %{"active" => false}
+    end
+
+    test "rejects a self-hosted cache client that sends no token", %{conn: conn} do
+      organization = AccountsFixtures.organization_fixture(name: "self-hosted-notoken")
+
+      {:ok, {client, client_secret}} =
+        SelfHostedClients.create_self_hosted_client(organization.account, %{name: "node"})
+
+      conn =
+        post(conn, "/oauth2/introspect", %{
+          client_id: client.client_id,
+          client_secret: client_secret
+        })
+
+      assert json_response(conn, 401) == %{
+               "error" => "invalid_client",
+               "error_description" => "Invalid client_id or client_secret."
+             }
     end
 
     test "rejects invalid introspection clients", %{conn: conn} do
