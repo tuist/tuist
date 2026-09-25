@@ -14,13 +14,9 @@ Choose a stable `key` and a `path`, then attach the volume before installing
 dependencies. The path must be empty or absent. Remove any archive cache or
 artifact restore that writes to the same directory.
 
-
-Targets are attached as symlinks. Cache download directories such as `~/.npm`
-or `~/.gradle/caches`; `node_modules` is rejected because npm replaces symlinks.
-Other tools that replace their cache directory are also incompatible. For a
-workspace path, ignore the link without a trailing slash (for example `.gradle`,
-not `.gradle/`, in `.gitignore`). Paths must be a single line without control
-characters; use a plain YAML string instead of `path: |`.
+Paths are mounted as ordinary directories, so tools can use their usual locations
+such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
+Each action call attaches one directory; use a different key for each directory.
 
 ## GitHub Actions {#github-actions}
 
