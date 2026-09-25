@@ -69,11 +69,24 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
             throw CoverageCompleteCommandServiceError.missingCommit
         }
 
-        let coverage = try await completeCommitCoverageService.completeCommitCoverage(
+        let completion = try await completeCommitCoverageService.completeCommitCoverage(
             fullHandle: fullHandle,
             serverURL: serverURL,
             gitCommitSHA: sha
         )
+
+        guard case let .complete(coverage) = completion else {
+            if json {
+                try Noora.current.json(CoverageCompletePendingOutput(gitCommitSHA: sha, complete: false, pending: true))
+            } else {
+                AlertController.current.success(
+                    .alert(
+                        "No run of commit \(sha.prefix(7)) has reported coverage yet. Its coverage is marked complete once one does."
+                    )
+                )
+            }
+            return
+        }
 
         if json {
             try Noora.current.json(
@@ -98,6 +111,18 @@ struct CoverageCompleteCommandService: CoverageCompleteCommandServicing {
                 "Coverage of commit \(coverage.gitCommitSHA.prefix(7)) is complete: \(coverage.coverage)% over \(schemes)\(partial)."
             )
         )
+    }
+}
+
+private struct CoverageCompletePendingOutput: Codable {
+    let gitCommitSHA: String
+    let complete: Bool
+    let pending: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case gitCommitSHA = "git_commit_sha"
+        case complete
+        case pending
     }
 }
 
