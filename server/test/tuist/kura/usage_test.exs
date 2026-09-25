@@ -2,13 +2,41 @@ defmodule Tuist.Kura.UsageTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   import Ecto.Query
+  import Mimic
 
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Kura.Demand
   alias Tuist.Kura.Usage
   alias Tuist.Kura.UsageEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  setup :set_mimic_from_context
+
+  test "fresh managed traffic refreshes demand once per account" do
+    account = AccountsFixtures.user_fixture().account
+    expect(Demand, :record, fn id -> assert id == account.id end)
+    event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => System.system_time(:second) - 60})
+    assert {:ok, 2} = Usage.create_events([event, %{event | "event_id" => "another-event"}])
+  end
+
+  test "replayed, future, empty, peer and self-hosted traffic do not keep managed capacity warm" do
+    account = AccountsFixtures.user_fixture().account
+    reject(Demand, :record, 1)
+    now = System.system_time(:second)
+    event = wire_event(%{"tenant_id" => account.name, "window_start_unix_seconds" => now})
+
+    events = [
+      %{event | "window_start_unix_seconds" => now - 3600},
+      %{event | "window_start_unix_seconds" => now + 3600},
+      %{event | "request_count" => 0},
+      %{event | "traffic_plane" => "peer"}
+    ]
+
+    assert {:ok, 4} = Usage.create_events(events)
+    assert {:ok, 1} = Usage.create_events([event], account)
+  end
 
   defp insert_event(attrs) do
     base = %{

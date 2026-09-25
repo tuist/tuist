@@ -13414,38 +13414,6 @@ paths:
       summary: List previews.
       tags:
         - Previews
-  /api/cache/demand:
-    post:
-      callbacks: {}
-      description: Records authenticated cache demand and starts provisioning when needed. Clients derive the cache URL locally; this operation returns no endpoint addresses.
-      operationId: recordCacheDemand
-      parameters:
-        - description: The account requesting cache capacity.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '204':
-          description: Cache demand was recorded.
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Authentication required
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Account access required
-      summary: Register demand for an account's cache.
-      tags:
-        - Cache
   /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}:
     delete:
       callbacks: {}

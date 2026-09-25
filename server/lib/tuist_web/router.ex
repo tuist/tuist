@@ -893,7 +893,6 @@ defmodule TuistWeb.Router do
       get "/access", CacheController, :access
       get "/endpoints", CacheController, :endpoints
       post "/token", CacheController, :token
-      post "/demand", CacheController, :demand
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 
@@ -989,6 +988,7 @@ defmodule TuistWeb.Router do
   scope "/_internal", TuistWeb.Internal do
     pipe_through [:non_authenticated_api]
 
+    post "/kura/activate", KuraActivationController, :create
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
     post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat

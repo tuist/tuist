@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import TuistEnvironment
-import TuistLogging
 import TuistServer
 
 @Mockable
@@ -19,25 +18,10 @@ public enum CacheProvisioningWait: Equatable, Sendable {
 }
 
 public struct CacheURLStore: CacheURLStoring {
-    private let recordCacheDemandService: RecordCacheDemandServicing
-    private let cachedValueStore: CachedValueStoring
-
-    public init() {
-        self.init(recordCacheDemandService: RecordCacheDemandService())
-    }
+    public init() {}
 
     @available(*, deprecated, message: "Use init(); stable cache URLs do not require endpoint discovery or provisioning polling.")
-    public init(cachedValueStore: CachedValueStoring, provisioningWait _: CacheProvisioningWait = .none) {
-        self.init(recordCacheDemandService: RecordCacheDemandService(), cachedValueStore: cachedValueStore)
-    }
-
-    init(
-        recordCacheDemandService: RecordCacheDemandServicing,
-        cachedValueStore: CachedValueStoring = CachedValueStore(backend: .inSystemProcess)
-    ) {
-        self.recordCacheDemandService = recordCacheDemandService
-        self.cachedValueStore = cachedValueStore
-    }
+    public init(cachedValueStore _: CachedValueStoring, provisioningWait _: CacheProvisioningWait = .none) {}
 
     public func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL {
         if let overrideEndpoint = Environment.current.variables["TUIST_CACHE_ENDPOINT"] {
@@ -66,18 +50,6 @@ public struct CacheURLStore: CacheURLStoring {
               !handle.hasSuffix("-staging"), !handle.hasSuffix("-canary")
         else { throw CacheURLStoreError.invalidAccountHandle(accountHandle) }
 
-        let _: String? = try await cachedValueStore.getValue(key: "cache-demand-\(serverURL.absoluteString)-\(handle)") {
-            do {
-                try await recordCacheDemandService.recordCacheDemand(serverURL: serverURL, accountHandle: handle)
-                return (value: "recorded", expiresAt: Date().addingTimeInterval(300))
-            } catch let RecordCacheDemandServiceError.forbidden(message) {
-                throw CacheURLStoreError.forbidden(message)
-            } catch {
-                // A control-plane outage must not prevent access to an already-serving cache.
-                Logger.current.debug("Could not register cache demand: \(error)")
-                return (value: "retry", expiresAt: Date().addingTimeInterval(30))
-            }
-        }
         return URL(string: "https://\(handle)\(suffix).cache.tuist.dev")!
     }
 }
@@ -89,8 +61,7 @@ public enum CacheURLStoreError: LocalizedError, Equatable {
     case invalidURL(String)
     case invalidAccountHandle(String?)
     case missingEndpointOverride
-    /// The server refused to register cache demand for the caller, for example because the
-    /// logged-in user is not a member of the account.
+    /// Retained for source compatibility with callers of the legacy resolver.
     case forbidden(String)
 
     public var isTransientAbsence: Bool {

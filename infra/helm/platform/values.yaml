@@ -641,6 +641,8 @@ kura-runners-ingress-nginx:
 # Delegated managed-cache DNS. Inert until the zone and scoped credentials exist.
 cacheDNS:
   enabled: false
+  # Opt in only on the single global wildcard owner after gateway validation.
+  activationIngressClass: ""
   hostedZoneId: ""
   ownerId: ""
   image: registry.k8s.io/external-dns/external-dns:v0.15.1

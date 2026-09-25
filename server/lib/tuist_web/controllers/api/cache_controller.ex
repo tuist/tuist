@@ -31,7 +31,7 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token, :demand]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
        [
@@ -39,9 +39,9 @@ defmodule TuistWeb.API.CacheController do
          caching: true,
          cache_ttl: to_timeout(minute: 1)
        ]
-       when action not in [:access, :endpoints, :token, :demand]
+       when action not in [:access, :endpoints, :token]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints, :token, :demand]
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints, :token]
 
   plug :sign
 
@@ -228,34 +228,6 @@ defmodule TuistWeb.API.CacheController do
 
     if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
       account.name
-    end
-  end
-
-  operation(:demand,
-    summary: "Register demand for an account's cache.",
-    description:
-      "Records authenticated cache demand and starts provisioning when needed. Clients derive the cache URL locally; this operation returns no endpoint addresses.",
-    operation_id: "recordCacheDemand",
-    parameters: [
-      account_handle: [in: :query, type: :string, required: true, description: "The account requesting cache capacity."]
-    ],
-    responses: %{
-      no_content: "Cache demand was recorded.",
-      unauthorized: {"Authentication required", "application/json", Error},
-      forbidden: {"Account access required", "application/json", Error}
-    }
-  )
-
-  def demand(conn, %{account_handle: account_handle}) do
-    case authorized_account_handle(account_handle, conn) do
-      nil ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{message: forbidden_endpoints_message(conn, account_handle)})
-
-      authorized_handle ->
-        Accounts.get_cache_resolution_for_handle(authorized_handle, :kura, RemoteIp.attributed_origin(conn))
-        send_resp(conn, :no_content, "")
     end
   end
 

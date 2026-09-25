@@ -7,7 +7,7 @@ The Xcode compilation-cache transport lives in `cas-plugin/`.
 - Derive hosted cache URLs locally from the account handle: `<account>.cache.tuist.dev`, with `-staging` or `-canary` appended to the account in those environments.
 - Honor `TUIST_CACHE_ENDPOINT` first; self-hosted servers require this explicit override.
 - Validate account handles before composing a DNS name. Do not restore endpoint discovery, persisted endpoint choices, or client latency probes.
-- An authenticated demand-registration call wakes new or archived instances and records activity. It returns no URLs and has a two-second request budget; deduplicate it for five minutes, and back off failures for 30 seconds while allowing an already-serving cache to remain usable. Explicit overrides skip hosted demand registration. Authentication and authorization remain server responsibilities.
+- URL resolution performs no network requests. Actual cache requests wake archived hosted instances through the shared activation gateway; authentication and provisioning are server responsibilities.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

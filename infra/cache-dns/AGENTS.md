@@ -32,3 +32,5 @@ Use `runner_label=ubuntu-latest` for an external public-endpoint CI soak. The
 staging self-hosted runner policy denies public Kura node IPs as Cilium
 `remote-node` destinations when the private endpoint override is removed;
 do not weaken that policy to make this public-client check pass.
+
+The optional shared activation gateway uses a Route53 wildcard fallback while exact regional latency records keep precedence. Both gateway deployment and ingress DNS sourcing are off in all checked-in overlays; rollout and rollback are in `../kura-controller/activation.md`. Do not create wildcard owners in multiple environments.
