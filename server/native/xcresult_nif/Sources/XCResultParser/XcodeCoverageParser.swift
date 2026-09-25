@@ -39,13 +39,28 @@ public struct XcodeCoverageSummary: Equatable, Sendable {
 public struct XcodeCoverageParser: XcodeCoverageParsing {
     private let fileSystem: FileSysteming
     private let execute: XCResultToolExecuting
+    private let executeToFile: XCResultToolFileExecuting
 
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+        execute = executeXCResultTool
+        executeToFile = executeXCResultTool(_:standardOutputTo:)
+    }
+
+    /// Runs xccov through `execute`; the reads that stream xccov's output from a file get it
+    /// from `executeToFile`, or from `execute`'s output written to that file when none is given.
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        execute: @escaping XCResultToolExecuting = executeXCResultTool
+        execute: @escaping XCResultToolExecuting,
+        executeToFile: XCResultToolFileExecuting? = nil
     ) {
         self.fileSystem = fileSystem
         self.execute = execute
+        self.executeToFile = executeToFile ?? { arguments, url in
+            let output = try await execute(arguments)
+            try Data(output.standardOutput.utf8).write(to: url)
+            return output
+        }
     }
 
     public func coveredFilePaths(resultBundlePath: AbsolutePath) async throws -> [String]? {
@@ -200,20 +215,15 @@ public struct XcodeCoverageParser: XcodeCoverageParsing {
         guard FileManager.default.createFile(atPath: destination.pathString, contents: nil) else {
             throw XcodeCoverageParserError.cannotWrite(destination)
         }
-        let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: destination.pathString))
-        defer { try? handle.close() }
-        do {
-            // Spawned directly rather than through a shell: the bundle path is user-controlled
-            // and goes through as one argument, so no quoting is involved.
-            for try await event in commandRunner.run(arguments: ["/usr/bin/xcrun", "xccov"] + arguments + [bundle.pathString]) {
-                if case let .standardOutput(bytes) = event {
-                    try autoreleasepool { try handle.write(contentsOf: Data(bytes)) }
-                }
-            }
-            return true
-        } catch let CommandError.terminated(_, stderr, _) where Self.reportsNoCoverage(stderr) {
-            return false
-        }
+        // Spawned directly rather than through a shell: the bundle path is user-controlled
+        // and goes through as one argument, so no quoting is involved.
+        let output = try await executeToFile(
+            ["/usr/bin/xcrun", "xccov"] + arguments + [bundle.pathString],
+            URL(fileURLWithPath: destination.pathString)
+        )
+        if output.succeeded { return true }
+        if Self.reportsNoCoverage(output.standardError) { return false }
+        throw XCResultParserError.failedToParseOutput(bundle)
     }
 
     /// Runs xccov against the bundle and returns what it printed, or nil when the bundle has no

@@ -5750,7 +5750,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 macOSVersion: .any, xcodeVersion: .any, ciRunId: .any,
                 ciProjectHandle: .any, ciHost: .any, ciProvider: .any,
                 shardPlanId: .any, shardIndex: .any, onlyTestIdentifiers: .any, skipTestIdentifiers: .any,
-                stressNewTests: .any
+                stressNewTests: .any,
+                gitHistory: .any,
+                coverageUpload: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(

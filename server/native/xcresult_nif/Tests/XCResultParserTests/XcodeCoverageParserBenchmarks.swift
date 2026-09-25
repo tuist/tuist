@@ -1,4 +1,3 @@
-import Command
 import Darwin
 import FileSystem
 import Foundation
@@ -16,30 +15,20 @@ import Testing
 /// `decode-all` (the previous approach: both documents decoded whole). Peak memory is the
 /// process's lifetime maximum physical footprint, so run one mode per process.
 struct XcodeCoverageParserBenchmarks {
-    private final class FileStub: CommandRunning, @unchecked Sendable {
+    /// Hands the parser the fixture files as xccov's output, copied rather than read, so the
+    /// benchmark measures the parser and not the stub.
+    private struct FileStub {
         let report: URL
         let archive: URL
 
-        init(report: URL, archive: URL) {
-            self.report = report
-            self.archive = archive
+        func source(_ arguments: [String]) -> URL {
+            arguments.contains("--archive") ? archive : report
         }
 
-        func run(arguments: [String], environment _: [String: String], workingDirectory _: AbsolutePath?)
-            -> AsyncThrowingStream<CommandEvent, any Error>
-        {
-            let url = arguments.contains("--archive") ? archive : report
-            // Pulled by the consumer, like a process pipe: an eagerly filled stream would
-            // buffer the whole file and measure the stub, not the parser.
-            let handle = try! FileHandle(forReadingFrom: url)
-            return AsyncThrowingStream(unfolding: {
-                let bytes = try autoreleasepool { try handle.read(upToCount: 1 << 20).map { [UInt8]($0) } }
-                guard let bytes, !bytes.isEmpty else {
-                    try? handle.close()
-                    return nil
-                }
-                return .standardOutput(bytes)
-            })
+        func execute(_ arguments: [String], to url: URL) throws -> XCResultToolOutput {
+            try? FileManager.default.removeItem(at: url)
+            try FileManager.default.copyItem(at: source(arguments), to: url)
+            return XCResultToolOutput(standardOutput: "", standardError: "", succeeded: true)
         }
     }
 
@@ -87,21 +76,18 @@ struct XcodeCoverageParserBenchmarks {
 
         switch mode {
         case "decode-all":
-            var data = Data()
-            for try await event in stub.run(arguments: ["--archive"], environment: [:], workingDirectory: nil) {
-                if case let .standardOutput(bytes) = event { data.append(contentsOf: bytes) }
-            }
+            let data = try Data(contentsOf: stub.archive)
             let decoded = try JSONDecoder().decode([String: [ArchiveLine]].self, from: data)
-            var reportData = Data()
-            for try await event in stub.run(arguments: ["--report"], environment: [:], workingDirectory: nil) {
-                if case let .standardOutput(bytes) = event { reportData.append(contentsOf: bytes) }
-            }
+            let reportData = try Data(contentsOf: stub.report)
             let decodedReport = try JSONDecoder().decode(Report.self, from: reportData)
             files = decoded.count + decodedReport.targets.count
         default:
             let output = FileManager.default.temporaryDirectory.appendingPathComponent("coverage-\(UUID().uuidString).ndjson")
             defer { try? FileManager.default.removeItem(at: output) }
-            let summary = try await XcodeCoverageParser(commandRunner: stub).parse(
+            let summary = try await XcodeCoverageParser(
+                execute: { _ in XCResultToolOutput(standardOutput: "", standardError: "", succeeded: true) },
+                executeToFile: { arguments, url in try stub.execute(arguments, to: url) }
+            ).parse(
                 resultBundlePath: try AbsolutePath(validating: "/run.xcresult"),
                 manifest: manifest,
                 into: try AbsolutePath(validating: output.path)

@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -7,6 +6,7 @@ import TuistCore
 import TuistEnvironment
 import TuistLoader
 import TuistLogging
+import TuistProcess
 import TuistServer
 import XCResultParser
 
