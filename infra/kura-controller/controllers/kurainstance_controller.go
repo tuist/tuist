@@ -3882,7 +3882,13 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 		revisionReady = sts.Status.UpdateRevision != "" && sts.Status.Replicas == replicas && updatedReplicas == replicas
 	}
 
-	if observedGeneration && revisionReady && readyReplicas >= replicas && updatedReplicas >= replicas {
+	// The StatefulSet is read from the informer cache right after this reconcile
+	// wrote the new template, so it can still be the previous object, internally
+	// consistent and complete for the previous image. Its status only describes
+	// the desired image when its template does.
+	templateCurrent := statefulSetTemplateImage(sts) == instance.Spec.Image
+
+	if templateCurrent && observedGeneration && revisionReady && readyReplicas >= replicas && updatedReplicas >= replicas {
 		observedImage = instance.Spec.Image
 
 		return rolloutState{
@@ -3907,6 +3913,15 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 			revisionsMatch,
 		),
 	}
+}
+
+func statefulSetTemplateImage(sts *appsv1.StatefulSet) string {
+	for _, container := range sts.Spec.Template.Spec.Containers {
+		if container.Name == kuraContainerName {
+			return container.Image
+		}
+	}
+	return ""
 }
 
 // ceilingBudgetAdvertised reports whether a node this instance can land on
