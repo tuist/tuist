@@ -424,8 +424,12 @@ spec:
                   name: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name | quote }}
                   key: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.key | quote }}
             {{- end }}
+            # Absolute (trailing dot), like KURA_ANALYTICS_SERVER_URL: with
+            # `ndots: 5` a Kura pod outside the control plane's region would
+            # otherwise pay a WAN round trip to CoreDNS for every search
+            # domain before the lookup that answers.
             - name: TUIST_KURA_TUIST_BASE_URL
-              value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
+              value: {{ printf "http://%s.%s.svc.cluster.local.:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
             {{- if and .Values.redis.enabled $redisUrl }}
             - name: TUIST_REDIS_URL
