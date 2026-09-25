@@ -51,6 +51,9 @@ type fakeBackend struct {
 	// LOCAL failure to measure an image (the read-only attach failed), which is
 	// not evidence about the image's contents.
 	digestErr error
+	// perStagingFile, when set, is the space each file under the convergence
+	// staging dir takes, modelling a partial master download on disk.
+	perStagingFile uint64
 	// growErr, when set, fails every grow.
 	growErr error
 	// grown records every grow: the image's content at the time and the size
@@ -124,6 +127,14 @@ func (f *fakeBackend) isMounted(string) (bool, error) {
 
 func (f *fakeBackend) capacityBytes(string) (uint64, error) { return f.totalBytes, nil }
 
+// allocatedBytes models a master image as the provisioned cap, like freeBytes.
+func (f *fakeBackend) allocatedBytes(path string) (uint64, error) {
+	if _, err := os.Stat(path); err != nil {
+		return 0, err
+	}
+	return f.perMaster, nil
+}
+
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 	var masters uint64
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
@@ -136,7 +147,16 @@ func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 		}
 		return nil
 	})
-	used := masters * f.perMaster
+	var staged uint64
+	if f.perStagingFile > 0 {
+		_ = filepath.Walk(filepath.Join(root, convergeDirName), func(_ string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() {
+				staged++
+			}
+			return nil
+		})
+	}
+	used := masters*f.perMaster + staged*f.perStagingFile
 	if used > f.totalBytes {
 		return 0, nil
 	}

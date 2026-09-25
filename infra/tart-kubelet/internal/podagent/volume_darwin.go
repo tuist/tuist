@@ -212,3 +212,17 @@ func noPageCache(f *os.File) {
 func PhysicalMemoryBytes() (uint64, error) {
 	return unix.SysctlUint64("hw.memsize")
 }
+
+// allocatedBytes reports the blocks a sparse image actually occupies, not its
+// nominal size.
+func (darwinVolumeBackend) allocatedBytes(path string) (uint64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, fmt.Errorf("stat %s: unexpected FileInfo backing type", path)
+	}
+	return uint64(st.Blocks) * 512, nil
+}

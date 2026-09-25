@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -664,6 +665,25 @@ func heldImageServer(t *testing.T, content []byte) (url string, started <-chan s
 	return srv.URL, first, func() { releaseOnce.Do(func() { close(held) }) }
 }
 
+// awaitDownloading waits until the download for account has reserved its space
+// and written into its partial image, so jobs admitted next see it in flight.
+func awaitDownloading(t *testing.T, m *VolumeManager, account string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		matches, _ := filepath.Glob(filepath.Join(m.ConvergeStagingDir(account, ReservedTuistCacheVolume), "head-*.sparseimage"))
+		if len(matches) == 1 {
+			if info, err := os.Stat(matches[0]); err == nil && info.Size() >= 1<<20 {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the download never started writing")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 // A job admitted while a download runs is promised space the download has not
 // written yet. Jobs outrank downloads: when a job and the rest of a prefetch
 // do not both fit, the job is admitted and the prefetch gives its space back.
@@ -683,6 +703,7 @@ func TestConvergePrefetchGivesWayToAJobAdmittedMidDownload(t *testing.T) {
 	result := make(chan string, 1)
 	go func() { result <- w.converge(context.Background(), req) }()
 	<-started
+	awaitDownloading(t, m, "42")
 
 	startJob(t, m, "vm-1", "7")
 	select {
@@ -717,6 +738,7 @@ func TestConvergeJobDownloadKeepsItsSpaceByEvicting(t *testing.T) {
 	result := make(chan string, 1)
 	go func() { result <- w.converge(context.Background(), jobRequest("42", headFor(content, 4, url))) }()
 	<-started
+	awaitDownloading(t, m, "42")
 
 	startJob(t, m, "vm-1", "7")
 	startJob(t, m, "vm-2", "8")
@@ -727,5 +749,104 @@ func TestConvergeJobDownloadKeepsItsSpaceByEvicting(t *testing.T) {
 	}
 	if masterExists(m, "9") {
 		t.Fatal("admission did not evict the idle master to keep both jobs and the download")
+	}
+}
+
+// m2L is a runner-cache volume at the production M2-L numbers: 80 GiB with a
+// 30 GiB cap, so the evictor keeps 36 GiB free, and masters of 25 GiB like the
+// largest compacted masters in production.
+func m2L(t *testing.T) (*VolumeManager, *fakeBackend) {
+	t.Helper()
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: 80 * gib, perMaster: 25 * gib, root: root}
+	return NewVolumeManager(root, 30, be), be
+}
+
+func stagePartial(t *testing.T, m *VolumeManager, account string) {
+	t.Helper()
+	dir := m.ConvergeStagingDir(account, ReservedTuistCacheVolume)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "head-2.sparseimage"), []byte("partial"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Refreshing a resident master holds both images while it downloads, but the
+// install gives the old one's space back. Requiring the headroom on top of both
+// would refuse every refresh of a master over 22 GiB on an M2-L, leaving the
+// stale masters this worker exists to fix with no way to be refreshed.
+func TestConvergeRefreshesALargeResidentMasterOnAnM2L(t *testing.T) {
+	key := masterKey{account: "42", volume: ReservedTuistCacheVolume}
+	noop := func(error) {}
+
+	m, _ := m2L(t)
+	seedMasterGen(t, m, "42", masterImageContent("42"), 1)
+	r, err := m.PrepareConvergeSpace(key, 25*gib, 25*gib, true, noop)
+	if err != nil {
+		t.Fatalf("refresh of a 25 GiB master on an M2-L: %v", err)
+	}
+	r.Release()
+	if !masterExists(m, "42") {
+		t.Fatal("the refresh evicted the master it replaces before the new one was verified")
+	}
+
+	cold, _ := m2L(t)
+	if r, err := cold.PrepareConvergeSpace(key, 25*gib, 25*gib, true, noop); err != nil {
+		t.Fatalf("a cold M2-L refused a 25 GiB master: %v", err)
+	} else {
+		r.Release()
+	}
+
+	// While a job holds a branch, the branch may share the master's blocks, so
+	// the install frees nothing to count on.
+	busy, _ := m2L(t)
+	seedMasterGen(t, busy, "42", masterImageContent("42"), 1)
+	startJob(t, busy, "vm-job", "42")
+	if _, err := busy.PrepareConvergeSpace(key, 25*gib, 25*gib, true, noop); !errors.Is(err, errNoRoomToConverge) {
+		t.Fatalf("err = %v; with a job cloned from the master, the refresh cannot count on its space", err)
+	}
+}
+
+// Mid-refresh the volume sits below the watermark by the space the install is
+// about to return. The evictor must not drop other accounts' masters for it.
+func TestEvictorLeavesMastersAloneForAnInFlightRefresh(t *testing.T) {
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: 90 * gib, perMaster: 25 * gib, perStagingFile: 25 * gib, root: root}
+	m := NewVolumeManager(root, 30, be)
+	seedMasterGen(t, m, "42", masterImageContent("42"), 1)
+	seedMasterGen(t, m, "7", masterImageContent("7"), 1)
+
+	r, err := m.PrepareConvergeSpace(masterKey{account: "42", volume: ReservedTuistCacheVolume}, 25*gib, 25*gib, true, func(error) {})
+	if err != nil {
+		t.Fatalf("PrepareConvergeSpace: %v", err)
+	}
+	defer r.Release()
+	stagePartial(t, m, "42")
+
+	if evicted, err := m.EvictToWatermark(); err != nil || evicted != 0 {
+		t.Fatalf("EvictToWatermark evicted %d (err %v) for space the refresh returns on install", evicted, err)
+	}
+	if !masterExists(m, "7") {
+		t.Fatal("another account's master was evicted mid-refresh")
+	}
+}
+
+// A job outranks a partial download: before admission declines a job, it drops
+// the partial and takes the space. A refresh can leave the volume below the
+// watermark, so on an M2 the paused partial is often there when a job lands.
+func TestAdmissionDropsAPartialDownloadBeforeDecliningAJob(t *testing.T) {
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: 50 * gib, perMaster: 25 * gib, perStagingFile: 30 * gib, root: root}
+	m := NewVolumeManager(root, 30, be)
+	stagePartial(t, m, "42")
+
+	att := mustAllocate(t, m, "vm-job")
+	if _, _, err := m.Materialize(att, "7"); err != nil {
+		t.Fatalf("Materialize: %v; the job must take the partial download's space", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, convergeDirName)); !os.IsNotExist(err) {
+		t.Fatalf("the partial download is still on disk: %v", err)
 	}
 }
