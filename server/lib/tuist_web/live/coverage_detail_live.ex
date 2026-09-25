@@ -124,11 +124,15 @@ defmodule TuistWeb.CoverageDetailLive do
   defp tab(_value), do: "overview"
 
   defp assign_overview(%{assigns: %{selected_project: project, subject: subject}} = socket) do
-    {files, _count} = Commits.list_files(project.id, subject.sha, 1, @highlight_size)
+    [{files, _count}, unmeasured] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> Commits.list_files(project.id, subject.sha, 1, @highlight_size) end,
+        fn -> unmeasured_files(project, subject.sha, @highlight_size) end
+      ])
 
     socket
     |> assign(:least_covered_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
-    |> assign(:unmeasured_files, unmeasured_files(project, subject.sha, @highlight_size))
+    |> assign(:unmeasured_files, unmeasured)
   end
 
   defp assign_targets(%{assigns: %{selected_project: project, subject: subject}} = socket) do
@@ -136,26 +140,26 @@ defmodule TuistWeb.CoverageDetailLive do
     assign(socket, :target_rows, Enum.map(targets, &Map.put(&1, :id, "target-" <> &1.name)))
   end
 
-  defp assign_files(%{assigns: %{selected_project: project, subject: subject}} = socket, query) do
+  # The two lists page apart, each under its own parameter, so turning one
+  # leaves the other where it was.
+  defp assign_files(%{assigns: %{selected_project: project, subject: subject, summary: summary}} = socket, query) do
     page = Query.bounded_page(query["page"])
-    {files, count} = Commits.list_files(project.id, subject.sha, page, @page_size)
+    unmeasured_pages = max(1, ceil(summary.unmeasured_files_count / @page_size))
+    unmeasured_page = min(Query.bounded_page(query["unmeasured-page"]), unmeasured_pages)
+
+    [{files, count}, unmeasured] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> Commits.list_files(project.id, subject.sha, page, @page_size) end,
+        fn -> unmeasured_files(project, subject.sha, @page_size, (unmeasured_page - 1) * @page_size) end
+      ])
+
     total_pages = max(1, ceil(count / @page_size))
 
     socket
     |> assign(:file_rows, Enum.map(files, &Map.put(&1, :id, &1.path)))
     |> assign(:files_meta, %{current_page: min(page, total_pages), total_pages: total_pages})
-    |> assign_unmeasured_page(project, subject.sha, query)
-  end
-
-  # The two lists page apart, each under its own parameter, so turning one
-  # leaves the other where it was.
-  defp assign_unmeasured_page(%{assigns: %{summary: summary}} = socket, project, sha, query) do
-    total_pages = max(1, ceil(summary.unmeasured_files_count / @page_size))
-    page = min(Query.bounded_page(query["unmeasured-page"]), total_pages)
-
-    socket
-    |> assign(:unmeasured_files, unmeasured_files(project, sha, @page_size, (page - 1) * @page_size))
-    |> assign(:unmeasured_meta, %{current_page: page, total_pages: total_pages})
+    |> assign(:unmeasured_files, unmeasured)
+    |> assign(:unmeasured_meta, %{current_page: unmeasured_page, total_pages: unmeasured_pages})
   end
 
   defp assign_runs(%{assigns: %{selected_project: project, subject: subject}} = socket) do
