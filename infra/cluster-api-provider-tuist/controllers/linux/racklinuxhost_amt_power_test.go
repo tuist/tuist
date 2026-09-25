@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/cluster-api/util/conditions"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/tailnet"
@@ -197,5 +198,68 @@ func TestRackAMTPowerGoesThroughTheHostItselfWhenNoOtherEdgeIsUp(t *testing.T) {
 
 	if len(*calls) != 1 || (*calls)[0].via != "ber1-edge" {
 		t.Fatalf("power calls %+v", *calls)
+	}
+}
+
+// A host off the tailnet cannot be rebooted into its installer over SSH. With
+// its AMT activated, the operator power-cycles it instead, and the install
+// stick, which the MS-01 boots first, installs what is published.
+func TestRackInstallPowerCyclesAnOfflineHostThroughAMT(t *testing.T) {
+	host := svcHost()
+	host.Annotations = map[string]string{RackReinstallAnnotation: "true"}
+	observed := metav1.NewTime(installEpoch.Add(-10 * time.Minute))
+	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", Address: "192.168.50.113", ObservedAt: &observed}
+	secret := amtSecret("Stored-Pa55!")
+	secret.Name = "ber1-svc-amt"
+	h := newInstallHarness(t, host, otherEdge("ber1-edge-a", rackTestNamespace, "ber1", "edge", true), secret)
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false)}
+	h.r.AMT = &RackAMT{FleetName: rackTestFleet, ProvisioningSecret: amtTestProvisioningSecret}
+	var calls []powerCall
+	h.r.AMTPower = func(_ context.Context, via *infrav1.RackLinuxHost, address, username, password string, state power.PowerState) error {
+		calls = append(calls, powerCall{via: via.Name, address: address, username: username, password: password, state: state})
+		return nil
+	}
+
+	h.reconcile(t, "ber1-svc")
+	if len(calls) != 0 {
+		t.Fatal("power-cycled the host before the boot server could serve its install")
+	}
+
+	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	got := h.reconcile(t, "ber1-svc")
+	want := powerCall{via: "ber1-edge-a", address: "192.168.50.113", username: "admin", password: "Stored-Pa55!", state: power.PowerCycleOffHard}
+	if len(calls) != 1 || calls[0] != want {
+		t.Fatalf("power calls %+v, want %+v", calls, want)
+	}
+	if got.Status.Install == nil || got.Status.Install.TriggeredAt == nil {
+		t.Fatalf("install %+v, want it triggered", got.Status.Install)
+	}
+	if last := got.Status.AMT.LastPowerAction; last == nil || last.Action != "cycle" || last.Error != "" {
+		t.Fatalf("lastPowerAction %+v", last)
+	}
+
+	h.now = h.now.Add(time.Minute)
+	h.reconcile(t, "ber1-svc")
+	if len(calls) != 1 {
+		t.Fatal("power-cycled the host a second time")
+	}
+}
+
+func TestRackInstallLeavesAnOfflineHostWithoutAMTToAPerson(t *testing.T) {
+	host := svcHost()
+	host.Annotations = map[string]string{RackReinstallAnnotation: "true"}
+	h := newInstallHarness(t, host, otherEdge("ber1-edge-a", rackTestNamespace, "ber1", "edge", true))
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false)}
+	h.r.AMT = &RackAMT{FleetName: rackTestFleet, ProvisioningSecret: amtTestProvisioningSecret}
+	h.r.AMTPower = func(context.Context, *infrav1.RackLinuxHost, string, string, string, power.PowerState) error {
+		t.Fatal("powered a host whose AMT is not activated")
+		return nil
+	}
+
+	h.now = installEpoch.Add(rackBootPropagation + time.Second)
+	got := h.reconcile(t, "ber1-svc")
+
+	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "WaitingForNetboot" || !strings.Contains(c.Message, "by hand") {
+		t.Fatalf("condition %+v", c)
 	}
 }

@@ -48,6 +48,25 @@ func (r *RackLinuxHostReconciler) reconcileAMTPower(ctx context.Context, host *i
 		return
 	}
 	delete(host.Annotations, AMTPowerAnnotation)
+	if err := r.recordAMTPower(ctx, host, action); err != nil {
+		r.Recorder.Eventf(host, corev1.EventTypeWarning, "AMTPowerFailed", "Could not %s the host through AMT: %v", action, err)
+		return
+	}
+	r.Recorder.Eventf(host, corev1.EventTypeNormal, "AMTPower", "Asked AMT to %s the host, through %s",
+		action, host.Status.AMT.LastPowerAction.Via)
+}
+
+// amtCanPower reports whether the operator can ask host's AMT for a power
+// change.
+func (r *RackLinuxHostReconciler) amtCanPower(host *infrav1.RackLinuxHost) bool {
+	amt := host.Status.AMT
+	return r.AMT != nil && amt != nil && (amt.ControlMode == amtAdminControl || amt.ControlMode == amtClientControl) &&
+		amt.Address != "" && amt.Address != "0.0.0.0"
+}
+
+// recordAMTPower asks host's AMT for action and records it in
+// status.amt.lastPowerAction.
+func (r *RackLinuxHostReconciler) recordAMTPower(ctx context.Context, host *infrav1.RackLinuxHost, action string) error {
 	if host.Status.AMT == nil {
 		host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{}
 	}
@@ -55,10 +74,9 @@ func (r *RackLinuxHostReconciler) reconcileAMTPower(ctx context.Context, host *i
 	host.Status.AMT.LastPowerAction = record
 	if err := r.powerAMT(ctx, host, action, record); err != nil {
 		record.Error = err.Error()
-		r.Recorder.Eventf(host, corev1.EventTypeWarning, "AMTPowerFailed", "Could not %s the host through AMT: %v", action, err)
-		return
+		return err
 	}
-	r.Recorder.Eventf(host, corev1.EventTypeNormal, "AMTPower", "Asked AMT to %s the host, through %s", action, record.Via)
+	return nil
 }
 
 func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.RackLinuxHost, action string, record *infrav1.RackLinuxHostAMTPowerAction) error {

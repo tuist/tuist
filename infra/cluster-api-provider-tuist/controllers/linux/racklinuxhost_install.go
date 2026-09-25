@@ -198,9 +198,9 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			"%s was rebooted into its installer for install %s", host.Name, inst.KeyID)
 		return 0, nil
 	}
-	if !device.Connected {
+	if !device.Connected && !r.amtCanPower(host) {
 		conditions.MarkFalse(host, InstalledCondition, "WaitingForNetboot", clusterv1.ConditionSeverityWarning,
-			"install %s is published, but %s is offline, so the operator cannot reboot it into it; boot its install stick or network entry by hand",
+			"install %s is published, but %s is offline and its AMT is not activated, so the operator cannot reboot it into it; boot its install stick or network entry by hand",
 			inst.KeyID, host.Name)
 		return 0, nil
 	}
@@ -208,6 +208,21 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
 			"rebooting %s into install %s once the boot server serves it", host.Name, inst.KeyID)
 		return wait, nil
+	}
+	if !device.Connected {
+		// The MS-01 boots its install stick first, so a power cycle boots the
+		// installer.
+		if err := r.recordAMTPower(ctx, host, "cycle"); err != nil {
+			r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not power-cycle %s through AMT into its installer: %v", host.Name, err)
+			conditions.MarkFalse(host, InstalledCondition, "ReinstallNotStarted", clusterv1.ConditionSeverityWarning, "%v", err)
+			return time.Minute, nil
+		}
+		triggered := metav1.NewTime(now)
+		inst.TriggeredAt = &triggered
+		r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Power-cycled %s through AMT into its installer, for install %s", host.Name, inst.KeyID)
+		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
+			"%s was power-cycled through AMT into its installer for install %s", host.Name, inst.KeyID)
+		return 0, nil
 	}
 	if err := r.bootInstallerOnce(ctx, host); err != nil {
 		r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not reboot %s into its installer: %v", host.Name, err)
