@@ -761,7 +761,7 @@ a power cycle boots the disk; a reinstall requested for a host off the tailnet
 uses `pxe` instead, and the install is published under the machine's SMBIOS
 UUID (`status.amt.uuid`, from AMT) as well as its boot MAC, so the boot server
 serves it to whichever NIC netboots. That needs the host's firmware set up to
-netboot (network stack on, Secure Boot off).
+netboot (network stack on); Secure Boot can stay on.
 
 ```bash
 kubectl patch rlh <host> --type merge -p '{"spec":{"amt":{"activate":true}}}'
