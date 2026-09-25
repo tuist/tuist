@@ -251,12 +251,14 @@ func MACPath(mac string) string {
 // server over HTTP; the installer then downloads the ISO into memory (url=) and
 // the seed. BOOTIF keeps the installer's DHCP on the NIC that netbooted, and
 // cloud-config-url is cleared because cloud-init would otherwise fetch the ISO
-// as a config.
+// as a config. Under Secure Boot, Ubuntu's shim from the ISO verifies the
+// kernel; iPXE skips it otherwise.
 func IPXEScript(server, mac string) string {
 	server = strings.TrimRight(server, "/")
 	return fmt.Sprintf(`#!ipxe
 kernel %[1]s/ubuntu/vmlinuz initrd=initrd ip=dhcp BOOTIF=01-%[2]s url=%[1]s/ubuntu/ubuntu.iso cloud-config-url=/dev/null autoinstall ds=nocloud-net;s=%[1]s/hosts/%[2]s/ ---
 initrd --name initrd %[1]s/ubuntu/initrd
+shim %[1]s/ubuntu/shimx64.efi
 boot
 `, server, MACPath(mac))
 }

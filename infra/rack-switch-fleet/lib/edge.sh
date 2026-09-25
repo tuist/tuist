@@ -296,15 +296,16 @@ CONF
   [ -n "$domain" ] && echo "dhcp-option=option:domain-name,$domain"
   if [ "$(jq -r '.management.edge.netboot // false' "$site_file")" = true ]; then
     # x86-64 UEFI firmware (client architectures 7 and 9) netboots iPXE from
-    # the rack's boot server on the provisioning address, and iPXE, which says
-    # so in its user class, the script that asks the server for the host's
-    # install; a host with none published gets nothing. The offers carry no
-    # vendor class: with PXEClient in it the firmware asks a PXE boot server
-    # on port 4011 for the file instead of reading the one the offer names.
+    # the rack's boot server on the provisioning address, through the shim of
+    # iPXE's Secure Boot build, and iPXE, which says so in its user class, the
+    # script that asks the server for the host's install; a host with none
+    # published gets nothing. The offers carry no vendor class: with PXEClient
+    # in it the firmware asks a PXE boot server on port 4011 for the file
+    # instead of reading the one the offer names.
     echo "dhcp-match=set:netboot,option:client-arch,7"
     echo "dhcp-match=set:netboot,option:client-arch,9"
     echo "dhcp-userclass=set:ipxe,iPXE"
-    echo "dhcp-boot=tag:netboot,tag:!ipxe,snponly.efi,,${provisioning%/*}"
+    echo "dhcp-boot=tag:netboot,tag:!ipxe,snponly-shim.efi,,${provisioning%/*}"
     echo "dhcp-boot=tag:ipxe,boot.ipxe,,${provisioning%/*}"
   fi
   return 0
