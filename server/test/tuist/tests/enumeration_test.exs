@@ -2,11 +2,16 @@ defmodule Tuist.Tests.EnumerationTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
   alias Tuist.Tests
   alias Tuist.Tests.Enumeration
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
 
   setup do
     %{project: ProjectsFixtures.project_fixture()}
@@ -93,5 +98,32 @@ defmodule Tuist.Tests.EnumerationTest do
     Enumeration.record(test, [%{module: "AppTests", suite: "MathTests", name: "testSubtract()"}])
 
     assert CoverageFixtures.enumerated_tests(test) == []
+  end
+
+  describe "a failure storing them" do
+    setup do
+      stub(Enumeration, :record, fn _test, _enumerated_tests -> raise "ClickHouse timed out" end)
+      :ok
+    end
+
+    test "leaves the run its test cases", %{project: project} do
+      test = run(project, [])
+
+      assert [_] = test_case_runs(test.id)
+    end
+
+    test "leaves a later shard its test cases", %{project: project} do
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      first = run(project, shard_plan_id: plan.id, shard_index: 0)
+      second = run(project, shard_plan_id: plan.id, shard_index: 1)
+
+      assert second.id == first.id
+      assert [_, _] = test_case_runs(first.id)
+      assert {:ok, %{status: "success"}} = Tests.get_test(first.id)
+    end
+  end
+
+  defp test_case_runs(test_run_id) do
+    ClickHouseRepo.all(from(r in TestCaseRun, where: r.test_run_id == ^test_run_id, select: r.id))
   end
 end
