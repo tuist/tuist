@@ -232,6 +232,11 @@ spec:
                       description: ObservedAt is when the operator last read AMT's state.
                       format: date-time
                       type: string
+                    uuid:
+                      description: |-
+                        UUID is the machine's SMBIOS UUID as AMT reports it, which the install
+                        is also published under for a network boot from any NIC.
+                      type: string
                     version:
                       description: Version is the AMT firmware's.
                       type: string

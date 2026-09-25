@@ -210,18 +210,18 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		return wait, nil
 	}
 	if !device.Connected {
-		// The converge keeps the install stick first in the host's boot order,
-		// so a power cycle boots its installer.
-		if err := r.recordAMTPower(ctx, host, "cycle"); err != nil {
-			r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not power-cycle %s through AMT into its installer: %v", host.Name, err)
+		// AMT boots the firmware's first network entry, which finds the install
+		// by the machine's UUID when it is not the boot MAC's.
+		if err := r.recordAMTPower(ctx, host, "pxe"); err != nil {
+			r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not power-cycle %s through AMT into its network boot: %v", host.Name, err)
 			conditions.MarkFalse(host, InstalledCondition, "ReinstallNotStarted", clusterv1.ConditionSeverityWarning, "%v", err)
 			return time.Minute, nil
 		}
 		triggered := metav1.NewTime(now)
 		inst.TriggeredAt = &triggered
-		r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Power-cycled %s through AMT into its installer, for install %s", host.Name, inst.KeyID)
+		r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Power-cycled %s through AMT into its network boot, for install %s", host.Name, inst.KeyID)
 		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-			"%s was power-cycled through AMT into its installer for install %s", host.Name, inst.KeyID)
+			"%s was power-cycled through AMT into its network boot for install %s", host.Name, inst.KeyID)
 		return 0, nil
 	}
 	if err := r.bootInstallerOnce(ctx, host); err != nil {
@@ -292,6 +292,11 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		secret.Data[mac+".user-data"] = []byte(userData)
 		secret.Data[mac+".meta-data"] = []byte(rackinstall.MetaData(seed))
 		secret.Data[mac+".ipxe"] = []byte(rackinstall.IPXEScript(r.Install.ServerURL, host.Spec.BootMAC))
+		if host.Status.AMT != nil && smbiosUUIDPattern.MatchString(host.Status.AMT.UUID) {
+			secret.Data[mac+".uuid"] = []byte(host.Status.AMT.UUID)
+		} else {
+			delete(secret.Data, mac+".uuid")
+		}
 		return nil
 	}); err != nil {
 		return fmt.Errorf("write the install to Secret %s: %w", secret.Name, err)
@@ -378,7 +383,7 @@ func (r *RackLinuxHostReconciler) withdrawInstall(ctx context.Context, host *inf
 	default:
 		mac := rackinstall.MACPath(inst.BootMAC)
 		changed := false
-		for _, suffix := range []string{".user-data", ".meta-data", ".ipxe", ".grub.cfg"} {
+		for _, suffix := range []string{".user-data", ".meta-data", ".ipxe", ".uuid", ".grub.cfg"} {
 			if _, ok := secret.Data[mac+suffix]; ok {
 				delete(secret.Data, mac+suffix)
 				changed = true

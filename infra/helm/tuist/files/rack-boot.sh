@@ -4,9 +4,10 @@
 # boot.ipxe over TFTP, and over HTTP the installer's kernel, initrd and ISO and
 # each host's iPXE script and autoinstall seed. The per-host files are what the
 # operator publishes to the fleet's boot Secret, mounted at $SEEDS:
-# <mac>.ipxe, <mac>.user-data and <mac>.meta-data, with the MAC hyphenated. A
-# host with nothing published gets nothing and falls through to its next boot
-# entry.
+# <mac>.ipxe, <mac>.user-data and <mac>.meta-data, with the MAC hyphenated,
+# and <mac>.uuid, the machine's SMBIOS UUID, under which the iPXE script is
+# served too. A host with nothing published gets nothing and falls through to
+# its next boot entry.
 #
 # Environment: BOOT_ADDRESS, HTTP_PORT, ISO_URL, ISO_SHA256, STATE (a host
 # directory kept across restarts), SEEDS, NETBOOT (iPXE).
@@ -45,11 +46,13 @@ prepare() {
   bsdtar -xOf "$iso" casper/initrd > "$http/ubuntu/initrd"
   cp "$NETBOOT/snponly.efi" "$tftp/"
   lay_out_announce
-  # iPXE asks for the host's script by the MAC it booted from; a host with none
-  # returns to its firmware's next boot entry.
+  # iPXE asks for the host's script by the MAC it booted from, then by the
+  # machine's SMBIOS UUID, which AMT's network boot of a dead host needs: it
+  # boots the firmware's first network entry, whichever NIC that is. A host with
+  # neither returns to its firmware's next boot entry.
   cat > "$tftp/boot.ipxe" <<IPXE
 #!ipxe
-chain http://$BOOT_ADDRESS:$HTTP_PORT/hosts/\${mac:hexhyp}.ipxe || exit 1
+chain http://$BOOT_ADDRESS:$HTTP_PORT/hosts/\${mac:hexhyp}.ipxe || chain http://$BOOT_ADDRESS:$HTTP_PORT/hosts/\${uuid}.ipxe || exit 1
 IPXE
 }
 
@@ -112,7 +115,14 @@ sync_seeds() {
     mkdir -p "$http/hosts/$mac"
     : > "$http/hosts/$mac/vendor-data"
     changed=
-    for pair in "$mac.ipxe:$mac.ipxe" "$mac.user-data:$mac/user-data" "$mac.meta-data:$mac/meta-data"; do
+    pairs="$mac.ipxe:$mac.ipxe $mac.user-data:$mac/user-data $mac.meta-data:$mac/meta-data"
+    uuid=
+    [ -f "$SEEDS/$mac.uuid" ] && uuid="$(tr -d '\n' <"$SEEDS/$mac.uuid")"
+    if printf '%s\n' "$uuid" | grep -Eqx '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'; then
+      pairs="$pairs $mac.ipxe:$uuid.ipxe"
+      wanted="$wanted$uuid.ipxe "
+    fi
+    for pair in $pairs; do
       src="$SEEDS/${pair%%:*}" target="$http/hosts/${pair#*:}"
       cmp -s "$src" "$target" || { cp "$src" "$target.new" && mv "$target.new" "$target" && changed=1; }
     done
@@ -124,6 +134,11 @@ sync_seeds() {
     case "$wanted" in *" $mac "*) continue ;; esac
     rm -rf "$dir" "$http/hosts/$mac.ipxe"
     log "withdrew the install for $mac"
+  done
+  for alias in "$http/hosts"/????????-????-????-????-????????????.ipxe; do
+    [ -f "$alias" ] || continue
+    case "$wanted" in *" $(basename "$alias") "*) continue ;; esac
+    rm -f "$alias"
   done
 }
 

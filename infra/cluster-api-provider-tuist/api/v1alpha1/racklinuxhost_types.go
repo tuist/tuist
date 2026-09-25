@@ -152,6 +152,11 @@ type RackLinuxHostAMTStatus struct {
 	// +optional
 	Address string `json:"address,omitempty"`
 
+	// UUID is the machine's SMBIOS UUID as AMT reports it, which the install
+	// is also published under for a network boot from any NIC.
+	// +optional
+	UUID string `json:"uuid,omitempty"`
+
 	// ObservedAt is when the operator last read AMT's state.
 	// +optional
 	ObservedAt *metav1.Time `json:"observedAt,omitempty"`
