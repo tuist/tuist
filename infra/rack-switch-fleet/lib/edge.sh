@@ -254,7 +254,7 @@ SCRIPT
 # standby edge holds none of the port's addresses, and with bind-interfaces
 # dnsmasq exits with "unknown interface" there (measured on ber1-edge-b).
 fleet_edge_dhcp() {
-  local site_file="$1" interface edge_address length provisioning provisioning_net controller
+  local site_file="$1" interface edge_address length provisioning provisioning_net controller domain
   local -a known
   fleet_edge_check "$site_file" || return 1
   interface="$(jq -r '.management.edge.interface' "$site_file")"
@@ -262,6 +262,11 @@ fleet_edge_dhcp() {
   length="$(jq -r '.management.prefix' "$site_file" | cut -d/ -f2)"
   provisioning="$(jq -r '.management.edge.provisioning // empty' "$site_file")"
   controller="$(jq -r '.management.controller.address // empty' "$site_file")"
+  domain="$(jq -r '.management.edge.domain // empty' "$site_file")"
+  if [ -n "$domain" ] && ! [[ "$domain" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+    echo "error: management.edge.domain '$domain' is not a domain name" >&2
+    return 1
+  fi
   mapfile -t known < <(jq -r '.devices[] | select(.behind_edge and .mac) | "\(.mac),\(.mgmt_address),\(.name)"' "$site_file")
 
   cat <<CONF
@@ -286,6 +291,9 @@ CONF
     echo "dhcp-option=tag:provisioning,option:router,${provisioning%/*}"
   fi
   [ -n "$controller" ] && echo "dhcp-option=138,$controller"
+  # Option 15 for every machine on the segment: AMT activates in admin control
+  # mode only when it is a suffix of its provisioning certificate's name.
+  [ -n "$domain" ] && echo "dhcp-option=option:domain-name,$domain"
   if [ "$(jq -r '.management.edge.netboot // false' "$site_file")" = true ]; then
     # x86-64 UEFI firmware (client architectures 7 and 9) netboots iPXE from
     # the rack's boot server on the provisioning address, and iPXE, which says
