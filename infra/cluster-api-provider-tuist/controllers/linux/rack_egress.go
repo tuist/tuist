@@ -14,7 +14,10 @@ import (
 )
 
 // rackEgress fronts a rack Linux host's tailnet address with an egress Service
-// on the Tailscale ProxyGroup, since a Pod has no route to the tailnet.
+// on the Tailscale ProxyGroup, since a Pod has no route to the tailnet. Each
+// names its proxy after itself: the Tailscale operator would name it
+// <namespace>-<Service>, longer than a DNS label for a host named after its
+// UUID.
 type rackEgress struct {
 	Namespace  string
 	ProxyGroup string
@@ -53,6 +56,7 @@ func (e rackEgress) ensure(ctx context.Context, c client.Client, host *infrav1.R
 		}
 		svc.Annotations["tailscale.com/tailnet-ip"] = host.Status.Tailnet.Address
 		svc.Annotations["tailscale.com/proxy-group"] = e.ProxyGroup
+		svc.Annotations["tailscale.com/hostname"] = svc.Name
 		svc.Spec.Type = corev1.ServiceTypeExternalName
 		if svc.Spec.ExternalName == "" {
 			svc.Spec.ExternalName = "placeholder." + e.Namespace + ".svc.cluster.local"
@@ -100,6 +104,7 @@ func (e rackEgress) ensureKubelet(ctx context.Context, c client.Client, host *in
 			svc.Annotations = map[string]string{}
 		}
 		svc.Annotations["tailscale.com/tailnet-ip"] = host.Status.Tailnet.Address
+		svc.Annotations["tailscale.com/hostname"] = svc.Name
 		if e.ProxyTags != "" {
 			svc.Annotations["tailscale.com/tags"] = e.ProxyTags
 		} else {
