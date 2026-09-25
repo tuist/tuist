@@ -268,7 +268,7 @@ defmodule TuistWeb.TestRunsLiveTest do
       refute table =~ "75.0%"
     end
 
-    test "filters the runs by their coverage", %{
+    test "offers no coverage filter, and ignores one a bookmarked address still names", %{
       conn: conn,
       organization: organization,
       project: project
@@ -276,75 +276,19 @@ defmodule TuistWeb.TestRunsLiveTest do
       coverage_run(project, organization, "SchemeFull", lines: [1, 1, 1, 0])
       coverage_run(project, organization, "SchemePartial", lines: [1, 0, 0, 0], partial: true)
 
-      {:ok, _run_without_coverage} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          account_id: organization.account.id,
-          scheme: "SchemeNone",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second)
-        )
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
 
-      full =
+      render_async(lv, @render_async_timeout)
+      refute render(lv) =~ "filter_coverage"
+
+      table =
         conn
         |> live_table(organization, project, %{"filter_coverage_op" => "==", "filter_coverage_val" => "full"})
         |> render()
 
-      assert full =~ "SchemeFull"
-      refute full =~ "SchemePartial"
-      refute full =~ "SchemeNone"
-
-      partial =
-        conn
-        |> live_table(organization, project, %{"filter_coverage_op" => "==", "filter_coverage_val" => "partial"})
-        |> render()
-
-      assert partial =~ "SchemePartial"
-      refute partial =~ "SchemeFull"
-      refute partial =~ "SchemeNone"
-
-      any =
-        conn
-        |> live_table(organization, project, %{"filter_coverage_op" => "==", "filter_coverage_val" => "any"})
-        |> render()
-
-      assert any =~ "SchemeFull"
-      assert any =~ "SchemePartial"
-      refute any =~ "SchemeNone"
-    end
-
-    test "excludes the runs of a coverage kind when the filter is negated", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      coverage_run(project, organization, "SchemeFull", lines: [1, 1, 1, 0])
-      coverage_run(project, organization, "SchemePartial", lines: [1, 0, 0, 0], partial: true)
-
-      {:ok, _run_without_coverage} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          account_id: organization.account.id,
-          scheme: "SchemeNone",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second)
-        )
-
-      not_full =
-        conn
-        |> live_table(organization, project, %{"filter_coverage_op" => "!=", "filter_coverage_val" => "full"})
-        |> render()
-
-      refute not_full =~ "SchemeFull"
-      assert not_full =~ "SchemePartial"
-      assert not_full =~ "SchemeNone"
-
-      without_coverage =
-        conn
-        |> live_table(organization, project, %{"filter_coverage_op" => "!=", "filter_coverage_val" => "any"})
-        |> render()
-
-      assert without_coverage =~ "SchemeNone"
-      refute without_coverage =~ "SchemeFull"
-      refute without_coverage =~ "SchemePartial"
+      assert table =~ "SchemeFull"
+      assert table =~ "SchemePartial"
     end
 
     defp live_table(conn, organization, project, filters) do
