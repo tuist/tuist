@@ -324,6 +324,55 @@ defmodule TuistWeb.OnceRunsLiveTest do
     assert positions == Enum.sort(positions)
   end
 
+  test "the Test Runs page filters analytics by environment", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    at = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+    # One CI test run on top of the three local build runs from setup, with a
+    # duration nothing else uses so the widget value is unambiguous.
+    {:ok, run} =
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "test",
+        command_display: "once test //...",
+        is_ci: true,
+        started_at: at
+      })
+
+    {:ok, _} =
+      OnceEvents.finalize_run(run, %{
+        finalization: "finalized",
+        exit_status: 0,
+        wall_ms: 7331,
+        finalized_at: at
+      })
+
+    path = "/#{organization.account.name}/#{project.name}/once/test-runs"
+
+    {:ok, view, _} = live(conn, path)
+    render_async(view, 2_000)
+    assert has_element?(view, "#once-analytics-environment-dropdown")
+
+    # CI keeps the run, local excludes it. Asserting only that the dropdown
+    # renders would pass even if it filtered nothing.
+    {:ok, view, _} = live(conn, path <> "?analytics-environment=ci")
+    render_async(view, 2_000)
+    assert render(view) =~ "7.3s"
+
+    {:ok, view, _} = live(conn, path <> "?analytics-environment=local")
+    render_async(view, 2_000)
+    refute render(view) =~ "7.3s"
+
+    # An unknown value falls back to unfiltered rather than crashing.
+    {:ok, view, _} = live(conn, path <> "?analytics-environment=bogus")
+    render_async(view, 2_000)
+    assert render(view) =~ "7.3s"
+  end
+
   test "the build duration widget can be shown as a scatter of runs", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path <> "?analytics-selected-widget=build-duration")
     render_async(view)

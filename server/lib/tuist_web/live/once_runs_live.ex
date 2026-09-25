@@ -80,13 +80,14 @@ defmodule TuistWeb.OnceRunsLive do
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
     insights_dimension = insights_dimension(params["configuration-insights-type"])
+    analytics_environment = analytics_environment(params["analytics-environment"])
 
     filters =
       [%{field: :project_id, op: :==, value: project.id}] ++
         Filter.Operations.convert_filters_to_flop(active_filters)
 
     commands = [socket.assigns.once_kind_filter]
-    analytics_opts = analytics_opts(analytics_period, commands)
+    analytics_opts = analytics_opts(analytics_period, commands, analytics_environment)
 
     # The dedicated listing pages carry no date picker, the way Xcode's own
     # Build Runs page does not, so scoping their table to a period would put
@@ -139,10 +140,13 @@ defmodule TuistWeb.OnceRunsLive do
       |> assign_async([:invocation_summary, :invocation_analytics], fn ->
         {:ok,
          %{
-           invocation_summary: invocation_summary_with_trends(project.id, analytics_period, commands),
+           invocation_summary:
+             invocation_summary_with_trends(project.id, analytics_period, commands, analytics_environment),
            invocation_analytics: Analytics.invocation_analytics(project.id, analytics_opts)
          }}
       end)
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
       |> assign(:configuration_insights_dimension, insights_dimension)
       |> assign_async(:configuration_insights_analytics, fn ->
         {:ok,
@@ -255,6 +259,21 @@ defmodule TuistWeb.OnceRunsLive do
     ~H"""
     <div id="bazel-invocations" class="bazel-invocations">
       <div :if={@once_show_analytics} data-part="filters">
+        <.dropdown
+          id="once-analytics-environment-dropdown"
+          label={@analytics_environment_label}
+          secondary_text={dgettext("dashboard_tests", "Environment:")}
+        >
+          <.dropdown_item
+            :for={environment <- ~w(any local ci)}
+            value={environment}
+            label={analytics_environment_label(environment)}
+            patch={"?#{Query.put(@uri.query, "analytics-environment", environment)}"}
+            data-selected={@analytics_environment == environment}
+          >
+            <:right_icon :if={@analytics_environment == environment}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
         <.date_picker
           id="once-invocations-date-range-picker"
           name="analytics-date-range"
@@ -887,13 +906,13 @@ defmodule TuistWeb.OnceRunsLive do
     }
   end
 
-  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands) do
-    summary = Analytics.summary(project_id, analytics_opts(period, commands))
+  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands, environment) do
+    summary = Analytics.summary(project_id, analytics_opts(period, commands, environment))
 
     previous_summary =
       Analytics.summary(
         project_id,
-        analytics_opts(previous_period(start_datetime, end_datetime), commands)
+        analytics_opts(previous_period(start_datetime, end_datetime), commands, environment)
       )
 
     Map.merge(summary, %{
@@ -1127,11 +1146,26 @@ defmodule TuistWeb.OnceRunsLive do
   defp sort_field("duration"), do: :duration_ms
   defp sort_field(_), do: :finished_at
 
-  defp analytics_opts(period, commands) do
+  defp analytics_opts(period, commands, environment \\ "any") do
     period
     |> period_opts()
     |> Keyword.put(:commands, commands)
+    |> put_environment(environment)
   end
+
+  # `:is_ci` is the opt `Tuist.OnceEvents.Analytics` filters on, and the same
+  # one `Tuist.Builds` takes for Xcode, so the dropdown means the same thing
+  # on both build systems. "Any" leaves it unset rather than passing a value.
+  defp put_environment(opts, "ci"), do: Keyword.put(opts, :is_ci, true)
+  defp put_environment(opts, "local"), do: Keyword.put(opts, :is_ci, false)
+  defp put_environment(opts, _any), do: opts
+
+  defp analytics_environment(environment) when environment in ~w(any local ci), do: environment
+  defp analytics_environment(_unknown), do: "any"
+
+  defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
+  defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
+  defp analytics_environment_label(_any), do: dgettext("dashboard_tests", "Any")
 
   defp define_filters do
     [
