@@ -159,18 +159,20 @@ defmodule Tuist.GitHistory do
   `parents` (SHAs, first parent first) and `committed_at`. Commits already
   stored are left as they are, so an upload can be repeated. Generation
   numbers are computed from the parents stored so far and from the batch
-  itself, so uploading oldest first gives exact numbers; a parent that is
-  never stored counts as generation 0.
+  itself, parents first whatever order and dates the batch has, and a
+  commit stored before one of its ancestors has its generation, and its
+  descendants', raised when the ancestor arrives; a parent that is never
+  stored counts as generation 0.
   """
   def record_commits(_repository_id, _object_format, []), do: :ok
 
   def record_commits(repository_id, object_format, commits) do
-    commits = commits |> Enum.uniq_by(& &1.sha) |> Enum.sort_by(& &1.committed_at, DateTime)
-    parent_shas = commits |> Enum.flat_map(& &1.parents) |> Enum.uniq()
+    commits = commits |> Enum.uniq_by(& &1.sha) |> Enum.sort_by(& &1.committed_at, DateTime) |> parents_first()
+    shas = commits |> Enum.flat_map(&[&1.sha | &1.parents]) |> Enum.uniq()
 
     known_generations =
       from(c in Commit,
-        where: c.repository_id == ^repository_id and c.sha in ^parent_shas,
+        where: c.repository_id == ^repository_id and c.sha in ^shas,
         select: {c.sha, c.generation}
       )
       |> Repo.all()
@@ -178,7 +180,12 @@ defmodule Tuist.GitHistory do
 
     {rows, _generations} =
       Enum.map_reduce(commits, known_generations, fn commit, generations ->
-        generation = 1 + Enum.reduce(commit.parents, 0, &max(Map.get(generations, &1, 0), &2))
+        generation =
+          max(
+            1 + Enum.reduce(commit.parents, 0, &max(Map.get(generations, &1, 0), &2)),
+            Map.get(known_generations, commit.sha, 0)
+          )
+
         now = DateTime.truncate(DateTime.utc_now(), :second)
 
         row = %{
@@ -207,10 +214,71 @@ defmodule Tuist.GitHistory do
       Repo.transaction(fn ->
         rows |> Enum.chunk_every(500) |> Enum.each(&Repo.insert_all(Commit, &1, on_conflict: :nothing))
         edges |> Enum.chunk_every(1_000) |> Enum.each(&Repo.insert_all(CommitParent, &1, on_conflict: :nothing))
+        raise_generations(repository_id, rows)
         :ok
       end)
 
     :ok
+  end
+
+  # Kahn's algorithm over the batch's own edges, keeping the given order among
+  # commits that are ready together. A cycle, which Git cannot produce, leaves
+  # its commits at the end in the given order.
+  defp parents_first(commits) do
+    shas = MapSet.new(commits, & &1.sha)
+    batch_parents = fn commit -> commit.parents |> Enum.uniq() |> Enum.filter(&(&1 != commit.sha and &1 in shas)) end
+
+    pending = Map.new(commits, &{&1.sha, length(batch_parents.(&1))})
+
+    children =
+      commits
+      |> Enum.flat_map(fn commit -> Enum.map(batch_parents.(commit), &{&1, commit}) end)
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    ordered = kahn(Enum.filter(commits, &(pending[&1.sha] == 0)), children, pending, [])
+    placed = MapSet.new(ordered, & &1.sha)
+    ordered ++ Enum.reject(commits, &MapSet.member?(placed, &1.sha))
+  end
+
+  defp kahn([], _children, _pending, ordered), do: Enum.reverse(ordered)
+
+  defp kahn([commit | ready], children, pending, ordered) do
+    {unblocked, pending} =
+      children
+      |> Map.get(commit.sha, [])
+      |> Enum.reduce({[], pending}, fn child, {unblocked, pending} ->
+        pending = Map.update!(pending, child.sha, &(&1 - 1))
+        if pending[child.sha] == 0, do: {[child | unblocked], pending}, else: {unblocked, pending}
+      end)
+
+    kahn(Enum.reverse(unblocked, ready), children, pending, [commit | ordered])
+  end
+
+  # A commit stored before one of its ancestors was numbered as if the
+  # ancestor were generation 0, and so were its descendants: raise them along
+  # the stored edges until they are above their parents again.
+  defp raise_generations(repository_id, rows) do
+    rows
+    |> Enum.chunk_every(1_000)
+    |> Enum.each(fn chunk ->
+      Repo.query!(
+        """
+        WITH RECURSIVE raised (sha, generation, depth) AS (
+          SELECT v.sha, v.generation, 0 FROM unnest($2::varchar[], $3::integer[]) AS v (sha, generation)
+          UNION
+          SELECT p.child_sha, r.generation + 1, r.depth + 1
+          FROM raised r
+          JOIN git_commit_parents p ON p.repository_id = $1 AND p.parent_sha = r.sha
+          JOIN git_commits c ON c.repository_id = $1 AND c.sha = p.child_sha
+          WHERE c.generation <= r.generation AND r.depth < $4
+        )
+        UPDATE git_commits c SET generation = r.generation
+        FROM (SELECT sha, max(generation) AS generation FROM raised GROUP BY sha) r
+        WHERE c.repository_id = $1 AND c.sha = r.sha AND c.generation < r.generation
+        """,
+        [repository_id, Enum.map(chunk, & &1.sha), Enum.map(chunk, & &1.generation), settings(nil).window_commits]
+      )
+    end)
   end
 
   @doc """

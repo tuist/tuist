@@ -13,6 +13,12 @@ defmodule Tuist.GitHistoryTest do
     %{account: account, project: project, repository: GitHistory.repository_id(account.id, "git@github.com:acme/app.git")}
   end
 
+  defp generations(repository) do
+    from(c in GitHistory.Commit, where: c.repository_id == ^repository, select: {c.sha, c.generation})
+    |> Tuist.Repo.all()
+    |> Map.new()
+  end
+
   # A linear history a → b → c → d (d newest) with a side branch e off b,
   # and a merge commit m of e into d.
   defp commit(sha, parents, minutes) do
@@ -71,6 +77,24 @@ defmodule Tuist.GitHistoryTest do
         Tuist.Repo.all(from(c in GitHistory.Commit, where: c.repository_id == ^repository, select: {c.sha, c.generation}))
 
       assert Map.new(generations) == %{"a" => 1, "b" => 2, "c" => 3, "d" => 4, "e" => 3, "m" => 5}
+    end
+
+    test "numbers parents before their children whatever order and dates they come in", %{repository: repository} do
+      # A rebase gives every rewritten commit the same committer date, and
+      # `git log` lists the child first.
+      GitHistory.record_commits(repository, "sha1", [commit("c", ["b"], 0), commit("b", ["a"], 0), commit("a", [], 0)])
+
+      assert generations(repository) == %{"a" => 1, "b" => 2, "c" => 3}
+    end
+
+    test "raises the generations of stored descendants when an ancestor arrives later", %{repository: repository} do
+      GitHistory.record_commits(repository, "sha1", [commit("x", ["w"], 2), commit("y", ["x"], 3), commit("z", ["y"], 4)])
+      assert generations(repository) == %{"x" => 1, "y" => 2, "z" => 3}
+
+      GitHistory.record_commits(repository, "sha1", [commit("v", [], 0), commit("w", ["v"], 1)])
+
+      assert generations(repository) == %{"v" => 1, "w" => 2, "x" => 3, "y" => 4, "z" => 5}
+      assert GitHistory.nearest_ancestor(repository, "z", ["w"]) == {"w", 3}
     end
 
     test "a parent outside the window still gets an edge and counts as generation 0", %{repository: repository} do
