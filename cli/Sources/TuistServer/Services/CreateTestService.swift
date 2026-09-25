@@ -589,28 +589,30 @@ private func stressFailures(
     }
 }
 
-extension TestSummary {
-    fileprivate var enumeratedTestsPayload: Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayload? {
-        enumeratedTests?
-            .map { .init(enabled: $0.enabled, function: $0.function, module: $0.module, name: $0.name, suite: $0.suite) }
-    }
+#if canImport(TuistXCResultService)
+    extension TestSummary {
+        fileprivate var enumeratedTestsPayload: Operations.createTest.Input.Body.jsonPayload.enumerated_testsPayload? {
+            enumeratedTests?
+                .map { .init(enabled: $0.enabled, function: $0.function, module: $0.module, name: $0.name, suite: $0.suite) }
+        }
 
-    fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {
-        coverageEvidence.map { evidence in
-            .init(
-                paths: evidence.paths,
-                scopes: evidence.scopes.map {
-                    .init(
-                        files: $0.files,
-                        kind: .init(rawValue: $0.kind.rawValue) ?? .target,
-                        lines: $0.lines,
-                        module: $0.module,
-                        name: $0.name,
-                        suite: $0.suite
-                    )
-                },
-                unattributed_tests: evidence.unattributedTests
-            )
+        fileprivate var coverageEvidencePayload: Operations.createTest.Input.Body.jsonPayload.coverage_evidencePayload? {
+            coverageEvidence.map { evidence in
+                .init(
+                    paths: evidence.paths,
+                    scopes: evidence.scopes.map {
+                        .init(
+                            files: $0.files,
+                            kind: .init(rawValue: $0.kind.rawValue) ?? .target,
+                            lines: $0.lines,
+                            module: $0.module,
+                            name: $0.name,
+                            suite: $0.suite
+                        )
+                    },
+                    unattributed_tests: evidence.unattributedTests
+                )
+            }
         }
     }
-}
+#endif
