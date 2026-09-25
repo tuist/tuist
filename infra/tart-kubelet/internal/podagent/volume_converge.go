@@ -373,10 +373,16 @@ func (w *ConvergeWorker) refreshPrefetch(ctx context.Context) bool {
 
 	logger := log.Log.WithName("volume")
 	masters, err := w.Prefetch.CacheMasters(ctx)
+	if errors.Is(err, errPrefetchUnavailable) {
+		// Not a poll: no runner Pod has said where the server is yet, which is
+		// every start. Ask again as soon as one has.
+		w.mu.Lock()
+		w.lastPrefetch = time.Time{}
+		w.mu.Unlock()
+		return false
+	}
 	if err != nil {
-		if !errors.Is(err, errPrefetchUnavailable) {
-			logger.Error(err, "converge: list the masters to prefetch")
-		}
+		logger.Error(err, "converge: list the masters to prefetch")
 		return false
 	}
 	queued := 0

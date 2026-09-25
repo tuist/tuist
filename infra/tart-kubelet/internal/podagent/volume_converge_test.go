@@ -579,3 +579,32 @@ func TestParseContentRange(t *testing.T) {
 		}
 	}
 }
+
+type unavailableUntil struct {
+	ready atomic.Bool
+	calls atomic.Int32
+}
+
+func (s *unavailableUntil) CacheMasters(context.Context) ([]PrefetchMaster, error) {
+	s.calls.Add(1)
+	if !s.ready.Load() {
+		return nil, errPrefetchUnavailable
+	}
+	return nil, nil
+}
+
+// Every start polls before any runner Pod has said where the server is. That
+// must not cost the host a whole prefetch interval.
+func TestConvergePrefetchesAsSoonAsTheServerIsKnown(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	source := &unavailableUntil{}
+	w := newTestConvergeWorker(m)
+	w.Prefetch = source
+
+	drain(w)
+	source.ready.Store(true)
+	drain(w)
+	if got := source.calls.Load(); got != 2 {
+		t.Fatalf("prefetch polls = %d; the first poll after the server became known must not wait an interval", got)
+	}
+}
