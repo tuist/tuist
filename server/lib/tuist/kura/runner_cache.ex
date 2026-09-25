@@ -1,24 +1,26 @@
 defmodule Tuist.Kura.RunnerCache do
   @moduledoc """
   Keeps a private runner-cache Kura node provisioned for exactly the
-  accounts that can use hosted runners.
+  accounts that use hosted runners.
 
   The identity rule converges both directions every tick, per private
   region:
 
-    * an account with at least one Runner Profile whose platform the
-      region serves (`Regions.runner_platforms`) AND
-      `Tuist.FeatureFlags.runners_enabled?/1` returning true should have exactly one
-      non-destroyed Kura server in that region, and
-    * an account with no such profiles — or without runner access — should
-      have none there.
+    * an account that had a runner job claimed on a platform the region
+      serves (`Regions.runner_platforms`) within the last 30 days AND
+      `Tuist.FeatureFlags.runners_enabled?/1` returning true should have
+      exactly one non-destroyed Kura server in that region, and
+    * an account with no such job, or without runner access, should have
+      none there.
 
-  Runner Profiles are auto-created for every account, so profiles identify the
-  platform whose cache is needed rather than providing a second entitlement.
-  The reconciler evaluates the same runner-availability function as dispatch,
-  making co-located caching an automatic part of the runner product. A global
-  runner rule therefore provisions caches for every eligible account, while an
-  account whose runner access is removed has its cache torn down.
+  Runner access alone does not provision a node. A node joins the account's
+  mesh and replicates everything the account writes, so a node for an account
+  that never dispatches a job there fills the region's disk with content no
+  runner reads. An account's first jobs on a platform run against the fallback
+  endpoint `Tuist.Kura.runner_cache_endpoint_url/2` resolves, and the node
+  follows on the next tick. A claimed job is the signal because GitHub delivers
+  jobs no Tuist runner picks up, and the window is long enough that a team
+  running jobs weekly keeps its warm cache.
 
   Each private region admits new accounts only while fewer than ten servers are
   unsettled. Failed and destroying servers keep admission closed until they
@@ -33,17 +35,17 @@ defmodule Tuist.Kura.RunnerCache do
   cannot produce a mixed cohort within a reconciliation tick.
 
   The platform match keeps the node next to the fleet it serves: a region
-  pinned beside the Scaleway Mac mini fleet provisions only for accounts with
-  macOS profiles, and an account that drops its last macOS profile frees that
-  node even while its Linux profiles keep a node in a Linux-serving region.
+  pinned beside the Scaleway Mac mini fleet provisions only for accounts
+  running macOS jobs, and an account that stops running macOS jobs frees that
+  node even while its Linux jobs keep a node in a Linux-serving region.
 
   This runs inside `Tuist.Kura.Reconciler`'s unique Oban job rather than on its
   own cron, so production reconciliation is serialized, shares the same cadence,
-  and self-heals after a BEAM restart: enabling runners for an account provisions
-  the node on the next tick; disabling them tears it down. It is a no-op unless a
-  private region is available in this runtime (via
-  `TUIST_KURA_AVAILABLE_REGIONS`) and a Kura runtime image tag is configured, so
-  non-managed and not-yet-wired environments stay inert.
+  and self-heals after a BEAM restart: an account's first claimed job provisions
+  the node on the next tick; disabling runners, or 30 days without a job, tears
+  it down. It is a no-op unless a private region is available in this runtime
+  (via `TUIST_KURA_AVAILABLE_REGIONS`) and a Kura runtime image tag is
+  configured, so non-managed and not-yet-wired environments stay inert.
 
   Provisioning the node does not, by itself, route any traffic to it —
   `Tuist.Kura.runner_cache_endpoint_url/2` only returns a URL once the
@@ -61,11 +63,12 @@ defmodule Tuist.Kura.RunnerCache do
   alias Tuist.Kura.Rollouts
   alias Tuist.Kura.Server
   alias Tuist.Repo
-  alias Tuist.Runners.Profile
+  alias Tuist.Runners.WorkflowJob
 
   require Logger
 
   @max_teardowns_per_reconcile 100
+  @usage_window_days 30
   @max_unsettled_servers_per_region 10
   @retry_backoff_seconds [60, 300, 900, 3600]
 
@@ -119,7 +122,7 @@ defmodule Tuist.Kura.RunnerCache do
   # umbrella cluster plus a macOS-serving pool in Scaleway fr-par).
   # Multi-region went from unsupported-and-logged to a first-class
   # shape when regions gained `runner_platforms`: each region now
-  # reconciles independently against the accounts whose profiles it
+  # reconciles independently against the accounts whose jobs it
   # serves, so none is ever silently un-reconciled. `available/0` is
   # env-gated, so this stays empty until a private region is wired
   # into `TUIST_KURA_AVAILABLE_REGIONS`.
@@ -129,9 +132,19 @@ defmodule Tuist.Kura.RunnerCache do
 
   # Platforms a region's nodes serve. Private regions always declare
   # `runner_platforms`; the fallback keeps a malformed region from
-  # matching every profile.
+  # matching every job.
   defp region_platforms(%Regions{runner_platforms: platforms}) when is_list(platforms), do: platforms
   defp region_platforms(_), do: []
+
+  defp recent_jobs(platforms) do
+    since = DateTime.add(DateTime.utc_now(), -@usage_window_days * 86_400, :second)
+
+    from(j in WorkflowJob,
+      where: j.platform in ^Enum.map(platforms, &Atom.to_string/1),
+      where: j.claimed_at >= ^since,
+      select: 1
+    )
+  end
 
   defp image_tag do
     case Environment.kura_runtime_image_tag() do
@@ -154,17 +167,15 @@ defmodule Tuist.Kura.RunnerCache do
       |> Enum.flat_map(&region_platforms/1)
       |> Enum.uniq()
 
-    profile_exists =
-      from(p in Profile,
-        where: p.account_id == parent_as(:account).id,
-        where: p.platform in ^platforms,
-        select: 1
+    recent_job_exists =
+      from(j in recent_jobs(platforms),
+        where: j.account_id == parent_as(:account).id
       )
 
     query =
       from(a in Account,
         as: :account,
-        where: exists(profile_exists),
+        where: exists(recent_job_exists),
         order_by: [asc: a.id],
         select: struct(a, [:id])
       )
@@ -240,18 +251,16 @@ defmodule Tuist.Kura.RunnerCache do
         select: 1
       )
 
-    profile_exists =
-      from(p in Profile,
-        where: p.account_id == parent_as(:account).id,
-        where: p.platform in ^platforms,
-        select: 1
+    recent_job_exists =
+      from(j in recent_jobs(platforms),
+        where: j.account_id == parent_as(:account).id
       )
 
     Repo.all(
       from(a in Account,
         as: :account,
         where: a.id in ^MapSet.to_list(account_ids),
-        where: exists(profile_exists),
+        where: exists(recent_job_exists),
         where: not exists(server_exists),
         order_by: [asc: a.id],
         limit: ^limit,
@@ -289,11 +298,9 @@ defmodule Tuist.Kura.RunnerCache do
   defp nodes_to_tear_down(%Regions{id: region_id} = region, account_ids) do
     platforms = region_platforms(region)
 
-    profile_exists =
-      from(p in Profile,
-        where: p.account_id == parent_as(:server).account_id,
-        where: p.platform in ^platforms,
-        select: 1
+    recent_job_exists =
+      from(j in recent_jobs(platforms),
+        where: j.account_id == parent_as(:server).account_id
       )
 
     cohort_ids = MapSet.to_list(account_ids)
@@ -303,7 +310,7 @@ defmodule Tuist.Kura.RunnerCache do
         as: :server,
         where: s.region == ^region_id,
         where: s.status not in [:destroying, :destroyed],
-        where: not exists(profile_exists) or s.account_id not in ^cohort_ids,
+        where: not exists(recent_job_exists) or s.account_id not in ^cohort_ids,
         order_by: [asc: s.updated_at, asc: s.id],
         limit: ^@max_teardowns_per_reconcile,
         select: s
@@ -448,7 +455,7 @@ defmodule Tuist.Kura.RunnerCache do
   defp tear_down(%Server{} = server) do
     case Kura.destroy_server(server) do
       {:ok, _server} ->
-        Logger.info("[Kura.RunnerCache] tearing down runner-cache node #{server.id} (runners disabled)")
+        Logger.info("[Kura.RunnerCache] tearing down runner-cache node #{server.id} (runners unused or disabled)")
         :ok
 
       {:error, reason} ->
