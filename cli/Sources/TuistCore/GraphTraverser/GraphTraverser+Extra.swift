@@ -18,27 +18,8 @@ extension GraphTraversing {
             allTestPlansTargetNames = nil
         }
 
-        var includedTargetNames = Set<String>()
-        var includedTargetTags = Set<String>()
-        for includedTarget in includedTargets {
-            switch includedTarget {
-            case let .named(name):
-                includedTargetNames.insert(name)
-            case let .tagged(tag):
-                includedTargetTags.insert(tag)
-            }
-        }
-
-        var excludedTargetNames = Set<String>()
-        var excludedTargetTags = Set<String>()
-        for excludedTarget in excludedTargets {
-            switch excludedTarget {
-            case let .named(name):
-                excludedTargetNames.insert(name)
-            case let .tagged(tag):
-                excludedTargetTags.insert(tag)
-            }
-        }
+        let includedTargetsMatcher = TargetQueryMatcher(includedTargets)
+        let excludedTargetsMatcher = TargetQueryMatcher(excludedTargets)
 
         lazy var allInternalTargets = allInternalTargets().map(\.target.name)
         return Set(
@@ -46,15 +27,13 @@ extension GraphTraversing {
                 if let allTestPlansTargetNames, !allTestPlansTargetNames.contains(target.target.name) {
                     return false
                 }
-                if !includedTargets.isEmpty {
-                    return
-                        includedTargetNames.contains(target.target.name) ||
-                        !includedTargetTags.isDisjoint(with: target.target.metadata.tags)
+                if !includedTargetsMatcher.isEmpty {
+                    return includedTargetsMatcher.matches(
+                        targetName: target.target.name,
+                        tags: target.target.metadata.tags
+                    )
                 }
-                if excludedTargetNames.contains(target.target.name) {
-                    return false
-                }
-                if !excludedTargetTags.isDisjoint(with: target.target.metadata.tags) {
+                if excludedTargetsMatcher.matches(targetName: target.target.name, tags: target.target.metadata.tags) {
                     return false
                 }
                 return excludingExternalTargets ? allInternalTargets.contains(target.target.name) : true

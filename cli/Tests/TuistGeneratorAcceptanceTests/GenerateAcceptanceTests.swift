@@ -91,6 +91,54 @@ struct GeneratorAcceptanceTests {
     }
 }
 
+struct GenerateAcceptanceTestWorkspaceWithSchemeTargetQueries {
+    @Test(.withFixture("generated_workspace_with_scheme_target_queries"), .inTemporaryDirectory)
+    func workspace_with_scheme_target_queries() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        // When
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+
+        // Then: the queries of the workspace schemes are resolved against the targets of every project
+        func scheme(_ name: String) throws -> XCScheme {
+            try XCScheme(
+                pathString: fixtureDirectory
+                    .appending(components: "Modules.xcworkspace", "xcshareddata", "xcschemes", "\(name).xcscheme")
+                    .pathString
+            )
+        }
+
+        let unitTests = try scheme("AllUnitTests")
+        #expect(
+            unitTests.testAction?.testables.map(\.buildableReference.blueprintName) == [
+                "HomeFeature-UnitTests",
+                "NetworkKit-UnitTests",
+            ]
+        )
+        #expect(unitTests.testAction?.codeCoverageEnabled == true)
+
+        // And: tagged queries match the tagged targets, no matter what they are named
+        let screenshotTests = try scheme("AllScreenshotTests")
+        #expect(
+            screenshotTests.testAction?.testables.map(\.buildableReference.blueprintName) == [
+                "HomeFeature-ScreenshotTests",
+                "NetworkKit-ScreenshotTests",
+            ]
+        )
+        #expect(screenshotTests.testAction?.codeCoverageEnabled == false)
+
+        // And: build actions resolve names and patterns alike
+        let frameworks = try scheme("AllFrameworks")
+        #expect(
+            frameworks.buildAction?.buildActionEntries.map(\.buildableReference.blueprintName) == [
+                "HomeFeature",
+                "NetworkKit",
+            ]
+        )
+    }
+}
+
 struct GenerateAcceptanceTestAppWithGeneratedTestPlan {
     @Test(.withFixture("generated_app_with_generated_test_plan"), .inTemporaryDirectory)
     func app_with_generated_test_plan() async throws {

@@ -4,6 +4,10 @@
 public struct BuildAction: Equatable, Codable, Sendable {
     /// A list of targets to build, which are defined in the project.
     public var targets: [TargetReference]
+    /// A list of queries matching the targets to build. They are resolved against every target of the generated
+    /// graph, so they can match targets that live in other projects, and the matched targets are built in addition
+    /// to the ones listed in ``BuildAction/targets``.
+    public var targetQueries: [TargetQuery]
     /// A list of actions that are executed before starting the build process.
     public var preActions: [ExecutionAction]
     /// A list of actions that are executed after the build process.
@@ -18,6 +22,9 @@ public struct BuildAction: Equatable, Codable, Sendable {
     /// Returns a build action.
     /// - Parameters:
     ///   - targets: A list of targets to build, which are defined in the project.
+    ///   - matching: A list of queries matching the targets to build. Queries are resolved against every target of
+    /// the generated graph, so they can match targets that live in other projects:
+    /// `.buildAction(matching: ["*Kit", "tag:frameworks"])`.
     ///   - preActions: A list of actions that are executed before starting the build process.
     ///   - postActions: A list of actions that are executed after the build process.
     ///   - buildOrder: Defines the order in which targets are built. Defaults to `.dependency`.
@@ -25,7 +32,8 @@ public struct BuildAction: Equatable, Codable, Sendable {
     ///   - findImplicitDependencies: Whether Xcode should be allowed to find dependencies implicitly. The default is `true`.
     /// - Returns: Initialized build action.
     public static func buildAction(
-        targets: [TargetReference],
+        targets: [TargetReference] = [],
+        matching targetQueries: [TargetQuery] = [],
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         buildOrder: BuildOrder = .dependency,
@@ -34,6 +42,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
     ) -> BuildAction {
         BuildAction(
             targets: targets,
+            targetQueries: targetQueries,
             preActions: preActions,
             postActions: postActions,
             buildOrder: buildOrder,
