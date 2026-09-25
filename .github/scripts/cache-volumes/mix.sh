@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${MIX_CACHE_IDENTITY:?Missing Mix cache identity}"
+if [ -z "${MIX_CACHE_IDENTITY:-}" ]; then
+  toolchain=$(elixir -e 'IO.write("#{System.version()}-#{:erlang.system_info(:version)}")')
+  lockfile=$(sha256sum mix.lock | cut -d ' ' -f1)
+  MIX_CACHE_IDENTITY="v2-$toolchain-$lockfile"
+fi
 : "${RUNNER_TEMP:?Missing runner temporary directory}"
 : "${GITHUB_ENV:?Missing GitHub environment file}"
 : "${GITHUB_OUTPUT:?Missing GitHub output file}"

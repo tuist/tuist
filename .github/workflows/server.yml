@@ -10,8 +10,7 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
-      - .github/actions/setup-mix-volumes/**
-      - .github/actions/cache-volume/**
+      - .github/scripts/cache-volumes/**
       - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
       - mise/tasks/marketing/**
@@ -24,8 +23,7 @@ on:
       - noora/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
-      - .github/actions/setup-mix-volumes/**
-      - .github/actions/cache-volume/**
+      - .github/scripts/cache-volumes/**
       - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
       - noora/aube-lock.yaml

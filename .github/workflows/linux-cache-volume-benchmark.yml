@@ -60,13 +60,13 @@ jobs:
           persist-credentials: false
       - name: Start cache setup timer
         run: echo "CACHE_START=$(date +%s%N)" >> "$GITHUB_ENV"
-      - uses: ./.github/actions/cache-volume
+      - uses: tuist/cache-volume@v1
         if: inputs.phase != 'baseline'
         id: first
         with:
           key: benchmark-${{ inputs.cache_key }}-${{ matrix.workload }}-first
           path: ${{ env.FIRST_CACHE }}
-      - uses: ./.github/actions/cache-volume
+      - uses: tuist/cache-volume@v1
         if: inputs.phase != 'baseline' && matrix.workload == 'go'
         id: second
         with:

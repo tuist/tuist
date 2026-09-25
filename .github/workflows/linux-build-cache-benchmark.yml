@@ -65,7 +65,7 @@ jobs:
         with:
           ref: ${{ github.workflow_sha }}
           path: .benchmark
-          sparse-checkout: .github/actions
+          sparse-checkout: .github/scripts/cache-volumes
           persist-credentials: false
       - uses: ./.github/actions/mise
         with:
@@ -92,22 +92,25 @@ jobs:
         run: |
           echo "CACHE_PATH=$RUNNER_TEMP/$CACHE_DIRECTORY" >> "$GITHUB_ENV"
           echo "CACHE_START=$(date +%s%N)" >> "$GITHUB_ENV"
-      - uses: ./.benchmark/.github/actions/setup-bazel-volumes
-        if: matrix.workload == 'kura'
-        id: bazel
+      - uses: tuist/cache-volume@v1
+        if: inputs.phase != 'baseline'
+        id: volume
         with:
-          enabled: ${{ inputs.phase != 'baseline' }}
-          key: benchmark-${{ inputs.cache_key }}-kura
-      - uses: ./.benchmark/.github/actions/setup-mix-volumes
+          key: benchmark-${{ inputs.cache_key }}-${{ matrix.workload }}
+          path: ${{ env.CACHE_PATH }}
+      - name: Configure local Bazel caches
+        if: matrix.workload == 'kura'
+        run: bash "$GITHUB_WORKSPACE/.benchmark/.github/scripts/cache-volumes/bazel.sh"
+      - name: Configure Mix cache directories
         if: matrix.workload == 'registry'
         id: mix
-        with:
-          enabled: ${{ inputs.phase != 'baseline' }}
-          working-directory: registry
-          key: benchmark-${{ inputs.cache_key }}-registry
+        working-directory: registry
+        env:
+          MIX_VOLUME_HIT: ${{ steps.volume.outputs.cache-hit }}
+        run: bash "$GITHUB_WORKSPACE/.benchmark/.github/scripts/cache-volumes/mix.sh"
       - name: Verify mounted cache and source
         env:
-          CACHE_HIT: ${{ steps.bazel.outputs.cache-hit || steps.mix.outputs.cache-hit }}
+          CACHE_HIT: ${{ matrix.workload == 'registry' && steps.mix.outputs.cache-hit || steps.volume.outputs.cache-hit }}
         run: |
           set -euo pipefail
           echo "CACHE_MS=$(( ($(date +%s%N) - CACHE_START) / 1000000 ))" >> "$GITHUB_ENV"
@@ -160,7 +163,7 @@ jobs:
           echo "WORKLOAD_MS=$(( ($(date +%s%N) - start) / 1000000 ))" >> "$GITHUB_ENV"
       - name: Record measurement
         env:
-          CACHE_HIT: ${{ steps.bazel.outputs.cache-hit || steps.mix.outputs.cache-hit }}
+          CACHE_HIT: ${{ matrix.workload == 'registry' && steps.mix.outputs.cache-hit || steps.volume.outputs.cache-hit }}
         run: |
           mkdir -p "$RUNNER_TEMP/build-cache-results"
           bytes=$(du -sbL "$CACHE_PATH" | cut -f1)

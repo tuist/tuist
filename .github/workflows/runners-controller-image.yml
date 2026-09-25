@@ -57,11 +57,11 @@ jobs:
       GOCACHE: ${{ github.workspace }}/../tuist-go-build
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/cache-volume
+      - uses: tuist/cache-volume@v1
         with:
           key: ci-runners-controller-go-mod-v1
           path: ${{ env.GOMODCACHE }}
-      - uses: ./.github/actions/cache-volume
+      - uses: tuist/cache-volume@v1
         with:
           key: ci-runners-controller-go-build-v1
           path: ${{ env.GOCACHE }}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-action_dir=$(cd "$(dirname "$0")" && pwd)
+script_dir=$(cd "$(dirname "$0")" && pwd)
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
 export RUNNER_TEMP="$fixture/runner"
@@ -15,7 +15,7 @@ cd "$fixture/project"
 prepare() {
   : > "$GITHUB_ENV"
   : > "$GITHUB_OUTPUT"
-  bash "$action_dir/prepare.sh"
+  bash "$script_dir/mix.sh"
 }
 
 prepare
@@ -49,6 +49,32 @@ prepare
 [ ! -e deps/marker ]
 grep -qx 'cache-hit=false' "$GITHUB_OUTPUT"
 echo 'ok: a missing identity cannot reuse legacy state'
+
+# Exercise production identity calculation independently of the injected fixtures.
+rm deps _build
+mkdir "$fixture/bin"
+cat > "$fixture/bin/elixir" <<'ELIXIR'
+#!/usr/bin/env bash
+printf '%s' "$TEST_TOOLCHAIN"
+ELIXIR
+chmod +x "$fixture/bin/elixir"
+export PATH="$fixture/bin:$PATH"
+export TEST_TOOLCHAIN=1.19.5-16.3.1
+unset MIX_CACHE_IDENTITY
+printf 'lock-one' > mix.lock
+prepare
+identity=$(cat "$RUNNER_TEMP/mix-cache/.mix-cache-identity")
+printf 'retained' > deps/marker
+rm deps _build
+prepare
+grep -qx 'cache-hit=true' "$GITHUB_OUTPUT"
+[ "$(cat deps/marker)" = retained ]
+rm deps _build
+printf 'lock-two' > mix.lock
+prepare
+[ ! -e deps/marker ]
+[ "$(cat "$RUNNER_TEMP/mix-cache/.mix-cache-identity")" != "$identity" ]
+echo 'ok: installed toolchain and actual lockfile determine compatibility'
 
 rm deps _build
 mkdir deps
