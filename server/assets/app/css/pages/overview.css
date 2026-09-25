@@ -52,12 +52,6 @@
     }
   }
 
-  & [data-part="coverage-card-section"] [data-part="view-more"] {
-    position: absolute;
-    top: var(--noora-spacing-9);
-    right: var(--noora-spacing-9);
-  }
-
   & [data-part="cache-cards-section"] {
     display: flex;
     flex-direction: row;
@@ -87,7 +81,6 @@
   & [data-part="effectiveness-chart"],
   & [data-part="build-runs-chart"],
   & [data-part="test-runs-chart"],
-  & [data-part="coverage-chart"],
   & [data-part="average-build-time-chart"] {
     display: flex;
     flex-direction: column;
@@ -99,12 +92,7 @@
     visibility: hidden;
   }
 
-  & [data-part="coverage-chart"] .noora-chart {
-    height: 200px;
-  }
-
-  & [data-part="test-runs-chart"],
-  & [data-part="coverage-chart"] {
+  & [data-part="test-runs-chart"] {
     & > [data-part="label"] {
       padding-left: var(--noora-spacing-7);
       color: var(--noora-surface-label-secondary);

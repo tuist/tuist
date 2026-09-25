@@ -437,20 +437,6 @@ defmodule Tuist.Tests.Coverage do
   defp run_totals_base(project_id, shas), do: where(run_totals_base(project_id, nil), [c], c.git_commit_sha in ^shas)
 
   @doc """
-  The ids of the project's runs that gathered coverage, narrowed to the full
-  (`:full`) or the partial (`:partial`) ones, or all of them for anything else.
-  """
-  def run_ids_query(project_id, coverage) do
-    query = from(r in subquery(run_totals_query(project_id)), select: r.test_run_id)
-
-    case coverage do
-      :full -> from(r in query, where: r.partial == false)
-      :partial -> from(r in query, where: r.partial == true)
-      _ -> query
-    end
-  end
-
-  @doc """
   Republishes the totals of the project's runs from their retained reports,
   with the paths excluded now (see `Tuist.Tests.Coverage.ExcludedPaths`), for
   up to `batch_size` runs after the run id `after` (nil to start). Returns the

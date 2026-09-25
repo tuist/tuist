@@ -12,7 +12,6 @@ defmodule TuistWeb.TestRunsLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -23,19 +22,17 @@ defmodule TuistWeb.TestRunsLive do
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
-    coverage_enabled = FeatureFlags.xcode_coverage_enabled?(account)
 
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("test-runs"))
-      |> assign(:coverage_enabled, coverage_enabled)
-      |> assign(:available_filters, define_filters(project, coverage_enabled))
+      |> assign(:available_filters, define_filters(project))
 
     {:ok, socket}
   end
 
-  defp define_filters(project, coverage_enabled) do
+  defp define_filters(project) do
     base = [
       %Filter.Filter{
         id: "status",
@@ -60,28 +57,6 @@ defmodule TuistWeb.TestRunsLive do
         value: ""
       }
     ]
-
-    coverage =
-      if coverage_enabled do
-        [
-          %Filter.Filter{
-            id: "coverage",
-            field: :coverage,
-            display_name: dgettext("dashboard_tests", "Coverage"),
-            type: :option,
-            options: ["any", "full", "partial"],
-            options_display_names: %{
-              "any" => dgettext("dashboard_tests", "Any"),
-              "full" => dgettext("dashboard_tests", "Full"),
-              "partial" => dgettext("dashboard_tests", "Partial")
-            },
-            operator: :==,
-            value: nil
-          }
-        ]
-      else
-        []
-      end
 
     organization =
       if Accounts.organization?(project.account) do
@@ -110,7 +85,7 @@ defmodule TuistWeb.TestRunsLive do
         []
       end
 
-    base ++ coverage ++ organization
+    base ++ organization
   end
 
   def handle_params(_params, uri, socket) do
@@ -404,15 +379,13 @@ defmodule TuistWeb.TestRunsLive do
 
     {start_datetime, end_datetime} = socket.assigns.analytics_period
 
-    {coverage_filters, run_filters} = Enum.split_with(filters, &(&1.id == "coverage"))
-
     flop_filters =
       [
         %{field: :project_id, op: :==, value: project.id},
         %{field: :status, op: :!=, value: "in_progress"},
         %{field: :ran_at, op: :>=, value: start_datetime},
         %{field: :ran_at, op: :<=, value: end_datetime}
-      ] ++ build_flop_filters(run_filters, search) ++ page_level_environment_filters(socket.assigns)
+      ] ++ build_flop_filters(filters, search) ++ page_level_environment_filters(socket.assigns)
 
     options = %{
       filters: flop_filters,
@@ -437,7 +410,7 @@ defmodule TuistWeb.TestRunsLive do
       end
 
     {test_runs, test_runs_meta} =
-      Tests.list_test_runs(options, project_id: project.id, coverage: coverage_option(coverage_filters))
+      Tests.list_test_runs(options)
 
     socket
     |> assign(:active_filters, filters)
@@ -445,14 +418,6 @@ defmodule TuistWeb.TestRunsLive do
     |> assign(:test_runs_meta, test_runs_meta)
     |> assign(:test_runs_filter, search)
   end
-
-  # `is not` inverts the set the value names, so "is not Full" leaves the
-  # partial runs and the ones that gathered no coverage.
-  defp coverage_option([%{value: value, operator: operator} | _]) when value in ["full", "partial", "any"] do
-    {if(operator == :!=, do: :not_in, else: :in), String.to_existing_atom(value)}
-  end
-
-  defp coverage_option(_), do: nil
 
   defp build_flop_filters(filters, search) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))

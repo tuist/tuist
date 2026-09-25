@@ -12,10 +12,7 @@ defmodule TuistWeb.XcodeOverviewLive do
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
   alias Tuist.Cache
-  alias Tuist.FeatureFlags
   alias Tuist.Tests
-  alias Tuist.Tests.Coverage.History
-  alias TuistWeb.Coverage.Components
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -70,7 +67,6 @@ defmodule TuistWeb.XcodeOverviewLive do
       {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)}}
     end)
     |> assign_build_duration_analytics(project.id, analytics_opts, builds_opts)
-    |> assign_coverage_analytics(project, analytics_period, params)
     |> assign_async(:test_analytics, fn ->
       {:ok, %{test_analytics: Tests.Analytics.test_run_average_duration_analytics(project.id, analytics_opts)}}
     end)
@@ -183,62 +179,6 @@ defmodule TuistWeb.XcodeOverviewLive do
       {:ok, %{builds_duration_analytics: BuildsAnalytics.build_duration_analytics(project_id, builds_opts)}}
     end)
   end
-
-  # The default branch's coverage at its latest measured commit of the
-  # period, and how far it moved over it; and the Code Coverage page's own
-  # chart, over its default period. Behind the account's coverage flag.
-  defp assign_coverage_analytics(socket, project, period, params) do
-    if FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account) do
-      # The same parameters as the Code Coverage page's, so View more opens it
-      # on the period shown here.
-      %{preset: coverage_preset, period: trend_period} =
-        DatePicker.date_picker_params(params, "coverage", default_preset: "last-30-days")
-
-      socket
-      |> assign(:coverage_preset, coverage_preset)
-      |> assign(:coverage_period, trend_period)
-      |> assign(
-        :coverage_query,
-        params |> Map.filter(fn {key, _} -> String.starts_with?(key, "coverage-") end) |> URI.encode_query()
-      )
-      |> assign_coverage_points(project, period, trend_period)
-    else
-      socket |> assign(:coverage_analytics, nil) |> assign(:coverage_trend, nil)
-    end
-  end
-
-  # The widget follows the page's period and the chart the section's own; on
-  # the same period, which is the default, the series is read once for both.
-  defp assign_coverage_points(socket, project, period, trend_period) do
-    if same_period?(period, trend_period) do
-      assign_async(socket, [:coverage_analytics, :coverage_trend], fn ->
-        points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
-
-        {:ok,
-         %{coverage_analytics: coverage_widget(points), coverage_trend: Components.chart_points(points, trend_period)}}
-      end)
-    else
-      socket
-      |> assign_async(:coverage_analytics, fn ->
-        points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
-        {:ok, %{coverage_analytics: coverage_widget(points)}}
-      end)
-      |> assign_async(:coverage_trend, fn ->
-        points =
-          project
-          |> History.branch_points(project.default_branch, DatePicker.period_opts(trend_period))
-          |> Components.chart_points(trend_period)
-
-        {:ok, %{coverage_trend: points}}
-      end)
-    end
-  end
-
-  defp coverage_widget(points), do: %{latest: List.last(points), trend: Components.period_trend(points)}
-
-  # Both periods end at the time they were computed, a moment apart.
-  defp same_period?({start_a, end_a}, {start_b, end_b}),
-    do: abs(DateTime.diff(start_a, start_b)) < 60 and abs(DateTime.diff(end_a, end_b)) < 60
 
   defp assign_build_time_analytics(socket, "ci", analytics_opts) do
     assign_async(socket, :build_time_analytics, fn ->

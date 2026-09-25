@@ -193,26 +193,6 @@
           trend_type={:inverse}
           empty={@test_analytics.ok? && @test_analytics.result.total_average_duration == 0}
         />
-        <.widget
-          :if={@coverage_analytics}
-          loading={!@coverage_analytics.ok?}
-          title={dgettext("dashboard_tests", "Code coverage")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Share of executable lines covered at the latest measured commit of %{branch} in the period.",
-              branch: @selected_project.default_branch
-            )
-          }
-          value={
-            if @coverage_analytics.ok? && @coverage_analytics.result.latest,
-              do: "#{@coverage_analytics.result.latest.coverage}%"
-          }
-          id="widget-code-coverage"
-          trend_value={if @coverage_analytics.ok?, do: @coverage_analytics.result.trend}
-          trend_label={dgettext("dashboard_tests", "over the period")}
-          empty={@coverage_analytics.ok? && is_nil(@coverage_analytics.result.latest)}
-        />
       </div>
       <div
         :if={
@@ -583,102 +563,6 @@
         />
       </:image>
     </.empty_card_section>
-  </.card>
-  <.card
-    :if={@coverage_trend}
-    title={dgettext("dashboard_tests", "Code coverage")}
-    icon="chart_arcs"
-    data-part="coverage"
-  >
-    <:actions>
-      <.date_picker
-        id="coverage-date-range-picker"
-        name="coverage-date-range"
-        presets={[
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_projects", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_projects", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_projects", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
-        ]}
-        selected_preset={@coverage_preset}
-        period={@coverage_period}
-        on_period_change="coverage_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_projects", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel", detail: %{id: "coverage-date-range-picker"})
-            }
-          />
-          <.button
-            label={dgettext("dashboard_projects", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply", detail: %{id: "coverage-date-range-picker"})
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
-    <.card_section :if={!@coverage_trend.ok?}>
-      <div data-part="coverage-chart">
-        <div data-part="legends">
-          <.skeleton_legend />
-        </div>
-        <.skeleton_chart />
-      </div>
-    </.card_section>
-    <.card_section
-      :if={@coverage_trend.ok? && @coverage_trend.result != []}
-      data-part="coverage-card-section"
-    >
-      <div data-part="coverage-chart">
-        <.button
-          data-part="view-more"
-          label={dgettext("dashboard_projects", "View more")}
-          size="small"
-          variant="secondary"
-          navigate={
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage" <>
-              if(@coverage_query == "", do: "", else: "?" <> @coverage_query)
-          }
-        />
-        <div data-part="legends">
-          <.legend
-            title={dgettext("dashboard_tests", "Code coverage")}
-            value={"#{List.last(@coverage_trend.result).coverage}%"}
-            style="primary"
-          />
-        </div>
-        <TuistWeb.Coverage.Components.coverage_trend_chart
-          id="overview-coverage-chart"
-          points={@coverage_trend.result}
-        />
-      </div>
-    </.card_section>
-    <TuistWeb.Coverage.Components.coverage_empty
-      :if={@coverage_trend.ok? && @coverage_trend.result == []}
-      title={
-        dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
-          branch: @selected_project.default_branch
-        )
-      }
-      get_started_href="https://docs.tuist.dev/en/guides/features/tests"
-    />
   </.card>
   <.card title={dgettext("dashboard_projects", "Previews")} icon="devices" data-part="previews">
     <:actions>
