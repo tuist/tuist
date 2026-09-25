@@ -19,6 +19,8 @@ defmodule TuistWeb.TestRunsLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
+  @analytics_widgets ~w(test_run_count failed_test_run_count test_run_duration)
+
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
     coverage_enabled = FeatureFlags.xcode_coverage_enabled?(account)
@@ -157,6 +159,8 @@ defmodule TuistWeb.TestRunsLive do
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
+    widget = analytics_widget(widget)
+
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
     uri = URI.new!("?" <> query)
 
@@ -285,7 +289,7 @@ defmodule TuistWeb.TestRunsLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
+    analytics_selected_widget = analytics_widget(params["analytics-selected-widget"])
 
     socket
     |> assign(:analytics_preset, preset)
@@ -328,6 +332,10 @@ defmodule TuistWeb.TestRunsLive do
       end
     )
   end
+
+  # A bookmarked link may name a widget the page no longer has, like `coverage`.
+  defp analytics_widget(widget) when widget in @analytics_widgets, do: widget
+  defp analytics_widget(_widget), do: "test_run_count"
 
   defp analytics_chart_data(
          analytics_selected_widget,
