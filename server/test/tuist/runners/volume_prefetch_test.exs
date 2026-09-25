@@ -13,13 +13,31 @@ defmodule Tuist.Runners.VolumePrefetchTest do
 
   setup :verify_on_exit!
 
-  @fleet "macos-6vcpu-14gb"
+  # A Node carries its CAPI fleet; jobs are queued and recorded under the
+  # RunnerPools that schedule onto it, as in production.
+  @fleet "tuist-tuist-runners-fleet"
+  @pool "macos-26-6"
+  @other_pool "macos-27-0"
   @tree String.duplicate("a", 40)
 
   setup do
     stub(Tuist.Storage, :generate_download_url, fn key, _account, _opts -> "https://objects.example/#{key}" end)
     stub(Jobs, :pick_queued_top_k, fn _fleet, _accounts, _repositories, _jobs, _k -> {:error, :empty} end)
+    stub(K8sClient, :list_runner_pools, fn _namespace -> {:ok, runner_pools()} end)
     :ok
+  end
+
+  defp runner_pools do
+    [
+      runner_pool(@pool, @fleet),
+      runner_pool(@other_pool, @fleet),
+      runner_pool("macos-26-6-elsewhere", "tuist-tuist-builders-fleet"),
+      runner_pool("linux-4vcpu-16gb", @fleet)
+    ]
+  end
+
+  defp runner_pool(name, fleet_selector) do
+    %{"metadata" => %{"name" => name}, "spec" => %{"fleetSelector" => fleet_selector}}
   end
 
   defp stub_node(labels) do
@@ -35,7 +53,7 @@ defmodule Tuist.Runners.VolumePrefetchTest do
     generation
   end
 
-  defp ran_recently(account, repository, fleet \\ @fleet) do
+  defp ran_recently(account, repository, fleet \\ @pool) do
     now = DateTime.utc_now()
 
     Repo.insert!(%RunnerSession{
@@ -51,7 +69,12 @@ defmodule Tuist.Runners.VolumePrefetchTest do
   end
 
   defp queue(jobs) do
-    stub(Jobs, :pick_queued_top_k, fn @fleet, [], [], [], _k -> {:ok, jobs} end)
+    jobs = Enum.map(jobs, &Map.put_new(&1, :enqueued_at, DateTime.utc_now()))
+
+    stub(Jobs, :pick_queued_top_k, fn
+      @pool, [], [], [], _k -> {:ok, jobs}
+      _pool, [], [], [], _k -> {:error, :empty}
+    end)
   end
 
   describe "node_for_service_account/2" do
@@ -131,11 +154,26 @@ defmodule Tuist.Runners.VolumePrefetchTest do
       assert VolumePrefetch.for_node("mac-01") == []
     end
 
+    test "uses every macOS pool that schedules onto the Node's fleet, and only those" do
+      in_fleet = account_fixture()
+      other_fleet = account_fixture()
+      linux = account_fixture()
+      for account <- [in_fleet, other_fleet, linux], do: publish_head(account)
+      ran_recently(in_fleet, "", @other_pool)
+      ran_recently(other_fleet, "", "macos-26-6-elsewhere")
+      ran_recently(linux, "", "linux-4vcpu-16gb")
+      stub_node(mac_labels())
+
+      assert [%{account_id: account_id}] = VolumePrefetch.for_node("mac-01")
+      assert account_id == in_fleet.id
+    end
+
     test "answers nothing for a Node outside a macOS fleet" do
       account = account_fixture()
       publish_head(account)
       ran_recently(account, "", "linux-4vcpu-16gb")
-      stub_node(%{"tuist.dev/fleet" => "linux-4vcpu-16gb"})
+      stub(K8sClient, :list_runner_pools, fn _namespace -> {:ok, [runner_pool("linux-4vcpu-16gb", "runners-linux")]} end)
+      stub_node(%{"tuist.dev/fleet" => "runners-linux"})
 
       assert VolumePrefetch.for_node("mac-01") == []
     end

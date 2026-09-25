@@ -11,8 +11,9 @@ defmodule Tuist.Runners.VolumePrefetch do
   `tart-kubelet-<machine>` ServiceAccount, whose name is its Node's, so it can
   only ask about its own fleet.
 
-  The list is the fleet's demand, most imminent first: the volumes of its queued
-  jobs, then those of the jobs it ran most over the last day. Volumes whose
+  The list is the demand of the RunnerPools that schedule onto the Node, most
+  imminent first: the volumes of their queued jobs, then those of the jobs they
+  ran most over the last day. Volumes whose
   master the Node already advertises are left out, because the jobs that land
   there keep them current. A repository volume that has published no master yet
   falls back to its account's `tuist-cache` master, which the host seeds a new
@@ -58,13 +59,13 @@ defmodule Tuist.Runners.VolumePrefetch do
     with {:ok, node} <- K8sClient.get_node(node_name),
          labels when is_map(labels) <- get_in(node, ["metadata", "labels"]),
          fleet when is_binary(fleet) <- labels[@fleet_label],
-         :macos <- Catalog.fleet_platform(fleet) do
+         [_ | _] = pools <- macos_pools_scheduling_onto(fleet) do
       %{masters: resident, repository_volumes?: repository_volumes?} =
         VolumeAffinities.cache_volumes_from_node_labels(labels)
 
       repository_volumes? = repository_volumes? and FeatureFlags.runner_cache_volumes_per_repository_enabled?()
 
-      fleet
+      pools
       |> demand()
       |> Stream.uniq_by(&{&1.account_id, Map.get(&1, :repository)})
       |> Stream.map(&volume_to_prefetch(&1, resident, repository_volumes?))
@@ -76,15 +77,39 @@ defmodule Tuist.Runners.VolumePrefetch do
     end
   end
 
-  defp demand(fleet) do
+  # The Node's `tuist.dev/fleet` label is its CAPI fleet (for example
+  # `tuist-tuist-runners-fleet`), shared by every SKU group in it. Jobs are queued
+  # and recorded under RunnerPool names instead, and the pools that run on this
+  # Node are the macOS ones whose `fleetSelector` is that label, the same match
+  # the scheduler makes.
+  defp macos_pools_scheduling_onto(fleet) do
+    case K8sClient.list_runner_pools(Environment.runners_namespace()) do
+      {:ok, pools} ->
+        for pool <- pools,
+            get_in(pool, ["spec", "fleetSelector"]) == fleet,
+            name = get_in(pool, ["metadata", "name"]),
+            is_binary(name) and Catalog.fleet_platform(name) == :macos,
+            do: name
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  defp demand(pools) do
     queued =
-      case Jobs.pick_queued_top_k(fleet, [], [], [], @queued_candidates) do
-        {:ok, candidates} -> candidates
-        {:error, :empty} -> []
-      end
+      pools
+      |> Enum.flat_map(fn pool ->
+        case Jobs.pick_queued_top_k(pool, [], [], [], @queued_candidates) do
+          {:ok, candidates} -> candidates
+          {:error, :empty} -> []
+        end
+      end)
+      |> Enum.sort_by(& &1.enqueued_at, DateTime)
+      |> Enum.take(@queued_candidates)
 
     since = DateTime.add(DateTime.utc_now(), -@recent_window_seconds, :second)
-    Stream.concat(queued, RunnerSessions.recent_demand(fleet, since, @recent_candidates))
+    Stream.concat(queued, RunnerSessions.recent_demand(pools, since, @recent_candidates))
   end
 
   # The volume a job would materialize from on this Node, as dispatch resolves
