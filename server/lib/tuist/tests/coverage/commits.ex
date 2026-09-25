@@ -303,29 +303,46 @@ defmodule Tuist.Tests.Coverage.Commits do
   end
 
   @doc """
-  The published commits of a project among `shas`, keyed by SHA: those with
-  measured lines, what the history and the baselines read.
+  The published commits of a project among `shas`, keyed by SHA: those with a
+  comparable figure (`comparable/1`), what the history and the baselines
+  read.
   """
   def by_shas(_project_id, []), do: %{}
 
   def by_shas(project_id, shas) do
     CoverageCommit
-    |> where([c], c.project_id == ^project_id and c.git_commit_sha in ^shas and c.executable_lines > 0)
+    |> where([c], c.project_id == ^project_id and c.git_commit_sha in ^shas)
+    |> comparable()
     |> Repo.all()
     |> Map.new(&{&1.git_commit_sha, row(&1)})
   end
 
   @doc """
-  The project's published commits with measured lines matching a query
-  refinement (`fun` receives the base query), each as `summary/2` returns
-  it.
+  The project's published commits with a comparable figure (`comparable/1`)
+  matching a query refinement (`fun` receives the base query), each as
+  `summary/2` returns it.
   """
   def all(project_id, fun \\ & &1) do
     CoverageCommit
-    |> where([c], c.project_id == ^project_id and c.executable_lines > 0)
+    |> where([c], c.project_id == ^project_id)
+    |> comparable()
     |> fun.()
     |> Repo.all()
     |> Enum.map(&row/1)
+  end
+
+  @doc """
+  Narrows a query over `CoverageCommit` to the commits a history compares:
+  those with measured lines, and those that measured nothing but carried all
+  of their coverage forward (`fully_carried?/1`), whose figure is the
+  reported one.
+  """
+  def comparable(query) do
+    where(
+      query,
+      [c],
+      c.executable_lines > 0 or (c.reported_kind == "reported" and c.reported_executable_lines > 0)
+    )
   end
 
   @doc """
@@ -812,7 +829,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   # covers is not listed as uncovered.
   defp carried_files(project_id, sha, opts) do
     with false <- Keyword.get(opts, :measured, false),
-         %{reported_kind: "reported", partial_schemes: [_ | _]} <- summary(project_id, sha),
+         %{} = summary <- summary(project_id, sha),
+         true <- carried?(summary),
          %Project{} = project <- Tuist.Projects.get_project_by_id(project_id) do
       excluded = Coverage.excluded(project_id, opts)
       Reported.merged_files(project, sha, merged_files(project_id, sha, excluded: excluded), excluded: excluded)
@@ -820,6 +838,11 @@ defmodule Tuist.Tests.Coverage.Commits do
       _ -> nil
     end
   end
+
+  # Coverage was carried into the commit: a run skipped tests, or every
+  # scheme was skipped whole.
+  defp carried?(%{reported_kind: "reported", partial_schemes: [_ | _]}), do: true
+  defp carried?(summary), do: fully_carried?(summary)
 
   defp list_measured_files(project_id, sha, page, page_size, opts) do
     case run_ids(project_id, sha) do
@@ -920,7 +943,8 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   defp carried_file(project_id, sha, path, opts) do
     with false <- Keyword.get(opts, :measured, false),
-         %{reported_kind: "reported", partial_schemes: [_ | _]} <- summary(project_id, sha),
+         %{} = summary <- summary(project_id, sha),
+         true <- carried?(summary),
          %Project{} = project <- Tuist.Projects.get_project_by_id(project_id) do
       Reported.file(project, sha, path)
     else
