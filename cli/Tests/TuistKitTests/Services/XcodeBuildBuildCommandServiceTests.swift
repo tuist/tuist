@@ -289,6 +289,7 @@ struct XcodeBuildBuildCommandServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 buildRunId: .any,
+                requestedTestIdentifiers: .any,
                 skipUpload: .any,
                 archivePath: .any
             )
@@ -327,6 +328,7 @@ struct XcodeBuildBuildCommandServiceTests {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 buildRunId: .any,
+                requestedTestIdentifiers: .any,
                 skipUpload: .value(false),
                 archivePath: .value(shardArchivePath)
             )

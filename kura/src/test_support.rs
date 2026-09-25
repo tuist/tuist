@@ -149,9 +149,13 @@ where
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store"),
     );
     let tmp_staging_budget = store.tmp_staging_budget();
-    let analytics =
-        Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
-            .expect("failed to build test analytics");
+    let analytics = Analytics::from_config(
+        config.analytics.as_ref(),
+        &config.node_url,
+        metrics.clone(),
+        Some(Arc::clone(&store)),
+    )
+    .expect("failed to build test analytics");
     let bazel_test_artifacts = BazelTestArtifactDelivery::from_config(
         config.analytics.as_ref(),
         &config.node_url,
@@ -184,6 +188,9 @@ where
         config.sync_peer_serving_max_inflight,
     ));
     let state = Arc::new(AppState {
+        account_identity: arc_swap::ArcSwap::from_pointee(crate::state::AccountIdentity::new(
+            config.tenant_id.clone(),
+        )),
         config,
         _data_dir_lock: data_dir_lock,
         store,

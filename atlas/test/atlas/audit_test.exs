@@ -6,9 +6,10 @@ defmodule Atlas.AuditTest do
   alias Atlas.Audit.Activity
   alias Atlas.Repo
   alias Atlas.Users.User
+  alias Atlas.UUIDv7
 
   test "records actor, interface, changed fields, and dashboard path from context operations" do
-    user = insert_user!(%{email: "auditor@example.com", name: "Auditor", role: :executive})
+    user = insert_user!(%{email: "auditor@example.com", name: "Auditor"})
 
     {:ok, account} =
       Audit.with_context(%{actor: user, interface: "dashboard"}, fn ->
@@ -24,7 +25,6 @@ defmodule Atlas.AuditTest do
     assert activity.actor_id == user.id
     assert activity.actor_email == "auditor@example.com"
     assert activity.actor_name == "Auditor"
-    assert activity.actor_role == "executive"
     assert activity.interface == "dashboard"
     assert activity.target_type == "account"
     assert activity.target_id == account.id
@@ -51,7 +51,7 @@ defmodule Atlas.AuditTest do
   end
 
   test "merges context metadata into recorded activity metadata" do
-    Audit.with_context(%{interface: "slack", metadata: %{"agent_identity_key" => "leadership"}}, fn ->
+    Audit.with_context(%{interface: "slack", metadata: %{"slack_channel_id" => "C_LEADERSHIP"}}, fn ->
       Audit.record("test.action", %{
         target_type: "test",
         target_id: "target-id",
@@ -61,7 +61,7 @@ defmodule Atlas.AuditTest do
 
     activity = Repo.get_by!(Activity, action: "test.action")
 
-    assert activity.metadata["agent_identity_key"] == "leadership"
+    assert activity.metadata["slack_channel_id"] == "C_LEADERSHIP"
     assert activity.metadata["status"] == "ok"
   end
 
@@ -73,11 +73,11 @@ defmodule Atlas.AuditTest do
 
   test "extracts audit metadata from agent claims" do
     assert Audit.claim_metadata(%{
-             "agent_identity_key" => "leadership",
+             "slack_agent" => "conversation",
              "slack_channel_id" => "C_LEADERSHIP",
              "unrelated" => "ignored"
            }) == %{
-             "agent_identity_key" => "leadership",
+             "slack_agent" => "conversation",
              "slack_channel_id" => "C_LEADERSHIP"
            }
   end
@@ -112,11 +112,54 @@ defmodule Atlas.AuditTest do
     assert Enum.map(activities, & &1.action) == ["blog_post_idea.created"]
   end
 
+  test "keeps nil and boolean metadata values as they are instead of stringifying them" do
+    delivery_id = UUIDv7.generate()
+
+    Audit.record("gtm_delivery.delivered", %{
+      interface: "worker",
+      target_type: "gtm_delivery",
+      target_id: delivery_id,
+      target_label: "recipient@example.com",
+      metadata: %{
+        audience_id: nil,
+        broadcast_id: nil,
+        kind: "direct",
+        error: nil,
+        opened: false
+      }
+    })
+
+    activity = Repo.get_by!(Activity, action: "gtm_delivery.delivered", target_id: delivery_id)
+
+    assert Map.fetch!(activity.metadata, "audience_id") == nil
+    assert Map.fetch!(activity.metadata, "broadcast_id") == nil
+    assert Map.fetch!(activity.metadata, "error") == nil
+    assert Map.fetch!(activity.metadata, "opened") == false
+    assert activity.metadata["kind"] == "direct"
+
+    refute Map.has_key?(activity.metadata, "path")
+    assert is_nil(Audit.serialize(activity).target.path)
+  end
+
+  test "builds an audience path only from an audience id that is a uuid" do
+    audience_id = UUIDv7.generate()
+
+    assert Audit.resource_path("gtm_delivery", "delivery-id", %{"audience_id" => audience_id}) ==
+             "/outbound/email/audiences/#{audience_id}"
+
+    assert Audit.resource_path("gtm_broadcast", "broadcast-id", %{audience_id: audience_id}) ==
+             "/outbound/email/audiences/#{audience_id}"
+
+    assert is_nil(Audit.resource_path("gtm_delivery", "delivery-id", %{"audience_id" => "nil"}))
+    assert is_nil(Audit.resource_path("gtm_delivery", "delivery-id", %{"audience_id" => nil}))
+    assert is_nil(Audit.resource_path("gtm_delivery", "delivery-id", %{}))
+    assert is_nil(Audit.resource_path("gtm_broadcast", "broadcast-id", %{"audience_id" => "../../admin/users"}))
+  end
+
   defp insert_user!(attrs) do
     defaults = %{
       email: "user-#{System.unique_integer([:positive])}@tuist.dev",
-      name: "Test User",
-      role: :employee
+      name: "Test User"
     }
 
     %User{}

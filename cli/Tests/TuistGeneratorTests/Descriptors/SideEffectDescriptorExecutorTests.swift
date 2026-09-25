@@ -106,6 +106,50 @@ struct SideEffectDescriptorExecutorTests {
         #expect(try await fileSystem.exists(preservedFile))
     }
 
+    @Test(.inTemporaryDirectory) func execute_matchesActiveFilesUsingFilesystemCaseSensitivity() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let existingFile = directory.appending(component: "App-Info.plist")
+        let activeFile = directory.appending(component: "APP-Info.plist")
+        let oldDate = Date(timeIntervalSince1970: 1)
+        try await fileSystem.writeText("active", at: existingFile)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: existingFile.pathString)
+        let refersToExistingFile = try await fileSystem.exists(activeFile)
+
+        try await subject.execute(sideEffects: [
+            .generatedFilesCleanup(.init(
+                directories: [directory],
+                activeFilesByDirectory: [directory: [activeFile]],
+                include: ["*-Info.plist"]
+            )),
+        ])
+
+        #expect(try await fileSystem.exists(existingFile) == refersToExistingFile)
+        if refersToExistingFile {
+            #expect(try modificationDate(at: activeFile) == oldDate)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func execute_doesNotCleanThroughSymbolicLinkRoot() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let destination = temporaryDirectory.appending(component: "External")
+        let externalFile = destination.appending(component: "OtherApp.entitlements")
+        let link = temporaryDirectory.appending(component: "Entitlements")
+        try await fileSystem.makeDirectory(at: destination)
+        try await fileSystem.writeText("external contents", at: externalFile)
+        try await fileSystem.createSymbolicLink(from: link, to: destination)
+
+        try await subject.execute(sideEffects: [
+            .generatedFilesCleanup(.init(
+                directories: [link],
+                activeFilesByDirectory: [:],
+                include: ["*.entitlements"]
+            )),
+        ])
+
+        #expect(try await fileSystem.readTextFile(at: externalFile) == "external contents")
+        #expect(try await fileSystem.resolveSymbolicLink(link) == destination)
+    }
+
     @Test(.inTemporaryDirectory) func execute_cleansStaleGeneratedSymbolicLinks() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let directory = temporaryDirectory.appending(component: "FrameworkSearchPaths")

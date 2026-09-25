@@ -65,6 +65,12 @@
           navigate={~p"/"}
           selected={@current_path == ~p"/"}
         />
+        <.sidebar_item
+          label={gettext("Tasks")}
+          icon="circle_check"
+          navigate={~p"/tasks"}
+          selected={@current_path == ~p"/tasks"}
+        />
       </.sidebar_group>
       <.sidebar_group
         id="sidebar-commercial"
@@ -95,7 +101,7 @@
             selected={String.starts_with?(@current_path, "/commercial/sales/feature-interests")}
           />
           <.sidebar_item
-            :if={Atlas.Users.executive?(@current_user)}
+            :if={Atlas.Users.has_scope?(@current_user, "licenses:read")}
             label={gettext("Licenses")}
             icon="lock"
             navigate={~p"/commercial/sales/licenses"}
@@ -103,7 +109,7 @@
           />
         </.sidebar_group>
         <.sidebar_group
-          :if={Atlas.Users.executive?(@current_user)}
+          :if={Atlas.Users.has_scope?(@current_user, "finance:read")}
           id="sidebar-finance"
           label={gettext("Finance")}
           icon="chart_donut_4"
@@ -163,7 +169,7 @@
           selected={String.starts_with?(@current_path, "/outbound/email")}
         />
         <.sidebar_item
-          :if={Atlas.Users.executive?(@current_user)}
+          :if={Atlas.Users.has_scope?(@current_user, "letters:read")}
           label={gettext("Postal")}
           icon="mail"
           navigate={~p"/outbound/postal"}
@@ -208,7 +214,7 @@
         />
       </.sidebar_group>
       <.sidebar_group
-        :if={Atlas.Users.executive?(@current_user)}
+        :if={Atlas.Users.has_scope?(@current_user, "assets:read")}
         id="sidebar-operations"
         label={gettext("Operations")}
         icon="server"
@@ -249,7 +255,7 @@
         collapsible={false}
       >
         <.sidebar_item
-          :if={Atlas.Users.executive?(@current_user)}
+          :if={Atlas.Users.has_scope?(@current_user, "documents:read")}
           label={gettext("Documents")}
           icon="file"
           navigate={~p"/library/documents"}
@@ -263,7 +269,7 @@
         />
       </.sidebar_group>
       <.sidebar_group
-        :if={Atlas.Users.executive?(@current_user)}
+        :if={Atlas.Users.has_scope?(@current_user, "admin:read")}
         id="sidebar-admin"
         label={gettext("Admin")}
         icon="settings"
@@ -276,16 +282,16 @@
           selected={@current_path == ~p"/admin/audit"}
         />
         <.sidebar_item
-          label={gettext("Identities")}
-          icon="user"
-          navigate={~p"/admin/identities"}
-          selected={@current_path == ~p"/admin/identities"}
-        />
-        <.sidebar_item
           label={gettext("Users")}
           icon="users"
           navigate={~p"/admin/users"}
           selected={@current_path == ~p"/admin/users"}
+        />
+        <.sidebar_item
+          label={gettext("Roles")}
+          icon="lock"
+          navigate={~p"/admin/roles"}
+          selected={String.starts_with?(@current_path, "/admin/roles")}
         />
         <.sidebar_item
           label={gettext("MCPs")}

@@ -53,7 +53,7 @@ defmodule Atlas.MCP.Tools.FinanceListTransactionAttachments do
   end
 
   def execute(conn, %{"source_key" => source_key, "transaction_external_id" => transaction_external_id}) do
-    with :ok <- Tool.authorize_executive(conn),
+    with :ok <- Tool.authorize_scope(conn, "finance:read", "Finance tools"),
          {:ok, source} <- Config.fetch_source(source_key) do
       case Qonto.list_transaction_attachments(source, transaction_external_id) do
         {:ok, attachments} ->

@@ -512,6 +512,11 @@ server:
     # server Ingress in the same upgrade that renders it here.
     receiverHost: ""
     receiverPort: 12347
+    # Route through Phoenix to add session-authentication and trusted Ray ID
+    # context before forwarding to Alloy. Requires collectorUrl /-/faro/collect.
+    # Enable only after all server pods contain the gateway (two-phase rollout).
+    gateway:
+      enabled: false
   # Refuse a new Kura instance before it can use the region's reserved storage
   # headroom. This must remain enabled on hosted deployments.
   kuraCapacityAdmission:
@@ -1623,6 +1628,16 @@ rackFleet:
   # account, not a provider-issued one.
   sshUser: tuist
 
+  # The LAN address of every subnet router that advertises the hosts'
+  # addresses, as /32s. Required when enabled. A router forwards the operator's
+  # dial with SNAT, so this is the source each host sees, and the host's SSH
+  # ingress guard admits it on top of macosFleet.sshIngressAllowCIDRs. Without
+  # it the guard drops the router, and a host that loses its own tailnet device
+  # is reachable only from its console. Give each router a DHCP reservation,
+  # and list both routers of an HA pair. A host can override it with its own
+  # `sshIngressAllowCIDRs`.
+  sshIngressAllowCIDRs: []
+
   # The rack's physical inventory. Adding a mini is a values PR: the record is
   # then versioned and reviewed, rather than living in someone's kubectl
   # history. Nothing here is workload config: see `machine` below for that.
@@ -1637,6 +1652,8 @@ rackFleet:
   #                             # stops and replaces tailscaled, which over a
   #                             # host-transported session drops the tunnel it
   #                             # is riding.
+  #     sshIngressAllowCIDRs:   # optional; replaces the rackFleet default for a
+  #       - 192.168.0.2/32      # host behind a different router
   #     site: ber1
   #     rack: r1
   #     shelf: s3
@@ -2315,8 +2332,7 @@ runnersFleet:
   # Customers route via account-scoped Runner Profiles; the server
   # resolves (account, requested-label) → profile → pool. Keep this
   # list in sync with `infra/runner-image/profiles.json` — the list
-  # `server-production-deployment.yml`'s `runner-image-build` matrix
-  # expands. A catalog entry with no runner image published for it
+  # `runner-image-release.yml` publishes images for. A catalog entry with no runner image published for it
   # renders a pool that can never pull.
   xcodeVersions:
     - xcodeVersion: "27.0"
@@ -2359,14 +2375,14 @@ runnersFleet:
   # Per-pool runner image template. `runner-pool.yaml` constructs each
   # macOS pool's `spec.image` as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
-  # so the release-runner-image flow only bumps `runnerImageSemver`
+  # so a runner image release only bumps `runnerImageSemver`
   # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
   # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
   # an out-of-rotation Xcode refreshed via `runner-image.yml`).
   runnerImageRepository: "ghcr.io/tuist/tuist-runner"
   # Required when `xcodeVersions` is non-empty (the template fails the
-  # render otherwise). Bumped by `release-runner-image` on every
-  # release; managed envs override this with the live version.
+  # render otherwise). Resolved from the latest `runner-image@` tag at
+  # deploy time; managed envs override this with the live version.
   runnerImageSemver: ""
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
@@ -2432,6 +2448,19 @@ runnersFleet:
 #      the operator-provisioned host count can accommodate; Pending
 #      Pods are the signal to provision more hosts).
 runnersFleetLinux:
+  # Opt-in; hostPath MUST be a dedicated reflink-capable filesystem separate from kubelet.
+  cacheVolumes:
+    enabled: false
+    hostPath: /var/lib/tuist-runner-cache
+    maxSlots: 100
+    minFreeGB: 40 # Includes room for a private image and its publication archive.
+    volumeGB: 20
+    provisioning:
+      enabled: false
+      sizeGB: 200
+    image:
+      repository: ghcr.io/tuist/tuist-runner-cache-volumes
+      tag: "" # Defaults to the matching runnersController.image.tag release.
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and
@@ -3364,9 +3393,14 @@ clickhouse:
       raftPort: 9234
       storageSize: 10Gi
       storageClassName: ""
-      # Keeper stays on the general cloud pool: it is small control-plane
-      # metadata, and co-locating it with the data replica would let one host
-      # failure take both the data and the quorum that makes it writable.
+      # Where the members run, which every cluster with more than one node
+      # pool should set rather than leave empty. Keeper belongs on the general
+      # pool: it is small control-plane metadata, and co-locating it with a
+      # data replica would let one host failure take both the data and the
+      # quorum that makes it writable. Empty means the scheduler decides, and
+      # it will happily put a member on a pool that is sized for one workload
+      # and has no headroom for another, which is how production's first
+      # deploy of this server rolled back with ClickHouse healthy.
       nodeSelector: {}
       resources:
         requests:
@@ -3509,13 +3543,15 @@ objectStorage:
         field: secret_access_key
   embedded:
     provider: minio
+    # The upstream Quay images are no longer public. Pin the community build
+    # (including its bundled mc client) to the multi-architecture image digest.
     image:
-      repository: quay.io/minio/minio
-      tag: latest
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
       pullPolicy: IfNotPresent
     mcImage:
-      repository: quay.io/minio/mc
-      tag: latest
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
       pullPolicy: IfNotPresent
     rootUser: minio
     rootPassword: minio1234

@@ -7,7 +7,7 @@ defmodule Tuist.Docs.Sidebar do
 
   defmodule Item do
     @moduledoc false
-    defstruct [:label, :slug, :url, :icon, items: []]
+    defstruct [:label, :slug, :url, :icon, :text_path, items: []]
   end
 
   defmodule Group do
@@ -55,7 +55,12 @@ defmodule Tuist.Docs.Sidebar do
             {en_text, Map.get(locale_texts, text_path, en_text)}
           end)
 
-        {locale, label_map}
+        path_map =
+          Map.new(en_strings, fn {text_path, en_text} ->
+            {text_path, Map.get(locale_texts, text_path, en_text)}
+          end)
+
+        {locale, %{by_label: label_map, by_path: path_map}}
       end)
     else
       %{}
@@ -130,33 +135,39 @@ defmodule Tuist.Docs.Sidebar do
   defp localize_tree(tree, "en"), do: tree
 
   defp localize_tree(tree, locale) do
-    label_map = Map.get(@translations, locale, %{})
+    maps = Map.get(@translations, locale, %{by_label: %{}, by_path: %{}})
 
     Enum.map(tree, fn
       %Group{label: label, items: items} = group ->
-        %{group | label: translate(label, label_map), items: Enum.map(items, &localize_item(&1, locale, label_map))}
+        %{group | label: translate(label, nil, maps), items: Enum.map(items, &localize_item(&1, locale, maps))}
     end)
   end
 
-  defp localize_item(%Item{slug: nil, label: label, items: items} = item, locale, label_map) do
-    %{item | label: translate(label, label_map), items: Enum.map(items, &localize_item(&1, locale, label_map))}
+  defp localize_item(%Item{slug: nil, label: label, text_path: text_path, items: items} = item, locale, maps) do
+    %{item | label: translate(label, text_path, maps), items: Enum.map(items, &localize_item(&1, locale, maps))}
   end
 
-  defp localize_item(%Item{slug: "/en/" <> rest, label: label, items: items} = item, locale, label_map) do
+  defp localize_item(%Item{slug: "/en/" <> rest, label: label, text_path: text_path, items: items} = item, locale, maps) do
     %{
       item
       | slug: "/#{locale}/#{rest}",
-        label: translate(label, label_map),
-        items: Enum.map(items, &localize_item(&1, locale, label_map))
+        label: translate(label, text_path, maps),
+        items: Enum.map(items, &localize_item(&1, locale, maps))
     }
   end
 
-  defp localize_item(%Item{label: label, items: items} = item, locale, label_map) do
-    %{item | label: translate(label, label_map), items: Enum.map(items, &localize_item(&1, locale, label_map))}
+  defp localize_item(%Item{label: label, text_path: text_path, items: items} = item, locale, maps) do
+    %{item | label: translate(label, text_path, maps), items: Enum.map(items, &localize_item(&1, locale, maps))}
   end
 
-  defp translate(nil, _label_map), do: nil
-  defp translate(label, label_map), do: Map.get(label_map, label, label)
+  defp translate(nil, _text_path, _maps), do: nil
+
+  defp translate(label, text_path, %{by_label: by_label, by_path: by_path}) do
+    case text_path && Map.get(by_path, text_path) do
+      nil -> Map.get(by_label, label, label)
+      translated -> translated
+    end
+  end
 
   def item_active?(%Item{slug: slug}, current_slug) when is_binary(slug), do: slug == current_slug
 
@@ -221,7 +232,8 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Build insights",
+            label: "Insights",
+            text_path: "sidebars.guides.items.develop.items.insights",
             slug: "/en/guides/features/build-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "brand_apple"},
@@ -241,7 +253,7 @@ defmodule Tuist.Docs.Sidebar do
         weight: :medium,
         items: [
           %Item{
-            label: "Selective testing",
+            label: "Selection",
             slug: "/en/guides/features/selective-testing",
             items: [
               %Item{
@@ -252,7 +264,8 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Test insights",
+            label: "Insights",
+            text_path: "sidebars.guides.items.develop.items.test-insights",
             slug: "/en/guides/features/test-insights",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "brand_apple"},
@@ -261,7 +274,7 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Flaky tests",
+            label: "Flakiness",
             slug: "/en/guides/features/test-insights/flaky-tests",
             items: [
               %Item{
@@ -287,7 +300,7 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Test sharding",
+            label: "Sharding",
             slug: "/en/guides/features/test-sharding",
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-sharding/xcode", icon: "brand_apple"},
@@ -330,6 +343,7 @@ defmodule Tuist.Docs.Sidebar do
                 ]
               },
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
+              %Item{label: "Cache volumes", slug: "/en/guides/features/runners/cache-volumes"},
               %Item{
                 label: "Docker",
                 slug: "/en/guides/features/runners/docker",
@@ -340,12 +354,13 @@ defmodule Tuist.Docs.Sidebar do
         ]
       },
       %Group{
-        label: "Artifacts",
+        label: "Bundles",
         weight: :medium,
         items: [
           %Item{label: "Previews", slug: "/en/guides/features/previews"},
           %Item{
-            label: "Bundle insights",
+            label: "Insights",
+            text_path: "sidebars.guides.items.develop.items.bundle-insights",
             slug: "/en/guides/features/bundle-insights",
             items: [
               %Item{
@@ -534,6 +549,7 @@ defmodule Tuist.Docs.Sidebar do
             label: "Self-hosting",
             items: [
               %Item{label: "Server", slug: "/en/guides/server/self-host/server"},
+              %Item{label: "Release channels", slug: "/en/guides/server/self-host/release-channels"},
               %Item{label: "Cache", slug: "/en/guides/features/cache/self-hosting"},
               %Item{label: "Telemetry", slug: "/en/guides/server/self-host/telemetry"}
             ]

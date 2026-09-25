@@ -3,16 +3,17 @@ defmodule Atlas.Users.User do
 
   import Ecto.Changeset
 
+  alias Atlas.Authorization.Role
+  alias Atlas.Authorization.UserRole
   alias Atlas.Letters.Letter
   alias Atlas.Support.Message, as: SupportMessage
   alias Atlas.Support.Thread, as: SupportThread
 
-  @roles [:executive, :employee]
-
   schema "users" do
     field :email, :string
     field :name, :string
-    field :role, Ecto.Enum, values: @roles, default: :employee
+
+    many_to_many :roles, Role, join_through: UserRole, unique: true
 
     has_many :owned_support_threads, SupportThread, foreign_key: :owner_id
     has_many :support_messages, SupportMessage, foreign_key: :author_id
@@ -24,24 +25,10 @@ defmodule Atlas.Users.User do
 
   def changeset(user, attrs) do
     user
-    |> cast(attrs, [:email, :name, :role])
-    |> validate_required([:email, :role])
+    |> cast(attrs, [:email, :name])
+    |> validate_required([:email])
     |> unique_constraint(:email)
   end
-
-  def role_changeset(user, attrs) do
-    user
-    |> cast(attrs, [:role])
-    |> validate_required([:role])
-  end
-
-  def roles, do: @roles
-
-  def role_label(:executive), do: "Executive"
-  def role_label("executive"), do: "Executive"
-  def role_label(:employee), do: "Employee"
-  def role_label("employee"), do: "Employee"
-  def role_label(_role), do: "Unknown"
 
   def avatar_url(%__MODULE__{email: email}) do
     hash =

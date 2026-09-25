@@ -11,6 +11,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Previews.PlatformIcon
   import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
+  import TuistWeb.Runs.PullRequestButton
   import TuistWeb.Runs.RanByBadge
   import TuistWeb.Runs.SelectiveTestingTab
 
@@ -35,6 +36,8 @@ defmodule TuistWeb.TestRunLive do
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
+  @flaky_runs_page_size 20
+  @overview_flaky_groups_count 4
 
   # A run finishing on the isolated, non-clustered xcresult-processor pushes its
   # completion through BroadcastTestCreatedWorker, and web-origin runs broadcast
@@ -626,10 +629,14 @@ defmodule TuistWeb.TestRunLive do
     selected_test_tab = selected_test_tab(params, socket.assigns.show_test_suites)
     run = socket.assigns.run
 
-    [{failed_test_case_runs, failures_meta}, flaky_runs_grouped, {tab_type, {tab_data, tab_meta}}] =
+    [
+      {failed_test_case_runs, failures_meta},
+      {flaky_runs_grouped, flaky_runs_meta},
+      {tab_type, {tab_data, tab_meta}}
+    ] =
       Tuist.Tasks.parallel_tasks([
         fn -> load_failures_data(run, params) end,
-        fn -> Tests.get_flaky_runs_for_test_run(run.id) end,
+        fn -> load_flaky_runs_data(run, 1, @overview_flaky_groups_count) end,
         fn -> load_tab_data(selected_test_tab, run, params) end
       ])
 
@@ -639,6 +646,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:failed_test_case_runs, failed_test_case_runs)
       |> assign(:failures_meta, failures_meta)
       |> assign(:flaky_runs_grouped, flaky_runs_grouped)
+      |> assign(:flaky_runs_meta, flaky_runs_meta)
       |> assign_selective_testing_defaults()
       |> assign_binary_cache_defaults()
       |> assign_param_defaults(params)
@@ -690,7 +698,8 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "flaky-runs", params) do
-    {flaky_runs, meta} = load_flaky_runs_data(socket.assigns.run, params)
+    page = Query.bounded_page(params["flaky-runs-page"])
+    {flaky_runs, meta} = load_flaky_runs_data(socket.assigns.run, page, @flaky_runs_page_size)
     assign_flaky_runs_data(socket, flaky_runs, meta, params)
   end
 
@@ -1069,20 +1078,17 @@ defmodule TuistWeb.TestRunLive do
     |> assign_text_attachment_urls(failed_test_case_runs)
   end
 
-  defp load_flaky_runs_data(run, params) do
-    page = Query.bounded_page(params["flaky-runs-page"])
-    page_size = 20
-
-    all_flaky_runs = Tests.get_flaky_runs_for_test_run(run.id)
+  defp load_flaky_runs_data(run, page, page_size) do
+    all_flaky_runs = Tests.get_flaky_runs_for_test_run(run.id, details: false)
     total_groups_count = length(all_flaky_runs)
     total_runs_count = Enum.reduce(all_flaky_runs, 0, fn group, acc -> acc + length(group.runs) end)
     total_pages = max(1, ceil(total_groups_count / page_size))
 
-    # Paginate the grouped flaky runs
     paginated_flaky_runs =
       all_flaky_runs
       |> Enum.drop((page - 1) * page_size)
       |> Enum.take(page_size)
+      |> Tests.put_flaky_run_details()
 
     meta = %{
       total_groups_count: total_groups_count,

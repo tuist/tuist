@@ -93,3 +93,5 @@ Every job starts with an empty image store, so an image your workflow uses is pu
           cache-from: type=gha
           cache-to: type=gha,mode=max
 ```
+
+For persistent dependency directories in native jobs or container jobs, see the <.localized_link href="/guides/features/runners/cache-volumes">cache volumes guide</.localized_link>.

@@ -74,6 +74,7 @@ defmodule Atlas.SupportTest do
       assert is_nil(reply_thread.resolved_at)
       assert reply_message.in_reply_to == "root-#{suffix}@customer-#{suffix}.example"
       assert reply_message.references == ["root-#{suffix}@customer-#{suffix}.example"]
+      assert reply_message.metadata["subject"] == "Re: Build cache question"
       assert length(Support.get_thread(reply_thread.id).messages) == 2
     end
 

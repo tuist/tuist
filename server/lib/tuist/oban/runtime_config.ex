@@ -16,6 +16,7 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   alias Tuist.Bazel.Workers.DeleteExpiredTestIngestionRecordsWorker
   alias Tuist.Registry.Swift.SyncWorker
+  alias Tuist.Runners.Workers.CacheVolumeCleanupWorker
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGitLabCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
@@ -31,7 +32,9 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker},
     {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
-    {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker}
+    {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
+    {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
+    {"@daily", CacheVolumeCleanupWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
@@ -45,6 +48,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"20 4 * * *", Tuist.Accounts.Workers.DormantOperatorAccountsWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+    {"30 3 * * *", Tuist.Billing.Workers.SwitchUsageBasedPricingWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},

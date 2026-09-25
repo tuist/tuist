@@ -22,6 +22,13 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // side. Runner availability is gated server-side by the `:runners`
 // feature flag.
 type RunnerPoolSpec struct {
+	// Linux cache volumes require a dedicated host filesystem and a node-local agent.
+	// Empty disables the feature. Never expose CacheVolumeRoot without SubPathExpr.
+	// +optional
+	CacheVolumeRoot string `json:"cacheVolumeRoot,omitempty"`
+	// +optional
+	CacheVolumeURL string `json:"cacheVolumeURL,omitempty"`
+
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from
 	// `DispatchLabel` at JIT-mint time).

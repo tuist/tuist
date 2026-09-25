@@ -3,8 +3,6 @@ defmodule Atlas.Slack.InteractionsTest do
   use Mimic
 
   alias Atlas.Accounts.Account
-  alias Atlas.Accounts.AccountAttentionSlackNotifier
-  alias Atlas.Accounts.AccountAttentionSuggestion
   alias Atlas.Accounts.Contact
   alias Atlas.Accounts.Event
   alias Atlas.Outreach.Recommendation
@@ -127,55 +125,5 @@ defmodule Atlas.Slack.InteractionsTest do
     assert {:ok, "Next step marked complete."} = Interactions.handle_interaction(payload, :company)
     assert Repo.get!(Recommendation, recommendation.id).status == "completed"
     assert Repo.get!(Recommendation, recommendation.id).reviewed_by_id == user.id
-  end
-
-  test "snoozes an account attention suggestion from Slack" do
-    account =
-      %Account{}
-      |> Account.changeset(%{
-        account_key: "slack-attention:#{System.unique_integer([:positive])}",
-        name: "Acme Platforms",
-        segment: :customer
-      })
-      |> Repo.insert!()
-
-    suggestion =
-      %AccountAttentionSuggestion{account_id: account.id}
-      |> AccountAttentionSuggestion.changeset(%{
-        status: "pending",
-        kind: "usage_change",
-        suggestion_key: "usage_change:test-sharding",
-        title: "Check in about test sharding",
-        rationale: "The account's usage changed.",
-        suggested_action: "Ask whether the workflow changed.",
-        evidence: %{
-          "items" => [
-            %{
-              "source_type" => "account",
-              "source_id" => account.id,
-              "observation" => "The account is configured for attention."
-            }
-          ]
-        },
-        confidence: "0.90",
-        generated_by_agent: "account_attention_agent"
-      })
-      |> Repo.insert!()
-
-    payload = %{
-      "type" => "block_actions",
-      "container" => %{"channel_id" => "C_SALES"},
-      "actions" => [
-        %{
-          "action_id" => AccountAttentionSlackNotifier.action_id("snooze"),
-          "value" => suggestion.id
-        }
-      ]
-    }
-
-    assert {:ok, "Snoozed \"Check in about test sharding\" until next week."} =
-             Interactions.handle_interaction(payload, :company)
-
-    assert Repo.get!(AccountAttentionSuggestion, suggestion.id).status == "snoozed"
   end
 end

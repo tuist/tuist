@@ -118,6 +118,15 @@ The marketing site lives under `lib/tuist_web/marketing/` and is a single design
   The Processor Service dashboard compares these workloads using the same
   measurements; execution time includes the network round trip.
 
+## ClickHouse Query Parameters
+- ClickHouse rejects requests with more than 1,000 HTTP form fields, one per
+  query parameter. Every ClickHouse repository uses
+  `Tuist.ClickHouse.ArrayInParams`, which binds an integer or binary
+  `expr in ^list` (preloads included) as a single `Array(T)` parameter.
+- A single parameter is capped at 128 KiB (roughly 3,000 UUIDs). Chunk lists
+  whose size depends on data or on the client, as `all_by_uuid_chunks/2` in
+  `Tuist.Tests` does, and never build an `or` of per-row equalities.
+
 ## Code Style Guidelines
 - Use `alias` for modules used multiple times; avoid `import` unless using DSLs (e.g., Ecto.Query).
 - Declare aliases at the module level, not inside functions.

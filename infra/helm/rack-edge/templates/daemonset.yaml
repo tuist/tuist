@@ -1,0 +1,99 @@
+{{- $site := include "rack-edge.site" . }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rack-edge-{{ $site }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rack-edge.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rack-edge
+      tuist.dev/rack-edge: {{ $site }}
+  template:
+    metadata:
+      labels:
+        {{- include "rack-edge.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      # The switches' port, the uplinks and tailscale0 are the node's own.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      nodeSelector:
+        tuist.dev/rack-edge: {{ $site }}
+      tolerations:
+        - key: tuist.dev/rack-edge
+          operator: Equal
+          value: {{ $site }}
+          effect: NoSchedule
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 10
+      # The path first, so dnsmasq starts with the switch-side addresses it binds
+      # to already on the port. What it installs stays in the node's kernel when
+      # the pod goes, so a rollout never cuts the switches off.
+      initContainers:
+        - name: path
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, /etc/rack-edge/mgmt-path.sh]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/rack-edge
+              readOnly: true
+      containers:
+        - name: path-reapply
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [sh, -ec, 'while sleep {{ .Values.reapplySeconds }}; do sh /etc/rack-edge/mgmt-path.sh; done']
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [NET_ADMIN]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/rack-edge
+              readOnly: true
+        - name: dhcp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # --no-daemon rather than --keep-in-foreground: it also keeps dnsmasq from
+          # changing to a user and group of its own, which it has no capability for.
+          command: [dnsmasq, --no-daemon, --conf-file=/etc/rack-edge/dnsmasq.conf]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              # Port 67, the ARP entry a unicast reply needs, and the ping that
+              # checks an address is free before offering it.
+              add: [NET_BIND_SERVICE, NET_ADMIN, NET_RAW]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/rack-edge
+              readOnly: true
+            - name: leases
+              mountPath: /var/lib/misc
+      volumes:
+        - name: config
+          configMap:
+            name: rack-edge-{{ $site }}
+        # On the node, so a restarted pod hands a switch the lease it had.
+        - name: leases
+          hostPath:
+            path: /var/lib/misc
+            type: DirectoryOrCreate

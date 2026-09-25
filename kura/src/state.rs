@@ -42,6 +42,11 @@ use crate::{
 const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(2);
 const MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_secs(2);
 const JOINING_MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_millis(250);
+/// How long after start-up a node that has not completed initial discovery
+/// keeps the fast membership cadence. Well past the time a peer needs to
+/// publish its endpoint and answer, and short enough that a node whose peers
+/// never answer is not a sustained amplifier of DNS and mTLS handshakes.
+const JOINING_DISCOVERY_POLL_BUDGET: Duration = Duration::from_secs(60);
 
 /// Whether every other pod the control plane publishes in this node's region
 /// already has a replica link. The settle window exists to wait for a sibling
@@ -50,6 +55,16 @@ const JOINING_MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_millis(250);
 /// links' own bootstrap. Roles that do not name this node describe no instance
 /// it belongs to (a self-hosted node, or an instance whose roles the control
 /// plane has not observed yet), so they cannot vouch for its siblings.
+///
+/// A node that is the only pod its roles list in its region has no sibling to
+/// vouch for, so this is false rather than vacuously true: with nothing to
+/// check, the predicate would hold on the very first membership pass, before
+/// discovery has had a chance to find the remote-region gateways the node
+/// replicates with, and `bootstrap_settled` over an empty link set would then
+/// latch it serving with no replication at all. Such a node waits the settle
+/// window out like it did before roles were consulted. Reachable today on any
+/// mesh region that runs a single pod: `replicas` defaults to 1 for private
+/// regions.
 fn published_siblings_linked(
     roles: &[crate::sync::roles::PublishedRole],
     own_url: &str,
@@ -57,14 +72,34 @@ fn published_siblings_linked(
     linked: impl Fn(&str) -> bool,
 ) -> bool {
     let mut named = false;
+    let mut siblings = 0usize;
     for role in roles.iter().filter(|role| role.region == own_region) {
         if role.url == own_url {
             named = true;
-        } else if !linked(&role.url) {
+        } else if linked(&role.url) {
+            siblings += 1;
+        } else {
             return false;
         }
     }
-    named
+    named && siblings > 0
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccountIdentity {
+    pub handle: String,
+    pub aliases: Vec<String>,
+    pub endpoint_redirects: BTreeMap<String, String>,
+}
+
+impl AccountIdentity {
+    pub fn new(handle: String) -> Self {
+        Self {
+            handle,
+            aliases: Vec::new(),
+            endpoint_redirects: BTreeMap::new(),
+        }
+    }
 }
 
 pub struct AppState {
@@ -94,6 +129,8 @@ pub struct AppState {
     // heartbeat / peers-sync cadence and merged into the discovery targets
     // on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
+    /// One control-plane snapshot: authorization aliases and ready endpoint targets.
+    pub account_identity: ArcSwap<AccountIdentity>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub readiness: Mutex<ReadinessState>,
     /// Process-wide byte budget shared by every transient disk writer.
@@ -225,6 +262,77 @@ impl Drop for BackfillBodiesPeerSlot {
 }
 
 impl AppState {
+    pub fn update_account_identity(
+        &self,
+        handle: Option<&str>,
+        aliases: Option<&[String]>,
+        redirects: Option<&BTreeMap<String, String>>,
+    ) {
+        let Some(handle) = handle.filter(|handle| !handle.is_empty()) else {
+            return;
+        };
+        let previous = self.account_identity.load();
+        let mut next = (**previous).clone();
+        if next.handle != handle {
+            // An older control plane may know the rename but not ready targets.
+            // Do not retain redirects pointing at a superseded canonical name.
+            next.endpoint_redirects.clear();
+            next.aliases.push(next.handle.clone());
+            next.handle = handle.to_owned();
+        }
+        if let Some(aliases) = aliases {
+            next.aliases = aliases.to_vec();
+        }
+        if let Some(redirects) = redirects {
+            next.endpoint_redirects = redirects
+                .iter()
+                .filter(|(source, target)| {
+                    let Ok(url) = reqwest::Url::parse(target) else {
+                        return false;
+                    };
+                    url.scheme() == "https"
+                        && url.username().is_empty()
+                        && url.password().is_none()
+                        && url.path() == "/"
+                        && url.query().is_none()
+                        && url.fragment().is_none()
+                        && url.host_str().is_some_and(|host| host != source.as_str())
+                })
+                .map(|(source, target)| (source.clone(), target.trim_end_matches('/').to_owned()))
+                .collect();
+        }
+        next.aliases
+            .retain(|alias| !alias.is_empty() && !alias.eq_ignore_ascii_case(&next.handle));
+        next.aliases.sort();
+        next.aliases.dedup();
+        if next != **previous {
+            self.account_identity.store(Arc::new(next));
+        }
+    }
+
+    pub fn canonicalize_auth_context(&self, context: &mut crate::auth::RequestContext) {
+        let identity = self.account_identity.load();
+        if identity.aliases.is_empty() && context.server_tenant_id == identity.handle {
+            return;
+        }
+        // Keep original and intermediate names bound to this account's current
+        // grants. Store operations still use the immutable configured tenant.
+        if context.tenant_id.as_deref().is_some_and(|tenant| {
+            let tenant = tenant.trim();
+            tenant.eq_ignore_ascii_case(&self.config.tenant_id)
+                || identity
+                    .aliases
+                    .iter()
+                    .any(|alias| tenant.eq_ignore_ascii_case(alias))
+        }) && context.tenant_id.as_deref() != Some(identity.handle.as_str())
+        {
+            context.tenant_id = Some(identity.handle.clone());
+        }
+        if context.server_tenant_id != identity.handle {
+            context.server_tenant_id = identity.handle.clone();
+        }
+    }
+
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
         self.client.load()
@@ -320,6 +428,9 @@ pub(crate) struct ReadinessState {
     generation: u64,
     initial_discovery_completed: bool,
     settle_until: Instant,
+    // Deadline for the fast membership cadence a node keeps until its first
+    // successful peer status read. See `poll_interval`.
+    discovery_fast_poll_until: Instant,
     members: BTreeSet<String>,
     known_peers: BTreeSet<String>,
     // Every peer ever seen through discovery only (not in the static or
@@ -345,6 +456,7 @@ impl ReadinessState {
             generation: 0,
             initial_discovery_completed: false,
             settle_until: now,
+            discovery_fast_poll_until: now + JOINING_DISCOVERY_POLL_BUDGET,
             members: BTreeSet::new(),
             known_peers: BTreeSet::new(),
         }
@@ -401,8 +513,23 @@ impl ReadinessState {
     /// view has not settled passes every quarter second, so a sibling starting
     /// alongside it is seen promptly and its readiness is not held back by the
     /// loop's cadence; everything else keeps the steady two seconds.
+    ///
+    /// The pre-discovery half of that is capped by
+    /// `JOINING_DISCOVERY_POLL_BUDGET` rather than left to run until discovery
+    /// completes. `initial_discovery_completed` only flips on a successful
+    /// peer status read, so a node whose peers resolve in DNS but never answer
+    /// would otherwise stay on the fast cadence for as long as that lasts —
+    /// and each pass costs two blocking `getaddrinfo` calls plus, per peer, a
+    /// freshly built client and a new TCP and TLS handshake. On
+    /// `ECONNREFUSED` every attempt returns at once, so the loop runs at the
+    /// full four passes a second rather than being paced by the connect
+    /// timeout: eight times the steady-state load, sustained, during an
+    /// incident. The budget keeps the join-time benefit and lets a node that
+    /// has never reached anyone fall back.
     fn poll_interval(&self, serving: bool, now: Instant) -> Duration {
-        if !serving && (!self.initial_discovery_completed || now < self.settle_until) {
+        let joining_discovery =
+            !self.initial_discovery_completed && now < self.discovery_fast_poll_until;
+        if !serving && (joining_discovery || now < self.settle_until) {
             JOINING_MEMBERSHIP_POLL_INTERVAL
         } else {
             MEMBERSHIP_POLL_INTERVAL
@@ -810,6 +937,33 @@ mod tests {
     }
 
     #[test]
+    fn membership_stops_polling_fast_for_a_node_whose_peers_never_answer() {
+        // `initial_discovery_completed` only flips on a successful peer status
+        // read, so without a budget a node whose peers resolve but refuse the
+        // connection would hold four passes a second for the whole incident,
+        // each one two `getaddrinfo` calls and a fresh TLS handshake per peer.
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), false, now);
+        assert_eq!(
+            readiness.poll_interval(
+                false,
+                now + JOINING_DISCOVERY_POLL_BUDGET - Duration::from_secs(1)
+            ),
+            JOINING_MEMBERSHIP_POLL_INTERVAL
+        );
+
+        let lapsed = now + JOINING_DISCOVERY_POLL_BUDGET;
+        readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), false, lapsed);
+        assert!(!readiness.initial_discovery_completed);
+        assert_eq!(
+            readiness.poll_interval(false, lapsed),
+            MEMBERSHIP_POLL_INTERVAL
+        );
+    }
+
+    #[test]
     fn readiness_state_keeps_joining_until_discovery_succeeds() {
         let now = Instant::now();
         let mut readiness = ReadinessState::new(now);
@@ -917,20 +1071,37 @@ mod tests {
             published_siblings_linked(
                 &[
                     published_role(own, "eu-west"),
+                    published_role(sibling, "eu-west"),
                     published_role(remote, "us-east")
                 ],
                 own,
                 "eu-west",
-                |_| false
+                |peer| peer == sibling
             ),
             "another region's pods never gate readiness"
+        );
+        assert!(
+            !published_siblings_linked(
+                &[
+                    published_role(own, "eu-west"),
+                    published_role(remote, "us-east")
+                ],
+                own,
+                "eu-west",
+                |_| true
+            ),
+            "a node that is the only pod its roles list in its region has no \
+             sibling to vouch for, so the window is what it waits on"
         );
         assert!(!published_siblings_linked(&[], own, "eu-west", |_| true));
     }
 
     #[tokio::test]
-    async fn a_joining_node_does_not_wait_out_the_settle_window_once_its_published_siblings_are_linked()
-     {
+    async fn a_joining_node_that_is_its_region_s_only_pod_still_waits_out_the_settle_window() {
+        // Its roles name no sibling to check, so the predicate would hold on
+        // the first membership pass — before discovery has found the
+        // remote-region gateways it replicates with — and an empty link set
+        // settles trivially, latching serving with no replication at all.
         let context = test_context(|_| {}).await;
         context.state.runtime.require_peer_view();
         context.state.runtime.mark_peer_view_ready();
@@ -947,11 +1118,11 @@ mod tests {
             .await;
 
         context.state.maybe_mark_serving().await;
+        assert!(!context.state.runtime.is_serving());
 
-        assert!(
-            context.state.runtime.is_serving(),
-            "an instance whose roles name no other pod in its region has no sibling to wait for"
-        );
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        assert!(context.state.runtime.is_serving());
     }
 
     #[tokio::test]

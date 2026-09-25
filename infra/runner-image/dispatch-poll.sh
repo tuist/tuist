@@ -174,6 +174,45 @@ keep_desktop_interactive() {
 
 keep_desktop_interactive
 
+# approve_finder_automation records a standing approval for scripting
+# Finder, which `create-dmg` and any other `osascript`-driven window
+# styling needs. Without one, the first AppleEvent to Finder waits on a
+# consent prompt nobody can answer and the send fails as `AppleEvent
+# timed out (-1712)`.
+#
+# The decision is read from the session user's TCC database, which tccd
+# only creates once `runner` has logged in, so it cannot be seeded at
+# image build. The system database is not consulted for it.
+#
+# TCC charges the event to the responsible process, not to `osascript`:
+# `Runner.Listener` for GitHub jobs, and this script's `/bin/bash` for
+# the agents it launches directly. A row only matches when it carries
+# Finder's code requirement as `indirect_object_code_identity`.
+#
+# Best-effort: a job that never scripts Finder must not wait on this.
+approve_finder_automation() {
+  local db="/Users/runner/Library/Application Support/com.apple.TCC/TCC.db"
+  local finder_requirement="X'fade0c000000002c00000001000000060000000200000010636f6d2e6170706c652e66696e64657200000003'"
+  local waited=0 client
+  while [ ! -f "${db}" ] && [ "${waited}" -lt 30 ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if [ ! -f "${db}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING per-user TCC.db missing; Finder automation will prompt"
+    return 0
+  fi
+  for client in /Users/runner/actions-runner/bin/Runner.Listener /bin/bash; do
+    if ! /usr/bin/sqlite3 "${db}" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAppleEvents', '${client}', 1, 2, 3, 1, NULL, 0, 'com.apple.finder', ${finder_requirement}, 0, CAST(strftime('%s','now') AS INTEGER));"; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not approve Finder automation for ${client}"
+      return 0
+    fi
+  done
+  echo "$(date -u +%FT%TZ) dispatch-poll: Finder automation approved"
+}
+
+approve_finder_automation
+
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
 # environments whose Mac minis have the tailnet route into the
@@ -320,14 +359,20 @@ CAS_ENABLED_MARKER="cas-enabled"
 # instead, `cache-max-bytes` for the binary cache and the cas-enabled figure for
 # the compilation cache, and set_cache_limits applies that as is.
 CACHE_BUDGET_MARKER="cache-budget-bytes"
-# What set_cache_limits decided, for the calls that apply it: the shared budget
-# (empty on a host that stages the fixed split), the binary cache's share, which
-# limit_binary_cache exports, and the compilation cache's limit, which
-# setup_cas_store gives the compiler and prune_cas_stores divides across the
-# stores (empty when the host did not enable the compilation cache).
+# What set_cache_limits measured and decided, for the calls that apply it: the
+# shared budget (empty on a host that stages the fixed split), what each cache
+# holds, the binary cache's share, which limit_binary_cache exports, and the
+# compilation cache's limit, which setup_cas_store gives the compiler and
+# prune_cas_stores divides across the stores (empty when the host did not enable
+# the compilation cache).
 CACHE_BUDGET_BYTES=""
+BINARY_CACHE_HELD_BYTES=0
+COMPILATION_CACHE_HELD_BYTES=0
 BINARY_CACHE_SHARE_BYTES=""
 CAS_LIMIT_BYTES=""
+# The file stage_cache_limits appends the division to for the host to turn into
+# metrics. Nothing on the guest reads it back.
+CACHE_LIMITS_FILE="cache-limits"
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -715,11 +760,11 @@ cas_proxy_client() {
 # detach, since the spool lives inside the image and the publisher needs to read
 # it.
 #
-# It runs for a failed job too. A non-zero rc never promotes (report_cache_dirty
-# and report_volume_head both gate on it), so its verdict gates nothing there,
-# but setup_cas_store told the job's compiles not to wait for their uploads
-# because this wait would, and the next job's warm cache is made of those
-# uploads whether this one passed or not.
+# It runs for a failed job too. A job that did not succeed never promotes
+# (report_cache_dirty and report_volume_head both gate on JOB_PASSED), so its
+# verdict gates nothing there, but setup_cas_store told the job's compiles not to
+# wait for their uploads because this wait would, and the next job's warm cache
+# is made of those uploads whether this one passed or not.
 #
 # Best-effort by nature, which is why it does not replace the plugin's read-side
 # guard: a host that panics, or a job cancelled mid-upload, promotes without ever
@@ -931,8 +976,8 @@ EOF
 # sample_cache_fill's ceiling already guards. It never fails the job or blocks
 # promotion.
 #
-# The teardown call site applies an rc gate; the attach one does not need it
-# (nothing has been drained yet because nothing has been written yet).
+# The teardown call site applies the JOB_PASSED gate; the attach one does not
+# need it (nothing has been drained yet because nothing has been written yet).
 #
 # `$1` names the call site and is echoed into every line this emits. The two
 # passes are otherwise indistinguishable in the logs, and telling them apart is
@@ -1082,10 +1127,37 @@ set_cache_limits() {
   tab=$(printf '\t')
   binary_held=$(allocated_bytes "${CACHE_MOUNT}/tuist")
   compilation_held=$(allocated_bytes "${CACHE_MOUNT}/${CAS_STORE_DIR}")
+  BINARY_CACHE_HELD_BYTES="${binary_held}"
+  COMPILATION_CACHE_HELD_BYTES="${compilation_held}"
   shares=$(cache_budget_shares "${budget}" "${binary_held}" "${compilation_held}")
   BINARY_CACHE_SHARE_BYTES="${shares%%"${tab}"*}"
   CAS_LIMIT_BYTES=$(within_room "${shares##*"${tab}"}" "${budget}" "${binary_held}")
   echo "$(date -u +%FT%TZ) dispatch-poll: cache budget ${budget}B divided by use (${when}): binary cache holds ${binary_held}B, share ${BINARY_CACHE_SHARE_BYTES}B; compilation cache holds ${compilation_held}B, limit ${CAS_LIMIT_BYTES}B"
+}
+
+# stage_cache_limits records the division ($1, attach or teardown) for the host,
+# one "<when><TAB><cache><TAB><held><TAB><limit>" line per cache. The host exports
+# both as histograms: the sizes are the only per-cache measurement the fleet has,
+# and the limits beside them are what the rule and its floors get retuned from.
+# This log carries the same numbers, but the host re-emits a bounded tail of it,
+# so a verbose job's attach lines never reach the log store.
+#
+# The binary cache's figure is what limit_binary_cache exported at attach, its
+# share capped beside the pruned store, and its share at teardown, where nothing
+# exports it. A host staging the fixed split divides nothing, so there is nothing
+# to record.
+stage_cache_limits() {
+  local when="$1"
+  [ -n "${CACHE_BUDGET_BYTES}" ] || return 0
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local binary_limit="${BINARY_CACHE_SHARE_BYTES}"
+  if [ "${when}" = "attach" ] && [ -n "${TUIST_CACHE_MAX_BYTES:-}" ]; then
+    binary_limit="${TUIST_CACHE_MAX_BYTES}"
+  fi
+  {
+    printf '%s\t%s\t%s\t%s\n' "${when}" binary "${BINARY_CACHE_HELD_BYTES}" "${binary_limit:-0}"
+    printf '%s\t%s\t%s\t%s\n' "${when}" compilation "${COMPILATION_CACHE_HELD_BYTES}" "${CAS_LIMIT_BYTES:-0}"
+  } >>"${STATUS_SHARE}/${CACHE_LIMITS_FILE}" 2>/dev/null || true
 }
 
 # limit_binary_cache exports the binary cache's limit as TUIST_CACHE_MAX_BYTES, for
@@ -1165,6 +1237,7 @@ wait_for_cache_ready() {
       # After the prune, so the binary cache's limit fits beside what the
       # compilation cache holds once pruned.
       limit_binary_cache
+      stage_cache_limits attach
       # After the prune, which can be what makes room in a full image for the
       # store to be writable.
       setup_cas_store
@@ -1291,11 +1364,70 @@ capture_content_digest() {
   echo "$(date -u +%FT%TZ) dispatch-poll: settled cache image sha256=${CACHE_CONTENT_DIGEST:-unavailable}"
 }
 
+# JOB_RESULT_FILE is where the Buildkite pre-exit hook and the GitLab executor
+# leave the job's outcome for teardown. The hook's state directory defaults to
+# this directory, and the executor is handed the path.
+JOB_RESULT_FILE=/var/log/tuist-runner/job-result
+RUNNER_DIAG_DIR=/Users/runner/actions-runner/_diag
+
+# read_job_result prints how the job on this machine ended, lowercased
+# (succeeded, failed, canceled, ...), or "unknown" when the agent left no
+# verdict. `$1` names the agent: github, buildkite or gitlab.
+#
+# This, and not the runner's exit status, is what gates promotion. `run.sh`
+# maps every Listener exit code except a restart to 0, and the GitLab executor
+# exits 0 for job outcomes by design, so neither exit says how the job ended.
+# The Buildkite agent's exit does, but only for failures, and only because it
+# is started with `--reflect-exit-status`; buildkite_job_result combines the two.
+#
+# GitHub records its verdict in the Listener's own trace, as `finish job request
+# for job <id> with result: <Result>`. The Listener writes that line on both of
+# its completion paths (the Worker exited, or the job was cancelled or
+# abandoned), with the result it reports to GitHub, and nothing in it comes from
+# the job. The match is anchored to the trace header because a later line
+# echoes the job's display name, which the workflow chooses. The Worker's "Job
+# result after all job steps finish" line is not a substitute: a job that fails
+# to initialize, or whose Worker crashes, never writes it. Buildkite and GitLab
+# write JOB_RESULT_FILE.
+#
+# An absent verdict reads as "unknown", which does not promote.
+read_job_result() {
+  local result=""
+  case "${1}" in
+    github)
+      result=$(cat "${RUNNER_DIAG_DIR}"/Runner_*.log 2>/dev/null |
+        sed -n 's/^\[[^]]* JobDispatcher\] finish job request for job [^ ]* with result: \([A-Za-z]*\)[[:space:]]*$/\1/p' |
+        tail -n 1)
+      ;;
+    *)
+      result=$(cat "${JOB_RESULT_FILE}" 2>/dev/null)
+      ;;
+  esac
+  result=$(printf '%s' "${result}" | tr -cd 'A-Za-z' | tr '[:upper:]' '[:lower:]' | cut -c1-32)
+  printf '%s' "${result:-unknown}"
+}
+
+# buildkite_job_result prints the Buildkite job's result from the pre-exit
+# hook's verdict and the agent's exit status (`$1`), which
+# `--reflect-exit-status` makes the job's final status. The hook alone is not
+# enough: the executor settles that status after the global pre-exit hook runs,
+# so an automatic artifact upload that fails, or a repository or plugin pre-exit
+# hook that fails, turns a job the hook saw pass into a failure. The status
+# alone is not enough either: it does not mark a cancel, and a job whose command
+# exits 0 after being cancelled reads as a pass.
+buildkite_job_result() {
+  local result
+  result=$(read_job_result buildkite)
+  if [ "${result}" = "succeeded" ] && [ "${1}" != "0" ]; then
+    result=failed
+  fi
+  printf '%s' "${result}"
+}
+
 # report_cache_dirty writes the guest's dirty marker into the writable status
 # share so the reconciler can decide promote-vs-discard. "1" iff the job
-# succeeded (runner rc == 0) AND the cache inventory changed; "0" for a
-# read-only / pure-hit job OR a job whose runner exited non-zero (infra failure,
-# cancellation, runner crash).
+# succeeded (JOB_PASSED) AND the cache inventory changed; "0" for a read-only /
+# pure-hit job OR a job that failed, was cancelled, or left no result.
 #
 # It MUST run AFTER a successful detach. The marker is what authorizes the host
 # to promote, and the host promotes by cloning the image file without being able
@@ -1307,24 +1439,21 @@ capture_content_digest() {
 # detach failure). It reads the inventory capture_settled_inventory took off the
 # detached image, so "dirty" describes the bytes that would actually be promoted.
 #
-# Gating on rc carries the job result to the host so a failed run never promotes
-# its branch to the account's master — the host's own `tart run` clean-exit
-# signal reflects the VM halting, not the job's conclusion, so it can't make
-# this call on its own. (rc is the runner-process exit: it catches infra/runner
-# failures and cancellations; a job whose steps fail while the runner exits 0
-# still promotes, which is acceptable — those artifacts are content-addressed
-# and signature-validated, so they warm rather than corrupt.) Mirrors the rc
-# gate in report_volume_head so local promote and HEAD publish agree.
+# Gating on the job's result carries it to the host so a failed or cancelled run
+# never promotes its branch to the account's master. The host's own `tart run`
+# clean-exit signal reflects the VM halting, not the job's conclusion, so it
+# can't make this call on its own. Mirrors the gate in report_volume_head so
+# local promote and HEAD publish agree.
 
 report_cache_dirty() {
   [ -d "${STATUS_SHARE}" ] || return 0
-  local rc="${1:-1}" dirty=0
-  if [ "${rc}" = "0" ] && [ -n "${CACHE_INVENTORY_AFTER}" ] && \
+  local passed="${1:-0}" dirty=0
+  if [ "${passed}" = "1" ] && [ -n "${CACHE_INVENTORY_AFTER}" ] && \
     [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
     dirty=1
   fi
   printf '%s' "${dirty}" > "${STATUS_SHARE}/cache-dirty" 2>/dev/null || true
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (rc=${rc}) digest=${CACHE_INVENTORY_AFTER} reported to host"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (job=${JOB_RESULT:-unknown}) digest=${CACHE_INVENTORY_AFTER} reported to host"
 }
 
 # stage_volume_head writes the account's cache-volume HEAD (from the dispatch
@@ -1449,8 +1578,8 @@ VOLUME_HEAD_UPLOAD_TIMEOUT=600
 # be mid-write, and what gets uploaded here becomes every other host's master.
 # Best-effort; never blocks teardown.
 report_volume_head() {
-  local rc="${1:-1}"
-  [ "${rc}" = "0" ] || return 0
+  local passed="${1:-0}"
+  [ "${passed}" = "1" ] || return 0
   [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
   [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
@@ -1812,6 +1941,10 @@ HOOK
           "${RUNNER_PERF_FILE}" 2>/dev/null
       }
 
+      # The machine is fresh per job, so anything here would be a stray, but the
+      # verdict teardown promotes on has to be this job's.
+      rm -f "${JOB_RESULT_FILE}"
+
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
       # version is baked into the image; we bump that via Renovate
@@ -1830,10 +1963,11 @@ HOOK
       # writes nothing to the ingest path.
       if [ "${gitlab_job}" = "true" ]; then
         /opt/tuist/tuist-gitlab-runner --job-file /tmp/tuist-gitlab-job.json \
-          --builds-dir /Users/runner/work &
+          --builds-dir /Users/runner/work --result-file "${JOB_RESULT_FILE}" &
         runner_pid=$!
         wait "${runner_pid}"
         rc=$?
+        JOB_RESULT=$(read_job_result gitlab)
       elif [ -n "${bk_token}" ]; then
         # Buildkite needs none of the idle-watchdog machinery below. The
         # acquisition token names one job UUID, so the assignment already
@@ -1856,10 +1990,23 @@ HOOK
           --build-path /Users/runner/work \
           --enable-job-log-tmpfile \
           --job-log-path /var/log/tuist-runner \
-          --disconnect-after-job &
+          --disconnect-after-job \
+          --reflect-exit-status &
         runner_pid=$!
         wait "${runner_pid}"
-        rc=$?
+        agent_rc=$?
+        JOB_RESULT=$(buildkite_job_result "${agent_rc}")
+        # `--reflect-exit-status` exits the agent with a failed job's status, but
+        # the runners-controller reads a non-zero runner exit as a runner death
+        # and not as a job outcome. A verdict from the hook proves the job ran, so
+        # its status stays out of the exit; without one, the agent's own status
+        # (a rejected acquisition, or a job that never reached its hooks) is
+        # still reported.
+        rc=0
+        if [ "${JOB_RESULT}" = "unknown" ]; then
+          rc="${agent_rc}"
+        fi
+        echo "$(date -u +%FT%TZ) dispatch-poll: buildkite agent exited ${agent_rc}"
       else
       ./run.sh --jitconfig "${jit}" --disableupdate &
       runner_pid=$!
@@ -1905,7 +2052,16 @@ HOOK
       rc=$?
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+      JOB_RESULT=$(read_job_result github)
       fi
+      # Only a job that succeeded may promote its cache (see read_job_result for
+      # why the exit status cannot say so). A non-zero exit still withholds: it is
+      # a runner the idle watchdog killed, or an agent that failed.
+      JOB_PASSED=0
+      if [ "${rc}" = "0" ] && [ "${JOB_RESULT}" = "succeeded" ]; then
+        JOB_PASSED=1
+      fi
+      echo "$(date -u +%FT%TZ) dispatch-poll: job result=${JOB_RESULT} (rc=${rc}); cache promotion $([ "${JOB_PASSED}" = "1" ] && echo allowed || echo withheld)"
       # Cache teardown. The order here is load-bearing:
       #   0. wait for the compilation cache's asynchronous publications to reach
       #      the remote, while the spool is still mounted and the publisher can
@@ -1932,32 +2088,33 @@ HOOK
       #   4. ONLY then authorize promotion (dirty marker) and upload the settled
       #      image as the account's new HEAD. A detach failure, an unmeasurable
       #      image, or an early exit leaves no dirty marker, so the host discards.
-      # rc gates promotion — a failed run never advances the master.
+      # JOB_PASSED gates promotion: only a job that succeeded advances the master.
       # If the CAS feature was turned off, drop its stale store from the image
       # BEFORE the image is measured, so the removal promotes a cleaned master
       # instead of masters carrying dead CAS bytes forever.
       reclaim_cas_if_disabled
       # After the reclaim: a store that was just dropped has no spool left to
       # wait on, so a disabled-CAS teardown never pays for this gate.
-      if ! drain_cas_publications && [ "${rc}" = "0" ]; then
+      if ! drain_cas_publications && [ "${JOB_PASSED}" = "1" ]; then
         mark_cache_not_promotable "CAS publications did not reach the cache"
       fi
       # Bound the compilation cache before the image is measured: nothing else
       # ever collects the generations that fall out of its chain, and an
       # unbounded store is what fills this volume and wedges the account.
       #
-      # Gated on rc. A non-zero rc never promotes, so there is no image for this
-      # to shrink, and the drain's verdict gates nothing for a failed job, so
-      # the spool may still owe the remote objects this would delete. Nothing
-      # inherits those associations (the branch is discarded), but "prune only
-      # what has been drained" is the invariant
+      # Gated on JOB_PASSED. A job that did not succeed never promotes, so there
+      # is no image for this to shrink, and the drain's verdict gates nothing
+      # for it, so the spool may still owe the remote objects this would delete.
+      # Nothing inherits those associations (the branch is discarded), but
+      # "prune only what has been drained" is the invariant
       # worth being unable to get wrong later. The attach-time prune is what
       # covers a failing job, from the other end.
-      if [ "${rc}" = "0" ]; then
+      if [ "${JOB_PASSED}" = "1" ]; then
         # Divide the budget again first: the binary cache may have grown to its
         # attach-time share during the job, and nothing prunes it here, so the
         # compilation cache has to fit beside what it holds now.
         set_cache_limits teardown
+        stage_cache_limits teardown
         prune_cas_stores teardown
       fi
       # A full image is withheld from BOTH channels, so the detach still runs
@@ -1977,12 +2134,12 @@ HOOK
       elif [ "${cache_within_fill_ceiling}" = "1" ]; then
         # Only a changed image from a successful job is promoted, so only that one
         # is worth the teardown time a compaction costs.
-        if [ "${rc}" = "0" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
+        if [ "${JOB_PASSED}" = "1" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
           compact_cache_image
         fi
         capture_content_digest
-        report_cache_dirty "${rc}"
-        report_volume_head "${rc}"
+        report_cache_dirty "${JOB_PASSED}"
+        report_volume_head "${JOB_PASSED}"
       fi
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last

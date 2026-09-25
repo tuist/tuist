@@ -26,6 +26,12 @@ import (
 // promote a cache-volume branch to the right master.
 const runnerAccountLabel = "tuist.dev/runner-account"
 
+// runnerCacheVolumeLabel is the Pod label the Tuist server stamps at dispatch,
+// in the same patch as runnerAccountLabel, with the job's cache volume. Like the
+// account it is invisible to the guest, so a job cannot pick another
+// repository's volume. Absent means ReservedTuistCacheVolume.
+const runnerCacheVolumeLabel = "tuist.dev/runner-cache-volume"
+
 // runnerCacheUntrustedLabel marks a Pod whose job the server could not
 // positively confirm as trusted (same-repo, non-fork). When present, the host
 // skips cache-volume materialize and promotion, so an untrusted fork job neither
@@ -43,6 +49,22 @@ func RunnerAccountFromPod(pod *corev1.Pod) string {
 	return pod.Labels[runnerAccountLabel]
 }
 
+// RunnerCacheVolumeFromPod returns the Pod's cache volume, or false when the
+// label is not a volume name and the job must not touch any master.
+func RunnerCacheVolumeFromPod(pod *corev1.Pod) (string, bool) {
+	if pod == nil {
+		return ReservedTuistCacheVolume, true
+	}
+	volume, ok := pod.Labels[runnerCacheVolumeLabel]
+	if !ok {
+		return ReservedTuistCacheVolume, true
+	}
+	if !isVolumeName(volume) {
+		return "", false
+	}
+	return volume, true
+}
+
 // RunnerCacheUntrusted reports whether the server marked this Pod's job as
 // untrusted (a fork it could not confirm as same-repo). Exported so state
 // recovery in package main can preserve the untrusted decision.
@@ -51,18 +73,23 @@ func RunnerCacheUntrusted(pod *corev1.Pod) bool {
 }
 
 // ReattachVolumeForPod reconstructs the cache-volume attachment for a VM that
-// survived a kubelet restart. It preserves the untrusted decision: SourceAccount
-// is set from the account label ONLY for a trusted pod. An untrusted branch is
-// reattached (so its live virtio-fs mount isn't swept and it's cleaned at job
-// end) but keeps SourceAccount empty, so Finalize's SourceAccount==account guard
-// discards it — recovery can never revive attacker-controlled content into the
-// account's master. Both recoverState and the createPod adoption path use this.
+// survived a kubelet restart, on the volume the pod's label names. It preserves
+// the untrusted decision: SourceAccount is set from the account label ONLY for a
+// trusted pod with a well-formed volume. Any other branch is reattached (so its
+// live virtio-fs mount isn't swept and it's cleaned at job end) but keeps
+// SourceAccount empty, so Finalize's SourceAccount==account guard discards it —
+// recovery can never revive attacker-controlled content into a master. Both
+// recoverState and the createPod adoption path use this.
 func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (VolumeAttachment, bool) {
-	att, ok := volumes.ReattachBranch(ReservedTuistCacheVolume, vm)
+	volume, validVolume := RunnerCacheVolumeFromPod(pod)
+	if !validVolume {
+		volume = ReservedTuistCacheVolume
+	}
+	att, ok := volumes.ReattachBranch(volume, vm)
 	if !ok {
 		return VolumeAttachment{}, false
 	}
-	if !RunnerCacheUntrusted(pod) {
+	if validVolume && !RunnerCacheUntrusted(pod) {
 		att.SourceAccount = RunnerAccountFromPod(pod)
 	}
 	return att, true
@@ -339,13 +366,14 @@ func (r *Reconciler) allocateVolumeBranch(vmName string) (VolumeAttachment, erro
 	return r.Volumes.AllocateBranch(ReservedTuistCacheVolume, vmName)
 }
 
-// maybeMaterializeVolume clonefiles the dispatched account's cache master into
-// this VM's branch and signals the guest, exactly once per VM. The Tuist
-// server stamps the pod's runner-account label when it claims a job, so this
-// runs on the reconcile that observes that label — the account is known before
-// any cache bytes reach the VM, which is what makes the shared-host model safe.
-// A cold first job (no master yet) still writes cache-ready so the guest stops
-// waiting; its writes become the account's first master at Finalize.
+// maybeMaterializeVolume clonefiles the dispatched job's cache master, for its
+// account and volume, into this VM's branch and signals the guest, exactly once
+// per VM. The Tuist server stamps the pod's runner-account and cache-volume
+// labels when it claims a job, so this runs on the reconcile that observes them —
+// the account and volume are known before any cache bytes reach the VM, which is
+// what makes the shared-host model safe. A cold first job (no master yet) still
+// writes cache-ready so the guest stops waiting; its writes become the volume's
+// first master at Finalize.
 func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	if r.Volumes == nil {
 		return
@@ -360,12 +388,18 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	}
 
 	// Fork-exclusion: an untrusted job never touches the shared cache. It gets an
-	// EMPTY image rather than the account's master, and SourceAccount stays empty
-	// so Finalize's SourceAccount==account guard discards the branch — the job can
-	// neither read the account's warm master nor promote into it. It still needs
-	// an image of its own: cache-ready tells the guest to attach, and signalling
-	// without one would drop every fork job onto the local cold cache.
-	if pod.Labels[runnerCacheUntrustedLabel] == "true" {
+	// EMPTY image rather than a master, and SourceAccount stays empty so
+	// Finalize's SourceAccount==account guard discards the branch — the job can
+	// neither read a warm master nor promote into it. It still needs an image of
+	// its own: cache-ready tells the guest to attach, and signalling without one
+	// would drop every fork job onto the local cold cache. A malformed volume
+	// label is isolated the same way.
+	volume, validVolume := RunnerCacheVolumeFromPod(pod)
+	if !validVolume {
+		log.Log.WithName("volume").Info("cache volume label is not a volume name; running the job on an empty image",
+			"vm", entry.VMName, "account", account, "volume", pod.Labels[runnerCacheVolumeLabel])
+	}
+	if pod.Labels[runnerCacheUntrustedLabel] == "true" || !validVolume {
 		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil && !errors.Is(err, errAdmissionDeclined) {
 			log.Log.WithName("volume").Error(err, "create empty cache image for untrusted job", "vm", entry.VMName)
 		}
@@ -384,10 +418,11 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// the guest, so the job starts warm without ever blocking on a download.
 	// A declined branch has no image, so the guest's attach fails and it runs on
 	// its local cold cache. That is logged and counted where admission declines.
-	warm, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
+	entry.Volume.VolumeName = volume
+	source, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
 	declined := errors.Is(err, errAdmissionDeclined)
 	if err != nil && !declined {
-		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
+		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account, "volume", volume)
 	}
 	entry.Volume.SourceAccount = account
 	entry.Volume.Materialized = true
@@ -409,9 +444,9 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	if declined {
 		return
 	}
-	RecordVolumeMaterialized(warm)
+	RecordVolumeMaterialized(source)
 
-	// Converge the on-disk master toward the account's HEAD in the background,
+	// Converge the on-disk master toward the volume's HEAD in the background,
 	// off the job-start critical path. The running job already holds its own
 	// CoW branch, so refreshing the master (an atomic swap of a separate dir)
 	// never touches the job in flight — it just makes the NEXT job on this host
@@ -560,6 +595,68 @@ func readFillPercent(statusDir string) int {
 	return pct
 }
 
+// cacheLimitsFile carries what the guest's division of the shared budget
+// measured and decided: one "<when>\t<cache>\t<held bytes>\t<limit bytes>" line
+// per cache, appended at attach and again at teardown. Those sizes are the only
+// per-cache measurement the fleet has, and the limits beside them are what the
+// division's rule and its floors are retuned from. The runner log carries the
+// same numbers, but the host re-emits only a bounded tail of it, so a verbose
+// job's attach lines fall off before they reach the log store.
+const cacheLimitsFile = "cache-limits"
+
+// cacheLimitsMaxSamples bounds what one job can make the host record. A division
+// stages four lines; the file is guest-written and the guest runs untrusted
+// customer CI.
+const cacheLimitsMaxSamples = 8
+
+// cacheLimitSample is one cache's size and limit at one end of a job.
+type cacheLimitSample struct {
+	when, cache           string
+	heldBytes, limitBytes float64
+}
+
+// readCacheLimits returns what the guest staged, dropping every line that is not
+// a measurement. A job that ran on a host staging the fixed split stages nothing,
+// which reads as none.
+func readCacheLimits(statusDir string) []cacheLimitSample {
+	b, ok := readGuestFile(statusDir, cacheLimitsFile, guestMarkerMaxBytes)
+	if !ok {
+		return nil
+	}
+	var samples []cacheLimitSample
+	for _, line := range strings.Split(string(b), "\n") {
+		fields := strings.Split(strings.TrimSpace(line), "\t")
+		if len(fields) != 4 {
+			continue
+		}
+		when, cache := fields[0], fields[1]
+		if when != "attach" && when != "teardown" {
+			continue
+		}
+		if cache != "binary" && cache != "compilation" {
+			continue
+		}
+		held, err := strconv.ParseUint(fields[2], 10, 64)
+		if err != nil {
+			continue
+		}
+		limit, err := strconv.ParseUint(fields[3], 10, 64)
+		if err != nil {
+			continue
+		}
+		samples = append(samples, cacheLimitSample{
+			when:       when,
+			cache:      cache,
+			heldBytes:  float64(held),
+			limitBytes: float64(limit),
+		})
+		if len(samples) == cacheLimitsMaxSamples {
+			break
+		}
+	}
+	return samples
+}
+
 // baseGenerationFile carries the HEAD generation the branch was clonefiled from,
 // staged by the host at materialize. The guest sends it as the fast-forward base
 // at promote so the server accepts the bump only if HEAD is still at it.
@@ -671,8 +768,8 @@ func readVolumeHead(statusDir string) *volumeHead {
 	return &h
 }
 
-// convergeMaster fast-forwards this host's master for the account to the
-// account's HEAD when the host is behind, by downloading the latest master
+// convergeMaster fast-forwards this host's master for the (account, volume) to
+// that volume's HEAD when the host is behind, by downloading the latest master
 // archive and atomically swapping it in. Runs in the background off the
 // job-start critical path (see maybeMaterializeVolume): it refreshes the master
 // dir, which the in-flight job's CoW branch does not reference, so the NEXT job
@@ -962,6 +1059,9 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	if pct := readFillPercent(entry.VolumeStatusDir); pct >= 0 {
 		RecordVolumeFill(pct)
 	}
+	// Record what the guest's division measured and decided. Nothing else reports
+	// what either cache in the image actually holds.
+	RecordVolumeCacheLimits(readCacheLimits(entry.VolumeStatusDir))
 
 	// Consumed: the branch has been renamed away (promote) or removed
 	// (discard). Clear the flag so a later teardown path does not re-run

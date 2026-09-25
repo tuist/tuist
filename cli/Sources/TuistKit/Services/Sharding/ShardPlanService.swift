@@ -27,6 +27,7 @@
             fullHandle: String,
             serverURL: URL,
             buildRunId: String?,
+            requestedTestIdentifiers: [TestIdentifier],
             skipUpload: Bool,
             archivePath: AbsolutePath?
         ) async throws -> Components.Schemas.ShardPlan
@@ -34,6 +35,7 @@
 
     public enum ShardPlanServiceError: LocalizedError, Equatable {
         case noTestModulesFound
+        case noRequestedTestModulesFound([String])
         case cannotDeriveSessionId
         case xcTestRunNotFound(AbsolutePath)
 
@@ -41,6 +43,9 @@
             switch self {
             case .noTestModulesFound:
                 return "No test modules found in the .xctestproducts bundle."
+            case let .noRequestedTestModulesFound(modules):
+                return
+                    "None of the identifiers passed to --test-targets can run against the .xctestproducts bundle, which holds \(modules.joined(separator: ", "))."
             case .cannotDeriveSessionId:
                 return
                     "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
@@ -113,6 +118,7 @@
             fullHandle: String,
             serverURL: URL,
             buildRunId: String?,
+            requestedTestIdentifiers: [TestIdentifier] = [],
             skipUpload: Bool = false,
             archivePath: AbsolutePath? = nil
         ) async throws -> Components.Schemas.ShardPlan {
@@ -128,13 +134,29 @@
                 throw ShardPlanServiceError.xcTestRunNotFound(xctestproductsPath)
             }
             let xcTestRun: XCTestRun = try await fileSystem.readPlistFile(at: xcTestRunPath)
-            let modules = xcTestRun.testModules
-            let parallelizableModules = xcTestRun.parallelizableTestModules
-            let selectedTestSuites = xcTestRun.selectedTestSuiteIdentifiers()
-            let skippedTestSuites = xcTestRun.skippedTestSuiteIdentifiers()
+
+            guard !xcTestRun.testModules.isEmpty else {
+                throw ShardPlanServiceError.noTestModulesFound
+            }
+
+            // The products record a test plan's selection but never a command-line `-only-testing`,
+            // so what the run was asked to test has to be applied here. Without it a suite-level
+            // request leaves its module looking unrestricted, and the server resolves the module's
+            // suites from history and plans work the run never asked for.
+            let selection = ShardTestSelection.plan(
+                modules: xcTestRun.testModules,
+                parallelizableModules: xcTestRun.parallelizableTestModules,
+                selectedTestSuites: xcTestRun.selectedTestSuiteIdentifiers(),
+                skippedTestSuites: xcTestRun.skippedTestSuiteIdentifiers(),
+                requested: requestedTestIdentifiers
+            )
+            let modules = selection.modules
+            let parallelizableModules = selection.parallelizableModules
+            let selectedTestSuites = selection.selectedTestSuites
+            let skippedTestSuites = selection.skippedTestSuites
 
             guard !modules.isEmpty else {
-                throw ShardPlanServiceError.noTestModulesFound
+                throw ShardPlanServiceError.noRequestedTestModulesFound(xcTestRun.testModules)
             }
 
             // Suite-granularity plans are balanced server-side from historical per-suite timings, and the

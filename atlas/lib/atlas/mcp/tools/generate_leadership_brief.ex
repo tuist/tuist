@@ -18,7 +18,7 @@ defmodule Atlas.MCP.Tools.GenerateLeadershipBrief do
   end
 
   def execute(conn, %{"cadence" => cadence}) do
-    with :ok <- Tool.authorize_executive(conn, "Leadership brief tools"),
+    with :ok <- Tool.authorize_scope(conn, "briefs:write", "Leadership brief tools"),
          {:ok, brief} <- Briefs.generate_for_audience("leadership", cadence) do
       {:ok, BriefSerializer.brief(Briefs.get_brief(brief.id), include_items: true)}
     end

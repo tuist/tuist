@@ -1,9 +1,9 @@
 defmodule Atlas.MCP.Tools.GetContractTemplate do
   @moduledoc """
-  Attaches one contract Word template as an embedded binary resource and also
-  returns a signed download URL plus metadata. Hosted clients can consume the
-  resource without browser, terminal, or local-folder access; clients with a
-  filesystem can use the URL as a fallback.
+  Returns a signed, short-lived download URL plus metadata for one contract
+  Word template. The template is not embedded in the result: MCP relays between
+  Atlas and the client rewrite embedded binary resources into items the client
+  rejects, which discards the whole result along with the URL.
   """
 
   use Atlas.MCP.Tool,
@@ -55,18 +55,10 @@ defmodule Atlas.MCP.Tools.GetContractTemplate do
   @impl EMCP.Tool
   def description,
     do:
-      "Attach an official Atlas order form, Master Services Agreement, annex, or enterprise-contract Word template directly to the conversation. Use after generate_enterprise_contract or list_contract_templates; no browser or terminal hand-off is needed."
-
-  @impl EMCP.Tool
-  def call(conn, args) do
-    case execute(conn, args) do
-      {:ok, payload} -> response_with_template_resource(payload)
-      error -> Tool.respond(error, __MODULE__)
-    end
-  end
+      "Get a signed download URL for an official Atlas order form, Master Services Agreement, annex, or enterprise-contract Word template. Use after generate_enterprise_contract or list_contract_templates, then download the file from download_url before expires_at."
 
   def execute(conn, args) do
-    with :ok <- Tool.authorize_executive(conn, "Contract templates"),
+    with :ok <- Tool.authorize_scope(conn, "contracts:read", "Contract templates"),
          {:ok, filename} <- fetch_filename(args),
          template_set = args["template_set"] || Contracts.default_template_set(),
          {:ok, %Template{} = template} <- Contracts.fetch_template(template_set, filename) do
@@ -95,24 +87,4 @@ defmodule Atlas.MCP.Tools.GetContractTemplate do
   end
 
   defp fetch_filename(_args), do: {:error, "filename is required."}
-
-  defp response_with_template_resource(payload) do
-    with {:ok, template} <- Contracts.fetch_template(payload.template_set, payload.filename),
-         {:ok, contents} <- File.read(Contracts.template_path(template)) do
-      response = Tool.json_response(payload, __MODULE__)
-
-      resource = %{
-        "type" => "resource",
-        "resource" => %{
-          "uri" => payload.download_url,
-          "mimeType" => payload.content_type,
-          "blob" => Base.encode64(contents)
-        }
-      }
-
-      Map.update!(response, "content", &(&1 ++ [resource]))
-    else
-      {:error, reason} -> Tool.respond({:error, "Could not attach contract template: #{inspect(reason)}"}, __MODULE__)
-    end
-  end
 end

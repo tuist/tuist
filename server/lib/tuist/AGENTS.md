@@ -3,6 +3,7 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+- `Projects.projects_by_full_handles/1` is the batch lookup for signed analytics ingestion. Resolve current and retained account handles through `account_handle_reservations` to the owning account ID so queued events and Kura storage-tenant fallbacks survive renames. This is attribution, not authorization.
 - Metric automations accept a one-time `trigger_config.apply_actions_to_existing_matches` request on create/update. A fresh request starts a baseline generation even when the condition is unchanged. Baselines recheck matches in bounded batches and serialize publication per alert with a session advisory lock. Each action runs outside a row-lock transaction, between a short preflight check and a durable checkpoint; edits may cancel the remaining work while an authorized action finishes. Clear the request on completion. Silent publication deduplication tokens include the sorted test ID set so changed payloads on retry are not dropped. Read-only match counts enumerate bounded pages and share the baseline metric, trusted-branch validation, and current-state eligibility logic. Condition edits require a fresh opt-in. Omitting the request preserves pending work; explicit false cancels remaining actions. Baseline attempt generations invalidate stale workers; nullable `event_generation` separately scopes recovery history (falling back to `baseline_generation` for existing rows), so opt-ins and cancellations retain active recovery events. Returned action errors are logged and checkpointed without publishing a successful trigger, allowing the baseline and subsequent evaluation to progress.
 - Build task summaries can omit CAS-output ID arrays. Expanded-task lookups resolve those arrays inside ClickHouse using both build ID and task key, group duplicate outputs by node ID, and return 20 rows plus a next-page indicator. Neither request parameters nor task summaries should carry the stored ID arrays.
 - Machine metrics retain nullable `offset_ms` from the activity log start during archive processing, independently of the upload timestamp, so recorded samples align with build steps. Older samples without offsets keep their standalone charts.
@@ -53,6 +54,7 @@ This directory contains the core business logic and domain modules for the serve
 
 ## Related Context (Downlinks)
 
+
 - Accounts: `server/lib/tuist/accounts/AGENTS.md`
 - Alerts: `server/lib/tuist/alerts/AGENTS.md`
 - Api: `server/lib/tuist/api/AGENTS.md`
@@ -71,6 +73,7 @@ This directory contains the core business logic and domain modules for the serve
 - Http: `server/lib/tuist/http/AGENTS.md`
 - Ingestion: `server/lib/tuist/ingestion/AGENTS.md`
 - Key Value Store: `server/lib/tuist/key_value_store/AGENTS.md`
+- Kura: `server/lib/tuist/kura/AGENTS.md`
 - Kubernetes: `server/lib/tuist/kubernetes/AGENTS.md`
 - Marketing: `server/lib/tuist/marketing/AGENTS.md`
 - MCP: `server/lib/tuist/mcp/AGENTS.md`
@@ -93,6 +96,8 @@ This directory contains the core business logic and domain modules for the serve
 - Xcode: `server/lib/tuist/xcode/AGENTS.md`
 
 ## Related Context
+
+- Kura's moderate retention correction supplements the existing 30-day shrink: 14 complete post-resize days with snapshots, at least seven meaningful eviction days and two ring budgets of turnover can reduce the account claim by 10–25%. Discount known idle whole days from shed age and ring span; require at least 4.5 days of adjusted retention and project toward the 3-day floor plus 25% headroom. Today's short or unmeasured evictions veto the correction, and every known pinned region must supply a shrink verdict. Neither a smaller region's pin nor a deeper shrink elsewhere bypasses the 25% correction cap. Every apply restarts the evidence window, including when it only converges regional pins. Retain the slower occupancy and clearly excessive-retention paths.
 
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
@@ -121,4 +126,16 @@ This directory contains the core business logic and domain modules for the serve
 - Runner Kura participates in account disk sizing and plan memory/CPU profiles. New and returning instances pin the account claim; the enrollment migration immediately pins unpinned live runner instances to their account-sized claim (or plan default), capped at the historical 50Gi to avoid bypassing growth admission. The runner pool does not advertise `tuist.dev/memory-ceiling-mib`, so keep `memory_ceiling_bin_packed` disabled there. The region retains a conservative 50Gi accounting fallback for legacy rows without a pin or loaded account; governed creation and cold return pin the sized account budget before rendering. Disk sizing remains account-scoped across public and runner regions, including their telemetry and resize history.
 
 - Cache-endpoint resolution with no Kura endpoint enqueues `Workers.ProvisionOnDemandWorker` (one per account at a time), which runs `Lifecycle.provision_account/2` with the tick's eligibility rules, applies each instance coming up via `Reconciler.reconcile_server/1`, and hands it to `Workers.AwaitActivationWorker`, which checks `Reconciler.activate_when_ready/1` about twice a second and never applies. Activation asks whether the public host's record is published through `Tuist.DNS.record_published/1`, which queries the zone's authoritative nameservers instead of the pod's caching resolver. The tick hands every `:provisioning` server whose deployment it applies to the same worker; rollouts of serving instances are not polled. The minute tick stays the authority for everything these paths miss.
-- `Kura.Lifecycle` reclaims an active public instance that has stored nothing since it entered service once `Environment.kura_unused_days/0` has passed. The evidence is `kura_storage_rollups` covering the whole service life: snapshots on every full day since the service start, and no day with live segment bytes or evictions. Missing telemetry is never read as empty. An `:unused` archival is provisioned again only by demand recorded after it, and the project-creation seed declines while `Demand.unused_hold?/1` holds.
+- `Kura.Lifecycle` reclaims an active public instance that has stored nothing since it entered service after `Environment.kura_air_unused_hours/0` (24 hours) on Air or `Environment.kura_unused_days/0` (seven days) on Pro, checked hourly by default. Air caps the unused-path tracking grace at its unused window; inactivity and Pro retain the full tracking grace. Enterprise and keep-warm instances remain exempt. Both plans require `kura_storage_rollups` with snapshots on every full service day, at least 90% of the expected 15-minute snapshots across the region's replicas, and no live segment bytes or evictions. Each date's contribution is capped at the elapsed service time on that date. Partial boundary days may be absent because provisioning and rollup delivery can cross midnight; sparse telemetry or a missing full day is never read as empty. An `:unused` archival is provisioned again only by demand recorded after it, and the project-creation seed declines while `Demand.unused_hold?/1` holds.
+
+- `Runners.CacheVolumes` owns Linux snapshot identities, publication generations
+  and user-visible usage history. Authorize against the actual executed runner
+  job and GitHub App metadata. PRs read private clones; only successful trusted
+  default-branch jobs publish. Deletion locks the same volume row
+  as publication and increment the generation. Allocation admission and report
+  validation, measurement updates, and lifecycle decisions remain inside their
+  caller's transaction and locks when extracted into private helpers. Browser reads/mutations are
+  account-scoped. Agents acknowledge physical deletion separately; do not treat
+  invalidation as erasure. See
+  [`infra/runners-controller/cache-volumes.md`](../../../infra/runners-controller/cache-volumes.md).
+  Schema/lifecycle rules: [`runners/cache_volumes/AGENTS.md`](runners/cache_volumes/AGENTS.md).

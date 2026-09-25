@@ -380,14 +380,14 @@
           }
         }
 
-        /* "Low latency, everywhere" globe: a spinning stippled sphere
-           drawn by the DitherGlobe hook on the shared 2px dither grain.
-           Neutral ramp topping out at the illustrations' neutral-4, the
-           same tone the other cards' linework uses. */
+        /* "Low latency, everywhere" globe: a spinning sphere of small
+           squares drawn by the DitherGlobe hook. Neutral ramp one step
+           deeper than the other cards' linework, so the dot field reads
+           at 1px dots. */
         & > [data-part="illustration"][data-illustration="low-latency"] {
-          --marketing-cache-globe-dither-shallow: var(--marketing-illustration-neutral-2);
-          --marketing-cache-globe-dither-mid: var(--marketing-illustration-neutral-3);
-          --marketing-cache-globe-dither-deep: var(--marketing-illustration-neutral-4);
+          --marketing-cache-globe-dither-shallow: var(--marketing-illustration-neutral-3);
+          --marketing-cache-globe-dither-mid: var(--marketing-illustration-neutral-4);
+          --marketing-cache-globe-dither-deep: var(--marketing-illustration-neutral-5);
           /* Region markers: light brand purple against the neutral globe
              in both themes. */
           --marketing-cache-globe-marker: var(--noora-purple-300);

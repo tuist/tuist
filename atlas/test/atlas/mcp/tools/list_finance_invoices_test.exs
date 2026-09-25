@@ -26,9 +26,9 @@ defmodule Atlas.MCP.Tools.ListFinanceInvoicesTest do
     assert line_item.category == nil
   end
 
-  test "requires an executive user" do
+  test "requires the finance:read scope" do
     assert {:error, message} = execute_tool(ListFinanceInvoices, nil, %{})
-    assert message =~ "executive"
+    assert message =~ "finance:read"
   end
 
   defp insert_finance_invoice!(attrs \\ %{}) do

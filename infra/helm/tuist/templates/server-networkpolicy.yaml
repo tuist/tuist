@@ -22,6 +22,18 @@ spec:
       ports:
         - protocol: TCP
           port: http
+    {{- if and .Values.runnersFleetLinux.enabled .Values.runnersFleetLinux.cacheVolumes.enabled }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: runner-cache-volumes
+      ports:
+        - protocol: TCP
+          port: http
+    {{- end }}
     {{- if .Values.server.networkPolicy.kuraEnabled }}
     - from:
         - namespaceSelector:

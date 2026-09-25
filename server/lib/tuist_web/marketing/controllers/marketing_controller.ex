@@ -5,6 +5,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Atlas.Email
+  alias Tuist.FeatureFlags
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Content
@@ -828,6 +829,8 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   def pricing(conn, _params) do
+    usage_based_pricing = FeatureFlags.usage_based_pricing_page_enabled?(TuistWeb.Authentication.current_user(conn))
+
     faqs = [
       {dgettext("marketing", "Do you support a seat-based pricing model?"),
        dgettext(
@@ -869,11 +872,31 @@ defmodule TuistWeb.Marketing.MarketingController do
        dgettext("marketing", "Yes, we do. Please reach out to contact@tuist.dev for more information.")}
     ]
 
+    faqs =
+      if usage_based_pricing do
+        faqs ++
+          [
+            {dgettext("marketing", "What counts as cache egress and requests?"),
+             dgettext(
+               "marketing",
+               "Egress is the data your builds download from Tuist's caches, across the Module, Xcode, Gradle, and Bazel caches, and every download is one request. Both share one free allowance each billing period. Uploads and storage are free."
+             )},
+            {dgettext("marketing", "Is usage on Tuist Runners billed differently?"),
+             dgettext(
+               "marketing",
+               "Yes. Cache egress and requests from Tuist Runners count at half, and test cases run on Tuist Runners are free."
+             )}
+          ]
+      else
+        faqs
+      end
+
     plans = Tuist.Billing.get_plans()
 
     conn =
       conn
       |> assign(:head_title, "Pricing · Plans for every developer · Tuist")
+      |> assign(:usage_based_pricing, usage_based_pricing)
       |> assign(:faqs, faqs)
       |> assign(:plans, plans)
       |> assign(

@@ -7,8 +7,6 @@
 # General application configuration
 import Config
 
-alias Atlas.Accounts.Workers.DeliverDueAccountAttentionSuggestions
-alias Atlas.Accounts.Workers.ScheduleAccountAttentionSuggestions
 alias Atlas.Accounts.Workers.ScheduleOverviewSummaries
 alias Atlas.Accounts.Workers.ScheduleServiceLevelExtractions
 alias Atlas.Accounts.Workers.ScheduleStripeInvoiceReconciliations
@@ -26,6 +24,11 @@ alias Atlas.Licenses.RateLimiter
 alias Atlas.Licenses.Workers.NotifyExpiringLicenses
 alias Atlas.MCP.Workers.RefreshOAuthSessions
 alias Atlas.Memory.Workers.RefreshBulletin, as: RefreshMemoryBulletin
+alias Atlas.Nudges.Workers.EvaluateSignals, as: EvaluateNudgeSignals
+alias Atlas.Nudges.Workers.ExpireStaleNudges
+alias Atlas.Nudges.Workers.ReconcileDeliveryOutcomes, as: ReconcileNudgeDeliveryOutcomes
+alias Atlas.Nudges.Workers.RefreshAnalyticsSnapshots, as: RefreshNudgeAnalyticsSnapshots
+alias Atlas.Nudges.Workers.RefreshFeatureFirstSeen, as: RefreshNudgeFeatureFirstSeen
 alias Atlas.OAuth.AccessTokens
 alias Atlas.OAuth.Clients
 alias Atlas.OAuth.ResourceOwners
@@ -50,6 +53,11 @@ noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
 
 # Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
 config :atlas, Atlas.ClickHouseRepo, read_only: true
+
+# Default to reading contract templates from the on-disk placeholder stubs
+# shipped in `priv/contracts/templates/`. Prod runtime.exs flips this to `:s3`
+# once the shared object storage bucket is configured.
+config :atlas, Atlas.Contracts, source: :disk
 config :atlas, Atlas.Mailer, adapter: Local
 
 config :atlas, Atlas.Vault,
@@ -80,8 +88,11 @@ config :atlas, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        {"0 3 * * *", ScheduleOverviewSummaries},
-       {"20 4 * * *", ScheduleAccountAttentionSuggestions},
-       {"30 4 * * *", DeliverDueAccountAttentionSuggestions},
+       {"15 3 * * *", RefreshNudgeAnalyticsSnapshots},
+       {"45 3 * * *", RefreshNudgeFeatureFirstSeen},
+       {"20 4 * * *", EvaluateNudgeSignals},
+       {"30 4 * * *", ExpireStaleNudges},
+       {"* * * * *", ReconcileNudgeDeliveryOutcomes},
        {"15 3 * * *", ScheduleStripeInvoiceReconciliations},
        {"5 * * * *", SyncNotes, args: %{mode: "incremental"}},
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},

@@ -28,6 +28,10 @@ pub const ROCKSDB_WAL_BYTES_PER_SYNC: u64 = 1024 * 1024;
 
 pub const ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER: i32 = 20;
 pub const ROCKSDB_LEVEL0_STOP_TRIGGER: i32 = 36;
+/// Range deletes a `key_value` memtable holds before RocksDB flushes it, since
+/// overlapping tombstones fragment quadratically. Well above the handful a
+/// healthy memtable carries.
+pub const ROCKSDB_MEMTABLE_MAX_RANGE_DELETIONS: u32 = 256;
 pub const ROCKSDB_SOFT_PENDING_COMPACTION_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
@@ -304,6 +308,14 @@ pub const ROCKSDB_CF_NAMESPACE_TOMBSTONES: &str = "namespace_tombstones";
 pub const ROCKSDB_CF_MULTIPART_UPLOADS: &str = "multipart_uploads";
 pub const ROCKSDB_CF_OUTBOX: &str = "outbox";
 pub const ROCKSDB_CF_USAGE_OUTBOX: &str = "usage_outbox";
+// Shared durable outbox for cache analytics (gradle-cache, xcode-cache,
+// reapi-cache). This declaration lands one release before any producer
+// routes through it: the store opens with an explicit descriptor list, so
+// a rollback to a binary that has never heard of this CF cannot open the
+// database. Shipping the declaration alone lets the release become the
+// oldest supported version before PR #2 adds the outbox module and PR #3
+// wires the first producer. Empty for the life of this release.
+pub const ROCKSDB_CF_ANALYTICS_OUTBOX: &str = "analytics_outbox";
 pub const ROCKSDB_CF_SEGMENT_ARTIFACTS: &str = "segment_artifacts";
 pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
 /// Per-namespace index of REAPI action-cache entries ordered newest-first

@@ -36,7 +36,7 @@ defmodule Atlas.MCP.Tools.FinalizeDocumentUpload do
       "Finalize a previously reserved document upload. Verifies the bytes are in storage, records their size and sha256 checksum, and enqueues text extraction. Returns immediately after enqueuing; poll `get_document` for the eventual `ready` status."
 
   def execute(conn, %{"document_id" => document_id}) do
-    with :ok <- Tool.authorize_executive(conn, "Document tools") do
+    with :ok <- Tool.authorize_scope(conn, "documents:write", "Document tools") do
       case Documents.finalize_pending_upload(document_id, audit_actor: Tool.current_user(conn)) do
         {:ok, %Document{} = document} ->
           {:ok,

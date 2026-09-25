@@ -100,10 +100,9 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   native-code builds need it — a pure Kotlin/Java app never
   touches it. Heavy toolchains that serve a minority of jobs
   belong in per-account cache volumes, not in an image every job
-  on the fleet pulls. Note that those are macOS-only today
-  (`runnerCacheVolume` provisions APFS volumes on Mac minis via
-  tart-kubelet); until the Linux fleet has an equivalent, a
-  workflow that needs the NDK installs it per job with
+  on the fleet pulls. The automatic `runnerCacheVolume` APFS mechanism is macOS-only.
+  Linux workflows can use the opt-in generic directory volumes described below
+  when their fleet enables them; otherwise a workflow that needs the NDK installs it per job with
   `$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager ndk;<version>`,
   which works because cmdline-tools ships here and the licenses are
   already accepted.
@@ -186,7 +185,7 @@ release-pipeline digest rewrite, same shape as the macOS image.
 
 ## CI
 
-The release pipeline mirrors `release-runner-image` for macOS but
+The release pipeline mirrors the macOS runner image release but
 runs on a standard cloud Linux runner (no Tart / GUI session
 needed). Steady-state: `feat(linux-runner-image)` /
 `fix(linux-runner-image)` conventional commits on `main` trigger
@@ -250,3 +249,26 @@ clearing fails in GitLab's noninteractive login shell before checkout. The
 image build runs a login-shell smoke check as the runner user.
 
 - GitLab staging cleans partial credential files on failure and stages the optional cache endpoint before the job-start marker. `run-job.sh` exports that endpoint before choosing the provider. `gitlab-dispatch_test.sh` exercises the actual Linux/macOS staging branches with synthetic assignments and checks failure cleanup and endpoint inheritance.
+
+## Generic Linux cache volumes
+
+`tuist-cache-volume` is wrapped by `.github/actions/cache-volume` with key/path
+inputs. It asks the local agent for a private snapshot clone; workflow OIDC is
+not needed. The server binds the actual executed job through the runner session.
+The static client is on PATH and copied to `externals/tuist-cache-volume` so
+container jobs can use `/__e/tuist-cache-volume`. The job-start hook passes the
+endpoint and pod identity through GITHUB_ENV. Runner and DinD share only their
+own pod UID subtree. See [behavior and rollout](../runners-controller/cache-volumes.md).
+
+Buildkite uses the plugin in [ci/cache-volume](../../ci/cache-volume/AGENTS.md).
+Persist pod-local volume routing to the staged environment before starting the
+agent, then re-export it in the global environment hook after sanitization.
+Pass an explicit job-local `--plugins-path` when starting Buildkite: the
+standalone binary has no packaged configuration supplying that directory, and
+plugin preparation fails before pre-command hooks without it.
+GitLab forwards the same three routing variables through RunnerSettings.
+Neither path receives node-agent or object-storage credentials or decides publication.
+
+Cache paths are symlinks, not guest bind mounts. Reject control characters and
+node_modules (including descendants) before acquiring storage. Recommend package
+download caches and ignore workspace links without trailing-slash gitignore rules.

@@ -323,7 +323,44 @@ defmodule Tuist.Kura.PromExPluginTest do
       assert_in_delta p90_seconds, 300, 1
     end
 
-    test "reports nothing with no new instance in the window, so the alert has nothing to read" do
+    test "counts the deployment that superseded a provision still coming up" do
+      # A runtime image bump landing mid-provision supersedes the open
+      # deployment and schedules a second one, and that second deployment is
+      # what actually brings the instance into service. Disqualifying it on the
+      # superseded row's existence would drop the instance from the
+      # measurement, and drop it one-directionally: only ever instances that
+      # were coming up during a rollout, which is itself a reason a cold start
+      # is slow.
+      {_account, server} = tracked_instance()
+
+      Repo.insert!(%Deployment{
+        cluster_id: "test-cluster",
+        image_tag: "0.5.1",
+        kura_server_id: server.id,
+        status: :superseded,
+        inserted_at: DateTime.add(DateTime.utc_now(), -1200, :second),
+        finished_at: DateTime.utc_now() |> DateTime.add(-1100, :second) |> DateTime.truncate(:second)
+      })
+
+      spin_up(server, seconds_ago: 600, took: 300)
+
+      ref = :telemetry_test.attach_event_handlers(self(), [[:tuist, :kura, :lifecycle, :new_instance_readiness]])
+
+      PromExPlugin.execute_new_instance_readiness_telemetry_event()
+
+      assert_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, %{count: 1, p90_seconds: p90_seconds},
+                       %{}}
+
+      assert_in_delta p90_seconds, 300, 1
+    end
+
+    test "reports a zero count with no new instance in the window, so the alert's sample gate closes" do
+      # A `last_value` is an ETS row the exporter reads back with no TTL and no
+      # delete path, so a series that stops being emitted goes stale rather
+      # than absent. Emitting nothing would leave the alert evaluating the
+      # previous day's percentile against the previous day's sample count,
+      # staying green through exactly the wedged-provisioning day it should
+      # notice. The count going to zero is what takes the rule to No Data.
       {_account, server} = tracked_instance()
       spin_up(server, seconds_ago: 3 * 24 * 3600, took: 20)
 
@@ -331,7 +368,8 @@ defmodule Tuist.Kura.PromExPluginTest do
 
       PromExPlugin.execute_new_instance_readiness_telemetry_event()
 
-      refute_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, _measurements, _metadata}
+      assert_received {[:tuist, :kura, :lifecycle, :new_instance_readiness], ^ref, measurements, %{}}
+      assert measurements == %{count: 0}
     end
   end
 

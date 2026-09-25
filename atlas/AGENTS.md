@@ -4,6 +4,15 @@ This is a web application written using the Phoenix web framework.
 
 Do not add README entries for internal operational details such as env var names, secret manager or External Secrets wiring, cron schedules, or implementation-specific deployment notes unless the user explicitly asks for public project documentation. Prefer code comments, infrastructure runbooks, PR descriptions, or this file for that context.
 
+## Upstream MCP discovery
+
+- `Atlas.MCP.Proxy` discovers tools using the current caller's upstream OAuth session and MCP tool groups. Client → Atlas authorization is separate from Atlas → upstream authorization; reconnect the specific upstream at `/admin/mcps` only when diagnostics support doing so.
+- `get_mcp_connection_status` performs fresh discovery for one permitted upstream. Discovery failures also expose `<server>__atlas_connection_status` instead of silently removing every trace of that upstream. Both return sanitized failure categories/stages or currently permitted tool schemas; neither calls an upstream business tool.
+- Keep discovery diagnostics free of response bodies, tokens, and raw transport errors. Do not reuse schemas across users or after an authorization change. There is no schema/failure cache; after recovery, clients must request `tools/list` again to refresh their catalog. The diagnostic remains callable from an older catalog.
+- Streamable HTTP session IDs are optional. Forward them when provided, but do not reject a successful initialization solely because the header is absent.
+- Transient OAuth refresh failures (transport errors, HTTP 429/5xx) preserve the refresh credential for a later attempt without returning an expired access token. Definitive refresh failures still require reauthorization.
+- The monorepo release workflow is `.github/workflows/atlas-release.yml`, chart `infra/helm/atlas`, namespace `atlas-production` on the separate Atlas workload cluster. The Tuist production context does not target this deployment.
+
 ## CSS & Styling
 
 - **Always** use `data-part` attributes as CSS selectors instead of classes. This is the project's convention for styling components, matching the Noora design system pattern. For example:
@@ -21,6 +30,17 @@ Do not add README entries for internal operational details such as env var names
     }
   }
   ```
+
+## Proof-of-concept dashboard
+
+- The sales evaluation list, form, and detail pages live under `lib/atlas_web/live/poc_live/`; the account page lists records for its account. Their rendering tests cover empty/populated lists, create/edit forms, unpublished/published details with access requests, and account filtering.
+- The internal evaluation pages are styled by `assets/css/routes/pocs.css`, imported from `assets/js/app.js`. The public brief has separate styles in `assets/css/routes/poc_public.css`.
+- Card and cell icon names must exist in `noora/lib/noora/icons/` (replace filename hyphens with underscores). Unsupported names raise during rendering; include conditional sections when verifying these pages.
+
+## Tasks
+
+- General tasks and their scheduled Slack reminders live under `lib/atlas/tasks/`; see `lib/atlas/tasks/AGENTS.md`.
+- The task page is `/tasks`. Tasks may optionally reference an account and have a due date or reminder, but always have an Atlas user assignee when created. The task list uses the shared Noora filter and search controls; their state is encoded in the page URL.
 
 ## Project guidelines
 

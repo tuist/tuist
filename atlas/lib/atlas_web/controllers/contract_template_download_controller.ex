@@ -15,11 +15,12 @@ defmodule AtlasWeb.ContractTemplateDownloadController do
     with {:ok, token} <- fetch_token(params),
          {:ok, %{"template_set" => ^set, "filename" => ^filename}} <-
            Contracts.verify_download_token(token),
-         {:ok, %Template{} = template} <- Contracts.fetch_template(set, filename) do
+         {:ok, %Template{} = template} <- Contracts.fetch_template(set, filename),
+         {:ok, body} <- Contracts.read_template(template) do
       conn
       |> put_resp_content_type(Contracts.docx_content_type())
       |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
-      |> send_file(200, Contracts.template_path(template))
+      |> send_resp(200, body)
     else
       {:error, :expired} ->
         send_resp(

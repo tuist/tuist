@@ -35,13 +35,15 @@ func (s capturingSink) WithName(string) logr.LogSink   { return s }
 func (capturingSink) Error(_ error, msg string, _ ...any) { recordLogMessage(msg) }
 func (capturingSink) Info(_ int, msg string, _ ...any)    { recordLogMessage(msg) }
 
-// controller-runtime's delegating logger can only be fulfilled ONCE, so the sink
-// is installed a single time for the package and the buffer is reset per test
-// rather than swapping loggers.
+// controller-runtime's delegating logger can only be fulfilled ONCE, and it
+// falls back to a null logger 30s after start if nothing has fulfilled it, so
+// the sink is installed at init rather than on first use, and the buffer is
+// reset per test rather than swapping loggers.
+func init() { log.SetLogger(logr.New(capturingSink{})) }
+
 var (
-	logCaptureOnce sync.Once
-	logCaptureMu   sync.Mutex
-	logCaptured    []string
+	logCaptureMu sync.Mutex
+	logCaptured  []string
 )
 
 func recordLogMessage(msg string) {
@@ -53,7 +55,6 @@ func recordLogMessage(msg string) {
 // captureLogs resets the capture buffer and returns a reader for it.
 func captureLogs(t *testing.T) func() []string {
 	t.Helper()
-	logCaptureOnce.Do(func() { log.SetLogger(logr.New(capturingSink{})) })
 	logCaptureMu.Lock()
 	logCaptured = nil
 	logCaptureMu.Unlock()

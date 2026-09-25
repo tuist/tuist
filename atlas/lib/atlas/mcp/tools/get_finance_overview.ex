@@ -121,7 +121,7 @@ defmodule Atlas.MCP.Tools.GetFinanceOverview do
   end
 
   def execute(conn, _args) do
-    with :ok <- Tool.authorize_executive(conn) do
+    with :ok <- Tool.authorize_scope(conn, "finance:read", "Finance tools") do
       overview = Finance.overview()
       sources = Finance.list_sources() |> Enum.map(&serialize_source/1)
 
