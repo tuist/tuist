@@ -94,10 +94,10 @@ func TestRackAMTActivatesAPreProvisionedHostWhenAsked(t *testing.T) {
 	}
 	script := runs[0].script
 	for _, want := range []string{
-		"export AMT_PASSWORD=" + shellSingleQuote(password),
-		"export PROVISIONING_CERT='UEZYQkFTRTY0'",
-		"export PROVISIONING_CERT_PASSWORD='pfx-pass'",
-		`timeout --kill-after=10 300 "$rpc" activate --acm --skipIPRenew --json`,
+		"amt_password=" + shellSingleQuote(password),
+		"provisioning_cert='UEZYQkFTRTY0'",
+		"provisioning_cert_password='pfx-pass'",
+		`timeout --kill-after=10 300 "$rpc" activate "$@" --skipIPRenew --json`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("the script lacks %q:\n%s", want, script)
@@ -149,7 +149,7 @@ func TestRackAMTRecordsAFailedActivationAndBacksOff(t *testing.T) {
 	if len(runs) != 2 {
 		t.Fatalf("did not try again after the backoff (%d runs)", len(runs))
 	}
-	if !strings.Contains(runs[1].script, "export AMT_PASSWORD="+shellSingleQuote(password)) {
+	if !strings.Contains(runs[1].script, "amt_password="+shellSingleQuote(password)) {
 		t.Fatal("the retry did not reuse the stored password")
 	}
 }
@@ -278,11 +278,35 @@ func TestAMTScriptBoundsRPC(t *testing.T) {
 	script := renderAMTScript(&amtActivation{Password: "Aa1!xxxxxxxxxxxxxxxxxxxx", PFX: "UEZY", PFXPassword: "pw"})
 	for _, want := range []string{
 		`timeout 120 "$rpc" amtinfo --json --ver --mode --lan`,
-		`timeout --kill-after=10 300 "$rpc" activate --acm --skipIPRenew --json`,
+		`timeout --kill-after=10 300 "$rpc" activate "$@" --skipIPRenew --json`,
 		`= 'not activated'`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("the script lacks %q:\n%s", want, script)
 		}
+	}
+}
+
+// A host that went to client control mode and failed its upgrade is upgraded
+// on the next attempt, after the backoff.
+func TestRackAMTUpgradesAHostInClientControlMode(t *testing.T) {
+	host := amtEdge()
+	tried := metav1.NewTime(installEpoch.Add(-2 * time.Hour))
+	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "client", Address: "192.168.50.112", ObservedAt: &tried,
+		LastActivation: &tried, ActivationError: "rpc activate exit 10: adminsetup failed: returned 5"}
+	h := newAMTHarness(t, host, provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.runner.reply = func(_, _ string) string {
+		return "--- activate\n{\"status\":\"success\"}\n--- activate exit 0\n--- amtinfo\n" +
+			amtInfoJSON("admin control mode", "up", "192.168.50.112")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	runs := h.amtRuns()
+	if len(runs) != 1 || !strings.Contains(runs[0].script, "amt_password='Stored-Pa55!'") {
+		t.Fatalf("runs %d, want the upgrade with the stored password", len(runs))
+	}
+	if got.Status.AMT.ControlMode != "admin" || got.Status.AMT.ActivationError != "" || !conditions.IsTrue(got, AMTActivatedCondition) {
+		t.Fatalf("status %+v", got.Status.AMT)
 	}
 }

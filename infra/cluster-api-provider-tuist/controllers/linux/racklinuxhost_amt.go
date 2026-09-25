@@ -33,7 +33,7 @@ const (
 	amtRPCSHA256 = "e6513f029fbdfa6b982ff20ff9181d4fdcb12eb38124373751a136310f41200c"
 	amtRPCPath   = "/usr/local/lib/tuist/rpc-3.0.0-beta.61"
 
-	amtScriptTimeout     = 10 * time.Minute
+	amtScriptTimeout     = 15 * time.Minute
 	amtActivationBackoff = time.Hour
 	amtObserveInterval   = time.Hour
 	// amtAddressInterval is how soon an activated AMT without an address, which
@@ -67,9 +67,9 @@ type amtActivation struct {
 	PFXPassword string
 }
 
-// reconcileAMT activates the host's AMT in admin control mode when the host
-// asks for it and AMT is still pre-provisioned, and otherwise reads AMT's
-// state now and then. It returns when to look again.
+// reconcileAMT takes the host's AMT to admin control mode when the host asks
+// for it and AMT is not there yet, and otherwise reads AMT's state now and
+// then. It returns when to look again.
 func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav1.RackLinuxHost) time.Duration {
 	if host.Spec.AMT == nil || !host.Spec.AMT.Activate {
 		conditions.Delete(host, AMTActivatedCondition)
@@ -87,7 +87,7 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	now := r.now()
 	status := host.Status.AMT
 	var activation *amtActivation
-	if status == nil || status.ControlMode == "" || status.ControlMode == amtPreProvisioning {
+	if status == nil || status.ControlMode == "" || status.ControlMode == amtPreProvisioning || status.ControlMode == amtClientControl {
 		if status != nil && status.ActivationError != "" && status.LastActivation != nil {
 			if wait := status.LastActivation.Add(amtActivationBackoff).Sub(now); wait > 0 {
 				return wait
@@ -152,13 +152,8 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	}
 	host.Status.AMT = next
 
-	switch next.ControlMode {
-	case amtAdminControl:
+	if next.ControlMode == amtAdminControl {
 		conditions.MarkTrue(host, AMTActivatedCondition)
-		return amtObserveAfter(next)
-	case amtClientControl:
-		conditions.MarkFalse(host, AMTActivatedCondition, "ClientControlMode", clusterv1.ConditionSeverityWarning,
-			"AMT is activated in client control mode; deactivate it for the operator to activate it in admin control mode")
 		return amtObserveAfter(next)
 	}
 	if next.ActivationError != "" {
@@ -225,10 +220,14 @@ func amtSecretName(host *infrav1.RackLinuxHost) string {
 }
 
 // renderAMTScript installs rpc on the host if it is missing and prints AMT's
-// state after a `--- amtinfo` line. With an activation, it first activates a
-// pre-provisioned AMT in admin control mode, between `--- activate` and
-// `--- activate exit <status>`. The secrets reach rpc through its environment,
-// set by bash builtins, so they appear on no command line and in no file.
+// state after a `--- amtinfo` line. With an activation, it first takes AMT to
+// admin control mode, between `--- activate` and `--- activate exit <status>`.
+// AMT checks the provisioning certificate against the DHCP domain, and learns
+// that only from a lease of its own, which it takes once activated: so a
+// pre-provisioned AMT is activated in client control mode, given time to take
+// its lease, and then upgraded, as is an AMT left in client control mode. The secrets
+// reach rpc only through the environment of its activations, so they appear on
+// no command line and in no file.
 func renderAMTScript(a *amtActivation) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, `set -euo pipefail
@@ -244,16 +243,30 @@ fi
 info() { timeout 120 "$rpc" amtinfo --json --ver --mode --lan 2>/dev/null; }
 `, amtRPCPath, amtRPCURL, amtRPCSHA256)
 	if a != nil {
-		fmt.Fprintf(&b, `if [ "$(info | jq -r .controlMode)" = 'not activated' ]; then
-  export AMT_PASSWORD=%s
-  export PROVISIONING_CERT=%s
-  export PROVISIONING_CERT_PASSWORD=%s
+		fmt.Fprintf(&b, `amt_password=%s
+provisioning_cert=%s
+provisioning_cert_password=%s
+activate() {
+  AMT_PASSWORD="$amt_password" PROVISIONING_CERT="$provisioning_cert" PROVISIONING_CERT_PASSWORD="$provisioning_cert_password" \
+    timeout --kill-after=10 300 "$rpc" activate "$@" --skipIPRenew --json 2>&1
+}
+mode=$(info | jq -r .controlMode)
+if [ "$mode" = 'not activated' ] || [ "$mode" = 'client control mode' ]; then
   echo '--- activate'
   status=0
-  timeout --kill-after=10 300 "$rpc" activate --acm --skipIPRenew --json 2>&1 || status=$?
-  unset AMT_PASSWORD PROVISIONING_CERT PROVISIONING_CERT_PASSWORD
+  if [ "$mode" = 'not activated' ]; then
+    activate --ccm || status=$?
+    for _ in $(seq 1 36); do
+      [ "$status" = 0 ] && [ "$(info | jq -r .wiredAdapter.ipAddress)" = 0.0.0.0 ] || break
+      sleep 5
+    done
+  fi
+  if [ "$status" = 0 ]; then
+    activate --acm || status=$?
+  fi
   echo "--- activate exit $status"
 fi
+unset amt_password provisioning_cert provisioning_cert_password
 `, shellSingleQuote(a.Password), shellSingleQuote(a.PFX), shellSingleQuote(a.PFXPassword))
 	}
 	b.WriteString("echo '--- amtinfo'\ninfo\n")
