@@ -722,10 +722,14 @@ no command line and in no file on the host. A failed attempt is recorded in
 `status.amt.activationError` and retried after an hour; an activated host is
 read hourly. `AMTActivated` reports the outcome. Turning the switch off does not
 deactivate AMT. AMT checks the certificate's domain against the DHCP domain
-(option 15, `management.edge.domain`) or MEBx's PKI DNS suffix; pre-provisioned
-AMT on an MS-01 sends no DHCP of its own and did not learn option 15 from the
-host's lease, so an activation that fails on the domain needs the suffix set in
-MEBx.
+(option 15, `management.edge.domain`) or MEBx's PKI DNS suffix. A
+pre-provisioned MS-01's AMT takes no DHCP lease and ignores the host's, so a
+direct activation fails with `adminsetup failed: returned 5`. The script
+therefore activates client control mode first (no certificate), waits for AMT's
+own lease, and then upgrades to admin control mode with the certificate; a host
+left in client control mode is upgraded on the next attempt. `rpc` is a 3.0
+prerelease: 2.x's transport to AMT without Intel's LMS daemon hangs on the
+MS-01. Each `rpc` run is bounded by `timeout`.
 
 **`tuist.dev/amt-power` powers a host through AMT** (`racklinuxhost_amt_power.go`):
 `on`, `off` (hard), `cycle` (hard power cycle) or `reset`. The operator makes
