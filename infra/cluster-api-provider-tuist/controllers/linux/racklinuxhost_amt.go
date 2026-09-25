@@ -26,11 +26,12 @@ import (
 const AMTActivatedCondition clusterv1.ConditionType = "AMTActivated"
 
 // rpc is the Device Management Toolkit's AMT client. Hosts download it once,
-// pinned by the release tarball's digest.
+// pinned by the release tarball's digest. It is a 3.0 prerelease: 2.x talks to
+// AMT over a transport that hangs on the MS-01 without Intel's LMS daemon.
 const (
-	amtRPCURL    = "https://github.com/device-management-toolkit/rpc-go/releases/download/v2.52.6/rpc_linux_x64.tar.gz"
-	amtRPCSHA256 = "d59072295dedd2c457c28b5193be01ffb1ee10f4d50b52df7d4ac71585c81a9e"
-	amtRPCPath   = "/usr/local/lib/tuist/rpc-2.52.6"
+	amtRPCURL    = "https://github.com/device-management-toolkit/rpc-go/releases/download/v3.0.0-beta.61/rpc_linux_x64.tar.gz"
+	amtRPCSHA256 = "e6513f029fbdfa6b982ff20ff9181d4fdcb12eb38124373751a136310f41200c"
+	amtRPCPath   = "/usr/local/lib/tuist/rpc-3.0.0-beta.61"
 
 	amtScriptTimeout     = 10 * time.Minute
 	amtActivationBackoff = time.Hour
@@ -240,16 +241,16 @@ if [ ! -x "$rpc" ]; then
   tar -xzf "$tmp/rpc.tar.gz" -C "$tmp" rpc_linux_x64
   install -D -m 0755 "$tmp/rpc_linux_x64" "$rpc"
 fi
-info() { "$rpc" amtinfo -json -ver -mode -lan 2>/dev/null; }
+info() { timeout 120 "$rpc" amtinfo --json --ver --mode --lan 2>/dev/null; }
 `, amtRPCPath, amtRPCURL, amtRPCSHA256)
 	if a != nil {
-		fmt.Fprintf(&b, `if [ "$(info | jq -r .controlMode)" = 'pre-provisioning state' ]; then
+		fmt.Fprintf(&b, `if [ "$(info | jq -r .controlMode)" = 'not activated' ]; then
   export AMT_PASSWORD=%s
   export PROVISIONING_CERT=%s
   export PROVISIONING_CERT_PASSWORD=%s
   echo '--- activate'
   status=0
-  "$rpc" activate -local -acm -skipIPRenew -json 2>&1 || status=$?
+  timeout --kill-after=10 300 "$rpc" activate --acm --skipIPRenew --json 2>&1 || status=$?
   unset AMT_PASSWORD PROVISIONING_CERT PROVISIONING_CERT_PASSWORD
   echo "--- activate exit $status"
 fi
@@ -308,11 +309,11 @@ func parseAMTScriptOutput(out string) (amtScriptResult, error) {
 
 func amtControlMode(reported string) string {
 	switch reported {
-	case "pre-provisioning state":
+	case "not activated":
 		return amtPreProvisioning
-	case "activated in client control mode":
+	case "client control mode":
 		return amtClientControl
-	case "activated in admin control mode":
+	case "admin control mode":
 		return amtAdminControl
 	}
 	return reported
