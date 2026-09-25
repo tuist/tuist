@@ -2,10 +2,15 @@ package linux
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman"
@@ -27,6 +32,10 @@ const AMTPowerAnnotation = "tuist.dev/amt-power"
 
 const amtPowerTimeout = time.Minute
 
+// amtTLSPinKey holds, in a host's AMT Secret, the SHA-256 of the TLS
+// certificate AMT presented to the first power change.
+const amtTLSPinKey = "tls-sha256"
+
 var amtPowerStates = map[string]power.PowerState{
 	"on":    power.PowerOn,
 	"off":   power.PowerOffHard,
@@ -34,9 +43,17 @@ var amtPowerStates = map[string]power.PowerState{
 	"reset": power.MasterBusReset,
 }
 
-// AMTPowerFunc asks AMT at address for a power change through via's SSH
-// session.
-type AMTPowerFunc func(ctx context.Context, via *infrav1.RackLinuxHost, address, username, password string, state power.PowerState) error
+// amtCredentials is how the operator logs in to a host's AMT.
+type amtCredentials struct {
+	Username, Password string
+	// TLSSHA256 is the pinned SHA-256 of AMT's self-signed TLS certificate.
+	// Empty accepts the certificate AMT presents.
+	TLSSHA256 string
+}
+
+// amtPowerFunc asks AMT at address for a power change through via's SSH
+// session, and returns the SHA-256 of the TLS certificate AMT presented.
+type amtPowerFunc func(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error)
 
 // reconcileAMTPower makes the power change the host's annotation asks for.
 // AMT answers on the management segment, which only the edges are on, so the
@@ -99,9 +116,13 @@ func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.Ra
 	if err := r.Get(ctx, name, secret); err != nil {
 		return fmt.Errorf("read AMT's credentials from %s: %w", name, err)
 	}
-	username := string(secret.Data["username"])
-	if username == "" {
-		username = "admin"
+	creds := amtCredentials{
+		Username:  string(secret.Data["username"]),
+		Password:  string(secret.Data["password"]),
+		TLSSHA256: string(secret.Data[amtTLSPinKey]),
+	}
+	if creds.Username == "" {
+		creds.Username = "admin"
 	}
 	via, err := r.amtTunnelHost(ctx, host)
 	if err != nil {
@@ -112,7 +133,17 @@ func (r *RackLinuxHostReconciler) powerAMT(ctx context.Context, host *infrav1.Ra
 	if powerFn == nil {
 		powerFn = r.powerAMTOverSSH
 	}
-	return powerFn(ctx, via, amt.Address, username, string(secret.Data["password"]), state)
+	presented, err := powerFn(ctx, via, amt.Address, creds, state)
+	if err != nil {
+		return err
+	}
+	if creds.TLSSHA256 == "" && presented != "" {
+		secret.Data[amtTLSPinKey] = []byte(presented)
+		if err := r.Update(ctx, secret); err != nil {
+			return fmt.Errorf("pin AMT's TLS certificate in %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 // amtTunnelHost is the connected edge of host's site to reach AMT through:
@@ -146,35 +177,64 @@ func (r *RackLinuxHostReconciler) amtTunnelHost(ctx context.Context, host *infra
 	return edges[0], nil
 }
 
-func (r *RackLinuxHostReconciler) powerAMTOverSSH(ctx context.Context, via *infrav1.RackLinuxHost, address, username, password string, state power.PowerState) error {
-	return withRackHostSSH(ctx, r.Client, r.CredentialsManager, r.AMT.FleetName, r.egress(), via, amtPowerTimeout, func(c *ssh.Client) error {
-		return requestAMTPower(ctx, c.DialContext, address, username, password, state)
+func (r *RackLinuxHostReconciler) powerAMTOverSSH(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error) {
+	var presented string
+	err := withRackHostSSH(ctx, r.Client, r.CredentialsManager, r.AMT.FleetName, r.egress(), via, amtPowerTimeout, func(c *ssh.Client) error {
+		var err error
+		presented, err = requestAMTPower(ctx, c.DialContext, address, creds, state)
+		return err
 	})
+	return presented, err
 }
 
-// requestAMTPower asks AMT at address for a power change over WS-MAN with
-// digest authentication, dialling through dial.
+// requestAMTPower asks AMT at address for a power change over WS-MAN, over TLS
+// with digest authentication, dialling through dial. An activated AMT serves
+// WS-MAN only on its TLS port, with a self-signed certificate, which is held
+// to creds.TLSSHA256 when that is set. It returns the SHA-256 of the
+// certificate AMT presented.
 func requestAMTPower(ctx context.Context, dial func(ctx context.Context, network, addr string) (net.Conn, error),
-	address, username, password string, state power.PowerState) error {
-	transport := &http.Transport{DialContext: dial, DisableKeepAlives: true}
+	address string, creds amtCredentials, state power.PowerState) (string, error) {
+	var presented string
+	transport := &http.Transport{
+		DialContext:       dial,
+		DisableKeepAlives: true,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			// AMT's certificate is self-signed; the pin below is what holds
+			// AMT to it.
+			InsecureSkipVerify: true,
+			VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+				if len(rawCerts) == 0 {
+					return fmt.Errorf("AMT presented no certificate")
+				}
+				sum := sha256.Sum256(rawCerts[0])
+				presented = hex.EncodeToString(sum[:])
+				if creds.TLSSHA256 != "" && !strings.EqualFold(presented, creds.TLSSHA256) {
+					return fmt.Errorf("AMT presented certificate %s, not the pinned %s", presented, creds.TLSSHA256)
+				}
+				return nil
+			},
+		},
+	}
 	defer transport.CloseIdleConnections()
 	messages := wsman.NewMessages(client.Parameters{
 		Target:    address,
-		Username:  username,
-		Password:  password,
+		Username:  creds.Username,
+		Password:  creds.Password,
 		UseDigest: true,
+		UseTLS:    true,
 		Transport: transport,
 		Timeout:   30 * time.Second,
 	})
 	if err := ctx.Err(); err != nil {
-		return err
+		return "", err
 	}
 	response, err := messages.CIM.PowerManagementService.RequestPowerStateChange(state)
 	if err != nil {
-		return fmt.Errorf("ask AMT at %s for power state %d: %w", address, state, err)
+		return "", fmt.Errorf("ask AMT at %s for power state %d: %w", address, state, err)
 	}
 	if rv := response.Body.RequestPowerStateChangeResponse.ReturnValue; rv != 0 {
-		return fmt.Errorf("AMT at %s refused power state %d: return value %d", address, state, rv)
+		return "", fmt.Errorf("AMT at %s refused power state %d: return value %d", address, state, rv)
 	}
-	return nil
+	return presented, nil
 }

@@ -737,7 +737,7 @@ the change once, records it in `status.amt.lastPowerAction` and removes the
 annotation. AMT answers on the management segment, which only the edges are on,
 so the operator opens an SSH session to a connected edge of the host's site
 (another edge first, the host itself last) and sends WS-MAN with digest
-authentication to AMT's address (`status.amt.address`, port 16992) through it.
+authentication to AMT's address (`status.amt.address`) on its TLS port, 16993, through it: an activated AMT serves WS-MAN only there, with a self-signed certificate. The first power change pins that certificate's SHA-256 as `tls-sha256` in the `<host>-amt` Secret, and later ones hold AMT to it; a reactivated AMT needs the key deleted.
 It needs AMT activated and the host's `<host>-amt` Secret, not the host itself:
 a host that is off the tailnet is powered too. With the install stick left in,
 a power cycle boots the installer, which installs a published install or hands

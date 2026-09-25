@@ -2,6 +2,8 @@ package linux
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/cluster-api/util/conditions"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -33,10 +36,11 @@ const powerStateChangeResponse = `<?xml version="1.0" encoding="UTF-8"?>
 </a:Envelope>
 `
 
-// fakeAMT answers WS-MAN behind digest authentication, as AMT does on 16992.
-func fakeAMT(t *testing.T, returnValue string, bodies *[]string, authorizations *[]string) (dial func(context.Context, string, string) (net.Conn, error), dialled *[]string) {
+// fakeAMT answers WS-MAN over TLS behind digest authentication, as an
+// activated AMT does on 16993.
+func fakeAMT(t *testing.T, returnValue string, bodies *[]string, authorizations *[]string) (dial func(context.Context, string, string) (net.Conn, error), dialled *[]string, fingerprint string) {
 	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		if !strings.HasPrefix(auth, "Digest ") {
 			w.Header().Set("WWW-Authenticate", `Digest realm="Digest:A3829B3827DE4D33D4449B366831FD01", nonce="bm9uY2U", stale="false", qop="auth"`)
@@ -50,24 +54,26 @@ func fakeAMT(t *testing.T, returnValue string, bodies *[]string, authorizations 
 		_, _ = io.WriteString(w, strings.Replace(powerStateChangeResponse, "%s", returnValue, 1))
 	}))
 	t.Cleanup(server.Close)
+	sum := sha256.Sum256(server.Certificate().Raw)
 	var addrs []string
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		addrs = append(addrs, addr)
 		var d net.Dialer
 		return d.DialContext(ctx, network, server.Listener.Addr().String())
-	}, &addrs
+	}, &addrs, hex.EncodeToString(sum[:])
 }
 
-func TestRequestAMTPowerAsksAMTOverDigestWSMAN(t *testing.T) {
+func TestRequestAMTPowerAsksAMTOverDigestWSMANAndPinsItsCertificate(t *testing.T) {
 	var bodies, authorizations []string
-	dial, dialled := fakeAMT(t, "0", &bodies, &authorizations)
+	dial, dialled, fingerprint := fakeAMT(t, "0", &bodies, &authorizations)
 
-	if err := requestAMTPower(context.Background(), dial, "192.168.50.112", "admin", "Secret-Pa55!", power.PowerCycleOffHard); err != nil {
+	pinned, err := requestAMTPower(context.Background(), dial, "192.168.50.112", amtCredentials{Username: "admin", Password: "Secret-Pa55!"}, power.PowerCycleOffHard)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(*dialled) == 0 || (*dialled)[0] != "192.168.50.112:16992" {
-		t.Fatalf("dialled %v, want AMT's WS-MAN port", *dialled)
+	if len(*dialled) == 0 || (*dialled)[0] != "192.168.50.112:16993" {
+		t.Fatalf("dialled %v, want AMT's TLS WS-MAN port", *dialled)
 	}
 	if len(bodies) != 1 || !strings.Contains(bodies[0], "RequestPowerStateChange") || !strings.Contains(bodies[0], ">5</") {
 		t.Fatalf("request bodies %v", bodies)
@@ -75,21 +81,41 @@ func TestRequestAMTPowerAsksAMTOverDigestWSMAN(t *testing.T) {
 	if !strings.Contains(authorizations[0], `username="admin"`) || strings.Contains(authorizations[0], "Secret-Pa55!") {
 		t.Fatalf("authorization %q", authorizations[0])
 	}
+	if pinned != fingerprint {
+		t.Fatalf("pinned %q, want the certificate AMT presented, %q", pinned, fingerprint)
+	}
+
+	if _, err := requestAMTPower(context.Background(), dial, "192.168.50.112",
+		amtCredentials{Username: "admin", Password: "Secret-Pa55!", TLSSHA256: strings.ToUpper(fingerprint)}, power.PowerOn); err != nil {
+		t.Fatalf("refused the pinned certificate: %v", err)
+	}
+}
+
+func TestRequestAMTPowerRefusesACertificateOtherThanThePinnedOne(t *testing.T) {
+	var bodies, authorizations []string
+	dial, _, _ := fakeAMT(t, "0", &bodies, &authorizations)
+
+	_, err := requestAMTPower(context.Background(), dial, "192.168.50.112",
+		amtCredentials{Username: "admin", Password: "Secret-Pa55!", TLSSHA256: strings.Repeat("ab", 32)}, power.PowerOn)
+	if err == nil || len(bodies) != 0 {
+		t.Fatalf("err = %v, bodies %v; want the request refused before it is sent", err, bodies)
+	}
 }
 
 func TestRequestAMTPowerReportsARefusal(t *testing.T) {
 	var bodies, authorizations []string
-	dial, _ := fakeAMT(t, "2", &bodies, &authorizations)
+	dial, _, _ := fakeAMT(t, "2", &bodies, &authorizations)
 
-	err := requestAMTPower(context.Background(), dial, "192.168.50.112", "admin", "Secret-Pa55!", power.PowerOn)
+	_, err := requestAMTPower(context.Background(), dial, "192.168.50.112", amtCredentials{Username: "admin", Password: "Secret-Pa55!"}, power.PowerOn)
 	if err == nil || !strings.Contains(err.Error(), "2") {
 		t.Fatalf("err = %v, want AMT's return value", err)
 	}
 }
 
 type powerCall struct {
-	via, address, username, password string
-	state                            power.PowerState
+	via, address string
+	creds        amtCredentials
+	state        power.PowerState
 }
 
 func activatedAMTEdge(annotation string) *infrav1.RackLinuxHost {
@@ -109,6 +135,13 @@ func amtSecret(password string) *corev1.Secret {
 	}
 }
 
+func recordPower(calls *[]powerCall) amtPowerFunc {
+	return func(_ context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error) {
+		*calls = append(*calls, powerCall{via: via.Name, address: address, creds: creds, state: state})
+		return "c692252b", nil
+	}
+}
+
 func newPowerHarness(t *testing.T, objs ...runtime.Object) (*installHarness, *[]powerCall) {
 	t.Helper()
 	h := newAMTHarness(t, objs...)
@@ -117,10 +150,7 @@ func newPowerHarness(t *testing.T, objs ...runtime.Object) (*installHarness, *[]
 		Addresses: []string{"100.64.0.8"}, Tags: []string{"tag:tuist-rack-edge"}, Created: "2026-09-24T08:00:00Z", ConnectedToControl: true,
 	})
 	var calls []powerCall
-	h.r.AMTPower = func(_ context.Context, via *infrav1.RackLinuxHost, address, username, password string, state power.PowerState) error {
-		calls = append(calls, powerCall{via: via.Name, address: address, username: username, password: password, state: state})
-		return nil
-	}
+	h.r.AMTPower = recordPower(&calls)
 	return h, &calls
 }
 
@@ -135,7 +165,7 @@ func TestRackAMTPowerCyclesAHostThroughAnotherEdge(t *testing.T) {
 
 	got := h.reconcile(t, "ber1-edge")
 
-	want := powerCall{via: "ber1-edge-b", address: "192.168.50.112", username: "admin", password: "Stored-Pa55!", state: power.PowerCycleOffHard}
+	want := powerCall{via: "ber1-edge-b", address: "192.168.50.112", creds: amtCredentials{Username: "admin", Password: "Stored-Pa55!"}, state: power.PowerCycleOffHard}
 	if len(*calls) != 1 || (*calls)[0] != want {
 		t.Fatalf("power calls %+v, want %+v", *calls, want)
 	}
@@ -215,10 +245,7 @@ func TestRackInstallPowerCyclesAnOfflineHostThroughAMT(t *testing.T) {
 	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false)}
 	h.r.AMT = &RackAMT{FleetName: rackTestFleet, ProvisioningSecret: amtTestProvisioningSecret}
 	var calls []powerCall
-	h.r.AMTPower = func(_ context.Context, via *infrav1.RackLinuxHost, address, username, password string, state power.PowerState) error {
-		calls = append(calls, powerCall{via: via.Name, address: address, username: username, password: password, state: state})
-		return nil
-	}
+	h.r.AMTPower = recordPower(&calls)
 
 	h.reconcile(t, "ber1-svc")
 	if len(calls) != 0 {
@@ -227,7 +254,7 @@ func TestRackInstallPowerCyclesAnOfflineHostThroughAMT(t *testing.T) {
 
 	h.now = installEpoch.Add(rackBootPropagation + time.Second)
 	got := h.reconcile(t, "ber1-svc")
-	want := powerCall{via: "ber1-edge-a", address: "192.168.50.113", username: "admin", password: "Stored-Pa55!", state: power.PowerCycleOffHard}
+	want := powerCall{via: "ber1-edge-a", address: "192.168.50.113", creds: amtCredentials{Username: "admin", Password: "Stored-Pa55!"}, state: power.PowerCycleOffHard}
 	if len(calls) != 1 || calls[0] != want {
 		t.Fatalf("power calls %+v, want %+v", calls, want)
 	}
@@ -251,9 +278,9 @@ func TestRackInstallLeavesAnOfflineHostWithoutAMTToAPerson(t *testing.T) {
 	h := newInstallHarness(t, host, otherEdge("ber1-edge-a", rackTestNamespace, "ber1", "edge", true))
 	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", false)}
 	h.r.AMT = &RackAMT{FleetName: rackTestFleet, ProvisioningSecret: amtTestProvisioningSecret}
-	h.r.AMTPower = func(context.Context, *infrav1.RackLinuxHost, string, string, string, power.PowerState) error {
+	h.r.AMTPower = func(context.Context, *infrav1.RackLinuxHost, string, amtCredentials, power.PowerState) (string, error) {
 		t.Fatal("powered a host whose AMT is not activated")
-		return nil
+		return "", nil
 	}
 
 	h.now = installEpoch.Add(rackBootPropagation + time.Second)
@@ -261,5 +288,36 @@ func TestRackInstallLeavesAnOfflineHostWithoutAMTToAPerson(t *testing.T) {
 
 	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "WaitingForNetboot" || !strings.Contains(c.Message, "by hand") {
 		t.Fatalf("condition %+v", c)
+	}
+}
+
+// AMT presents a self-signed certificate. The first power change pins the one
+// it presented in the host's AMT Secret, and later ones hold AMT to it.
+func TestRackAMTPowerPinsAMTsCertificate(t *testing.T) {
+	h, calls := newPowerHarness(t, activatedAMTEdge("cycle"), otherConnectedEdge(), amtSecret("Stored-Pa55!"))
+
+	h.reconcile(t, "ber1-edge")
+	if (*calls)[0].creds.TLSSHA256 != "" {
+		t.Fatalf("the first power change carried a pin: %+v", (*calls)[0])
+	}
+	secret := &corev1.Secret{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge-amt"}, secret); err != nil {
+		t.Fatal(err)
+	}
+	if string(secret.Data["tls-sha256"]) != "c692252b" || string(secret.Data["password"]) != "Stored-Pa55!" {
+		t.Fatalf("secret %v, want the certificate pinned beside the password", secret.Data)
+	}
+
+	host := &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge"}, host); err != nil {
+		t.Fatal(err)
+	}
+	host.Annotations = map[string]string{AMTPowerAnnotation: "on"}
+	if err := h.c.Update(context.Background(), host); err != nil {
+		t.Fatal(err)
+	}
+	h.reconcile(t, "ber1-edge")
+	if len(*calls) != 2 || (*calls)[1].creds.TLSSHA256 != "c692252b" {
+		t.Fatalf("calls %+v, want the second held to the pin", *calls)
 	}
 }
