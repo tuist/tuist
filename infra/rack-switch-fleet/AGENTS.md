@@ -270,7 +270,8 @@ uses them yet; each form was read off `ber1-tor-b` after the controller wrote it
   `All` profile.
 - On a port in a device's `ports`: `description` (letters, digits, space,
   `. _ -`, since the controller refuses parentheses), `spanning_tree: false`,
-  and `vlans`, the tagged VLAN ids it carries.
+  `vlans`, the tagged VLAN ids it carries, and `status: planned` for a cable
+  not plugged in yet, which only the cable schedule reads.
 - `lags`, on a device: `[{id, name, ports}]`, LACP, the only kind the controller
   would make. The members take the lag's name and VLANs. Each lag needs at
   least two members, each a recorded cable (a node link or a `ports` entry) to
