@@ -31,7 +31,11 @@ defmodule TuistWeb.API.GitHistoryController do
     project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."]
   ]
 
-  @sha %Schema{type: :string, description: "A commit SHA (40 hex digits, or 64 in a SHA-256 repository)."}
+  @sha %Schema{
+    type: :string,
+    pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$",
+    description: "A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository)."
+  }
 
   @repository_url %Schema{
     type: :string,
@@ -152,7 +156,12 @@ defmodule TuistWeb.API.GitHistoryController do
                type: :object,
                properties: %{
                  sha: @sha,
-                 parents: %Schema{type: :array, items: @sha, description: "The parent SHAs, first parent first."},
+                 parents: %Schema{
+                   type: :array,
+                   items: @sha,
+                   maxItems: 128,
+                   description: "The parent SHAs, first parent first."
+                 },
                  committed_at: %Schema{type: :string, format: :"date-time", description: "The committer date."}
                },
                required: [:sha, :parents, :committed_at]
@@ -160,6 +169,7 @@ defmodule TuistWeb.API.GitHistoryController do
            },
            branch_heads: %Schema{
              type: :array,
+             maxItems: 100,
              items: %Schema{
                type: :object,
                properties: %{branch: %Schema{type: :string}, sha: @sha},

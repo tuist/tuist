@@ -5,6 +5,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
   import Ecto.Query
 
   alias Tuist.Tests.Coverage.Evidence
+  alias Tuist.Tests.CoverageFile
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -100,7 +101,7 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
 
     rows =
       Tuist.ClickHouseRepo.all(
-        from(f in Tuist.Tests.CoverageFile,
+        from(f in CoverageFile,
           where: f.test_run_id == ^test_run.id and f.scope_kind != "run",
           select: {f.scope_kind, f.path, f.line_numbers, f.covered_lines},
           order_by: [f.scope_kind, f.path]
@@ -111,6 +112,43 @@ defmodule Tuist.Tests.Coverage.EvidenceTest do
              {"target", "Sources/Math.swift", [], 0},
              {"test", "Sources/Math.swift", [3, 4, 5, 9], 4},
              {"test", "Sources/Text.swift", [], 0}
+           ]
+  end
+
+  test "keeps only the path of files whose lines exceed the report's line budget", %{test_run: test_run} do
+    Evidence.record(
+      test_run,
+      %{
+        paths: ["Sources/Math.swift", "Sources/Text.swift", "Sources/Bootstrap.swift"],
+        scopes: [
+          %{
+            kind: "test",
+            module: "AppTests",
+            suite: "MathTests",
+            name: "testAdd()",
+            files: [0, 1, 2],
+            # Repeating a range adds nothing: Math.swift costs 6 lines of the budget of 10.
+            lines: [List.flatten(List.duplicate([1, 6], 1_000)), [1, 5], [1, 4]]
+          }
+        ]
+      },
+      nil,
+      line_budget: 10
+    )
+
+    rows =
+      Tuist.ClickHouseRepo.all(
+        from(f in CoverageFile,
+          where: f.test_run_id == ^test_run.id and f.scope_kind != "run",
+          select: {f.path, f.line_numbers},
+          order_by: f.path
+        )
+      )
+
+    assert rows == [
+             {"Sources/Bootstrap.swift", [1, 2, 3, 4]},
+             {"Sources/Math.swift", [1, 2, 3, 4, 5, 6]},
+             {"Sources/Text.swift", []}
            ]
   end
 
