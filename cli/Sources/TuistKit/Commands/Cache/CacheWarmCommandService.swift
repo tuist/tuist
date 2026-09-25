@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Logging
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistCache
 import TuistConfig
@@ -15,6 +16,7 @@ import TuistLogging
 import TuistPlugin
 import TuistServer
 import TuistSupport
+import TuistXCActivityLog
 import TuistXcodeBuildProducts
 import XcodeGraph
 #if canImport(TuistCacheEE)
@@ -85,6 +87,8 @@ import XcodeGraph
         private let scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing
         private let foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating
         private let buildOutputReclaimer: CacheWarmBuildOutputReclaimer
+        private let xcActivityLogController: XCActivityLogControlling
+        private let uploadBuildRunService: UploadBuildRunServicing
 
         public init() {
             let contentHasher = ContentHasher()
@@ -118,7 +122,9 @@ import XcodeGraph
             cacheStorageFactory: CacheStorageFactorying = Extension.cacheStorageFactory,
             configLoader: ConfigLoading = ConfigLoader(),
             scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing = CacheWarmScratchDirectoryPreparer(),
-            foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator()
+            foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator(),
+            xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+            uploadBuildRunService: UploadBuildRunServicing = UploadBuildRunService()
         ) {
             self.configLoader = configLoader
             manifestLoader = ManifestLoader.current
@@ -136,6 +142,8 @@ import XcodeGraph
             self.scratchDirectoryPreparer = scratchDirectoryPreparer
             self.foreignBuildOutputValidator = foreignBuildOutputValidator
             buildOutputReclaimer = CacheWarmBuildOutputReclaimer(fileSystem: fileSystem)
+            self.xcActivityLogController = xcActivityLogController
+            self.uploadBuildRunService = uploadBuildRunService
         }
 
         // swiftlint:disable:next function_body_length
@@ -260,7 +268,7 @@ import XcodeGraph
                 hashesByTargetToBeCached: cacheableTargets,
                 fingerprints: hashedGraph.fingerprints,
                 cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
-                noUpload: noUpload,
+                buildUploadConfig: noUpload || config.fullHandle == nil ? nil : config,
                 isReleaseConfiguration: isReleaseConfiguration,
                 scratchDirectory: scratchDirectoryMode
             )
@@ -297,7 +305,7 @@ import XcodeGraph
             hashesByTargetToBeCached: [(GraphTarget, String)],
             fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
-            noUpload _: Bool,
+            buildUploadConfig: Tuist?,
             isReleaseConfiguration: Bool,
             scratchDirectory: CacheWarmScratchDirectory
         ) async throws {
@@ -313,6 +321,7 @@ import XcodeGraph
                             hashesByTargetToBeCached: hashesByTargetToBeCached,
                             fingerprints: fingerprints,
                             cacheStorage: cacheStorage,
+                            buildUploadConfig: buildUploadConfig,
                             isReleaseConfiguration: isReleaseConfiguration,
                             in: temporaryDirectory,
                             compilationCacheCASArgument: compilationCacheCASArgument
@@ -330,6 +339,7 @@ import XcodeGraph
                         hashesByTargetToBeCached: hashesByTargetToBeCached,
                         fingerprints: fingerprints,
                         cacheStorage: cacheStorage,
+                        buildUploadConfig: buildUploadConfig,
                         isReleaseConfiguration: isReleaseConfiguration,
                         in: path,
                         compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
@@ -367,6 +377,7 @@ import XcodeGraph
             hashesByTargetToBeCached: [(GraphTarget, String)],
             fingerprints: [String: [String: String]],
             cacheStorage: CacheStoring,
+            buildUploadConfig: Tuist?,
             isReleaseConfiguration: Bool,
             in scratchDirectory: AbsolutePath,
             compilationCacheCASArgument: XcodeBuildArgument
@@ -417,6 +428,7 @@ import XcodeGraph
                     scheme,
                     configuration: configuration,
                     xcodebuildTarget: xcodebuildTarget,
+                    buildUploadConfig: buildUploadConfig,
                     graph: graph,
                     binaryArtifactDirectories: &binaryArtifactDirectories,
                     scratchDirectory: scratchDirectory,
@@ -432,6 +444,7 @@ import XcodeGraph
                     catalystScheme,
                     configuration: configuration,
                     xcodebuildTarget: xcodebuildTarget,
+                    buildUploadConfig: buildUploadConfig,
                     binaryArtifactDirectories: &binaryArtifactDirectories,
                     scratchDirectory: scratchDirectory,
                     derivedDataPath: derivedDataPath,
@@ -446,6 +459,7 @@ import XcodeGraph
                     scheme,
                     configuration: configuration,
                     xcodebuildTarget: xcodebuildTarget,
+                    buildUploadConfig: buildUploadConfig,
                     derivedDataPath: derivedDataPath,
                     cacheableTargets: hashesByTargetToBeCached,
                     compilationCacheCASArgument: compilationCacheCASArgument
@@ -457,6 +471,7 @@ import XcodeGraph
                     scheme,
                     configuration: configuration,
                     xcodebuildTarget: xcodebuildTarget,
+                    buildUploadConfig: buildUploadConfig,
                     derivedDataPath: derivedDataPath,
                     cacheableTargets: hashesByTargetToBeCached,
                     scratchDirectory: scratchDirectory,
@@ -556,6 +571,7 @@ import XcodeGraph
             _ scheme: Scheme,
             configuration: String,
             xcodebuildTarget: XcodeBuildTarget,
+            buildUploadConfig: Tuist?,
             derivedDataPath: AbsolutePath,
             cacheableTargets: [(GraphTarget, String)],
             scratchDirectory: AbsolutePath,
@@ -576,6 +592,7 @@ import XcodeGraph
             try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
+                buildUploadConfig: buildUploadConfig,
                 derivedDataPath: derivedDataPath,
                 arguments: arguments
             )
@@ -609,6 +626,7 @@ import XcodeGraph
             _ scheme: Scheme,
             configuration: String,
             xcodebuildTarget: XcodeBuildTarget,
+            buildUploadConfig: Tuist?,
             derivedDataPath: AbsolutePath,
             cacheableTargets: [(GraphTarget, String)],
             compilationCacheCASArgument: XcodeBuildArgument
@@ -647,6 +665,7 @@ import XcodeGraph
             try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
+                buildUploadConfig: buildUploadConfig,
                 derivedDataPath: derivedDataPath,
                 arguments: arguments
             )
@@ -840,6 +859,7 @@ import XcodeGraph
             _ scheme: Scheme,
             configuration: String,
             xcodebuildTarget: XcodeBuildTarget,
+            buildUploadConfig: Tuist?,
             graph _: Graph,
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
             scratchDirectory: AbsolutePath,
@@ -862,6 +882,7 @@ import XcodeGraph
                 try await build(
                     xcodebuildTarget,
                     scheme: scheme.name,
+                    buildUploadConfig: buildUploadConfig,
                     derivedDataPath: derivedDataPath,
                     arguments: [
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
@@ -946,6 +967,7 @@ import XcodeGraph
             try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
+                buildUploadConfig: buildUploadConfig,
                 derivedDataPath: derivedDataPath,
                 arguments: deviceArguments
             )
@@ -978,6 +1000,7 @@ import XcodeGraph
             _ scheme: Scheme,
             configuration: String,
             xcodebuildTarget: XcodeBuildTarget,
+            buildUploadConfig: Tuist?,
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
             scratchDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
@@ -996,6 +1019,7 @@ import XcodeGraph
             try await build(
                 xcodebuildTarget,
                 scheme: scheme.name,
+                buildUploadConfig: buildUploadConfig,
                 derivedDataPath: derivedDataPath,
                 arguments: [
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
@@ -1047,10 +1071,12 @@ import XcodeGraph
         private func build(
             _ xcodebuildTarget: XcodeBuildTarget,
             scheme: String,
+            buildUploadConfig: Tuist?,
             derivedDataPath: AbsolutePath,
             arguments: [XcodeBuildArgument]
         ) async throws {
             let resultBundlePath = derivedDataPath.appending(component: UUID().uuidString)
+            let buildStartedAt = Date()
             do {
                 try await xcodeBuildController.build(
                     xcodebuildTarget,
@@ -1066,10 +1092,57 @@ import XcodeGraph
                     ]
                 )
             } catch {
+                await uploadBuildRunIfNeeded(
+                    config: buildUploadConfig,
+                    projectPath: xcodebuildTarget.path,
+                    scheme: scheme,
+                    derivedDataPath: derivedDataPath,
+                    arguments: arguments,
+                    buildStartedAt: buildStartedAt
+                )
                 await buildOutputReclaimer.reclaimResultBundle(at: resultBundlePath)
                 throw error
             }
+            await uploadBuildRunIfNeeded(
+                config: buildUploadConfig,
+                projectPath: xcodebuildTarget.path,
+                scheme: scheme,
+                derivedDataPath: derivedDataPath,
+                arguments: arguments,
+                buildStartedAt: buildStartedAt
+            )
             await buildOutputReclaimer.reclaimResultBundle(at: resultBundlePath)
+        }
+
+        private func uploadBuildRunIfNeeded(
+            config: Tuist?,
+            projectPath: AbsolutePath,
+            scheme: String,
+            derivedDataPath: AbsolutePath,
+            arguments: [XcodeBuildArgument],
+            buildStartedAt: Date
+        ) async {
+            guard let config else { return }
+            do {
+                guard let activityLog = try await xcActivityLogController.mostRecentActivityLogFile(
+                    projectDerivedDataDirectory: derivedDataPath,
+                    filter: { $0.timeStoppedRecording >= buildStartedAt }
+                ) else { return }
+                let configuration = arguments.compactMap { argument -> String? in
+                    guard case let .configuration(value) = argument else { return nil }
+                    return value
+                }.first
+                let buildURL = try await uploadBuildRunService.uploadBuildRun(
+                    activityLogPath: activityLog.path,
+                    projectPath: projectPath,
+                    config: config,
+                    scheme: scheme,
+                    configuration: configuration
+                )
+                Logger.current.notice("Cache warm build uploaded. View at \(buildURL.absoluteString)")
+            } catch {
+                AlertController.current.warning(.alert("Failed to upload cache warm build: \(error.localizedDescription)"))
+            }
         }
 
         private func copyDerivedDataArtifacts(

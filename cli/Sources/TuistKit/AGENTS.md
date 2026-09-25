@@ -15,6 +15,7 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - `TuistCommand` groups commands into: Get started, Develop, Share, Account, Other.
 - `TuistCommand.main` initializes cache directories, loads config, resolves server URL, and runs `TrackableCommand`.
 - Noora logging is reinitialized after command execution to ensure logs are captured in verbose logs.
+- Cache warm uploads each Xcode build activity log before cleanup, including failed builds, when a project handle is configured and `--no-upload` is not set. Upload failures must not replace the build outcome; logs from previous destination builds must not be reused.
 - Cache warm selection is scoped from explicit non-test roots; focused test roots may remain in the graph but do not expand binary cache candidates.
 - Cache readiness probes keep their read side open until the daemon responds or closes the connection. Closing immediately after connecting can crash SwiftNIO on Darwin before it accepts the socket.
 - `tuist cache-proxy` hands over to `tuist-cas-proxy` with `posix_spawn` and `POSIX_SPAWN_SETEXEC`, clearing the signal mask and resetting every signal to its default action, never with a plain `execv`. The handoff runs on a Swift concurrency thread, which blocks SIGTERM, and `execv` would pass that on, so the proxy would ignore `launchctl bootout`.
