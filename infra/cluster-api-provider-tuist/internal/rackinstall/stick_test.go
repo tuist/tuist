@@ -139,8 +139,21 @@ func TestStickUserData(t *testing.T) {
 	if err := yaml.Unmarshal([]byte(out), &seed); err != nil {
 		t.Fatalf("user-data is not YAML: %v\n%s", err, out)
 	}
-	if !strings.HasPrefix(out, "#cloud-config\n") || seed.Autoinstall.Version != 1 || len(seed.Autoinstall.EarlyCommands) != 1 {
+	if !strings.HasPrefix(out, "#cloud-config\n") || seed.Autoinstall.Version != 1 || len(seed.Autoinstall.EarlyCommands) != 2 {
 		t.Fatalf("user-data %s", out)
+	}
+	// The live system ejects its boot medium when the install reboots, and an
+	// ejected stick has no medium until something loads it again, so the
+	// operator could not boot it for the next reinstall.
+	keep := seed.Autoinstall.EarlyCommands[1]
+	for _, want := range []string{
+		"/run/systemd/system/casper.service.d/",
+		"ExecStart=\\nExecStart=/bin/true",
+		"systemctl daemon-reload",
+	} {
+		if !strings.Contains(keep, want) {
+			t.Errorf("second early-command lacks %q:\n%s", want, keep)
+		}
 	}
 	early := seed.Autoinstall.EarlyCommands[0]
 	for _, want := range []string{

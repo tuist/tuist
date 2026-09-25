@@ -26,8 +26,18 @@ func StickUserData(server string) (string, error) {
 		return "", fmt.Errorf("%q is not the boot server's http:// address", server)
 	}
 	script := stickScript(server, stickPaths{Seed: "/run/tuist-user-data", Autoinstall: "/autoinstall.yaml", Console: "/dev/console"})
-	return "#cloud-config\nautoinstall:\n  version: 1\n  early-commands:\n    - |\n" + indent(script, "      "), nil
+	return "#cloud-config\nautoinstall:\n  version: 1\n  early-commands:\n    - |\n" + indent(script, "      ") +
+		"    - |\n" + indent(keepStick, "      "), nil
 }
+
+// keepStick stops the live system from ejecting the stick when the install
+// reboots (casper-stop, run by casper.service at shutdown): an ejected stick
+// has no medium until something loads it again, so the next reinstall could
+// not boot it.
+const keepStick = `mkdir -p /run/systemd/system/casper.service.d
+printf '[Service]\nExecStart=\nExecStart=/bin/true\n' >/run/systemd/system/casper.service.d/tuist-keep-stick.conf
+systemctl daemon-reload
+`
 
 // StickMetaData renders the stick seed's meta-data.
 func StickMetaData() string {

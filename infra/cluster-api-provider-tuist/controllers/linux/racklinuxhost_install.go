@@ -294,7 +294,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		TriggeredAt:      triggered,
 	}
 	r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallPublished",
-		"Published install %s for %s to netboot from %s, with a single-use join key tagged %s valid until %s",
+		"Published install %s for %s to boot from %s, with a single-use join key tagged %s valid until %s",
 		key.ID, host.Name, host.Spec.BootMAC, strings.Join(host.Spec.Tailnet.Tags, ","), expires.UTC().Format(time.RFC3339))
 	log.FromContext(ctx).Info("published a rack host install", "host", host.Name, "key", key.ID)
 	return nil

@@ -53,7 +53,10 @@ the seed a netboot reads (below). With nothing published it waits, and after
 five minutes it boots a rack install already on the disks instead of holding
 the machine. The seed carries its install's key ID (`# tuist-install-id:`), so a
 stick booted again after its install hands over to that system, as a netboot
-does.
+does. Its installer also keeps the live system from ejecting the stick when the
+install reboots (`casper.service`, overridden under `/run`): an ejected stick
+reports no medium until `eject -t` loads it, so the next reinstall would not
+find it.
 
 - A box with an empty disk boots the stick on its own, with the firmware's
   defaults: Secure Boot on and the network stack off.
