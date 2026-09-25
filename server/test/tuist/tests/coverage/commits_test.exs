@@ -126,6 +126,71 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert %{complete: false} = Commits.summary(project.id, "def456")
   end
 
+  describe "prune/1" do
+    defp published(project, sha, attrs) do
+      Repo.insert!(
+        struct(
+          %CoverageCommit{
+            project_id: project.id,
+            git_commit_sha: sha,
+            committed_at: DateTime.utc_now(),
+            ran_at: DateTime.utc_now(),
+            covered_lines: 1,
+            executable_lines: 1
+          },
+          attrs
+        )
+      )
+    end
+
+    defp days_ago(days), do: DateTime.add(DateTime.utc_now(), -days, :day)
+
+    test "drops commits past retention and a pull request's own commits sooner", %{
+      project: project,
+      account: account
+    } do
+      repository_id =
+        CoverageFixtures.seed_history(account, [CoverageFixtures.commit("main-head", [], 0)],
+          branch_heads: [{"main", "main-head"}]
+        )
+
+      {main_ref_id, main_position} = GitHistory.position(repository_id, "main-head")
+
+      published(project, "ancient", %{committed_at: days_ago(1100)})
+      published(project, "recent", %{committed_at: days_ago(10)})
+      published(project, "pull-request", %{committed_at: days_ago(100), pull_request_number: 7})
+
+      published(project, "merged-into-main", %{
+        committed_at: days_ago(100),
+        pull_request_number: 7,
+        ref_id: main_ref_id,
+        position: main_position
+      })
+
+      assert Commits.prune(%{commits: 1095, pull_requests: 90}) == 2
+
+      assert CoverageCommit
+             |> where([c], c.project_id == ^project.id)
+             |> select([c], c.git_commit_sha)
+             |> Repo.all()
+             |> Enum.sort() ==
+               ["merged-into-main", "recent"]
+    end
+
+    test "drops a completion signal no run followed", %{project: project, account: account} do
+      assert Commits.signal_complete(project, "abc123") == nil
+
+      Repo.update_all(from(c in "coverage_commit_completions", where: c.project_id == ^project.id),
+        set: [inserted_at: days_ago(91)]
+      )
+
+      Commits.prune(%{commits: 1095, pull_requests: 90})
+
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+      assert %{complete: false} = Commits.summary(project.id, "abc123")
+    end
+  end
+
   test "a completion signal is not lost when the first run folds while the signal reads", %{
     project: project,
     account: account

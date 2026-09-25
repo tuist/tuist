@@ -564,12 +564,16 @@ defmodule Tuist.Tests.Coverage.Commits do
     {count, _} =
       Repo.delete_all(
         from(c in CoverageCommit,
-          left_join: r in Tuist.GitHistory.Ref,
-          on: r.id == c.ref_id,
+          as: :commit,
           where:
             c.committed_at < ^commits_cutoff or
               (c.committed_at < ^pull_requests_cutoff and c.pull_request_number > 0 and
-                 (is_nil(r.id) or not is_nil(r.parent_ref_id)))
+                 (is_nil(c.ref_id) or
+                    exists(
+                      from(r in Tuist.GitHistory.Ref,
+                        where: r.id == parent_as(:commit).ref_id and not is_nil(r.parent_ref_id)
+                      )
+                    )))
         )
       )
 
