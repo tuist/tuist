@@ -465,6 +465,37 @@ defmodule Tuist.GitHistoryTest do
     end
   end
 
+  describe "expired commit listings" do
+    defp age_listing(repository, sha, days) do
+      Repo.update_all(
+        from(l in GitHistory.CommitListing, where: l.repository_id == ^repository and l.sha == ^sha),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -days * 86_400, :second)]
+      )
+    end
+
+    test "count as missing once the files outlived their retention, and are stored again", %{repository: repository} do
+      GitHistory.record_listing(repository, "c", [%{path: "Sources/A.swift", git_blob_id: "a1"}], files_count: 1)
+      age_listing(repository, "c", 30)
+      assert GitHistory.listing_stored?(repository, "c")
+
+      # The files are kept 90 days by default (TUIST_COVERAGE_FILE_RETENTION_DAYS).
+      age_listing(repository, "c", 90)
+      refute GitHistory.listing_stored?(repository, "c")
+      assert GitHistory.missing_listings(repository, ["c"]) == ["c"]
+
+      GitHistory.record_listing(
+        repository,
+        "c",
+        [%{path: "Sources/A.swift", git_blob_id: "a2"}, %{path: "Sources/B.swift", git_blob_id: "b1"}],
+        files_count: 2
+      )
+
+      assert GitHistory.listing_stored?(repository, "c")
+      assert GitHistory.missing_listings(repository, ["c"]) == []
+      assert %{files_count: 2} = CoverageFixtures.listing(repository, "c")
+    end
+  end
+
   describe "settings/1 and prune/2" do
     test "layers project overrides over the defaults", %{project: project} do
       assert %{
