@@ -193,3 +193,14 @@ func TestIPXEScript(t *testing.T) {
 		t.Errorf("meta-data %q", MetaData(edgeSeed()))
 	}
 }
+
+// The MS-01's Bluetooth driver dereferences NULL on a warm boot of the 6.8
+// kernel, and a node's panic_on_oops turns that into a reboot loop, so an
+// install keeps the driver out from its first boot.
+func TestUserDataKeepsTheBluetoothDriverOut(t *testing.T) {
+	_, seed := renderEdge(t)
+	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
+	if !strings.Contains(late, "cat > /target/etc/modprobe.d/tuist-rack.conf <<'TUIST_EOF'\nblacklist btusb\nTUIST_EOF") {
+		t.Fatalf("late-commands do not keep btusb out:\n%s", late)
+	}
+}

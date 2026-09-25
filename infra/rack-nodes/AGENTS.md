@@ -210,6 +210,10 @@ carries the same guard.
 - network configuration for the SFP+ uplinks only (DHCP on the X710's `i40e`
   ports), so the 2.5G ports stay unmanaged for the node's pods: an edge's
   rack-edge pod owns its switch port;
+- `blacklist btusb` in `/etc/modprobe.d/tuist-rack.conf`, which the converge
+  also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
+  kernel, and the node's `panic_on_oops` turns that into a reboot every 70
+  seconds;
 - the host's hostname and role, the `tuist` account with passwordless sudo and
   a console password, SSH with password authentication off, and the rack's
   fleet key (`BER1_FLEET_SSH`) plus people's keys
