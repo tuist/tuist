@@ -112,6 +112,25 @@ defmodule Tuist.ClickHouse.ParityTest do
                compare_window(["kura_new_events"])
     end
 
+    test "compares a table whose estimate comes back in a shape it cannot read" do
+      # An answer this does not recognise is an absent estimate, and absent
+      # estimates are compared. Reading the count by position instead would
+      # fail inside the enumeration, where nothing rescues it, so one
+      # unreadable answer would end the whole comparison.
+      fingerprint = fn _sql, _opts ->
+        %{rows: [[1, 1.0, ~N[2026-09-25 05:00:04], ~N[2026-09-25 06:54:51]]]}
+      end
+
+      stub_server(Tuist.IngestRepo, 0, fingerprint)
+      stub_server(Tuist.ClickHouseRepo, 0, fingerprint)
+
+      stub(Tuist.IngestRepo, :query, fn "EXPLAIN ESTIMATE " <> _statement, _params, _opts ->
+        {:ok, %{columns: ["database", "table", "parts", "estimated_rows", "marks"], rows: [["default", "t", 10, 1, 1]]}}
+      end)
+
+      assert {:ok, %{compared: 1, matching: ["build_steps"], skipped: []}} = compare_window(["build_steps"])
+    end
+
     test "bounds each fingerprint on the server and does not retry it" do
       test = self()
 

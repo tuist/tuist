@@ -316,9 +316,22 @@ defmodule Tuist.ClickHouse.Parity do
   end
 
   defp estimated_rows(endpoint, statement) do
-    with {:ok, %{columns: columns, rows: rows}} <- endpoint.repo.query("EXPLAIN ESTIMATE " <> statement, [], log: false) do
-      index = Enum.find_index(columns, &(&1 == "rows"))
+    with {:ok, %{columns: columns, rows: rows}} <- endpoint.repo.query("EXPLAIN ESTIMATE " <> statement, [], log: false),
+         {:ok, index} <- row_estimate_index(columns) do
       {:ok, rows |> Enum.map(&Enum.at(&1, index)) |> Enum.sum()}
+    end
+  end
+
+  # An answer in a shape this does not recognise is an absent estimate, not a
+  # reason to stop. Reading the column by position would be shorter and would
+  # make a renamed or reordered `EXPLAIN ESTIMATE` fail inside the enumeration
+  # instead, which nothing here rescues: one table that cannot be estimated
+  # would take the whole comparison with it, rather than being compared as the
+  # error case below already intends.
+  defp row_estimate_index(columns) do
+    case Enum.find_index(columns, &(&1 == "rows")) do
+      nil -> {:error, :no_row_estimate}
+      index -> {:ok, index}
     end
   end
 
