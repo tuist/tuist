@@ -477,6 +477,36 @@ defmodule Tuist.Tests.CoverageTest do
       assert published_totals(project, test) == %{covered_lines: 2, executable_lines: 7, partial: false}
     end
 
+    test "publish a later shard's uploaded coverage and record its changed files", %{
+      project: project,
+      account: account
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      sharded = %{shard_plan_id: shard_plan.id, shard_index: 0}
+
+      {:ok, test} = create_test(project, account, sharded)
+
+      {:ok, _test} =
+        create_test(
+          project,
+          account,
+          Map.merge(%{sharded | shard_index: 1}, %{
+            xcode_coverage_storage_key: "key",
+            xcode_coverage_partial: true,
+            changed_files: [
+              %{path: "Sources/A.swift", status: "modified", git_blob_id: "blob", hunks: [%{start: 1, end: 2}]}
+            ]
+          })
+        )
+
+      assert_enqueued(
+        worker: Tuist.Tests.Workers.PublishCoverageWorker,
+        args: %{test_run_id: test.id, storage_key: "key", partial: true, shard_index: 1, expected_shards: 2}
+      )
+
+      assert [%{path: "Sources/A.swift", hunk_starts: [1], hunk_ends: [2]}] = CoverageFixtures.changed_files(test)
+    end
+
     test "keep the most complete totals whatever order the reports land in", %{project: project, account: account} do
       {:ok, test} = create_test(project, account, %{xcode_coverage: coverage([add()])})
       {:ok, stored} = Tests.get_test(test.id)

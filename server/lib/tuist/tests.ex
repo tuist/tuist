@@ -562,10 +562,7 @@ defmodule Tuist.Tests do
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
       Coverage.publish(test, xcode_coverage, shard_index, expected_shards)
-
-      if storage_key = Map.get(attrs, :xcode_coverage_storage_key) do
-        Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
-      end
+      enqueue_coverage_publish(test, attrs, shard_index, expected_shards)
 
       Enumeration.record(test, Map.get(attrs, :enumerated_tests))
       Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
@@ -686,6 +683,12 @@ defmodule Tuist.Tests do
   end
 
   defp create_run_changed_files(_test, _files), do: :ok
+
+  defp enqueue_coverage_publish(test, attrs, shard_index, expected_shards) do
+    if storage_key = Map.get(attrs, :xcode_coverage_storage_key) do
+      Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
+    end
+  end
 
   defp insert_run_changed_files(%Test{id: test_run_id, project_id: project_id}, files) do
     now = NaiveDateTime.utc_now()
@@ -827,6 +830,11 @@ defmodule Tuist.Tests do
           # concurrency story as the errors: duplicates are collapsed on read.
           create_run_destinations(merged_test, Map.get(attrs, :run_destinations, []))
 
+          # Every shard of a run reports the same changed files, and the table
+          # replaces rows by run and path, so a shard repeating them is harmless
+          # while one whose first report lacked them still gets them recorded.
+          create_run_changed_files(merged_test, Map.get(attrs, :changed_files, []))
+
           insert_shard_run(
             shard_plan_id,
             project_id,
@@ -864,6 +872,7 @@ defmodule Tuist.Tests do
 
           xcode_coverage = Coverage.rows(project_id, Map.get(attrs, :xcode_coverage))
           Coverage.publish(existing_test, xcode_coverage, shard_index, expected_shard_count)
+          enqueue_coverage_publish(existing_test, attrs, shard_index, expected_shard_count)
           Enumeration.record(existing_test, Map.get(attrs, :enumerated_tests))
           Coverage.Evidence.record(existing_test, Map.get(attrs, :coverage_evidence), shard_index)
 
