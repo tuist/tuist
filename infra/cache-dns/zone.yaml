@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Delegated Tuist managed-cache DNS zone and separate least-privilege runtime policies.
+Resources:
+  CacheZone:
+    Type: AWS::Route53::HostedZone
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: cache.tuist.dev
+      HostedZoneConfig:
+        Comment: Per-account latency-steered cache endpoints across managed environments
+  RecordWriterPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: external-dns cache zone record writer
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: [route53:ListHostedZones, route53:ListHostedZonesByName]
+            Resource: '*'
+          - Effect: Allow
+            Action: [route53:ListResourceRecordSets, route53:ChangeResourceRecordSets, route53:ListTagsForResource]
+            Resource: !Sub 'arn:${AWS::Partition}:route53:::hostedzone/${CacheZone}'
+          - Effect: Allow
+            Action: route53:GetChange
+            Resource: !Sub 'arn:${AWS::Partition}:route53:::change/*'
+  SolverPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: cert-manager DNS01 challenges in the cache zone
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: route53:ListResourceRecordSets
+            Resource: !Sub 'arn:${AWS::Partition}:route53:::hostedzone/${CacheZone}'
+          - Effect: Allow
+            Action: route53:ChangeResourceRecordSets
+            Resource: !Sub 'arn:${AWS::Partition}:route53:::hostedzone/${CacheZone}'
+            Condition:
+              ForAllValues:StringEquals:
+                route53:ChangeResourceRecordSetsRecordTypes: [TXT]
+              ForAllValues:StringLike:
+                route53:ChangeResourceRecordSetsNormalizedRecordNames: ['_acme-challenge.cache.tuist.dev', '_acme-challenge.*.cache.tuist.dev']
+          - Effect: Allow
+            Action: route53:GetChange
+            Resource: !Sub 'arn:${AWS::Partition}:route53:::change/*'
+  ControllerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Observe cache DNS records and manage shared box TCP health checks
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: route53:ListResourceRecordSets
+            Resource: !Sub 'arn:${AWS::Partition}:route53:::hostedzone/${CacheZone}'
+          - Effect: Allow
+            Action: [route53:ListHealthChecks, route53:CreateHealthCheck]
+            Resource: '*'
+          - Effect: Allow
+            Action: route53:DeleteHealthCheck
+            Resource: !Sub 'arn:${AWS::Partition}:route53:::healthcheck/*'
+Outputs:
+  HostedZoneId:
+    Value: !Ref CacheZone
+  NameServers:
+    Value: !Join [',', !GetAtt CacheZone.NameServers]
+  WriterPolicyArn:
+    Value: !Ref RecordWriterPolicy
+  SolverPolicyArn:
+    Value: !Ref SolverPolicy
+  ControllerPolicyArn:
+    Value: !Ref ControllerPolicy

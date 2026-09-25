@@ -64,7 +64,8 @@ use crate::{
     utils::{
         BACKFILL_IDX_PREFIX, BackfillRecordKind, BodyReadError, RequestBodyError,
         RequestBodyErrorKind, RequestBodyStaging, TempFileCleanup, TmpReservation,
-        action_cache_key, blob_key, module_key, now_ms, read_request_to_temp, temp_file_path,
+        action_cache_key, blob_key, discard_request_body, module_key, now_ms, read_request_to_temp,
+        temp_file_path,
     },
 };
 
@@ -4018,7 +4019,10 @@ async fn put_blob_artifact(
         .artifact_exists(producer, spec.namespace_id, spec.key)
         .await
     {
-        Ok(true) => return spec.existing_status.into_response(),
+        Ok(true) => {
+            discard_request_body(request, spec.max_bytes).await;
+            return spec.existing_status.into_response();
+        }
         Ok(false) => {}
         Err(error) => {
             return error_response(

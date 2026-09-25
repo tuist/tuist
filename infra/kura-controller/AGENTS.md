@@ -86,3 +86,42 @@ Runner instances share the managed StatefulSet rollout, preferred co-location, d
 `controllers/client_gateway.go` observes endpoint availability independently of ring completeness. Shared routing and the endpoint observation run before storage maintenance can return early. `endpointLastCheckedAt`, `endpointReason`, and `endpointMessage` describe the observation; `lastReconciledAt` still describes full workload convergence. The server persists the controller observation time and uses one freshness window for activation and dispatch. Ready certificate conditions may omit observedGeneration, but explicit stale generations are rejected and the hostname must match. Gateway discovery is cached per ingress class for 30 seconds; DNS is cached per host for 60 seconds, with five-second negative caching and a two-second deadline. Keep [private-runner-rollouts.md](private-runner-rollouts.md) current. There is no runner-specific rollout policy or pod deletion engine.
 
 Runner sizing uses the existing account disk policy and plan memory/CPU profiles. Legacy unpinned claims adopt the account budget during enrollment, capped at 50Gi. After a smaller StatefulSet template is observed, unscheduled Pending pods with larger disk requests are recreated with resource-version preconditions; scheduled pods and PVCs remain, and operator OnDelete/partition pauses are respected. A missing StatefulSet and conflicted/already-gone pod deletions are benign races. Missing or duplicate Kura template containers fail closed without pod deletion; only successful deletes emit replacement logs. Keep the private runner extended memory-ceiling request disabled until its hosts advertise that resource. See the resource-sizing section in [private-runner-rollouts.md](private-runner-rollouts.md).
+
+## Stable cache DNS
+
+Stable HTTP/gRPC routes and per-instance certificate names include retained
+regional aliases as well as the stable hostname. Regional aliases share the
+regional TLS selection; stable TLS remains independent so pending issuance does
+not replace a working regional wildcard. Regional DNS continues to use only
+the canonical regional host and its aliases; stable DNS has its own writer.
+
+The stable chart tests render the actual canary and production overlays with
+distinct DNS owners and separate ESO credentials. Certificate readiness tests
+exercise the operator bootstrap script against pending, stale, and current
+certificates without contacting Kubernetes; an old Ready condition cannot pass
+the rollout check. Routine deployments do not run that check.
+
+The staging validation checklist and immutable links to one-off probe sources
+and completed evidence live in [`../cache-dns/README.md`](../cache-dns/README.md).
+
+`controllers/stable_endpoint.go` separates rendering from latency-record advertising. Managed host-network instances add `stableHost`, `stableAdvertise`, and `stableAWSRegion`; private instances cannot advertise. Probe the actual gateway using stable SNI before publishing, then require the exact provider record for readiness. Regional TLS keeps its working wildcard while stable TLS is pending. Host-network Ingresses use annotation-only external-dns sourcing, making DNSEndpoints authoritative.
+
+Persist identity before creating a DNS source. Rollback, rename and deletion all retain that identity in status, withdraw only its regional record, and wait the full drain after Route53 observes absence. Provider errors never count as absence. Do not remove the finalizer or disable provider credentials to unblock this barrier. Shared TCP box checks are controller-owned and garbage-collected under the same reconciliation lock only when both provider records and persisted intent release them. `../cache-dns/README.md` owns rollout and deferred staging validation.
+
+An identity with no persisted target never reached publication and clears without
+a provider read or drain. For published endpoints, withdrawal errors retain the
+host but must not stop ordinary workload repair; only deletion or a change that
+would drop public serving blocks the rest of reconciliation.
+
+Publish completed stable readiness observations. A steady reconciliation must not
+persist an intermediate `ready: false` before probing: the server can sample it
+and hand out regional names until its next observation. Initial identity and
+changed health-check claims still persist before advertising. Completed probe
+or provider failures clear readiness, with a separate bounded status-write
+context so an expired provider deadline does not prevent recording the failure.
+
+Health-check incarnations use a random caller-reference suffix: Route53 retains
+references after deletion and rejects reusing them for days. Adopt both legacy
+and suffixed checks by box identity, keep the same reference across ambiguous
+create retries and stale lists after success. Release the reference after
+confirmed collection, or rotate it after a definite AlreadyExists response.

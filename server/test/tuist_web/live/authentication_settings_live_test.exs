@@ -208,6 +208,76 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       refute html =~ "Failed to configure"
       assert html =~ "Enable Single Sign-On"
     end
+
+    test "offers the verification record for a login domain it did not enter itself", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      configured_organization
+      |> Ecto.Changeset.change(%{
+        sso_legacy_email_domain_fallback: true,
+        sso_login_domain: "customer.example",
+        sso_login_domain_verification_token: "backfilled-token",
+        sso_login_domain_verified_at: nil
+      })
+      |> Tuist.Repo.update!()
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert html =~ "customer.example"
+      assert html =~ "Pending verification"
+      assert html =~ "_tuist-verification.customer.example"
+      assert html =~ "tuist-domain-verification=backfilled-token"
+    end
+
+    test "describes the settings a lapsed verification keeps and still saves the configuration", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret"
+        })
+
+      configured_organization
+      |> Ecto.Changeset.change(%{
+        sso_login_domain: "customer.example",
+        sso_login_domain_verification_token: "verification-token",
+        sso_login_domain_verified_at: nil,
+        sso_login_domain_last_verified_at: ~U[2026-09-01 12:00:00Z],
+        sso_automatic_enrollment: true,
+        sso_enforced: true
+      })
+      |> Tuist.Repo.update!()
+
+      {:ok, _lv, html} =
+        conn
+        |> init_test_session(%{auth_method: :okta})
+        |> live(~p"/#{account.name}/settings/authentication")
+
+      assert html =~ "Automatic enrollment is paused until the login email domain is verified"
+      refute html =~ "This existing configuration allows any email address reported by the provider"
+      refute html =~ "Verify a login email domain before enforcing single sign-on"
+      assert html =~ "tuist-domain-verification=verification-token"
+
+      assert {:ok, _organization} =
+               Accounts.update_sso_configuration(organization.id, :okta, %{
+                 sso_organization_id: "company.okta.com",
+                 oauth2_client_id: "test_client_id",
+                 oauth2_client_secret: "rotated_client_secret"
+               })
+    end
   end
 
   describe "Microsoft Entra ID SSO" do

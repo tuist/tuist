@@ -28,6 +28,11 @@ defmodule Tuist.ClickHouse.Parity do
 
   Tables with no time column cannot be bounded that way and are skipped when a
   window is given, which is stated in the report rather than left implicit.
+  So are tables whose window would still read more than a billion rows, as
+  ClickHouse estimates it before reading anything. A time filter only saves
+  reads when the table's partitions, primary key or skip indexes are built on
+  that column; otherwise the "window" is the whole table, which for
+  `build_files` on production is 26 billion rows.
 
   ## Why the newest rows are excluded
 
@@ -76,6 +81,24 @@ defmodule Tuist.ClickHouse.Parity do
   # of query, so it gets an explicit ceiling and fails on its own rather than
   # at the expense of the application.
   @max_memory_usage 1024 * 1024 * 1024
+
+  # How long one fingerprint may run, in seconds, enforced by the server so a
+  # slow one fails there with TIMEOUT_EXCEEDED. The client waits longer than
+  # that, and does not retry: when the client gives up first, the driver asks
+  # DBConnection to retry on a fresh connection, and ClickHouse keeps running
+  # every abandoned read to the end. That turned one slow fingerprint into four
+  # concurrent full scans of the same table.
+  #
+  # A windowed run only compares tables whose window is small, so the recurring
+  # check gets the short ceiling. A full comparison sums every row of the
+  # largest tables and gets the long one.
+  @windowed_max_execution_time 120
+  @full_max_execution_time 1800
+
+  # The most rows a windowed fingerprint may read. Production's tables read in
+  # a couple of seconds up to about a billion rows; the four above it took
+  # between 40 seconds and 8 minutes each.
+  @windowed_max_rows 1_000_000_000
 
   @doc """
   Fingerprints every table on the destination and compares it with the source.
@@ -163,12 +186,12 @@ defmodule Tuist.ClickHouse.Parity do
   end
 
   defp split(source, target, tables, since, as_of) do
-    # A windowed run can only speak for tables it can bound, so the ones with
-    # no time column are reported as skipped rather than silently compared in
-    # full, which would make an hourly check as expensive as a full one.
+    # A windowed run can only speak for tables it can bound, so the ones it
+    # cannot are reported as skipped rather than silently compared in full,
+    # which would make an hourly check as expensive as a full one.
     {comparable, skipped} =
       if since do
-        Enum.split_with(tables, &(time_column(target, &1) != nil))
+        Enum.split_with(tables, &windowable?(source, target, &1, since, as_of))
       else
         {tables, []}
       end
@@ -183,7 +206,12 @@ defmodule Tuist.ClickHouse.Parity do
         # Two fingerprints that failed identically are not a match. Without
         # this, a comparison where both sides timed out reports `differing:
         # []`, and a check that verified nothing would clear a cutover.
-        %{table: table, source: left, destination: right, matches: verified?(left) and verified?(right) and left == right}
+        %{
+          table: table,
+          source: left,
+          destination: right,
+          matches: verified?(left) and verified?(right) and same_fingerprint?(left, right)
+        }
       end)
       |> Enum.split_with(& &1.matches)
 
@@ -201,34 +229,111 @@ defmodule Tuist.ClickHouse.Parity do
   # what catches a copy that moved the right number of rows with the wrong
   # values in them, which a count cannot see.
   #
-  # Integer and floating-point columns are summed differently on purpose.
-  # Integer addition is exact and order-independent, so `sum` over one is a
-  # fingerprint. Floating-point addition is neither: the two servers hold the
-  # same rows in different parts and will add them in different orders, so an
-  # unrounded float sum differs in its last bits for data that is identical.
-  # Rounding absorbs that, and the difference a rounded sum could hide is far
-  # smaller than any difference worth failing a migration over.
+  # Integer addition is exact and order-independent, so `sum` over an integer
+  # column is a fingerprint. Floating-point addition is neither: the two
+  # servers hold the same rows in different parts and add them in different
+  # orders, so a float sum differs in its last bits for data that is identical.
+  # Those are compared within a relative tolerance in `same_fingerprint?/2`.
   defp fingerprint(endpoint, table, since, as_of, ttl) do
-    {integer, float} = numeric_columns(endpoint, table)
-    time = time_column(endpoint, table)
+    {selects, statement} = fingerprint_statement(endpoint, table, since, as_of, ttl)
+    max_execution_time = if since, do: @windowed_max_execution_time, else: @full_max_execution_time
 
-    selects =
-      ["count() AS rows"] ++
-        Enum.map(integer, fn column -> "sum(#{quote_ident(column)}) AS sum_#{column}" end) ++
-        Enum.map(float, fn column -> "round(sum(#{quote_ident(column)}), 4) AS sum_#{column}" end) ++
-        if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
+    %{rows: [values]} =
+      endpoint.repo.query!(statement, [],
+        settings: [max_memory_usage: @max_memory_usage, max_execution_time: max_execution_time],
+        timeout: to_timeout(second: max_execution_time + 60),
+        checkout_retries: 0,
+        log: false
+      )
 
-    statement =
-      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, as_of, ttl)}"
-
-    %{rows: [values]} = endpoint.repo.query!(statement, [], settings: [max_memory_usage: @max_memory_usage], log: false)
     selects |> Enum.map(&label/1) |> Enum.zip(values) |> Map.new()
   rescue
     error -> %{error: Exception.message(error)}
   end
 
+  defp fingerprint_statement(endpoint, table, since, as_of, ttl) do
+    {integer, float} = numeric_columns(endpoint, table)
+    time = time_column(endpoint, table)
+
+    selects =
+      ["count() AS rows"] ++
+        Enum.map(integer ++ float, fn column -> "sum(#{quote_ident(column)}) AS sum_#{column}" end) ++
+        if time, do: ["min(#{quote_ident(time)}) AS min_time", "max(#{quote_ident(time)}) AS max_time"], else: []
+
+    statement =
+      "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, as_of, ttl)}"
+
+    {selects, statement}
+  end
+
   defp verified?(%{error: _}), do: false
   defp verified?(_fingerprint), do: true
+
+  @doc """
+  Whether two fingerprints describe the same rows.
+
+  Float sums are equal when they agree to within a part in a trillion. Rounding
+  to a fixed number of decimals does not work for them: a double carries about
+  16 significant digits, so a sum around 10^12 has none left for the fourth
+  decimal, and two sums of the same rows on production differed there by a
+  part in 10^15. A relative bound sits the same distance above that noise
+  whatever the magnitude.
+  """
+  def same_fingerprint?(left, right) do
+    map_size(left) == map_size(right) and
+      Enum.all?(left, fn {key, value} ->
+        case Map.fetch(right, key) do
+          {:ok, other} -> same_value?(value, other)
+          :error -> false
+        end
+      end)
+  end
+
+  defp same_value?(left, right) when is_float(left) and is_float(right),
+    do: abs(left - right) <= 1.0e-12 * max(abs(left), abs(right))
+
+  defp same_value?(left, right), do: left == right
+
+  # Whether a table's window is small enough for the recurring check. Asked of
+  # the source, which holds every row the destination does and is the server
+  # whose load matters, and answered by ClickHouse's own index analysis:
+  # partitions, primary key and skip indexes, before anything is read.
+  #
+  # A table the source cannot estimate, typically one only the destination
+  # has, is compared anyway, so the fingerprint fails and reports it as a
+  # difference rather than the whole comparison failing on the estimate.
+  defp windowable?(source, target, table, since, as_of) do
+    if time_column(target, table) do
+      {_selects, statement} = fingerprint_statement(source, table, since, as_of, ttl(target, table))
+
+      case estimated_rows(source, statement) do
+        {:ok, rows} -> rows <= @windowed_max_rows
+        {:error, _reason} -> true
+      end
+    else
+      false
+    end
+  end
+
+  defp estimated_rows(endpoint, statement) do
+    with {:ok, %{columns: columns, rows: rows}} <- endpoint.repo.query("EXPLAIN ESTIMATE " <> statement, [], log: false),
+         {:ok, index} <- row_estimate_index(columns) do
+      {:ok, rows |> Enum.map(&Enum.at(&1, index)) |> Enum.sum()}
+    end
+  end
+
+  # An answer in a shape this does not recognise is an absent estimate, not a
+  # reason to stop. Reading the column by position would be shorter and would
+  # make a renamed or reordered `EXPLAIN ESTIMATE` fail inside the enumeration
+  # instead, which nothing here rescues: one table that cannot be estimated
+  # would take the whole comparison with it, rather than being compared as the
+  # error case below already intends.
+  defp row_estimate_index(columns) do
+    case Enum.find_index(columns, &(&1 == "rows")) do
+      nil -> {:error, :no_row_estimate}
+      index -> {:ok, index}
+    end
+  end
 
   defp window_clause(time, since, as_of, ttl) do
     conditions =

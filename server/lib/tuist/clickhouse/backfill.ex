@@ -106,6 +106,35 @@ defmodule Tuist.ClickHouse.Backfill do
   # binds before the shared pool does; see `Tuist.ClickHouse.Parity`.
   @max_memory_usage 1024 * 1024 * 1024
 
+  # Bounds one chunk's copy, which without this can cost more than the whole
+  # server has. Production's first backfill lost three chunks of
+  # `test_case_runs_recent_500_per_case` and one of the table after it to
+  #
+  #   Code: 241. (total) memory limit exceeded: would use 26.88 GiB, current
+  #   RSS: 28.80 GiB, maximum: 28.80 GiB ... While executing Remote
+  #
+  # while both replicas idle at 1.7 GiB of their 32Gi limit. So it is one
+  # statement, not a server sized too small, and the memory is the insert
+  # side's: `SELECT *` off a wide table arrives in million-row blocks that are
+  # sorted by the destination's key before they are written, once per reading
+  # thread, and `max_threads` defaults to the host's core count because the
+  # container has no CPU limit for ClickHouse to read a smaller number from.
+  # Two multipliers, so both are bounded here.
+  #
+  # `max_memory_usage` is the backstop rather than the fix. It is per query,
+  # so a chunk that still does not fit fails alone instead of driving the
+  # server-wide tracker to a ceiling that live traffic is also allocating
+  # against: shadow writes share this server, and one that fails after its
+  # retries is counted `error` and lost for good, having been written after
+  # the cutoff that any later backfill would copy up to.
+  @copy_settings [
+    max_memory_usage: 8 * 1024 * 1024 * 1024,
+    max_threads: 4,
+    max_insert_block_size: 65_536,
+    min_insert_block_size_rows: 65_536,
+    min_insert_block_size_bytes: 64 * 1024 * 1024
+  ]
+
   @doc """
   Copies every table the destination has, oldest chunk first.
 
@@ -362,8 +391,17 @@ defmodule Tuist.ClickHouse.Backfill do
     end
   end
 
+  @doc """
+  The settings every statement a copy issues carries.
+
+  Public for the same reason as `predicate/1`: when it is wrong nothing says
+  so at the call site, and the failure lands on the server rather than on the
+  statement that caused it.
+  """
+  def copy_settings, do: @copy_settings
+
   defp run!(target, statement, params) do
-    target.repo.query!(statement, params, timeout: to_timeout(minute: 30), log: false)
+    target.repo.query!(statement, params, settings: @copy_settings, timeout: to_timeout(minute: 30), log: false)
   end
 
   # On a plain `MergeTree` the destination cannot lack more rows than it is

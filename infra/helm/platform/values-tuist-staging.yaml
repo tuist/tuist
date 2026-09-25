@@ -1,6 +1,15 @@
 # Staging workload-cluster overlay. Loaded by k8s:install-platform when
 # CLUSTER_NAME=tuist-staging.
 
+cacheDNS:
+  enabled: true
+  hostedZoneId: Z046862130S1WUMPV7Z3P
+  ownerId: tuist-staging-cache
+  externalSecret:
+    enabled: true
+    writerItem: cache-dns-writer
+    solverItem: cache-dns-solver
+
 # Stable outbound source IP for staging Tuist server traffic. The IP is a
 # Hetzner Floating IP. The gateway runs HA across the md-egress pool: the
 # failover controller keeps the Floating IP + active label on one Ready node

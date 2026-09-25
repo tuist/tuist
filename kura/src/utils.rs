@@ -571,6 +571,40 @@ pub async fn read_request_to_temp(
     })
 }
 
+/// Reads the rest of an HTTP/1 request body and discards it, so an answer
+/// that does not need the body leaves the connection reusable.
+///
+/// Hyper closes an HTTP/1 connection whose request body was not read to the
+/// end, and closing with bytes still unread makes the kernel send a reset that
+/// can destroy the answer, or the next request a proxy sends over the pooled
+/// connection. HTTP/2 cancels only the stream, so there is nothing to read. A
+/// body larger than `max_bytes`, or one that fails, is abandoned and the
+/// connection closes.
+pub async fn discard_request_body(request: Request, max_bytes: u64) {
+    if !matches!(
+        request.version(),
+        axum::http::Version::HTTP_10 | axum::http::Version::HTTP_11
+    ) {
+        return;
+    }
+    let declared_bytes = request
+        .headers()
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok());
+    if declared_bytes.is_some_and(|declared_bytes| declared_bytes > max_bytes) {
+        return;
+    }
+    let mut stream = request.into_body().into_data_stream();
+    let mut size = 0_u64;
+    while let Some(Ok(chunk)) = stream.next().await {
+        size += chunk.len() as u64;
+        if size > max_bytes {
+            return;
+        }
+    }
+}
+
 pub(crate) async fn drop_staging_cache_range(
     file: TrackedFile,
     path: &Path,

@@ -6626,3 +6626,118 @@ private struct SDKPathAndStatus: Equatable {
     var name: String
     var status: LinkingStatus
 }
+
+struct GraphTraverserStaticXCFrameworksReachableViaCachedTargetsTests {
+    private let projectPath = try! AbsolutePath(validating: "/Project")
+    private let renderer = GraphDependency.testXCFramework(
+        path: try! AbsolutePath(validating: "/XRendererRustFramework.xcframework"),
+        linking: .static,
+        moduleMaps: [try! AbsolutePath(validating: "/XRendererRustFramework.xcframework/ios-arm64/Headers/module.modulemap")]
+    )
+
+    @Test func excludesStaticXCFrameworksTheTargetLinksItself() {
+        // Given
+        let graph = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "XRendererKit")])],
+            dependencies: [
+                .target(name: "XRendererKit", path: projectPath): [renderer],
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).staticObjcXCFrameworksReachableViaCachedTargets(
+            path: projectPath,
+            name: "XRendererKit",
+            currentGraph: graph
+        )
+
+        // Then
+        #expect(got.isEmpty)
+    }
+
+    @Test func includesStaticXCFrameworksBehindReplacedTargets() {
+        // Given
+        let graphWithSources = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "App"), .test(name: "XRendererKit")])],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "XRendererKit", path: projectPath),
+                    renderer,
+                ],
+                .target(name: "XRendererKit", path: projectPath): [renderer],
+            ]
+        )
+        let graphWithBinaryCache = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "App")])]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graphWithSources).staticObjcXCFrameworksReachableViaCachedTargets(
+            path: projectPath,
+            name: "App",
+            currentGraph: graphWithBinaryCache
+        )
+
+        // Then
+        #expect(got == [renderer])
+    }
+
+    @Test func includesStaticXCFrameworksBehindReplacedTargetsReachableAlongSeveralPaths() throws {
+        for iteration in 0 ..< 50 {
+            // Given
+            let renderer = GraphDependency.testXCFramework(
+                path: try AbsolutePath(validating: "/XRendererRustFramework\(iteration).xcframework"),
+                linking: .static,
+                moduleMaps: [
+                    try AbsolutePath(
+                        validating: "/XRendererRustFramework\(iteration).xcframework/ios-arm64/Headers/module.modulemap"
+                    ),
+                ]
+            )
+            func target(_ name: String) -> GraphDependency {
+                .target(name: "\(name)\(iteration)", path: projectPath)
+            }
+            let graphWithSources = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: ["App", "AppExtension", "FeatureKit", "CoreKit", "XRendererKit"]
+                            .map { .test(name: "\($0)\(iteration)") }
+                    ),
+                ],
+                dependencies: [
+                    target("App"): [target("FeatureKit")],
+                    target("AppExtension"): [target("CoreKit")],
+                    target("FeatureKit"): [target("CoreKit"), target("XRendererKit")],
+                    target("CoreKit"): [target("XRendererKit")],
+                    target("XRendererKit"): [renderer],
+                ]
+            )
+            let graphWithBinaryCache = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: ["App", "AppExtension"].map { .test(name: "\($0)\(iteration)") }
+                    ),
+                ]
+            )
+            let subject = GraphTraverser(graph: graphWithSources)
+
+            // When
+            let gotApp = subject.staticObjcXCFrameworksReachableViaCachedTargets(
+                path: projectPath,
+                name: "App\(iteration)",
+                currentGraph: graphWithBinaryCache
+            )
+            let gotAppExtension = subject.staticObjcXCFrameworksReachableViaCachedTargets(
+                path: projectPath,
+                name: "AppExtension\(iteration)",
+                currentGraph: graphWithBinaryCache
+            )
+
+            // Then
+            #expect(gotApp == [renderer])
+            #expect(gotAppExtension == [renderer])
+        }
+    }
+}

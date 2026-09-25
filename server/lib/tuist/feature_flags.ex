@@ -4,6 +4,17 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Environment
 
   @doc """
+  Whether the account may advertise and receive its managed stable cache
+  hostname. Canary is automatically enabled. Every other environment requires
+  the `:kura_stable_hostname` flag for the account or for everyone. The same
+  flag controls advertising intent and URL hand-out; readiness still gates
+  publication and endpoint selection.
+  """
+  def kura_stable_hostname_enabled?(account) do
+    Environment.env() == :can or FunWithFlags.enabled?(:kura_stable_hostname, for: account)
+  end
+
+  @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
   `:runners` FunWithFlags toggle for the actor. Development, test, and

@@ -275,6 +275,8 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 - Don't let `helm/k8s-monitoring/` grow dependencies on things the self-host chart needs — the two are consumed by different users.
 - When a new managed-cluster operational step becomes reproducible, document it in `k8s/onboarding.md` rather than in this AGENTS.md. This file maps the territory; the runbook walks you through it.
 
+- Managed cache proximity DNS: `cache-dns/AGENTS.md` and `cache-dns/README.md` cover the retained Route53 zone, scoped identities, delegation, staged flags, and withdrawal-safe rollback. Defaults are inert.
+
 - Linux runner cache volumes use a dedicated privileged local-image agent
   and private per-job reflink clones. They reuse macOS HEAD/object storage.
   The chart is off by default for self-hosting; managed production enables an

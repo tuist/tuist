@@ -139,7 +139,8 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
     /// being prepared, so the proxy launches against it rather than without a remote.
     ///
     /// Builds only ever talk to the proxy, which starts without a remote when none is ready and
-    /// adopts it once it serves, so setup is the one place that can say the cache is not ready yet.
+    /// adopts it once it serves, so setup is the one place that can say the cache is not ready yet, or
+    /// not available to the logged-in account.
     private func waitForRemoteCache(fullHandle: String, serverURL: URL) async {
         let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
         do {
@@ -148,6 +149,11 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             AlertController.current.warning(.alert(
                 "The remote cache is still being prepared.",
                 takeaway: "Builds use the local compilation cache until it is ready, and start using the remote cache without running setup again."
+            ))
+        } catch let CacheURLStoreError.forbidden(message) {
+            AlertController.current.warning(.alert(
+                "\(message)",
+                takeaway: "Builds use the local compilation cache."
             ))
         } catch {
             Logger.current.debug("Could not check the remote cache endpoint for \(fullHandle): \(error.localizedDescription)")
@@ -594,13 +600,14 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             environmentVariables["TUIST_CAS_PREFETCH"] = "keys"
         }
 
-        // Not read by the proxy, which resolves the Xcode it loads its CAS plugin
-        // from by itself, once, when it starts. Recording the one it resolves
-        // makes a machine switched to another Xcode a changed configuration,
-        // which a running proxy has to be restarted for.
-        let developerDirectory = try? await xcodeController.systemDeveloperDirectory()
+        // The proxy loads its CAS plugin from this Xcode once, when it starts, and
+        // launchd would otherwise hand it the system-wide selection even when this
+        // job selected another Xcode through `DEVELOPER_DIR`. Passing it also makes
+        // a switch to another Xcode a changed configuration, which a running proxy
+        // has to be restarted for.
+        let developerDirectory = try? await xcodeController.developerDirectory()
         if let developerDirectory {
-            environmentVariables["TUIST_CAS_PROXY_DEVELOPER_DIR"] = developerDirectory.pathString
+            environmentVariables["DEVELOPER_DIR"] = developerDirectory.pathString
         }
 
         // One proxy per machine. Boot out any legacy per-project cache daemon so

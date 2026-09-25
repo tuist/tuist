@@ -40,6 +40,7 @@ defmodule Tuist.Accounts.Organization do
   @sso_verification_fields [
     :sso_login_domain_verification_token,
     :sso_login_domain_verified_at,
+    :sso_login_domain_last_verified_at,
     :sso_legacy_email_domain_fallback
   ]
 
@@ -50,6 +51,7 @@ defmodule Tuist.Accounts.Organization do
     field :sso_login_domain, :string
     field :sso_login_domain_verification_token, :string
     field :sso_login_domain_verified_at, :utc_datetime
+    field :sso_login_domain_last_verified_at, :utc_datetime
     field :sso_automatic_enrollment, :boolean, default: false
     field :sso_default_role, :string, default: "user"
     field :sso_legacy_email_domain_fallback, :boolean, default: false
@@ -135,6 +137,7 @@ defmodule Tuist.Accounts.Organization do
     organization
     |> change(
       sso_login_domain_verified_at: verified_at,
+      sso_login_domain_last_verified_at: verified_at,
       sso_legacy_email_domain_fallback: false
     )
     |> unique_constraint(:sso_login_domain,
@@ -144,24 +147,10 @@ defmodule Tuist.Accounts.Organization do
   end
 
   def validate_sso_security_policy(changeset) do
-    provider = get_field(changeset, :sso_provider)
-    login_domain = get_field(changeset, :sso_login_domain)
-    verified_at = get_field(changeset, :sso_login_domain_verified_at)
-    automatic_enrollment = get_field(changeset, :sso_automatic_enrollment)
-    enforced = get_field(changeset, :sso_enforced)
-    legacy_fallback = get_field(changeset, :sso_legacy_email_domain_fallback)
-    verified_domain? = is_binary(login_domain) and not is_nil(verified_at)
-
-    if provider in @oauth2_providers do
+    if get_field(changeset, :sso_provider) in @oauth2_providers do
       changeset
-      |> maybe_require_verified_domain(
-        automatic_enrollment and not verified_domain? and not legacy_fallback,
-        :sso_automatic_enrollment
-      )
-      |> maybe_require_verified_domain(
-        enforced and not verified_domain? and not legacy_fallback,
-        :sso_enforced
-      )
+      |> require_verified_domain(:sso_automatic_enrollment)
+      |> require_verified_domain(:sso_enforced)
     else
       changeset
     end
@@ -183,11 +172,21 @@ defmodule Tuist.Accounts.Organization do
     )
   end
 
-  defp maybe_require_verified_domain(changeset, true, field) do
-    add_error(changeset, field, "requires a verified login email domain for this provider")
-  end
+  # A verification the daily re-check lapsed keeps the settings it was saved
+  # with, so the rest of the configuration can still be edited until the
+  # domain is verified again. Turning a setting on still needs verification.
+  defp require_verified_domain(changeset, field) do
+    verified_at = get_field(changeset, :sso_login_domain_verified_at)
+    verified_domain? = is_binary(get_field(changeset, :sso_login_domain)) and not is_nil(verified_at)
+    lapsed? = is_nil(verified_at) and not is_nil(get_field(changeset, :sso_login_domain_last_verified_at))
 
-  defp maybe_require_verified_domain(changeset, false, _field), do: changeset
+    cond do
+      get_field(changeset, field) != true -> changeset
+      verified_domain? or get_field(changeset, :sso_legacy_email_domain_fallback) -> changeset
+      lapsed? and get_change(changeset, field) != true -> changeset
+      true -> add_error(changeset, field, "requires a verified login email domain for this provider")
+    end
+  end
 
   defp validate_oauth2_required_fields(changeset) do
     if get_field(changeset, :sso_provider) in @oauth2_providers do
