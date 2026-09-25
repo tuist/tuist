@@ -246,14 +246,20 @@ defmodule TuistWeb.CoverageDetailLive do
   end
 
   defp assign_overview(%{assigns: %{comparison: comparison, subject: subject} = assigns} = socket) do
+    [least_covered, unmeasured] =
+      Tuist.Tasks.parallel_tasks([
+        fn -> least_covered_files(assigns.selected_project, subject.sha) end,
+        fn -> unmeasured_files(assigns.selected_project, subject.sha, @highlight_size) end
+      ])
+
     socket
     |> assign(:scheme_rows, Enum.map(comparison.schemes, &Map.put(&1, :id, "scheme-" <> &1.scheme)))
     |> assign(:target_rises, movers(comparison.targets, :desc, "target-rise"))
     |> assign(:target_falls, movers(comparison.targets, :asc, "target-fall"))
     |> assign(:file_rises, movers(comparison.files, :desc, "file-rise"))
     |> assign(:file_falls, movers(comparison.files, :asc, "file-fall"))
-    |> assign(:least_covered_files, least_covered_files(assigns.selected_project, subject.sha))
-    |> assign(:unmeasured_files, unmeasured_files(assigns.selected_project, subject.sha, @highlight_size))
+    |> assign(:least_covered_files, least_covered)
+    |> assign(:unmeasured_files, unmeasured)
     |> assign(:patch_rows, patch_rows(comparison.patch))
     |> assign(:skipped_rows, skipped_rows(comparison.patch))
   end

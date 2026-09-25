@@ -150,6 +150,19 @@ defmodule Tuist.Tests.Coverage.Commits do
   defp carried_row(project, sha, previous, reported, opts) do
     repository_id = Reported.repository_id(project.id, sha)
 
+    unmeasured =
+      unmeasured_paths(
+        project,
+        %{
+          git_repository_id: repository_id,
+          git_commit_sha: sha,
+          test_run_ids: [],
+          schemes: [],
+          reported_kind: reported.kind
+        },
+        ExcludedPaths.pattern_for_project(project)
+      )
+
     project
     |> base_row(sha, previous, reported, opts)
     |> Map.merge(%{
@@ -158,7 +171,7 @@ defmodule Tuist.Tests.Coverage.Commits do
       covered_lines: 0,
       executable_lines: 0,
       measured_files_count: 0,
-      unmeasured_files_count: 0,
+      unmeasured_files_count: length(unmeasured),
       schemes: [],
       partial_schemes: [],
       test_run_ids: []
@@ -183,6 +196,19 @@ defmodule Tuist.Tests.Coverage.Commits do
     repository_id = runs |> Enum.map(& &1.git_repository_id) |> Enum.max()
     newest = List.last(runs)
 
+    unmeasured =
+      unmeasured_paths(
+        project,
+        %{
+          git_repository_id: repository_id,
+          git_commit_sha: sha,
+          test_run_ids: run_ids,
+          schemes: schemes,
+          reported_kind: reported.kind
+        },
+        excluded
+      )
+
     project
     |> base_row(sha, previous, reported, opts)
     |> Map.merge(labels(runs))
@@ -192,7 +218,7 @@ defmodule Tuist.Tests.Coverage.Commits do
       covered_lines: totals.covered_lines,
       executable_lines: totals.executable_lines,
       measured_files_count: totals.measured_files_count,
-      unmeasured_files_count: unmeasured_files_count(project.id, repository_id, sha, run_ids, excluded),
+      unmeasured_files_count: length(unmeasured),
       schemes: schemes,
       partial_schemes: partial_schemes,
       test_run_ids: run_ids
@@ -627,11 +653,13 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   # The commit's listing narrowed to the languages the runs measured (a
   # listing has everything Git tracks; only files of the kinds the coverage
-  # tool instruments can be "unmeasured"), minus the excluded paths and the
-  # files some run measured.
+  # tool instruments can be "unmeasured"), minus the excluded paths, the files
+  # some run measured, and those the reported coverage keeps from an ancestor.
   @doc """
-  The files the commit's listing holds that no run measured, in path order:
-  the gap the page names, and the count published with the commit. `limit`
+  The files the commit's listing holds that its coverage does not count, in
+  path order: no run measured them, and the reported coverage keeps none of
+  them from an ancestor (`Tuist.Tests.Coverage.Reported.unbuilt_paths/4`).
+  The gap the page names, and the count published with the commit. `limit`
   caps the list (50 by default) and `offset` skips into it, for paging. Empty
   for a commit without a listing, or one the project has no coverage for.
   """
@@ -641,21 +669,13 @@ defmodule Tuist.Tests.Coverage.Commits do
         []
 
       summary ->
-        project.id
-        |> unmeasured_paths(
-          summary.git_repository_id,
-          sha,
-          summary.test_run_ids,
-          ExcludedPaths.pattern_for_project(project)
-        )
+        project
+        |> unmeasured_paths(summary, ExcludedPaths.pattern_for_project(project))
         |> Enum.sort()
         |> Enum.drop(Keyword.get(opts, :offset, 0))
         |> Enum.take(Keyword.get(opts, :limit, 50))
     end
   end
-
-  defp unmeasured_files_count(project_id, repository_id, sha, run_ids, excluded),
-    do: length(unmeasured_paths(project_id, repository_id, sha, run_ids, excluded))
 
   # Build manifests are source files no product compiles, so a listing entry
   # for one is not a gap in the project's coverage. They are named, not
@@ -675,11 +695,12 @@ defmodule Tuist.Tests.Coverage.Commits do
   # A listed file counts as unmeasured only when it shares an extension with
   # something the runs did measure: the listing holds the whole repository,
   # and a language no scheme compiles is not a gap in this project's coverage.
-  defp unmeasured_paths(_project_id, repository_id, _sha, _run_ids, _excluded) when repository_id in [nil, 0], do: []
+  defp unmeasured_paths(_project, %{git_repository_id: repository_id}, _excluded) when repository_id in [nil, 0], do: []
 
-  defp unmeasured_paths(project_id, repository_id, sha, run_ids, excluded) do
+  defp unmeasured_paths(project, %{git_repository_id: repository_id, git_commit_sha: sha} = commit, excluded) do
     if GitHistory.listing_stored?(repository_id, sha) do
-      measured = report_paths(project_id, run_ids)
+      measured = project.id |> report_paths(commit.test_run_ids) |> MapSet.new()
+      measured = MapSet.union(measured, MapSet.new(Reported.unbuilt_paths(project, commit, measured, excluded)))
 
       extensions =
         measured
@@ -694,7 +715,6 @@ defmodule Tuist.Tests.Coverage.Commits do
         listed = repository_id |> GitHistory.commit_files(sha, match: pattern) |> Enum.map(& &1.path)
         excluded_regex = ExcludedPaths.compile(excluded)
         manifests = ExcludedPaths.compile(ExcludedPaths.pattern(@manifest_globs))
-        measured = MapSet.new(measured)
 
         Enum.filter(listed, fn path ->
           not MapSet.member?(measured, path) and not ExcludedPaths.excluded?(manifests, path) and
@@ -708,6 +728,8 @@ defmodule Tuist.Tests.Coverage.Commits do
 
   # Every path the runs reported, product and test code alike: a test file
   # in the listing is not an unmeasured product file.
+  defp report_paths(_project_id, []), do: []
+
   defp report_paths(project_id, run_ids) do
     ClickHouseRepo.all(
       from(f in Coverage.report_files_for_runs(project_id, run_ids), distinct: true, select: f.path),

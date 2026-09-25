@@ -552,6 +552,42 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
              Reported.compute(project, "head")
   end
 
+  test "lists as without coverage data only the unbuilt files the reported coverage does not keep", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+    paths = ["Sources/Math.swift", "Sources/Text.swift", "Sources/Untested.swift", "Tests/AppTests.swift"]
+    repository_id = CoverageFixtures.seed_listing(account, "head", paths)
+
+    head_run(project, account, [
+      file("Sources/Math.swift", [1, 1, 0]),
+      file("Tests/AppTests.swift", [1, 0], is_test: true)
+    ])
+
+    # Text.swift is unchanged since the base, so the reported coverage keeps
+    # it; no run ever measured Untested.swift.
+    assert Commits.summary(project.id, "head").unmeasured_files_count == 1
+    assert Commits.unmeasured_files(project, "head") == ["Sources/Untested.swift"]
+
+    # Changed since the base, Text.swift is a gap in the reported coverage and
+    # has no coverage data at the commit.
+    Tuist.GitHistory.record_listing(
+      repository_id,
+      "head",
+      Enum.map(paths, fn
+        "Sources/Text.swift" = path -> %{path: path, git_blob_id: "blob-changed", mode: 0o100644}
+        path -> %{path: path, git_blob_id: "blob-" <> path, mode: 0o100644}
+      end),
+      files_count: length(paths)
+    )
+
+    Commits.recompute(project, "head")
+
+    assert Commits.summary(project.id, "head").unmeasured_files_count == 2
+    assert Commits.unmeasured_files(project, "head") == ["Sources/Text.swift", "Sources/Untested.swift"]
+  end
+
   test "an unbuilt file whose coverage came from tests the run never listed is a gap", %{
     project: project,
     account: account

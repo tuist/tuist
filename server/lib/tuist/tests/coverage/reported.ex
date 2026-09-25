@@ -67,6 +67,8 @@ defmodule Tuist.Tests.Coverage.Reported do
   # is only skipped because a run that built it passed.
   @module_source_runs 20
 
+  @listing_read_paths 900
+
   @doc """
   The commit's reported coverage, or nil when no run measured it.
 
@@ -876,41 +878,102 @@ defmodule Tuist.Tests.Coverage.Reported do
     with repository_id when repository_id not in [nil, 0] <- context.repository_id,
          {:ok, basis} <- basis(context),
          [_ | _] = basis_run_ids <- basis_run_ids(context.project.id, basis, schemes) do
-      missing =
-        from(f in subquery(Coverage.merged_files_query_for_runs(context.project.id, basis_run_ids, nil)))
-        |> ClickHouseRepo.all()
-        |> Enum.reject(&(Map.has_key?(context.observed, &1.path) or ExcludedPaths.excluded?(context.excluded, &1.path)))
+      skip? = &(Map.has_key?(context.observed, &1) or ExcludedPaths.excluded?(context.excluded, &1))
 
-      now = GitHistory.blobs_at(repository_id, context.sha, Enum.map(missing, & &1.path))
-      listed? = GitHistory.listing_stored?(repository_id, context.sha)
+      context.project.id
+      |> unbuilt_files(repository_id, context.sha, basis_run_ids, skip?)
+      |> Enum.reduce({files, 0}, fn
+        {_file, :unknown}, {files, gaps} ->
+          {files, gaps + 1}
 
-      Enum.reduce(missing, {files, 0}, fn file, {files, gaps} ->
-        cond do
-          not listed? ->
-            {files, gaps + 1}
+        {file, :gone}, {files, gaps} ->
+          {Map.delete(files, file.path), gaps}
 
-          not Map.has_key?(now, file.path) ->
-            {Map.delete(files, file.path), gaps}
+        {file, :changed}, {files, gaps} ->
+          {Map.delete(files, file.path), gaps + 1}
 
-          now[file.path] != file.git_blob_id or file.git_blob_id == "" ->
-            {Map.delete(files, file.path), gaps + 1}
+        {file, :kept}, {files, gaps} ->
+          carried = Map.get(files, file.path, %{covered_lines: 0}).covered_lines
 
-          true ->
-            carried = Map.get(files, file.path, %{covered_lines: 0}).covered_lines
-
-            {Map.put(files, file.path, %{
-               git_blob_id: file.git_blob_id,
-               source_run_ids: basis_run_ids,
-               targets: file.targets,
-               covered_lines: carried,
-               executable_lines: file.executable_lines
-             }), if(carried < file.covered_lines, do: gaps + 1, else: gaps)}
-        end
+          {Map.put(files, file.path, %{
+             git_blob_id: file.git_blob_id,
+             source_run_ids: basis_run_ids,
+             targets: file.targets,
+             covered_lines: carried,
+             executable_lines: file.executable_lines
+           }), if(carried < file.covered_lines, do: gaps + 1, else: gaps)}
       end)
     else
       _ -> {files, 0}
     end
   end
+
+  # The files the basis runs counted that `skip?` does not rule out, each with
+  # what became of it at the commit: `:kept` with the same blob, `:changed`,
+  # `:gone` from the listing, or `:unknown` when the commit has no listing.
+  defp unbuilt_files(project_id, repository_id, sha, basis_run_ids, skip?) do
+    missing =
+      from(f in subquery(Coverage.merged_files_query_for_runs(project_id, basis_run_ids, nil)))
+      |> ClickHouseRepo.all()
+      |> Enum.reject(&skip?.(&1.path))
+
+    if GitHistory.listing_stored?(repository_id, sha) do
+      now = blobs_now(repository_id, sha, Enum.map(missing, & &1.path))
+
+      Enum.map(missing, fn file ->
+        cond do
+          not Map.has_key?(now, file.path) -> {file, :gone}
+          now[file.path] != file.git_blob_id or file.git_blob_id == "" -> {file, :changed}
+          true -> {file, :kept}
+        end
+      end)
+    else
+      Enum.map(missing, &{&1, :unknown})
+    end
+  end
+
+  # Past one chunk of `GitHistory.blobs_at/3`'s bound paths, reading the whole
+  # listing once is cheaper than a lookup per chunk, and the unbuilt files are
+  # usually most of the project.
+  defp blobs_now(repository_id, sha, paths) when length(paths) > @listing_read_paths do
+    repository_id |> GitHistory.commit_files(sha) |> Map.new(&{&1.path, &1.git_blob_id})
+  end
+
+  defp blobs_now(repository_id, sha, paths), do: GitHistory.blobs_at(repository_id, sha, paths)
+
+  @doc """
+  The files a published commit's reported coverage keeps from an ancestor
+  although no run at the commit compiled them: those unchanged since the
+  nearest measured ancestor. Only a commit whose runs skipped tests
+  (`reported_kind` `reported` or `partial`) keeps any. `measured` are the
+  paths the commit's runs reported. What
+  `Tuist.Tests.Coverage.Commits.unmeasured_files/3` leaves out, so a file the
+  figure counts is not also listed as having no coverage data.
+  """
+  def unbuilt_paths(%Project{} = project, %{reported_kind: kind} = commit, measured, excluded)
+      when kind in ["reported", "partial"] and commit.git_repository_id not in [nil, 0] do
+    context = %{project: project, repository_id: commit.git_repository_id, sha: commit.git_commit_sha}
+    excluded = ExcludedPaths.compile(excluded)
+    skip? = &(MapSet.member?(measured, &1) or ExcludedPaths.excluded?(excluded, &1))
+
+    with {:ok, basis} <- basis(context),
+         [_ | _] = basis_run_ids <- basis_run_ids(project.id, basis, covered_schemes(project.id, commit)) do
+      for {file, :kept} <- unbuilt_files(project.id, context.repository_id, context.sha, basis_run_ids, skip?),
+          do: file.path
+    else
+      _ -> []
+    end
+  end
+
+  def unbuilt_paths(_project, _commit, _measured, _excluded), do: []
+
+  # The schemes `compute/3` reads unbuilt files over: the measured ones, or,
+  # for a commit every scheme was skipped whole on, those of its runs.
+  defp covered_schemes(project_id, %{schemes: [], git_commit_sha: sha}) do
+    project_id |> unmeasured_runs(sha) |> Enum.map(& &1.scheme) |> Enum.reject(&(&1 in [nil, ""])) |> Enum.uniq()
+  end
+
+  defp covered_schemes(_project_id, %{schemes: schemes}), do: schemes
 
   defp basis_run_ids(project_id, basis, schemes) do
     project_id
