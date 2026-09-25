@@ -1176,4 +1176,42 @@ struct RestoreTests {
         }
     }
 
+    // Native SPM does not initialize submodules that are not referenced by the Swift package
+    // manifest. Such packages have a .gitmodules entry but no corresponding directory in the
+    // checkout. cacheNativeSourceCheckouts must still move these checkouts to the source cache
+    // so subsequent runs use symlinks instead of triggering a native resolve on every call
+    @Test
+    func cacheNativeSourceCheckoutsCachesCheckoutWithUninitializedOptionalSubmodule() async throws {
+        try await withTemporaryDirectory { root in
+            let revision = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            let pin = ResolvedPin(
+                identity: "optional-submodule-package",
+                kind: "remoteSourceControl",
+                location: "https://example.com/OptionalSubmodulePackage.git",
+                state: .init(branch: nil, revision: revision, version: "1.0.0")
+            )
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let scratch = root.appendingPathComponent("scratch")
+            let checkout = scratch.appendingPathComponent("checkouts/OptionalSubmodulePackage")
+
+            try await writeMinimalPackageManifest(at: checkout, name: "OptionalSubmodulePackage")
+            // .gitmodules lists a submodule that native SPM never initializes,
+            // so the directory does not exist in the checkout.
+            try await fileSystem.atomicWrite(
+                "[submodule \"extras/companion\"]\n\tpath = extras/companion\n\turl = https://example.com/companion.git\n",
+                to: checkout.appendingPathComponent(".gitmodules")
+            )
+
+            try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+                scratchDir: scratch,
+                cache: cache,
+                resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3)
+            )
+
+            #expect(fileSystem.isSymlink(checkout))
+            let cached = try cache.sourcePath(pin: pin)
+            #expect(try await fileSystem.exists(cached.appendingPathComponent("Package.swift").absolutePath))
+        }
+    }
+
 }
