@@ -6626,3 +6626,59 @@ private struct SDKPathAndStatus: Equatable {
     var name: String
     var status: LinkingStatus
 }
+
+struct GraphTraverserStaticXCFrameworksReachableViaCachedTargetsTests {
+    private let projectPath = try! AbsolutePath(validating: "/Project")
+    private let renderer = GraphDependency.testXCFramework(
+        path: try! AbsolutePath(validating: "/XRendererRustFramework.xcframework"),
+        linking: .static,
+        moduleMaps: [try! AbsolutePath(validating: "/XRendererRustFramework.xcframework/ios-arm64/Headers/module.modulemap")]
+    )
+
+    @Test func excludesStaticXCFrameworksTheTargetLinksItself() {
+        // Given
+        let graph = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "XRendererKit")])],
+            dependencies: [
+                .target(name: "XRendererKit", path: projectPath): [renderer],
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).staticObjcXCFrameworksReachableViaCachedTargets(
+            path: projectPath,
+            name: "XRendererKit",
+            currentGraph: graph
+        )
+
+        // Then
+        #expect(got.isEmpty)
+    }
+
+    @Test func includesStaticXCFrameworksBehindReplacedTargets() {
+        // Given
+        let graphWithSources = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "App"), .test(name: "XRendererKit")])],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "XRendererKit", path: projectPath),
+                    renderer,
+                ],
+                .target(name: "XRendererKit", path: projectPath): [renderer],
+            ]
+        )
+        let graphWithBinaryCache = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "App")])]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graphWithSources).staticObjcXCFrameworksReachableViaCachedTargets(
+            path: projectPath,
+            name: "App",
+            currentGraph: graphWithBinaryCache
+        )
+
+        // Then
+        #expect(got == [renderer])
+    }
+}
