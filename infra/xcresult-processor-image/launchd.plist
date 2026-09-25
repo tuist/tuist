@@ -4,7 +4,9 @@
   Boots the Tuist server release in xcresult-processor mode. Sourced env
   comes from /etc/tuist.env, populated by /opt/tuist/inject-env.sh at
   first boot from the tart-kubelet env mount
-  (/Volumes/My Shared Files/env/tuist.env).
+  (/Volumes/My Shared Files/env/tuist.env). /opt/tuist/fetch-release.sh
+  then downloads the release named by TUIST_XCRESULT_PROCESSOR_RELEASE
+  into /opt/tuist/release; the image itself ships no release.
 
   We exec a wrapper shell rather than calling /opt/tuist/release/bin/tuist
   directly so we can source the env file before launching. launchd's
@@ -39,7 +41,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>/opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; /opt/tuist/tailscale-up.sh &amp;&amp; exec /opt/tuist/release/bin/tuist start</string>
+        <string>/opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; /opt/tuist/fetch-release.sh &amp;&amp; /opt/tuist/tailscale-up.sh &amp;&amp; cd /opt/tuist/release &amp;&amp; exec /opt/tuist/release/bin/tuist start</string>
     </array>
 
     <key>RunAtLoad</key>

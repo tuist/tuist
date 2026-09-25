@@ -177,13 +177,7 @@
       "tag_regex": "^xcresult-processor-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/xcresult-processor-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": [
-        "infra/xcresult-processor-image/**/*",
-        "server/lib/tuist/**/*",
-        "server/native/xcresult_nif/**/*",
-        "server/mix.exs",
-        "server/mix.lock"
-      ]
+      "include_paths": ["infra/xcresult-processor-image/**/*"]
     },
     {
       "name": "runner-image",

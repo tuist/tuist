@@ -124,6 +124,10 @@ spec:
             # leaving ProcessXcresultWorker's queue starved.
             - name: TUIST_MODE
               value: "xcresult_processor"
+            # The release fetch-release.sh downloads at boot. The image
+            # carries none, so this is what a server deploy rolls.
+            - name: TUIST_XCRESULT_PROCESSOR_RELEASE
+              value: {{ printf "%s:%s" .Values.xcresultProcessor.release.repository (.Values.xcresultProcessor.release.tag | default (printf "release-%s" .Values.server.image.tag)) | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             # Tuist.License.assert_valid!/0 runs unconditionally at boot

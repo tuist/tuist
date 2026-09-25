@@ -661,7 +661,7 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: "git-cliff erlang elixir"
+          install: "git-cliff"
           working-directory: server
 
       - name: Get release notes
@@ -671,10 +671,6 @@ jobs:
 
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
-            --include-path "server/lib/**/*"
-            --include-path "server/native/xcresult_nif/**/*"
-            --include-path "server/mix.exs"
-            --include-path "server/mix.lock"
           )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
@@ -690,58 +686,9 @@ jobs:
         run: |
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
-            --include-path "server/lib/**/*"
-            --include-path "server/native/xcresult_nif/**/*"
-            --include-path "server/mix.exs"
-            --include-path "server/mix.lock"
           )
 
           git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      # `actions/checkout` runs `git clean -ffdx` on this host's persistent
-      # workspace, which deletes `server/deps`, `server/_build` and both NIF
-      # `.build` directories, so every release compiled the two Swift NIFs and
-      # the whole Elixir dependency tree cold. Pointing the caches outside the
-      # workspace puts them out of the clean's reach.
-      #
-      # Keyed by runner name because a runner process runs one job at a time:
-      # two jobs landing on the same host (this one and the on-demand
-      # `xcresult-processor-image.yml`) can then never share a cache and
-      # cannot race on the release directory.
-      - name: Point build caches outside the workspace
-        run: |
-          set -euo pipefail
-          cache_root="${HOME}/.cache/tuist-ci/server-macos-release/${RUNNER_NAME// /_}"
-          mkdir -p "${cache_root}/nif"
-          {
-            echo "MIX_BUILD_ROOT=${cache_root}/mix-build"
-            echo "MIX_DEPS_PATH=${cache_root}/mix-deps"
-            echo "TUIST_NIF_BUILD_ROOT=${cache_root}/nif"
-          } >> "$GITHUB_ENV"
-
-      - name: Build server release for macOS
-        id: release
-        working-directory: server
-        run: |
-          set -euo pipefail
-          RELEASE_DIR="${MIX_BUILD_ROOT}/prod/rel/tuist"
-          MIX_ENV=prod mix deps.get --only prod
-          ./native/xcresult_nif/build.sh
-          ./native/xcactivitylog_nif/build.sh
-          MIX_ENV=prod mix compile --force --warnings-as-errors
-          # `mix release --overwrite` writes over the release directory
-          # without emptying it first, so a file dropped since the previous
-          # release would survive in a persistent build root and get baked
-          # into the image.
-          rm -rf "$RELEASE_DIR"
-          MIX_ENV=prod mix release tuist --overwrite
-          echo "dir=${RELEASE_DIR}" >> "$GITHUB_OUTPUT"
-
-      - name: Package release tarball
-        run: |
-          set -euo pipefail
-          tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
-          ls -lh /tmp/release.tar.gz
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -778,7 +725,6 @@ jobs:
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-xcresult-processor" \
-            -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
       # Overrides the action's default of 4. This job sits on the production
@@ -811,7 +757,6 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          rm -f /tmp/release.tar.gz
           tart delete tuist-xcresult-processor 2>/dev/null || true
 
   release-linux-runner-image:

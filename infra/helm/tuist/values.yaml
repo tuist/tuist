@@ -1273,12 +1273,18 @@ xcresultProcessor:
   # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
   queueConcurrency: 4
   image:
-    # Built by .github/workflows/xcresult-processor-image.yml — Tart
-    # VM image with the Tuist server release and the macOS-only
-    # xcresult NIF baked in.
+    # Tart VM image with Xcode, tailscaled and the boot scripts. It
+    # carries no server release; see `release` below.
     repository: ghcr.io/tuist/tuist-xcresult-processor
-    tag: ""  # Set by CI to the commit SHA.
+    tag: ""  # Set by CI from the latest `xcresult-processor-image@` tag.
     pullPolicy: IfNotPresent
+  # The macOS server release the VM downloads at boot, published as a
+  # single-layer OCI artifact by the deploy workflow. The tag defaults to
+  # `release-<server.image.tag>`, so the processor runs the same commit as
+  # the server pods.
+  release:
+    repository: ghcr.io/tuist/tuist-xcresult-processor
+    tag: ""
   # When the chart's `processor.managedSecrets` is true (managed cloud)
   # the build processor's ExternalSecret already syncs the
   # tuist_processor role's DATABASE_URL into a Secret — we reuse that

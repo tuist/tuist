@@ -676,9 +676,144 @@ jobs:
           echo "Reconciling platform chart for cluster $CLUSTER_NAME"
           mise -C infra run k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
 
+  xcresult-release-check:
+    # The xcresult processor VM carries no server release. It downloads
+    # `ghcr.io/tuist/tuist-xcresult-processor:release-<server image tag>` at
+    # boot (infra/xcresult-processor-image/fetch-release.sh), so the release
+    # for the image tag being deployed has to exist before the chart rolls
+    # the processor. Built once per image tag: the canary leg of the cascade
+    # publishes it and the production leg finds it here.
+    name: Check xcresult processor release
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.resolve.outputs.commit }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      reference: ${{ steps.resolve.outputs.reference }}
+      published: ${{ steps.resolve.outputs.published }}
+    steps:
+      - id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
+          REPOSITORY: tuist/tuist-xcresult-processor
+        run: |
+          set -euo pipefail
+
+          # Same tag the build job pushes when no image_tag is passed in.
+          image_tag="${IMAGE_TAG_INPUT:-sha-${DEPLOY_SHA:0:12}}"
+
+          # A rollback can deploy an older image with the current chart, so
+          # the release is built from the commit the image came from, not
+          # from DEPLOY_SHA.
+          if [[ "$image_tag" =~ ^sha-([0-9a-f]{12})$ ]]; then
+            commit="$(gh api "repos/${{ github.repository }}/commits/${BASH_REMATCH[1]}" --jq .sha)"
+          else
+            commit="$DEPLOY_SHA"
+            echo "::warning::${image_tag} is not a sha-<commit> tag; building the xcresult processor release from ${DEPLOY_SHA}."
+          fi
+
+          tag="release-${image_tag}"
+          reference="ghcr.io/${REPOSITORY}:${tag}"
+
+          # Anything but a 200 rebuilds: the build is idempotent and cheap,
+          # while a missing release leaves the processor unable to boot.
+          token="$(
+            curl -fsSL --max-time 30 -u "x-access-token:${GITHUB_TOKEN}" \
+              "https://ghcr.io/token?service=ghcr.io&scope=repository:${REPOSITORY}:pull" |
+              sed -n 's/.*"token":"\([^"]*\)".*/\1/p'
+          )" || token=""
+          status="$(
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -I \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json" \
+              "https://ghcr.io/v2/${REPOSITORY}/manifests/${tag}"
+          )" || status="000"
+          published=false
+          [ "$status" = "200" ] && published=true
+
+          echo "Release ${reference} from ${commit}: published=${published} (HTTP ${status})"
+          {
+            echo "commit=${commit}"
+            echo "tag=${tag}"
+            echo "reference=${reference}"
+            echo "published=${published}"
+          } >> "$GITHUB_OUTPUT"
+
+  xcresult-release-build:
+    name: Build xcresult processor release
+    needs: xcresult-release-check
+    if: needs.xcresult-release-check.outputs.published != 'true'
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 45
+    concurrency:
+      group: xcresult-release-${{ needs.xcresult-release-check.outputs.tag }}
+      cancel-in-progress: false
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      # Tooling comes from DEPLOY_SHA; the release is built from the image's
+      # commit, which predates publish-release.sh on a rollback.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.xcresult-release-check.outputs.commit }}
+          path: release-source
+
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir"
+          working-directory: release-source/server
+
+      # `actions/checkout` runs `git clean -ffdx` on this host's persistent
+      # workspace, which deletes `server/deps`, `server/_build` and both NIF
+      # `.build` directories. Keyed by runner name so jobs sharing a host
+      # never race on the release directory.
+      - name: Point build caches outside the workspace
+        run: |
+          set -euo pipefail
+          cache_root="${HOME}/.cache/tuist-ci/server-macos-release/${RUNNER_NAME// /_}"
+          mkdir -p "${cache_root}/nif"
+          {
+            echo "MIX_BUILD_ROOT=${cache_root}/mix-build"
+            echo "MIX_DEPS_PATH=${cache_root}/mix-deps"
+            echo "TUIST_NIF_BUILD_ROOT=${cache_root}/nif"
+          } >> "$GITHUB_ENV"
+
+      - name: Build server release for macOS
+        id: release
+        working-directory: release-source/server
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="${MIX_BUILD_ROOT}/prod/rel/tuist"
+          MIX_ENV=prod mix deps.get --only prod
+          ./native/xcresult_nif/build.sh
+          ./native/xcactivitylog_nif/build.sh
+          MIX_ENV=prod mix compile --force --warnings-as-errors
+          # `mix release --overwrite` writes over the release directory
+          # without emptying it first, so a file dropped since the previous
+          # release would survive in a persistent build root.
+          rm -rf "$RELEASE_DIR"
+          MIX_ENV=prod mix release tuist --overwrite
+          echo "dir=${RELEASE_DIR}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          REFERENCE: ${{ needs.xcresult-release-check.outputs.reference }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+          infra/xcresult-processor-image/publish-release.sh "${{ steps.release.outputs.dir }}" "$REFERENCE"
+
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, build-kura-runtime, guard_production_source, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-kura-runtime, guard_production_source, observability-install, tailscale-operator-install, platform-install, xcresult-release-check, xcresult-release-build]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `build-kura-runtime` is skipped on canary/production and on staging
     # re-rolls of a prebuilt image; when it does run (staging fresh build) the
@@ -695,7 +830,9 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    # `xcresult-release-build` is skipped when the release for this image
+    # tag is already published; either way the processor must find it.
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success' && needs.xcresult-release-check.result == 'success' && (needs.xcresult-release-build.result == 'success' || needs.xcresult-release-build.result == 'skipped')
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -729,6 +866,7 @@ jobs:
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
       EGRESS_TREE_AGENT_IMAGE_TAG_INPUT: ${{ inputs.egress_tree_agent_image_tag }}
+      XCRESULT_PROCESSOR_RELEASE_TAG: ${{ needs.xcresult-release-check.outputs.tag }}
       KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
@@ -1071,6 +1209,7 @@ jobs:
             fi
           }
           add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
+          add_set "xcresultProcessor.release.tag" "${XCRESULT_PROCESSOR_RELEASE_TAG:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
           # The explicit macos_runner_image_tag input wins over the
           # resolved runner-image@ semver for the default 26.5 pool. Used

@@ -9,16 +9,35 @@ macOS fleet boots a copy of this image as a Tart VM. The VM runs the
 Tuist server release in xcresult-processor mode under launchd, draining
 `:process_xcresult` from the same Postgres the Linux server pods write to.
 
-The image is the *deploy artifact*: `helm upgrade --set
-xcresultProcessor.image.tag=<sha>` updates the Pod spec, k8s rolls Pods,
-tart-kubelet creates new VMs from the new image tag and tears down the
-old ones.
+There are two deploy artifacts:
+
+- **The image** (`ghcr.io/tuist/tuist-xcresult-processor:<semver>`): macOS,
+  Xcode, tailscaled, the boot scripts and the launchd unit. About 55 GB
+  compressed. It changes only when this directory changes, so most deploys
+  reuse the golden base VM tart-kubelet already holds on each host.
+- **The release** (`ghcr.io/tuist/tuist-xcresult-processor:release-<server image tag>`):
+  the macOS `mix release tuist` tarball (~150 MB) as the single layer of an
+  OCI artifact. `fetch-release.sh` downloads it at boot from the reference
+  in `TUIST_XCRESULT_PROCESSOR_RELEASE`.
+
+The chart derives the release tag from `server.image.tag`, so every deploy
+rolls the processor onto the same commit as the Linux pods. The roll clones
+from the existing golden base and pays a ~150 MB download, not a full image
+pull.
+
+`server-deployment.yml` publishes the release before it deploys: its
+`xcresult-release-check` job probes for the tag, and
+`xcresult-release-build` builds and pushes it on a vm-image-builder host
+when it is missing. The canary leg of the production cascade builds it; the
+production leg finds it. A rollback to an older `sha-<commit>` image
+rebuilds the release from that commit if it was never published.
 
 ## Layout (inside the VM)
 
 | Path | Purpose |
 |---|---|
-| `/opt/tuist/release/` | Erlang release built upstream by CI |
+| `/opt/tuist/release/` | Empty in the image; `fetch-release.sh` unpacks the release here at boot |
+| `/opt/tuist/fetch-release.sh` | Downloads and verifies `TUIST_XCRESULT_PROCESSOR_RELEASE` |
 | `/opt/tuist/inject-env.sh` | Reads the kubelet env mount into `/etc/tuist.env` at boot |
 | `/etc/tuist.env` | Sourced env vars (MASTER_KEY, DATABASE_URL, TUIST_DEPLOY_ENV) |
 | `/Library/LaunchDaemons/dev.tuist.xcresult-processor.plist` | Boots `tuist start` |
@@ -26,24 +45,31 @@ old ones.
 
 ## Building
 
-CI: `.github/workflows/xcresult-processor-image.yml` runs on every push to
-`main` that touches `server/lib/**`, the xcresult NIF, or this directory.
-Builds on the bare-metal `vm-image-builder` Mac mini fleet (Tart
-needs a live GUI session for Virtualization.framework, so hosted
+The image: the `release-xcresult-processor-image` job in
+`.github/workflows/server-production-deployment.yml` builds it when a
+releasable commit touches this directory, and
+`.github/workflows/xcresult-processor-image.yml` builds a throwaway
+`:<sha>` on dispatch. Both run on the bare-metal `vm-image-builder` Mac mini
+fleet (Tart needs a live GUI session for Virtualization.framework, so hosted
 runners can't do this). Builder fleet operator runbook:
 [`../vm-image-builder.md`](../vm-image-builder.md).
 
-The macOS release build reuses caches that live outside the checkout, at
-`~/.cache/tuist-ci/server-macos-release/<runner-name>/` on each builder
-host: `mix-build` (`MIX_BUILD_ROOT`), `mix-deps` (`MIX_DEPS_PATH`), and
-`nif` (`TUIST_NIF_BUILD_ROOT`, the SwiftPM scratch path for both NIFs).
-Delete that directory on a host to force a cold build there.
-
-Registry publication uses the shared
+Image publication uses the shared
 [`tart-push`](../../.github/actions/tart-push/action.yml)
 action. Its bounded concurrency, chunking, retry, and route diagnostics are
 part of the builder-fleet reliability contract; keep the on-demand and
 production release workflows on that shared path.
+
+The release: `xcresult-release-build` in
+`.github/workflows/server-deployment.yml`, also on a vm-image-builder host.
+It reuses caches that live outside the checkout, at
+`~/.cache/tuist-ci/server-macos-release/<runner-name>/` on each builder
+host: `mix-build` (`MIX_BUILD_ROOT`), `mix-deps` (`MIX_DEPS_PATH`), and
+`nif` (`TUIST_NIF_BUILD_ROOT`, the SwiftPM scratch path for both NIFs).
+Delete that directory on a host to force a cold build there.
+[`publish-release.sh`](publish-release.sh) pushes the tarball with `crane`
+and checks that the published layer digest is the tarball's sha256, which
+is what `fetch-release.sh` verifies the download against.
 
 Locally:
 
@@ -51,12 +77,9 @@ Locally:
 mise run xcresult-processor:build-image
 ```
 
-The local build:
-1. Compiles the xcresult Swift NIF (macOS host needs Xcode + Erlang).
-2. Builds the server release with `MIX_ENV=prod mix release tuist`.
-3. Packages the release as a tarball.
-4. Calls Packer with the tarball as `release_tarball`.
-5. Bakes the result into a Tart image named `tuist-xcresult-processor`.
+This builds the image only. To boot it against a release, publish one with
+`publish-release.sh <release-dir> <reference>` and set
+`TUIST_XCRESULT_PROCESSOR_RELEASE` to that reference.
 
 ## Layer 1 dependency
 
@@ -112,6 +135,7 @@ expects:
 | `TUIST_WEB` | Pod env (chart) | `0` — skips Phoenix endpoint |
 | `TUIST_DATABASE_POOLED` | Pod env (chart) | `1` — transaction-mode pooler compatibility |
 | `TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY` | Pod env (chart) | per-pod Oban concurrency |
+| `TUIST_XCRESULT_PROCESSOR_RELEASE` | Pod env (chart, from `xcresultProcessor.release`) | OCI reference of the release `fetch-release.sh` downloads |
 | `TAILSCALE_AUTH_KEY` | k8s Secret (macOS-fleet ESO Secret) | Tailnet join credential: an OAuth client secret, see below |
 | `TAILSCALE_HOSTNAME` | Pod env (Downward API) | Pod name; the device name this VM registers under |
 | `TAILSCALE_TAGS` | Pod env (chart, from `macosFleet.tailscale.tags`) | ACL tag the join applies; required with an OAuth credential |
@@ -140,7 +164,7 @@ changes — only a new Pod with new env vars.
 The launchd unit hard-ANDs the boot steps:
 
 ```
-inject-env.sh && source /etc/tuist.env && tailscale-up.sh && exec tuist start
+inject-env.sh && source /etc/tuist.env && fetch-release.sh && tailscale-up.sh && exec tuist start
 ```
 
 Every step is load-bearing, and the last one is the only one Kubernetes
@@ -255,28 +279,20 @@ circularity: if the failure is that the VM never joined the tailnet,
 there is no tailnet address to ssh to, and the host's own
 `tart` CLI is the only way in.
 
-## Releasing this image & schema drift
+## Releasing this image
 
-This image **bakes a full server release**, so its baked code can drift from the
-live DB schema if it isn't rebuilt when the server changes. The release gate
-(`mise/tasks/release/components.json` → `xcresult-processor-image`, evaluated by
-`git cliff` in `mise/tasks/release/check.sh`) is **scope-gated**: it cuts a new
-version only for conventional commits it doesn't skip — it skips `chore`, `ci`,
-and other-scoped commits — that touch `server/lib/tuist/**`, the xcresult NIF,
-`server/mix.{exs,lock}`, or this directory. That gate is intentionally
-conservative: the build runs Packer on a single bare-metal Mac mini and is
-expensive, so we deliberately do **not** rebuild on every server change.
+The image release gate (`mise/tasks/release/components.json` →
+`xcresult-processor-image`, evaluated by `git cliff` in
+`mise/tasks/release/check.sh`) only looks at this directory. Server code
+does not need an image release: the processor picks up the server commit
+through the release tag on every deploy, so its code cannot drift from the
+live DB schema the way a baked release could (a baked processor once
+queried a column a migration had just dropped and took production down).
 
-The tradeoff: a server change merged under a **skipped scope** (e.g. a
-`chore(server)` that also drops a column) won't auto-rebuild this image, so the
-baked release keeps running old code against the new schema. That happened once
-and took production down — the processor queried a column a migration had just
-dropped.
+A `fetch-release.sh` failure (release missing, registry unreachable, digest
+mismatch) exits non-zero before `tuist start`, so it has the same invisible
+outward shape as the boot-chain failures above and is caught by the same
+alerts. Its message lands in `/var/log/xcresult-processor/stderr.log`.
 
-**Runbook — when a schema- or runtime-affecting server change lands under a
-skipped scope:** cut a manual release so the image rebuilds against current
-`main`. The simplest way is a `fix`/`docs`-scoped commit touching this directory
-(this very commit is one), which makes `git cliff` bump the version and the
-`release-xcresult-processor-image` job rebuild + retag `:<version>` + `:latest`
-and rewrite the chart tag. To smoke-test image contents without cutting a
-version, dispatch `xcresult-processor-image.yml` for a throwaway `:<sha>` build.
+To smoke-test image contents without cutting a version, dispatch
+`xcresult-processor-image.yml` for a throwaway `:<sha>` build.
