@@ -72,13 +72,21 @@ import Testing
     @Test func cancellationSendsGracefulTermination() async throws {
         let marker = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: marker) }
-        let command = "trap 'printf terminated > \(marker.path)' TERM; while :; do :; done"
+        let ready = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: marker)
+            try? FileManager.default.removeItem(at: ready)
+        }
+        let command = "trap 'printf terminated > \(marker.path)' TERM; printf ready > \(ready.path); while :; do :; done"
         let task = Task {
             try await CommandRunner().run(arguments: ["/bin/sh", "-c", command]).awaitCompletion()
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        // Cancelling before the shell installs its trap would kill it without writing the marker.
+        for _ in 0 ..< 100 where !FileManager.default.fileExists(atPath: ready.path) {
+            try await Task.sleep(for: .milliseconds(50))
+        }
         task.cancel()
         _ = try? await task.value
 
