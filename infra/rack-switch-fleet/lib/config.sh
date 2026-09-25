@@ -241,6 +241,66 @@ fleet_check_ports() {
   fi
 }
 
+# The controller tells lags apart by name, and LACP facing a plain port takes the
+# link down, so an ISL is a lag at both ends or at neither.
+fleet_check_lags() {
+  local site_file="$1" bad
+  bad="$(jq -r --slurpfile models "$FLEET_MODELS" '
+    . as $site |
+    (reduce (
+       (.devices[] as $d | ($d.ports // {}) | to_entries[] |
+         {switch: $d.name, port: (.key | tonumber), peer: .value.peer, nic: null}),
+       (.nodes[]? as $n | $n.links[] | select(.port != null) |
+         {switch, port, peer: $n.name, nic})
+     ) as $c ({}; .["\($c.switch):\($c.port)"] = $c)) as $cables |
+    .devices[] as $d |
+    ($models[0][$d.model] // {}) as $model |
+    ([($model.port_groups // [])[] | range(.first; .last + 1)]) as $available |
+    ($d.lags // []) as $lags |
+    (
+      ($lags | group_by(.id)[] | select(length > 1) |
+        "\($d.name): lag \(.[0].id) is declared \(length) times"),
+      ($lags | map(.name // "lag\(.id)") | group_by(.)[] | select(length > 1) |
+        "\($d.name): \(length) lags are named \(.[0]); the controller tells lags apart by name"),
+      ($lags[] | select((.ports | length) < 2) |
+        "\($d.name): lag \(.id) has \(.ports | length) port(s); a lag needs at least 2"),
+      ([$lags[].ports[]] | group_by(.)[] | select(length > 1) |
+        "\($d.name): port \(.[0]) is in more than one lag"),
+      ($lags[] | .id as $id | .ports[] | select(. as $p | $available | index($p) | not) |
+        "\($d.name): lag \($id) port \(.) does not exist on a \($model.product // $d.model)"),
+      ($lags[] | .id as $id | .ports[] | select($cables["\($d.name):\(.)"] == null) |
+        "\($d.name): lag \($id) port \(.) has no cable recorded on it"),
+      ($lags[] | .id as $id | [.ports[] | $cables["\($d.name):\(.)"] | select(. != null) | .peer] |
+        unique | select(length > 1) |
+        "\($d.name): lag \($id) goes to more than one peer: \(join(", "))"),
+      ($lags[] | .id as $id | [.ports[] | $cables["\($d.name):\(.)"] | select(. != null and .nic != null) | .nic] |
+        group_by(.)[] | select(length > 1) |
+        "\($d.name): lag \($id) has \(length) cables from one NIC, \(.[0])"),
+      ([($d.ports // {}) | to_entries[] | select(.value.purpose == "isl") |
+         {port: (.key | tonumber), peer: .value.peer}] | group_by(.peer)[] |
+        .[0].peer as $peer | map(.port) as $mine |
+        [$lags[] | select(.ports as $lp | $mine | any(. as $m | $lp | index($m)))] as $mine_lags |
+        $site.devices[] | select(.name == $peer) |
+        [(.ports // {}) | to_entries[] | select(.value.purpose == "isl" and .value.peer == $d.name) | .key | tonumber] as $theirs |
+        [(.lags // [])[] | select(.ports as $lp | $theirs | any(. as $m | $lp | index($m)))] as $their_lags |
+        if ($mine | length) != ($theirs | length) then
+          "\($d.name): \($mine | length) ISL cable(s) to \($peer), which records \($theirs | length) back"
+        elif ($mine_lags | length) > 1 then
+          "\($d.name): the ISL to \($peer) is split across lags \($mine_lags | map(.id) | join(", "))"
+        elif ($mine_lags | length) == 1 and ($mine - $mine_lags[0].ports | length) > 0 then
+          "\($d.name): ISL port(s) \($mine - $mine_lags[0].ports | map(tostring) | join(", ")) to \($peer) are outside lag \($mine_lags[0].id)"
+        elif (($mine_lags | length) > 0) != (($their_lags | length) > 0) then
+          "\($d.name): the ISL to \($peer) is a lag on one end only, and LACP facing a plain port takes the link down"
+        else empty end)
+    )
+  ' "$site_file")"
+  if [ -n "$bad" ]; then
+    echo "error: lags are wrong:" >&2
+    printf '%s\n' "$bad" | sed 's/^/  /' >&2
+    return 1
+  fi
+}
+
 # The network an interface address sits in: 192.168.50.1/24 is 192.168.50.0/24.
 fleet_network() {
   local cidr="$1" bits octets masks out="" i
@@ -310,6 +370,7 @@ fleet_render() {
   fleet_check_management_links "$site_file" || return 1
   fleet_check_sensor_chains "$site_file" || return 1
   fleet_check_port_map "$site_file" "$name" "$spec" || return 1
+  fleet_check_lags "$site_file" || return 1
 
   local vlan vlan_name netmask address baud
   vlan="$(jq -r '.management.vlan' "$site_file")"

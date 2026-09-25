@@ -1819,6 +1819,8 @@ site_with_vlans_and_lag() {
     jq '.vlans = [{id: 20, name: "storage"}]
         | (.devices[] | select(.name == "ber1-tor-b")) |= (
             .lags = [{id: 1, name: "uplink", ports: [29, 30]}]
+            | .ports["29"] = {purpose: "data", peer: "uplink-peer", media: "dac"}
+            | .ports["30"] = {purpose: "data", peer: "uplink-peer", media: "dac"}
             | .ports["5"] = {purpose: "data", peer: "none", media: "dac", vlans: []}
             | .ports["6"] = {purpose: "data", peer: "none", media: "dac", spanning_tree: false, description: "no stp here"})' \
         "$SITE_FILE" > "$BATS_TEST_TMPDIR/site-vlans.json"
@@ -1843,6 +1845,109 @@ site_with_vlans_and_lag() {
     [[ "$output" == *$'interface port-channel 1\tdescription "uplink"'* ]]
     [[ "$output" == *$'interface ten-gigabitEthernet 1/0/29\tchannel-group 1 mode active'* ]]
     [[ "$output" == *$'interface ten-gigabitEthernet 1/0/30\tdescription "uplink"'* ]]
+}
+
+# The lag fixture with one more edit applied to ber1-tor-b, for the lag guards.
+site_with_lag_edit() {
+    jq "(.devices[] | select(.name == \"ber1-tor-b\")) |= ($1)" "$(site_with_vlans_and_lag)" \
+        > "$BATS_TEST_TMPDIR/site-lag.json"
+    echo "$BATS_TEST_TMPDIR/site-lag.json"
+}
+
+# The real site with a second ISL cable on port 31 of both ToRs, aggregated on
+# the ends named in $1.
+site_with_isl_lag() {
+    jq --argjson ends "$1" '
+        (.devices[] | select(.name == "ber1-tor-a" or .name == "ber1-tor-b")) |= (
+            .ports["31"] = (.ports["32"] | .description = "isl 2 \(.peer)")
+            | if (.name as $n | $ends | index($n)) then .lags = [{id: 1, name: "isl", ports: [31, 32]}] else . end)' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site-isl.json"
+    echo "$BATS_TEST_TMPDIR/site-isl.json"
+}
+
+@test "a lag member the switch does not have stops the render" {
+    site="$(site_with_lag_edit '.lags[0].ports = [29, 40]')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lag 1 port 40 does not exist on a TP-Link Omada SX3832"* ]]
+}
+
+@test "a lag member with no cable recorded on it stops the render" {
+    site="$(site_with_lag_edit 'del(.ports["30"])')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lag 1 port 30 has no cable recorded on it"* ]]
+}
+
+@test "a lag across two peers stops the render" {
+    site="$(site_with_lag_edit '.ports["30"].peer = "another-peer"')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lag 1 goes to more than one peer: another-peer, uplink-peer"* ]]
+}
+
+@test "two lags with one name stop the render, since the controller knows a lag by its name" {
+    site="$(site_with_lag_edit '.ports["27"] = .ports["29"] | .ports["28"] = .ports["29"]
+        | .lags += [{id: 2, name: "uplink", ports: [27, 28]}]')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"2 lags are named uplink"* ]]
+}
+
+@test "a port in two lags, or a lag of one port, stops the render" {
+    site="$(site_with_lag_edit '.lags += [{id: 2, name: "other", ports: [30]}]')"
+    run fleet_render "$site" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"port 30 is in more than one lag"* ]]
+    [[ "$output" == *"lag 2 has 1 port(s); a lag needs at least 2"* ]]
+}
+
+@test "a lag to a node takes one cable from each of the node's NICs" {
+    jq '(.nodes[] | select(.name == "ber1-edge-b") | .links) |= map(
+            if .switch == "ber1-tor-b" and .purpose == "data" then .port = 26 else . end)
+        | (.nodes[] | select(.name == "ber1-edge-b") | .links) += [
+            {switch: "ber1-tor-b", port: 27, media: "dac", purpose: "data", nic: "sfp28-1"}]
+        | (.devices[] | select(.name == "ber1-tor-b")) .lags = [{id: 1, name: "edge-b", ports: [26, 27]}]' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
+    run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lag 1 has 2 cables from one NIC, sfp28-1"* ]]
+}
+
+@test "an ISL aggregated on both ends renders, and carries the edge VLAN" {
+    site="$(site_with_isl_lag '["ber1-tor-a", "ber1-tor-b"]')"
+    run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'interface port-channel 1\tswitchport general allowed vlan 4000 tagged'* ]]
+    [[ "$output" == *$'interface ten-gigabitEthernet 1/0/31\tchannel-group 1 mode active'* ]]
+    run fleet_render "$site" ber1-tor-a
+    [ "$status" -eq 0 ]
+}
+
+@test "an ISL aggregated on one end only stops the render of both ends" {
+    site="$(site_with_isl_lag '["ber1-tor-b"]')"
+    run fleet_render "$site" ber1-tor-a
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"the ISL to ber1-tor-a is a lag on one end only"* ]]
+    [[ "$output" == *"the ISL to ber1-tor-b is a lag on one end only"* ]]
+}
+
+@test "an ISL cable recorded on one end only stops the render" {
+    jq '(.devices[] | select(.name == "ber1-tor-b")) |= (.ports["31"] = .ports["32"])' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
+    run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-a
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ber1-tor-b: 2 ISL cable(s) to ber1-tor-a, which records 1 back"* ]]
+}
+
+@test "an ISL port left out of the ISL's lag stops the render" {
+    jq '(.devices[] | select(.name == "ber1-tor-a" or .name == "ber1-tor-b")) |= (
+            .ports["30"] = .ports["32"] | .ports["31"] = .ports["32"]
+            | .lags = [{id: 1, name: "isl", ports: [31, 32]}])' \
+        "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
+    run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-b
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"ISL port(s) 30 to ber1-tor-a are outside lag 1"* ]]
 }
 
 @test "a port with spanning tree off renders as no spanning-tree, with its own description" {

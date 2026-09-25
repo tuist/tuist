@@ -272,7 +272,15 @@ uses them yet; each form was read off `ber1-tor-b` after the controller wrote it
   `. _ -`, since the controller refuses parentheses), `spanning_tree: false`,
   and `vlans`, the tagged VLAN ids it carries.
 - `lags`, on a device: `[{id, name, ports}]`, LACP, the only kind the controller
-  would make. The members take the lag's name and VLANs.
+  would make. The members take the lag's name and VLANs. Each lag needs at
+  least two members, each a recorded cable (a node link or a `ports` entry) to
+  the same peer from a different NIC, and a name unique on its switch. An ISL
+  is a lag at both ends or at neither, with the same cable count at each.
+  A lag facing a node needs the node to bond those NICs with 802.3ad, which
+  nothing here configures.
+  The two ToRs converge one after the other, so the ISL is down between the two
+  writes that make it a lag. Apply it with the rack quiet, then check that
+  exactly one edge holds `192.168.0.10`.
 
 The `RackSwitch` object carries the same settings as `spec.config`, for the
 reconciler that writes them through the controller, rendered from the same data
