@@ -485,8 +485,29 @@ defmodule Tuist.OnceEvents.Projector do
   # collapse to safe defaults so the projector never blows up on a
   # partial event.
   defp content_ref_hash(%{hash: hash}) when is_binary(hash), do: nil_if_empty(hash)
-  defp content_ref_hash(%{digest: digest}) when is_binary(digest), do: nil_if_empty(digest)
+
+  # `ContentRef.digest` is `bytes` on the wire and the client fills it with the
+  # raw digest, not hexadecimal text. Stored as-is, Postgres rejects the
+  # varchar write with `22021 invalid byte sequence for encoding "UTF8"`, the
+  # batch is acked NEEDS_RESYNC, and the client resends it forever: the first
+  # cache hit of a build blocks every event after it, `RunCompleted` included.
+  defp content_ref_hash(%{digest: digest}) when is_binary(digest) do
+    digest
+    |> hex_digest()
+    |> nil_if_empty()
+  end
+
   defp content_ref_hash(_), do: nil
+
+  # A client that already sends printable text keeps its own representation,
+  # so existing rows and tests are unaffected.
+  defp hex_digest(digest) do
+    if String.valid?(digest) and String.printable?(digest) do
+      digest
+    else
+      Base.encode16(digest, case: :lower)
+    end
+  end
 
   defp content_ref_size(%{size_bytes: size}) when is_integer(size), do: size
   defp content_ref_size(%{size: size}) when is_integer(size), do: size

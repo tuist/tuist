@@ -424,7 +424,7 @@ defmodule Tuist.OnceEvents do
             conflict_target: [:once_run_id, :case_id, :attempt]
           )
 
-        if count == 1, do: roll_up_test_case(run, row, now)
+        if count == 1, do: roll_up_test_case(run, row, now, previous_attempt_result(run, row))
       end)
 
     broadcast_run(run, {:test_case_ingested, run.run_id})
@@ -456,10 +456,10 @@ defmodule Tuist.OnceEvents do
     }
   end
 
-  defp roll_up_test_case(%Run{} = run, row, now) do
+  defp roll_up_test_case(%Run{} = run, row, now, previous_result) do
     Repo.update_all(
       from(r in Run, where: r.id == ^run.id),
-      inc: run_test_case_inc(row.result),
+      inc: run_test_case_inc(row.result, previous_result),
       set: [heartbeat_at: now]
     )
 
@@ -477,13 +477,45 @@ defmodule Tuist.OnceEvents do
     :ok
   end
 
-  defp run_test_case_inc(result) do
+  # The run counters describe cases, not attempts. Once retries a case in
+  # place and reports each attempt as its own event, and its pytest normalizer
+  # reports setup, call and teardown as three attempts of one case, so
+  # counting every row made one test look like three and a single failure look
+  # like two passes and a failure.
+  #
+  # A first attempt adds a case. A later attempt moves that case between
+  # result counters instead, so a retry that finally passes stops being
+  # counted as a failure.
+  defp run_test_case_inc(result, nil) do
     [
       test_case_count: 1,
-      passed_test_cases: if(result == "passed", do: 1, else: 0),
-      failed_test_cases: if(result == "failed", do: 1, else: 0),
-      skipped_test_cases: if(result == "skipped", do: 1, else: 0)
+      passed_test_cases: result_delta(result, "passed"),
+      failed_test_cases: result_delta(result, "failed"),
+      skipped_test_cases: result_delta(result, "skipped")
     ]
+  end
+
+  defp run_test_case_inc(result, previous_result) do
+    [
+      test_case_count: 0,
+      passed_test_cases: result_delta(result, "passed") - result_delta(previous_result, "passed"),
+      failed_test_cases: result_delta(result, "failed") - result_delta(previous_result, "failed"),
+      skipped_test_cases: result_delta(result, "skipped") - result_delta(previous_result, "skipped")
+    ]
+  end
+
+  defp result_delta(result, result), do: 1
+  defp result_delta(_result, _counter), do: 0
+
+  # The result of the newest earlier attempt of the same case, or nil when
+  # this is the first attempt the server has seen.
+  defp previous_attempt_result(%Run{} = run, row) do
+    TestCaseRun
+    |> where([c], c.once_run_id == ^run.id and c.case_id == ^row.case_id and c.attempt != ^row.attempt)
+    |> order_by([c], desc: c.attempt)
+    |> limit(1)
+    |> select([c], c.result)
+    |> Repo.one()
   end
 
   @suite_case_counters %{
@@ -948,6 +980,9 @@ defmodule Tuist.OnceEvents do
     where(query, [a], ilike(a.target_execution_id, ^pattern) or ilike(a.identifier, ^pattern))
   end
 
+  # An action is either a cache hit or a miss. "stored" and "reused" describe
+  # cache events, not actions, so they cannot narrow this list: offering them
+  # on this view left it unfiltered while every row looked like a match.
   defp maybe_filter_action_outcome(query, "hit"), do: where(query, [a], a.was_cached == true)
   defp maybe_filter_action_outcome(query, "miss"), do: where(query, [a], a.was_cached == false)
   defp maybe_filter_action_outcome(query, _), do: query

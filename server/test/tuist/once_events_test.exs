@@ -406,6 +406,62 @@ defmodule Tuist.OnceEventsTest do
     assert Analytics.summary(project.id, commands: ["build"]).total == 2
   end
 
+  test "a raw digest is stored as hex rather than rejected by Postgres", %{run: run} do
+    # `ContentRef.digest` is `bytes` and the client sends the raw digest.
+    # Written straight into the varchar, Postgres rejects it with 22021 and
+    # the batch is acked NEEDS_RESYNC forever, blocking the rest of the run.
+    digest = <<0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF>>
+
+    project(run, %CacheDownload{
+      target_execution_id: "mise",
+      content: %ContentRef{digest: digest, size_bytes: 10},
+      bytes_transferred: 10,
+      duration_ms: 1
+    })
+
+    reloaded = OnceEvents.get_run(run.project_id, run.run_id)
+    assert OnceEvents.count_cache_events(reloaded, view: "content-objects", search: "", outcome: nil) == 1
+    assert reloaded.cache_bytes_downloaded == 10
+  end
+
+  test "retried attempts count as one case, with the final verdict", %{run: run} do
+    # Once retries in place, and its pytest normalizer reports setup, call and
+    # teardown as three attempts of one case.
+    for {attempt, result} <- [{1, "failed"}, {2, "failed"}, {3, "passed"}] do
+      OnceEvents.ingest_test_case_run(run, %{
+        target_execution_id: "cargo_aqua",
+        suite_id: "unit",
+        case_id: "cargo_aqua::unit::case_1",
+        name: "case_1",
+        attempt: attempt,
+        result: result,
+        duration_ms: 5,
+        finished_at: DateTime.utc_now()
+      })
+    end
+
+    assert %{test_case_count: 1, passed_test_cases: 1, failed_test_cases: 0} =
+             OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
+  test "separate cases still count separately", %{run: run} do
+    for case_id <- ["a", "b"] do
+      OnceEvents.ingest_test_case_run(run, %{
+        target_execution_id: "cargo_aqua",
+        suite_id: "unit",
+        case_id: case_id,
+        name: case_id,
+        attempt: 1,
+        result: "passed",
+        duration_ms: 5,
+        finished_at: DateTime.utc_now()
+      })
+    end
+
+    assert %{test_case_count: 2, passed_test_cases: 2} =
+             OnceEvents.get_run(run.project_id, run.run_id)
+  end
+
   defp project(run, %RunEvent{} = event), do: Projector.project(event, run.project_id, run.run_id)
 
   defp project(run, payload) do
