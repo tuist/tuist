@@ -57,7 +57,7 @@ defmodule TuistWeb.API.GitHistoryControllerTest do
     assert conn |> post(git_history_url(user, project, "/commits"), body) |> response(:no_content)
 
     assert conn
-           |> post(git_history_url(user, project, "/commits/missing"), %{repository_url: @remote, shas: [@a, @b, @c]})
+           |> post(git_history_url(user, project, "/commits/missing"), %{repository_url: @remote, shas: [@b, @c]})
            |> json_response(:ok) ==
              %{"missing" => [@c]}
 
@@ -69,7 +69,7 @@ defmodule TuistWeb.API.GitHistoryControllerTest do
     other = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
     assert conn
-           |> post(git_history_url(user, other, "/commits/missing"), %{repository_url: @remote, shas: [@a, @z]})
+           |> post(git_history_url(user, other, "/commits/missing"), %{repository_url: @remote, shas: [@b, @z]})
            |> json_response(:ok) == %{"missing" => [@z]}
   end
 

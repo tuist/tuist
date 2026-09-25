@@ -142,14 +142,32 @@ defmodule Tuist.GitHistory do
     end
   end
 
-  @doc "Of the given SHAs, the ones the repository has no commit for."
+  @doc """
+  Of the given SHAs, the ones the repository has no commit for, or has one
+  for without any parent: a shallow clone lists its boundary commit as a
+  root, so it is asked for again until a deeper checkout sends its parents
+  (a real root is sent again for nothing).
+  """
   def missing_shas(_repository_id, []), do: []
 
   def missing_shas(repository_id, shas) do
     shas = Enum.uniq(shas)
 
     known =
-      Repo.all(from(c in Commit, where: c.repository_id == ^repository_id and c.sha in ^shas, select: c.sha))
+      Repo.all(
+        from(c in Commit,
+          as: :commit,
+          where: c.repository_id == ^repository_id and c.sha in ^shas,
+          where:
+            exists(
+              from(p in CommitParent,
+                where: p.repository_id == ^repository_id and p.child_sha == parent_as(:commit).sha,
+                select: 1
+              )
+            ),
+          select: c.sha
+        )
+      )
 
     shas -- known
   end
@@ -372,8 +390,10 @@ defmodule Tuist.GitHistory do
     rewritten (a force-push) and is released; the new commits follow it.
   - Its parent's commit: a fork, or a rebase. The ref's commits are released
     and it forks there.
-  - Nothing, for the default branch (no parent): its whole walked history is
-    numbered from the oldest commit.
+  - Nothing: how the head connects to the ref is unknown (a shallow clone's
+    boundary commit, or history beyond the window). A ref that owns nothing
+    yet numbers the walked history from the oldest commit; one that does
+    keeps it, and the new commits go above it.
 
   Only the default branch takes over commits another ref owns (a
   fast-forward merge): that ref is released and advanced again from its own
@@ -493,8 +513,10 @@ defmodule Tuist.GitHistory do
   # Where the ref's new commits start, and where it forks, from the commit
   # the walk stopped at, releasing what the ref no longer holds.
   defp settle(ref, nil) do
-    release(from(c in Commit, where: c.ref_id == ^ref.id))
-    {0, 0}
+    case Repo.one(from(c in Commit, where: c.ref_id == ^ref.id, select: max(c.position))) do
+      nil -> {0, 0}
+      top -> {top, ref.fork_position}
+    end
   end
 
   defp settle(%{id: ref_id} = ref, %{ref_id: ref_id, position: position}) do
