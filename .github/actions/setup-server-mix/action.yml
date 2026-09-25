@@ -38,13 +38,13 @@ runs:
     - uses: tuist/cache-volume@v1
       if: ${{ inputs['restore-mix-cache'] == 'true' }}
       with:
-        path: ${{ runner.temp }}/mix-cache
-        key: ci-server-${{ github.job }}-${{ inputs.mix-cache-key }}-v1
-    - name: Configure Mix cache directories
+        path: server/deps
+        key: ci-server-${{ github.job }}-${{ inputs.mix-cache-key }}-deps-v2
+    - uses: tuist/cache-volume@v1
       if: ${{ inputs['restore-mix-cache'] == 'true' }}
-      working-directory: server
-      shell: bash
-      run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/mix.sh"
+      with:
+        path: server/_build
+        key: ci-server-${{ github.job }}-${{ inputs.mix-cache-key }}-build-v2
     - uses: ./.github/actions/mix-deps-get
       with:
         working-directory: server

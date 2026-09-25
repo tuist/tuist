@@ -31,8 +31,7 @@ changes. Never substitute new contents beneath an existing distribution tag.
 
 Linux Gradle tests and runner-controller tests use the released `tuist/cache-volume@v1`
 action with stable keys and isolated paths outside checkout. Gradle uses one
-home volume and resolves GRADLE_USER_HOME with readlink before setup to avoid
-Gradle 9.2 Kotlin DSL symlink classpath failures. Disable archive
+home volume mounted at GRADLE_USER_HOME. Disable archive
 caching for those same paths; keep Go test result reuse disabled with `-count=1`.
 The manual Linux Cache Volume Benchmark compares baseline, cold and warm runs
 at an identical reviewed source SHA/profile pinned in the workflow (never a
@@ -53,23 +52,21 @@ Releases run only from `main`, serialize publishing, and use the shared
 
 ## Bazel and Mix cache volumes
 
-`scripts/cache-volumes/bazel.sh` configures Kura's repository downloads and disk cache,
-not its output base, Bazel server or remote credentials. Keep Tuist remote cache
-setup in trusted jobs; fork jobs use the same per-task volume key without OIDC.
-Bazel performs idle disk-cache GC with a 12 GiB target and seven-day age limit;
+Kura's `.bazelrc` configures repository downloads and disk action caching under
+`~/.cache/tuist/bazel` on Linux, not its output base or remote credentials. CI
+attaches that directory with the released action. Keep Tuist remote cache setup
+in trusted jobs. Idle disk-cache GC has a 12 GiB target and seven-day age limit;
 this is a soft cleanup target within the 20 GB volume, not a build-time quota.
-See [the script instructions](scripts/cache-volumes/AGENTS.md).
 
-`scripts/cache-volumes/mix.sh` keeps deps and _build together under readable project/job
-keys. An internal identity marker checks Elixir/ERTS versions and the exact lockfile
-hash; incompatible private build state is discarded before reuse. Install tools first and attach before
-fetching dependencies. Never retain ~/.hex or authentication configuration.
-Preserve setup-server-mix's explicit restore-mix-cache=false callers.
-Workflows call the released action directly, then configure their tool; avoid extra
-volume composite wrappers. See [the script instructions](scripts/cache-volumes/AGENTS.md).
+Mix jobs attach their ordinary `deps` and `_build` directories with separate
+readable project/job keys. Mix owns compiler and dependency invalidation; do not
+add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
+Always run dependency resolution and compilation on hits. Never retain ~/.hex
+or authentication configuration. Preserve setup-server-mix's explicit
+restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
 
 `workflows/linux-build-cache-benchmark.yml` compares fixed-source Kura binary and
-Registry production builds with identical helpers/profile across baseline, cold
+Registry production builds with identical cache configuration/profile across baseline, cold
 and warm phases. Remote caching is opt-in. Without it, these numbers only measure
 local reuse. To compare against remote caching, seed with remote_cache=true and
 phase=cold, then run baseline (remote-only, empty local state) and warm (remote

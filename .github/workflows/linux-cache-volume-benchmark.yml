@@ -90,9 +90,8 @@ jobs:
             if [ -n "$SECOND_CACHE" ]; then test "$SECOND_HIT" = "$expected"; fi
             for path in "$FIRST_CACHE" "$SECOND_CACHE"; do
               [ -n "$path" ] || continue
-              test -L "$path"
-              target=$(readlink -f "$path")
-              test -s "$(dirname "$target")/.tuist-volume"
+              test ! -L "$path"
+              mountpoint -q "$path"
               if [ "$PHASE" = warm ]; then
                 test "$(cat "$path/.benchmark-source")" = "$SOURCE_SHA"
               else
@@ -102,9 +101,6 @@ jobs:
               df -h "$path"
             done
           fi
-      - name: Resolve Gradle home
-        if: matrix.workload == 'gradle'
-        run: echo "GRADLE_USER_HOME=$(readlink -f "$GRADLE_USER_HOME")" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v5
         if: matrix.workload == 'go'
         with:

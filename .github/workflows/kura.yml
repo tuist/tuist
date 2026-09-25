@@ -7,13 +7,11 @@ on:
     paths:
       - kura/**
       - .github/workflows/kura.yml
-      - .github/scripts/cache-volumes/**
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - kura/**
       - .github/workflows/kura.yml
-      - .github/scripts/cache-volumes/**
   merge_group: {}
 
 permissions:
@@ -67,9 +65,7 @@ jobs:
       - uses: tuist/cache-volume@v1
         with:
           key: ci-kura-bazel-compile-v1
-          path: ${{ runner.temp }}/bazel-cache
-      - name: Configure local Bazel caches
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/bazel.sh"
+          path: ~/.cache/tuist/bazel
 
       - uses: ./.github/actions/mise
         with:
@@ -108,9 +104,7 @@ jobs:
       - uses: tuist/cache-volume@v1
         with:
           key: ci-kura-bazel-compile-v1
-          path: ${{ runner.temp }}/bazel-cache
-      - name: Configure local Bazel caches
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/bazel.sh"
+          path: ~/.cache/tuist/bazel
 
       - uses: ./.github/actions/mise
         with:
@@ -141,9 +135,7 @@ jobs:
       - uses: tuist/cache-volume@v1
         with:
           key: ci-kura-bazel-clippy-v1
-          path: ${{ runner.temp }}/bazel-cache
-      - name: Configure local Bazel caches
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/bazel.sh"
+          path: ~/.cache/tuist/bazel
 
       - uses: ./.github/actions/mise
         with:
@@ -179,9 +171,7 @@ jobs:
       - uses: tuist/cache-volume@v1
         with:
           key: ci-kura-bazel-clippy-v1
-          path: ${{ runner.temp }}/bazel-cache
-      - name: Configure local Bazel caches
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/bazel.sh"
+          path: ~/.cache/tuist/bazel
 
       - uses: ./.github/actions/mise
         with:
@@ -212,9 +202,7 @@ jobs:
       - uses: tuist/cache-volume@v1
         with:
           key: ci-kura-bazel-test-v1
-          path: ${{ runner.temp }}/bazel-cache
-      - name: Configure local Bazel caches
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/bazel.sh"
+          path: ~/.cache/tuist/bazel
 
       - uses: ./.github/actions/mise
         with:
@@ -251,9 +239,7 @@ jobs:
       - uses: tuist/cache-volume@v1
         with:
           key: ci-kura-bazel-test-v1
-          path: ${{ runner.temp }}/bazel-cache
-      - name: Configure local Bazel caches
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/bazel.sh"
+          path: ~/.cache/tuist/bazel
 
       - uses: ./.github/actions/mise
         with:
@@ -313,9 +299,7 @@ jobs:
       - uses: tuist/cache-volume@v1
         with:
           key: ci-kura-e2e-images-v1
-          path: ${{ runner.temp }}/bazel-cache
-      - name: Configure local Bazel caches
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/bazel.sh"
+          path: ~/.cache/tuist/bazel
 
       - uses: ./.github/actions/mise
         with:
@@ -369,9 +353,7 @@ jobs:
       - uses: tuist/cache-volume@v1
         with:
           key: ci-kura-e2e-images-v1
-          path: ${{ runner.temp }}/bazel-cache
-      - name: Configure local Bazel caches
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/bazel.sh"
+          path: ~/.cache/tuist/bazel
 
       - uses: ./.github/actions/mise
         with:

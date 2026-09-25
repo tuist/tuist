@@ -8,14 +8,12 @@ on:
       - registry/**
       - tuist_common/**
       - .github/workflows/registry.yml
-      - .github/scripts/cache-volumes/**
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - registry/**
       - tuist_common/**
       - .github/workflows/registry.yml
-      - .github/scripts/cache-volumes/**
   merge_group: {}
 
 permissions:
@@ -48,14 +46,13 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: registry
       - uses: tuist/cache-volume@v1
-        id: mix-volume
         with:
-          key: ci-registry-${{ github.job }}-v1
-          path: ${{ runner.temp }}/mix-cache
-      - name: Configure Mix cache directories
-        env:
-          MIX_VOLUME_HIT: ${{ steps.mix-volume.outputs.cache-hit }}
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/mix.sh"
+          key: ci-registry-${{ github.job }}-deps-v2
+          path: registry/deps
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-registry-${{ github.job }}-build-v2
+          path: registry/_build
       - name: Install dependencies
         run: mise run install
       - name: Check format
@@ -73,14 +70,13 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: registry
       - uses: tuist/cache-volume@v1
-        id: mix-volume
         with:
-          key: ci-registry-${{ github.job }}-v1
-          path: ${{ runner.temp }}/mix-cache
-      - name: Configure Mix cache directories
-        env:
-          MIX_VOLUME_HIT: ${{ steps.mix-volume.outputs.cache-hit }}
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/mix.sh"
+          key: ci-registry-${{ github.job }}-deps-v2
+          path: registry/deps
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-registry-${{ github.job }}-build-v2
+          path: registry/_build
       - name: Install dependencies
         run: mise run install
       - name: Run Credo
@@ -98,14 +94,13 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: registry
       - uses: tuist/cache-volume@v1
-        id: mix-volume
         with:
-          key: ci-registry-${{ github.job }}-v1
-          path: ${{ runner.temp }}/mix-cache
-      - name: Configure Mix cache directories
-        env:
-          MIX_VOLUME_HIT: ${{ steps.mix-volume.outputs.cache-hit }}
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/mix.sh"
+          key: ci-registry-${{ github.job }}-deps-v2
+          path: registry/deps
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-registry-${{ github.job }}-build-v2
+          path: registry/_build
       - name: Install dependencies
         run: mise run install
       - name: Run tests
@@ -123,14 +118,13 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: registry
       - uses: tuist/cache-volume@v1
-        id: mix-volume
         with:
-          key: ci-registry-${{ github.job }}-v1
-          path: ${{ runner.temp }}/mix-cache
-      - name: Configure Mix cache directories
-        env:
-          MIX_VOLUME_HIT: ${{ steps.mix-volume.outputs.cache-hit }}
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/cache-volumes/mix.sh"
+          key: ci-registry-${{ github.job }}-deps-v2
+          path: registry/deps
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-registry-${{ github.job }}-build-v2
+          path: registry/_build
       - name: Install dependencies
         run: mise run install
       - name: Compile with MIX_ENV=prod

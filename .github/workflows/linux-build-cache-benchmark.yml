@@ -59,14 +59,18 @@ jobs:
           repository: tuist/tuist
           ref: ${{ env.SOURCE_SHA }}
           persist-credentials: false
-      # Read only reviewed helpers from the default branch running this workflow.
+      # Use the reviewed cache configuration with the fixed benchmark source.
       # Keeping them separate allows benchmarking on runners-benchmark before merge.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.workflow_sha }}
           path: .benchmark
-          sparse-checkout: .github/scripts/cache-volumes
+          sparse-checkout: kura/.bazelrc
+          sparse-checkout-cone-mode: false
           persist-credentials: false
+      - name: Use the reviewed Bazel configuration
+        if: matrix.workload == 'kura'
+        run: cp .benchmark/kura/.bazelrc kura/.bazelrc
       - uses: ./.github/actions/mise
         with:
           install_args: ${{ matrix.workload == 'kura' && (inputs.remote_cache && 'rust bazel tuist' || 'rust bazel') || 'erlang elixir' }}
@@ -87,10 +91,14 @@ jobs:
       - name: Install native build prerequisites
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       - name: Start attachment timer
-        env:
-          CACHE_DIRECTORY: ${{ matrix.workload == 'kura' && 'bazel-cache' || 'mix-cache' }}
         run: |
-          echo "CACHE_PATH=$RUNNER_TEMP/$CACHE_DIRECTORY" >> "$GITHUB_ENV"
+          if [ "$WORKLOAD" = kura ]; then
+            echo "CACHE_PATH=$HOME/.cache/tuist/bazel" >> "$GITHUB_ENV"
+            echo 'SECOND_CACHE=' >> "$GITHUB_ENV"
+          else
+            echo "CACHE_PATH=$GITHUB_WORKSPACE/registry/deps" >> "$GITHUB_ENV"
+            echo "SECOND_CACHE=$GITHUB_WORKSPACE/registry/_build" >> "$GITHUB_ENV"
+          fi
           echo "CACHE_START=$(date +%s%N)" >> "$GITHUB_ENV"
       - uses: tuist/cache-volume@v1
         if: inputs.phase != 'baseline'
@@ -98,37 +106,40 @@ jobs:
         with:
           key: benchmark-${{ inputs.cache_key }}-${{ matrix.workload }}
           path: ${{ env.CACHE_PATH }}
-      - name: Configure local Bazel caches
-        if: matrix.workload == 'kura'
-        run: bash "$GITHUB_WORKSPACE/.benchmark/.github/scripts/cache-volumes/bazel.sh"
-      - name: Configure Mix cache directories
-        if: matrix.workload == 'registry'
-        id: mix
-        working-directory: registry
-        env:
-          MIX_VOLUME_HIT: ${{ steps.volume.outputs.cache-hit }}
-        run: bash "$GITHUB_WORKSPACE/.benchmark/.github/scripts/cache-volumes/mix.sh"
+      - uses: tuist/cache-volume@v1
+        if: inputs.phase != 'baseline' && matrix.workload == 'registry'
+        id: build-volume
+        with:
+          key: benchmark-${{ inputs.cache_key }}-registry-build
+          path: registry/_build
       - name: Verify mounted cache and source
         env:
-          CACHE_HIT: ${{ matrix.workload == 'registry' && steps.mix.outputs.cache-hit || steps.volume.outputs.cache-hit }}
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+          BUILD_CACHE_HIT: ${{ steps.build-volume.outputs.cache-hit }}
         run: |
           set -euo pipefail
           echo "CACHE_MS=$(( ($(date +%s%N) - CACHE_START) / 1000000 ))" >> "$GITHUB_ENV"
-          if [ "$PHASE" = baseline ]; then
-            test ! -L "$CACHE_PATH"
-          else
-            expected=false
-            if [ "$PHASE" = warm ]; then expected=true; fi
+          expected=false
+          if [ "$PHASE" = warm ]; then expected=true; fi
+          if [ "$PHASE" != baseline ]; then
             test "$CACHE_HIT" = "$expected"
-            test -L "$CACHE_PATH"
-            test -s "$(dirname "$(readlink -f "$CACHE_PATH")")/.tuist-volume"
-            if [ "$PHASE" = warm ]; then
-              test "$(cat "$CACHE_PATH/.benchmark-source")" = "$SOURCE_SHA"
-            else
-              test ! -e "$CACHE_PATH/.benchmark-source"
-            fi
-            printf '%s' "$SOURCE_SHA" > "$CACHE_PATH/.benchmark-source"
+            if [ "$WORKLOAD" = registry ]; then test "$BUILD_CACHE_HIT" = "$expected"; fi
           fi
+          for path in "$CACHE_PATH" "$SECOND_CACHE"; do
+            [ -n "$path" ] || continue
+            test ! -L "$path"
+            if [ "$PHASE" = baseline ]; then
+              if mountpoint -q "$path"; then exit 1; fi
+            else
+              mountpoint -q "$path"
+              if [ "$PHASE" = warm ]; then
+                test "$(cat "$path/.benchmark-source")" = "$SOURCE_SHA"
+              else
+                test ! -e "$path/.benchmark-source"
+              fi
+              printf '%s' "$SOURCE_SHA" > "$path/.benchmark-source"
+            fi
+          done
       - name: Build and measure
         working-directory: ${{ matrix.workload }}
         env:
@@ -163,10 +174,11 @@ jobs:
           echo "WORKLOAD_MS=$(( ($(date +%s%N) - start) / 1000000 ))" >> "$GITHUB_ENV"
       - name: Record measurement
         env:
-          CACHE_HIT: ${{ matrix.workload == 'registry' && steps.mix.outputs.cache-hit || steps.volume.outputs.cache-hit }}
+          CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
         run: |
           mkdir -p "$RUNNER_TEMP/build-cache-results"
-          bytes=$(du -sbL "$CACHE_PATH" | cut -f1)
+          bytes=$(du -sb "$CACHE_PATH" | cut -f1)
+          if [ -n "$SECOND_CACHE" ]; then bytes=$((bytes + $(du -sb "$SECOND_CACHE" | cut -f1))); fi
           jq -n --arg source "$SOURCE_SHA" --arg phase "$PHASE" --arg workload "$WORKLOAD" \
             --arg hit "$CACHE_HIT" --argjson cache_ms "$CACHE_MS" --argjson workload_ms "$WORKLOAD_MS" \
             --argjson bytes "$bytes" --argjson remote_cache "$REMOTE_CACHE" \
