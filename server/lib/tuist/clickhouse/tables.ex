@@ -27,6 +27,23 @@ defmodule Tuist.ClickHouse.Tables do
   # of it (or, for `build_steps`, its whole month) on the source.
   @history_days %{"build_files" => 14, "build_steps" => 14}
 
+  # Tables that exist on both servers but are not carried across at all: the
+  # rolling test-run aggregates that
+  # `20260724140000_stop_unused_recent_test_case_run_aggregates` retired. The
+  # application stopped reading them, their materialized views were dropped
+  # and their merges switched off, and they are kept on Cloud only for the
+  # comparison that migration describes.
+  #
+  # They are also the most expensive tables to copy for their size. Each row
+  # holds large arrays per test case, and a slice of one drove the destination
+  # to its server-wide memory ceiling during production's first backfill.
+  @retired MapSet.new([
+             "test_case_runs_recent_250_per_case",
+             "test_case_runs_recent_500_per_case",
+             "test_case_runs_recent_750_per_case",
+             "test_case_runs_recent_per_case"
+           ])
+
   @collapsing_families ["Replacing", "Collapsing", "Aggregating", "Summing"]
 
   @doc """
@@ -42,15 +59,18 @@ defmodule Tuist.ClickHouse.Tables do
 
   @doc """
   The tables to copy: everything on the destination that no materialized view
-  writes into.
-  """
+  writes into, less the retired ones.
 
+  The backfill copies this list and parity gates on it, so leaving a table out
+  here leaves it out of both. A retired table that only one of them skipped
+  would either be copied for nothing or fail the gate on a partial copy.
+  """
   def copied(target) do
     derived = view_targets(target)
 
     target
     |> all_tables()
-    |> Enum.reject(&MapSet.member?(derived, &1))
+    |> Enum.reject(&(MapSet.member?(derived, &1) or MapSet.member?(@retired, &1)))
   end
 
   @doc """

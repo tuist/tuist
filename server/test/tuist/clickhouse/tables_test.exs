@@ -88,6 +88,28 @@ defmodule Tuist.ClickHouse.TablesTest do
     end
   end
 
+  describe "copied/1" do
+    test "leaves out the retired aggregates, which nothing reads" do
+      stub(Tuist.IngestRepo, :query!, fn sql, _params, _opts ->
+        if sql =~ "engine = 'MaterializedView'" do
+          %{rows: []}
+        else
+          %{
+            rows: [
+              ["test_case_runs"],
+              ["test_case_runs_recent_250_per_case"],
+              ["test_case_runs_recent_500_per_case"],
+              ["test_case_runs_recent_750_per_case"],
+              ["test_case_runs_recent_per_case"]
+            ]
+          }
+        end
+      end)
+
+      assert Tables.copied(%{repo: Tuist.IngestRepo, database: "tuist"}) == ["test_case_runs"]
+    end
+  end
+
   describe "history_days/1" do
     test "carries two weeks of the per-build detail tables across and all of every other" do
       assert Tables.history_days("build_files") == 14
