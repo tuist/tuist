@@ -275,7 +275,7 @@ defmodule Tuist.Tests.Coverage.Reported do
     from(f in Coverage.report_files_for_runs(project_id, run_ids),
       where: f.git_blob_id != "",
       group_by: f.path,
-      select: {f.path, fragment("any(?)", f.git_blob_id)}
+      select: {f.path, fragment("argMax(?, ?)", f.git_blob_id, f.inserted_at)}
     )
     |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
     |> Map.new()
