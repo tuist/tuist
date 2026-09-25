@@ -119,7 +119,7 @@ func TestAMTScriptActivatesThroughClientControlMode(t *testing.T) {
 	if strings.Contains(calls, "secret-password") || strings.Contains(calls, "UEZY") {
 		t.Fatalf("a secret reached rpc's command line:\n%s", calls)
 	}
-	if strings.Contains(calls, "amtinfo --json --ver --mode --lan password=set") {
+	if strings.Contains(calls, "amtinfo --json --ver --mode --lan --uuid password=set") {
 		t.Fatalf("amtinfo ran with the secrets in its environment:\n%s", calls)
 	}
 }

@@ -95,8 +95,11 @@ minute or two. The chain a netbooting host goes through:
    in the provisioning range, with iPXE (`snponly.efi`) from the provisioning
    address over TFTP.
 2. iPXE asks for an address again, is told to run `boot.ipxe`, and fetches
-   `hosts/<mac>.ipxe` over HTTP. A host with no install published finds nothing
-   and goes back to its firmware's next boot entry.
+   `hosts/<mac>.ipxe` over HTTP, then `hosts/<uuid>.ipxe` by the machine's
+   SMBIOS UUID, which the operator publishes beside the install once AMT has
+   reported it: a network boot through AMT comes from whichever NIC the
+   firmware lists first. A host with no install published finds nothing and
+   goes back to its firmware's next boot entry.
 3. The host's script loads the installer's kernel and initrd over HTTP; the
    kernel downloads the ISO into memory (`url=`), keeps its DHCP on the NIC that
    netbooted (`BOOTIF`), and reads the seed from `/hosts/<mac>/`.
@@ -147,8 +150,10 @@ PXE entry for its `bootMAC`, over SSH and reboots it. It does this once: a host 
 reports `Installed` False with `ReinstallDidNotBoot` after half an hour, and
 removing the annotation and setting it again tries again. A host that is off
 the tailnet cannot be reached over SSH; with its AMT activated the operator
-power-cycles it through AMT instead, once, which reaches the stick only when the
-disk no longer boots. Otherwise, and without AMT, boot its stick by hand.
+power-cycles it through AMT into its network boot instead, once (AMT's Force
+PXE Boot, which boots the firmware's first network entry, the i226-V on the
+MS-01, found by the machine's UUID). That needs the firmware set up to netboot
+(below). Otherwise, and without AMT, boot its stick by hand.
 The new install registers a new tailnet device; once it is connected the host controller deletes
 the old one and renames the new one to the host's name, and the machine
 controller joins the host afresh.

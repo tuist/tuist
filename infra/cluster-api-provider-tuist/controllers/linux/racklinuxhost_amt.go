@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -157,6 +158,9 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	next.Version = result.info.Version
 	next.Link = result.info.Wired.LinkStatus
 	next.Address = result.info.Wired.Address
+	if uuid := strings.ToLower(result.info.UUID); smbiosUUIDPattern.MatchString(uuid) {
+		next.UUID = uuid
+	}
 	next.ObservedAt = &observed
 	if step, ok := result.steps["activate"]; ok {
 		next.LastActivation = &observed
@@ -350,7 +354,7 @@ if [ ! -x "$rpc" ]; then
   tar -xzf "$tmp/rpc.tar.gz" -C "$tmp" rpc_linux_x64
   install -D -m 0755 "$tmp/rpc_linux_x64" "$rpc"
 fi
-info() { timeout 120 "$rpc" amtinfo --json --ver --mode --lan 2>/dev/null; }
+info() { timeout 120 "$rpc" amtinfo --json --ver --mode --lan --uuid 2>/dev/null; }
 `, amtRPCPath, amtRPCURL, amtRPCSHA256)
 	if a != nil {
 		fmt.Fprintf(&b, `amt_password=%s
@@ -410,6 +414,7 @@ unset amt_password provisioning_cert provisioning_cert_password mebx_password
 type amtInfo struct {
 	Version     string `json:"amt"`
 	ControlMode string `json:"controlMode"`
+	UUID        string `json:"uuid"`
 	Wired       struct {
 		LinkStatus string `json:"linkStatus"`
 		Address    string `json:"ipAddress"`
@@ -532,3 +537,5 @@ func amtObserveAfter(status *infrav1.RackLinuxHostAMTStatus) time.Duration {
 	}
 	return amtObserveInterval
 }
+
+var smbiosUUIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
