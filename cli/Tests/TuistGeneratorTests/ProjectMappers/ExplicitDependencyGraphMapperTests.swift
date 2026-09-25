@@ -307,4 +307,53 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
             .string("YES")
         )
     }
+
+    func test_map_doesNotAddMacroDependenciesToFrameworkSearchPaths() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "Project")
+
+        let macro: Target = .test(
+            name: "SomeMacro",
+            product: .macro,
+            productName: "SomeMacro"
+        )
+
+        let framework: Target = .test(
+            name: "Framework",
+            product: .framework,
+            dependencies: [
+                .target(name: "SomeMacro"),
+            ]
+        )
+
+        let graph = Graph.test(
+            projects: [
+                projectPath: .test(
+                    targets: [
+                        framework,
+                        macro,
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "Framework", path: projectPath): [
+                    .target(name: "SomeMacro", path: projectPath),
+                ],
+            ]
+        )
+
+        // When
+        let got = try await subject.map(
+            graph: graph,
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let project = try XCTUnwrap(got.0.projects[projectPath])
+        let mappedFramework = try XCTUnwrap(project.targets["Framework"])
+
+        XCTAssertNil(
+            mappedFramework.settings?.baseDebug["FRAMEWORK_SEARCH_PATHS"]
+        )
+    }
 }
