@@ -19,7 +19,9 @@ defmodule Tuist.CacheActionItems do
   end
 
   def create_cache_action_items(cache_action_items) do
-    Repo.insert_all(CacheActionItem, cache_action_items,
+    sorted_cache_action_items = Enum.sort_by(cache_action_items, &{&1.project_id, &1.hash})
+
+    Repo.insert_all(CacheActionItem, sorted_cache_action_items,
       on_conflict: :nothing,
       conflict_target: [:project_id, :hash],
       timeout: to_timeout(second: 30)
