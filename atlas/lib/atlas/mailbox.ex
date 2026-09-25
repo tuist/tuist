@@ -112,7 +112,7 @@ defmodule Atlas.Mailbox do
           ),
         recipient_name: delivery.recipient_name,
         to_emails: fragment("ARRAY[?]::varchar[]", delivery.recipient_email),
-        cc_emails: fragment("ARRAY[]::varchar[]"),
+        cc_emails: delivery.cc_emails,
         subject: delivery.subject,
         status:
           fragment(

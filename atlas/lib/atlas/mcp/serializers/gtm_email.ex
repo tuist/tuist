@@ -188,6 +188,7 @@ defmodule Atlas.MCP.Serializers.GTMEmail do
       kind: delivery.kind,
       recipient_email: delivery.recipient_email,
       recipient_name: delivery.recipient_name,
+      cc_emails: delivery.cc_emails,
       subject: delivery.subject,
       status: delivery.status,
       account_id: metadata["account_id"],
@@ -208,6 +209,7 @@ defmodule Atlas.MCP.Serializers.GTMEmail do
         "kind" => %{"type" => "string"},
         "recipient_email" => %{"type" => "string"},
         "recipient_name" => nullable_string(),
+        "cc_emails" => %{"type" => "array", "items" => %{"type" => "string"}},
         "subject" => %{"type" => "string"},
         "status" => %{"type" => "string"},
         "account_id" => nullable_string(),
@@ -219,7 +221,7 @@ defmodule Atlas.MCP.Serializers.GTMEmail do
         "inserted_at" => nullable_string()
       },
       "required" =>
-        ~w(id kind recipient_email recipient_name subject status account_id account_key provider_message_id error attempts delivered_at inserted_at),
+        ~w(id kind recipient_email recipient_name cc_emails subject status account_id account_key provider_message_id error attempts delivered_at inserted_at),
       "additionalProperties" => false
     }
   end
