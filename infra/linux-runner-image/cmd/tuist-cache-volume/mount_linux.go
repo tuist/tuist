@@ -176,6 +176,14 @@ func mountWorker() error {
 	if err := unix.Unshare(unix.CLONE_FS); err != nil {
 		return fmt.Errorf("unshare filesystem context: %w", err)
 	}
+	// Clone while still in the source namespace; OpenTree cannot clone a mount
+	// belonging to another namespace. The detached tree can then move across.
+	// Descriptor-only APIs also work when the target's /proc cannot see us.
+	tree, err := unix.OpenTree(3, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH)
+	if err != nil {
+		return fmt.Errorf("clone mount tree: %w", err)
+	}
+	defer unix.Close(tree)
 	if err := unix.Setns(5, unix.CLONE_NEWNS); err != nil {
 		return fmt.Errorf("enter mount namespace: %w", err)
 	}
@@ -192,13 +200,6 @@ func mountWorker() error {
 	if err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
-	// Descriptor-only mount APIs also work when /proc in the destination
-	// namespace cannot see this worker's PID (ordinary Docker containers).
-	tree, err := unix.OpenTree(3, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH)
-	if err != nil {
-		return fmt.Errorf("clone mount tree: %w", err)
-	}
-	defer unix.Close(tree)
 	if err := unix.MoveMount(tree, "", 4, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
 		return fmt.Errorf("attach mount tree: %w", err)
 	}
