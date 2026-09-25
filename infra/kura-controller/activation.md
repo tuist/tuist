@@ -33,10 +33,26 @@ Activation waits at most 20 seconds, polling every two seconds. At most 128
 requests per pod can be admitted, including active proxy streams. Upload bodies
 remain unread during the wait, using transport backpressure. Once ready, the
 original HTTP or HTTP/2 gRPC request streams to the regional node, which performs
-its normal artifact-level authorization. Failed uploads are never replayed.
+its normal artifact-level authorization. The gateway never replays uploads.
 Timeout returns HTTP 503 with `Retry-After: 2`, or gRPC `UNAVAILABLE`; overload
 returns HTTP 429 or gRPC `RESOURCE_EXHAUSTED`. Slow provisioning is not guaranteed
 to complete within one request. Streams have five-minute network deadlines.
+
+Only pre-forwarding 429/503 responses carry `X-Tuist-Cache-Activation: pending`.
+The Swift cache client can retry those responses with a re-iterable upload body,
+honoring `Retry-After` and its bounded retry policy. Single-pass uploads,
+ordinary upload errors and proxy transport failures are not replayed through
+this exception. The gateway strips the marker from upstream responses.
+The Bazel capability probe allows 30 seconds per attempt and up to four attempts
+for `UNAVAILABLE`/`RESOURCE_EXHAUSTED`; authorization failures and deadlines stop
+immediately. URL derivation still makes no network request.
+
+The 20-second activation wait is a per-request budget, not a pod startup SLA.
+Provisioning continues after a timeout. Production archive-to-active analysis
+identified lingering PVC deletion as the main source of slow returns; improving
+teardown coordination is separate work and does not block removing public
+demand registration. Staging validation must cover a timeout followed by a
+successful retry, rather than require every activation to finish within 20 seconds.
 
 Fresh, nonempty public usage reports from trusted managed Kura nodes refresh the
 account demand clock. Old rollup replays, empty reports, peer replication and
@@ -47,7 +63,8 @@ unused instance allocated indefinitely. No Kura runtime change is required.
 
 Publishing an exact regional record switches new DNS resolutions to the normal
 route. A client holding the wildcard answer or an existing connection can still
-use the proxy. It caches only routing for 30 seconds (at most 1,024 hosts),\nnever authorization; every request carries its own credential to Kura. Withdrawal keeps
+use the proxy. It caches only routing for 30 seconds (at most 1,024 hosts),
+never authorization; every request carries its own credential to Kura. Withdrawal keeps
 the existing provider-confirmation and drain barriers. After all exact records
 are gone, the wildcard makes the next authenticated request able to wake the
 account. The fallback does not require retaining a dormant KuraInstance or PVC.

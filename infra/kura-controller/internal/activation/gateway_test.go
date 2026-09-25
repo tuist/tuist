@@ -286,10 +286,58 @@ func TestProxyFailureDoesNotReplayUpload(t *testing.T) {
 	})
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, request("acme.cache.tuist.dev"))
-	if w.Code != 503 || calls != 1 {
+	if w.Code != 503 || calls != 1 || w.Header().Get("X-Tuist-Cache-Activation") != "" {
 		t.Fatalf("%d attempts, status %d", calls, w.Code)
 	}
 	if g.cachedRoute("acme.cache.tuist.dev") != nil {
 		t.Fatal("failed route retained")
+	}
+}
+
+func TestActivationTimeoutThenClientRetry(t *testing.T) {
+	for _, grpc := range []bool{false, true} {
+		t.Run(fmt.Sprintf("grpc=%v", grpc), func(t *testing.T) {
+			g := New(Servers{"production": "https://tuist.dev"}, 1)
+			g.Wait = 5 * time.Millisecond
+			g.Poll = time.Millisecond
+			var ready atomic.Bool
+			g.Control.Transport = roundTripper(func(*http.Request) (*http.Response, error) {
+				status, body := 202, ""
+				if ready.Load() {
+					status, body = 200, `{"endpoint":"https://acme-eu.kura.tuist.dev"}`
+				}
+				return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
+			})
+			var uploads int
+			g.Transport = roundTripper(func(r *http.Request) (*http.Response, error) {
+				uploads++
+				body, _ := io.ReadAll(r.Body)
+				if string(body) != "artifact" {
+					t.Fatal("retry corrupted upload")
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{"X-Tuist-Cache-Activation": {"pending"}}, Body: io.NopCloser(strings.NewReader("stored"))}, nil
+			})
+			makeRequest := func() *http.Request {
+				r := request("acme.cache.tuist.dev")
+				if grpc {
+					r.Header.Set("Content-Type", "application/grpc")
+				}
+				return r
+			}
+			first := httptest.NewRecorder()
+			g.ServeHTTP(first, makeRequest())
+			if first.Header().Get("X-Tuist-Cache-Activation") != "pending" || first.Header().Get("Retry-After") != "2" || uploads != 0 {
+				t.Fatalf("unsafe retry response: %v uploads=%d", first.Header(), uploads)
+			}
+			if grpc && first.Header().Get("Grpc-Status") != "14" || !grpc && first.Code != 503 {
+				t.Fatal("not retryable")
+			}
+			ready.Store(true)
+			second := httptest.NewRecorder()
+			g.ServeHTTP(second, makeRequest())
+			if second.Code != 200 || uploads != 1 || second.Body.String() != "stored" || second.Header().Get("X-Tuist-Cache-Activation") != "" {
+				t.Fatalf("retry failed: %d %s %v uploads=%d", second.Code, second.Body, second.Header(), uploads)
+			}
+		})
 	}
 }

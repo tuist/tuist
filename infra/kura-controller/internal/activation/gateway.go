@@ -71,25 +71,25 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Health checks, metrics and discovery probes must never provision storage.
 	if r.URL.Path == "/ready" || r.URL.Path == "/up" || r.URL.Path == "/metrics" || r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/_internal/") {
-		failure(w, r, http.StatusNotFound)
+		unforwardedFailure(w, r, http.StatusNotFound)
 		return
 	}
 	env, valid := Environment(r.Host)
 	server, configured := g.Servers[env]
 	if !valid || !configured {
-		failure(w, r, http.StatusNotFound)
+		unforwardedFailure(w, r, http.StatusNotFound)
 		return
 	}
 	authorization := r.Header.Get("Authorization")
 	if !strings.HasPrefix(authorization, "Bearer ") || len(authorization) <= 7 {
-		failure(w, r, http.StatusUnauthorized)
+		unforwardedFailure(w, r, http.StatusUnauthorized)
 		return
 	}
 	select {
 	case g.slots <- struct{}{}:
 		defer func() { <-g.slots }()
 	default:
-		failure(w, r, http.StatusTooManyRequests)
+		unforwardedFailure(w, r, http.StatusTooManyRequests)
 		return
 	}
 	if target := g.cachedRoute(r.Host); target != nil {
@@ -104,7 +104,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for {
 		target, status := g.resolve(ctx, server, strings.ToLower(r.Host), authorization)
 		if status != http.StatusAccepted && status != http.StatusOK {
-			failure(w, r, status)
+			unforwardedFailure(w, r, status)
 			return
 		}
 		if target != nil {
@@ -117,7 +117,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			failure(w, r, http.StatusServiceUnavailable)
+			unforwardedFailure(w, r, http.StatusServiceUnavailable)
 			return
 		case <-timer.C:
 		}
@@ -213,12 +213,25 @@ func (g *Gateway) proxy(w http.ResponseWriter, r *http.Request, target *url.URL)
 			}
 		},
 		Transport: g.Transport, FlushInterval: -1,
+		ModifyResponse: func(response *http.Response) error {
+			response.Header.Del("X-Tuist-Cache-Activation")
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, _ error) {
 			g.forgetRoute(host)
 			failure(w, r, http.StatusServiceUnavailable)
 		},
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+// Only pre-forwarding rejections permit a non-idempotent client request to
+// retry. A proxy transport failure may have already committed the upload.
+func unforwardedFailure(w http.ResponseWriter, r *http.Request, status int) {
+	if status == http.StatusServiceUnavailable || status == http.StatusTooManyRequests {
+		w.Header().Set("X-Tuist-Cache-Activation", "pending")
+	}
+	failure(w, r, status)
 }
 
 func failure(w http.ResponseWriter, r *http.Request, status int) {
