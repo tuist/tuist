@@ -740,8 +740,11 @@ password is replaced with one generated and kept as `mebx-password` in the
 `spec.amt.address` (with its prefix length) and `spec.amt.gateway` has AMT moved
 to that static address, so AMT keeps one address whatever happens to the host.
 Staging puts the edges' AMT on the provisioning segment outside its DHCP range.
-A failed configuration is recorded in `status.amt.configurationError` and
-retried after an hour; it does not take `AMTActivated` down.
+AMT reports its old address for a while after it is given one, and none while
+its link is down, so the address is given again at most every two minutes and
+never while AMT reports its link down. A failed configuration is recorded in
+`status.amt.configurationError` and retried after an hour; it does not take
+`AMTActivated` down.
 
 **`tuist.dev/amt-power` powers a host through AMT** (`racklinuxhost_amt_power.go`):
 `on`, `off` (hard), `cycle` (hard power cycle), `reset`, or `pxe` (a power cycle
