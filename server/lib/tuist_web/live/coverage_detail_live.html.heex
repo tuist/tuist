@@ -16,14 +16,45 @@
       </h1>
       <div data-part="badges">
         <.badge label={@subject.sha} color="neutral" style="light-fill" size="large" />
-        <.badge
-          label={ref_status_label(@summary)}
-          color={ref_status_color(@summary)}
-          style="light-fill"
+        <.tooltip
+          id="coverage-status"
+          title={ref_status_label(@summary)}
+          description={head_status_title(@summary)}
           size="large"
-          title={head_status_title(@summary)}
-          data-part="status"
-        />
+        >
+          <:trigger :let={attrs}>
+            <span {attrs}>
+              <span data-part="status">
+                <.badge
+                  label={ref_status_label(@summary)}
+                  color={ref_status_color(@summary)}
+                  style="light-fill"
+                  size="large"
+                />
+              </span>
+            </span>
+          </:trigger>
+        </.tooltip>
+        <.tooltip
+          :if={@summary.partial_schemes != []}
+          id="coverage-partial-run"
+          title={dgettext("dashboard_tests", "Partial run")}
+          description={partial_run_title(@summary)}
+          size="large"
+        >
+          <:trigger :let={attrs}>
+            <span {attrs}>
+              <span data-part="partial">
+                <.badge
+                  label={dgettext("dashboard_tests", "Partial run")}
+                  color="warning"
+                  style="light-fill"
+                  size="large"
+                />
+              </span>
+            </span>
+          </:trigger>
+        </.tooltip>
       </div>
     </div>
   </div>
@@ -51,27 +82,6 @@
       data-part="summary-card"
     >
       <.card_section data-part="summary-section">
-        <.alert
-          :if={@summary.partial_schemes != []}
-          id="coverage-partial-run"
-          status="information"
-          type="secondary"
-          size="small"
-          title={partial_run_title(@summary)}
-        />
-        <.alert
-          :if={not @summary.complete}
-          id="coverage-incomplete"
-          status="information"
-          type="secondary"
-          size="small"
-          title={
-            dgettext(
-              "dashboard_tests",
-              "The coverage pipeline has not signalled completion for this commit; more runs may still land."
-            )
-          }
-        />
         <div data-part="widgets">
           <.widget
             id="widget-coverage"

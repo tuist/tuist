@@ -156,19 +156,16 @@
       data-part="commits"
     >
       <.card_section :if={@commit_rows != []} data-part="commits-section">
-        <.alert
+        <span
           :if={@commits_ordered_by == :time}
           id="coverage-commits-time-order"
-          status="information"
-          type="secondary"
-          size="small"
-          title={
-            dgettext(
-              "dashboard_tests",
-              "Listed in the order they were measured: no run on this branch has reported its latest commit yet, so its Git history cannot be followed."
-            )
-          }
-        />
+          data-part="caption"
+        >
+          {dgettext(
+            "dashboard_tests",
+            "Listed in the order they were measured: no run on this branch has reported its latest commit yet, so its Git history cannot be followed."
+          )}
+        </span>
         <div data-part="commits-table">
           <.table
             id="coverage-commits-table"
