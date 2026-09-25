@@ -785,16 +785,20 @@ defmodule Tuist.GitHistory do
     end)
   end
 
-  @doc "Of the given SHAs, the ones whose file listing the repository lacks."
+  @doc """
+  Of the given SHAs, the ones whose file listing the repository lacks,
+  counting a listing whose files expired (`listing_stored?/2`) as missing.
+  """
   def missing_listings(_repository_id, []), do: []
 
   def missing_listings(repository_id, shas) do
     shas = Enum.uniq(shas)
+    cutoff = listing_cutoff()
 
     stored =
       Repo.all(
         from(l in CommitListing,
-          where: l.repository_id == ^repository_id and l.sha in ^shas,
+          where: l.repository_id == ^repository_id and l.sha in ^shas and l.inserted_at >= ^cutoff,
           select: l.sha
         )
       )
@@ -802,9 +806,27 @@ defmodule Tuist.GitHistory do
     shas -- stored
   end
 
-  @doc "Whether the commit's file listing is stored."
+  @doc """
+  Whether the commit's file listing is stored. Its files expire with the
+  coverage file detail (`Tuist.Environment.coverage_retention_days/1`), so a
+  listing recorded longer ago than that is not, and the next upload stores
+  it again.
+  """
   def listing_stored?(repository_id, sha) do
-    Repo.exists?(from(l in CommitListing, where: l.repository_id == ^repository_id and l.sha == ^sha))
+    cutoff = listing_cutoff()
+
+    Repo.exists?(
+      from(l in CommitListing,
+        where: l.repository_id == ^repository_id and l.sha == ^sha and l.inserted_at >= ^cutoff
+      )
+    )
+  end
+
+  # A day early: a listing's parts are inserted before the row that marks it
+  # stored, and each part expires on its own.
+  defp listing_cutoff do
+    days = Environment.coverage_retention_days().files
+    DateTime.add(DateTime.utc_now(), -(days - 1) * 86_400, :second)
   end
 
   @doc """
@@ -813,7 +835,7 @@ defmodule Tuist.GitHistory do
   requests and marks the last with `complete: true`, which records the
   listing as stored (`truncated:` when the client stopped at the limit).
   Repeating a request changes nothing: rows replace their equals and the
-  listing row is written once.
+  listing row is written once, and again only once its files expired.
   """
   def record_listing(repository_id, sha, files, opts \\ []) do
     now = NaiveDateTime.utc_now()
@@ -846,7 +868,17 @@ defmodule Tuist.GitHistory do
             inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
           }
         ],
-        on_conflict: :nothing,
+        on_conflict:
+          from(l in CommitListing,
+            where: l.inserted_at < ^listing_cutoff(),
+            update: [
+              set: [
+                files_count: fragment("EXCLUDED.files_count"),
+                truncated: fragment("EXCLUDED.truncated"),
+                inserted_at: fragment("EXCLUDED.inserted_at")
+              ]
+            ]
+          ),
         conflict_target: [:repository_id, :sha]
       )
     end
