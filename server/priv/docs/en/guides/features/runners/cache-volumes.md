@@ -14,7 +14,6 @@ Choose a stable `key` and a `path`, then attach the volume before installing
 dependencies. The path must be empty or absent. Remove any archive cache or
 artifact restore that writes to the same directory.
 
-
 Paths are mounted as ordinary directories, so tools can use their usual locations
 such as `deps`, `_build`, and `node_modules`. Keep your normal `.gitignore` rules.
 Each action call attaches one directory; use a different key for each directory.
@@ -48,6 +47,25 @@ jobs:
 The action exposes a `cache-hit` output and also works in ordinary GitHub Actions
 container jobs, without privileged mode or extra workflow permissions. Native
 jobs and containers running as different users have separate volumes.
+
+For Elixir, attach `deps` and `_build` after checkout and Erlang/Elixir setup:
+
+```yaml
+- uses: tuist/cache-volume@v1
+  with:
+    key: elixir-deps
+    path: deps
+- uses: tuist/cache-volume@v1
+  with:
+    key: elixir-build
+    path: _build
+- run: mix deps.get
+- run: mix test
+```
+
+Always run the Mix commands, even on cache hits: Mix handles dependency and
+compiler invalidation. For a project in `server/`, use `server/deps` and
+`server/_build` and run the commands from that directory.
 
 ## Buildkite {#buildkite}
 
