@@ -620,7 +620,10 @@ the `<fleet>-boot` Secret, which the rack boot server serves, again whenever the
 Secret lost them; `status.install` records the key, the MAC and the device the
 install replaces. The fleet key's public half and `--rack-linux-authorized-key`
 are authorized, and the console password is minted once per host into
-`<fleet>-console`. A host's installer is its install stick, which fetches the
+`<fleet>-console`. The host controller reads each host through the manager's
+uncached `APIReader`: CAPI's patch helper writes conditions before the rest of
+the status, and a reconcile that read the host from the cache in between would
+mint a second key. A host's installer is its install stick, which fetches the
 seed for its MAC from the boot server (`rackinstall.StickUserData`), or a
 netboot. A reinstall of a connected host sets `BootNext` over SSH, two minutes
 after publishing, and reboots it, once: to a boot entry the script creates for
