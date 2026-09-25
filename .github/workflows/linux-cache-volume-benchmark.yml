@@ -42,14 +42,14 @@ jobs:
             first: tuist-go-mod
             second: tuist-go-build
           - workload: gradle
-            first: tuist-gradle/caches
-            second: tuist-gradle/wrapper
+            first: tuist-gradle
+            second: ''
     env:
       GOMODCACHE: ${{ github.workspace }}/../tuist-go-mod
       GOCACHE: ${{ github.workspace }}/../tuist-go-build
       GRADLE_USER_HOME: ${{ github.workspace }}/../tuist-gradle
       FIRST_CACHE: ${{ github.workspace }}/../${{ matrix.first }}
-      SECOND_CACHE: ${{ github.workspace }}/../${{ matrix.second }}
+      SECOND_CACHE: ${{ matrix.second != '' && format('{0}/../{1}', github.workspace, matrix.second) || '' }}
       PHASE: ${{ inputs.phase }}
       WORKLOAD: ${{ matrix.workload }}
     steps:
@@ -67,7 +67,7 @@ jobs:
           key: benchmark-${{ inputs.cache_key }}-${{ matrix.workload }}-first
           path: ${{ env.FIRST_CACHE }}
       - uses: ./.github/actions/cache-volume
-        if: inputs.phase != 'baseline'
+        if: inputs.phase != 'baseline' && matrix.workload == 'go'
         id: second
         with:
           key: benchmark-${{ inputs.cache_key }}-${{ matrix.workload }}-second
@@ -81,14 +81,15 @@ jobs:
           echo "CACHE_MS=$(( ($(date +%s%N) - CACHE_START) / 1000000 ))" >> "$GITHUB_ENV"
           if [ "$PHASE" = baseline ]; then
             test ! -e "$FIRST_CACHE"
-            test ! -e "$SECOND_CACHE"
-            mkdir -p "$FIRST_CACHE" "$SECOND_CACHE"
+            if [ -n "$SECOND_CACHE" ]; then test ! -e "$SECOND_CACHE"; fi
+            mkdir -p "$FIRST_CACHE"; if [ -n "$SECOND_CACHE" ]; then mkdir -p "$SECOND_CACHE"; fi
           else
             expected=false
             if [ "$PHASE" = warm ]; then expected=true; fi
             test "$FIRST_HIT" = "$expected"
-            test "$SECOND_HIT" = "$expected"
+            if [ -n "$SECOND_CACHE" ]; then test "$SECOND_HIT" = "$expected"; fi
             for path in "$FIRST_CACHE" "$SECOND_CACHE"; do
+              [ -n "$path" ] || continue
               test -L "$path"
               target=$(readlink -f "$path")
               test -s "$(dirname "$target")/.tuist-volume"
@@ -101,6 +102,9 @@ jobs:
               df -h "$path"
             done
           fi
+      - name: Resolve Gradle home
+        if: matrix.workload == 'gradle'
+        run: echo "GRADLE_USER_HOME=$(readlink -f "$GRADLE_USER_HOME")" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v5
         if: matrix.workload == 'go'
         with:
@@ -137,7 +141,8 @@ jobs:
         run: |
           set -euo pipefail
           first_bytes=$(du -sbL "$FIRST_CACHE" | cut -f1)
-          second_bytes=$(du -sbL "$SECOND_CACHE" | cut -f1)
+          second_bytes=0
+          if [ -n "$SECOND_CACHE" ]; then second_bytes=$(du -sbL "$SECOND_CACHE" | cut -f1); fi
           mkdir -p "$RUNNER_TEMP/volume-results"
           jq -n --arg source "$SOURCE_SHA" --arg phase "$PHASE" \
             --arg workload "$WORKLOAD" --arg runner "$RUNNER_LABEL" \

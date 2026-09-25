@@ -30,10 +30,12 @@ a partial release; finish that version before dispatching a release of newer mai
 changes. Never substitute new contents beneath an existing distribution tag.
 
 Linux Gradle tests and runner-controller tests use repository-local cache-volume
-actions with stable keys and isolated paths outside checkout. Disable archive
+actions with stable keys and isolated paths outside checkout. Gradle uses one
+home volume and resolves GRADLE_USER_HOME with readlink before setup to avoid
+Gradle 9.2 Kotlin DSL symlink classpath failures. Disable archive
 caching for those same paths; keep Go test result reuse disabled with `-count=1`.
 The manual Linux Cache Volume Benchmark compares baseline, cold and warm runs
-at an identical source SHA/profile. Warm runs must prove mounted volume hits and
+at an identical reviewed source SHA/profile pinned in the workflow (never a\ndispatch-selected code ref that could publish untrusted cache contents). Warm runs must prove mounted volume hits and
 retained source markers; never count the client's cold fallback as a warm result.
 Run cold/warm from the default branch so successful cold jobs can publish, and
 wait for publication before starting warm jobs. Keep benchmark keys separate

@@ -53,12 +53,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/cache-volume
         with:
-          key: ci-gradle-caches-v1
-          path: ${{ env.GRADLE_USER_HOME }}/caches
-      - uses: ./.github/actions/cache-volume
-        with:
-          key: ci-gradle-wrapper-v1
-          path: ${{ env.GRADLE_USER_HOME }}/wrapper
+          key: ci-gradle-home-v1
+          path: ${{ env.GRADLE_USER_HOME }}
+      # Gradle 9.2's Kotlin DSL cannot reliably use symlinked cache paths.
+      - name: Resolve Gradle home
+        run: echo "GRADLE_USER_HOME=$(readlink -f "$GRADLE_USER_HOME")" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -86,12 +85,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/cache-volume
         with:
-          key: ci-gradle-caches-v1
-          path: ${{ env.GRADLE_USER_HOME }}/caches
-      - uses: ./.github/actions/cache-volume
-        with:
-          key: ci-gradle-wrapper-v1
-          path: ${{ env.GRADLE_USER_HOME }}/wrapper
+          key: ci-gradle-home-v1
+          path: ${{ env.GRADLE_USER_HOME }}
+      # Gradle 9.2's Kotlin DSL cannot reliably use symlinked cache paths.
+      - name: Resolve Gradle home
+        run: echo "GRADLE_USER_HOME=$(readlink -f "$GRADLE_USER_HOME")" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
