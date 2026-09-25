@@ -31,6 +31,10 @@ Do not add README entries for internal operational details such as env var names
   }
   ```
 
+## Markdown
+
+- `AtlasWeb.Markdown.content/1` renders fenced `mermaid` blocks through the `MermaidDiagram` hook (`assets/js/hooks/mermaid_diagram.js`), which loads a pinned Mermaid build from jsDelivr only on pages that contain a diagram. Invalid diagrams fall back to their source.
+
 ## Proof-of-concept dashboard
 
 - The sales evaluation list, form, and detail pages live under `lib/atlas_web/live/poc_live/`; the account page lists records for its account. Their rendering tests cover empty/populated lists, create/edit forms, unpublished/published details with access requests, and account filtering.
