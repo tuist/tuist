@@ -696,5 +696,4 @@ defmodule Tuist.Application do
         Keyword.merge(opts, auth_opts)
     end
   end
-
 end
