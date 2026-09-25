@@ -1,0 +1,29 @@
+[package]
+name = "once-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+once-cas.workspace = true
+
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+jsonwebtoken = { version = "10.2.0", default-features = false, features = ["rust_crypto"] }
+
+[target.'cfg(any(target_os = "linux", all(target_os = "macos", target_arch = "aarch64")))'.dependencies]
+microsandbox = { git = "https://github.com/superradcompany/microsandbox.git", rev = "975b62bfd331df7111b2de9abc1416fc87d7790b", version = "0.5.1", default-features = false, features = ["prebuilt"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+
+[lints]
+workspace = true
