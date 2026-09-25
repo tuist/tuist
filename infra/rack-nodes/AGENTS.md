@@ -52,10 +52,10 @@ Its installer takes DHCP on every wired port, asks the boot server for
 the seed a netboot reads (below). With nothing published it boots a rack
 install already on the disks as soon as the boot server says so (a 404 for
 every NIC), or after five minutes of not reaching the boot server; a machine
-without one waits and announces itself (below). The converge keeps the stick
-first in the firmware's `BootOrder`, which the installed Ubuntu takes for itself,
-so every boot of a rack host goes through the stick's installer, and a power
-cycle through AMT reinstalls a host whose install is published. The seed carries its install's key ID (`# tuist-install-id:`), so a
+without one waits and announces itself (below). The MS-01's firmware keeps a
+fixed boot order, the installed disk first, and rewrites `BootOrder` at every
+boot, so an installed host boots its stick only through `BootNext` or once its
+disk no longer boots. The seed carries its install's key ID (`# tuist-install-id:`), so a
 stick booted again after its install hands over to that system, as a netboot
 does. Its installer also keeps the live system from ejecting the stick when the
 install reboots (`casper.service`, overridden under `/run`): an ejected stick
@@ -147,9 +147,8 @@ PXE entry for its `bootMAC`, over SSH and reboots it. It does this once: a host 
 reports `Installed` False with `ReinstallDidNotBoot` after half an hour, and
 removing the annotation and setting it again tries again. A host that is off
 the tailnet cannot be reached over SSH; with its AMT activated the operator
-power-cycles it through AMT instead, once, and the install stick, first in its
-boot order, installs the published install. Without AMT, boot its stick by
-hand.
+power-cycles it through AMT instead, once, which reaches the stick only when the
+disk no longer boots. Otherwise, and without AMT, boot its stick by hand.
 The new install registers a new tailnet device; once it is connected the host controller deletes
 the old one and renames the new one to the host's name, and the machine
 controller joins the host afresh.

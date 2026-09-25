@@ -749,10 +749,9 @@ tries the connected edges of the host's site (other edges first, the host itself
 last), takes the first whose `ip route get` puts AMT's address on a link of its
 own, and sends WS-MAN with digest authentication to AMT's address (`status.amt.address`) on its TLS port, 16993, through it: an activated AMT serves WS-MAN only there, with a self-signed certificate. The first power change pins that certificate's SHA-256 as `tls-sha256` in the `<host>-amt` Secret, and later ones hold AMT to it; a reactivated AMT needs the key deleted.
 It needs AMT activated and the host's `<host>-amt` Secret, not the host itself:
-a host that is off the tailnet is powered too. The converge keeps the install
-stick first in `BootOrder` (the installed Ubuntu takes the front for itself), so
-a power cycle boots the stick's installer, which installs a published install
-or hands the machine straight back to its disk.
+a host that is off the tailnet is powered too. The MS-01's firmware keeps a fixed
+boot order, the installed disk first, and rewrites `BootOrder` at every boot, so
+a power cycle boots the disk.
 
 ```bash
 kubectl patch rlh <host> --type merge -p '{"spec":{"amt":{"activate":true}}}'
