@@ -1,5 +1,6 @@
 defmodule Tuist.Tests.Coverage.CommitsTest do
   use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
 
   import Ecto.Query
 
@@ -7,6 +8,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   alias Tuist.Projects
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.Coverage.Reported
   alias Tuist.Tests.Coverage.Workers.CommitWorker
   alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -104,6 +106,51 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert %{complete: true, completeness: "signal", measured_files_count: 2} = Commits.summary(project.id, "abc123")
 
     assert Commits.signal_complete(project, "unmeasured") == nil
+  end
+
+  test "a fold computes outside a transaction and never overwrites what was written meanwhile", %{
+    project: project,
+    account: account
+  } do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    %{version: version} = Commits.summary(project.id, "abc123")
+
+    # The completion signal lands while a run's fold is computing.
+    stub(Reported, :compute, fn project, sha, opts ->
+      refute Repo.in_transaction?()
+      Mimic.call_original(Reported, :compute, [project, sha, opts])
+    end)
+
+    expect(Reported, :compute, fn project, sha, opts ->
+      refute Repo.in_transaction?()
+      assert %{complete: true} = Commits.signal_complete(project, sha)
+      Mimic.call_original(Reported, :compute, [project, sha, opts])
+    end)
+
+    assert %{complete: true, completeness: "signal"} = Commits.recompute(project, "abc123")
+    assert %{complete: true, version: new_version} = Commits.summary(project.id, "abc123")
+    assert new_version == version + 2
+  end
+
+  test "a fold that keeps losing the race folds under the commit's lock", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    %{version: version} = Commits.summary(project.id, "abc123")
+
+    # Every optimistic attempt sees the row move under it.
+    stub(Reported, :compute, fn project, sha, opts ->
+      if !Repo.in_transaction?() do
+        Repo.update_all(
+          from(c in CoverageCommit, where: c.project_id == ^project.id and c.git_commit_sha == ^sha),
+          inc: [version: 1],
+          set: [complete: true, completeness: "signal"]
+        )
+      end
+
+      Mimic.call_original(Reported, :compute, [project, sha, opts])
+    end)
+
+    assert %{complete: true, version: new_version} = Commits.recompute(project, "abc123")
+    assert new_version == version + 3
   end
 
   test "counts the source files of the commit's listing that no run measured", %{project: project, account: account} do

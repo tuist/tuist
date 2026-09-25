@@ -67,6 +67,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   def enqueue_recompute(_project_id, sha) when sha in [nil, ""], do: :skipped
   def enqueue_recompute(project_id, sha), do: CommitWorker.enqueue(project_id, sha)
 
+  @publish_attempts 3
+
   @doc """
   Republishes the commit's totals from its runs' retained reports and
   returns the row published, or nil when no run measured the commit.
@@ -74,26 +76,71 @@ defmodule Tuist.Tests.Coverage.Commits do
   state already published is kept.
   """
   def recompute(%Project{} = project, sha, opts \\ []) do
-    # A fold reads the published row, spends seconds computing reported
-    # coverage on a large suite, and writes it back. Two folds of the same
-    # commit at once (the completion signal and a run's scheduled fold, on
-    # any node) would each write what they read, and the later one wins: the
-    # signal's `complete` was lost exactly that way. They take turns, so each
-    # one reads what the previous one wrote.
-    {:ok, {row, runs}} =
-      Repo.transaction(
-        fn ->
-          Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["coverage_commit:#{project.id}:#{sha}"])
-          fold(project, sha, opts)
-        end,
-        timeout: to_timeout(minute: 5)
-      )
+    {row, runs} = fold_and_publish(project, sha, opts, @publish_attempts)
 
     # Outside the commit's lock: advancing a ref takes the repository's.
     if row do
       advance_refs(project, sha, runs)
       summary(project.id, sha)
     end
+  end
+
+  # A fold reads the published row, spends seconds computing reported
+  # coverage on a large suite, and writes it back. Two folds of the same
+  # commit at once (the completion signal and a run's scheduled fold, on any
+  # node) would each write what they read, and the later one wins: the
+  # signal's `complete` was lost exactly that way. The fold runs outside any
+  # transaction, and its write, under the commit's lock, goes through only
+  # when the row is still the version it read; otherwise it folds again over
+  # what the other one wrote. Past the last attempt it folds under the lock,
+  # so it always ends up reading what the previous write left.
+  defp fold_and_publish(project, sha, opts, attempts) when attempts > 1 do
+    previous = summary(project.id, sha)
+    {row, runs} = fold(project, sha, previous, opts)
+
+    case publish_unless_changed(project, sha, previous && previous.version, row) do
+      :changed -> fold_and_publish(project, sha, opts, attempts - 1)
+      published -> {published, runs}
+    end
+  end
+
+  defp fold_and_publish(project, sha, opts, _attempts) do
+    with_commit_lock(
+      project,
+      sha,
+      fn ->
+        {row, runs} = fold(project, sha, summary(project.id, sha), opts)
+        {row && publish(row), runs}
+      end,
+      timeout: to_timeout(minute: 5)
+    )
+  end
+
+  defp publish_unless_changed(_project, _sha, _version, nil), do: nil
+
+  defp publish_unless_changed(project, sha, version, row) do
+    with_commit_lock(project, sha, fn ->
+      if published_version(project.id, sha) == version, do: publish(row), else: :changed
+    end)
+  end
+
+  defp with_commit_lock(project, sha, fun, opts \\ []) do
+    {:ok, result} =
+      Repo.transaction(
+        fn ->
+          Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["coverage_commit:#{project.id}:#{sha}"])
+          fun.()
+        end,
+        opts
+      )
+
+    result
+  end
+
+  defp published_version(project_id, sha) do
+    Repo.one(
+      from(c in CoverageCommit, where: c.project_id == ^project_id and c.git_commit_sha == ^sha, select: c.version)
+    )
   end
 
   # The refs the commit's runs reported move to it: a pull request's under
@@ -119,9 +166,9 @@ defmodule Tuist.Tests.Coverage.Commits do
   defp ref_name(%{git_branch: branch}) when branch not in [nil, ""], do: branch
   defp ref_name(_run), do: nil
 
-  defp fold(project, sha, opts) do
+  # The row the commit's runs make, unwritten, or nil when there is none.
+  defp fold(project, sha, previous, opts) do
     runs = runs(project.id, sha)
-    previous = summary(project.id, sha)
     reported = project |> Reported.compute(sha, runs: runs) |> then(&(&1 && Map.drop(&1, [:files, :carried_lines])))
 
     row =
@@ -163,7 +210,6 @@ defmodule Tuist.Tests.Coverage.Commits do
       test_run_ids: []
     })
     |> Map.merge(place(repository_id, sha, previous && previous.ran_at))
-    |> publish()
   end
 
   defp measured_row(project, sha, runs, previous, reported, opts) do
@@ -197,7 +243,6 @@ defmodule Tuist.Tests.Coverage.Commits do
       test_run_ids: run_ids
     })
     |> Map.merge(place(repository_id, sha, utc(newest.ran_at)))
-    |> publish()
   end
 
   # What the runs reported: the newest one's branch, and the pull request of
