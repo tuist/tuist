@@ -85,9 +85,11 @@ The existing privileged DinD sidecar runs a mount broker inside the job's Kata
 VM. The unprivileged client passes open target-directory and mount-namespace
 file descriptors through a pod-scoped Unix socket. The broker resolves sources
 only beneath that pod's cache root and transfers a detached bind mount into the
-client namespace. This preserves normal tool paths in both native and ordinary
-Docker job containers, without sharing PID namespaces or adding workflow
-capabilities. Controller and runner images must be deployed together; the DinD
+client namespace. Targets under the work directory are mounted at the same path
+in the broker's own namespace too, so containers dockerd starts later from the
+checkout see the volume. This preserves normal tool paths in native jobs,
+ordinary Docker job containers and their Docker children, without sharing PID
+namespaces or adding workflow capabilities. Controller and runner images must be deployed together; the DinD
 startup probe waits for the broker socket before a job can be claimed.
 
 

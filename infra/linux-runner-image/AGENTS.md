@@ -274,6 +274,12 @@ The existing privileged DinD sidecar runs the mount broker; clients pass mount
 namespace and target directory descriptors over a pod-scoped Unix socket. Never
 share PID namespaces, grant workflow mount privileges, or expose another pod's
 cache subtree. The broker bounds source resolution with os.Root and creates each
-mount in a short-lived worker. Validate with the privileged Linux bind-mount suite
-in linux-runner-image.yml, including a client without CAP_SYS_ADMIN in separate
-PID/mount namespaces. Roll out controller and runner image together on idle pods.
+mount in a short-lived worker. Targets under the work directory are also mounted
+at the same path in the broker's namespace, because dockerd resolves `docker run -v`
+paths there; the broker opens them through os.Root and requires the same inode as
+the client's target. The job's mount comes first and the mirror is best-effort:
+a mismatch (for example a job-owned mount covering the path) only warns. Validate with the privileged Linux bind-mount suite and
+`cache-volume-docker-e2e.sh` (pod-shaped docker:dind check for native jobs,
+`container:` jobs and Docker children) in linux-runner-image.yml, including a
+client without CAP_SYS_ADMIN in separate PID/mount namespaces. Roll out controller
+and runner image together on idle pods.
