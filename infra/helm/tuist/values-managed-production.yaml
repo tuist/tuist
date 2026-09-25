@@ -1092,10 +1092,11 @@ ovhFleet:
 ovhFleets:
   # EU West migration: keep the existing pool selector while OVH and Dedibox
   # coexist. Hosts must be installed, verified and marked before adoption.
-  # Raise to three only after the gates in kura-controller/eu-west-ovh-migration.md.
+  # All three installs are requested and adoption markers verified. Confirm
+  # installation before the production deploy arrives; evacuate separately.
   eu-west:
     enabled: true
-    replicas: 0
+    replicas: 3
     endpoint: ovh-us
     nodePool: kura-dedibox
     machine:

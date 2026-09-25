@@ -2,12 +2,13 @@
 
 Status: all three servers verified through OVH and Ubuntu installation requested,
 2026-09-25. Installation tasks are queued; completion and SSH validation are
-pending. The production fleet configuration is prepared locally at zero replicas.
+pending. All three EU-West adoption markers have been set and read back through
+OVH. The production fleet configuration requests three replicas in PR #13634.
 No cluster adoption or workload migration has been performed as part of this plan.
 
 Fleet configuration changes go through a pull request and the normal production
 deployment workflow. Do not apply the rendered fleet objects directly. Subsequent
-replica increases and retirement configuration also require reviewed changes;
+fleet changes and retirement configuration also require reviewed changes;
 operational evacuation actions follow the human-granted production access policy.
 
 ## Decision and scope
@@ -87,17 +88,24 @@ marking step. Each API request succeeded. The first follow-up observed all three
 `reinstallServer` tasks in `todo`; planned start is provider-reported, not a
 completion estimate. Do not resubmit installation merely because it is queued.
 
+The separate `baremetal:mark-ovh` step has now set and verified
+`tuist-kura-ovh-production-eu-west` on all three services. OVH initially ignored
+each rename during installation; the task retried and confirmed every write by
+reading the resulting display name. Marking does not prove installation or
+SSH readiness, and the fleet still needs to be deployed before it can adopt.
+
 Use fleet name `tuist-tuist-ovh-fleet-eu-west` and adoption prefix
 `tuist-kura-ovh-production-eu-west`. Add its production values before invoking
 `baremetal:prep-ovh`: the script resolves the SSH item and adoption prefix from
 those values and otherwise falls back to the singular OVH fleet. Stage with
 `PREP_NAMESPACE=tuist-production PREP_SKIP_MARK=1` to install Ubuntu, the fleet
 key, and the mirrored root plus separate XFS `/data` without making the servers
-adoptable. Marking and cluster adoption follow the rollout gates below.
+adoptable. For this rollout, marking is complete and the PR requests all three
+hosts directly; validate installation before the production deployment arrives.
 
 ### Preparation validation
 
-- Production Helm rendering succeeds with the new fleet at zero replicas,
+- Production Helm rendering succeeds with the new fleet at three replicas,
   the `kura-dedibox` pool, `gra` datacenter prefix, exact observed commercial
   range, and 3,000 Mbps egress budget.
 - The render adds the fleet's MachineDeployment, OVHDedicatedMachineTemplate,
@@ -275,9 +283,12 @@ Deploy the reviewed `ovhFleets.eu-west` entry through the normal workflow:
 - Existing OVH API endpoint and SSH secret conventions; no separate account or
   new provider integration is required by this plan.
 - Confirmed datacenter, offer match, public egress budget, and cache taint.
-- Start at `replicas: 0`, which the map template supports. Prepare purchased
-  hosts using `baremetal:prep-ovh`; increase replicas only once hosts are
-  installed and adoptable, avoiding a fleet that wedges Helm readiness.
+- Deploy at `replicas: 3` in this PR. Installation has already been requested
+  for all three servers and the adoption markers are verified, so the controller
+  can claim them when deployment arrives. Verify installation and SSH readiness
+  before the production fleet deploy: missing or unfinished hosts can hold
+  MachineDeployment readiness and fail the Helm rollout. There is no separate
+  zero-replica deployment or later scale-up PR in this rollout.
 
 Preserve the regional ingress selector and egress-agent pool list. Verify that
 local storage, quota exporter, ingress, peer demux, Cilium, and observability
