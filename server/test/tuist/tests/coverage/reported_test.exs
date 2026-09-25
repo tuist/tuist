@@ -1,6 +1,8 @@
 defmodule Tuist.Tests.Coverage.ReportedTest do
   use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
 
+  alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Coverage.Commits
@@ -556,6 +558,22 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     Commits.recompute(project, "head")
     assert %{covered_lines: 0} = carried.()
+  end
+
+  test "the pages settle the reported coverage without taking the cache's lock", %{project: project, account: account} do
+    base_run(project, account)
+    head_run(project, account, head_files())
+    Commits.recompute(project, "head")
+
+    stub(KeyValueStore, :get_or_update, fn key, opts, fun ->
+      if match?([:coverage_reported | _], key), do: send(self(), {:coverage_reported_opts, opts})
+      fun.()
+    end)
+
+    Reported.merged_files(project, "head", Commits.merged_files(project.id, "head"))
+
+    assert_received {:coverage_reported_opts, opts}
+    assert Keyword.get(opts, :locking) == false
   end
 
   test "a changed tracked file carries nothing", %{project: project, account: account} do

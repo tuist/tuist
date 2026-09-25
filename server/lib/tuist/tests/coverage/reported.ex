@@ -173,14 +173,17 @@ defmodule Tuist.Tests.Coverage.Reported do
   # the commit's published version settled, cached against that version: on a
   # suite of thousands a compute costs about a second and a page reads it more
   # than once. The settings that change the answer without a new version are
-  # part of the key.
+  # part of the key. Unlocked: a locking read computes inside Cachex's single
+  # Locksmith process, which every other locking read on the node (the API's
+  # authentication among them) would queue behind for the whole compute.
   defp settled(project, sha, opts) do
     case Commits.summary(project.id, sha) do
       %{version: version} ->
         excluded = Keyword.get_lazy(opts, :excluded, fn -> ExcludedPaths.pattern_for_project(project) end)
         settings = :erlang.phash2({excluded, GitHistory.settings(project).tracked_file_globs})
+        key = [:coverage_reported, project.id, sha, version, settings]
 
-        KeyValueStore.get_or_update([:coverage_reported, project.id, sha, version, settings], [ttl: @cache_ttl], fn ->
+        KeyValueStore.get_or_update(key, [ttl: @cache_ttl, locking: false], fn ->
           compute(project, sha, Keyword.put(opts, :excluded, excluded))
         end)
 
