@@ -124,9 +124,11 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the sign-in redirect URI to:")}
-                <div data-part="read-only-value">
-                  <code>{Tuist.Environment.app_url(path: "/users/auth/okta/callback")}</code>
-                </div>
+                <.copyable_value
+                  id="okta-redirect-uri"
+                  value={Tuist.Environment.app_url(path: "/users/auth/okta/callback")}
+                  copy_label={dgettext("dashboard_account", "Copy redirect URI")}
+                />
               </li>
               <li>
                 {dgettext(
@@ -136,13 +138,15 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the initiate login URI to:")}
-                <div data-part="read-only-value">
-                  <code>
-                    {Tuist.Environment.app_url(
+                <.copyable_value
+                  id="okta-initiate-login-uri"
+                  value={
+                    Tuist.Environment.app_url(
                       path: "/users/auth/okta?organization_id=#{@organization.id}"
-                    )}
-                  </code>
-                </div>
+                    )
+                  }
+                  copy_label={dgettext("dashboard_account", "Copy initiate login URI")}
+                />
               </li>
             </ol>
           </div>
@@ -176,11 +180,11 @@
                   "dashboard_account",
                   "Select the \"Web\" platform and set the redirect URI to:"
                 )}
-                <div data-part="read-only-value">
-                  <code>
-                    {Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
-                  </code>
-                </div>
+                <.copyable_value
+                  id="entra-redirect-uri"
+                  value={Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
+                  copy_label={dgettext("dashboard_account", "Copy redirect URI")}
+                />
               </li>
               <li>
                 {dgettext(
@@ -202,13 +206,15 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the home page URL to:")}
-                <div data-part="read-only-value">
-                  <code>
-                    {Tuist.Environment.app_url(
+                <.copyable_value
+                  id="entra-home-page-url"
+                  value={
+                    Tuist.Environment.app_url(
                       path: "/users/auth/oauth2?organization_id=#{@organization.id}"
-                    )}
-                  </code>
-                </div>
+                    )
+                  }
+                  copy_label={dgettext("dashboard_account", "Copy home page URL")}
+                />
               </li>
             </ol>
           </div>
@@ -239,11 +245,11 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the sign-in redirect URI to:")}
-                <div data-part="read-only-value">
-                  <code>
-                    {Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
-                  </code>
-                </div>
+                <.copyable_value
+                  id="oauth2-redirect-uri"
+                  value={Tuist.Environment.app_url(path: "/users/auth/oauth2/callback")}
+                  copy_label={dgettext("dashboard_account", "Copy redirect URI")}
+                />
               </li>
               <li>
                 {dgettext(
@@ -253,36 +259,66 @@
               </li>
               <li>
                 {dgettext("dashboard_account", "Set the initiate login URI to:")}
-                <div data-part="read-only-value">
-                  <code>
-                    {Tuist.Environment.app_url(
+                <.copyable_value
+                  id="oauth2-initiate-login-uri"
+                  value={
+                    Tuist.Environment.app_url(
                       path: "/users/auth/oauth2?organization_id=#{@organization.id}"
-                    )}
-                  </code>
-                </div>
+                    )
+                  }
+                  copy_label={dgettext("dashboard_account", "Copy initiate login URI")}
+                />
               </li>
             </ol>
           </div>
         </div>
       </div>
 
-      <div :if={@sso_enabled and oauth2_form_provider?(@selected_provider)} data-part="section">
+      <div
+        :if={@sso_enabled and oauth2_form_provider?(@selected_provider)}
+        data-part="section"
+        data-section="login-domain"
+      >
         <div data-part="label">
-          <span data-part="title">
-            {dgettext("dashboard_account", "Login email domain")}
-          </span>
+          <div data-part="title-row">
+            <span data-part="title">
+              {dgettext("dashboard_account", "Login email domain")}
+            </span>
+            <%= if domain_verification_shown?(@organization, @form) do %>
+              <%= cond do %>
+                <% Accounts.sso_login_domain_expiring?(@organization) -> %>
+                  <span data-part="domain-verification-status" data-status="expiring">
+                    {dngettext(
+                      "dashboard_account",
+                      "Expires in %{count} day",
+                      "Expires in %{count} days",
+                      Accounts.sso_login_domain_days_until_expiry(@organization)
+                    )}
+                  </span>
+                <% @organization.sso_login_domain_verified_at -> %>
+                  <span data-part="domain-verification-status" data-status="verified">
+                    {dgettext("dashboard_account", "Verified")}
+                  </span>
+                <% true -> %>
+                  <span data-part="domain-verification-status" data-status="pending">
+                    {dgettext("dashboard_account", "Pending verification")}
+                  </span>
+              <% end %>
+            <% end %>
+          </div>
           <span data-part="description">
             <%= if @organization.sso_login_domain_verified_at do %>
               {dgettext(
                 "dashboard_account",
-                "This domain is used to find the provider and determines which email addresses are trusted for automatic enrollment and identity linking. It is independent of the provider URL."
+                "Used to find your provider and to decide which email addresses to trust."
               )}
             <% else %>
               {dgettext(
                 "dashboard_account",
-                "Once verified, this domain is used to find the provider and determines which email addresses can be trusted for automatic enrollment and identity linking. It is independent of the provider URL."
+                "Once verified, used to find your provider and to decide which email addresses to trust."
               )}
             <% end %>
+            {domain_record_instruction(@organization, @form)}
           </span>
         </div>
         <div data-part="field">
@@ -292,72 +328,73 @@
             placeholder="example.com"
             error={@field_errors["sso_login_domain"]}
           />
-
-          <div
+          <.button
             :if={
-              @organization.sso_login_domain &&
-                @organization.sso_login_domain == @form[:sso_login_domain].value
+              domain_verification_shown?(@organization, @form) and
+                Accounts.sso_login_domain_awaiting_record?(@organization)
             }
-            data-part="domain-verification"
+            id="verify-sso-login-domain-button"
+            type="button"
+            label={dgettext("dashboard_account", "Verify domain")}
+            variant="secondary"
+            size="medium"
+            phx-click={
+              JS.push("verify_sso_login_domain",
+                loading: "#sso-login-domain-verification-error"
+              )
+            }
+          />
+        </div>
+        <div
+          :if={
+            domain_verification_shown?(@organization, @form) and
+              (Accounts.sso_login_domain_awaiting_record?(@organization) or
+                 not is_nil(@domain_verification_error))
+          }
+          id="sso-login-domain-verification"
+          data-part="domain-verification"
+        >
+          <.alert
+            :if={@domain_verification_error}
+            id="sso-login-domain-verification-error"
+            data-part="domain-verification-error"
+            status="error"
+            type="secondary"
+            size="small"
+            title={@domain_verification_error}
+          />
+          <div
+            :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
+            data-part="domain-records"
           >
-            <%= cond do %>
-              <% Accounts.sso_login_domain_expiring?(@organization) -> %>
-                <span data-part="domain-verification-status" data-status="expiring">
-                  {dgettext("dashboard_account", "Verification expiring")}
-                </span>
-                <span data-part="domain-verification-description">
-                  {dngettext(
-                    "dashboard_account",
-                    "The text record no longer resolves. Publish it again and verify, or this domain loses its verification in %{count} day.",
-                    "The text record no longer resolves. Publish it again and verify, or this domain loses its verification in %{count} days.",
-                    Accounts.sso_login_domain_days_until_expiry(@organization)
-                  )}
-                </span>
-              <% @organization.sso_login_domain_verified_at -> %>
-                <span data-part="domain-verification-status" data-status="verified">
-                  {dgettext("dashboard_account", "Verified")}
-                </span>
-              <% true -> %>
-                <span data-part="domain-verification-status" data-status="pending">
-                  {dgettext("dashboard_account", "Pending verification")}
-                </span>
-                <span data-part="domain-verification-description">
-                  {dgettext(
-                    "dashboard_account",
-                    "Add the following text record to your domain, then verify it."
-                  )}
-                </span>
-            <% end %>
-            <div
-              :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
-              data-part="domain-record"
-            >
+            <div data-part="domain-record">
+              <span data-part="domain-record-label">
+                {dgettext("dashboard_account", "Record type")}
+              </span>
+              <div data-part="read-only-value">
+                <code>TXT</code>
+              </div>
+            </div>
+            <div data-part="domain-record">
               <span data-part="domain-record-label">
                 {dgettext("dashboard_account", "Record name")}
               </span>
-              <div data-part="read-only-value">
-                <code>{Accounts.sso_login_domain_record_name(@organization)}</code>
-              </div>
+              <.copyable_value
+                id="sso-login-domain-record-name"
+                value={Accounts.sso_login_domain_record_name(@organization)}
+                copy_label={dgettext("dashboard_account", "Copy record name")}
+              />
             </div>
-            <div
-              :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
-              data-part="domain-record"
-            >
+            <div data-part="domain-record">
               <span data-part="domain-record-label">
                 {dgettext("dashboard_account", "Record value")}
               </span>
-              <div data-part="read-only-value">
-                <code>{Accounts.sso_login_domain_record_value(@organization)}</code>
-              </div>
+              <.copyable_value
+                id="sso-login-domain-record-value"
+                value={Accounts.sso_login_domain_record_value(@organization)}
+                copy_label={dgettext("dashboard_account", "Copy record value")}
+              />
             </div>
-            <.button
-              :if={Accounts.sso_login_domain_awaiting_record?(@organization)}
-              type="button"
-              label={dgettext("dashboard_account", "Verify domain")}
-              variant="secondary"
-              size="medium"
-              phx-click="verify_sso_login_domain"
-            />
           </div>
         </div>
       </div>
@@ -699,9 +736,11 @@
           </span>
         </div>
         <div data-part="field">
-          <div data-part="read-only-value">
-            <code id="scim-base-url">{@scim_base_url}</code>
-          </div>
+          <.copyable_value
+            id="scim-base-url"
+            value={@scim_base_url}
+            copy_label={dgettext("dashboard_account", "Copy SCIM endpoint URL")}
+          />
         </div>
       </div>
 

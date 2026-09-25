@@ -72,10 +72,13 @@ defmodule Tuist.ClickHouse.Backfill do
 
   By month over a time column when the table has one, which is also how most
   of these tables are partitioned, so a chunk maps onto whole parts. Tables
-  with no usable time column, of which `build_files` is the large one, are
-  divided by a hash of the sorting key instead. Both give deterministic,
-  half-open intervals, so two adjacent chunks cannot claim the same row and a
-  resumed run cannot skip one.
+  with no usable time column are divided by a hash of the sorting key
+  instead. Both give deterministic, half-open intervals, so two adjacent
+  chunks cannot claim the same row and a resumed run cannot skip one.
+
+  A month holding more rows than one chunk should is sliced into equal spans
+  of time; see `slices/2`. And a table listed in `Tables.history_days/1` is
+  copied only over that many days before the cutoff, sliced the same way.
   """
 
   import Ecto.Query
@@ -127,13 +130,32 @@ defmodule Tuist.ClickHouse.Backfill do
   # against: shadow writes share this server, and one that fails after its
   # retries is counted `error` and lost for good, having been written after
   # the cutoff that any later backfill would copy up to.
+  #
+  # `max_execution_time` bounds a statement on the server, and the client
+  # waits longer than that and never retries; see `statement_options/0`.
   @copy_settings [
     max_memory_usage: 8 * 1024 * 1024 * 1024,
     max_threads: 4,
     max_insert_block_size: 65_536,
     min_insert_block_size_rows: 65_536,
-    min_insert_block_size_bytes: 64 * 1024 * 1024
+    min_insert_block_size_bytes: 64 * 1024 * 1024,
+    max_execution_time: 5_400
   ]
+
+  # The most rows one chunk may hold before it is sliced, about fifteen to
+  # twenty minutes of copying at the rate production sustained. Two things
+  # set it, and neither is the time limit.
+  #
+  # A chunk that fails part-way is repaired by copying only what the
+  # destination lacks, which holds a hash per destination row for that chunk
+  # in memory. Past a few hundred million rows that no longer fits under
+  # `max_memory_usage`, and a chunk too large to repair is one that can only
+  # be redone by hand.
+  #
+  # And on the tables that are not ordered by time, every chunk reads the
+  # whole table on the source whatever its size, so smaller is not free
+  # either. This keeps `build_files` to a handful of such reads.
+  @max_chunk_rows 300_000_000
 
   @doc """
   Copies every table the destination has, oldest chunk first.
@@ -263,10 +285,52 @@ defmodule Tuist.ClickHouse.Backfill do
         Enum.map(0..(@hash_buckets - 1), &{:hash, key, &1, @hash_buckets})
 
       column ->
+        column
+        |> time_chunks(source, table, cutoff)
+        |> Enum.flat_map(&sized(source, table, &1))
+    end
+  end
+
+  defp time_chunks(column, source, table, cutoff) do
+    case Tables.history_days(table) do
+      nil ->
         case bounds(source, table, column) do
           {nil, nil} -> []
           {from, to} -> month_chunks(column, from, to, cutoff)
         end
+
+      days ->
+        Logger.info("#{table}: copying the #{days} days before the cutoff, not its whole history")
+        [{:range, column, DateTime.add(cutoff, -days * 86_400, :second), cutoff}]
+    end
+  end
+
+  # A chunk already copied keeps its shape, so a run after this one skips it
+  # rather than re-slicing it into keys the ledger has never seen.
+  defp sized(source, table, chunk) do
+    if chunk_done?(table, chunk), do: [chunk], else: slices(chunk, count(source, table, chunk))
+  end
+
+  @doc """
+  Splits a time chunk holding `rows` rows on the source into equal spans of
+  time, as many as it takes to bring each under the per-chunk limit.
+
+  Public for the same reason as `month_chunks/4`. The slices are contiguous
+  and half-open, begin where the chunk begins and end where it ends, and fall
+  on whole seconds, because a chunk's bounds are rendered to the second.
+  Equal spans of time rather than of rows, so a busy slice can run over the
+  limit; it bounds the typical chunk, not every one.
+  """
+  def slices({:range, column, from, to} = chunk, rows) do
+    count = div(rows + @max_chunk_rows - 1, @max_chunk_rows)
+
+    if count <= 1 do
+      [chunk]
+    else
+      span = DateTime.diff(to, from, :second)
+      boundary = fn i -> if i == count, do: to, else: DateTime.add(from, div(i * span, count), :second) end
+
+      Enum.map(0..(count - 1), &{:range, column, boundary.(&1), boundary.(&1 + 1)})
     end
   end
 
@@ -304,7 +368,8 @@ defmodule Tuist.ClickHouse.Backfill do
       source.repo.query!(
         "SELECT toStartOfMonth(min(#{quote_ident(column)})), toStartOfMonth(max(#{quote_ident(column)})) FROM #{quote_ident(source.database)}.#{quote_ident(table)}",
         [],
-        log: false
+        [settings: [max_execution_time: Keyword.fetch!(@copy_settings, :max_execution_time)], log: false] ++
+          statement_options()
       )
 
     case result.rows do
@@ -400,8 +465,25 @@ defmodule Tuist.ClickHouse.Backfill do
   """
   def copy_settings, do: @copy_settings
 
+  @doc """
+  The options every statement that reads a chunk is sent with, the copy and
+  the counts alike.
+
+  The client waits longer than the server's `max_execution_time` and never
+  retries. The other way round was the default, and it was unsafe in a way
+  that only large chunks reach: when the client gave up first, the driver
+  asked DBConnection to retry on a fresh connection, and ClickHouse does not
+  cancel an `INSERT` whose client has gone, so one slow chunk became up to
+  four concurrent copies of the same rows into the destination. With the
+  server giving up first, a chunk that runs too long fails once, is recorded
+  as failed, and is repaired by the next run.
+  """
+  def statement_options do
+    [timeout: to_timeout(second: Keyword.fetch!(@copy_settings, :max_execution_time) + 300), checkout_retries: 0]
+  end
+
   defp run!(target, statement, params) do
-    target.repo.query!(statement, params, settings: @copy_settings, timeout: to_timeout(minute: 30), log: false)
+    target.repo.query!(statement, params, [settings: @copy_settings, log: false] ++ statement_options())
   end
 
   # On a plain `MergeTree` the destination cannot lack more rows than it is
@@ -549,8 +631,13 @@ defmodule Tuist.ClickHouse.Backfill do
       endpoint.repo.query!(
         "SELECT count() FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{final} WHERE #{predicate(chunk)}",
         [],
-        settings: [max_memory_usage: @max_memory_usage],
-        log: false
+        [
+          settings: [
+            max_memory_usage: @max_memory_usage,
+            max_execution_time: Keyword.fetch!(@copy_settings, :max_execution_time)
+          ],
+          log: false
+        ] ++ statement_options()
       )
 
     case result.rows do

@@ -1,6 +1,7 @@
 package podagent
 
 import (
+	"context"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
@@ -122,11 +123,12 @@ func TestConvergeMasterReportsAHeadItCannotVerify(t *testing.T) {
 			})
 			r := &Reconciler{
 				Volumes:                  m,
+				Converge:                 newTestConvergeWorker(m),
 				ConvergeHeadWaitInterval: time.Millisecond,
 				ConvergeHeadWaitAttempts: 2,
 			}
 
-			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+			convergeNow(r, statusDir, ReservedTuistCacheVolume, "42")
 
 			// Either way the local master is untouched: the digest check is the guard
 			// that stops a corrupt master propagating fleet-wide, and reporting does
@@ -206,11 +208,12 @@ func TestConvergeMasterVerifiesTheContentDigest(t *testing.T) {
 			})
 			r := &Reconciler{
 				Volumes:                  m,
+				Converge:                 newTestConvergeWorker(m),
 				ConvergeHeadWaitInterval: time.Millisecond,
 				ConvergeHeadWaitAttempts: 2,
 			}
 
-			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+			convergeNow(r, statusDir, ReservedTuistCacheVolume, "42")
 
 			if masterExists(m, "42") != tc.wantAdopted {
 				t.Fatalf("master adopted = %v, want %v", masterExists(m, "42"), tc.wantAdopted)
@@ -286,11 +289,12 @@ func TestConvergeMasterExplainsWhyItSkipped(t *testing.T) {
 			}
 			r := &Reconciler{
 				Volumes:                  m,
+				Converge:                 newTestConvergeWorker(m),
 				ConvergeHeadWaitInterval: time.Millisecond,
 				ConvergeHeadWaitAttempts: 2,
 			}
 
-			r.convergeMaster("vm1", statusDir, ReservedTuistCacheVolume, "42")
+			convergeNow(r, statusDir, ReservedTuistCacheVolume, "42")
 
 			got := messages()
 			for _, msg := range got {
@@ -301,4 +305,39 @@ func TestConvergeMasterExplainsWhyItSkipped(t *testing.T) {
 			t.Fatalf("no log line mentioning %q; got %v", tc.want, got)
 		})
 	}
+}
+
+// newTestConvergeWorker is a worker whose waits are milliseconds.
+func newTestConvergeWorker(m *VolumeManager) *ConvergeWorker {
+	return &ConvergeWorker{
+		Volumes:      m,
+		pollInterval: 5 * time.Millisecond,
+		stallTimeout: 2 * time.Second,
+		retryBackoff: time.Millisecond,
+	}
+}
+
+// convergeNow runs a job's convergence end to end: queue the HEAD its guest
+// staged, then let the worker take everything it may.
+func convergeNow(r *Reconciler, statusDir, volume, account string) {
+	r.queueConvergence("vm1", statusDir, volume, account)
+	for r.Converge.step(context.Background()) {
+	}
+}
+
+// startTestConvergeWorker runs a test worker until the test ends.
+func startTestConvergeWorker(t *testing.T, m *VolumeManager) *ConvergeWorker {
+	t.Helper()
+	w := newTestConvergeWorker(m)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = w.Start(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	return w
 }

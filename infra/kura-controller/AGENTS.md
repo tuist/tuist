@@ -23,6 +23,7 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 `clientHostAliases` contains historical client names still within their 90-day window alongside the current public/private host. The server removes expired names; reconcile must remove their DNS, HTTP/gRPC and certificate entries, including pruning stale DNS aliases when no healthy gateway target is known. Render the same host set into DNS, HTTP/gRPC ingress and certificate names; a shared wildcard is eligible only if it covers every name. This field never enters the StatefulSet template, peer TLS identity or volume configuration. Preserve private CIDR restrictions and operator-set `OnDelete`. See [account renames](../../kura/docs/account-renames.md).
 
 For an `OnDelete` deployment, Kubernetes may retain the original `currentRevision` after every pod has been manually replaced. Rollout observation must accept an observed generation with a nonempty update revision and the complete replica set updated and Ready, while preserving the pause. Partial replacements, extra old replicas and stale observations must remain pending.
+Rollout observation reads the StatefulSet from the informer cache in the same reconcile that wrote its template, so it can still see the previous object, complete for the previous image. The desired image is observed only when the StatefulSet's `kura` container template carries it, under every update strategy.
 
 ## Deployment Topology
 
