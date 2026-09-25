@@ -606,7 +606,7 @@ defmodule TuistWeb.OnceOverviewLive do
     }
   end
 
-  defp summary_with_trends(project_id, {start_dt, end_dt} = period, commands, environment \\ "any") do
+  defp summary_with_trends(project_id, {start_dt, end_dt} = period, commands, environment) do
     current = Analytics.summary(project_id, opts(period, commands, environment))
     {prev_start, prev_end} = previous_period(start_dt, end_dt)
     previous = Analytics.summary(project_id, opts({prev_start, prev_end}, commands, environment))
@@ -620,7 +620,7 @@ defmodule TuistWeb.OnceOverviewLive do
 
   # The per-run hit rate, which is what the Once cache page charts, rather
   # than `CacheAnalytics.summary/2`, which reports transfer and latency.
-  defp cache_summary_with_trend(project_id, {start_dt, end_dt} = period, environment \\ "any") do
+  defp cache_summary_with_trend(project_id, {start_dt, end_dt} = period, environment) do
     current =
       CacheAnalytics.invocation_hit_rate_metrics(
         project_id,

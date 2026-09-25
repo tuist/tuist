@@ -1182,7 +1182,7 @@ defmodule TuistWeb.OnceRunsLive do
   defp sort_field("duration"), do: :duration_ms
   defp sort_field(_), do: :finished_at
 
-  defp analytics_opts(period, commands, environment \\ "any") do
+  defp analytics_opts(period, commands, environment) do
     period
     |> period_opts()
     |> Keyword.put(:commands, commands)

@@ -518,7 +518,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
   defp scatter_group(run, :version), do: presence(run.once_version, "Unknown version")
   defp scatter_group(run, _host), do: presence(run.host_class, "Unknown host")
 
-  defp presence(value, fallback) when is_binary(value) and value != "", do: value
+  defp presence(value, _fallback) when is_binary(value) and value != "", do: value
   defp presence(_value, fallback), do: fallback
 
   defp round_value(value) when is_float(value), do: Float.round(value, 1)
