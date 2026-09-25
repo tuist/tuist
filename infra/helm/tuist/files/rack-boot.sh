@@ -1,8 +1,9 @@
 #!/bin/sh
 # The rack's boot server, run by the rack-boot DaemonSet on the rack's edge
-# node with host networking. On the provisioning address it serves iPXE and
-# boot.ipxe over TFTP, and over HTTP the installer's kernel, initrd and ISO and
-# each host's iPXE script and autoinstall seed. The per-host files are what the
+# node with host networking. On the provisioning address it serves iPXE, its
+# Secure Boot shim and boot.ipxe over TFTP, and over HTTP the installer's
+# kernel, initrd, shim and ISO and each host's iPXE script and autoinstall
+# seed. The per-host files are what the
 # operator publishes to the fleet's boot Secret, mounted at $SEEDS:
 # <mac>.ipxe, <mac>.user-data and <mac>.meta-data, with the MAC hyphenated,
 # and <mac>.uuid, the machine's SMBIOS UUID, under which the iPXE script is
@@ -10,7 +11,7 @@
 # its next boot entry.
 #
 # Environment: BOOT_ADDRESS, HTTP_PORT, ISO_URL, ISO_SHA256, STATE (a host
-# directory kept across restarts), SEEDS, NETBOOT (iPXE).
+# directory kept across restarts), SEEDS, NETBOOT (iPXE and its shim).
 # RACK_BOOT_SOURCE_ONLY=1 defines the functions without serving, for the tests.
 set -eu
 
@@ -41,10 +42,14 @@ prepare() {
     echo "$ISO_SHA256" > "$STATE/iso.sha256"
   fi
   # The kernel and initrd come from the ISO the installer then loads, so the
-  # modules in its squashfs match the running kernel.
+  # modules in its squashfs match the running kernel, and so does Ubuntu's
+  # shim, which verifies that kernel under Secure Boot.
   bsdtar -xOf "$iso" casper/vmlinuz > "$http/ubuntu/vmlinuz"
   bsdtar -xOf "$iso" casper/initrd > "$http/ubuntu/initrd"
-  cp "$NETBOOT/snponly.efi" "$tftp/"
+  bsdtar -xOf "$iso" EFI/boot/bootx64.efi > "$http/ubuntu/shimx64.efi"
+  # iPXE's Secure Boot build: a Microsoft-signed shim that loads the iPXE
+  # signed by the iPXE project beside it, named after itself.
+  cp "$NETBOOT/snponly-shim.efi" "$NETBOOT/snponly.efi" "$tftp/"
   lay_out_announce
   # iPXE asks for the host's script by the MAC it booted from, then by the
   # machine's SMBIOS UUID, which AMT's network boot of a dead host needs: it

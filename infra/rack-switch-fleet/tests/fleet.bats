@@ -2203,14 +2203,14 @@ STUB
     [ "$status" -ne 0 ]
 }
 
-@test "a netbooting site hands UEFI firmware iPXE, and iPXE its script, from the boot server" {
+@test "a netbooting site hands UEFI firmware iPXE's Secure Boot shim, and iPXE its script, from the boot server" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_dhcp "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"dhcp-match=set:netboot,option:client-arch,7"* ]]
     [[ "$output" == *"dhcp-match=set:netboot,option:client-arch,9"* ]]
     [[ "$output" == *"dhcp-userclass=set:ipxe,iPXE"* ]]
-    [[ "$output" == *"dhcp-boot=tag:netboot,tag:!ipxe,snponly.efi,,192.168.50.1"* ]]
+    [[ "$output" == *"dhcp-boot=tag:netboot,tag:!ipxe,snponly-shim.efi,,192.168.50.1"* ]]
     [[ "$output" == *"dhcp-boot=tag:ipxe,boot.ipxe,,192.168.50.1"* ]]
     [[ "$output" != *"vendor-class"* ]]
     jq 'del(.management.edge.netboot)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nonetboot.json"

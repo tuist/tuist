@@ -182,8 +182,7 @@ func TestIPXEScript(t *testing.T) {
 	for _, want := range []string{
 		"#!ipxe\n",
 		"kernel http://192.168.50.1:8480/ubuntu/vmlinuz initrd=initrd ip=dhcp BOOTIF=01-38-05-25-38-b5-b5 url=http://192.168.50.1:8480/ubuntu/ubuntu.iso cloud-config-url=/dev/null autoinstall ds=nocloud-net;s=http://192.168.50.1:8480/hosts/38-05-25-38-b5-b5/ ---\n",
-		"initrd --name initrd http://192.168.50.1:8480/ubuntu/initrd\n",
-		"\nboot\n",
+		"initrd --name initrd http://192.168.50.1:8480/ubuntu/initrd\nshim http://192.168.50.1:8480/ubuntu/shimx64.efi\nboot\n",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("script lacks %q:\n%s", want, got)
