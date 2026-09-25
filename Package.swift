@@ -1066,6 +1066,13 @@ var targets: [Target] = [
         path: "cli/Tests/TuistCASTests"
     ),
     .testTarget(
+        name: "TuistProcessTests",
+        dependencies: [
+            "TuistProcess",
+        ],
+        path: "cli/Tests/TuistProcessTests"
+    ),
+    .testTarget(
         name: "TuistOIDCTests",
         dependencies: [
             "TuistOIDC",

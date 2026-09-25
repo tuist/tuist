@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(System)
+    import System
+#else
+    import SystemPackage
+#endif
 
 #if canImport(Darwin)
     import Darwin
@@ -104,21 +109,36 @@ func systemMaximumConcurrentProcesses() -> Int {
 }
 
 extension FileHandle {
+    /// Streams the handle's contents until end of file, reading on a dedicated thread.
+    ///
+    /// This deliberately avoids `readabilityHandler`: on Linux, when a short-lived child writes its output and exits
+    /// right away, the readability source can deliver the data but never the end of file, so the stream stays open
+    /// after the process is gone and the caller waits forever.
     func byteStream() -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream { continuation in
-            readabilityHandler = { handle in
-                let data = handle.availableData
-                if data.isEmpty {
-                    continuation.finish()
-                    handle.readabilityHandler = nil
-                } else {
-                    continuation.yield(data)
+            let fileDescriptor = FileDescriptor(rawValue: fileDescriptor)
+            let thread = Thread {
+                withExtendedLifetime(self) {
+                    // Uninitialized, so a command that writes little output only makes the pages it fills resident.
+                    let buffer = UnsafeMutableRawBufferPointer.allocate(byteCount: 64 * 1024, alignment: 1)
+                    defer { buffer.deallocate() }
+                    while true {
+                        do {
+                            let count = try fileDescriptor.read(into: buffer, retryOnInterrupt: true)
+                            if count == 0 {
+                                continuation.finish()
+                                return
+                            }
+                            continuation.yield(Data(bytes: buffer.baseAddress!, count: count))
+                        } catch {
+                            continuation.finish(throwing: error)
+                            return
+                        }
+                    }
                 }
             }
-
-            continuation.onTermination = { @Sendable _ in
-                self.readabilityHandler = nil
-            }
+            thread.name = "dev.tuist.process-output"
+            thread.start()
         }
     }
 }
