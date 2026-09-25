@@ -424,8 +424,8 @@ defmodule Tuist.GitHistory do
               :ok
 
             true ->
-              advance(repository_id, ref, head_sha, is_nil(ref.parent_ref_id), opts)
-              sync_coverage(repository_id)
+              touched = advance(repository_id, ref, head_sha, is_nil(ref.parent_ref_id), opts)
+              sync_coverage(repository_id, touched)
           end
 
           :ok
@@ -482,17 +482,19 @@ defmodule Tuist.GitHistory do
     end
   end
 
+  # The SHAs whose place changed: the ones it numbered and the ones it
+  # released, its re-forked losers' included.
   defp advance(repository_id, %Ref{} = ref, head_sha, takeover?, opts) do
     max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
     walk = walk(repository_id, head_sha, takeover?, Enum.reject([ref.id, ref.parent_ref_id], &is_nil/1), max_depth)
     anchor = Enum.find(walk, &anchored?(&1, ref, takeover?))
     anchor_depth = if anchor, do: anchor.depth, else: length(walk)
 
-    {base, fork} = settle(ref, anchor)
+    {base, fork, released} = settle(ref, anchor)
 
     new = Enum.filter(walk, &(&1.depth < anchor_depth))
     losers = new |> Enum.map(& &1.ref_id) |> Enum.reject(&(is_nil(&1) or &1 == ref.id)) |> Enum.uniq()
-    Enum.each(losers, &release(from(c in Commit, where: c.ref_id == ^&1)))
+    lost = Enum.flat_map(losers, &release(from(c in Commit, where: c.ref_id == ^&1)))
 
     Repo.query!(
       """
@@ -514,36 +516,38 @@ defmodule Tuist.GitHistory do
 
     # A ref that lost commits to a fast-forward forks again above them. It
     # never takes commits back, so the re-forks end.
-    for %Ref{head_sha: loser_head} = loser <- Enum.map(losers, &get_ref/1), loser_head do
-      advance(repository_id, loser, loser_head, false, opts)
-    end
+    reforked =
+      for %Ref{head_sha: loser_head} = loser <- Enum.map(losers, &get_ref/1), loser_head do
+        advance(repository_id, loser, loser_head, false, opts)
+      end
+
+    Enum.concat([released, lost, Enum.map(new, & &1.sha) | reforked])
   end
 
   # Where the ref's new commits start, and where it forks, from the commit
   # the walk stopped at, releasing what the ref no longer holds.
   defp settle(ref, nil) do
     case Repo.one(from(c in Commit, where: c.ref_id == ^ref.id, select: max(c.position))) do
-      nil -> {0, 0}
-      top -> {top, ref.fork_position}
+      nil -> {0, 0, []}
+      top -> {top, ref.fork_position, []}
     end
   end
 
   defp settle(%{id: ref_id} = ref, %{ref_id: ref_id, position: position}) do
-    release(from(c in Commit, where: c.ref_id == ^ref_id and c.position > ^position))
-    {position, ref.fork_position}
+    released = release(from(c in Commit, where: c.ref_id == ^ref_id and c.position > ^position))
+    {position, ref.fork_position, released}
   end
 
   defp settle(%{parent_ref_id: parent_id} = ref, %{ref_id: parent_id, position: position}) do
-    release(from(c in Commit, where: c.ref_id == ^ref.id))
-    {position, position}
+    {position, position, release(from(c in Commit, where: c.ref_id == ^ref.id))}
   end
 
   # A sibling's commit: fork where the sibling forked.
   defp settle(ref, anchor) do
-    release(from(c in Commit, where: c.ref_id == ^ref.id))
+    released = release(from(c in Commit, where: c.ref_id == ^ref.id))
     sibling = get_ref(anchor.ref_id)
     fork = if sibling.parent_ref_id == ref.parent_ref_id, do: sibling.fork_position, else: 0
-    {fork, fork}
+    {fork, fork, released}
   end
 
   # The default branch walks through other refs' commits, taking them over,
@@ -577,20 +581,26 @@ defmodule Tuist.GitHistory do
     Enum.map(rows, fn [sha, depth, ref_id, position] -> %{sha: sha, depth: depth, ref_id: ref_id, position: position} end)
   end
 
-  defp release(query), do: Repo.update_all(query, set: [ref_id: nil, position: nil])
+  defp release(query) do
+    {_count, shas} = Repo.update_all(select(query, [c], c.sha), set: [ref_id: nil, position: nil])
+    shas
+  end
 
   # A commit's coverage keeps a copy of its place, so a branch's history
   # outlives the graph's window; it follows every move while the commit is in
-  # the graph.
-  defp sync_coverage(repository_id) do
+  # the graph. Only the commits an advance touched can have moved.
+  defp sync_coverage(_repository_id, []), do: :ok
+
+  defp sync_coverage(repository_id, shas) do
     Repo.query!(
       """
       UPDATE coverage_commits cc SET ref_id = c.ref_id, position = c.position
       FROM git_commits c
-      WHERE cc.repository_id = $1 AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
+      WHERE cc.repository_id = $1 AND cc.git_commit_sha = ANY ($2::varchar[])
+        AND c.repository_id = $1 AND c.sha = cc.git_commit_sha
         AND (cc.ref_id IS DISTINCT FROM c.ref_id OR cc.position IS DISTINCT FROM c.position)
       """,
-      [repository_id]
+      [repository_id, Enum.uniq(shas)]
     )
   end
 
