@@ -732,7 +732,7 @@ A host with `spec.amt.activate` (the chart's `rackLinuxFleet.hosts[].amt`) and
 a connected tailnet device gets, over SSH, the pinned `rpc` (the Device
 Management Toolkit's AMT client, installed at `/usr/local/lib/tuist/rpc-<version>`
 from the release tarball's digest), which reads AMT's state and, while AMT is
-pre-provisioned, runs `rpc activate -local -acm`. The provisioning certificate
+pre-provisioned, runs `rpc activate --acm`. The provisioning certificate
 comes from `--rack-linux-amt-provisioning-secret-name` (`pfx`, `password`,
 synced from 1Password `AMT_PROVISIONING_CERT`). The admin password is generated
 and stored in the Secret `<host>-amt` before the first attempt, and that Secret
