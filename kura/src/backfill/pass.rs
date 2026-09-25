@@ -553,8 +553,10 @@ async fn fetch_listing_page(
     let mut attempt = 0_u32;
     loop {
         let mut url = format!(
-            "{}/_internal/backfill/entries?limit={}",
-            context.peer, context.tuning.page_limit
+            "{}/_internal/backfill/entries?limit={}&peer={}",
+            context.peer,
+            context.tuning.page_limit,
+            url_encode(&context.state.config.node_url)
         );
         if let Some(after) = after {
             url.push_str("&after=");
@@ -832,7 +834,11 @@ async fn send_bodies_request(
     };
     let body = serde_json::to_vec(&request)
         .map_err(|error| PassAbort::Hard(format!("failed to encode bodies request: {error}")))?;
-    let url = format!("{}/_internal/backfill/bodies", context.peer);
+    let url = format!(
+        "{}/_internal/backfill/bodies?peer={}",
+        context.peer,
+        url_encode(&context.state.config.node_url)
+    );
     let mut attempt = 0_u32;
     loop {
         let started = Instant::now();
@@ -1357,9 +1363,10 @@ async fn fetch_individual(context: &PassContext<'_>, key: &ClaimKey) -> Result<(
     context.guard.mark_in_flight(key);
     context.update_stats(|stats| stats.individual_fetches += 1);
     let url = format!(
-        "{}/_internal/backfill/artifacts/{}",
+        "{}/_internal/backfill/artifacts/{}?peer={}",
         context.peer,
-        url_encode(&key.record_id)
+        url_encode(&key.record_id),
+        url_encode(&context.state.config.node_url)
     );
     let mut attempt = 0_u32;
     loop {
@@ -1895,6 +1902,32 @@ mod tests {
             );
             sleep(Duration::from_millis(50)).await;
         }
+    }
+
+    #[tokio::test]
+    async fn a_pass_keeps_its_feed_registration_on_the_peer_live() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "seg-a", b"segment-body-a", 1_000).await;
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+        let local = test_context(|_| {}).await;
+        // Registered by the sibling link's snapshot under the requester's
+        // node URL, which is the key a pass has to refresh.
+        let feed = peer.state.store.sync_feed().clone();
+        feed.note_consumer_snapshot(&local.state.config.node_url, 0);
+        let registered_at = feed.consumers()[0].1.seen_at;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+
+        let (outcome, _) = run_pass(&local, &peer_url, tuning()).await;
+
+        assert!(matches!(outcome, BackfillPassOutcome::Completed { .. }));
+        let (key, consumer) = feed.consumers().remove(0);
+        assert_eq!(key, local.state.config.node_url);
+        assert!(
+            consumer.seen_at > registered_at,
+            "the pass refreshed its registration"
+        );
+        assert!(consumer.pinned);
     }
 
     #[tokio::test]
