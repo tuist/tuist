@@ -3,6 +3,10 @@ name: Linux Build Cache Benchmark
 on:
   workflow_dispatch:
     inputs:
+      runner_label:
+        description: Runner profile; use the same profile for every comparison phase
+        type: string
+        default: tuist-linux-large
       remote_cache:
         description: Enable Kura remote caching; run cold to seed it before baseline and warm comparisons
         type: boolean
@@ -43,7 +47,7 @@ jobs:
       contents: read
       id-token: write
     name: ${{ matrix.workload }} / ${{ inputs.phase }}
-    runs-on: tuist-linux-large
+    runs-on: ${{ inputs.runner_label }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -175,15 +179,16 @@ jobs:
       - name: Record measurement
         env:
           CACHE_HIT: ${{ steps.volume.outputs.cache-hit }}
+          RUNNER_PROFILE: ${{ inputs.runner_label }}
         run: |
           mkdir -p "$RUNNER_TEMP/build-cache-results"
           bytes=$(du -sb "$CACHE_PATH" | cut -f1)
           if [ -n "$SECOND_CACHE" ]; then bytes=$((bytes + $(du -sb "$SECOND_CACHE" | cut -f1))); fi
-          jq -n --arg source "$SOURCE_SHA" --arg phase "$PHASE" --arg workload "$WORKLOAD" \
+          jq -n --arg source "$SOURCE_SHA" --arg phase "$PHASE" --arg workload "$WORKLOAD" --arg profile "$RUNNER_PROFILE" \
             --arg hit "$CACHE_HIT" --argjson cache_ms "$CACHE_MS" --argjson workload_ms "$WORKLOAD_MS" \
             --argjson bytes "$bytes" --argjson remote_cache "$REMOTE_CACHE" \
             --argjson remote_hits "${REMOTE_HITS:-0}" --argjson disk_hits "${DISK_HITS:-0}" \
-            '{source:$source, phase:$phase, workload:$workload, hit:$hit, cache_ms:$cache_ms, workload_ms:$workload_ms, bytes:$bytes,
+            '{source:$source, profile:$profile, phase:$phase, workload:$workload, hit:$hit, cache_ms:$cache_ms, workload_ms:$workload_ms, bytes:$bytes,
               remote_cache:$remote_cache, remote_hits:$remote_hits, disk_hits:$disk_hits}' \
             > "$RUNNER_TEMP/build-cache-results/$WORKLOAD-$PHASE.json"
           {
@@ -191,7 +196,7 @@ jobs:
             echo '| --- | --- | ---: | ---: | --- |'
             echo "| $WORKLOAD | $PHASE | $CACHE_MS | $WORKLOAD_MS | $CACHE_HIT |"
             echo
-            echo "Same source and tuist-linux-large profile. Remote cache enabled: $REMOTE_CACHE."
+            echo "Source: $SOURCE_SHA. Profile: $RUNNER_PROFILE. Remote cache enabled: $REMOTE_CACHE."
             echo "Remote action hits: ${REMOTE_HITS:-0}; local disk hits: ${DISK_HITS:-0}."
             echo 'With remote caching enabled, seed with the cold phase first; baseline measures remote-only with empty local state.'
             echo 'Timing excludes checkout, tools, native prerequisite installation, queueing and post-job publication.'
