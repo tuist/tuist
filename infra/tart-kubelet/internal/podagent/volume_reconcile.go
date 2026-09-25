@@ -428,11 +428,6 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// fast-forward only if HEAD is still at this generation — so a job that built
 	// on a stale master cannot clobber a newer HEAD.
 	writeBaseGeneration(entry.VolumeStatusDir, baseGeneration)
-	// A HEAD this host already proved does not reproduce its digest is staged
-	// for this job to relay with its promote. The converge worker usually runs
-	// after the job that relayed that HEAD has gone, so this job is the one that
-	// can let the server retire it.
-	stageUnverifiableHead(entry.VolumeStatusDir, r.Converge.DisprovedDigest(account, volume))
 	// Drop the host-written materialization marker so a kubelet restart can tell
 	// this (materialized) branch from an idle VM's boot-created empty cache dir.
 	r.Volumes.MarkMaterialized(entry.Volume)
@@ -802,6 +797,12 @@ func (r *Reconciler) queueConvergence(vmName, statusDir, volumeName, account str
 			"vm", vmName, "account", account, "volume", volumeName, "generation", head.Generation)
 		return
 	}
+	key := masterKey{account: account, volume: volumeName}
+	// A job dispatched with a HEAD this host already proved does not reproduce
+	// its digests relays that proof with its promote. The converge worker
+	// usually runs after the job that first relayed the HEAD has gone, so a
+	// later job with the same HEAD is what lets the server retire it.
+	r.Converge.RelayDisproof(key, *head, statusDir)
 	// The healthy no-op, logged so it can be told apart from a convergence that
 	// failed or never ran. The worker checks again before it downloads, since a
 	// promote can land in between.
@@ -812,7 +813,7 @@ func (r *Reconciler) queueConvergence(vmName, statusDir, volumeName, account str
 		return
 	}
 	r.Converge.Enqueue(convergeRequest{
-		key:       masterKey{account: account, volume: volumeName},
+		key:       key,
 		head:      *head,
 		source:    convergeSourceJob,
 		statusDir: statusDir,

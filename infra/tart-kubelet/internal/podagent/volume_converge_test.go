@@ -319,10 +319,10 @@ func TestConvergeEvictsForAJobButNotForAPrefetch(t *testing.T) {
 }
 
 // The job that relayed a HEAD has usually finished by the time the worker finds
-// the object does not reproduce it, so the disproof is staged into the next job
-// for the volume, whose promote can retire it. The host does not download a HEAD
-// it has already disproved.
-func TestConvergeCarriesADisproofToTheNextJob(t *testing.T) {
+// the object does not reproduce it, so the disproof is relayed by the next job
+// dispatched with that same HEAD, whose promote can retire it. The host does
+// not download a HEAD it has already disproved.
+func TestConvergeRelaysADisproofWithTheNextJobOnTheSameHead(t *testing.T) {
 	served := []byte("not-the-advertised-head")
 	srv := serveImage(t, served)
 	m, _ := newTestManager(t, 100)
@@ -341,17 +341,45 @@ func TestConvergeCarriesADisproofToTheNextJob(t *testing.T) {
 	}
 
 	statusDir := t.TempDir()
-	att := mustAllocate(t, m, "vm-next")
-	store := NewStore()
-	store.Put("ns", "pod", &Entry{VMName: "vm-next", Volume: att, VolumeStatusDir: statusDir})
-	r := &Reconciler{Store: store, Volumes: m, Converge: w, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
-	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
-		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
-	}})
+	stageHead(t, statusDir, head)
+	r := &Reconciler{Volumes: m, Converge: w, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r.queueConvergence("vm-next", statusDir, ReservedTuistCacheVolume, "42")
 
 	staged, err := os.ReadFile(filepath.Join(statusDir, unverifiableHeadFile))
 	if err != nil || string(staged) != poisoned {
 		t.Fatalf("next job's staged disproof = %q, %v; want %q", staged, err, poisoned)
+	}
+}
+
+// Two objects can share an inventory digest and differ in content, and the
+// server keys them apart. A disproof of one must not reject the other: after a
+// corrupt HEAD is replaced by a valid one with the same inventory, the host
+// downloads the replacement, and a job dispatched with it relays nothing.
+func TestConvergeScopesADisproofToTheObject(t *testing.T) {
+	valid := []byte("the-valid-replacement-image")
+	srv := serveImage(t, valid)
+	m, _ := newTestManager(t, 100)
+	w := newTestConvergeWorker(m)
+
+	replacement := headFor(valid, 5, srv.URL)
+	corrupt := replacement
+	corrupt.Generation = 4
+	corrupt.ContentDigest = strings.Repeat("0", 64)
+	if got := w.converge(context.Background(), jobRequest("42", corrupt)); got != "unverifiable" {
+		t.Fatalf("converge of the corrupt HEAD = %q, want unverifiable", got)
+	}
+
+	statusDir := t.TempDir()
+	stageHead(t, statusDir, replacement)
+	r := &Reconciler{Volumes: m, Converge: w, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r.queueConvergence("vm-next", statusDir, ReservedTuistCacheVolume, "42")
+	if staged, err := os.ReadFile(filepath.Join(statusDir, unverifiableHeadFile)); err == nil {
+		t.Fatalf("a job on the valid replacement relayed the old disproof %q, which could retire it", staged)
+	}
+
+	drain(w)
+	if gen, _ := m.MasterGeneration("42", ReservedTuistCacheVolume); gen != 5 {
+		t.Fatalf("generation = %d; the valid replacement sharing the inventory digest must converge", gen)
 	}
 }
 
@@ -377,8 +405,8 @@ func TestConvergeRedownloadsAResumedMismatchBeforeBlamingTheHead(t *testing.T) {
 	if got := srv.rangeHeaders(); len(got) != 2 || got[0] != "bytes=9-" || got[1] != "" {
 		t.Fatalf("Range headers = %q; want a resume, then a whole download", got)
 	}
-	if d := w.DisprovedDigest("42", ReservedTuistCacheVolume); d != "" {
-		t.Fatalf("recorded %q as disproved from a local splice", d)
+	if w.disproven(masterKey{account: "42", volume: ReservedTuistCacheVolume}, headFor(content, 4, srv.URL)) {
+		t.Fatal("recorded a local splice as a disproof of the HEAD")
 	}
 }
 
@@ -606,5 +634,98 @@ func TestConvergePrefetchesAsSoonAsTheServerIsKnown(t *testing.T) {
 	drain(w)
 	if got := source.calls.Load(); got != 2 {
 		t.Fatalf("prefetch polls = %d; the first poll after the server became known must not wait an interval", got)
+	}
+}
+
+// heldImageServer sends the first MiB of content, then holds the transfer open
+// until released, so a test can admit jobs while a download is in flight.
+func heldImageServer(t *testing.T, content []byte) (url string, started <-chan struct{}, release func()) {
+	t.Helper()
+	first := make(chan struct{})
+	held := make(chan struct{})
+	var once sync.Once
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(content[:1<<20])
+		w.(http.Flusher).Flush()
+		once.Do(func() { close(first) })
+		select {
+		case <-held:
+			_, _ = w.Write(content[1<<20:])
+		case <-r.Context().Done():
+		}
+	}))
+	var releaseOnce sync.Once
+	t.Cleanup(func() {
+		releaseOnce.Do(func() { close(held) })
+		srv.Close()
+	})
+	return srv.URL, first, func() { releaseOnce.Do(func() { close(held) }) }
+}
+
+// A job admitted while a download runs is promised space the download has not
+// written yet. Jobs outrank downloads: when a job and the rest of a prefetch
+// do not both fit, the job is admitted and the prefetch gives its space back.
+func TestConvergePrefetchGivesWayToAJobAdmittedMidDownload(t *testing.T) {
+	content := bytes.Repeat([]byte("p"), 48<<20)
+	url, started, release := heldImageServer(t, content)
+	root := t.TempDir()
+	// 2 GiB + 32 MiB free: two 1 GiB branches fit, and one fits beside the
+	// rest of the download, but two do not.
+	m := NewVolumeManager(root, 1, &fakeBackend{totalBytes: 2*gib + 32<<20, perMaster: gib, root: root})
+	w := newTestConvergeWorker(m)
+	w.AlongsideJobs = true
+	w.busyBytesPerSec = 1 << 40
+	req := jobRequest("42", headFor(content, 4, url))
+	req.source = convergeSourcePrefetch
+
+	result := make(chan string, 1)
+	go func() { result <- w.converge(context.Background(), req) }()
+	<-started
+
+	startJob(t, m, "vm-1", "7")
+	select {
+	case got := <-result:
+		t.Fatalf("the download stopped (%q) for a job that fit beside it", got)
+	case <-time.After(50 * time.Millisecond):
+	}
+	startJob(t, m, "vm-2", "8")
+	release()
+
+	if got := <-result; got != "displaced" {
+		t.Fatalf("converge = %q; want the prefetch displaced by the job admitted into its space", got)
+	}
+	if _, err := os.Stat(m.ConvergeStagingDir("42", ReservedTuistCacheVolume)); !os.IsNotExist(err) {
+		t.Fatalf("a displaced download kept its partial image: %v", err)
+	}
+}
+
+// A job's own download may evict for its space, as admission does, so a job
+// admitted mid-download makes room for both by evicting LRU masters rather than
+// dropping a download of a volume that has run here.
+func TestConvergeJobDownloadKeepsItsSpaceByEvicting(t *testing.T) {
+	content := bytes.Repeat([]byte("j"), 48<<20)
+	url, started, release := heldImageServer(t, content)
+	root := t.TempDir()
+	m := NewVolumeManager(root, 1, &fakeBackend{totalBytes: 3*gib + 32<<20, perMaster: gib, root: root})
+	seedMasterGen(t, m, "9", masterImageContent("9"), 1)
+	w := newTestConvergeWorker(m)
+	w.AlongsideJobs = true
+	w.busyBytesPerSec = 1 << 40
+
+	result := make(chan string, 1)
+	go func() { result <- w.converge(context.Background(), jobRequest("42", headFor(content, 4, url))) }()
+	<-started
+
+	startJob(t, m, "vm-1", "7")
+	startJob(t, m, "vm-2", "8")
+	release()
+
+	if got := <-result; got != "converged" {
+		t.Fatalf("converge = %q, want converged", got)
+	}
+	if masterExists(m, "9") {
+		t.Fatal("admission did not evict the idle master to keep both jobs and the download")
 	}
 }

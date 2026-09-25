@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -273,6 +274,11 @@ type VolumeManager struct {
 	// branches materialized and not yet finalized. A warm standby's branch is
 	// not in it, because it writes nothing until it has a job.
 	reserved map[string]bool
+
+	// converging is the space the in-flight convergence download still needs, or
+	// nil. Admission counts it, so a job admitted mid-download is not promised
+	// space the download is about to write into.
+	converging *convergeReservation
 
 	// retained is the set of branch dirs (keyed by VM name) that belong to
 	// VMs still running after a kubelet restart. ReattachBranch adds to it
@@ -565,7 +571,7 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 		return nil
 	}
 	want := m.capBytes() * uint64(len(m.reserved)+1)
-	free, err := m.ensureFreeLocked(want, keep)
+	free, err := m.admitBesideConvergenceLocked(want, keep)
 	if errors.Is(err, errNoRoom) {
 		// Surfaced so a host wedged under disk pressure does not look identical to
 		// one where the feature is simply idle.
@@ -583,6 +589,34 @@ func (m *VolumeManager) reserveLocked(att VolumeAttachment, keep masterKey) erro
 	}
 	m.reserved[att.BranchPath] = true
 	return nil
+}
+
+// admitBesideConvergenceLocked makes room for want bytes of branch growth and
+// for the bytes an in-flight convergence download has not written yet. A job
+// outranks a download: when both do not fit, the download is cancelled and
+// the job is admitted against the space without it. A job's download (one that
+// may evict) keeps its bytes by evicting LRU masters first, as it would have
+// for itself; a prefetch evicts nothing to stay.
+func (m *VolumeManager) admitBesideConvergenceLocked(want uint64, keep masterKey) (uint64, error) {
+	r := m.converging
+	if r == nil || r.remaining() == 0 {
+		return m.ensureFreeLocked(want, keep)
+	}
+	outstanding := r.remaining()
+	if r.mayEvict {
+		if free, err := m.ensureFreeLocked(want+outstanding, keep); !errors.Is(err, errNoRoom) {
+			return free, err
+		}
+	}
+	free, err := m.ensureFreeLocked(want, keep)
+	if err != nil {
+		return free, err
+	}
+	if free < want+outstanding {
+		r.cancel(errConvergeDisplaced)
+		m.converging = nil
+	}
+	return free, nil
 }
 
 // createBranchImageLocked puts an empty, guest-writable cache image at dest,
@@ -1277,10 +1311,54 @@ var errMasterTooLargeToKeep = errors.New("cache master is larger than this host 
 // watermark and admission need, and the convergence may not evict for it.
 var errNoRoomToConverge = errors.New("runner-cache root has no room to download this master")
 
+// errConvergeDisplaced: a job was admitted into the space a convergence download
+// had reserved. Jobs outrank downloads, so the download stops and its partial
+// image is dropped to give the space back.
+var errConvergeDisplaced = errors.New("a job needed the space this download reserved")
+
+// convergeReservation is the space a convergence download still needs: the
+// bytes it has not written yet. Bytes already written show up in free space,
+// so admission counts only what is outstanding.
+type convergeReservation struct {
+	m           *VolumeManager
+	outstanding atomic.Int64
+	// mayEvict mirrors PrepareConvergeSpace: whether LRU masters may be
+	// evicted to keep this reservation when a job is admitted.
+	mayEvict bool
+	cancel   context.CancelCauseFunc
+}
+
+// Wrote records bytes the download has written.
+func (r *convergeReservation) Wrote(n int) {
+	if r != nil {
+		r.outstanding.Add(-int64(n))
+	}
+}
+
+// Release ends the reservation once the download stops writing.
+func (r *convergeReservation) Release() {
+	if r == nil {
+		return
+	}
+	r.m.mu.Lock()
+	defer r.m.mu.Unlock()
+	if r.m.converging == r {
+		r.m.converging = nil
+	}
+}
+
+func (r *convergeReservation) remaining() uint64 {
+	if n := r.outstanding.Load(); n > 0 {
+		return uint64(n)
+	}
+	return 0
+}
+
 // PrepareConvergeSpace makes room for the remaining bytes of a total-byte HEAD
-// image before its download continues, and declines one this host could not
-// keep. It must run before any byte lands: a download that fills the volume
-// fails, and it takes the space admitted jobs are growing into with it.
+// image before its download continues, declines one this host could not keep,
+// and reserves the remaining bytes against later admissions. It must run before
+// any byte lands: a download that fills the volume fails, and it takes the space
+// admitted jobs are growing into with it.
 //
 // Room means the download still leaves what the evictor keeps free, or what
 // admission needs for every reserved branch plus one more, whichever is larger,
@@ -1288,14 +1366,18 @@ var errNoRoomToConverge = errors.New("runner-cache root has no room to download 
 // masters other than key are evicted for it, as admission does for a job; a
 // prefetch for a volume that has not run here passes false and only uses space
 // that is already free.
-func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uint64, mayEvict bool) error {
+//
+// A job admitted while the download runs counts the reservation too (see
+// reserveLocked), and cancel is how admission stops the download when the job
+// and the download do not both fit. The caller must Release the reservation.
+func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uint64, mayEvict bool, cancel context.CancelCauseFunc) (*convergeReservation, error) {
 	capacity, err := m.backend.capacityBytes(m.Root)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	watermark := m.lowWatermarkBytes()
 	if capacity <= watermark || total > capacity-watermark {
-		return errMasterTooLargeToKeep
+		return nil, errMasterTooLargeToKeep
 	}
 
 	m.mu.Lock()
@@ -1309,20 +1391,22 @@ func (m *VolumeManager) PrepareConvergeSpace(key masterKey, total, remaining uin
 	if !mayEvict {
 		free, err := m.backend.freeBytes(m.Root)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if free < want {
-			return errNoRoomToConverge
+			return nil, errNoRoomToConverge
 		}
-		return nil
-	}
-	if _, err := m.ensureFreeLocked(want, key); err != nil {
+	} else if _, err := m.ensureFreeLocked(want, key); err != nil {
 		if errors.Is(err, errNoRoom) {
-			return errNoRoomToConverge
+			return nil, errNoRoomToConverge
 		}
-		return err
+		return nil, err
 	}
-	return nil
+
+	r := &convergeReservation{m: m, mayEvict: mayEvict, cancel: cancel}
+	r.outstanding.Store(int64(remaining))
+	m.converging = r
+	return r, nil
 }
 
 // HasMaster reports whether the (account, volume) master is resident.

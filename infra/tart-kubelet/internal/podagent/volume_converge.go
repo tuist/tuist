@@ -137,12 +137,13 @@ type ConvergeWorker struct {
 	mu sync.Mutex
 	// queue holds at most one request per volume, job-sourced ahead of prefetch.
 	queue []convergeRequest
-	// disproved holds, per volume, the HEAD digest this host downloaded and found
-	// the stored object does not reproduce. It is staged into the next job for
-	// the volume, whose promote relays it so the server can retire the HEAD; the
-	// job that relayed the HEAD has usually finished by the time the download
-	// runs.
-	disproved map[masterKey]string
+	// disproved holds, per volume, the HEAD this host downloaded and found the
+	// stored object does not reproduce, identified by generation and both
+	// digests (see sameObject). It is relayed by the next job dispatched with
+	// that same HEAD, whose promote lets the server retire it; the job that
+	// relayed the HEAD has usually finished by the time the download runs. A
+	// newer HEAD for the volume makes it stale.
+	disproved map[masterKey]volumeHead
 	// prefetchedAt is when each volume was last prefetched.
 	prefetchedAt map[masterKey]time.Time
 	lastPrefetch time.Time
@@ -287,28 +288,57 @@ func (w *ConvergeWorker) requeue(req convergeRequest) {
 	w.queue[at] = req
 }
 
-// DisprovedDigest returns the HEAD digest this host found unverifiable for the
-// volume, or "".
-func (w *ConvergeWorker) DisprovedDigest(account, volume string) string {
-	if w == nil {
-		return ""
-	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.disproved[masterKey{account: account, volume: volume}]
+// sameObject reports whether two HEADs name the same stored object. The
+// inventory digest alone does not: two images can hold the same entries with
+// different bytes, and the server keys their objects apart by content digest.
+func sameObject(a, b volumeHead) bool {
+	return a.Generation == b.Generation && a.Digest == b.Digest && a.ContentDigest == b.ContentDigest
 }
 
-func (w *ConvergeWorker) setDisproved(key masterKey, digest string) {
+// disprovenLocked reports whether head is the object this host disproved for
+// the volume, and forgets evidence about an older HEAD, which says nothing
+// about this one.
+func (w *ConvergeWorker) disprovenLocked(key masterKey, head volumeHead) bool {
+	disproved, ok := w.disproved[key]
+	if !ok {
+		return false
+	}
+	if disproved.Generation < head.Generation {
+		delete(w.disproved, key)
+		return false
+	}
+	return sameObject(disproved, head)
+}
+
+func (w *ConvergeWorker) disproven(key masterKey, head volumeHead) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if digest == "" {
-		delete(w.disproved, key)
+	return w.disprovenLocked(key, head)
+}
+
+// RelayDisproof stages the disproof for a job dispatched with the very HEAD this
+// host found unverifiable, so the job's promote can retire it. A job dispatched
+// with any other HEAD relays nothing.
+func (w *ConvergeWorker) RelayDisproof(key masterKey, head volumeHead, statusDir string) {
+	if w == nil || !w.disproven(key, head) {
 		return
 	}
+	stageUnverifiableHead(statusDir, head.Digest)
+}
+
+func (w *ConvergeWorker) setDisproved(key masterKey, head volumeHead) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.disproved == nil {
-		w.disproved = map[masterKey]string{}
+		w.disproved = map[masterKey]volumeHead{}
 	}
-	w.disproved[key] = digest
+	w.disproved[key] = head
+}
+
+func (w *ConvergeWorker) clearDisproved(key masterKey) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	delete(w.disproved, key)
 }
 
 // Start implements manager.Runnable.
@@ -443,9 +473,9 @@ func (w *ConvergeWorker) converge(ctx context.Context, req convergeRequest) stri
 		_ = os.RemoveAll(w.Volumes.ConvergeStagingDir(key.account, key.volume))
 		return "current"
 	}
-	if head.Digest != "" && w.DisprovedDigest(key.account, key.volume) == head.Digest {
-		logger.Info("converge: this host already found the HEAD does not reproduce its digest; not downloading it again",
-			"digest", head.Digest)
+	if w.disproven(key, head) {
+		logger.Info("converge: this host already found this HEAD's object does not reproduce its digests; not downloading it again",
+			"digest", head.Digest, "content_digest", head.ContentDigest)
 		return "unverifiable"
 	}
 	if req.source == convergeSourcePrefetch {
@@ -463,15 +493,25 @@ func (w *ConvergeWorker) converge(ctx context.Context, req convergeRequest) stri
 		return "failed"
 	}
 
+	started := w.clock()
+	var transfer downloadStats
+	defer func() { RecordVolumeConvergeBytes(req.source, transfer.bytes) }()
+
 	// A resumed download is spliced from two transfers. A mismatch in one says
 	// nothing certain about the object, so it is downloaded once more whole
 	// before any mismatch counts as proof against the HEAD.
 	for round := 0; ; round++ {
-		resumed, err := w.download(ctx, req, image)
+		resumed, stats, err := w.download(ctx, req, image)
+		transfer.bytes += stats.bytes
+		transfer.attempts += stats.attempts
 		switch {
 		case errors.Is(err, errConvergeYielded):
-			logger.Info("converge: a job landed on this host; pausing the download until it is idle")
+			logger.Info("converge: a job landed on this host; pausing the download until it is idle", "bytes", transfer.bytes)
 			return "yielded"
+		case errors.Is(err, errConvergeDisplaced):
+			logger.Info("converge: a job was admitted into the space this download reserved; dropping it", "bytes", transfer.bytes)
+			_ = os.RemoveAll(dir)
+			return "displaced"
 		case errors.Is(err, errMasterTooLargeToKeep):
 			logger.Info("converge: master is larger than this host can keep beside its watermark; not downloading it")
 			_ = os.RemoveAll(dir)
@@ -481,7 +521,7 @@ func (w *ConvergeWorker) converge(ctx context.Context, req convergeRequest) stri
 			_ = os.RemoveAll(dir)
 			return "no_room"
 		case err != nil:
-			logger.Error(err, "converge: download master image")
+			logger.Error(err, "converge: download master image", "bytes", transfer.bytes, "attempts", transfer.attempts)
 			_ = os.RemoveAll(dir)
 			return "failed"
 		}
@@ -499,7 +539,7 @@ func (w *ConvergeWorker) converge(ctx context.Context, req convergeRequest) stri
 		if !disproved {
 			return "failed"
 		}
-		w.setDisproved(key, head.Digest)
+		w.setDisproved(key, head)
 		stageUnverifiableHead(req.statusDir, head.Digest)
 		return "unverifiable"
 	}
@@ -519,9 +559,17 @@ func (w *ConvergeWorker) converge(ctx context.Context, req convergeRequest) stri
 		logger.Info("converge: master moved past this HEAD mid-download; discarding")
 		return "current"
 	}
-	w.setDisproved(key, "")
+	w.clearDisproved(key)
 	RecordVolumeConverged()
-	logger.Info("converged master to HEAD")
+	seconds := w.clock().Sub(started).Seconds()
+	RecordVolumeConvergeSeconds(req.source, seconds)
+	// Bytes and time of this pass only: a download that yielded earlier resumed
+	// with the bytes it already had.
+	values := []any{"bytes", transfer.bytes, "seconds", int64(seconds), "attempts", transfer.attempts}
+	if seconds > 0 {
+		values = append(values, "mib_per_second", float64(transfer.bytes)/(1<<20)/seconds)
+	}
+	logger.Info("converged master to HEAD", values...)
 	return "converged"
 }
 
@@ -575,10 +623,16 @@ func clearStagingExcept(dir, keep string) error {
 	return os.MkdirAll(dir, 0o755)
 }
 
+// downloadStats is what a download moved: bytes received and HTTP attempts.
+type downloadStats struct {
+	bytes    int64
+	attempts int
+}
+
 // download fetches the HEAD image to dst, resuming from whatever dst already
 // holds, and retries a transfer that fails partway. resumed reports whether any
 // of dst's bytes came from an earlier transfer.
-func (w *ConvergeWorker) download(ctx context.Context, req convergeRequest, dst string) (resumed bool, err error) {
+func (w *ConvergeWorker) download(ctx context.Context, req convergeRequest, dst string) (resumed bool, stats downloadStats, err error) {
 	backoff := w.retryBackoff
 	if backoff <= 0 {
 		backoff = convergeRetryBackoff
@@ -591,23 +645,27 @@ func (w *ConvergeWorker) download(ctx context.Context, req convergeRequest, dst 
 		if offset > 0 {
 			resumed = true
 		}
-		err = w.fetch(ctx, req, dst, offset)
+		var written int64
+		written, err = w.fetch(ctx, req, dst, offset)
+		stats.bytes += written
+		stats.attempts++
 		if err == nil {
-			return resumed, nil
+			return resumed, stats, nil
 		}
 		var perm permanentDownloadError
-		if errors.As(err, &perm) || errors.Is(err, errConvergeYielded) || ctx.Err() != nil || attempt >= convergeDownloadAttempts {
-			return resumed, err
+		terminal := errors.Is(err, errConvergeYielded) || errors.Is(err, errConvergeDisplaced)
+		if errors.As(err, &perm) || terminal || ctx.Err() != nil || attempt >= convergeDownloadAttempts {
+			return resumed, stats, err
 		}
 		log.Log.WithName("volume").Info("converge: master download interrupted; resuming",
 			"account", req.key.account, "volume", req.key.volume, "attempt", attempt, "error", err.Error())
 		select {
 		case <-ctx.Done():
-			return resumed, ctx.Err()
+			return resumed, stats, ctx.Err()
 		case <-time.After(backoff):
 		}
 		if !w.mayDownload() {
-			return resumed, errConvergeYielded
+			return resumed, stats, errConvergeYielded
 		}
 	}
 }
@@ -632,17 +690,18 @@ var masterDownloadClient = &http.Client{
 	},
 }
 
-// fetch runs one transfer of the HEAD image into dst from byte offset.
-func (w *ConvergeWorker) fetch(ctx context.Context, req convergeRequest, dst string, offset int64) error {
+// fetch runs one transfer of the HEAD image into dst from byte offset and
+// returns how many bytes it received.
+func (w *ConvergeWorker) fetch(ctx context.Context, req convergeRequest, dst string, offset int64) (int64, error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, req.head.DownloadURL, nil)
 	if err != nil {
-		return permanent(err)
+		return 0, permanent(err)
 	}
 	if httpReq.URL.Scheme != "https" && httpReq.URL.Scheme != "http" {
-		return permanent(fmt.Errorf("unsupported download URL scheme %q", httpReq.URL.Scheme))
+		return 0, permanent(fmt.Errorf("unsupported download URL scheme %q", httpReq.URL.Scheme))
 	}
 	if offset > 0 {
 		httpReq.Header.Set("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
@@ -650,9 +709,9 @@ func (w *ConvergeWorker) fetch(ctx context.Context, req convergeRequest, dst str
 	resp, err := w.httpClient().Do(httpReq)
 	if err != nil {
 		if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
-			return cause
+			return 0, cause
 		}
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
 
@@ -662,7 +721,7 @@ func (w *ConvergeWorker) fetch(ctx context.Context, req convergeRequest, dst str
 		start, size, ok := parseContentRange(resp.Header.Get("Content-Range"))
 		if !ok || start != offset {
 			_ = os.Remove(dst)
-			return fmt.Errorf("unexpected Content-Range %q for a resume from %d", resp.Header.Get("Content-Range"), offset)
+			return 0, fmt.Errorf("unexpected Content-Range %q for a resume from %d", resp.Header.Get("Content-Range"), offset)
 		}
 		total = size
 	case resp.StatusCode == http.StatusOK:
@@ -670,36 +729,38 @@ func (w *ConvergeWorker) fetch(ctx context.Context, req convergeRequest, dst str
 		offset = 0
 		total = resp.ContentLength
 		if total < 0 {
-			return permanent(errors.New("master download has no Content-Length"))
+			return 0, permanent(errors.New("master download has no Content-Length"))
 		}
 	case resp.StatusCode == http.StatusRequestedRangeNotSatisfiable && offset > 0:
 		if _, size, ok := parseContentRange(resp.Header.Get("Content-Range")); ok && size == offset {
-			return nil
+			return 0, nil
 		}
 		_ = os.Remove(dst)
-		return fmt.Errorf("partial download is not a prefix of the master (Content-Range %q)", resp.Header.Get("Content-Range"))
+		return 0, fmt.Errorf("partial download is not a prefix of the master (Content-Range %q)", resp.Header.Get("Content-Range"))
 	case resp.StatusCode >= 400 && resp.StatusCode < 500:
 		// An expired or revoked presigned URL, or an object that is gone.
-		return permanent(fmt.Errorf("master download: HTTP %d", resp.StatusCode))
+		return 0, permanent(fmt.Errorf("master download: HTTP %d", resp.StatusCode))
 	default:
-		return fmt.Errorf("master download: HTTP %d", resp.StatusCode)
+		return 0, fmt.Errorf("master download: HTTP %d", resp.StatusCode)
 	}
 
-	if err := w.Volumes.PrepareConvergeSpace(req.key, uint64(total), uint64(total-offset), req.source == convergeSourceJob); err != nil {
-		return permanent(err)
+	reservation, err := w.Volumes.PrepareConvergeSpace(req.key, uint64(total), uint64(total-offset), req.source == convergeSourceJob, cancel)
+	if err != nil {
+		return 0, permanent(err)
 	}
+	defer reservation.Release()
 
 	f, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, 0o644)
 	if err != nil {
-		return permanent(err)
+		return 0, permanent(err)
 	}
 	defer f.Close()
 	noPageCache(f)
 	if err := f.Truncate(offset); err != nil {
-		return permanent(err)
+		return 0, permanent(err)
 	}
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
-		return permanent(err)
+		return 0, permanent(err)
 	}
 
 	var progress atomic.Int64
@@ -745,22 +806,23 @@ func (w *ConvergeWorker) fetch(ctx context.Context, req convergeRequest, dst str
 	}
 	throttle := downloadThrottle{rate: rate}
 	written, err := copyWithProgress(ctx, f, resp.Body, func(n int) {
+		reservation.Wrote(n)
 		progress.Store(w.clock().UnixNano())
 		throttle.wait(ctx, n, busy.Load())
 	})
 	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
-		return cause
+		return written, cause
 	}
 	if err != nil {
-		return err
+		return written, err
 	}
 	if err := f.Close(); err != nil {
-		return err
+		return written, err
 	}
 	if written != total-offset {
-		return fmt.Errorf("master download ended after %d of %d bytes", offset+written, total)
+		return written, fmt.Errorf("master download ended after %d of %d bytes", offset+written, total)
 	}
-	return nil
+	return written, nil
 }
 
 func copyWithProgress(ctx context.Context, dst io.Writer, src io.Reader, onChunk func(int)) (int64, error) {

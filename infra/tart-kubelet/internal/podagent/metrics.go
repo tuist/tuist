@@ -214,6 +214,31 @@ var cacheVolumeConvergeTotal = prometheus.NewCounterVec(
 	[]string{"source", "result"},
 )
 
+// cacheVolumeConvergeBytesTotal counts bytes the converge worker received, by
+// what queued the download, whether or not it ended in an install. It is the
+// host's share of master egress, including what yields, displacement and
+// failed verification threw away.
+var cacheVolumeConvergeBytesTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converge_bytes_total",
+		Help: "Bytes the converge worker downloaded, by what queued the download.",
+	},
+	[]string{"source"},
+)
+
+// cacheVolumeConvergeSeconds is how long an installed convergence took from its
+// last start to install: transfer, verification and install. Beside the bytes
+// it tells a host limited by its link from one limited by idle time (many
+// yields) or by stalls (many attempts in the converged log line).
+var cacheVolumeConvergeSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_converge_seconds",
+		Help:    "Seconds from the last start of an installed convergence to its install.",
+		Buckets: []float64{10, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200},
+	},
+	[]string{"source"},
+)
+
 // cacheVolumeResidentCount is the number of resident master images on this
 // host (all accounts, all volume names). Divided by the quota, it's the "how
 // many accounts does this host keep hot" signal.
@@ -359,6 +384,8 @@ func init() {
 		cacheVolumePromoteTotal,
 		cacheVolumeConvergedTotal,
 		cacheVolumeConvergeTotal,
+		cacheVolumeConvergeBytesTotal,
+		cacheVolumeConvergeSeconds,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 		cacheVolumeEnabled,
@@ -454,6 +481,18 @@ func RecordVolumeConverged() {
 // RecordVolumeConverge counts one converge worker attempt.
 func RecordVolumeConverge(source convergeSource, result string) {
 	cacheVolumeConvergeTotal.WithLabelValues(string(source), result).Inc()
+}
+
+// RecordVolumeConvergeBytes counts bytes a convergence downloaded.
+func RecordVolumeConvergeBytes(source convergeSource, bytes int64) {
+	if bytes > 0 {
+		cacheVolumeConvergeBytesTotal.WithLabelValues(string(source)).Add(float64(bytes))
+	}
+}
+
+// RecordVolumeConvergeSeconds records how long an installed convergence took.
+func RecordVolumeConvergeSeconds(source convergeSource, seconds float64) {
+	cacheVolumeConvergeSeconds.WithLabelValues(string(source)).Observe(seconds)
 }
 
 // RecordVolumeResident publishes the resident master count and root free
