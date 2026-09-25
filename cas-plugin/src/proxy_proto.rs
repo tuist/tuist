@@ -104,6 +104,15 @@ pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
 pub const STATUS_ERROR: u8 = 2;
 
+/// Starts the STATUS_ERROR body of a lookup on a store whose open, or a file
+/// operation in whose directory, has not returned. The plugin answers such a
+/// lookup as a miss and names the cause in its build warning.
+pub const STORE_STALL_ERROR: &str = "cache store access stalled";
+
+/// The STATUS_ERROR body of a request the proxy refused because it was already
+/// handling as many as it takes at once. The plugin answers it as a miss.
+pub const SATURATED_ERROR: &str = "proxy saturated";
+
 pub struct Request {
     pub version: u8,
     pub op: u8,
