@@ -185,6 +185,7 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	host.Status.AMT = next
 
 	if next.ControlMode == amtAdminControl {
+		next.ActivationError = ""
 		conditions.MarkTrue(host, AMTActivatedCondition)
 		return amtObserveAfter(next)
 	}

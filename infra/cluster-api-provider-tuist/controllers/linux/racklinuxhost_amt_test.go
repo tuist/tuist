@@ -427,6 +427,24 @@ func TestRackAMTKeepsTheLastPowerActionAcrossReads(t *testing.T) {
 	}
 }
 
+// AMT activated by hand after the operator's attempt failed is activated.
+func TestRackAMTDropsTheErrorOfAnActivationAMTNoLongerNeeds(t *testing.T) {
+	host := adminEdge("192.168.50.112", true)
+	host.Status.AMT.ObservedAt = &metav1.Time{Time: installEpoch.Add(-2 * time.Hour)}
+	host.Status.AMT.LastActivation = &metav1.Time{Time: installEpoch.Add(-3 * time.Hour)}
+	host.Status.AMT.ActivationError = "rpc activate exit 10: adminsetup failed: returned 5"
+	h := newAMTHarness(t, host, provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.runner.reply = func(_, _ string) string {
+		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	if got.Status.AMT.ActivationError != "" || got.Status.AMT.LastActivation == nil {
+		t.Fatalf("status %+v", got.Status.AMT)
+	}
+}
+
 func TestRackAMTRefusesAGatewayOutsideTheAddress(t *testing.T) {
 	host := adminEdge("192.168.50.112", true)
 	host.Spec.AMT.Address, host.Spec.AMT.Gateway = "192.168.50.21/24", "192.168.0.1"
