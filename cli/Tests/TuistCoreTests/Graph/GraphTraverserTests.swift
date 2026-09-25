@@ -6681,4 +6681,63 @@ struct GraphTraverserStaticXCFrameworksReachableViaCachedTargetsTests {
         // Then
         #expect(got == [renderer])
     }
+
+    @Test func includesStaticXCFrameworksBehindReplacedTargetsReachableAlongSeveralPaths() throws {
+        for iteration in 0 ..< 50 {
+            // Given
+            let renderer = GraphDependency.testXCFramework(
+                path: try AbsolutePath(validating: "/XRendererRustFramework\(iteration).xcframework"),
+                linking: .static,
+                moduleMaps: [
+                    try AbsolutePath(
+                        validating: "/XRendererRustFramework\(iteration).xcframework/ios-arm64/Headers/module.modulemap"
+                    ),
+                ]
+            )
+            func target(_ name: String) -> GraphDependency {
+                .target(name: "\(name)\(iteration)", path: projectPath)
+            }
+            let graphWithSources = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: ["App", "AppExtension", "FeatureKit", "CoreKit", "XRendererKit"]
+                            .map { .test(name: "\($0)\(iteration)") }
+                    ),
+                ],
+                dependencies: [
+                    target("App"): [target("FeatureKit")],
+                    target("AppExtension"): [target("CoreKit")],
+                    target("FeatureKit"): [target("CoreKit"), target("XRendererKit")],
+                    target("CoreKit"): [target("XRendererKit")],
+                    target("XRendererKit"): [renderer],
+                ]
+            )
+            let graphWithBinaryCache = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: ["App", "AppExtension"].map { .test(name: "\($0)\(iteration)") }
+                    ),
+                ]
+            )
+            let subject = GraphTraverser(graph: graphWithSources)
+
+            // When
+            let gotApp = subject.staticObjcXCFrameworksReachableViaCachedTargets(
+                path: projectPath,
+                name: "App\(iteration)",
+                currentGraph: graphWithBinaryCache
+            )
+            let gotAppExtension = subject.staticObjcXCFrameworksReachableViaCachedTargets(
+                path: projectPath,
+                name: "AppExtension\(iteration)",
+                currentGraph: graphWithBinaryCache
+            )
+
+            // Then
+            #expect(gotApp == [renderer])
+            #expect(gotAppExtension == [renderer])
+        }
+    }
 }
