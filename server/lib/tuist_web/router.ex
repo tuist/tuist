@@ -1176,6 +1176,10 @@ defmodule TuistWeb.Router do
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
+    get "/sso/link", SSOLinkController, :show
+    post "/sso/link", SSOLinkController, :create
+    delete "/sso/link", SSOLinkController, :delete
+
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code

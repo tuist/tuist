@@ -34,7 +34,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},
-    {"@daily", CacheVolumeCleanupWorker}
+    {"@daily", CacheVolumeCleanupWorker},
+    {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
