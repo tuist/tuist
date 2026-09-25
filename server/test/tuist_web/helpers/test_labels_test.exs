@@ -68,6 +68,25 @@ defmodule TuistWeb.Helpers.TestLabelsTest do
     end
   end
 
+  describe "Once labels" do
+    test "Once runs are Runs, not Schemes: Once has no scheme concept" do
+      assert TestLabels.scheme_label(%Project{build_system: :once}) == "Run"
+    end
+
+    test "Once groups test cases by target, the way Bazel does" do
+      assert TestLabels.module_label(%Project{build_system: :once}) == "Target"
+      assert TestLabels.modules_label(%Project{build_system: :once}) == "Targets"
+      assert TestLabels.test_modules_label(%Project{build_system: :once}) == "Test Targets"
+    end
+
+    test "the command is shown as reported, without a build system prefix" do
+      # Bazel stores bare target patterns and prefixes them; Once's column
+      # already holds the whole command.
+      assert TestLabels.test_run_label(%Project{build_system: :once}, "once test //...") ==
+               "once test //..."
+    end
+  end
+
   describe "scheme_label/1" do
     test "returns Project for gradle projects" do
       assert TestLabels.scheme_label(%Project{build_system: :gradle}) == "Project"
