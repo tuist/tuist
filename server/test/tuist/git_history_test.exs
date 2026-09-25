@@ -99,6 +99,48 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.ancestors(repository, "d", max_depth: 1) == [{"d", 0}, {"c", 1}]
     end
 
+    test "reaches a commit along several paths once, at its shortest depth", %{repository: repository} do
+      GitHistory.record_commits(repository, "sha1", [
+        commit("root", [], 0),
+        commit("base", ["root"], 1),
+        commit("long3", ["base"], 2),
+        commit("long2", ["long3"], 3),
+        commit("long1", ["long2"], 4),
+        commit("short", ["base"], 5),
+        commit("top", ["long1", "short"], 6)
+      ])
+
+      assert GitHistory.ancestors(repository, "top") == [
+               {"top", 0},
+               {"long1", 1},
+               {"short", 1},
+               {"base", 2},
+               {"long2", 2},
+               {"long3", 3},
+               {"root", 3}
+             ]
+
+      assert GitHistory.ancestors(repository, "top", max_depth: 2) ==
+               [{"top", 0}, {"long1", 1}, {"short", 1}, {"base", 2}, {"long2", 2}]
+    end
+
+    test "reaches every commit within the depth however many merges widen it", %{repository: repository} do
+      grandparents = for i <- 1..6, j <- 1..2, do: commit("q#{i}#{j}", ["root"], 1)
+      parents = for i <- 1..6, do: commit("p#{i}", ["q#{i}1", "q#{i}2"], 2)
+
+      GitHistory.record_commits(
+        repository,
+        "sha1",
+        [commit("root", [], 0)] ++ grandparents ++ parents ++ [commit("top", Enum.map(parents, & &1.sha), 3)]
+      )
+
+      within = GitHistory.ancestors(repository, "top", max_depth: 2)
+
+      assert length(within) == 19
+      assert Enum.frequencies_by(within, &elem(&1, 1)) == %{0 => 1, 1 => 6, 2 => 12}
+      assert {"root", 3} in GitHistory.ancestors(repository, "top")
+    end
+
     test "follows first parents only along a chain, so a merged branch stays out", %{repository: repository} do
       seed(repository)
 

@@ -581,24 +581,60 @@ defmodule Tuist.GitHistory do
     max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
     min_generation = Keyword.get(opts, :min_generation, 0)
 
+    repository_id
+    |> reached(sha, min_generation, max_depth, max_depth + 2)
+    |> Enum.filter(fn {_sha, depth} -> depth <= max_depth end)
+    |> Enum.sort_by(fn {sha, depth} -> {depth, sha} end)
+  end
+
+  # The walk produces each edge once and stops at a commit it reached before,
+  # so a commit is expanded once per child rather than once per path, and each
+  # iteration adds the edges one depth further. `limit` cuts it after whole
+  # depths and part of the next one, and the depths counted over what it
+  # reached are exact up to the last whole one. A walk cut before `max_depth`
+  # runs again with room for as many edges per depth as it saw.
+  defp reached(repository_id, sha, min_generation, max_depth, limit) do
     %{rows: rows} =
       Repo.query!(
         """
-        WITH RECURSIVE walk (sha, depth) AS (
-          SELECT $2::varchar, 0
+        WITH RECURSIVE walk (sha, child) AS (
+          SELECT $2::varchar, NULL::varchar
           UNION
-          SELECT p.parent_sha, w.depth + 1
+          SELECT p.parent_sha, p.child_sha
           FROM walk w
           JOIN git_commit_parents p ON p.repository_id = $1 AND p.child_sha = w.sha
           JOIN git_commits c ON c.repository_id = $1 AND c.sha = p.parent_sha
-          WHERE w.depth < $3 AND c.generation >= $4
+          WHERE c.generation >= $3
         )
-        SELECT sha, min(depth) FROM walk GROUP BY sha ORDER BY min(depth), sha
+        SELECT sha, child FROM walk LIMIT $4
         """,
-        [repository_id, sha, max_depth, min_generation]
+        [repository_id, sha, min_generation, limit]
       )
 
-    Enum.map(rows, fn [sha, depth] -> {sha, depth} end)
+    parents = Enum.group_by(rows, fn [_parent, child] -> child end, fn [parent, _child] -> parent end)
+    depths = depths(parents, [sha], 0, %{})
+    deepest = depths |> Map.values() |> Enum.max()
+
+    if length(rows) < limit or deepest > max_depth do
+      depths
+    else
+      per_depth = div(length(rows), max(deepest, 1)) + 1
+      reached(repository_id, sha, min_generation, max_depth, max(limit * 2, (max_depth + 2) * per_depth * 2))
+    end
+  end
+
+  defp depths(_parents, [], _depth, depths), do: depths
+
+  defp depths(parents, frontier, depth, depths) do
+    depths = Enum.reduce(frontier, depths, &Map.put(&2, &1, depth))
+
+    next =
+      frontier
+      |> Enum.flat_map(&Map.get(parents, &1, []))
+      |> Enum.uniq()
+      |> Enum.reject(&Map.has_key?(depths, &1))
+
+    depths(parents, next, depth + 1, depths)
   end
 
   @doc """
