@@ -4,7 +4,6 @@ defmodule Tuist.Tests.Coverage.Workers.RecomputeTotalsWorkerTest do
 
   alias Tuist.Environment
   alias Tuist.Projects
-  alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Workers.RecomputeTotalsWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures

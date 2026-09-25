@@ -6,7 +6,6 @@ defmodule TuistWeb.CoverageLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Test
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -22,28 +21,7 @@ defmodule TuistWeb.CoverageLiveTest do
     )
   end
 
-  defp pr_run(project, organization, files, attrs) do
-    CoverageFixtures.run_with_coverage(
-      project,
-      organization.account,
-      files,
-      Map.merge(
-        %{
-          git_branch: "feature",
-          git_commit_sha: "p",
-          base_branch: "main",
-          merge_base_sha: "b",
-          is_pull_request: true,
-          pull_request_number: 12,
-          history_source: "client",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60, :second)
-        },
-        attrs
-      )
-    )
-  end
-
-  defp seed_history(organization, opts \\ []) do
+  defp seed_history(organization, opts) do
     CoverageFixtures.seed_history(
       organization.account,
       [
