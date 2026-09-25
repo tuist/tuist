@@ -312,6 +312,46 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.ref(repository, "pull/1").fork_position == 6
     end
 
+    test "carry every move onto the coverage of the commits it touched, and only those", %{
+      project: project,
+      repository: repository
+    } do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("p1", ["d"], 10), commit("p2", ["p1"], 11)])
+      measure(project, repository, ["c", "d", "p1", "p2"])
+
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "pull/1", "main", "p2")
+      main = GitHistory.ref(repository, "main").id
+      pull = GitHistory.ref(repository, "pull/1").id
+
+      assert coverage_places(project) == [{"c", main, 3}, {"d", main, 4}, {"p1", pull, 5}, {"p2", pull, 6}]
+
+      # A copy no advance touches is left as it is.
+      measure(project, repository, ["e"])
+      Repo.update_all(from(c in CoverageCommit, where: c.git_commit_sha == "e"), set: [ref_id: main, position: 42])
+
+      GitHistory.advance_ref(repository, "main", nil, "p2")
+
+      assert coverage_places(project) == [
+               {"c", main, 3},
+               {"d", main, 4},
+               {"e", main, 42},
+               {"p1", main, 5},
+               {"p2", main, 6}
+             ]
+
+      GitHistory.advance_ref(repository, "main", nil, "c")
+
+      assert coverage_places(project) == [
+               {"c", main, 3},
+               {"d", nil, nil},
+               {"e", main, 42},
+               {"p1", nil, nil},
+               {"p2", nil, nil}
+             ]
+    end
+
     test "let a pull request seen before its base branch hand its commits over later", %{repository: repository} do
       seed(repository)
       GitHistory.record_commits(repository, "sha1", [commit("p1", ["d"], 10)])
