@@ -96,6 +96,17 @@ spec:
                         and keeps in the Secret <host>-amt. Turning it off does not deactivate
                         AMT.
                       type: boolean
+                    address:
+                      description: |-
+                        Address is the static IPv4 address, with its prefix length, the
+                        operator gives activated AMT on the management segment, so AMT keeps
+                        one address whatever happens to the host. Unset, AMT takes one by DHCP.
+                      pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$
+                      type: string
+                    gateway:
+                      description: Gateway is the segment's gateway, which a static address needs.
+                      pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
+                      type: string
                   type: object
                 bootMAC:
                   description: |-
@@ -171,6 +182,8 @@ spec:
                     address:
                       description: Address is AMT's own IPv4 address on the management port.
                       type: string
+                    configurationError:
+                      type: string
                     controlMode:
                       description: |-
                         ControlMode is AMT's activation state: pre-provisioning, client or
@@ -178,6 +191,13 @@ spec:
                       type: string
                     lastActivation:
                       description: LastActivation is when the operator last tried to activate AMT.
+                      format: date-time
+                      type: string
+                    lastConfiguration:
+                      description: |-
+                        LastConfiguration is when the operator last configured activated AMT
+                        (its MEBx password, its address), and ConfigurationError why that
+                        failed.
                       format: date-time
                       type: string
                     lastPowerAction:
@@ -203,6 +223,11 @@ spec:
                     link:
                       description: 'Link is the wired link AMT sees on the management port: up or down.'
                       type: string
+                    mebxPasswordSet:
+                      description: |-
+                        MEBxPasswordSet reports that the operator replaced MEBx's factory
+                        password with the one it keeps in the host's AMT Secret.
+                      type: boolean
                     observedAt:
                       description: ObservedAt is when the operator last read AMT's state.
                       format: date-time

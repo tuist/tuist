@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -319,5 +320,43 @@ func TestRackAMTPowerPinsAMTsCertificate(t *testing.T) {
 	h.reconcile(t, "ber1-edge")
 	if len(*calls) != 2 || (*calls)[1].creds.TLSSHA256 != "c692252b" {
 		t.Fatalf("calls %+v, want the second held to the pin", *calls)
+	}
+}
+
+// Only the edge holding the site's floating addresses is on AMT's link, so a
+// power change goes through the first edge that reaches AMT, and only there.
+func TestRackAMTPowerGoesThroughTheEdgeOnAMTsLink(t *testing.T) {
+	h, calls := newPowerHarness(t, activatedAMTEdge("reset"), otherConnectedEdge(), amtSecret("Stored-Pa55!"))
+	record := recordPower(calls)
+	h.r.AMTPower = func(ctx context.Context, via *infrav1.RackLinuxHost, address string, creds amtCredentials, state power.PowerState) (string, error) {
+		if via.Name == "ber1-edge-b" {
+			return "", fmt.Errorf("%w: ber1-edge-b routes 192.168.50.112 through a gateway", errAMTNotOnLink)
+		}
+		return record(ctx, via, address, creds, state)
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	if len(*calls) != 1 || (*calls)[0].via != "ber1-edge" {
+		t.Fatalf("power calls %+v, want one through ber1-edge", *calls)
+	}
+	if last := got.Status.AMT.LastPowerAction; last.Via != "ber1-edge" || last.Error != "" {
+		t.Fatalf("lastPowerAction %+v", last)
+	}
+}
+
+// A power change AMT refused is not sent again through another edge.
+func TestRackAMTPowerDoesNotRetryARefusalElsewhere(t *testing.T) {
+	h, _ := newPowerHarness(t, activatedAMTEdge("cycle"), otherConnectedEdge(), amtSecret("Stored-Pa55!"))
+	var vias []string
+	h.r.AMTPower = func(_ context.Context, via *infrav1.RackLinuxHost, _ string, _ amtCredentials, _ power.PowerState) (string, error) {
+		vias = append(vias, via.Name)
+		return "", fmt.Errorf("AMT at 192.168.50.112 refused power state 5: return value 2")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	if len(vias) != 1 || !strings.Contains(got.Status.AMT.LastPowerAction.Error, "refused") {
+		t.Fatalf("tried %v, last %+v", vias, got.Status.AMT.LastPowerAction)
 	}
 }

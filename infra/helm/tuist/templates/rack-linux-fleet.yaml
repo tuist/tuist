@@ -50,6 +50,10 @@ spec:
   {{- if and $host.amt $host.amt.activate }}
   amt:
     activate: true
+    {{- with $host.amt.address }}
+    address: {{ . | quote }}
+    gateway: {{ required (printf "rackLinuxFleet.hosts[%s].amt.gateway is required with amt.address" $hostName) $host.amt.gateway | quote }}
+    {{- end }}
   {{- end }}
 {{- end }}
 {{- range $role := keys $roles | sortAlpha }}
