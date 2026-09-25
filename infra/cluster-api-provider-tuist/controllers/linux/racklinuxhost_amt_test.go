@@ -79,7 +79,7 @@ func TestRackAMTActivatesAPreProvisionedHostWhenAsked(t *testing.T) {
 	h := newAMTHarness(t, amtEdge(), provisioningSecret())
 	h.runner.reply = func(_, script string) string {
 		return "--- activate\n{\"status\":\"success\"}\n--- activate exit 0\n--- amtinfo\n" +
-			amtInfoJSON("activated in admin control mode", "up", "192.168.50.112")
+			amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
 	got := h.reconcile(t, "ber1-edge")
@@ -97,7 +97,7 @@ func TestRackAMTActivatesAPreProvisionedHostWhenAsked(t *testing.T) {
 		"export AMT_PASSWORD=" + shellSingleQuote(password),
 		"export PROVISIONING_CERT='UEZYQkFTRTY0'",
 		"export PROVISIONING_CERT_PASSWORD='pfx-pass'",
-		`"$rpc" activate -local -acm -skipIPRenew -json`,
+		`timeout --kill-after=10 300 "$rpc" activate --acm --skipIPRenew --json`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("the script lacks %q:\n%s", want, script)
@@ -122,7 +122,7 @@ func TestRackAMTRecordsAFailedActivationAndBacksOff(t *testing.T) {
 	h := newAMTHarness(t, amtEdge(), provisioningSecret())
 	h.runner.reply = func(_, _ string) string {
 		return "--- activate\n{\"status\":\"failed\",\"error\":\"ActivationFailed\"}\n--- activate exit 102\n--- amtinfo\n" +
-			amtInfoJSON("pre-provisioning state", "up", "0.0.0.0")
+			amtInfoJSON("not activated", "up", "0.0.0.0")
 	}
 
 	got := h.reconcile(t, "ber1-edge")
@@ -194,7 +194,7 @@ func TestRackAMTLooksAtAnActivatedHostOnlyNowAndThen(t *testing.T) {
 	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", Address: "192.168.50.112", ObservedAt: &observed}
 	h := newAMTHarness(t, host, provisioningSecret())
 	h.runner.reply = func(_, _ string) string {
-		return "--- amtinfo\n" + amtInfoJSON("activated in admin control mode", "up", "192.168.50.112")
+		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
 	h.reconcile(t, "ber1-edge")
@@ -262,12 +262,27 @@ func TestRackAMTLooksAgainSoonForTheAddressOfAFreshlyActivatedAMT(t *testing.T) 
 	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", Address: "0.0.0.0", ObservedAt: &observed}
 	h := newAMTHarness(t, host, provisioningSecret())
 	h.runner.reply = func(_, _ string) string {
-		return "--- amtinfo\n" + amtInfoJSON("activated in admin control mode", "up", "192.168.50.112")
+		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
 	got := h.reconcile(t, "ber1-edge")
 
 	if len(h.amtRuns()) != 1 || got.Status.AMT.Address != "192.168.50.112" {
 		t.Fatalf("runs %d status %+v, want AMT's address read again", len(h.amtRuns()), got.Status.AMT)
+	}
+}
+
+// rpc's own transport to AMT has hung for good before, so the script bounds it
+// and reports the timeout as the activation's failure.
+func TestAMTScriptBoundsRPC(t *testing.T) {
+	script := renderAMTScript(&amtActivation{Password: "Aa1!xxxxxxxxxxxxxxxxxxxx", PFX: "UEZY", PFXPassword: "pw"})
+	for _, want := range []string{
+		`timeout 120 "$rpc" amtinfo --json --ver --mode --lan`,
+		`timeout --kill-after=10 300 "$rpc" activate --acm --skipIPRenew --json`,
+		`= 'not activated'`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("the script lacks %q:\n%s", want, script)
+		}
 	}
 }
