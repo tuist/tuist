@@ -27,6 +27,8 @@ defmodule TuistWeb.CoverageLive do
   @commits_preview_size 5
   @preview_size 5
 
+  @widgets ~w(coverage covered_lines executable_lines unmeasured_files)
+
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if !FeatureFlags.xcode_coverage_enabled?(account) do
       raise NotFoundError, dgettext("dashboard_tests", "Code coverage is not enabled for this account.")
@@ -56,6 +58,7 @@ defmodule TuistWeb.CoverageLive do
       |> assign(:coverage_preset, preset)
       |> assign(:coverage_period, period)
       |> assign(:branch, project.default_branch)
+      |> assign(:selected_widget, selected_widget(query["analytics-selected-widget"]))
 
     # The page is read once, when the socket connects; the disconnected
     # render shows its skeleton.
@@ -84,6 +87,17 @@ defmodule TuistWeb.CoverageLive do
     {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> Query.drop(query, "page"))}
   end
 
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    widget = selected_widget(widget)
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+
+    {:noreply,
+     socket
+     |> assign(:selected_widget, widget)
+     |> assign(:uri, URI.new!("?" <> query))
+     |> push_event("replace-url", %{url: "?" <> query})}
+  end
+
   def handle_info({:test_created, _test_run}, socket) do
     {:noreply, assign_page(socket, socket.assigns.current_params)}
   end
@@ -104,7 +118,12 @@ defmodule TuistWeb.CoverageLive do
     socket
     |> assign(:points, chart_points(points, socket.assigns.coverage_period))
     |> assign(:latest, latest)
-    |> assign(:trend, period_trend(points))
+    |> assign(:trends, %{
+      "coverage" => period_trend(points),
+      "covered_lines" => count_trend(points, :covered_lines),
+      "executable_lines" => count_trend(points, :executable_lines),
+      "unmeasured_files" => count_trend(points, :unmeasured_files_count)
+    })
   end
 
   defp assign_commits(%{assigns: %{selected_project: project, branch: branch}} = socket) do
@@ -147,4 +166,7 @@ defmodule TuistWeb.CoverageLive do
   end
 
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
+
+  defp selected_widget(widget) when widget in @widgets, do: widget
+  defp selected_widget(_widget), do: "coverage"
 end
