@@ -56,7 +56,8 @@ defmodule TuistWeb.ProjectOIDCSettingsLiveTest do
     render_click(lv, "delete_oidc_rule", %{"scope" => "project:previews:write"})
 
     assert [] = ScopeRules.list_project_rules(project)
-    refute has_element?(lv, "#project-oidc-scope-rules-project-previews-write", "refs/heads/main")
+    refute has_element?(lv, "#project-oidc-scope-rules-project-previews-write", "refs/heads/main, refs/tags/v*")
+    assert has_element?(lv, "#project-oidc-scope-rules-project-previews-write", "Any")
   end
 
   test "shows a validation error for an empty rule", %{conn: conn, organization: organization} do
@@ -86,6 +87,14 @@ defmodule TuistWeb.ProjectOIDCSettingsLiveTest do
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/oidc")
 
     assert has_element?(lv, "[data-part=oidc-provider-alert]", "Rules only match GitHub Actions tokens")
+  end
+
+  test "explains the pattern syntax under each field", %{conn: conn, organization: organization, project: project} do
+    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/oidc")
+
+    assert html =~ "refs/heads/release/** matches every branch under release/"
+    assert html =~ "End with @** to allow the workflow from any ref."
+    assert html =~ "Deployment environment names, e.g. production or staging-*."
   end
 
   test "warns when the project recently used CircleCI or Bitrise OIDC tokens", %{

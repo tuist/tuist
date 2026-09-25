@@ -741,7 +741,7 @@ msgstr ""
 msgid "Canada"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:120
+#: lib/tuist_web/components/oidc_scope_rules.ex:138
 #: lib/tuist_web/live/ops_account_live.html.heex:884
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -1349,7 +1349,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:418
 #: lib/tuist_web/components/oidc_scope_rules.ex:34
-#: lib/tuist_web/components/oidc_scope_rules.ex:80
+#: lib/tuist_web/components/oidc_scope_rules.ex:86
 #, elixir-autogen, elixir-format
 msgid "Workflows"
 msgstr ""
@@ -2891,22 +2891,22 @@ msgstr ""
 msgid "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:184
+#: lib/tuist_web/components/oidc_scope_rules.ex:202
 #, elixir-autogen, elixir-format
 msgid " and "
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:152
+#: lib/tuist_web/components/oidc_scope_rules.ex:170
 #, elixir-autogen, elixir-format
 msgid "%{providers} runs lose write access when a rule applies"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:289
+#: lib/tuist_web/components/oidc_scope_rules.ex:307
 #, elixir-autogen, elixir-format
 msgid "Account-wide cache uploads"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:269
+#: lib/tuist_web/components/oidc_scope_rules.ex:287
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
@@ -2917,50 +2917,45 @@ msgstr ""
 msgid "Branches and tags"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:287
+#: lib/tuist_web/components/oidc_scope_rules.ex:305
 #, elixir-autogen, elixir-format
 msgid "Build insights"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:285
+#: lib/tuist_web/components/oidc_scope_rules.ex:303
 #, elixir-autogen, elixir-format
 msgid "Bundle uploads"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:283
+#: lib/tuist_web/components/oidc_scope_rules.ex:301
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:288
+#: lib/tuist_web/components/oidc_scope_rules.ex:306
 #, elixir-autogen, elixir-format
 msgid "Command runs"
 msgstr ""
 
 #: lib/tuist_web/components/oidc_scope_rules.ex:37
-#: lib/tuist_web/components/oidc_scope_rules.ex:93
+#: lib/tuist_web/components/oidc_scope_rules.ex:105
 #, elixir-autogen, elixir-format
 msgid "Environments"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:228
+#: lib/tuist_web/components/oidc_scope_rules.ex:246
 #, elixir-autogen, elixir-format
 msgid "OIDC rule removed."
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:210
+#: lib/tuist_web/components/oidc_scope_rules.ex:228
 #, elixir-autogen, elixir-format
 msgid "OIDC rule saved."
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:173
+#: lib/tuist_web/components/oidc_scope_rules.ex:191
 #, elixir-autogen, elixir-format
 msgid "OIDC tokens from CircleCI or Bitrise lose write access for every permission that has a rule. Reads keep working."
-msgstr ""
-
-#: lib/tuist_web/components/oidc_scope_rules.ex:57
-#, elixir-autogen, elixir-format
-msgid "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches; other runs keep read access. Separate patterns with commas. * matches within a path segment and ** across segments."
 msgstr ""
 
 #: lib/tuist_web/components/oidc_scope_rules.ex:28
@@ -2968,32 +2963,52 @@ msgstr ""
 msgid "Permission"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:284
+#: lib/tuist_web/components/oidc_scope_rules.ex:302
 #, elixir-autogen, elixir-format
 msgid "Preview uploads"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:111
+#: lib/tuist_web/components/oidc_scope_rules.ex:129
 #, elixir-autogen, elixir-format
 msgid "Remove rule"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:171
+#: lib/tuist_web/components/oidc_scope_rules.ex:189
 #, elixir-autogen, elixir-format
 msgid "Rules only match GitHub Actions tokens"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:127
+#: lib/tuist_web/components/oidc_scope_rules.ex:145
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:286
+#: lib/tuist_web/components/oidc_scope_rules.ex:304
 #, elixir-autogen, elixir-format
 msgid "Test results"
 msgstr ""
 
-#: lib/tuist_web/components/oidc_scope_rules.ex:157
+#: lib/tuist_web/components/oidc_scope_rules.ex:175
 #, elixir-autogen, elixir-format
 msgid "This %{subject} received OIDC tokens from %{providers} in the last 30 days. Rules only match GitHub Actions tokens, so those runs lose write access for every permission that has a rule. Reads keep working."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:115
+#, elixir-autogen, elixir-format
+msgid "Deployment environment names, e.g. production or staging-*."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:96
+#, elixir-autogen, elixir-format
+msgid "E.g. org/repo/.github/workflows/release.yml@refs/heads/main. End with @** to allow the workflow from any ref."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:77
+#, elixir-autogen, elixir-format
+msgid "E.g. refs/heads/main or refs/tags/v*. * matches within one path segment; refs/heads/release/** matches every branch under release/."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:57
+#, elixir-autogen, elixir-format
+msgid "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches; other runs keep read access. Separate patterns with commas."
 msgstr ""

@@ -56,7 +56,7 @@ defmodule TuistWeb.Components.OIDCScopeRules do
                 <p data-part="alert-description">
                   {dgettext(
                     "dashboard",
-                    "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches; other runs keep read access. Separate patterns with commas. * matches within a path segment and ** across segments.",
+                    "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches; other runs keep read access. Separate patterns with commas.",
                     scope: scope
                   )}
                 </p>
@@ -73,6 +73,12 @@ defmodule TuistWeb.Components.OIDCScopeRules do
                       value={patterns_value(@rules, scope, :refs)}
                       placeholder="refs/heads/main"
                       error={field_error(@errors, scope, :refs)}
+                      hint={
+                        dgettext(
+                          "dashboard",
+                          "E.g. refs/heads/main or refs/tags/v*. * matches within one path segment; refs/heads/release/** matches every branch under release/."
+                        )
+                      }
                     />
                   </div>
                   <div data-part="schedule-row">
@@ -86,6 +92,12 @@ defmodule TuistWeb.Components.OIDCScopeRules do
                       value={patterns_value(@rules, scope, :job_workflow_refs)}
                       error={field_error(@errors, scope, :job_workflow_refs)}
                       placeholder="org/repo/.github/workflows/release.yml@**"
+                      hint={
+                        dgettext(
+                          "dashboard",
+                          "E.g. org/repo/.github/workflows/release.yml@refs/heads/main. End with @** to allow the workflow from any ref."
+                        )
+                      }
                     />
                   </div>
                   <div data-part="schedule-row">
@@ -99,6 +111,12 @@ defmodule TuistWeb.Components.OIDCScopeRules do
                       value={patterns_value(@rules, scope, :environments)}
                       error={field_error(@errors, scope, :environments)}
                       placeholder="release"
+                      hint={
+                        dgettext(
+                          "dashboard",
+                          "Deployment environment names, e.g. production or staging-*."
+                        )
+                      }
                     />
                   </div>
                 </div>

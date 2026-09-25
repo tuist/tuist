@@ -226,7 +226,7 @@ defmodule TuistWeb.CacheLiveTest do
 
     html = render_click(lv, "revoke_self_hosted_client", %{"id" => client.id})
 
-    refute html =~ "production"
+    refute html =~ "revoke-credential-modal-#{client.id}"
     assert SelfHostedClients.list_self_hosted_clients(account) == []
   end
 
