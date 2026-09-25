@@ -108,6 +108,39 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
     assert Commits.signal_complete(project, "unmeasured") == nil
   end
 
+  test "a completion signal that lands before any run folded completes the commit's first fold", %{
+    project: project,
+    account: account
+  } do
+    assert Commits.signal_complete(project, "abc123") == nil
+    assert Commits.summary(project.id, "abc123") == nil
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+    assert %{complete: true, completeness: "signal"} = Commits.summary(project.id, "abc123")
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/B.swift", [1])])
+    assert %{complete: true, completeness: "signal", measured_files_count: 2} = Commits.summary(project.id, "abc123")
+
+    # Another commit is not completed by it.
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])], %{git_commit_sha: "def456"})
+    assert %{complete: false} = Commits.summary(project.id, "def456")
+  end
+
+  test "a completion signal is not lost when the first run folds while the signal reads", %{
+    project: project,
+    account: account
+  } do
+    stub(Reported, :compute, fn project, sha, opts -> Mimic.call_original(Reported, :compute, [project, sha, opts]) end)
+
+    expect(Reported, :compute, fn project, sha, opts ->
+      CoverageFixtures.run_with_coverage(project, account, [file("Sources/A.swift", [1, 0])])
+      Mimic.call_original(Reported, :compute, [project, sha, opts])
+    end)
+
+    assert %{complete: true, completeness: "signal"} = Commits.signal_complete(project, "abc123")
+    assert %{complete: true, completeness: "signal"} = Commits.summary(project.id, "abc123")
+  end
+
   test "a fold computes outside a transaction and never overwrites what was written meanwhile", %{
     project: project,
     account: account

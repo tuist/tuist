@@ -59,8 +59,19 @@ defmodule TuistWeb.API.CoverageControllerTest do
       assert [%{"name" => "App", "coverage" => 66.7}] = completed["targets"]
     end
 
-    test "answers 404 for a commit no run measured", %{conn: conn, prefix: prefix} do
+    test "answers 404 for a commit no run measured yet, and completes its first fold", %{
+      conn: conn,
+      prefix: prefix,
+      user: user,
+      project: project
+    } do
       assert conn |> post("#{prefix}/commits/q/complete") |> json_response(:not_found)
+
+      CoverageFixtures.run_with_coverage(project, user.account, [CoverageFixtures.file("Sources/A.swift", [1])], %{
+        git_commit_sha: "q"
+      })
+
+      assert %{complete: true, completeness: "signal"} = Tuist.Tests.Coverage.Commits.summary(project.id, "q")
     end
   end
 end
