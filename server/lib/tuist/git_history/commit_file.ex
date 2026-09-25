@@ -1,7 +1,7 @@
 defmodule Tuist.GitHistory.CommitFile do
   @moduledoc """
   One file of a commit's tree, with the blob it had: the listing the client
-  takes from `git ls-files --stage` at a clean checkout of the commit. Keyed
+  takes from `git ls-tree -r` of the commit at a clean checkout. Keyed
   by repository and commit, not by run, since the tree is the commit's and a
   sharded run must not upload it once per shard.
 
