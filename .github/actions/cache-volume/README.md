@@ -19,9 +19,6 @@ Attach after checkout and before Gradle populates its directories:
 - run: ./gradlew test
 ```
 
-Always run Gradle, even on cache hits: it resolves dependencies and determines
-which tasks need to run.
-
 Keep existing runner labels and container images. Native and container jobs use
 identical action inputs. Do not restore archive caches into these paths. If you
 set `GRADLE_USER_HOME`, use paths beneath that location. Paths must be absent or
