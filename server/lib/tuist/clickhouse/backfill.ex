@@ -133,13 +133,28 @@ defmodule Tuist.ClickHouse.Backfill do
   #
   # `max_execution_time` bounds a statement on the server, and the client
   # waits longer than that and never retries; see `statement_options/0`.
+  #
+  # The last two parallelise the destination's side of the copy, which is
+  # where a table with materialized views spends its time. Every row inserted
+  # into `test_case_runs` also feeds the ~20 views that read it, and by
+  # default an `INSERT ... SELECT` runs its insert on one thread and feeds
+  # those views one after another. Production copied it at 31 to 55 thousand
+  # rows a second, against 300 to 800 thousand for tables without views,
+  # while both replicas used 1.1 to 1.4 of their 30 cores. At that rate its
+  # chunks ran for over an hour, long enough for one to be cancelled from the
+  # source's side.
+  #
+  # Both still answer to `max_memory_usage`, which is per statement, so more
+  # parallelism can at worst fail a chunk rather than the server.
   @copy_settings [
     max_memory_usage: 8 * 1024 * 1024 * 1024,
     max_threads: 4,
     max_insert_block_size: 65_536,
     min_insert_block_size_rows: 65_536,
     min_insert_block_size_bytes: 64 * 1024 * 1024,
-    max_execution_time: 5_400
+    max_execution_time: 5_400,
+    max_insert_threads: 8,
+    parallel_view_processing: 1
   ]
 
   # The most rows one chunk may hold before it is sliced, about fifteen to
