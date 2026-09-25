@@ -298,6 +298,32 @@ defmodule TuistWeb.OnceRunsLiveTest do
     assert html =~ "once build ci-run"
   end
 
+  test "the Test Runs analytics cards are ordered the way Xcode's are", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/once/test-runs")
+    render_async(view, 2_000)
+
+    html = render(view)
+
+    order =
+      Enum.map(
+        ["once-total-invocations", "once-failed-invocations", "once-line-coverage", "once-invocation-duration"],
+        fn id -> {id, :binary.match(html, id)} end
+      )
+
+    # Every card has to be present, otherwise the ordering below is vacuous.
+    for {id, match} <- order, do: assert(match != :nomatch, "#{id} missing")
+
+    positions = Enum.map(order, fn {_id, {at, _}} -> at end)
+
+    # Xcode's Test Runs page (test_runs_live.html.heex) puts coverage after the
+    # failure count, not before it.
+    assert positions == Enum.sort(positions)
+  end
+
   test "the build duration widget can be shown as a scatter of runs", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path <> "?analytics-selected-widget=build-duration")
     render_async(view)

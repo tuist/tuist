@@ -338,18 +338,6 @@ defmodule TuistWeb.OnceRunsLive do
             selected={@analytics_selected_widget == "build-success-rate"}
           />
           <.widget
-            :if={@once_resource_kind == :tests}
-            id="once-line-coverage"
-            loading={false}
-            title={dgettext("dashboard_tests", "Line coverage")}
-            legend_color="primary"
-            description={dgettext("dashboard_tests", "Test coverage isn't reported yet.")}
-            value={nil}
-            trend_value={0}
-            trend_label={@analytics_trend_label}
-            empty={true}
-          />
-          <.widget
             id="once-failed-invocations"
             loading={!@invocation_summary.ok?}
             title={
@@ -371,6 +359,18 @@ defmodule TuistWeb.OnceRunsLive do
             phx_click="select_widget"
             phx_value_widget="failed-builds"
             selected={@analytics_selected_widget == "failed-builds"}
+          />
+          <.widget
+            :if={@once_resource_kind == :tests}
+            id="once-line-coverage"
+            loading={false}
+            title={dgettext("dashboard_tests", "Line coverage")}
+            legend_color="primary"
+            description={dgettext("dashboard_tests", "Test coverage isn't reported yet.")}
+            value={nil}
+            trend_value={0}
+            trend_label={@analytics_trend_label}
+            empty={true}
           />
           <.percentile_dropdown_widget
             id="once-invocation-duration"
