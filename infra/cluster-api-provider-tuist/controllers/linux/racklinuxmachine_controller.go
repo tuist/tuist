@@ -330,6 +330,7 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, machin
 		ClusterDNS:     clusterDNS,
 		NodeLabels:     machine.Spec.NodeLabels,
 		NodeTaints:     machine.Spec.NodeTaints,
+		ManagementMAC:  host.Spec.BootMAC,
 		APIServerURL:   server,
 	}, "", nil
 }

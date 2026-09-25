@@ -228,6 +228,10 @@ carries the same guard.
   also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
   kernel, and the node's `panic_on_oops` turns that into a reboot every 70
   seconds;
+- nothing for the management port (the i226-LM, the host's boot MAC). The
+  converge keeps it up with no address, no IPv6 link-local and no ARP
+  (`/etc/systemd/network/10-tuist-management.network`), because AMT shares the
+  port and loses its link when the host leaves it down;
 - the host's hostname and role, the `tuist` account with passwordless sudo and
   a console password, SSH with password authentication off, and the rack's
   fleet key (`BER1_FLEET_SSH`) plus people's keys
