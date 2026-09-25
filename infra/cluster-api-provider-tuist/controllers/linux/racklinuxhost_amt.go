@@ -177,7 +177,11 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 			r.Recorder.Eventf(host, corev1.EventTypeWarning, "AMTActivationFailed", "%s", next.ActivationError)
 		}
 	}
-	r.recordAMTConfiguration(host, next, result, &observed)
+	requested := ""
+	if address != nil {
+		requested = address.ip
+	}
+	r.recordAMTConfiguration(host, next, result, requested, &observed)
 	host.Status.AMT = next
 
 	if next.ControlMode == amtAdminControl {
@@ -194,7 +198,7 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 
 // recordAMTConfiguration records the configuration steps a run took.
 func (r *RackLinuxHostReconciler) recordAMTConfiguration(host *infrav1.RackLinuxHost, next *infrav1.RackLinuxHostAMTStatus,
-	result amtScriptResult, observed *metav1.Time) {
+	result amtScriptResult, address string, observed *metav1.Time) {
 	var done, failed []string
 	for _, name := range []string{"mebx", "wired"} {
 		step, ok := result.steps[name]
@@ -207,7 +211,7 @@ func (r *RackLinuxHostReconciler) recordAMTConfiguration(host *infrav1.RackLinux
 			next.MEBxPasswordSet = true
 			done = append(done, "set the MEBx password")
 		default:
-			done = append(done, "gave AMT the address "+next.Address)
+			done = append(done, "gave AMT the address "+address)
 		}
 	}
 	if len(done) == 0 && len(failed) == 0 {
