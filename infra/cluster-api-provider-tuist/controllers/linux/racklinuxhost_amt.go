@@ -35,6 +35,9 @@ const (
 	amtScriptTimeout     = 10 * time.Minute
 	amtActivationBackoff = time.Hour
 	amtObserveInterval   = time.Hour
+	// amtAddressInterval is how soon an activated AMT without an address, which
+	// it takes by DHCP after the activation, is looked at again.
+	amtAddressInterval = 2 * time.Minute
 
 	amtPreProvisioning = "pre-provisioning"
 	amtClientControl   = "client"
@@ -101,7 +104,7 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 			return 10 * time.Minute
 		}
 	} else if status.ObservedAt != nil {
-		if wait := status.ObservedAt.Add(amtObserveInterval).Sub(now); wait > 0 {
+		if wait := status.ObservedAt.Add(amtObserveAfter(status)).Sub(now); wait > 0 {
 			return wait
 		}
 	}
@@ -151,11 +154,11 @@ func (r *RackLinuxHostReconciler) reconcileAMT(ctx context.Context, host *infrav
 	switch next.ControlMode {
 	case amtAdminControl:
 		conditions.MarkTrue(host, AMTActivatedCondition)
-		return amtObserveInterval
+		return amtObserveAfter(next)
 	case amtClientControl:
 		conditions.MarkFalse(host, AMTActivatedCondition, "ClientControlMode", clusterv1.ConditionSeverityWarning,
 			"AMT is activated in client control mode; deactivate it for the operator to activate it in admin control mode")
-		return amtObserveInterval
+		return amtObserveAfter(next)
 	}
 	if next.ActivationError != "" {
 		conditions.MarkFalse(host, AMTActivatedCondition, "ActivationFailed", clusterv1.ConditionSeverityWarning, "%s", next.ActivationError)
@@ -362,4 +365,11 @@ func validAMTPassword(p string) bool {
 		}
 	}
 	return lower && upper && digit && symbol
+}
+
+func amtObserveAfter(status *infrav1.RackLinuxHostAMTStatus) time.Duration {
+	if status.Address == "" || status.Address == "0.0.0.0" {
+		return amtAddressInterval
+	}
+	return amtObserveInterval
 }
