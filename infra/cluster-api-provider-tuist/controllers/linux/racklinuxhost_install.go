@@ -271,7 +271,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	if err != nil {
 		return err
 	}
-	key, err := r.Tailnet.CreateAuthKey(ctx, host.Spec.Tailnet.Tags, rackInstallKeyLifetime, "install of "+host.Spec.Hostname+" ("+host.Name+")")
+	key, err := r.Tailnet.CreateAuthKey(ctx, host.Spec.Tailnet.Tags, rackInstallKeyLifetime, tailnetKeyDescription("install of "+host.Spec.Hostname))
 	if err != nil {
 		return err
 	}
@@ -369,6 +369,22 @@ func (r *RackLinuxHostReconciler) installServed(ctx context.Context, inst *infra
 	mac := rackinstall.MACPath(inst.BootMAC)
 	_, ok := secret.Data[mac+".ipxe"]
 	return ok && string(secret.Data[mac+".install"]) == inst.KeyID
+}
+
+// tailnetKeyDescription is s as the Tailscale API takes a key's description:
+// letters, digits, spaces and hyphens, at most 50 of them.
+func tailnetKeyDescription(s string) string {
+	var b strings.Builder
+	for _, c := range s {
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == ' ' || c == '-' {
+			b.WriteRune(c)
+		}
+	}
+	out := b.String()
+	if len(out) > 50 {
+		out = out[:50]
+	}
+	return out
 }
 
 // renewDue reports whether the install's join key is to be replaced: shortly

@@ -813,6 +813,8 @@ static address, so it keeps one whatever happens to the host:
 gateway with its prefix length, which the address carries). A range address is
 recorded in `status.amt.assignedAddress` and kept: the one given before, else
 AMT's current one when it is in the range and free, else the lowest free one.
+The operator reads a host's AMT before it asks anything of it, so a host
+declared again for a box whose AMT is already activated keeps AMT's address.
 Staging puts the edges' AMT on the provisioning segment outside its DHCP range.
 AMT reports its old address for a while after it is given one, and none while
 its link is down, so the address is given again at most every two minutes and

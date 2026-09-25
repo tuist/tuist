@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +31,14 @@ const (
 
 var installEpoch = time.Date(2026, 9, 24, 8, 0, 0, 0, time.UTC)
 
-func (f *fakeTailnet) CreateAuthKey(_ context.Context, tags []string, expiry time.Duration, _ string) (tailnet.AuthKey, error) {
+// tailnetKeyDescriptionRule is what the Tailscale API accepts as a key's
+// description, and refuses anything else with HTTP 400.
+var tailnetKeyDescriptionRule = regexp.MustCompile(`^[A-Za-z0-9 -]{0,50}$`)
+
+func (f *fakeTailnet) CreateAuthKey(_ context.Context, tags []string, expiry time.Duration, description string) (tailnet.AuthKey, error) {
+	if !tailnetKeyDescriptionRule.MatchString(description) {
+		return tailnet.AuthKey{}, fmt.Errorf(`HTTP 400: {"message":"keys: description had invalid characters"}: %q`, description)
+	}
 	f.minted = append(f.minted, strings.Join(tags, ","))
 	id := fmt.Sprintf("kMINT%dCNTRL", len(f.minted))
 	return tailnet.AuthKey{ID: id, Key: "tskey-auth-" + id + "-secret", Expires: installEpoch.Add(expiry).Format(time.RFC3339)}, nil
