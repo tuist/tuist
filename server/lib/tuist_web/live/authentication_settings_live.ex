@@ -212,9 +212,15 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         socket.assigns.organization
       )
 
+    domain_verification_result =
+      if normalize_domain(form_params["sso_login_domain"]) ==
+           normalize_domain(socket.assigns.current_form_params["sso_login_domain"]),
+         do: socket.assigns.domain_verification_result
+
     socket
     |> assign(
       current_form_params: form_params,
+      domain_verification_result: domain_verification_result,
       sso_automatic_enrollment:
         if(custom_provider_without_verified_domain? and not legacy_automatic_enrollment?,
           do: false,
@@ -260,6 +266,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     :ok = authorize_account_update!(socket)
 
     form_domain = normalize_domain(socket.assigns.current_form_params["sso_login_domain"])
+    socket = assign(socket, flash_message: nil)
 
     case Accounts.get_organization_by_id(socket.assigns.organization.id) do
       {:ok, organization} when organization.sso_login_domain == form_domain ->
@@ -269,7 +276,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
              socket
              |> assign(:organization, organization)
              |> assign(
-               :flash_message,
+               :domain_verification_result,
                {"success", dgettext("dashboard_account", "The login domain has been verified.")}
              )}
 
@@ -277,11 +284,12 @@ defmodule TuistWeb.AuthenticationSettingsLive do
             {:noreply,
              assign(
                socket,
-               :flash_message,
+               :domain_verification_result,
                {"error",
                 dgettext(
                   "dashboard_account",
-                  "The verification text record was not found. Domain record changes can take time to become available."
+                  "No TXT record with the verification value was found at %{record_name}. DNS changes can take a while to propagate, so try again in a few minutes.",
+                  record_name: Accounts.sso_login_domain_record_name(organization)
                 )}
              )}
 
@@ -289,7 +297,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
             {:noreply,
              assign(
                socket,
-               :flash_message,
+               :domain_verification_result,
                {"error", dgettext("dashboard_account", "Configure and save a login domain first.")}
              )}
 
@@ -297,7 +305,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
             {:noreply,
              assign(
                socket,
-               :flash_message,
+               :domain_verification_result,
                {"error", changeset_error_message(changeset)}
              )}
         end
@@ -306,7 +314,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         {:noreply,
          assign(
            socket,
-           :flash_message,
+           :domain_verification_result,
            {"error", dgettext("dashboard_account", "Save the login domain before verifying it.")}
          )}
     end
@@ -603,6 +611,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     |> assign(selected_provider: provider)
     |> assign(current_form_params: form_data)
     |> assign(form: to_form(form_data, as: "sso"))
+    |> assign(domain_verification_result: nil)
   end
 
   defp assign_saved_state(socket) do
@@ -837,4 +846,28 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   defp form_provider(%{sso_provider: provider}), do: Atom.to_string(provider)
 
   defp oauth2_form_provider?(provider), do: provider in @oauth2_form_providers
+
+  attr :id, :string, required: true
+  attr :value, :string, required: true
+  attr :copy_label, :string, required: true
+
+  defp copyable_value(assigns) do
+    ~H"""
+    <div data-part="read-only-value">
+      <code id={@id}>{@value}</code>
+      <.button
+        id={"#{@id}-copy-button"}
+        variant="secondary"
+        size="small"
+        icon_only
+        type="button"
+        phx-hook="Clipboard"
+        data-clipboard-value={@value}
+        aria-label={@copy_label}
+      >
+        <.copy />
+      </.button>
+    </div>
+    """
+  end
 end

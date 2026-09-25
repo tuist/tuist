@@ -346,6 +346,21 @@
       gap: var(--noora-spacing-2);
       width: 100%;
     }
+
+    & > .noora-button.phx-click-loading {
+      opacity: 0.6;
+      cursor: progress;
+    }
+
+    & > [data-part="domain-verification-result"] {
+      box-sizing: border-box;
+      width: 100%;
+      text-align: left;
+
+      &.phx-click-loading {
+        display: none;
+      }
+    }
   }
 
   @media (max-width: 768px) {
