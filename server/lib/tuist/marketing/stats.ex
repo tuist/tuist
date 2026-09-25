@@ -54,17 +54,30 @@ defmodule Tuist.Marketing.Stats do
   end
 
   @impl true
-  def handle_info(:poll, _stats) do
-    stats = %{
-      cache_artifacts_last_24h: Tuist.Cache.last_24h_artifacts_count(),
-      builds_last_24h: Tuist.Builds.last_24h_build_count(),
-      test_case_runs_last_24h: Tuist.Tests.last_24h_test_case_run_count(),
-      test_runs_last_24h: Tuist.Tests.last_24h_test_run_count(),
-      flaky_tests_last_24h: Tuist.Tests.last_24h_flaky_test_case_run_count()
-    }
+  def handle_info(:poll, stats) do
+    Task.async(fn ->
+      %{
+        cache_artifacts_last_24h: Tuist.Cache.last_24h_artifacts_count(),
+        builds_last_24h: Tuist.Builds.last_24h_build_count(),
+        test_case_runs_last_24h: Tuist.Tests.last_24h_test_case_run_count(),
+        test_runs_last_24h: Tuist.Tests.last_24h_test_run_count(),
+        flaky_tests_last_24h: Tuist.Tests.last_24h_flaky_test_case_run_count()
+      }
+    end)
 
-    Tuist.PubSub.broadcast(stats, @topic, :marketing_stats_updated)
+    {:noreply, stats}
+  end
+
+  @impl true
+  def handle_info({ref, new_stats}, stats) when is_reference(ref) do
+    Process.demonitor(ref, [:flush])
+    Tuist.PubSub.broadcast(new_stats, @topic, :marketing_stats_updated)
     Process.send_after(self(), :poll, @poll_interval)
+    {:noreply, new_stats}
+  end
+
+  @impl true
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, stats) do
     {:noreply, stats}
   end
 end
