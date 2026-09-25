@@ -204,6 +204,41 @@ func TestRackInstallPublishesAnInstallForAHostNotOnTheTailnet(t *testing.T) {
 	}
 }
 
+// laggingCache returns the host once as it was before the last reconcile, as
+// the operator's cache does until that reconcile's status patch reaches it.
+type laggingCache struct {
+	client.Client
+	stale *infrav1.RackLinuxHost
+}
+
+func (c *laggingCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if host, ok := obj.(*infrav1.RackLinuxHost); ok && c.stale != nil && key.Name == c.stale.Name {
+		c.stale.DeepCopyInto(host)
+		c.stale = nil
+		return nil
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
+}
+
+func TestRackInstallMintsOneKeyWhileTheCacheLagsBehindTheInstall(t *testing.T) {
+	h := newInstallHarness(t, svcHost())
+	before := &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-svc"}, before); err != nil {
+		t.Fatal(err)
+	}
+	h.reconcile(t, "ber1-svc")
+
+	h.r.Client, h.r.APIReader = &laggingCache{Client: h.c, stale: before}, h.c
+	_, err := h.r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-svc"}})
+
+	if len(h.api.minted) != 1 {
+		t.Fatalf("minted %v; the install the cache has not seen yet is kept", h.api.minted)
+	}
+	if err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+}
+
 func TestRackInstallKeepsAPublishedInstallUntilItNeedsRenewing(t *testing.T) {
 	h := newInstallHarness(t, withInstall(svcHost(), "kOLDCNTRL", "", installEpoch.Add(-time.Hour), nil), publishedBoot("kOLDCNTRL"))
 	host := h.reconcile(t, "ber1-svc")

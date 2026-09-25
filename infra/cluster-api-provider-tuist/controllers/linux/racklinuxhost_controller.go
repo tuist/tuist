@@ -55,6 +55,11 @@ type RackLinuxHostReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
+	// APIReader reads the host from the API server. A reconcile mints join keys
+	// and powers hosts, and the cache can still hold the host as it was before
+	// the previous reconcile's status patch. Nil reads through Client.
+	APIReader client.Reader
+
 	// Tailnet is nil when no Tailscale credential is configured; hosts then
 	// report TailnetJoined False and no machine can reach them.
 	Tailnet TailnetAPI
@@ -97,7 +102,11 @@ func (r *RackLinuxHostReconciler) egress() rackEgress {
 
 func (r *RackLinuxHostReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	host := &infrav1.RackLinuxHost{}
-	if getErr := r.Get(ctx, req.NamespacedName, host); getErr != nil {
+	var reader client.Reader = r.Client
+	if r.APIReader != nil {
+		reader = r.APIReader
+	}
+	if getErr := reader.Get(ctx, req.NamespacedName, host); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
 			pending, err := r.retireEmptyPools(ctx, req.Namespace)
 			if err != nil || !pending {
