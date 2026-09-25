@@ -3,6 +3,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   use Mimic
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.GitHistory
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Tests
@@ -391,6 +392,46 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     refute_received {:xcode_targets_query, _joins}
   end
 
+  test "walks the ancestor window once per fold, and reads tracked files only where evidence comes from", %{
+    project: project,
+    account: account
+  } do
+    {:ok, project} = Projects.update_project(project, %{tracked_file_globs: ["Package.resolved"]})
+    target_only_runs(project, account)
+
+    # An older measured commit the evidence never comes from.
+    CoverageFixtures.seed_history(account, [
+      CoverageFixtures.commit("root", [], -1),
+      CoverageFixtures.commit("base", ["root"], 0)
+    ])
+
+    CoverageFixtures.run_with_coverage(project, account, [file("Sources/Math.swift", [1, 1, 0])], %{
+      git_commit_sha: "root"
+    })
+
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = [%{path: "Package.resolved", git_blob_id: "one", mode: 0o100644}]
+    for sha <- ["root", "base", "head"], do: GitHistory.record_listing(repository_id, sha, listing, files_count: 1)
+
+    test_pid = self()
+
+    stub(GitHistory, :ancestors, fn repository_id, sha ->
+      send(test_pid, :window_walk)
+      call_original(GitHistory, :ancestors, [repository_id, sha])
+    end)
+
+    stub(GitHistory, :tracked_files, fn project, repository_id, sha ->
+      send(test_pid, {:tracked_files, sha})
+      call_original(GitHistory, :tracked_files, [project, repository_id, sha])
+    end)
+
+    assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
+
+    assert_received :window_walk
+    refute_received :window_walk
+    refute_received {:tracked_files, "root"}
+  end
+
   test "carries no target whose inputs hashed differently where its evidence comes from", %{
     project: project,
     account: account
@@ -573,8 +614,8 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     repository_id = CoverageFixtures.repository_id(account)
     listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
-    Tuist.GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
-    Tuist.GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
     Commits.recompute(project, "head")
 
     measured = Commits.merged_files(project.id, "head")
@@ -587,7 +628,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     # The tracked file changes at the commit: the published version still
     # says what it said, and a fold settles the new answer.
-    Tuist.GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
     assert %{covered_lines: 3} = carried.()
 
     Commits.recompute(project, "head")
@@ -617,12 +658,12 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     repository_id = CoverageFixtures.repository_id(account)
     listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
-    Tuist.GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
-    Tuist.GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
+    GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
 
     assert %{kind: "partial", carried_tests_count: 0} = Reported.compute(project, "head")
 
-    Tuist.GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("one"), files_count: 1)
     assert %{kind: "reported", carried_tests_count: 1} = Reported.compute(project, "head")
   end
 
