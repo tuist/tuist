@@ -597,7 +597,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               ~s(#sso-login-domain-verification [data-part="domain-verification-status"][data-status="verified"])
+               ~s([data-section="login-domain"] [data-part="domain-verification-status"][data-status="verified"])
              )
 
       refute has_element?(lv, "#verify-sso-login-domain-button")
@@ -634,7 +634,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       assert has_element?(
                lv,
-               ~s(#sso-login-domain-verification [data-part="domain-verification-status"][data-status="pending"])
+               ~s([data-section="login-domain"] [data-part="domain-verification-status"][data-status="pending"])
              )
 
       assert html |> String.split("No TXT record with the verification value was found") |> length() == 2
@@ -699,7 +699,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
                "Add the TXT record below at your DNS provider, then click Verify domain."
              )
 
-      assert has_element?(lv, ~s(#sso-login-domain-verification [data-part="domain-record"]), "TXT")
+      assert has_element?(lv, ~s(#sso-login-domain-verification [data-part="domain-records"]), "TXT")
 
       assert has_element?(
                lv,
