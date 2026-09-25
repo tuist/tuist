@@ -104,6 +104,61 @@ defmodule Atlas.Tasks do
 
   def complete_task(%Task{}, %User{}, _opts), do: {:error, :already_completed}
 
+  def snooze_reminder(task, snooze, actor, opts \\ [])
+
+  def snooze_reminder(%Task{status: "open"} = task, snooze, %User{} = actor, opts)
+      when snooze in [:tomorrow, :end_of_week, :next_week] do
+    remind_at = snooze_remind_at(snooze)
+
+    result =
+      Repo.transaction(fn ->
+        updated =
+          task
+          |> Ecto.Changeset.change(
+            remind_at: remind_at,
+            reminded_at: nil,
+            reminder_version: task.reminder_version + 1
+          )
+          |> Repo.update()
+          |> unwrap!()
+
+        schedule_reminder!(updated)
+        updated
+      end)
+
+    result
+    |> normalize_result()
+    |> audit_snooze(snooze, actor, opts)
+  end
+
+  def snooze_reminder(%Task{}, _snooze, %User{}, _opts), do: {:error, :not_snoozable}
+
+  defp snooze_remind_at(snooze) do
+    now = DateTime.utc_now()
+    today = DateTime.to_date(now)
+    target_date = snooze_target_date(snooze, today)
+
+    target_date
+    |> DateTime.new!(~T[09:00:00], "Etc/UTC")
+    |> DateTime.truncate(:second)
+  end
+
+  defp snooze_target_date(:tomorrow, today), do: Date.add(today, 1)
+
+  defp snooze_target_date(:end_of_week, today) do
+    case Date.day_of_week(today) do
+      dow when dow <= 4 -> Date.add(today, 5 - dow)
+      dow -> Date.add(today, 5 - dow + 7)
+    end
+  end
+
+  defp snooze_target_date(:next_week, today) do
+    case Date.day_of_week(today) do
+      1 -> Date.add(today, 7)
+      dow -> Date.add(today, 8 - dow)
+    end
+  end
+
   defp maybe_filter(query, _field, nil), do: query
   defp maybe_filter(query, field, value), do: where(query, [task], field(task, ^field) == ^value)
 
@@ -191,4 +246,25 @@ defmodule Atlas.Tasks do
   end
 
   defp audit_result(error, _action, _actor, _opts), do: error
+
+  defp audit_snooze({:ok, task} = result, snooze, actor, opts) do
+    Audit.record("task.reminder_snoozed", %{
+      actor_id: actor.id,
+      target_type: "task",
+      target_id: task.id,
+      target_label: task.title,
+      interface: Keyword.get(opts, :interface, "dashboard"),
+      metadata: %{
+        "path" => "/tasks",
+        "assignee_id" => task.assignee_id,
+        "account_id" => task.account_id,
+        "snooze" => Atom.to_string(snooze),
+        "remind_at" => DateTime.to_iso8601(task.remind_at)
+      }
+    })
+
+    result
+  end
+
+  defp audit_snooze(error, _snooze, _actor, _opts), do: error
 end
