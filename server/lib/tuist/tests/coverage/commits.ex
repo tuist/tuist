@@ -68,6 +68,7 @@ defmodule Tuist.Tests.Coverage.Commits do
   def enqueue_recompute(project_id, sha), do: CommitWorker.enqueue(project_id, sha)
 
   @publish_attempts 3
+  @pending_completions "coverage_commit_completions"
 
   @doc """
   Republishes the commit's totals from its runs' retained reports and
@@ -98,7 +99,7 @@ defmodule Tuist.Tests.Coverage.Commits do
     previous = summary(project.id, sha)
     {row, runs} = fold(project, sha, previous, opts)
 
-    case publish_unless_changed(project, sha, previous && previous.version, row) do
+    case publish_unless_changed(project, sha, previous && previous.version, row, opts) do
       :changed -> fold_and_publish(project, sha, opts, attempts - 1)
       published -> {published, runs}
     end
@@ -110,19 +111,41 @@ defmodule Tuist.Tests.Coverage.Commits do
       sha,
       fn ->
         {row, runs} = fold(project, sha, summary(project.id, sha), opts)
-        {row && publish(row), runs}
+        {write(project, sha, row, opts), runs}
       end,
       timeout: to_timeout(minute: 5)
     )
   end
 
-  defp publish_unless_changed(_project, _sha, _version, nil), do: nil
-
-  defp publish_unless_changed(project, sha, version, row) do
-    with_commit_lock(project, sha, fn ->
-      if published_version(project.id, sha) == version, do: publish(row), else: :changed
-    end)
+  defp publish_unless_changed(project, sha, version, row, opts) do
+    if is_nil(row) and not Keyword.get(opts, :complete, false) do
+      nil
+    else
+      with_commit_lock(project, sha, fn ->
+        if published_version(project.id, sha) == version, do: write(project, sha, row, opts), else: :changed
+      end)
+    end
   end
+
+  # The signal usually lands before any run of the commit folded (remote
+  # processing and the runs' buffer both lag behind a final CI job), so with
+  # nothing to publish it is kept for the commit's first fold (`publish/1`).
+  defp write(project, sha, nil, opts) do
+    if Keyword.get(opts, :complete, false) do
+      Repo.insert_all(
+        @pending_completions,
+        [%{project_id: project.id, git_commit_sha: sha, inserted_at: DateTime.utc_now()}],
+        on_conflict: :nothing
+      )
+    end
+
+    nil
+  end
+
+  defp write(_project, _sha, row, _opts), do: publish(row)
+
+  defp pending_completion(project_id, sha),
+    do: from(c in @pending_completions, where: c.project_id == ^project_id and c.git_commit_sha == ^sha)
 
   defp with_commit_lock(project, sha, fun, opts \\ []) do
     {:ok, result} =
@@ -293,9 +316,16 @@ defmodule Tuist.Tests.Coverage.Commits do
   defp utc(%NaiveDateTime{} = at), do: DateTime.from_naive!(at, "Etc/UTC")
   defp utc(%DateTime{} = at), do: at
 
+  # Under the commit's lock, so a signal kept for it is applied exactly once.
   defp publish(row) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
     row = Map.merge(row, %{inserted_at: now, updated_at: now})
+
+    row =
+      case Repo.delete_all(pending_completion(row.project_id, row.git_commit_sha)) do
+        {0, _} -> row
+        _ -> %{row | complete: true, completeness: "signal"}
+      end
 
     Repo.insert_all(CoverageCommit, [row],
       on_conflict: {:replace_all_except, [:project_id, :git_commit_sha, :inserted_at]},
@@ -331,7 +361,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   @doc """
   Records that the commit's coverage pipeline finished, republishing its
   totals as complete. Returns the row, or nil when no run measured the
-  commit yet (the signal is then recorded on the next recompute).
+  commit yet: the signal is then kept and the commit's first fold publishes
+  it complete.
   """
   def signal_complete(%Project{} = project, sha) do
     recompute(project, sha, complete: true, completeness: "signal")
@@ -522,7 +553,8 @@ defmodule Tuist.Tests.Coverage.Commits do
   Drops the commits' coverage past its retention
   (`Tuist.Environment.coverage_commit_retention_days/1`), by when the commit
   was made: a pull request's own commits after `pull_requests` days, every
-  other commit after `commits` days. Returns how many rows went.
+  other commit after `commits` days, and completion signals no run ever
+  followed after `pull_requests` days. Returns how many commits went.
   """
   def prune(retention \\ Tuist.Environment.coverage_commit_retention_days()) do
     now = DateTime.utc_now()
@@ -540,6 +572,8 @@ defmodule Tuist.Tests.Coverage.Commits do
                  (is_nil(r.id) or not is_nil(r.parent_ref_id)))
         )
       )
+
+    Repo.delete_all(from(c in @pending_completions, where: c.inserted_at < ^pull_requests_cutoff))
 
     count
   end

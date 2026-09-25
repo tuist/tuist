@@ -240,7 +240,7 @@ defmodule TuistWeb.API.CoverageController do
 
   def complete_commit(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
     case Commits.signal_complete(project, sha) do
-      nil -> not_found(conn, "No run of commit #{sha} gathered coverage")
+      nil -> not_found(conn, "No run of commit #{sha} gathered coverage yet; it is marked complete once one does")
       summary -> json(conn, Report.commit(summary, Commits.targets(project.id, sha)))
     end
   end
