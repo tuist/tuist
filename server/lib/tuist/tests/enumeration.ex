@@ -21,6 +21,7 @@ defmodule Tuist.Tests.Enumeration do
   alias Tuist.Tests.EnumeratedTest
 
   @insert_chunk_size 5_000
+  @lookup_chunk_size 1_000
 
   @doc """
   Stores the tests a run's client enumerated. `tests` are maps with
@@ -39,7 +40,7 @@ defmodule Tuist.Tests.Enumeration do
   def record(%{id: test_run_id, project_id: project_id}, tests) when is_list(tests) do
     if Coverage.enabled_for_project?(project_id) do
       inserted_at = NaiveDateTime.utc_now()
-      display_names = display_names(project_id)
+      display_names = display_names(project_id, tests)
 
       tests
       |> Stream.map(&row(&1, project_id, test_run_id, inserted_at, display_names))
@@ -77,16 +78,28 @@ defmodule Tuist.Tests.Enumeration do
   defp identity(name, _function, {module, suite}, display_names),
     do: {Map.get(display_names, {module, suite, name}, name), name}
 
-  # The display name each function was last recorded under. Only tests
-  # declared with a display name have a row here, so it stays small however
-  # large the suite.
-  defp display_names(project_id) do
-    from(e in EnumeratedTest,
-      where: e.project_id == ^project_id and e.function_name != "",
-      group_by: [e.module_name, e.suite_name, e.function_name],
-      select: {{e.module_name, e.suite_name, e.function_name}, fragment("argMax(?, ?)", e.name, e.inserted_at)}
-    )
-    |> ClickHouseRepo.all()
+  # The display name each function the run sent without one was last
+  # recorded under, looked up by function name only for those tests: the
+  # table holds every enumerated test of the project's retained runs.
+  defp display_names(project_id, tests) do
+    tests
+    |> Enum.flat_map(fn test ->
+      name = value(test, :name)
+      function = value(test, :function)
+
+      if is_binary(name) and name != "" and (not is_binary(function) or function == ""), do: [name], else: []
+    end)
+    |> Enum.uniq()
+    |> Enum.chunk_every(@lookup_chunk_size)
+    |> Enum.flat_map(fn functions ->
+      ClickHouseRepo.all(
+        from(e in EnumeratedTest,
+          where: e.project_id == ^project_id and e.function_name in ^functions,
+          group_by: [e.module_name, e.suite_name, e.function_name],
+          select: {{e.module_name, e.suite_name, e.function_name}, fragment("argMax(?, ?)", e.name, e.inserted_at)}
+        )
+      )
+    end)
     |> Map.new()
   end
 

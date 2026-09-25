@@ -93,6 +93,46 @@ defmodule Tuist.Tests.EnumerationTest do
     assert id == Tests.generate_test_case_id(project.id, "Maps paths", "AppTests", "MapperTests")
   end
 
+  test "reads back only the display names of the functions the run lacks one for", %{project: project} do
+    ran = run(project, [])
+
+    Enumeration.record(ran, [
+      %{module: "AppTests", suite: "MapperTests", name: "Maps paths", function: "map()", enabled: true},
+      %{module: "AppTests", suite: "MapperTests", name: "Parses input", function: "parse()", enabled: true}
+    ])
+
+    skipped = run(project, [])
+
+    expect(ClickHouseRepo, :all, fn query ->
+      rows = Mimic.call_original(ClickHouseRepo, :all, [query])
+      send(self(), {:display_names, rows})
+      rows
+    end)
+
+    Enumeration.record(skipped, [
+      %{module: "AppTests", suite: "MapperTests", name: "map()", enabled: true},
+      %{module: "AppTests", suite: "MathTests", name: "testAdd()", enabled: true}
+    ])
+
+    assert_received {:display_names, [{{"AppTests", "MapperTests", "map()"}, "Maps paths"}]}
+  end
+
+  test "looks up no display names when every test carries its function", %{project: project} do
+    test = run(project, [])
+
+    stub(ClickHouseRepo, :all, fn query ->
+      send(self(), :queried)
+      Mimic.call_original(ClickHouseRepo, :all, [query])
+    end)
+
+    Enumeration.record(test, [
+      %{module: "AppTests", suite: "MapperTests", name: "Maps paths", function: "map()", enabled: true}
+    ])
+
+    refute_received :queried
+    assert [%{name: "Maps paths"}] = CoverageFixtures.enumerated_tests(test)
+  end
+
   test "stores nothing while the account's coverage flag is off", %{project: project} do
     test = run(project, [])
     stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
