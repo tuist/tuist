@@ -32,6 +32,13 @@ public struct CommitCoverage: Equatable, Sendable {
     }
 }
 
+/// What the server did with a completion signal: the commit's coverage, now complete, or the
+/// signal kept because no run of the commit gathered coverage yet, to apply once one does.
+public enum CommitCoverageCompletion: Equatable, Sendable {
+    case complete(CommitCoverage)
+    case pending(message: String)
+}
+
 enum CompleteCommitCoverageServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
@@ -50,7 +57,8 @@ enum CompleteCommitCoverageServiceError: LocalizedError {
 
 @Mockable
 public protocol CompleteCommitCoverageServicing {
-    func completeCommitCoverage(fullHandle: String, serverURL: URL, gitCommitSHA: String) async throws -> CommitCoverage
+    func completeCommitCoverage(fullHandle: String, serverURL: URL, gitCommitSHA: String) async throws
+        -> CommitCoverageCompletion
 }
 
 /// Tells the server that a commit's coverage pipeline finished: every run that gathers coverage
@@ -62,7 +70,11 @@ public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func completeCommitCoverage(fullHandle: String, serverURL: URL, gitCommitSHA: String) async throws -> CommitCoverage {
+    public func completeCommitCoverage(
+        fullHandle: String,
+        serverURL: URL,
+        gitCommitSHA: String
+    ) async throws -> CommitCoverageCompletion {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.completeCommitCoverage(
@@ -78,15 +90,21 @@ public struct CompleteCommitCoverageService: CompleteCommitCoverageServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(commit):
-                return CommitCoverage(
-                    gitCommitSHA: commit.git_commit_sha,
-                    coverage: commit.coverage,
-                    coveredLines: commit.covered_lines,
-                    executableLines: commit.executable_lines,
-                    schemes: commit.schemes,
-                    partialSchemes: commit.partial_schemes,
-                    complete: commit.complete
+                return .complete(
+                    CommitCoverage(
+                        gitCommitSHA: commit.git_commit_sha,
+                        coverage: commit.coverage,
+                        coveredLines: commit.covered_lines,
+                        executableLines: commit.executable_lines,
+                        schemes: commit.schemes,
+                        partialSchemes: commit.partial_schemes,
+                        complete: commit.complete
+                    )
                 )
+            }
+        case let .accepted(accepted):
+            switch accepted.body {
+            case let .json(pending): return .pending(message: pending.message)
             }
         case let .notFound(notFound):
             switch notFound.body {

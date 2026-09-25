@@ -25080,6 +25080,12 @@ paths:
                 x-struct:
                 x-validate:
           description: The commit's coverage, complete
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "No run of the commit gathered coverage yet: the signal is kept, and the commit's first fold publishes it complete"
         '401':
           content:
             application/json:

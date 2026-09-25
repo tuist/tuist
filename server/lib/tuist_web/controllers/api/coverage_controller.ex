@@ -231,21 +231,23 @@ defmodule TuistWeb.API.CoverageController do
     operation_id: "completeCommitCoverage",
     parameters: @path_parameters ++ @sha_parameter,
     responses:
-      Map.put(
-        @not_found_responses,
-        :ok,
-        {"The commit's coverage, complete", "application/json", @commit_coverage}
-      )
+      Map.merge(@not_found_responses, %{
+        ok: {"The commit's coverage, complete", "application/json", @commit_coverage},
+        accepted:
+          {"No run of the commit gathered coverage yet: the signal is kept, and the commit's first fold publishes it complete",
+           "application/json", Error}
+      })
   )
 
   def complete_commit(%{assigns: %{selected_project: project}} = conn, %{git_commit_sha: sha}) do
     case Commits.signal_complete(project, sha) do
-      nil -> not_found(conn, "No run of commit #{sha} gathered coverage yet; it is marked complete once one does")
-      summary -> json(conn, Report.commit(summary, Commits.targets(project.id, sha)))
-    end
-  end
+      nil ->
+        conn
+        |> put_status(:accepted)
+        |> json(%{message: "No run of commit #{sha} gathered coverage yet; it is marked complete once one does"})
 
-  defp not_found(conn, message) do
-    conn |> put_status(:not_found) |> json(%{message: message})
+      summary ->
+        json(conn, Report.commit(summary, Commits.targets(project.id, sha)))
+    end
   end
 end
