@@ -119,17 +119,17 @@ extension FileHandle {
             let fileDescriptor = FileDescriptor(rawValue: fileDescriptor)
             let thread = Thread {
                 withExtendedLifetime(self) {
-                    var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+                    // Uninitialized, so a command that writes little output only makes the pages it fills resident.
+                    let buffer = UnsafeMutableRawBufferPointer.allocate(byteCount: 64 * 1024, alignment: 1)
+                    defer { buffer.deallocate() }
                     while true {
                         do {
-                            let count = try buffer.withUnsafeMutableBytes {
-                                try fileDescriptor.read(into: $0, retryOnInterrupt: true)
-                            }
+                            let count = try fileDescriptor.read(into: buffer, retryOnInterrupt: true)
                             if count == 0 {
                                 continuation.finish()
                                 return
                             }
-                            continuation.yield(Data(buffer[0 ..< count]))
+                            continuation.yield(Data(bytes: buffer.baseAddress!, count: count))
                         } catch {
                             continuation.finish(throwing: error)
                             return
