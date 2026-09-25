@@ -67,10 +67,10 @@ fleet_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; $1"; }
 
 # The transcripts and the export in fixtures/ were taken off ber1-tor-b before the
 # site gave its switches the edge node as gateway, before port descriptions were
-# rendered and before the edges' VRRP VLAN, so they are compared with a render
-# of the site without any of them.
+# rendered, before the edges' VRRP VLAN and before the ISL was a lag, so they are
+# compared with a render of the site without any of them.
 render_as_captured() {
-    jq 'del(.management.edge) | del(.vlans) | (.devices[].ports[]?) |= del(.description)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
+    jq 'del(.management.edge) | del(.vlans) | del(.devices[].lags) | (.devices[].ports[]?) |= del(.description)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/captured-site.json"
     fleet_render "$BATS_TEST_TMPDIR/captured-site.json" "$1"
 }
 
@@ -141,9 +141,9 @@ render_as_captured() {
     fleet_render "$SITE_FILE" ber1-tor-a > "$a"
     fleet_render "$SITE_FILE" ber1-tor-b > "$b"
     run bash -c "diff '$a' '$b' | grep '^<'"
-    # the hostname, the address, and the two port descriptions the site gives
-    # tor-a (its WAN uplink and its end of the ISL)
-    [ "${#lines[@]}" -eq 4 ]
+    # the hostname, the address, the WAN uplink's description, and the name of
+    # tor-a's ISL lag on its two members and its port-channel
+    [ "${#lines[@]}" -eq 6 ]
     [[ "$output" == *'hostname "ber1-tor-a"'* ]]
     [[ "$output" == *"ip address 192.168.0.11"* ]]
     [[ "$output" == *'description "router uplink WAN"'* ]]
@@ -267,7 +267,7 @@ render_as_captured() {
 }
 
 @test "the ISL is declared at both ends" {
-    run jq -r '[.devices[] | select(.role == "tor") | {a: .name, b: (.ports | to_entries[] | select(.value.purpose == "isl") | .value.peer)}] | sort_by(.a) | map("\(.a)->\(.b)") | join(",")' "$SITE_FILE"
+    run jq -r '[.devices[] | select(.role == "tor") | {a: .name, b: (.ports | to_entries[] | select(.value.purpose == "isl") | .value.peer)}] | unique | sort_by(.a) | map("\(.a)->\(.b)") | join(",")' "$SITE_FILE"
     [ "$output" = "ber1-tor-a->ber1-tor-b,ber1-tor-b->ber1-tor-a" ]
 }
 
@@ -1817,11 +1817,12 @@ run_resolve() {
     [ "${lines[3]}" = "255.255.255.255" ]
 }
 
-# The site with a VLAN, a lag on tor-b and two ports with settings of their own,
-# for the render features the rack does not use yet. Their forms were read off
-# ber1-tor-b after the controller wrote each one.
+# The site with a VLAN, a lag on tor-b in place of the ISL lag, and two ports
+# with settings of their own, for the render features the rack does not use yet.
+# Their forms were read off ber1-tor-b after the controller wrote each one.
 site_with_vlans_and_lag() {
     jq '.vlans = [{id: 20, name: "storage"}]
+        | del(.devices[].lags)
         | (.devices[] | select(.name == "ber1-tor-b")) |= (
             .lags = [{id: 1, name: "uplink", ports: [29, 30]}]
             | .ports["29"] = {purpose: "data", peer: "uplink-peer", media: "dac"}
@@ -1860,12 +1861,11 @@ site_with_lag_edit() {
     echo "$BATS_TEST_TMPDIR/site-lag.json"
 }
 
-# The real site with a second ISL cable on port 31 of both ToRs, aggregated on
-# the ends named in $1.
+# The real site with its ISL aggregated only on the ends named in $1.
 site_with_isl_lag() {
     jq --argjson ends "$1" '
-        (.devices[] | select(.name == "ber1-tor-a" or .name == "ber1-tor-b")) |= (
-            .ports["31"] = (.ports["32"] | .description = "isl 2 \(.peer)")
+        (.devices[] | select(.role == "tor")) |= (
+            del(.lags)
             | if (.name as $n | $ends | index($n)) then .lags = [{id: 1, name: "isl", ports: [31, 32]}] else . end)' \
         "$SITE_FILE" > "$BATS_TEST_TMPDIR/site-isl.json"
     echo "$BATS_TEST_TMPDIR/site-isl.json"
@@ -1920,8 +1920,8 @@ site_with_isl_lag() {
     [[ "$output" == *"lag 1 has 2 cables from one NIC, sfp28-1"* ]]
 }
 
-@test "an ISL aggregated on both ends renders, and carries the edge VLAN" {
-    site="$(site_with_isl_lag '["ber1-tor-a", "ber1-tor-b"]')"
+@test "the ISL is a lag at both ends, and the lag carries the edge VLAN" {
+    site="$SITE_FILE"
     run bash -c "source '$FLEET_ROOT/lib/config.sh'; fleet_render '$site' ber1-tor-b | fleet_context"
     [ "$status" -eq 0 ]
     [[ "$output" == *$'interface port-channel 1\tswitchport general allowed vlan 4000 tagged'* ]]
@@ -1939,7 +1939,7 @@ site_with_isl_lag() {
 }
 
 @test "an ISL cable recorded on one end only stops the render" {
-    jq '(.devices[] | select(.name == "ber1-tor-b")) |= (.ports["31"] = .ports["32"])' \
+    jq 'del(.devices[].lags) | (.devices[] | select(.name == "ber1-tor-a")) |= del(.ports["31"])' \
         "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
     run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-a
     [ "$status" -ne 0 ]
@@ -1947,9 +1947,7 @@ site_with_isl_lag() {
 }
 
 @test "an ISL port left out of the ISL's lag stops the render" {
-    jq '(.devices[] | select(.name == "ber1-tor-a" or .name == "ber1-tor-b")) |= (
-            .ports["30"] = .ports["32"] | .ports["31"] = .ports["32"]
-            | .lags = [{id: 1, name: "isl", ports: [31, 32]}])' \
+    jq '(.devices[] | select(.role == "tor")) |= (.ports["30"] = .ports["32"])' \
         "$SITE_FILE" > "$BATS_TEST_TMPDIR/site.json"
     run fleet_render "$BATS_TEST_TMPDIR/site.json" ber1-tor-b
     [ "$status" -ne 0 ]
@@ -2268,7 +2266,7 @@ STUB
     # the edge trunks carry the WAN VLAN, and nothing else does
     run fleet_render "$site" ber1-tor-a
     [ "$status" -eq 0 ]
-    [ "$(awk '/^interface /{port = $3} /allowed vlan 4001 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/32 " ]
+    [ "$(awk '/^interface /{port = $3} /allowed vlan 4001 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/31 1/0/32 1 " ]
 }
 
 @test "the edges' VLANs are tagged only on the ports facing an edge's data links and on the ISL" {
@@ -2277,7 +2275,7 @@ STUB
         [ "$status" -eq 0 ]
         [[ "$output" == *'vlan 4000
  name "edge-vrrp"'* ]]
-        [ "$(awk '/^interface /{port = $3} /allowed vlan 4000 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/32 " ]
+        [ "$(awk '/^interface /{port = $3} /allowed vlan 4000 tagged/{printf "%s ", port}' <<<"$output")" = "1/0/25 1/0/26 1/0/31 1/0/32 1 " ]
     done
     run fleet_render "$SITE_FILE" ber1-mgmt
     [ "$status" -eq 0 ]

@@ -816,7 +816,7 @@ HEADER
     [
       (.devices[] as $d | ($d.ports // {}) | to_entries[] |
         {from: $d.name, port: (.key | tonumber), to: .value.peer, nic: "", media: .value.media,
-         purpose: .value.purpose, status: "installed"}),
+         purpose: .value.purpose, status: (.value.status // "installed")}),
       (.nodes[]? as $n | $n.links[] |
         {from: .switch, port, to: $n.name, nic: (.nic // ""), media: (.media // ""),
          purpose: (.purpose // "data"), status: (.status // $n.status // "")}),

@@ -19,15 +19,17 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | ber1-mgmt |  | ber1-kvm-b | mgmt | copper | management | installed |
 | ber1-mgmt |  | ber1-pdu-a | netpack | copper | management | planned |
 | ber1-mgmt |  | ber1-pdu-b | netpack | copper | management | planned |
-| ber1-mgmt |  | ber1-store-a | i226-lm | copper | management | installed |
+| ber1-mgmt |  | ber1-store-a | i226-lm | copper | management | planned |
 | ber1-mgmt |  | ber1-store-b | i226-lm | copper | management | planned |
 | ber1-tor-a | 24 | router |  | copper | wan | installed |
 | ber1-tor-a | 25 | ber1-edge-a | sfp28-2 | dac | data | installed |
 | ber1-tor-a | 26 | ber1-edge-b | sfp28-2 | dac | data | installed |
+| ber1-tor-a | 31 | ber1-tor-b |  | dac | isl | planned |
 | ber1-tor-a | 32 | ber1-tor-b |  | dac | isl | installed |
-| ber1-tor-a |  | ber1-store-a | sfp28-1 | dac | data | installed |
+| ber1-tor-a |  | ber1-store-a | sfp28-1 | dac | data | planned |
 | ber1-tor-b | 1 | ber1-proto-01 | en0 | copper | data | installed |
 | ber1-tor-b | 25 | ber1-edge-a | sfp28-1 | dac | data | installed |
 | ber1-tor-b | 26 | ber1-edge-b | sfp28-1 | dac | data | installed |
+| ber1-tor-b | 31 | ber1-tor-a |  | dac | isl | planned |
 | ber1-tor-b | 32 | ber1-tor-a |  | dac | isl | installed |
 | ber1-tor-b |  | ber1-store-b | sfp28-1 | dac | data | planned |
