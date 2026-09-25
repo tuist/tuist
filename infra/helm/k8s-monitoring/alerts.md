@@ -3401,9 +3401,19 @@ keepalive pool per upstream address, so this only happens on an instance serving
 both lanes at once. Kura answered correctly in every case, so no Kura metric or
 rule moves. The paired controller error lines are
 `upstream sent no valid HTTP/1.0 header` and
-`no connection data found for keepalive http2 connection`. PR #13227 routes
-gateway gRPC to a dedicated Kura port; until it is deployed, expect this rule to
-fire for accounts that use both lanes.
+`no connection data found for keepalive http2 connection`. Gateway gRPC now
+reaches Kura on a dedicated port (PR #13227), so the two lanes no longer share a
+pool.
+
+A 502 on an upload (`POST` or `PUT`) with upstream status 502 and 0 upstream
+bytes is a connection Kura closed with request bytes still unread. The paired
+controller error lines are `writev() failed (104: Connection reset by peer)`,
+`upstream prematurely closed connection while reading response header` and
+`connect() failed (32: Broken pipe)`. nginx does not retry a `POST`, so reads
+never show it. Kura answers an upload of a blob it already stores after reading
+the body. Releases older than that answer first, which turns a steady fraction of
+an account's duplicate uploads into 502s while Kura's own request metrics count
+them as successes.
 
 `upstream` is the instance's HTTP backend (`kura-kura-<instance>-http`), which
 identifies the account.

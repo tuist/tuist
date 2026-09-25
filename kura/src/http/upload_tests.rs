@@ -277,6 +277,97 @@ async fn upload_body_real_http1_errors_keep_causes_in_logs_and_metrics() {
     }
 }
 
+// A proxy streams the body behind the headers and pools the connection for
+// the next request. An answer that leaves the body unread made Hyper close the
+// socket with bytes still in its receive queue, and the resulting reset
+// destroyed the answer or the next request on the pooled connection.
+#[tokio::test]
+async fn upload_of_existing_blob_over_real_http1_keeps_the_connection_reusable() {
+    let context = test_context(|_| {}).await;
+    let app = router(context.state.clone());
+    let uri = "/api/cache/cas/already-stored?tenant_id=test-tenant&namespace_id=ios";
+    let seeded = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .body(Body::from(vec![1_u8; 16]))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(seeded.status(), StatusCode::NO_CONTENT);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let service =
+            hyper::service::service_fn(move |request: hyper::Request<hyper::body::Incoming>| {
+                let app = app.clone();
+                async move {
+                    Ok::<_, std::convert::Infallible>(
+                        app.oneshot(crate::utils::guard_incoming_request(request))
+                            .await
+                            .unwrap(),
+                    )
+                }
+            });
+        let _ = hyper::server::conn::http1::Builder::new()
+            .serve_connection(hyper_util::rt::TokioIo::new(stream), service)
+            .await;
+    });
+
+    let (mut reader, mut writer) = tokio::net::TcpStream::connect(address)
+        .await
+        .unwrap()
+        .into_split();
+    // Larger than Hyper's read buffer, so most of the body is still in flight
+    // when the handler answers.
+    let body_bytes = 8 * 1024 * 1024;
+    let client = tokio::spawn(async move {
+        let chunk = vec![7_u8; 64 * 1024];
+        writer
+            .write_all(
+                format!(
+                    "POST {uri} HTTP/1.1\r\nHost: localhost\r\nContent-Length: {body_bytes}\r\n\r\n"
+                )
+                .as_bytes(),
+            )
+            .await?;
+        for _ in 0..body_bytes / chunk.len() {
+            writer.write_all(&chunk).await?;
+        }
+        writer
+            .write_all(
+                format!(
+                    "POST {uri} HTTP/1.1\r\nHost: localhost\r\nContent-Length: 16\r\nConnection: close\r\n\r\n"
+                )
+                .as_bytes(),
+            )
+            .await?;
+        writer.write_all(&[7_u8; 16]).await
+    });
+
+    let mut received = Vec::new();
+    let _ = tokio::time::timeout(
+        Duration::from_secs(10),
+        tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut received),
+    )
+    .await
+    .unwrap();
+    let _ = client.await.unwrap();
+    server.abort();
+
+    let received = String::from_utf8_lossy(&received);
+    assert_eq!(
+        received.matches("HTTP/1.1 204 No Content\r\n").count(),
+        2,
+        "{received}"
+    );
+}
+
 #[tokio::test]
 async fn upload_body_inline_size_limits_remain_413() {
     let context = test_context(|config| config.max_keyvalue_bytes = 4).await;
