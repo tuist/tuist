@@ -100,14 +100,15 @@ defmodule Tuist.Tests.Coverage.Reported do
       hits = selective_testing_hits(project.id, repository_id, run_ids)
 
       case skipped_tests(project, repository_id, sha, {run_ids, hits}, schemes) do
-        :not_enumerated ->
+        {:not_enumerated, _ancestry} ->
           result(observed, "observed", [], [], 0, [])
 
-        [] ->
+        {[], _ancestry} ->
           result(observed, "measured", [], [], 0, [])
 
-        skipped ->
-          carry(project, repository_id, sha, {run_ids, hits, covered_schemes}, observed, skipped, excluded)
+        {skipped, ancestry} ->
+          context = %{repository_id: repository_id, sha: sha, ancestry: ancestry}
+          carry(project, context, {run_ids, hits, covered_schemes}, observed, skipped, excluded)
       end
     end
   end
@@ -148,11 +149,14 @@ defmodule Tuist.Tests.Coverage.Reported do
     )
   end
 
-  defp carry(project, repository_id, sha, {run_ids, hits, schemes}, observed, skipped, excluded) do
+  defp carry(project, %{repository_id: repository_id, sha: sha, ancestry: ancestry}, runs, observed, skipped, excluded) do
+    {run_ids, hits, schemes} = runs
+
     context = %{
       project: project,
       repository_id: repository_id,
       sha: sha,
+      ancestry: ancestry,
       run_ids: run_ids,
       hits: hits,
       observed: observed,
@@ -277,16 +281,15 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Map.new()
   end
 
-  # The enabled candidates of the commit's runs that none of them executed.
+  # The enabled candidates of the commit's runs that none of them executed,
+  # with the ancestors' runs when inheriting candidates read them (nil
+  # otherwise), so carrying them does not read them again.
   defp skipped_tests(project, repository_id, sha, {run_ids, hits}, schemes) do
-    candidates =
-      Enum.uniq_by(
-        enumerated(project.id, run_ids) ++ inherited_candidates(project, repository_id, sha, {run_ids, hits}, schemes),
-        & &1.test_case_id
-      )
+    {inherited, ancestry} = inherited_candidates(project, repository_id, sha, {run_ids, hits}, schemes)
+    candidates = Enum.uniq_by(enumerated(project.id, run_ids) ++ inherited, & &1.test_case_id)
 
     if candidates == [] do
-      :not_enumerated
+      {:not_enumerated, ancestry}
     else
       ran =
         from(r in TestCaseRun,
@@ -297,7 +300,7 @@ defmodule Tuist.Tests.Coverage.Reported do
         |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
         |> MapSet.new()
 
-      Enum.reject(candidates, &MapSet.member?(ran, &1.test_case_id))
+      {Enum.reject(candidates, &MapSet.member?(ran, &1.test_case_id)), ancestry}
     end
   end
 
@@ -341,22 +344,32 @@ defmodule Tuist.Tests.Coverage.Reported do
     |> Enum.uniq()
   end
 
-  defp inherited_candidates(_project, repository_id, _sha, _runs, _schemes) when repository_id in [nil, 0], do: []
+  defp inherited_candidates(_project, repository_id, _sha, _runs, _schemes) when repository_id in [nil, 0], do: {[], nil}
 
   defp inherited_candidates(project, repository_id, sha, {run_ids, hits}, schemes) do
     silent = silent_schemes(project.id, sha, run_ids, schemes)
     skipped_modules = hits |> Enum.map(& &1.name) |> Enum.uniq()
 
     if silent == [] and skipped_modules == [] do
-      []
+      {[], nil}
     else
-      ranked = ranked_ancestor_runs(project.id, repository_id, sha)
-      inherit_schemes(project.id, ranked, silent) ++ inherit_modules(project.id, ranked, schemes, skipped_modules)
+      ancestry = ancestor_runs(project.id, repository_id, sha)
+
+      ranked =
+        ancestry
+        |> Enum.group_by(& &1.scheme)
+        |> Map.new(fn {scheme, runs} -> {scheme, Enum.sort_by(runs, &source_rank/1)} end)
+
+      {inherit_schemes(project.id, ranked, silent) ++ inherit_modules(project.id, ranked, schemes, skipped_modules),
+       ancestry}
     end
   end
 
-  # The runs of the commit's ancestors, per scheme, nearest first.
-  defp ranked_ancestor_runs(project_id, repository_id, sha) do
+  # The runs of the commit's ancestors within the window, each with its
+  # commit's depth. A skipped test's evidence is in the last run that
+  # executed it, however far back, so the walk cannot stop at the nearest
+  # measured ancestor; it is read once per compute instead.
+  defp ancestor_runs(project_id, repository_id, sha) do
     depths =
       repository_id
       |> GitHistory.ancestors(sha)
@@ -365,10 +378,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     project_id
     |> Commits.runs(Map.keys(depths))
-    |> Enum.group_by(& &1.scheme)
-    |> Map.new(fn {scheme, runs} ->
-      {scheme, Enum.sort_by(runs, &source_rank(%{depth: depths[&1.git_commit_sha], ran_at: &1.ran_at}))}
-    end)
+    |> Enum.map(&Map.put(&1, :depth, depths[&1.git_commit_sha]))
   end
 
   defp inherit_schemes(_project_id, _ranked, []), do: []
@@ -444,16 +454,11 @@ defmodule Tuist.Tests.Coverage.Reported do
   defp carried(%{repository_id: repository_id}, _skipped) when repository_id in [nil, 0], do: {[], %{}, %{}}
 
   defp carried(context, skipped) do
-    depths =
-      context.repository_id
-      |> GitHistory.ancestors(context.sha)
-      |> Enum.reject(fn {_sha, depth} -> depth == 0 end)
-      |> Map.new()
-
     source_runs =
-      context.project.id
-      |> Commits.runs(Map.keys(depths))
-      |> Map.new(&{&1.test_run_id, %{sha: &1.git_commit_sha, depth: depths[&1.git_commit_sha], ran_at: &1.ran_at}})
+      Map.new(
+        context.ancestry || ancestor_runs(context.project.id, context.repository_id, context.sha),
+        &{&1.test_run_id, %{sha: &1.git_commit_sha, depth: &1.depth, ran_at: &1.ran_at}}
+      )
 
     tests = Map.new(skipped, &{Evidence.test_scope_id(&1.module_name, &1.suite_name, &1.name), &1})
     rows = evidence_rows(context.project.id, Map.keys(tests), Map.keys(source_runs), "test")
@@ -469,7 +474,8 @@ defmodule Tuist.Tests.Coverage.Reported do
     passed = passed(context.project.id, tests, chosen)
     suites = suite_rows(context.project.id, tests, chosen)
     files = source_files(context.project.id, chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
-    validity = validity_cache(context, source_runs)
+    tracked_now = tracked(context, context.sha)
+    validity = validity_cache(context, tracked_now, source_runs, chosen)
 
     candidates =
       Enum.map(chosen, fn {scope_id, %{run_id: run_id, rows: test_rows}} ->
@@ -489,7 +495,7 @@ defmodule Tuist.Tests.Coverage.Reported do
         acc
       end
     end)
-    |> carry_targets(context, skipped, source_runs, validity)
+    |> carry_targets(context, skipped, source_runs, {tracked_now, validity})
     |> then(fn {kept, lines, sources} -> {Enum.uniq_by(kept, & &1.test_case_id), lines, sources} end)
   end
 
@@ -513,7 +519,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   # process and no serial execution, so it covers what per-test evidence
   # cannot: Swift Testing without the attribution trait, and tests that ran in
   # parallel.
-  defp carry_targets(acc, context, skipped, source_runs, validity) do
+  defp carry_targets(acc, context, skipped, source_runs, tracked) do
     hits = Map.new(context.hits, &{&1.name, &1.hash})
 
     by_module = skipped |> Enum.filter(&Map.has_key?(hits, &1.module_name)) |> Enum.group_by(& &1.module_name)
@@ -521,11 +527,11 @@ defmodule Tuist.Tests.Coverage.Reported do
     if by_module == %{} do
       acc
     else
-      carry_targets(acc, context, {by_module, hits}, source_runs, validity, Map.keys(by_module))
+      carry_targets(acc, context, {by_module, hits}, source_runs, tracked, Map.keys(by_module))
     end
   end
 
-  defp carry_targets(acc, context, {by_module, hits}, source_runs, validity, modules) do
+  defp carry_targets(acc, context, {by_module, hits}, source_runs, {tracked_now, validity}, modules) do
     project_id = context.project.id
     rows = evidence_rows(project_id, modules, Map.keys(source_runs), "target")
 
@@ -546,6 +552,7 @@ defmodule Tuist.Tests.Coverage.Reported do
 
     failed = failed_targets(project_id, chosen)
     files = source_files(project_id, chosen |> Map.values() |> Enum.map(& &1.run_id) |> Enum.uniq())
+    validity = Map.merge(validity_cache(context, tracked_now, source_runs, chosen), validity)
 
     context =
       prefetch_blobs(
@@ -748,13 +755,12 @@ defmodule Tuist.Tests.Coverage.Reported do
     end)
   end
 
-  # Tracked files are compared once per source commit.
-  defp validity_cache(context, source_runs) do
-    now = tracked(context, context.sha)
-
-    source_runs
+  # Tracked files are compared once per source commit evidence was chosen
+  # from, not per ancestor.
+  defp validity_cache(context, now, source_runs, chosen) do
+    chosen
     |> Map.values()
-    |> Enum.map(& &1.sha)
+    |> Enum.map(&source_runs[&1.run_id].sha)
     |> Enum.uniq()
     |> Map.new(fn sha -> {sha, now != :unknown and tracked(context, sha) == now} end)
   end
