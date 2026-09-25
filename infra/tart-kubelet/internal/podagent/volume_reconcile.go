@@ -436,6 +436,15 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Signal the guest the cache is ready (warm or cold) so its bounded wait
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
+	// One line per job, with the account the materialize counter cannot carry,
+	// so warm rates can be compared per account: the fleet-wide rate moves with
+	// the mix of accounts as much as with anything the host does.
+	result := string(source)
+	if declined {
+		result = "declined"
+	}
+	log.Log.WithName("volume").Info("materialized cache volume",
+		"vm", entry.VMName, "account", account, "volume", volume, "result", result, "base_generation", baseGeneration)
 	// A declined job was refused space in this volume, and converging downloads
 	// into the same volume with nothing reserved.
 	if declined {
