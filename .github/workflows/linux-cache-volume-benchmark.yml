@@ -3,10 +3,6 @@ name: Linux Cache Volume Benchmark
 on:
   workflow_dispatch:
     inputs:
-      source_sha:
-        description: Full tuist/tuist commit SHA; use the same SHA for every comparison
-        required: true
-        type: string
       runner_label:
         description: Linux profile used for every comparison
         default: tuist-linux
@@ -23,6 +19,11 @@ on:
 
 permissions:
   contents: read
+
+# Reviewed main commit. Keep every phase on this source; accepting a dispatch
+# ref would let arbitrary code publish caches under a trusted main-branch job.
+env:
+  SOURCE_SHA: 92ad9c2d908ca7c2aa12aa1f9559f86e9992f894
 
 concurrency:
   group: volume-benchmark-${{ inputs.cache_key }}
@@ -50,16 +51,12 @@ jobs:
       FIRST_CACHE: ${{ github.workspace }}/../${{ matrix.first }}
       SECOND_CACHE: ${{ github.workspace }}/../${{ matrix.second }}
       PHASE: ${{ inputs.phase }}
-      SOURCE_SHA: ${{ inputs.source_sha }}
       WORKLOAD: ${{ matrix.workload }}
     steps:
-      - name: Validate immutable source
-        shell: bash
-        run: '[[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]'
       - uses: actions/checkout@v4
         with:
           repository: tuist/tuist
-          ref: ${{ inputs.source_sha }}
+          ref: ${{ env.SOURCE_SHA }}
           persist-credentials: false
       - name: Start cache setup timer
         run: echo "CACHE_START=$(date +%s%N)" >> "$GITHUB_ENV"
