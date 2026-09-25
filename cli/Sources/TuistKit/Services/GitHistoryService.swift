@@ -312,6 +312,7 @@ public struct GitHistoryService: GitHistoryServicing {
 
         let listing = try await gitController.commitFiles(
             workingDirectory: workingDirectory,
+            sha: sha,
             limit: collected.settings.commitFileLimit
         )
         let files = listing.files.map { GitCommitFilePayload(path: $0.path, blobId: $0.blobId, mode: $0.mode) }

@@ -2,9 +2,13 @@ import Foundation
 import Path
 
 extension GitController {
-    public func commitFiles(workingDirectory: AbsolutePath, limit: Int) async throws -> GitCommitFiles {
+    public func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles {
         guard limit > 0 else { return GitCommitFiles(files: [], truncated: true) }
-        let output = try await capture(arguments: ["git", "-C", workingDirectory.pathString, "ls-files", "--stage", "-z"])
+        // The commit's tree rather than the index: on a pull request's merge checkout the run
+        // reports the pull request's head, while the index is the merge commit's.
+        let output = try await capture(
+            arguments: ["git", "-C", workingDirectory.pathString, "ls-tree", "-r", "-z", "--full-tree", sha]
+        )
         let files = GitHistoryParser.parseCommitFiles(output)
         return GitCommitFiles(files: Array(files.prefix(limit)), truncated: files.count > limit)
     }
