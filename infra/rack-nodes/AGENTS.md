@@ -14,18 +14,21 @@ only the first edge of a site is installed from a stick of its own.
 ## The pieces
 
 - **Inventory** is `rackLinuxFleet.hosts` in the env's tuist chart values,
-  rendered as one `RackLinuxHost` per box (pool `<pool>-<role>`, role, site,
-  tailnet tags, and `bootMAC`, the MAC of the NIC it netboots from: the
-  MS-01's i226-LM, on the management switch). Each role present gets a
-  MachineDeployment of `RackLinuxMachine`s with that role's
-  `rackLinuxFleet.roles.<role>` labels and taints. The node name, the hostname
-  and the tailnet name are all the host's name.
+  rendered as one `RackLinuxHost` per box, named after the machine's SMBIOS UUID:
+  its hostname (the node, OS and tailnet name), role, site, and optionally its
+  `bootMAC`, the MAC of the NIC it netboots from (the MS-01's i226-LM, on the
+  management switch), which otherwise comes from the machine's announcement.
+  Its role's `rackLinuxFleet.roles.<role>` gives its tailnet tags, labels and
+  taints. The operator keeps a CAPI Machine for each host, which makes it a
+  node.
 - **The operator** (`infra/cluster-api-provider-tuist`, `controllers/linux`)
   publishes each host's install, finds the host on the tailnet and joins it.
   See "Rack-owned Linux hosts" in its AGENTS.md.
 - **The boot server** (`rackLinuxFleet.boot`, a DaemonSet in the tuist chart
-  running `files/rack-boot.sh` on both edges) serves what the operator
-  publishes, on the site's provisioning address, from whichever edge holds it.
+  running the operator's `rack-boot` on both edges) serves what the operator
+  publishes, on the site's provisioning address, from whichever edge holds it,
+  hands each install's seed to its host alone, and lists the machines sticks
+  announce as RackLinuxCandidates.
   It serves nothing until it has the installer ISO, so each edge offers its
   verified ISO, and only it, on its address on the edges' VRRP link (`vrrp0`),
   and a freshly installed edge fetches it from there before the internet, which
@@ -38,9 +41,8 @@ only the first edge of a site is installed from a stick of its own.
 - **The seed** is rendered by `internal/rackinstall` in the operator, for PXE
   and for the stick alike.
 
-A host that is declared but not installed does not hold up a deploy: the chart
-renders each rack MachineDeployment at its live replicas, and the host
-controller scales it up as the pool's hosts come onto the tailnet.
+A host that is declared but not installed does not hold up a deploy: its
+Machine waits for it to come onto the tailnet.
 
 ## The install stick
 
@@ -82,18 +84,31 @@ kubectl get rlc -o wide
 ```
 
 A `RackLinuxCandidate` is named after the machine's SMBIOS UUID and shows its
-serial, product and `BOOTMAC`, its i226-LM. Declaring the box is adding it to
-`rackLinuxFleet.hosts` with that `bootMAC`; the operator then publishes its
-install, and the stick, still waiting, installs it. A candidate that a host
-already declares shows the host under `DECLAREDAS`.
+serial, product and `BOOTMAC`, its i226-LM. Declaring the box is adding its
+UUID, a hostname and a role to `rackLinuxFleet.hosts`:
+
+```yaml
+- uuid: 04450c00-63f4-11f1-81f4-3582298d5c00
+  hostname: ber1-edge-b
+  role: edge
+```
+
+The host takes its boot MAC and model from the candidate, its AMT is activated
+when its model is one of `rackLinuxFleet.amt.products`, and AMT gets an address
+from `amt.addressRange`. The operator then publishes its install, and the
+stick, still waiting, installs it. A candidate that a host declares shows the
+hostname under `DECLAREDAS`, and stays.
 
 ## Netboot
 
-For a host with a `bootMAC` that is not on the tailnet, or that carries
-`tuist.dev/reinstall=true`, the host controller mints a join key and writes three
-files under the MAC to the `<fleet>-boot` Secret: the autoinstall `user-data`
-and `meta-data`, and an iPXE script. The boot server mirrors the Secret within a
-minute or two. The chain a netbooting host goes through:
+For a host that is not on the tailnet yet, or whose `reinstallGeneration` is
+above the generation it was installed for, the host controller mints a join key
+and an SSH host key and writes three files under the boot MAC to the
+`<fleet>-boot` Secret: the autoinstall `user-data` and `meta-data`, and an iPXE
+script, with the host's UUID and the join key's ID beside them. The boot server
+watches the Secret, and the edge holding the provisioning address reports the
+install servable on the host's `status.boot`; the operator reboots a running
+host into it only then. The chain a netbooting host goes through:
 
 1. The firmware's PXE asks the active edge's dnsmasq for an address and gets one
    in the provisioning range, with iPXE's Secure Boot shim (`snponly-shim.efi`)
@@ -101,23 +116,27 @@ minute or two. The chain a netbooting host goes through:
    (`snponly.efi`).
 2. iPXE asks for an address again, is told to run `boot.ipxe`, and fetches
    `hosts/<mac>.ipxe` over HTTP, then `hosts/<uuid>.ipxe` by the machine's
-   SMBIOS UUID, which the operator publishes beside the install once AMT has
-   reported it: a network boot through AMT comes from whichever NIC the
+   SMBIOS UUID: a network boot through AMT comes from whichever NIC the
    firmware lists first. A host with no install published finds nothing and
    goes back to its firmware's next boot entry.
 3. The host's script loads the installer's kernel and initrd over HTTP and
    boots them through Ubuntu's shim from the ISO (iPXE's `shim` command), which
    verifies the kernel under Secure Boot; the kernel downloads the ISO into
    memory (`url=`), keeps its DHCP on the NIC that netbooted (`BOOTIF`), and
-   reads the seed from `/hosts/<mac>/`.
+   reads the seed from `/hosts/<mac>/`. The boot server hands `user-data`, which
+   carries the join key and the host key, only to one of the host's MACs, as
+   its neighbor table shows the address that asked, and after the first to
+   that MAC alone (`status.boot.servedTo`).
 4. The install is the same as a stick's: Ubuntu with network configuration for
-   the SFP+ uplinks only, the fleet key, and a first-boot unit that joins the
-   tailnet with the single-use key.
+   the SFP+ uplinks only, the fleet key, the operator's host key in place of
+   the ones the package generated (cloud-init told not to replace it), and a
+   first-boot unit that joins the tailnet with the single-use key, which lives
+   two hours.
 5. Once a tailnet device that is not the one the install replaced shows up, the
    host controller withdraws the install, so the key stops being served, and
    removes the annotation.
 
-The iPXE is the iPXE project's Secure Boot build (pinned in the rack-edge
+The iPXE is the iPXE project's Secure Boot build (pinned in the operator's
 image): a shim signed by Microsoft's UEFI CA 2011, the CA that signs Ubuntu's
 shim, which loads the `snponly.efi` signed by the iPXE project's CA. The shim
 finds that file from the boot file name in the DHCP packet's file field, which
@@ -146,35 +165,44 @@ stays on. Then it netboots whenever its disk does not boot.
 **A box whose disk already boots something** boots that first; pick the stick,
 or the i226-LM's network entry, from the boot menu (F7 on the MS-01) once.
 
-**Reinstalling a running host:**
+**Reinstalling a host** is raising its `reinstallGeneration`, in the values or
+directly:
 
 ```
-kubectl annotate racklinuxhost ber1-edge-b tuist.dev/reinstall=true
+kubectl patch racklinuxhost 04450c00-63f4-11f1-81f4-3582298d5c00 --type merge \
+  -p '{"spec":{"reinstallGeneration":2}}'
 ```
 
-People annotate through the kubectl gateway's `tuist-fleet-unwedge` role
+People patch through the kubectl gateway's `tuist-fleet-unwedge` role
 (`infra/helm/pomerium`), standing in staging and on a write elevation in
 production.
 
 The operator publishes the install, waits two minutes for the boot server to
 have it, then sets `BootNext` to the host's install stick, or without one to its
-PXE entry for its `bootMAC`, over SSH and reboots it. It does this once: a host that comes back on its old install
-reports `Installed` False with `ReinstallDidNotBoot` after half an hour, and
-removing the annotation and setting it again tries again. A host that is off
-the tailnet cannot be reached over SSH; with its AMT activated the operator
-power-cycles it through AMT into its network boot instead, once (AMT's Force
-PXE Boot, which boots the firmware's first network entry, the i226-V on the
-MS-01, found by the machine's UUID). That needs the firmware set up to netboot
-(below). Otherwise, and without AMT, boot its stick by hand.
-The new install registers a new tailnet device; once it is connected the host controller deletes
-the old one and renames the new one to the host's name, and the machine
-controller joins the host afresh.
+PXE entry for its boot MAC, over SSH and reboots it. It does this once: a host
+that comes back on its old install reports `Installed` False with
+`ReinstallDidNotBoot` after half an hour, and raising the generation again tries
+again. A host that is off the tailnet cannot be reached over SSH; with its AMT
+activated the operator power-cycles it through AMT into its network boot
+instead, once (AMT's Force PXE Boot, which boots the firmware's first network
+entry, the i226-V on the MS-01, found by the machine's UUID). That needs the
+firmware set up to netboot (below). Otherwise, and without AMT, boot its stick
+by hand. The new install registers a new tailnet device; once it is connected
+the host controller deletes the old one, names the new one after the host and
+records the generation in `status.provisioning.installedGeneration`, and the
+machine controller joins the host afresh. A host with `online: false` is
+powered off (below) and not rebooted into an install.
+
+**Powering a host** is its `online` field: `false` shuts it down from its OS, or
+through AMT when it is not on the tailnet, and `true` powers it back on through
+AMT. A one-off reboot through AMT is the `tuist.dev/reboot` annotation (`cycle`,
+`reset` or `pxe`).
 
 Watch it with:
 
 ```
 kubectl get racklinuxhost -o wide -w
-kubectl describe racklinuxhost ber1-edge-b
+kubectl describe racklinuxhost 04450c00-63f4-11f1-81f4-3582298d5c00
 ```
 
 **Retiring a host** is removing it from `rackLinuxFleet.hosts`, deploying, and
@@ -182,27 +210,21 @@ deleting its `RackLinuxHost`, which the chart keeps
 (`helm.sh/resource-policy: keep`):
 
 ```
-kubectl delete racklinuxhost ber1-svc
+kubectl delete racklinuxhost 04450c00-63f4-11f1-81f4-3582298d5c00
 ```
 
 People delete through the kubectl gateway's `tuist-fleet-unwedge` role. The
-operator withdraws the host's install and removes its Machine, scaling its
-role's MachineDeployment down when no other host of the pool takes its place.
-Once the Machine's delete has stopped the kubelet and removed the Node, it
-deletes the host's tailnet device and its key in `<fleet>-console`, and the
-`RackLinuxHost` goes. A role left without hosts loses its MachineDeployment and
-its template. A host still in the values is created again by the next deploy.
+operator withdraws the host's install and deletes its Machine. Once the
+Machine's delete has stopped the kubelet and removed the Node, it deletes the
+host's tailnet device and its key in `<fleet>-console`, and the `RackLinuxHost`
+goes. A host still in the values is created again by the next deploy.
 
-**Renaming a host** is changing its entry's `name` in `rackLinuxFleet.hosts`,
-keeping its `bootMAC`. The new name, created last, is what the box becomes: the
-operator publishes its install and, while the box is on the tailnet under the
-old name, sets `BootNext` through it and reboots the box into the new install,
-once. Once the new name is on the tailnet, the operator deletes the old one,
-which retires it as above. An edge's new name gets an install only while the
-site's other edge serves it; otherwise install it from a stick (below), and the
-old name is deleted all the same. Keep one entry per box: an old entry left in
-the values is created again by the next deploy, newer than the running name,
-and takes the box back.
+**Renaming a host** is changing its `hostname`. The host keeps its UUID, so it
+is the same box and the same Machine: the operator renames its tailnet device,
+deletes the Node it joined under, and joins it again under the new name, with
+its OS hostname changed, no reinstall. An edge's rename also needs its entries
+in the site definition (`infra/rack-switch-fleet`) renamed, since the rack-edge
+pod picks its configuration by node name.
 
 **The console password** of each host is in the `<fleet>-console` Secret, under
 the host's name, minted with its first netboot install and kept across
@@ -312,7 +334,7 @@ the operator refuses to join the node until it does.
 ## Tests
 
 `mise run rack:nodes-test` renders the stick's seed against fake `op` and
-`curl`, and runs the boot server's script against a fake Secret and ISO
-(`tests/boot.bats`); it runs in the Rack Switches workflow. The netboot seed,
-the iPXE script and the install lifecycle are Go tests in the operator
-(`internal/rackinstall`, `controllers/linux/racklinuxhost_install_test.go`).
+`curl`; it runs in the Rack Switches workflow. The boot server, the netboot
+seed, the iPXE script and the install lifecycle are Go tests in the operator
+(`internal/rackboot`, `internal/rackinstall`,
+`controllers/linux/racklinuxhost_install_test.go`).

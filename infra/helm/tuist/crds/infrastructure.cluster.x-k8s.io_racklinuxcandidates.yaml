@@ -49,11 +49,12 @@ spec:
       schema:
         openAPIV3Schema:
           description: |-
-            RackLinuxCandidate is a machine on a rack's management segment whose install
-            stick found no install published for it: a box to declare in
-            rackLinuxFleet.hosts, with the bootMAC it lists, rather than one whose MAC
-            someone reads off its label. The operator keeps it from the stick's
-            announcements to the boot server and drops it after a week without one.
+            RackLinuxCandidate is a machine on a rack's management segment as its install
+            stick announced it, named after its SMBIOS UUID: a box to declare in
+            rackLinuxFleet.hosts by that UUID, rather than one whose MAC someone reads
+            off its label. The RackLinuxHost declaring it takes its boot MAC and model
+            from it. The operator keeps it from the stick's announcements, and drops an
+            undeclared one after a week without one.
           properties:
             apiVersion:
               description: |-
@@ -91,7 +92,7 @@ spec:
                     on the management switch that carries AMT.
                   type: string
                 declaredAs:
-                  description: DeclaredAs names the RackLinuxHost whose bootMAC is one of its NICs.
+                  description: DeclaredAs is the hostname of the RackLinuxHost named after its UUID.
                   type: string
                 firstSeen:
                   description: FirstSeen and LastSeen bound its announcements.

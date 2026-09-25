@@ -21,10 +21,10 @@ func kubeletProxyPod(ip string, ready bool) *corev1.Pod {
 	}
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ts-rack-linux-ber1-edge-kubelet-abcde-0",
+			Name:      "ts-rack-linux-" + edgeUUID + "-kubelet-abcde-0",
 			Namespace: "tailscale-operator",
 			Labels: map[string]string{
-				"tailscale.com/parent-resource":      "rack-linux-ber1-edge-kubelet",
+				"tailscale.com/parent-resource":      "rack-linux-" + edgeUUID + "-kubelet",
 				"tailscale.com/parent-resource-ns":   "tailscale-operator",
 				"tailscale.com/parent-resource-type": "svc",
 			},
@@ -41,7 +41,7 @@ func uninitializedEdgeNode() *corev1.Node {
 	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"},
 		Spec: corev1.NodeSpec{
-			ProviderID: "rack-linux://ber1/ber1-edge",
+			ProviderID: "rack-linux://ber1/" + edgeUUID,
 			Taints: []corev1.Taint{
 				{Key: "tuist.dev/rack-edge", Value: "ber1", Effect: corev1.TaintEffectNoSchedule},
 				{Key: cloudProviderUninitializedTaint, Value: "true", Effect: corev1.TaintEffectNoSchedule},
@@ -59,9 +59,8 @@ func uninitializedEdgeNode() *corev1.Node {
 
 func claimedEdge() (*infrav1.RackLinuxHost, *infrav1.RackLinuxMachine) {
 	host := claimedEdgeHost("dev-1")
-	host.Status.ClaimedBy = "edge-0"
 	machine := edgeMachine()
-	machine.Status.RackLinuxHost = "ber1-edge"
+	machine.Status.NodeName = "ber1-edge"
 	return host, machine
 }
 
@@ -85,7 +84,7 @@ func TestRackLinuxMachineGivesTheNodeAnAddressTheAPIServerReaches(t *testing.T) 
 	h.reconcile(t)
 
 	svc := &corev1.Service{}
-	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: "tailscale-operator", Name: "rack-linux-ber1-edge-kubelet"}, svc); err != nil {
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: "tailscale-operator", Name: "rack-linux-" + edgeUUID + "-kubelet"}, svc); err != nil {
 		t.Fatalf("kubelet egress Service: %v", err)
 	}
 	if svc.Annotations["tailscale.com/tailnet-ip"] != "100.64.0.7" {
@@ -157,12 +156,12 @@ func TestRackLinuxMachineDeleteRemovesTheKubeletEgress(t *testing.T) {
 	machine.Finalizers = []string{RackLinuxMachineFinalizer}
 	now := metav1.Now()
 	machine.DeletionTimestamp = &now
-	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "rack-linux-ber1-edge-kubelet", Namespace: "tailscale-operator"}}
+	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "rack-linux-" + edgeUUID + "-kubelet", Namespace: "tailscale-operator"}}
 	objs := append(rackClusterObjects(true), host, machine, uninitializedEdgeNode(), svc)
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 	h.reconcile(t)
 
-	err := h.c.Get(context.Background(), types.NamespacedName{Namespace: "tailscale-operator", Name: "rack-linux-ber1-edge-kubelet"}, &corev1.Service{})
+	err := h.c.Get(context.Background(), types.NamespacedName{Namespace: "tailscale-operator", Name: "rack-linux-" + edgeUUID + "-kubelet"}, &corev1.Service{})
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("kubelet egress Service still there: %v", err)
 	}
@@ -174,13 +173,13 @@ func TestRackLinuxMachineWakesWhenItsKubeletProxyMoves(t *testing.T) {
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 
 	got := h.r.machineForKubeletProxy(context.Background(), kubeletProxyPod("10.1.2.3", true))
-	want := []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: rackTestNamespace, Name: "edge-0"}}}
+	want := []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: rackTestNamespace, Name: edgeUUID}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("requests %+v", got)
 	}
 
 	other := kubeletProxyPod("10.1.2.3", true)
-	other.Labels["tailscale.com/parent-resource"] = "rack-linux-ber1-edge"
+	other.Labels["tailscale.com/parent-resource"] = "rack-linux-" + edgeUUID
 	if got := h.r.machineForKubeletProxy(context.Background(), other); len(got) != 0 {
 		t.Fatalf("the SSH egress woke %+v", got)
 	}

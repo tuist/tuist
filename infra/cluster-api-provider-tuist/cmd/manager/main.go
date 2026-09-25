@@ -296,6 +296,25 @@ func main() {
 	flag.StringVar(&rackLinuxAMTProvisioningSecretName, "rack-linux-amt-provisioning-secret-name", "",
 		"Secret in the operator namespace holding the AMT provisioning certificate (pfx, password) the RackLinuxHost controller "+
 			"activates the AMT of hosts that ask for it with. Empty, or no --rack-linux-fleet-name, activates none.")
+	var rackLinuxAMTProducts []string
+	flag.Func("rack-linux-amt-product",
+		"A hardware model, as its SMBIOS vendor and product name, whose AMT the RackLinuxHost controller activates unless a host "+
+			"sets spec.amt.activate. Repeatable.",
+		func(v string) error {
+			rackLinuxAMTProducts = append(rackLinuxAMTProducts, v)
+			return nil
+		})
+	var rackLinuxAMTAddressRange, rackLinuxAMTGateway string
+	flag.StringVar(&rackLinuxAMTAddressRange, "rack-linux-amt-address-range", "",
+		"The CIDR the RackLinuxHost controller gives activated AMT static addresses from, for hosts without spec.amt.address. "+
+			"Empty leaves such hosts' AMT on DHCP.")
+	flag.StringVar(&rackLinuxAMTGateway, "rack-linux-amt-gateway", "",
+		"The gateway of the segment AMT's static addresses are on, for hosts without spec.amt.gateway.")
+	var rackLinuxClusterName, rackLinuxBootstrapSecretName string
+	flag.StringVar(&rackLinuxClusterName, "rack-linux-cluster-name", "",
+		"The CAPI Cluster the RackLinuxHost controller makes each rack Linux host a Machine of. Empty makes none.")
+	flag.StringVar(&rackLinuxBootstrapSecretName, "rack-linux-bootstrap-secret-name", "",
+		"The Secret each rack Linux Machine names as its bootstrap data; the host joins itself, so it only has to exist.")
 	flag.Func("rack-linux-authorized-key",
 		"An SSH public key every netbooted install authorizes beside the fleet key. Repeatable.",
 		func(v string) error {
@@ -686,7 +705,17 @@ func main() {
 	}
 	var rackAMT *linux.RackAMT
 	if rackLinuxFleetName != "" && rackLinuxAMTProvisioningSecretName != "" {
-		rackAMT = &linux.RackAMT{FleetName: rackLinuxFleetName, ProvisioningSecret: rackLinuxAMTProvisioningSecretName}
+		rackAMT = &linux.RackAMT{
+			FleetName:          rackLinuxFleetName,
+			ProvisioningSecret: rackLinuxAMTProvisioningSecretName,
+			Products:           rackLinuxAMTProducts,
+			AddressRange:       rackLinuxAMTAddressRange,
+			Gateway:            rackLinuxAMTGateway,
+		}
+	}
+	var rackMachines *linux.RackMachines
+	if rackLinuxClusterName != "" && rackLinuxBootstrapSecretName != "" {
+		rackMachines = &linux.RackMachines{ClusterName: rackLinuxClusterName, BootstrapSecret: rackLinuxBootstrapSecretName}
 	}
 	if err := (&linux.RackLinuxHostReconciler{
 		Client:             mgr.GetClient(),
@@ -695,6 +724,7 @@ func main() {
 		Recorder:           mgr.GetEventRecorderFor("racklinuxhost-controller"),
 		Tailnet:            rackTailnet,
 		Install:            rackInstall,
+		Machines:           rackMachines,
 		AMT:                rackAMT,
 		CredentialsManager: credsManager,
 		EgressNamespace:    egressNamespace,
@@ -704,14 +734,8 @@ func main() {
 		os.Exit(1)
 	}
 	if rackInstall != nil {
-		if err := mgr.Add(&linux.RackLinuxDiscovery{
-			Client:             mgr.GetClient(),
-			CredentialsManager: credsManager,
-			FleetName:          rackInstall.FleetName,
-			EgressNamespace:    egressNamespace,
-			EgressProxyGroup:   egressProxyGroup,
-		}); err != nil {
-			setupLog.Error(err, "setup RackLinuxDiscovery")
+		if err := mgr.Add(&linux.RackLinuxCandidates{Client: mgr.GetClient()}); err != nil {
+			setupLog.Error(err, "setup RackLinuxCandidates")
 			os.Exit(1)
 		}
 	}
@@ -722,6 +746,7 @@ func main() {
 		Scheme:              mgr.GetScheme(),
 		Recorder:            mgr.GetEventRecorderFor("racklinuxmachine-controller"),
 		CredentialsManager:  credsManager,
+		FleetName:           rackLinuxFleetName,
 		APIServerURL:        apiServerURL,
 		KubernetesMinor:     "v1.34",
 		ControlPlaneVersion: controlPlaneVersion(restConfig),

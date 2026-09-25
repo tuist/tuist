@@ -1729,9 +1729,10 @@ rackFleet:
 rackLinuxFleet:
   enabled: false
   name: ""             # default: <release>-rack-linux
-  pool: ""             # required; the environment boundary between racks
   site: ""             # default site; composes the providerID
   sshUser: tuist
+  # The tags a host's tailnet device carries, unless the host sets its own.
+  tailnetTags: []
 
   # The rack's fleet key item (`private-key`, `public-key`).
   sshExternalSecret:
@@ -1746,43 +1747,56 @@ rackLinuxFleet:
       item: ""
 
   #   edge:
+  #     tailnetTags: [tag:tuist-rack-edge]   # its hosts' tags, unless a host sets its own
   #     nodeLabels:
   #       tuist.dev/rack-edge: ber1
   #     nodeTaints:
   #       - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
   roles: {}
 
-  #   - name: ber1-edge-a        # hostname, tailnet name and Node name
-  #     role: edge             # edge | services | storage
-  #     tailnetTags: [tag:tuist-rack-edge]
-  #     site: ber1
-  #     bootMAC: 38:05:25:38:b5:b5   # the NIC it netboots from; see boot
+  # One entry per box, by the SMBIOS UUID its install stick announced
+  # (`kubectl get rlc`). The rest is optional:
+  #   - uuid: 44312e80-1dc6-11f1-853e-8f903547d200
+  #     hostname: ber1-edge-a    # OS, tailnet and Node name; changing it rejoins
+  #     role: edge               # edge | services | storage
+  #     site: ber1               # default: rackLinuxFleet.site
+  #     tailnetTags: [tag:tuist-rack-edge]   # default: its role's, else rackLinuxFleet.tailnetTags
+  #     bootMAC: 38:05:25:38:b5:b5   # default: the management port it announced
   #     rack: r1
   #     positionU: 10
+  #     online: true             # false powers it off through AMT
+  #     reinstallGeneration: 1   # raise it to reinstall the host
   #     amt:
-  #       activate: true       # activate its AMT; see amt below
-  #       address: 192.168.50.21/24   # a static AMT address; needs gateway
-  #       gateway: 192.168.50.1
+  #       activate: false        # default: amt.products decides
+  #       address: 192.168.50.21/24   # default: one from amt.addressRange
+  #       gateway: 192.168.50.1  # default: amt.gateway
   hosts: []
 
-  # Intel AMT's provisioning certificate (`pfx`, a base64 PKCS#12 carrying the
-  # chain to its root, and `pfx-password`). The operator activates the AMT of a
-  # host with `amt.activate` in admin control mode with it, and keeps the admin
-  # password it sets in the Secret `<host>-amt`. The certificate's domain must
-  # match the DHCP domain the site's edge hands out (management.edge.domain).
+  # Intel AMT. The operator activates, in admin control mode, the AMT of each
+  # host whose hardware model is in `products` (its SMBIOS vendor and product
+  # name, as `kubectl get rlc -o wide` shows it) unless the host sets
+  # amt.activate, with the provisioning certificate (`pfx`, a base64 PKCS#12
+  # carrying the chain to its root, and `pfx-password`), and keeps the admin
+  # password it sets in the Secret `<host UUID>-amt`. The certificate's domain
+  # must match the DHCP domain the site's edge hands out
+  # (management.edge.domain). Activated AMT gets a static address from
+  # `addressRange` unless the host sets amt.address.
   amt:
     provisioningExternalSecret:
       enabled: false
       item: ""
+    products: []
+    addressRange: ""   # a CIDR on the management segment, outside its DHCP range
+    gateway: ""        # the segment's gateway with its prefix length, e.g. 192.168.50.1/24
 
   # People's SSH keys every netbooted install authorizes beside the fleet key.
   authorizedKeys: []
 
-  # The rack's boot server, on its edge node. The operator publishes an install
-  # for each host with a bootMAC that is not on the tailnet, or carries
-  # tuist.dev/reinstall=true, and the host installs itself when it netboots.
-  # The site definition's management.edge.netboot points the edge node's DHCP
-  # here.
+  # The rack's boot server (cmd/rack-boot, from the operator's image), on each
+  # edge node of the site. The operator publishes an install for each host that
+  # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
+  # the host installs itself when it netboots or boots its stick. The site
+  # definition's management.edge.netboot points the edge node's DHCP here.
   boot:
     enabled: false
     site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
@@ -1790,10 +1804,6 @@ rackLinuxFleet:
     # rack-edge pod puts on the edge node's switch port.
     address: ""
     httpPort: 8480
-    image:
-      # The rack-edge image, which carries iPXE.
-      repository: ghcr.io/tuist/rack-edge
-      tag: ""
     iso:
       url: https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso
       sha256: 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8

@@ -37,6 +37,8 @@ const (
 	// with, so a run that changed files and failed before restarting the
 	// daemons is followed by one that restarts them.
 	rackAppliedHashPath = "/var/lib/tuist/rack-converge.hash"
+
+	rackKubernetesAPIPath = "/etc/tuist/kubernetes-api"
 )
 
 // rackConvergeOptions is everything the converge script renders from.
@@ -57,11 +59,18 @@ type rackConvergeOptions struct {
 	// host: the host's boot MAC.
 	ManagementMAC string
 
+	// KubernetesAPI is the API server the kubelet uses, written to
+	// rackKubernetesAPIPath for the pods on the node that talk to it: a rack
+	// node reaches no Service address.
+	KubernetesAPI string
+
 	// APIServerURL and BootstrapToken, when the token is set, make the run
 	// write a bootstrap kubeconfig and wait for the kubelet's certificate.
-	// Neither is part of the configuration hash.
+	// Rejoin drops the kubelet's identity first, for a host joining again
+	// under a new name. None of them is part of the configuration hash.
 	APIServerURL   string
 	BootstrapToken string
+	Rejoin         bool
 }
 
 // rackNodeLabels are the labels a rack Linux node registers with. Every rack
@@ -165,6 +174,7 @@ users:
 func rackConfigHash(o rackConvergeOptions) string {
 	o.APIServerURL = ""
 	o.BootstrapToken = ""
+	o.Rejoin = false
 	sum := sha256.Sum256([]byte(renderRackConvergeScriptWithHash(o, "")))
 	return hex.EncodeToString(sum[:])
 }
@@ -303,6 +313,7 @@ apt-mark hold kubelet >/dev/null
 	b.WriteString(heredoc("/etc/cni/net.d/10-tuist-rack-local.conflist", "0644", "cni", rackLocalCNIConfig()))
 	b.WriteString(heredoc(kubeletClientCAPath, "0644", "kubelet", string(o.ClusterCAPEM)))
 	b.WriteString(heredoc("/var/lib/kubelet/config.yaml", "0644", "kubelet", rackKubeletConfig(o)))
+	b.WriteString(heredoc(rackKubernetesAPIPath, "0644", "api", o.KubernetesAPI))
 	b.WriteString(heredoc("/etc/systemd/system/kubelet.service", "0644", "kubelet", rackKubeletUnit(o)))
 	if o.BootstrapToken != "" {
 		b.WriteString(heredoc(rackBootstrapKubeconfigPath, "0600", "kubelet",
@@ -312,6 +323,20 @@ apt-mark hold kubelet >/dev/null
 		b.WriteString("rm -f " + rackBootstrapKubeconfigPath + "\nbootstrap_supplied=0\n")
 	}
 
+	fmt.Fprintf(&b, `
+name=%s
+if [ "$(hostnamectl --static)" != "$name" ]; then
+  hostnamectl set-hostname "$name"
+  sed -ri "s/^127\\.0\\.1\\.1[[:space:]].*/127.0.1.1 $name/" /etc/hosts
+  changed+=(hostname)
+fi
+`, shellSingleQuote(o.NodeName))
+	if o.Rejoin {
+		b.WriteString(`systemctl stop kubelet >/dev/null 2>&1 || true
+rm -rf /var/lib/kubelet/pki /var/lib/kubelet/kubeconfig
+changed+=(identity)
+`)
+	}
 	fmt.Fprintf(&b, `
 if ! has_identity && [ "$bootstrap_supplied" = 0 ]; then
   echo "tuist-converge: the kubelet has no client certificate; it needs a bootstrap token" >&2

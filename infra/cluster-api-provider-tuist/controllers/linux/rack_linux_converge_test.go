@@ -22,6 +22,7 @@ func edgeConvergeOptions() rackConvergeOptions {
 		NodeLabels:     map[string]string{"tuist.dev/rack-edge": "ber1"},
 		NodeTaints:     []corev1.Taint{{Key: "tuist.dev/rack-edge", Value: "ber1", Effect: corev1.TaintEffectNoSchedule}},
 		APIServerURL:   "https://api.example:6443",
+		KubernetesAPI:  "https://api.example:6443",
 	}
 }
 
@@ -139,6 +140,7 @@ func TestRackConfigHash(t *testing.T) {
 		"tailnet address": func(o *rackConvergeOptions) { o.NodeIP = "100.64.0.2" },
 		"labels":          func(o *rackConvergeOptions) { o.NodeLabels = map[string]string{"a": "b"} },
 		"cluster CA":      func(o *rackConvergeOptions) { o.ClusterCAPEM = []byte("other") },
+		"API server":      func(o *rackConvergeOptions) { o.KubernetesAPI = "https://other:6443" },
 	} {
 		changed := base
 		mutate(&changed)
@@ -205,5 +207,15 @@ func TestRackConvergeScriptDropsTheManagementPortWithoutABootMAC(t *testing.T) {
 	}
 	if !strings.Contains(script, "unput /etc/systemd/network/10-tuist-management.network network\n") {
 		t.Fatal("a host whose boot MAC was removed keeps its management port configuration")
+	}
+}
+
+// A rack node reaches no Service address, so pods on it that talk to the API
+// server, such as the rack's boot server, read the address its kubelet uses
+// from the node.
+func TestRackConvergeScriptWritesTheAPIServerThePodsOnTheNodeUse(t *testing.T) {
+	script := renderRackConvergeScript(edgeConvergeOptions())
+	if !strings.Contains(script, "put /etc/tuist/kubernetes-api 0644 api <<'TUIST_EOF'\nhttps://api.example:6443\nTUIST_EOF\n") {
+		t.Fatal("the converge does not write the API server's address")
 	}
 }
