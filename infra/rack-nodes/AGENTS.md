@@ -5,8 +5,8 @@ storage pair) become cluster nodes. A host boots its installer, installs
 Ubuntu, joins the tailnet on first boot, and the cluster's operator joins it as
 a node and keeps it converged. The installer is the install stick every host
 keeps plugged in, which boots with the firmware as it ships, or a netboot from
-the rack's edges, which needs the firmware's network stack on and Secure Boot
-off. Either way it installs what the edges' boot server publishes for the host:
+the rack's edges, which needs the firmware's network stack on. Both run with
+Secure Boot on. Either way it installs what the edges' boot server publishes for the host:
 a box with an empty disk boots it on its own, and a running one is reinstalled
 with an annotation. The edges run the boot server, each serving the other, so
 only the first edge of a site is installed from a stick of its own.
@@ -92,17 +92,20 @@ and `meta-data`, and an iPXE script. The boot server mirrors the Secret within a
 minute or two. The chain a netbooting host goes through:
 
 1. The firmware's PXE asks the active edge's dnsmasq for an address and gets one
-   in the provisioning range, with iPXE (`snponly.efi`) from the provisioning
-   address over TFTP.
+   in the provisioning range, with iPXE's Secure Boot shim (`snponly-shim.efi`)
+   from the provisioning address over TFTP; the shim loads the iPXE beside it
+   (`snponly.efi`).
 2. iPXE asks for an address again, is told to run `boot.ipxe`, and fetches
    `hosts/<mac>.ipxe` over HTTP, then `hosts/<uuid>.ipxe` by the machine's
    SMBIOS UUID, which the operator publishes beside the install once AMT has
    reported it: a network boot through AMT comes from whichever NIC the
    firmware lists first. A host with no install published finds nothing and
    goes back to its firmware's next boot entry.
-3. The host's script loads the installer's kernel and initrd over HTTP; the
-   kernel downloads the ISO into memory (`url=`), keeps its DHCP on the NIC that
-   netbooted (`BOOTIF`), and reads the seed from `/hosts/<mac>/`.
+3. The host's script loads the installer's kernel and initrd over HTTP and
+   boots them through Ubuntu's shim from the ISO (iPXE's `shim` command), which
+   verifies the kernel under Secure Boot; the kernel downloads the ISO into
+   memory (`url=`), keeps its DHCP on the NIC that netbooted (`BOOTIF`), and
+   reads the seed from `/hosts/<mac>/`.
 4. The install is the same as a stick's: Ubuntu with network configuration for
    the SFP+ uplinks only, the fleet key, and a first-boot unit that joins the
    tailnet with the single-use key.
@@ -110,10 +113,15 @@ minute or two. The chain a netbooting host goes through:
    host controller withdraws the install, so the key stops being served, and
    removes the annotation.
 
-iPXE is not signed, so a netbooting host runs with Secure Boot off. Ubuntu's
-signed chain (shim, then network GRUB) cannot be used on the MS-01: GRUB's UEFI
-network driver cannot send a packet through its Intel network driver ("couldn't
-send network packet" on both i226 ports), so it never reads its menu.
+The iPXE is the iPXE project's Secure Boot build (pinned in the rack-edge
+image): a shim signed by Microsoft's UEFI CA 2011, the CA that signs Ubuntu's
+shim, which loads the `snponly.efi` signed by the iPXE project's CA. The shim
+finds that file from the boot file name in the DHCP packet's file field, which
+the edges' dnsmasq keeps there (`dhcp-no-override`) instead of moving it to
+option 67. Ubuntu's own network chain (shim, then network GRUB) cannot be used
+on the MS-01: GRUB's UEFI network driver cannot send a packet through its Intel
+network driver ("couldn't send network packet" on both i226 ports), so it never
+reads its menu.
 
 An edge serves the segment from its i226-V (ber1-mgmt port 48 for `ber1-edge-a`,
 47 for `ber1-edge-b`), not its i226-LM: an i226-LM with vPro never puts a DHCP
@@ -128,8 +136,8 @@ provisioning range onto its uplinks as well as into the tailnet.
 **Racking an MS-01** is its cables and the install stick. Its firmware stays as
 it ships: with its disk empty it boots the stick, which installs it once the
 host is declared. Netbooting instead needs, once, in Setup: Advanced → Network
-Stack Configuration → Network Stack and IPv4 PXE Support enabled; Security →
-Secure Boot disabled. Then it netboots whenever its disk does not boot.
+Stack Configuration → Network Stack and IPv4 PXE Support enabled; Secure Boot
+stays on. Then it netboots whenever its disk does not boot.
 
 **A box whose disk already boots something** boots that first; pick the stick,
 or the i226-LM's network entry, from the boot menu (F7 on the MS-01) once.

@@ -301,10 +301,13 @@ CONF
     # script that asks the server for the host's install; a host with none
     # published gets nothing. The offers carry no vendor class: with PXEClient
     # in it the firmware asks a PXE boot server on port 4011 for the file
-    # instead of reading the one the offer names.
+    # instead of reading the one the offer names. The file name stays in the
+    # packet's file field, not only in option 67, which the firmware asks for:
+    # the shim reads the field to find the iPXE named after it.
     echo "dhcp-match=set:netboot,option:client-arch,7"
     echo "dhcp-match=set:netboot,option:client-arch,9"
     echo "dhcp-userclass=set:ipxe,iPXE"
+    echo "dhcp-no-override"
     echo "dhcp-boot=tag:netboot,tag:!ipxe,snponly-shim.efi,,${provisioning%/*}"
     echo "dhcp-boot=tag:ipxe,boot.ipxe,,${provisioning%/*}"
   fi

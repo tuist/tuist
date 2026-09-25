@@ -384,6 +384,51 @@ func TestRackAMTGivesAMTItsStaticAddress(t *testing.T) {
 	}
 }
 
+// AMT reports its old address for a while after it is given a static one, and
+// the status patch queues the host again at once: configuring again then would
+// rewrite AMT's settings in a loop.
+func TestRackAMTWaitsBeforeGivingAMTItsAddressAgain(t *testing.T) {
+	host := adminEdge("192.168.50.112", true)
+	host.Spec.AMT.Address, host.Spec.AMT.Gateway = "192.168.50.21/24", "192.168.50.1"
+	h := newAMTHarness(t, host, provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.runner.reply = func(_, _ string) string {
+		return "--- wired\n{\"status\":\"success\"}\n--- wired exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
+	}
+
+	h.reconcile(t, "ber1-edge")
+	h.now = h.now.Add(10 * time.Second)
+	h.reconcile(t, "ber1-edge")
+	if n := len(h.amtRuns()); n != 1 {
+		t.Fatalf("configured AMT %d times within seconds", n)
+	}
+	h.now = h.now.Add(amtAddressInterval)
+	h.reconcile(t, "ber1-edge")
+	if n := len(h.amtRuns()); n != 2 {
+		t.Fatalf("did not configure AMT again after %s (%d runs)", amtAddressInterval, n)
+	}
+}
+
+// AMT without a link reports no address, and giving it one changes nothing.
+func TestRackAMTLeavesTheAddressOfAMTWithoutALink(t *testing.T) {
+	host := adminEdge("0.0.0.0", true)
+	host.Status.AMT.Link = "down"
+	host.Spec.AMT.Address, host.Spec.AMT.Gateway = "192.168.50.21/24", "192.168.50.1"
+	h := newAMTHarness(t, host, provisioningSecret(), amtSecret("Stored-Pa55!"))
+	h.runner.reply = func(_, _ string) string {
+		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "down", "0.0.0.0")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	runs := h.amtRuns()
+	if len(runs) != 1 || strings.Contains(runs[0].script, "static_address='192.168.50.21'") {
+		t.Fatalf("runs %d; want one that only reads AMT", len(runs))
+	}
+	if got.Status.AMT.LastConfiguration != nil {
+		t.Fatalf("status %+v", got.Status.AMT)
+	}
+}
+
 func TestRackAMTBacksOffAFailedConfiguration(t *testing.T) {
 	h := newAMTHarness(t, adminEdge("192.168.50.112", false), provisioningSecret(), amtSecret("Stored-Pa55!"))
 	h.runner.reply = func(_, _ string) string {
