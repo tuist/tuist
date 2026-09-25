@@ -242,16 +242,109 @@ fn prematerialize_max_nodes() -> usize {
 /// and must skip it.
 pub const TAGS_SUFFIX: &str = ".tags";
 
-/// The sidecar path for a record, keyed off the base name so it is still found
-/// once a sweeper has claimed the record as `<base>.claim-<pid>`.
-fn tags_path(record_path: &str) -> std::path::PathBuf {
+/// A record's identity: its path with the base name, which stays the same once
+/// a sweeper has claimed the record as `<base>.claim-<pid>`.
+fn record_identity(record_path: &str) -> std::path::PathBuf {
     let path = std::path::Path::new(record_path);
     let name = path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or_default();
     let base = name.split_once(".claim-").map(|(b, _)| b).unwrap_or(name);
-    path.with_file_name(format!("{base}{TAGS_SUFFIX}"))
+    path.with_file_name(base)
+}
+
+/// The sidecar path for a record, keyed off its identity so it is still found
+/// once a sweeper has claimed the record.
+fn tags_path(record_path: &str) -> std::path::PathBuf {
+    let mut sidecar = record_identity(record_path).into_os_string();
+    sidecar.push(TAGS_SUFFIX);
+    std::path::PathBuf::from(sidecar)
+}
+
+/// How many records the ledger remembers. Past it, a record's decision is not
+/// remembered and a later acceptance decides again.
+const SPOOL_LEDGER_MAX: usize = 100_000;
+
+/// What the first acceptance of a record decided.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SpoolDecision {
+    /// The project did not upload: the record is removed, not published.
+    Rejected,
+    /// The (branch, trunk) to publish it under.
+    Tags(String, String),
+}
+
+/// The first decision about each record the proxy has accepted, until that
+/// decision is on disk.
+///
+/// A request accepts a record without touching the spool, and the publisher or
+/// the spool cleaner acts on it later. Until then, a sweep or a re-sent notice
+/// can accept the same record again under a policy or a branch that has moved,
+/// and must not contradict the first acceptance. A rejection is remembered
+/// until the cleaner has tried to remove the record, and tags until the
+/// publisher has bound them to the record's sidecar, which is the durable copy.
+#[derive(Default)]
+struct SpoolLedger {
+    decisions: Mutex<HashMap<PathBuf, SpoolDecision>>,
+    // Records whose sidecar is being bound, so each is bound by one publisher
+    // thread at a time.
+    binding: Mutex<HashSet<PathBuf>>,
+    bound: Condvar,
+}
+
+/// One publisher thread's turn to bind a record's sidecar.
+struct BindingTurn<'a> {
+    ledger: &'a SpoolLedger,
+    identity: PathBuf,
+}
+
+impl Drop for BindingTurn<'_> {
+    fn drop(&mut self) {
+        self.ledger
+            .binding
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(&self.identity);
+        self.ledger.bound.notify_all();
+    }
+}
+
+impl SpoolLedger {
+    /// The record's first decision, recording `decided` if there is none.
+    fn accept(&self, identity: PathBuf, decided: SpoolDecision) -> SpoolDecision {
+        let mut decisions = self.decisions.lock().unwrap();
+        if let Some(first) = decisions.get(&identity) {
+            return first.clone();
+        }
+        if decisions.len() < SPOOL_LEDGER_MAX {
+            decisions.insert(identity, decided.clone());
+        }
+        decided
+    }
+
+    /// Forgets the record's decision if it is `Rejected`, or if it is tags.
+    fn settle(&self, identity: &Path, rejected: bool) {
+        let mut decisions = self.decisions.lock().unwrap();
+        if decisions
+            .get(identity)
+            .is_some_and(|decision| (*decision == SpoolDecision::Rejected) == rejected)
+        {
+            decisions.remove(identity);
+        }
+    }
+
+    fn turn_to_bind(&self, identity: PathBuf) -> BindingTurn<'_> {
+        let mut binding = self.binding.lock().unwrap();
+        while binding.contains(&identity) {
+            binding = self.bound.wait(binding).unwrap();
+        }
+        binding.insert(identity.clone());
+        BindingTurn {
+            ledger: self,
+            identity,
+        }
+    }
 }
 
 /// `branch\ntrunk`, where an empty field encodes `None`. Neither resolver can
@@ -2382,6 +2475,8 @@ pub struct Proxy {
     // Deletes the spool records of projects that do not upload, off the request
     // that handed them over. Items are record paths.
     spool_cleaner: Prefetcher,
+    // The first decision about each accepted record, until it is on disk.
+    spool_ledger: SpoolLedger,
     // Whether a build's put waits for its upload; see `publish_and_wait`.
     upload_wait: UploadWaitBreaker,
     // Resolves/publishes that arrived with no declared instance and no primed
@@ -2484,6 +2579,7 @@ impl Proxy {
             requests: RequestLimit::new(MAX_CONCURRENT_REQUESTS),
             publisher: Prefetcher::new(),
             spool_cleaner: Prefetcher::new(),
+            spool_ledger: SpoolLedger::default(),
             upload_wait: UploadWaitBreaker::default(),
             materializer: Prefetcher::new(),
             prematerializer: Prefetcher::new(),
@@ -2508,8 +2604,7 @@ impl Proxy {
         });
         proxy.spool_cleaner.configure(1, move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
-            let record_path = String::from_utf8_lossy(&item);
-            proxy.remove_spooled(&record_path);
+            proxy.clean_spooled(&String::from_utf8_lossy(&item));
         });
         // Demand jobs arrive at the build engine's serial rate, so a small
         // pool keeps up; the wavefront's bulk work does not flow through here.
@@ -3966,17 +4061,21 @@ impl Proxy {
     /// out by then, which is exactly how a trunk build's orphaned outputs come
     /// back tagged with the feature branch someone checked out afterwards.
     ///
-    /// So the first publication attempt of the first accept, the closest we ever
-    /// stand to the producing build, writes the pair beside the record, and
-    /// every later one reads it back. Best-effort by design: a record we never
-    /// accepted while primed has no sidecar, and resolving live is the only
-    /// guess left.
+    /// So the first accept, the closest we ever stand to the producing build,
+    /// decides the pair (`SpoolLedger` keeps it until this binds it), the first
+    /// publication attempt writes it beside the record, and every later one
+    /// reads it back. Best-effort by design: a record we never accepted while
+    /// primed has no sidecar, and resolving live is the only guess left.
     ///
     /// Runs on the publisher, never on a request thread: the sidecar lives in
     /// the store's directory, where a file operation can block indefinitely.
+    /// One thread at a time binds a record, so a copy queued with other tags
+    /// reads what the first wrote.
     fn bind_tags(&self, cas_path: &str, record_path: &str, accepted: (String, String)) -> (String, String) {
+        let identity = record_identity(record_path);
+        let _turn = self.spool_ledger.turn_to_bind(identity.clone());
         let sidecar = tags_path(record_path);
-        self.stalls.watch(cas_path, "writing a publication's tags", || {
+        let bound = self.stalls.watch(cas_path, "writing a publication's tags", || {
             if let Ok(contents) = std::fs::read(&sidecar) {
                 if let Some(bound) = decode_tags(&contents) {
                     return bound;
@@ -3986,7 +4085,9 @@ impl Proxy {
             // so failing here costs a re-resolve, never a wrong tag.
             let _ = std::fs::write(&sidecar, encode_tags(&accepted.0, &accepted.1));
             accepted
-        })
+        });
+        self.spool_ledger.settle(&identity, false);
+        bound
     }
 
     /// Deletes a spool record and its tags, tracked as work in the store's
@@ -3995,6 +4096,13 @@ impl Proxy {
         self.stalls.watch(&spool_owner(record_path), "removing a spooled publication", || {
             remove_record(record_path)
         });
+    }
+
+    /// The spool cleaner's work: removes a rejected record, after which a later
+    /// acceptance of it is judged by the policy then.
+    fn clean_spooled(&self, record_path: &str) {
+        self.remove_spooled(record_path);
+        self.spool_ledger.settle(&record_identity(record_path), true);
     }
 
     /// Queues a record for the publisher pool.
@@ -4022,6 +4130,11 @@ impl Proxy {
     ///
     /// Binding at accept costs a `stat`: the context is memoized, so this reads
     /// the registry only when setup has replaced it or the TTL has run out.
+    ///
+    /// A record accepted before is held to that acceptance (`SpoolLedger`) until
+    /// it is on disk: a rejected record stays rejected until the cleaner has
+    /// tried to remove it, and an accepted one keeps its tags until the
+    /// publisher has written them beside it.
     fn publish_item_bytes(&self, cas_path: &str, instance: &str, record_path: &str) -> Option<Vec<u8>> {
         // The project's answer, enforced where both lanes meet. The plugin
         // declines to publish when its own option says so, but that option only
@@ -4029,19 +4142,29 @@ impl Proxy {
         // plugin path and no options, so it asks to publish regardless. Its
         // records arrive here, and so do the sweeper's, so refusing here is what
         // makes `upload: false` mean it.
-        if !self.upload_enabled(instance) {
-            // The record is already durable. The Clang lane wrote it before
-            // asking, because its plugin instance never saw the policy, so
-            // refusing the request without dropping the record leaves it for
-            // every later sweep to find: the spool grows without bound, and the
-            // first time the policy reads as enabled (the project turns uploads
-            // on, or a registry read fails open) it hands the sweeper a backlog
-            // of everything produced while the project was read-only.
-            self.spool_cleaner.enqueue(record_path.as_bytes().to_vec());
-            return None;
-        }
-        let branch = self.resolve_branch(instance).unwrap_or_default();
-        let trunk = self.resolve_trunk(instance).unwrap_or_default();
+        let decided = if self.upload_enabled(instance) {
+            SpoolDecision::Tags(
+                self.resolve_branch(instance).unwrap_or_default(),
+                self.resolve_trunk(instance).unwrap_or_default(),
+            )
+        } else {
+            SpoolDecision::Rejected
+        };
+        let (branch, trunk) = match self.spool_ledger.accept(record_identity(record_path), decided) {
+            SpoolDecision::Tags(branch, trunk) => (branch, trunk),
+            SpoolDecision::Rejected => {
+                // The record is already durable. The Clang lane wrote it before
+                // asking, because its plugin instance never saw the policy, so
+                // refusing the request without dropping the record leaves it for
+                // every later sweep to find: the spool grows without bound, and
+                // the first time the policy reads as enabled (the project turns
+                // uploads on, or a registry read fails open) it hands the sweeper
+                // a backlog of everything produced while the project was
+                // read-only.
+                self.spool_cleaner.enqueue(record_path.as_bytes().to_vec());
+                return None;
+            }
+        };
         let mut item = Vec::with_capacity(
             8 + instance.len() + cas_path.len() + branch.len() + trunk.len() + record_path.len(),
         );
@@ -4210,6 +4333,7 @@ impl Proxy {
             std::fs::read(&record_path)
         });
         let Ok(bytes) = read else {
+            self.spool_ledger.settle(&record_identity(&record_path), false);
             return;
         };
         let accepted = (
@@ -5830,9 +5954,11 @@ impl Proxy {
     /// handled anyway inside `MAX_CONCURRENT_CONTROL_REQUESTS`. Runs on the
     /// accept loop, so it reads for at most `REFUSED_REQUEST_READ_TIMEOUT`.
     ///
-    /// The request is read before the answer is written, as for any request:
-    /// closing a connection the client has not finished writing would fail its
-    /// write, and a compiler that is not ignoring SIGPIPE dies of it.
+    /// The request is read before the answer is written, as for any request, so
+    /// the client reads an answer instead of failing its write. A client slower
+    /// than the timeout gets EPIPE, which the plugin's sockets report as an
+    /// error rather than a SIGPIPE (`proxy_proto::suppress_sigpipe`), and which
+    /// it also answers as a miss.
     fn refuse(&'static self, mut stream: UnixStream, reason: &str) {
         self.requests.note_refused(reason);
         let _ = stream.set_read_timeout(Some(REFUSED_REQUEST_READ_TIMEOUT));
@@ -12570,6 +12696,130 @@ mod tests {
         proxy.publish_item(&item);
 
         assert!(!Path::new(&tags_path(&record)).exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    type Captured = Arc<Mutex<Vec<(String, String)>>>;
+
+    /// A proxy over `registry` whose publisher, instead of publishing, captures
+    /// each item's (branch, record path).
+    fn capturing_proxy(registry: PathBuf) -> (&'static Proxy, Captured) {
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let captured: Captured = Arc::default();
+        let sink = captured.clone();
+        proxy.publisher.configure(1, move |item| {
+            let (_, rest) = take_u16_field(&item).expect("instance");
+            let (_, rest) = take_u16_field(rest).expect("cas path");
+            let (branch, rest) = take_u16_field(rest).expect("branch");
+            let (_, record) = take_u16_field(rest).expect("trunk");
+            sink.lock().unwrap().push((
+                String::from_utf8_lossy(branch).into_owned(),
+                String::from_utf8_lossy(record).into_owned(),
+            ));
+        });
+        (proxy, captured)
+    }
+
+    // The cleaner removes a rejected record after the request that rejected it
+    // has been answered. A job that turns uploads on meanwhile must not have
+    // its sweep publish what an earlier read-only job produced.
+    #[test]
+    fn a_rejected_record_stays_rejected_until_the_cleaner_removes_it() {
+        let dir = std::env::temp_dir().join(format!("tuist-rejected-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        let registry = dir.join("registry");
+        let record_policy = |upload: bool| {
+            std::fs::write(
+                sources_path_for(&registry),
+                format!(r#"{{"tuist/app":{{"trunk":"main","upload":{upload}}}}}"#),
+            )
+            .expect("sources");
+        };
+        record_policy(false);
+        let (proxy, captured) = capturing_proxy(registry.clone());
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let released = Mutex::new(released);
+        proxy.spool_cleaner.configure(1, move |item| {
+            let _ = released.lock().unwrap().recv_timeout(Duration::from_secs(10));
+            proxy.clean_spooled(&String::from_utf8_lossy(&item));
+        });
+        let cas_path = dir.join("cas").to_string_lossy().into_owned();
+        let record = spool.join("1234-0");
+        std::fs::write(&record, b"record").expect("record");
+        let record_path = record.to_string_lossy().into_owned();
+
+        proxy.enqueue_publish(&cas_path, "tuist/app", &record_path);
+        // The next job turns uploads on, and a sweep finds the record while the
+        // cleaner has not got to it yet.
+        record_policy(true);
+        proxy.source_cache.lock().unwrap().clear();
+        proxy.enqueue_publish(&cas_path, "tuist/app", &record_path);
+
+        release.send(()).unwrap();
+        assert!(wait_until_gone(&record), "the cleaner removes the record");
+        proxy.publisher.drain_stop_timeout(Duration::from_secs(10));
+        assert!(
+            captured.lock().unwrap().is_empty(),
+            "a record rejected under the read-only policy is never published"
+        );
+        assert!(proxy.spool_ledger.decisions.lock().unwrap().is_empty());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // A record's tags are the ones of its first acceptance. The publisher binds
+    // them to the sidecar later, and until then a sweep that accepts the record
+    // again after the branch changed must queue it under the same tags, or
+    // whichever copy is bound first decides which view the record lands in.
+    #[test]
+    fn a_record_keeps_its_first_accepted_tags_until_they_are_bound() {
+        let dir = std::env::temp_dir().join(format!("tuist-first-tags-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let spool = dir.join("cas").join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        let registry = dir.join("registry");
+        let record_branch = |branch: &str| {
+            std::fs::write(
+                sources_path_for(&registry),
+                format!(r#"{{"tuist/app":{{"trunk":"main","branch":"{branch}"}}}}"#),
+            )
+            .expect("sources");
+        };
+        record_branch("main");
+        let (proxy, captured) = capturing_proxy(registry.clone());
+        let cas_path = dir.join("cas").to_string_lossy().into_owned();
+        let record = spool.join("1234-0");
+        std::fs::write(&record, b"record").expect("record");
+        let record_path = record.to_string_lossy().into_owned();
+        let claimed = spool.join("1234-0.claim-9").to_string_lossy().into_owned();
+
+        proxy.enqueue_publish(&cas_path, "tuist/app", &record_path);
+        record_branch("feature");
+        proxy.source_cache.lock().unwrap().clear();
+        proxy.enqueue_publish(&cas_path, "tuist/app", &claimed);
+        proxy.publisher.drain_stop_timeout(Duration::from_secs(10));
+
+        let branches: Vec<String> = captured.lock().unwrap().iter().map(|(branch, _)| branch.clone()).collect();
+        assert!(!branches.is_empty());
+        assert!(
+            branches.iter().all(|branch| branch == "main"),
+            "every copy of the record is queued under its first acceptance: {branches:?}"
+        );
+
+        // Once bound, the sidecar carries the decision, and a copy accepted
+        // afterwards under the new branch still publishes under the first.
+        let bound = proxy.bind_tags(&cas_path, &record_path, ("main".into(), "main".into()));
+        assert_eq!(bound.0, "main");
+        assert!(proxy.spool_ledger.decisions.lock().unwrap().is_empty());
+        let later = proxy.bind_tags(&cas_path, &claimed, ("feature".into(), "main".into()));
+        assert_eq!(later.0, "main");
         std::fs::remove_dir_all(&dir).ok();
     }
 
