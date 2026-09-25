@@ -69,13 +69,25 @@ enum GitHistoryParser {
 
     /// The head-side line ranges of each file's hunks in a unified diff: `+++ b/<path>` names the
     /// file, `@@ -a,b +c,d @@` covers lines c..c+d-1; a hunk with d = 0 only removed lines.
+    ///
+    /// Expects the `b/` prefix whatever the user's diff config says (`--dst-prefix=b/`). A `+++ `
+    /// line only names the file right after the `--- ` line of a `diff --git` header: in a hunk it
+    /// is an added line that starts with `++ `.
     static func parseHunks(_ unified: String) -> [String: [GitHunk]] {
         var hunks: [String: [GitHunk]] = [:]
         var path: String?
-        for line in unified.split(whereSeparator: \.isNewline) {
-            if line.hasPrefix("+++ ") {
-                let name = line.dropFirst(4)
-                path = name == "/dev/null" ? nil : String(name.hasPrefix("b/") ? name.dropFirst(2) : name)
+        var header = false
+        var sawOldName = false
+        for line in unified.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" }) {
+            if line.hasPrefix("diff --git ") {
+                header = true
+                sawOldName = false
+                path = nil
+            } else if header, line.hasPrefix("--- ") {
+                sawOldName = true
+            } else if header, sawOldName, line.hasPrefix("+++ ") {
+                header = false
+                path = headerPath(line.dropFirst(4))
             } else if line.hasPrefix("@@ "), let path,
                       let match = line.firstMatch(of: /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/)
             {
@@ -87,6 +99,46 @@ enum GitHistoryParser {
             }
         }
         return hunks
+    }
+
+    /// The path of a `+++ ` header: Git ends the name with a tab when it has a space, and quotes it,
+    /// C-style, when it has a character `core.quotePath=false` still escapes.
+    private static func headerPath(_ name: Substring) -> String? {
+        var name = name
+        if name.hasSuffix("\t") { name = name.dropLast() }
+        if name == "/dev/null" { return nil }
+        let path = name.hasPrefix("\"") && name.hasSuffix("\"") && name.count >= 2
+            ? unquote(name.dropFirst().dropLast())
+            : String(name)
+        return path.hasPrefix("b/") ? String(path.dropFirst(2)) : path
+    }
+
+    private static func unquote(_ quoted: Substring) -> String {
+        let escapes: [UInt8: UInt8] = [
+            UInt8(ascii: "a"): 0x07, UInt8(ascii: "b"): 0x08, UInt8(ascii: "t"): 0x09, UInt8(ascii: "n"): 0x0A,
+            UInt8(ascii: "v"): 0x0B, UInt8(ascii: "f"): 0x0C, UInt8(ascii: "r"): 0x0D,
+        ]
+        let input = Array(quoted.utf8)
+        var bytes: [UInt8] = []
+        var index = 0
+        while index < input.count {
+            let byte = input[index]
+            guard byte == UInt8(ascii: "\\"), index + 1 < input.count else {
+                bytes.append(byte)
+                index += 1
+                continue
+            }
+            let next = input[index + 1]
+            let octal = input[(index + 1) ..< min(index + 4, input.count)]
+            if octal.count == 3, octal.allSatisfy({ (UInt8(ascii: "0") ... UInt8(ascii: "7")).contains($0) }) {
+                bytes.append(octal.reduce(0) { $0 &* 8 &+ ($1 - UInt8(ascii: "0")) })
+                index += 4
+            } else {
+                bytes.append(escapes[next] ?? next)
+                index += 2
+            }
+        }
+        return String(bytes: bytes, encoding: .utf8) ?? String(quoted)
     }
 
     /// The entries of `git ls-files --stage -z`: `<mode> <blob> <stage>\t<path>`, NUL-separated.

@@ -460,6 +460,59 @@ struct GitControllerTests {
         ))
     }
 
+    @Test func parseHunks_reads_quoted_and_tab_terminated_paths_and_added_lines_that_look_like_headers() {
+        // `git -c core.quotePath=false diff -U0 --src-prefix=a/ --dst-prefix=b/` output: a name with
+        // a space ends in a tab, one with a double quote is quoted, and an added line can start
+        // with `++ `.
+        let unified = [
+            "diff --git a/a b.swift b/a b.swift",
+            "index 5626abf..80bbe06 100644",
+            "--- a/a b.swift\t",
+            "+++ b/a b.swift\t",
+            "@@ -1,0 +2,2 @@ one",
+            "+++ x",
+            "+two",
+            "@@ -5 +7 @@ one",
+            "-a",
+            "+b",
+            "diff --git a/café.swift b/café.swift",
+            "index 5626abf..814f4a4 100644",
+            "--- a/café.swift",
+            "+++ b/café.swift",
+            "@@ -1,0 +2 @@ one",
+            "+two",
+            #"diff --git "a/say \"hi\"é.swift" "b/say \"hi\"é.swift""#,
+            "new file mode 100644",
+            "index 0000000..587be6b",
+            "--- /dev/null",
+            #"+++ "b/say \"hi\"é.swift""# + "\t",
+            "@@ -0,0 +1 @@",
+            "+x",
+            "diff --git a/Assets/logo.png b/Assets/logo.png",
+            "index 1111111..2222222 100644",
+            "Binary files a/Assets/logo.png and b/Assets/logo.png differ",
+            "diff --git a/plain.swift b/plain.swift",
+            "index 5626abf..b9156bd 100644",
+            "--- a/plain.swift",
+            "+++ b/plain.swift",
+            "@@ -1,0 +2,2 @@ one",
+            "+++ added",
+            "+three\r",
+            "@@ -9,0 +11 @@",
+            "+four",
+            "",
+        ].joined(separator: "\n")
+
+        let hunks = GitHistoryParser.parseHunks(unified)
+
+        #expect(hunks == [
+            "a b.swift": [GitHunk(start: 2, end: 3), GitHunk(start: 7, end: 7)],
+            "café.swift": [GitHunk(start: 2, end: 2)],
+            #"say "hi"é.swift"#: [GitHunk(start: 1, end: 1)],
+            "plain.swift": [GitHunk(start: 2, end: 3), GitHunk(start: 11, end: 11)],
+        ])
+    }
+
     @Test(.inTemporaryDirectory) func gitHistory_collects_the_merge_base_commits_and_changed_files() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
@@ -476,8 +529,11 @@ struct GitControllerTests {
             output: ":100644 100644 aaa bbb M\0Sources/A.swift\0"
         )
         commandRunner.succeedCommand(
-            git + ["diff", "-U0", "-M", "--no-color", "--no-ext-diff", "base", "head"],
-            output: "+++ b/Sources/A.swift\n@@ -1 +1,2 @@\n+a\n+b\n"
+            git + [
+                "-c", "core.quotePath=false", "diff", "-U0", "-M", "--no-color", "--no-ext-diff",
+                "--src-prefix=a/", "--dst-prefix=b/", "base", "head",
+            ],
+            output: "diff --git a/Sources/A.swift b/Sources/A.swift\n--- a/Sources/A.swift\n+++ b/Sources/A.swift\n@@ -1 +1,2 @@\n+a\n+b\n"
         )
 
         let history = try await subject.gitHistory(
