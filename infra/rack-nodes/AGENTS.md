@@ -26,6 +26,10 @@ only the first edge of a site is installed from a stick of its own.
 - **The boot server** (`rackLinuxFleet.boot`, a DaemonSet in the tuist chart
   running `files/rack-boot.sh` on both edges) serves what the operator
   publishes, on the site's provisioning address, from whichever edge holds it.
+  It serves nothing until it has the installer ISO, so each edge offers its
+  verified ISO, and only it, on its address on the edges' VRRP link (`vrrp0`),
+  and a freshly installed edge fetches it from there before the internet, which
+  took 45 minutes on 09-25.
 - **The edges' DHCP** (`management.edge.netboot` in the site definition,
   rendered into the rack-edge chart) points UEFI firmware on the management
   switch at the boot server. keepalived moves the provisioning address, and
