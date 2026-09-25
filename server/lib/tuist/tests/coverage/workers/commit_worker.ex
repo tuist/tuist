@@ -17,22 +17,16 @@ defmodule Tuist.Tests.Coverage.Workers.CommitWorker do
     max_attempts: 3,
     unique: [keys: [:project_id, :git_commit_sha], states: [:available, :scheduled], period: :infinity]
 
+  import Ecto.Query
+
+  alias Tuist.Environment
   alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Tests.Coverage.Commits
 
-  @delay_seconds 5
-
-  def enqueue(project_id, sha) do
-    args = %{project_id: project_id, git_commit_sha: sha}
-
-    case args |> new(schedule_in: @delay_seconds, replace: [scheduled: [:scheduled_at]]) |> Oban.insert() do
-      {:ok, %Oban.Job{state: state}} when state not in ["available", "scheduled"] ->
-        args |> new(schedule_in: @delay_seconds, unique: false) |> Oban.insert()
-
-      other ->
-        other
-    end
-  end
+  # The fold reads a run through its `test_runs` row, which reaches ClickHouse
+  # through a buffer flushed on a tick; folding before it lands drops the run.
+  def enqueue(project_id, sha), do: schedule(project_id, sha, div(Environment.clickhouse_flush_interval_ms(), 1000) + 5)
 
   @doc """
   Refolds the commit after the given delay. For data that belongs to runs the
@@ -40,10 +34,30 @@ defmodule Tuist.Tests.Coverage.Workers.CommitWorker do
   selective-testing results arrive with its command event, stored through a
   buffer, which a `tuist coverage complete` right after the tests outruns.
   """
-  def enqueue_refold(project_id, sha, delay_seconds) do
-    %{project_id: project_id, git_commit_sha: sha}
-    |> new(schedule_in: delay_seconds, replace: [scheduled: [:scheduled_at]])
-    |> Oban.insert()
+  def enqueue_refold(project_id, sha, delay_seconds), do: schedule(project_id, sha, delay_seconds)
+
+  # A pending job is pushed back to the new time, never pulled forward: the
+  # later fold may be waiting for data the sooner one would miss.
+  defp schedule(project_id, sha, delay_seconds) do
+    args = %{project_id: project_id, git_commit_sha: sha}
+    scheduled_at = DateTime.add(DateTime.utc_now(), delay_seconds, :second)
+
+    case args |> new(scheduled_at: scheduled_at) |> Oban.insert() do
+      {:ok, %Oban.Job{state: state}} when state not in ["available", "scheduled"] ->
+        args |> new(scheduled_at: scheduled_at, unique: false) |> Oban.insert()
+
+      {:ok, %Oban.Job{conflict?: true, state: "scheduled"} = job} ->
+        {count, _} =
+          Repo.update_all(
+            from(j in Oban.Job, where: j.id == ^job.id and j.state == "scheduled" and j.scheduled_at < ^scheduled_at),
+            set: [scheduled_at: scheduled_at]
+          )
+
+        {:ok, if(count == 1, do: %{job | scheduled_at: scheduled_at}, else: job)}
+
+      other ->
+        other
+    end
   end
 
   @impl Oban.Worker
