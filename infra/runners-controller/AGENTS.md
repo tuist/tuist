@@ -1297,3 +1297,5 @@ The real cache-filesystem CI job runs on `ubuntu-latest`, outside Kata's minimal
 kernel, because the node agent is a host workload. Keep it a required image-build
 dependency. Manual branch image builds publish only commit tags; `latest` is
 reserved for main.
+
+- Cache-enabled Linux pods run a descriptor-based mount broker in the existing privileged DinD sidecar. The runner and Docker job containers retain their existing privileges and separate PID namespaces; only their pod-scoped work socket and cache subtree are shared. Update the cache revision when changing this wiring and validate against the matching runner image.

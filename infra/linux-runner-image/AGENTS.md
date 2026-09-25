@@ -269,6 +269,11 @@ plugin preparation fails before pre-command hooks without it.
 GitLab forwards the same three routing variables through RunnerSettings.
 Neither path receives node-agent or object-storage credentials or decides publication.
 
-Cache paths are symlinks, not guest bind mounts. Reject control characters and
-node_modules (including descendants) before acquiring storage. Recommend package
-download caches and ignore workspace links without trailing-slash gitignore rules.
+Cache paths are real bind mounts, including in ordinary Docker job containers.
+The existing privileged DinD sidecar runs the mount broker; clients pass mount
+namespace and target directory descriptors over a pod-scoped Unix socket. Never
+share PID namespaces, grant workflow mount privileges, or expose another pod's
+cache subtree. The broker bounds source resolution with os.Root and creates each
+mount in a short-lived worker. Validate with the privileged Linux bind-mount suite
+in linux-runner-image.yml, including a client without CAP_SYS_ADMIN in separate
+PID/mount namespaces. Roll out controller and runner image together on idle pods.

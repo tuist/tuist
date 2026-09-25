@@ -310,6 +310,14 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				mirrorHost := strings.TrimPrefix(strings.TrimPrefix(registryMirror, "https://"), "http://")
 				dockerdMirrorFlags = " --registry-mirror=" + registryMirror + " --insecure-registry=" + mirrorHost
 			}
+			mountHelper := ""
+			probeCommand := []string{"docker", "info"}
+			if cacheVolumes {
+				// The existing privileged sidecar brokers descriptor-based mounts inside
+				// this Kata guest; workflows retain their unprivileged container shape.
+				probeCommand = []string{"sh", "-c", "test -S " + workPath + "/.tuist-cache-mount.sock && docker info"}
+				mountHelper = "rm -f " + workPath + "/.tuist-cache-mount.sock && (/home/runner/actions-runner/externals/tuist-cache-volume mount-server " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache &); "
+			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				// Staging area for the runner image's externals
@@ -413,7 +421,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 						"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
 						"mkdir -p /var/lib/docker && " +
 						"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
-						"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
+						mountHelper + "exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
 						"--default-ulimit nofile=1048576:1048576" + dockerdMirrorFlags,
 				},
 				SecurityContext: &corev1.SecurityContext{
@@ -421,7 +429,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 				RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
 				StartupProbe: &corev1.Probe{
-					ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"docker", "info"}}},
+					ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: probeCommand}},
 					PeriodSeconds: 2,
 					// Was 30. apk add + truncate + mkfs.ext4 +
 					// loop mount add ~8 s of pre-dockerd setup;
@@ -823,6 +831,6 @@ var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`
 
 // CacheVolumeRevision lets the existing bounded idle rollout converge mounts.
 func CacheVolumeRevision(pool *tuistv1.RunnerPool) string {
-	h := sha256.Sum256([]byte("local-images-v2\n" + pool.Spec.CacheVolumeRoot + "\n" + pool.Spec.CacheVolumeURL))
+	h := sha256.Sum256([]byte("local-images-bind-v3\n" + pool.Spec.CacheVolumeRoot + "\n" + pool.Spec.CacheVolumeURL))
 	return hex.EncodeToString(h[:])
 }

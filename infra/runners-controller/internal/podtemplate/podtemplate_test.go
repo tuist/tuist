@@ -908,6 +908,16 @@ func TestCacheVolumesArePrivateAndVisibleToDocker(t *testing.T) {
 	pool.Spec.CacheVolumeRoot = "/var/lib/cache"
 	pool.Spec.CacheVolumeURL = "http://agent:8090"
 	pod := build(t, pool)
+	dind := initContainer(t, pod, "dind")
+	if !strings.Contains(strings.Join(dind.Args, " "), "tuist-cache-volume mount-server "+workPath+"/.tuist-cache-mount.sock "+workPath+"/_tuist_cache") {
+		t.Fatal("missing pod-scoped mount broker")
+	}
+	if !strings.Contains(strings.Join(dind.StartupProbe.Exec.Command, " "), "test -S "+workPath+"/.tuist-cache-mount.sock") {
+		t.Fatal("runner can start before mount broker")
+	}
+	if pod.Spec.ShareProcessNamespace != nil && *pod.Spec.ShareProcessNamespace {
+		t.Fatal("volume mounting exposes other sidecars' process namespaces")
+	}
 	found := false
 	for _, v := range pod.Spec.Volumes {
 		if v.Name == "cache-volumes" {

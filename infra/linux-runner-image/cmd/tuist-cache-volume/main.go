@@ -32,6 +32,21 @@ var errInvalidPath = errors.New("invalid cache path")
 func digest(value string) string { h := sha256.Sum256([]byte(value)); return hex.EncodeToString(h[:]) }
 
 func main() {
+	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
+		var err error
+		if os.Args[1] == "mount-worker" && len(os.Args) == 2 {
+			err = mountWorker()
+		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
+			err = serveMounts(os.Args[2], os.Args[3])
+		} else {
+			err = errors.New("invalid mount helper arguments")
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	key := flag.String("key", "", "Stable cache name; change it to invalidate")
 	var targets paths
 	flag.Var(&targets, "path", "Directory to cache (repeatable; relative to the working directory)")
@@ -57,16 +72,14 @@ func attach(key string, targets []string) error {
 	return attachWithClient(key, targets, root, client)
 }
 func attachWithClient(key string, targets []string, root string, client *http.Client) error {
+	return attachWithMounter(key, targets, root, client, bindDirectory)
+}
+func attachWithMounter(key string, targets []string, root string, client *http.Client, mount func(string, string, string) error) error {
 	// Validate all paths before acquiring storage. Never replace existing content.
 	absolute := make([]string, len(targets))
 	for i, p := range targets {
 		if p == "" || strings.ContainsFunc(p, func(r rune) bool { return r < 32 || r == 127 }) {
 			return fmt.Errorf("%w: paths must be nonempty and contain no control characters", errInvalidPath)
-		}
-		for _, part := range strings.Split(filepath.Clean(p), string(filepath.Separator)) {
-			if part == "node_modules" {
-				return fmt.Errorf("%w: node_modules cannot be attached by symlink; cache the package download directory (for example ~/.npm) instead", errInvalidPath)
-			}
 		}
 		if p == "~" || strings.HasPrefix(p, "~/") {
 			home, err := os.UserHomeDir()
@@ -132,10 +145,10 @@ func attachWithClient(key string, targets []string, root string, client *http.Cl
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return err
 		}
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
 			return err
 		}
-		if err := os.Symlink(source, path); err != nil {
+		if err := mount(filepath.Join(filepath.Dir(root), ".tuist-cache-mount.sock"), filepath.Join(directory, sourceName), path); err != nil {
 			return err
 		}
 	}
@@ -157,19 +170,22 @@ func writeOutput(warm bool) error {
 	return nil
 }
 func emptyTarget(path string) error {
-	entries, err := os.ReadDir(path)
+	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	info, err := os.Lstat(path)
+	if !info.IsDir() {
+		return fmt.Errorf("%w: cache path must be absent or an empty directory: %s", errInvalidPath, path)
+	}
+	entries, err := os.ReadDir(path)
 	if err != nil {
 		return err
 	}
-	if info.Mode()&os.ModeSymlink != 0 || len(entries) != 0 {
-		return fmt.Errorf("cache path must be absent or an empty directory: %s", path)
+	if len(entries) != 0 {
+		return fmt.Errorf("%w: cache path must be absent or an empty directory: %s", errInvalidPath, path)
 	}
 	return nil
 }
