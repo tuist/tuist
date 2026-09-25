@@ -2,6 +2,8 @@ defmodule TuistWeb.API.TestsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.Test
@@ -358,6 +360,50 @@ defmodule TuistWeb.API.TestsControllerTest do
         worker: Tuist.Tests.Workers.PublishCoverageWorker,
         args: %{test_run_id: run_id, storage_key: key, partial: true}
       )
+    end
+
+    @tag :tmp_dir
+    test "never reads a server-side file a client names in xcode_coverage", %{
+      conn: conn,
+      user: user,
+      project: project,
+      tmp_dir: tmp_dir
+    } do
+      path = Path.join(tmp_dir, "coverage.ndjson")
+
+      File.write!(
+        path,
+        JSON.encode!(%{
+          "path" => "Sources/Secret.swift",
+          "git_blob_id" => "secret1",
+          "targets" => ["App"],
+          "covered_lines" => 1,
+          "executable_lines" => 1,
+          "line_numbers" => [1],
+          "execution_counts" => [1],
+          "functions" => []
+        }) <> "\n"
+      )
+
+      run_id = UUIDv7.generate()
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: run_id,
+        duration: 1000,
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        is_ci: false,
+        test_modules: [],
+        status: "success",
+        xcode_coverage: %{partial: false, files: [], path: path}
+      })
+      |> json_response(:ok)
+
+      assert Tuist.ClickHouseRepo.all(
+               from(f in Tuist.Tests.CoverageFile, where: f.test_run_id == ^run_id, select: f.path)
+             ) == []
     end
 
     test "rejects a coverage storage key that is not the run's", %{conn: conn, user: user, project: project} do
