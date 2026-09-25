@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,13 +20,25 @@ func TestUserDataCarriesItsInstallID(t *testing.T) {
 }
 
 type stickFakes struct {
-	bin, curlLog, seed, autoinstall, console, sys, announced string
+	bin, curlLog, seed, autoinstall, console, sys, announced, prev, calls string
 }
 
-// newStickFakes stands in for the live installer: two NICs, a boot server
-// that publishes an install for the second one once it has been asked
-// failures times, and no installed system on the disks.
+// stickWorld is what the live installer finds: a boot server that publishes
+// an install for the machine's second NIC once it has been asked failures
+// times (never, when failures is negative), or that cannot be reached at all,
+// and a rack install on the disks or none.
+type stickWorld struct {
+	failures    int
+	unreachable bool
+	installed   bool
+}
+
 func newStickFakes(t *testing.T, failures int) stickFakes {
+	return newStickWorld(t, stickWorld{failures: failures})
+}
+
+// newStickWorld stands in for the live installer with two NICs.
+func newStickWorld(t *testing.T, w stickWorld) stickFakes {
 	t.Helper()
 	dir := t.TempDir()
 	f := stickFakes{
@@ -36,6 +49,8 @@ func newStickFakes(t *testing.T, failures int) stickFakes {
 		console:     filepath.Join(dir, "console"),
 		sys:         filepath.Join(dir, "sys"),
 		announced:   filepath.Join(dir, "announced"),
+		prev:        filepath.Join(dir, "prev"),
+		calls:       filepath.Join(dir, "calls"),
 	}
 	writeFakeSys(t, f.sys)
 	published, err := UserData(edgeSeed())
@@ -45,8 +60,26 @@ func newStickFakes(t *testing.T, failures int) stickFakes {
 	if err := os.WriteFile(filepath.Join(dir, "published"), []byte(published), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(f.prev, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.prev, "etc", "tuist-rack-node"), []byte("node=ber1-edge\ntailnet_key=kOLD1CNTRL\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Mkdir(f.bin, 0o755); err != nil {
 		t.Fatal(err)
+	}
+	publishAfter := strconv.Itoa(w.failures)
+	if w.failures < 0 {
+		publishAfter = "1000000"
+	}
+	unreachable := "0"
+	if w.unreachable {
+		unreachable = "1"
+	}
+	lsblk := `:`
+	if w.installed {
+		lsblk = `echo "/dev/nvme0n1p2 ext4"`
 	}
 	fakes := map[string]string{
 		"ip": `cat <<'OUT'
@@ -54,24 +87,39 @@ func newStickFakes(t *testing.T, failures int) stickFakes {
 2: enp2s0f0np0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\    link/ether 58:47:CA:7A:1B:2C brd ff:ff:ff:ff:ff:ff
 3: enp89s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\    link/ether 38:05:25:38:b5:b5 brd ff:ff:ff:ff:ff:ff
 OUT`,
-		"curl": `out= url= data=
+		"curl": `out= url= data= format= fail=0
 while [ $# -gt 0 ]; do
-  case "$1" in -o) out="$2"; shift 2 ;; --data-binary) data="$2"; shift 2 ;; http*) url="$1"; shift ;; *) shift ;; esac
+  case "$1" in -o) out="$2"; shift 2 ;; -w) format="$2"; shift 2 ;; --data-binary) data="$2"; shift 2 ;; -f*) fail=1; shift ;; http*) url="$1"; shift ;; *) shift ;; esac
 done
 if [ "$url" = http://192.168.50.1:8480/cgi-bin/announce ] && [ "$data" = @- ]; then
   { cat; echo ---; } >>"` + f.announced + `"
   exit 0
 fi
 echo "$url" >>"` + f.curlLog + `"
+if [ ` + unreachable + ` = 1 ]; then
+  [ -z "$format" ] || printf 000
+  exit 7
+fi
 asked=$(grep -c 38-05-25-38-b5-b5 "` + f.curlLog + `")
-case "$url" in
-  http://192.168.50.1:8480/hosts/38-05-25-38-b5-b5/user-data)
-    [ "$asked" -gt ` + string(rune('0'+failures)) + ` ] || exit 22
-    cp "` + filepath.Join(dir, "published") + `" "$out" ;;
-  *) exit 22 ;;
-esac`,
-		"lsblk": `:`,
-		"sleep": `:`,
+code=404
+if [ "$url" = http://192.168.50.1:8480/hosts/38-05-25-38-b5-b5/user-data ] && [ "$asked" -gt ` + publishAfter + ` ]; then
+  cp "` + filepath.Join(dir, "published") + `" "$out"
+  code=200
+fi
+[ -z "$format" ] || printf '%s' "$code"
+[ "$code" = 200 ] || [ "$fail" = 0 ] || exit 22`,
+		"lsblk":  lsblk,
+		"sleep":  `:`,
+		"mount":  `echo "mount $*" >>"` + f.calls + `"`,
+		"umount": `echo "umount $*" >>"` + f.calls + `"`,
+		"chroot": `shift; exec "$@"`,
+		"efibootmgr": `if [ $# -eq 0 ]; then
+  printf 'BootCurrent: 0003\nBootOrder: 0003,0000,0001\nBoot0000* Ubuntu\tHD(1,GPT,x)\nBoot0001* UEFI: PXE IPv4\nBoot0003* UEFI: SanDisk, Partition 2\n'
+else
+  echo "efibootmgr $*" >>"` + f.calls + `"
+fi`,
+		"reboot": `echo "reboot $*" >>"` + f.calls + `"
+kill -KILL $PPID`,
 	}
 	for name, body := range fakes {
 		if err := os.WriteFile(filepath.Join(f.bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); err != nil {
@@ -81,20 +129,37 @@ esac`,
 	return f
 }
 
-func (f stickFakes) run(t *testing.T) string {
+func (f stickFakes) command(t *testing.T) *exec.Cmd {
 	t.Helper()
 	sh, err := exec.LookPath("sh")
 	if err != nil {
 		t.Skip("no sh")
 	}
 	script := stickScript("http://192.168.50.1:8480", stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console, Sys: f.sys})
-	cmd := exec.Command(sh, "-c", script)
+	cmd := exec.Command(sh, "-c", strings.ReplaceAll(script, "/run/tuist-prev", f.prev))
 	cmd.Env = append(os.Environ(), "PATH="+f.bin+":"+os.Getenv("PATH"))
-	out, err := cmd.CombinedOutput()
+	return cmd
+}
+
+func (f stickFakes) run(t *testing.T) string {
+	t.Helper()
+	out, err := f.command(t).CombinedOutput()
 	if err != nil {
 		t.Fatalf("the stick's early-command failed: %v\n%s", err, out)
 	}
 	return string(out)
+}
+
+// runToReboot runs the early-command until it reboots the machine, and returns
+// what it did on the way.
+func (f stickFakes) runToReboot(t *testing.T) string {
+	t.Helper()
+	out, _ := f.command(t).CombinedOutput()
+	calls, _ := os.ReadFile(f.calls)
+	if !strings.Contains(string(calls), "reboot -f") {
+		t.Fatalf("did not reboot; calls %q output %q", calls, out)
+	}
+	return string(calls)
 }
 
 // The stick installs what the boot server publishes for one of the machine's
@@ -165,10 +230,10 @@ func TestStickUserData(t *testing.T) {
 	early := seed.Autoinstall.EarlyCommands[0]
 	for _, want := range []string{
 		"server='http://192.168.50.1:8480'",
-		`-o /run/tuist-user-data "$server/hosts/$path/user-data"`,
+		`-o /run/tuist-user-data -w '%{http_code}' "$server/hosts/$path/user-data"`,
 		"cp /run/tuist-user-data /autoinstall.yaml",
 		`grep -qx "tailnet_key=$id" /run/tuist-prev/etc/tuist-rack-node`,
-		// Booted with nothing published for five minutes, it hands over to a
+		// With nothing published, it hands over to a
 		// rack install on the disks rather than holding the machine.
 		"grep -q '^tailnet_key=' /run/tuist-prev/etc/tuist-rack-node",
 		">>/dev/console",
@@ -277,5 +342,48 @@ func TestStickDoesNotAnnounceAMachineItInstalls(t *testing.T) {
 	f.run(t)
 	if _, err := os.Stat(f.announced); err == nil {
 		t.Fatal("announced a machine with an install published")
+	}
+}
+
+// A rack host reboots through its install stick, which is first in its boot
+// order so AMT can reinstall it by power-cycling it. With nothing published
+// for it, the stick hands it back to its install as soon as the boot server
+// says so.
+func TestStickHandsAnInstalledMachineBackAtOnce(t *testing.T) {
+	f := newStickWorld(t, stickWorld{failures: -1, installed: true})
+
+	calls := f.runToReboot(t)
+
+	if !strings.Contains(calls, "efibootmgr -q -n 0000\n") {
+		t.Fatalf("did not boot the installed system next:\n%s", calls)
+	}
+	asked, _ := os.ReadFile(f.curlLog)
+	if n := strings.Count(string(asked), "/user-data\n"); n != 2 {
+		t.Fatalf("asked %d times before handing over, want once per NIC:\n%s", n, asked)
+	}
+}
+
+// A boot server the stick cannot reach does not say nothing is published, so
+// the stick keeps asking for five minutes before it hands over: its DHCP may
+// still be coming up, and a reinstall may be waiting.
+func TestStickWaitsOutAnUnreachableBootServer(t *testing.T) {
+	f := newStickWorld(t, stickWorld{failures: -1, unreachable: true, installed: true})
+
+	f.runToReboot(t)
+
+	asked, _ := os.ReadFile(f.curlLog)
+	if n := strings.Count(string(asked), "/user-data\n"); n < 60 {
+		t.Fatalf("asked %d times before handing over, want five minutes' worth", n)
+	}
+}
+
+// A machine that is installed and has an install published is reinstalled.
+func TestStickReinstallsAnInstalledMachine(t *testing.T) {
+	f := newStickWorld(t, stickWorld{failures: 0, installed: true})
+
+	f.run(t)
+
+	if _, err := os.Stat(f.autoinstall); err != nil {
+		t.Fatalf("did not install what is published: %v", err)
 	}
 }
