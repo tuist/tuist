@@ -920,9 +920,7 @@ defmodule Tuist.Tests.Coverage.Reported do
   end
 
   defp basis(context) do
-    candidates = Commits.measured_shas(context.project.id, context.sha)
-
-    case GitHistory.nearest_ancestor(context.repository_id, context.sha, candidates) do
+    case Commits.nearest_measured_ancestor(context.project.id, context.repository_id, context.sha) do
       {sha, _distance} -> {:ok, sha}
       nil -> :none
     end

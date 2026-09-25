@@ -252,6 +252,18 @@ defmodule Tuist.GitHistory do
   end
 
   @doc """
+  The first-parent chain of a commit down to the first commit a ref owns, as
+  `%{sha, depth, ref_id, position}` nearest first: the commits no ref placed
+  yet, then the one the chain goes on from along the refs' segments, absent
+  when there is none within `:max_depth` (the default `window_commits`). A
+  commit a ref owns is its own chain.
+  """
+  def first_parents_to_segment(repository_id, sha, opts \\ []) do
+    max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
+    walk(repository_id, sha, false, [], max_depth)
+  end
+
+  @doc """
   The commits a ref owns, newest first, as `{sha, position, committed_at}`:
   the default branch's first-parent history, or what another ref added above
   its fork. `:limit` caps them (200 by default); `:at_or_below`, `:below` and
@@ -375,7 +387,7 @@ defmodule Tuist.GitHistory do
 
   defp advance(repository_id, %Ref{} = ref, head_sha, takeover?, opts) do
     max_depth = Keyword.get(opts, :max_depth) || settings(nil).window_commits
-    walk = walk(repository_id, ref, head_sha, takeover?, max_depth)
+    walk = walk(repository_id, head_sha, takeover?, Enum.reject([ref.id, ref.parent_ref_id], &is_nil/1), max_depth)
     anchor = Enum.find(walk, &anchored?(&1, ref, takeover?))
     anchor_depth = if anchor, do: anchor.depth, else: length(walk)
 
@@ -441,7 +453,9 @@ defmodule Tuist.GitHistory do
   defp anchored?(%{ref_id: ref_id}, ref, true), do: ref_id in [ref.id, ref.parent_ref_id]
   defp anchored?(_row, _ref, false), do: true
 
-  defp walk(repository_id, ref, head_sha, takeover?, max_depth) do
+  # The first-parent chain of `head_sha` down to the first commit a ref owns,
+  # or, with `takeover?`, the first one one of `anchor_ref_ids` owns.
+  defp walk(repository_id, head_sha, takeover?, anchor_ref_ids, max_depth) do
     %{rows: rows} =
       Repo.query!(
         """
@@ -458,7 +472,7 @@ defmodule Tuist.GitHistory do
         )
         SELECT sha, depth, ref_id, position FROM chain ORDER BY depth
         """,
-        [repository_id, head_sha, max_depth, takeover?, Enum.reject([ref.id, ref.parent_ref_id], &is_nil/1)]
+        [repository_id, head_sha, max_depth, takeover?, anchor_ref_ids]
       )
 
     Enum.map(rows, fn [sha, depth, ref_id, position] -> %{sha: sha, depth: depth, ref_id: ref_id, position: position} end)
@@ -554,7 +568,7 @@ defmodule Tuist.GitHistory do
   Of `candidates`, the one closest to `sha` along its ancestry (the commit
   itself counts, at distance 0), as `{sha, distance}`, or nil when none is an
   ancestor within the walk bounds. The walk never descends below the lowest
-  candidate generation.
+  candidate generation, and does not start when the graph knows none of them.
   """
   def nearest_ancestor(repository_id, sha, candidates, opts \\ [])
 
@@ -569,11 +583,20 @@ defmodule Tuist.GitHistory do
           where: c.repository_id == ^repository_id and c.sha in ^MapSet.to_list(candidates),
           select: min(c.generation)
         )
-      ) || 0
+      )
 
-    repository_id
-    |> ancestors(sha, Keyword.put(opts, :min_generation, min_generation))
-    |> Enum.find(fn {ancestor, _depth} -> MapSet.member?(candidates, ancestor) end)
+    cond do
+      MapSet.member?(candidates, sha) ->
+        {sha, 0}
+
+      is_nil(min_generation) ->
+        nil
+
+      true ->
+        repository_id
+        |> ancestors(sha, Keyword.put(opts, :min_generation, min_generation))
+        |> Enum.find(fn {ancestor, _depth} -> MapSet.member?(candidates, ancestor) end)
+    end
   end
 
   @doc """
