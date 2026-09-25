@@ -5826,7 +5826,9 @@ coverage_repository_id = GitHistory.repository_id(organization.account.id, cover
     coverage_gates_enabled: true,
     coverage_gate_min_patch_coverage: 80.0,
     coverage_gate_max_total_drop: 1.0,
-    tracked_file_globs: ["Sources/**/*.swift", "Tests/**/*.swift"],
+    # Inputs no test compiles whose change can change any test's result; the
+    # sources a test ran are compared test by test.
+    tracked_file_globs: ["Package.resolved", "Tests/Fixtures/**"],
     coverage_excluded_path_globs: ["Sources/Generated/**"]
   })
 
