@@ -482,6 +482,110 @@ defmodule Tuist.Tests.Coverage.History do
     |> Enum.find(& &1.measured)
   end
 
+  @doc """
+  The branches with a measured commit in the period, the most recently
+  measured first: one row per branch with its newest measured commit, that
+  commit's totals, and the pull request its runs reported, if any
+  (`pull_request_number`, 0 without one). A pull request whose runs never
+  named a branch is listed under its number.
+
+  `search` narrows by branch name or pull request number, `page` and
+  `page_size` paginate (20 by default).
+  """
+  def refs(%Project{} = project, opts \\ []) do
+    {page, opts} = Keyword.pop(opts, :page, 1)
+    {page_size, opts} = Keyword.pop(opts, :page_size, 20)
+    {search, opts} = Keyword.pop(opts, :search)
+
+    query = refs_query(project.id, search, opts)
+    total = Repo.one(from(r in subquery(query), select: count())) || 0
+    total_pages = max(1, ceil(total / page_size))
+    page = page |> max(1) |> min(total_pages)
+
+    rows =
+      from(r in subquery(query), order_by: [desc: r.ran_at], limit: ^page_size, offset: ^((page - 1) * page_size))
+      |> Repo.all()
+      |> Enum.map(&with_coverage/1)
+
+    %{refs: rows, page: page, page_size: page_size, total_pages: total_pages, total_count: total}
+  end
+
+  # The newest measured commit of every branch and pull request the period
+  # ran: a commit is filed under the branch its newest run named, or, when
+  # none did, under its pull request's number.
+  defp refs_query(project_id, search, opts) do
+    latest =
+      ran_in(
+        from(c in CoverageCommit,
+          where: c.project_id == ^project_id and c.executable_lines > 0,
+          where: c.git_branch != "" or c.pull_request_number > 0,
+          distinct:
+            fragment(
+              "CASE WHEN ? <> '' THEN ? ELSE '#' || ?::text END",
+              c.git_branch,
+              c.git_branch,
+              c.pull_request_number
+            ),
+          order_by: [desc: c.ran_at],
+          select: %{
+            name:
+              fragment(
+                "CASE WHEN ? <> '' THEN ? ELSE '#' || ?::text END",
+                c.git_branch,
+                c.git_branch,
+                c.pull_request_number
+              ),
+            git_branch: c.git_branch,
+            pull_request_number: c.pull_request_number,
+            base_branch: c.base_branch,
+            git_commit_sha: c.git_commit_sha,
+            ran_at: c.ran_at,
+            covered_lines: c.covered_lines,
+            executable_lines: c.executable_lines,
+            schemes: c.schemes,
+            partial_schemes: c.partial_schemes,
+            complete: c.complete,
+            completeness: c.completeness,
+            reported_kind: c.reported_kind,
+            reported_covered_lines: c.reported_covered_lines,
+            reported_executable_lines: c.reported_executable_lines
+          }
+        ),
+        opts
+      )
+
+    # A branch is searched by its name and by the number of the pull request
+    # it was pushed for: the reader remembers one or the other.
+    case search do
+      blank when blank in [nil, ""] ->
+        latest
+
+      search ->
+        pattern = "%" <> String.replace(search, ~w(\\ % _), &("\\" <> &1)) <> "%"
+
+        from(r in subquery(latest),
+          where: ilike(r.name, ^pattern) or ilike(fragment("'#' || ?::text", r.pull_request_number), ^pattern)
+        )
+    end
+  end
+
+  @doc """
+  The commits of one pull request that gathered coverage, newest first,
+  each with its measurement (`Tuist.Tests.Coverage.Commits.summary/2`
+  fields) and the branch and base branch its runs reported: what the pull
+  request page lists.
+  """
+  def pull_request_commits(project_id, pull_request_number, opts \\ []) do
+    project_id
+    |> Commits.all(fn query ->
+      query
+      |> where([c], c.pull_request_number == ^pull_request_number)
+      |> ran_in(opts)
+      |> order_by([c], desc: c.ran_at)
+    end)
+    |> Enum.map(&with_coverage/1)
+  end
+
   # Without a ref, a branch is the measured commits its runs labelled with
   # it, newest run first.
   defp labelled_commits(project_id, branch, opts, limit) do

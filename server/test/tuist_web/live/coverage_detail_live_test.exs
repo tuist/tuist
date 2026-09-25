@@ -124,4 +124,119 @@ defmodule TuistWeb.CoverageDetailLiveTest do
     assert_raise NotFoundError, fn -> live(conn, base <> "/commits/nothing") end
     assert_raise NotFoundError, fn -> live(conn, base <> "/files/Sources/A.swift?commit=nothing") end
   end
+
+  describe "a branch" do
+    test "reads as its head commit, with its trend over the period, its commits and its runs", %{
+      conn: conn,
+      base: base,
+      run: run
+    } do
+      {:ok, lv, _html} = live(conn, base <> "/branches/main")
+
+      assert has_element?(lv, "[data-part='title']", "Branch main")
+      assert has_element?(lv, "#widget-coverage", "66.7%")
+      assert has_element?(lv, "#coverage-chart")
+      assert has_element?(lv, "[data-part='actions'] #coverage-date-range-picker")
+      assert render(lv) =~ "?tab=commits"
+
+      {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=commits")
+      assert has_element?(lv, "#coverage-commits-table a[href$='/tests/coverage/commits/b']")
+
+      {:ok, lv, _html} = live(conn, base <> "/branches/main?tab=runs")
+      assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{run.id}']")
+    end
+
+    test "is found by a name with slashes, encoded or not", %{
+      conn: conn,
+      base: base,
+      organization: organization,
+      project: project
+    } do
+      CoverageFixtures.run_with_coverage(project, organization.account, [file("Sources/A.swift", [1, 0])], %{
+        git_commit_sha: "f",
+        git_branch: "feature/widgets"
+      })
+
+      {:ok, lv, _html} = live(conn, base <> "/branches/feature/widgets")
+      assert has_element?(lv, "[data-part='title']", "Branch feature/widgets")
+
+      {:ok, lv, _html} = live(conn, base <> "/branches/feature%2Fwidgets")
+      assert has_element?(lv, "[data-part='title']", "Branch feature/widgets")
+    end
+  end
+
+  describe "a pull request" do
+    setup %{organization: organization, project: project} do
+      pull_request = %{git_branch: "feature/gates", is_pull_request: true, pull_request_number: 7, base_branch: "main"}
+
+      older =
+        CoverageFixtures.run_with_coverage(
+          project,
+          organization.account,
+          [file("Sources/A.swift", [1, 0, 0, 0])],
+          Map.merge(pull_request, %{
+            git_commit_sha: "p1",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200, :second)
+          })
+        )
+
+      newer =
+        CoverageFixtures.run_with_coverage(
+          project,
+          organization.account,
+          [file("Sources/A.swift", [1, 1, 1, 0])],
+          Map.merge(pull_request, %{
+            git_commit_sha: "p2",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600, :second)
+          })
+        )
+
+      %{older: older, newer: newer}
+    end
+
+    test "reads as its newest commit, from its branch into its base, with every commit and run", %{
+      conn: conn,
+      base: base,
+      older: older,
+      newer: newer
+    } do
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7")
+
+      assert has_element?(lv, "[data-part='title']", "Pull request #7")
+      assert has_element?(lv, "[data-part='branches']", "feature/gates")
+      assert has_element?(lv, "[data-part='branches']", "main")
+      assert has_element?(lv, "#widget-coverage", "75.0%")
+      assert has_element?(lv, "#coverage-commit-dropdown")
+
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=commits")
+      table = lv |> element("#coverage-commits-table") |> render()
+      assert table =~ "p2"
+      assert table =~ "p1"
+      assert table =~ "Pending"
+      refute table =~ "Not chained"
+
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?tab=runs")
+      assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{older.id}']")
+      assert has_element?(lv, "#coverage-runs-table a[href$='/tests/test-runs/#{newer.id}']")
+    end
+
+    test "reads an earlier commit the address picks", %{conn: conn, base: base} do
+      {:ok, lv, _html} = live(conn, base <> "/pull-requests/7?commit=p1")
+      assert has_element?(lv, "#widget-coverage", "25.0%")
+    end
+  end
+
+  test "a commit has no commits tab of its own", %{conn: conn, base: base} do
+    {:ok, lv, _html} = live(conn, base <> "/commits/b")
+    refute render(lv) =~ "tab=commits"
+
+    {:ok, lv, _html} = live(conn, base <> "/commits/b?tab=commits")
+    assert has_element?(lv, "[data-part='summary-card']")
+  end
+
+  test "is not found for a branch or a pull request without coverage", %{conn: conn, base: base} do
+    assert_raise NotFoundError, fn -> live(conn, base <> "/branches/nothing") end
+    assert_raise NotFoundError, fn -> live(conn, base <> "/pull-requests/99") end
+    assert_raise NotFoundError, fn -> live(conn, base <> "/pull-requests/not-a-number") end
+  end
 end

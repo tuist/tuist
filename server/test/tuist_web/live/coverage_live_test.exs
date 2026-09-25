@@ -21,21 +21,8 @@ defmodule TuistWeb.CoverageLiveTest do
     )
   end
 
-  defp seed_history(organization, opts) do
-    CoverageFixtures.seed_history(
-      organization.account,
-      [
-        CoverageFixtures.commit("a", [], 0),
-        CoverageFixtures.commit("b", ["a"], 1),
-        CoverageFixtures.commit("c", ["b"], 2),
-        CoverageFixtures.commit("p", ["b"], 3)
-      ],
-      opts
-    )
-  end
-
   describe "analytics" do
-    test "shows the latest chained commit of the branch, its trend and its gaps", %{
+    test "shows the latest chained commit of the branch and its trend, and nothing below but the branches", %{
       conn: conn,
       organization: organization,
       project: project
@@ -52,8 +39,45 @@ defmodule TuistWeb.CoverageLiveTest do
       assert has_element?(lv, "#widget-coverage", "75.0%")
       assert has_element?(lv, "#widget-coverage-covered-lines", "3")
       assert has_element?(lv, "#widget-coverage-executable-lines", "4")
-      assert has_element?(lv, "#widget-coverage-unmeasured-files", "0")
+      refute has_element?(lv, "#widget-coverage-unmeasured-files")
       assert has_element?(lv, "#coverage-chart")
+      refute has_element?(lv, "#coverage-commits-table")
+      refute has_element?(lv, "#coverage-gap-files-table")
+      refute has_element?(lv, "#coverage-unmeasured-files-table")
+    end
+
+    test "gives each widget its own colour, and the chart the selected one's", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0])])
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+
+      assert has_element?(lv, "#widget-coverage [data-part='legend'][data-color='primary']")
+      assert has_element?(lv, "#widget-coverage-covered-lines [data-part='legend'][data-color='secondary']")
+      assert has_element?(lv, "#widget-coverage-executable-lines [data-part='legend'][data-color='tertiary']")
+      assert render(element(lv, "#coverage-chart")) =~ "noora-chart-primary"
+
+      lv |> element("[phx-value-widget='covered_lines']") |> render_click()
+      assert render(element(lv, "#coverage-chart")) =~ "noora-chart-secondary"
+    end
+
+    test "leads from the analytics to the default branch's page, on the same period", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0])])
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage?coverage-date-range=last-7-days")
+
+      assert has_element?(
+               lv,
+               "[data-part='view-more'][href='/#{organization.account.name}/#{project.name}/tests/coverage/branches/main?coverage-date-range=last-7-days']"
+             )
     end
 
     test "every widget shows its change over the period and switches the chart to its metric", %{
@@ -101,7 +125,7 @@ defmodule TuistWeb.CoverageLiveTest do
       assert render(element(lv, "#coverage-chart")) =~ "Code coverage"
     end
 
-    test "reloads once after a burst of the branch's runs, and ignores other branches'", %{
+    test "reloads once after a burst of runs, whatever branch they ran on", %{
       conn: conn,
       organization: organization,
       project: project
@@ -110,9 +134,6 @@ defmodule TuistWeb.CoverageLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
       send(lv.pid, {:test_created, %Test{git_branch: "feature"}})
-      refute :sys.get_state(lv.pid).socket.assigns.reload_scheduled
-
-      send(lv.pid, {:test_created, %Test{git_branch: "main"}})
       send(lv.pid, {:test_created, %Test{git_branch: "main"}})
       assert :sys.get_state(lv.pid).socket.assigns.reload_scheduled
 
@@ -174,70 +195,79 @@ defmodule TuistWeb.CoverageLiveTest do
     end
   end
 
-  describe "commits" do
-    test "lists the branch's commits from the graph, unmeasured ones included", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      seed_history(organization, branch_heads: [{"main", "c"}])
-      main_run(project, organization, "a", [file("Sources/A.swift", [1, 0, 0, 0])])
-      main_run(project, organization, "c", [file("Sources/A.swift", [1, 1, 1, 0])])
+  describe "branches" do
+    setup %{organization: organization, project: project} do
+      main_run(project, organization, "m", [file("Sources/A.swift", [1, 1, 0, 0])])
 
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
+      main_run(project, organization, "f", [file("Sources/A.swift", [1, 1, 1, 0])], %{
+        git_branch: "feature/widgets",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800, :second)
+      })
 
-      table = lv |> element("#coverage-commits-table") |> render()
-      assert table =~ "Not measured"
-      # Each status explains itself on hover.
-      assert table =~ "No run of this commit gathered coverage, so it has no figure of its own."
-      refute has_element?(lv, "#coverage-commits-time-order")
-      assert has_element?(lv, "#coverage-commits-table a[href*='/tests/coverage/commits/c']")
+      main_run(project, organization, "p", [file("Sources/A.swift", [1, 1, 1, 1])], %{
+        git_branch: "feature/gates",
+        is_pull_request: true,
+        pull_request_number: 42,
+        base_branch: "main",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -900, :second)
+      })
+
+      :ok
     end
 
-    test "says when the commits could only be ordered by when they were measured", %{
+    test "lists the branches measured in the period, leading to their pull request or their own page", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0])])
-
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
 
-      assert has_element?(lv, "#coverage-commits-time-order")
+      table = lv |> element("#coverage-branches-table") |> render()
+      assert table =~ "feature/gates"
+      assert table =~ "#42"
+      assert table =~ "feature/widgets"
+      assert table =~ "main"
+      assert table =~ "75.0%"
+
+      base = "/#{organization.account.name}/#{project.name}/tests/coverage"
+      assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/pull-requests/42']")
+      assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/branches/feature%2Fwidgets']")
+      assert has_element?(lv, "#coverage-branches-table a[href$='#{base}/branches/main']")
+    end
+
+    test "narrows them by search and pages them under their own parameters", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/coverage"
+      {:ok, lv, _html} = live(conn, path)
+
+      lv |> form("#coverage-branches-filter-form", %{"search" => "widgets"}) |> render_change()
+      assert_patch(lv, path <> "?branches-search=widgets")
+
+      table = lv |> element("#coverage-branches-table") |> render()
+      assert table =~ "feature/widgets"
+      refute table =~ "feature/gates"
+
+      {:ok, lv, _html} = live(conn, path <> "?branches-search=nothing")
+      assert has_element?(lv, "[data-part='empty-branches']", "No branch matches nothing")
+
+      for index <- 1..10 do
+        main_run(project, organization, "x#{index}", [file("Sources/A.swift", [1, 0])], %{git_branch: "extra/#{index}"})
+      end
+
+      {:ok, lv, _html} = live(conn, path)
+      assert has_element?(lv, "#coverage-branches-table")
+      assert render(lv) =~ "branches-page=2"
+
+      {:ok, lv, _html} = live(conn, path <> "?branches-page=2")
+      second = lv |> element("#coverage-branches-table") |> render()
+      assert second =~ "main"
     end
   end
 
   describe "coverage gaps" do
-    test "lists the least covered files and the files without coverage data", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      CoverageFixtures.seed_listing(organization.account, "b", [
-        "Sources/A.swift",
-        "Sources/B.swift",
-        "Sources/Untested.swift"
-      ])
-
-      main_run(project, organization, "b", [file("Sources/A.swift", [1, 1, 0, 0]), file("Sources/B.swift", [1, 1])])
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/coverage")
-
-      files = lv |> element("#coverage-gap-files-table") |> render()
-      assert files =~ "A.swift"
-      assert files =~ "50.0%"
-
-      assert has_element?(
-               lv,
-               "#coverage-gap-files-table a[href='/#{organization.account.name}/#{project.name}/tests/coverage/files/Sources/A.swift?commit=b&tab=overview']"
-             )
-
-      unmeasured = lv |> element("#coverage-unmeasured-files-table") |> render()
-      assert unmeasured =~ "Untested.swift"
-      refute unmeasured =~ "B.swift"
-      assert has_element?(lv, "#widget-coverage-unmeasured-files", "1")
-    end
-
     test "the Files tab pages the files without coverage data under their own parameter", %{
       conn: conn,
       organization: organization,

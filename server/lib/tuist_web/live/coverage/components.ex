@@ -579,25 +579,123 @@ defmodule TuistWeb.Coverage.Components do
     """
   end
 
+  attr :branch, :string, required: true
+  attr :latest, :map, default: nil, doc: "The branch's latest measured point in the period, or nil."
+  attr :trends, :map, required: true
+  attr :points, :list, required: true
+  attr :selected_widget, :string, required: true
+  slot :actions
+
+  @doc """
+  A branch's coverage over the period: its latest measured commit's figure,
+  covered and executable lines, each with its change over the period, and the
+  chart the selected one switches to. The Code Coverage page shows it for the
+  default branch, and a branch's page for its own.
+  """
+  def coverage_analytics_card(assigns) do
+    ~H"""
+    <.card
+      title={dgettext("dashboard_tests", "Analytics")}
+      icon="chart_arcs"
+      data-part="analytics"
+    >
+      <:actions>{render_slot(@actions)}</:actions>
+      <div data-part="analytics-content">
+        <div :if={@latest} data-part="widgets">
+          <.widget
+            id="widget-coverage"
+            title={dgettext("dashboard_tests", "Code coverage")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Share of executable lines covered at the latest measured commit of %{branch}, %{sha}, pooled over the schemes that measured it.",
+                branch: @branch,
+                sha: short_sha(@latest.git_commit_sha)
+              )
+            }
+            value={"#{@latest.coverage}%"}
+            legend_color="primary"
+            trend_value={@trends["coverage"]}
+            trend_label={dgettext("dashboard_tests", "over the period")}
+            phx_click="select_widget"
+            phx_value_widget="coverage"
+            selected={@selected_widget == "coverage"}
+          />
+          <.widget
+            id="widget-coverage-covered-lines"
+            title={dgettext("dashboard_tests", "Covered lines")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Lines that commit's tests ran at least once."
+              )
+            }
+            value={format_number(@latest.covered_lines)}
+            legend_color="secondary"
+            trend_value={@trends["covered_lines"]}
+            trend_label={dgettext("dashboard_tests", "over the period")}
+            phx_click="select_widget"
+            phx_value_widget="covered_lines"
+            selected={@selected_widget == "covered_lines"}
+          />
+          <.widget
+            id="widget-coverage-executable-lines"
+            title={dgettext("dashboard_tests", "Executable lines")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Lines the compiler instrumented for coverage at that commit."
+              )
+            }
+            value={format_number(@latest.executable_lines)}
+            legend_color="tertiary"
+            trend_value={@trends["executable_lines"]}
+            trend_type={:neutral}
+            trend_label={dgettext("dashboard_tests", "over the period")}
+            phx_click="select_widget"
+            phx_value_widget="executable_lines"
+            selected={@selected_widget == "executable_lines"}
+          />
+        </div>
+        <.card_section :if={@latest}>
+          <div data-part="analytics-chart">
+            <.coverage_trend_chart id="coverage-chart" points={@points} metric={@selected_widget} />
+          </div>
+        </.card_section>
+        <.coverage_empty
+          :if={is_nil(@latest)}
+          title={
+            dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
+              branch: @branch
+            )
+          }
+          get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+          data-part="empty-analytics"
+        />
+      </div>
+    </.card>
+    """
+  end
+
   attr :id, :string, required: true
   attr :points, :list, required: true, doc: "The trend's points, oldest first (`History.branch_points/3`)."
 
   attr :metric, :string,
     default: "coverage",
-    values: ~w(coverage covered_lines executable_lines unmeasured_files),
+    values: ~w(coverage covered_lines executable_lines),
     doc: "What the chart plots: the coverage percentage, or one of the counts behind it."
 
   @doc """
   A branch's coverage over time, one point per chained commit: the chart the
-  Code Coverage page leads with, and the project's overview repeats. The
-  Code Coverage page's widgets switch it to one of the counts behind the
-  figure.
+  Code Coverage page and a branch's page lead with. Their widgets switch it
+  to one of the counts behind the figure.
   """
   def coverage_trend_chart(assigns) do
     assigns =
       assigns
       |> assign(:unit, if(assigns.metric == "coverage", do: "%", else: ""))
       |> assign(:series_name, metric_label(assigns.metric))
+      |> assign(:color, metric_color(assigns.metric))
 
     ~H"""
     <.chart
@@ -635,7 +733,7 @@ defmodule TuistWeb.Coverage.Components do
       }
       series={[
         %{
-          color: "var:noora-chart-primary",
+          color: @color,
           data: Enum.map(@points, &[point_time(&1), metric_value(&1, @metric)]),
           name: @series_name,
           type: "line",
@@ -653,10 +751,13 @@ defmodule TuistWeb.Coverage.Components do
   defp metric_value(point, "coverage"), do: point.coverage
   defp metric_value(point, "covered_lines"), do: point.covered_lines
   defp metric_value(point, "executable_lines"), do: point.executable_lines
-  defp metric_value(point, "unmeasured_files"), do: Map.get(point, :unmeasured_files_count) || 0
 
   defp metric_label("coverage"), do: dgettext("dashboard_tests", "Code coverage")
   defp metric_label("covered_lines"), do: dgettext("dashboard_tests", "Covered lines")
   defp metric_label("executable_lines"), do: dgettext("dashboard_tests", "Executable lines")
-  defp metric_label("unmeasured_files"), do: dgettext("dashboard_tests", "Files without coverage data")
+
+  # Each metric keeps the colour of its widget on the Code Coverage page.
+  defp metric_color("coverage"), do: "var:noora-chart-primary"
+  defp metric_color("covered_lines"), do: "var:noora-chart-secondary"
+  defp metric_color("executable_lines"), do: "var:noora-chart-tertiary"
 end

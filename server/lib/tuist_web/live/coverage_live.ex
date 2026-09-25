@@ -1,10 +1,10 @@
 defmodule TuistWeb.CoverageLive do
   @moduledoc """
   The project's Code Coverage page: a glance at the default branch over the
-  chosen period — its coverage now and over time, the commits behind it with
-  the unmeasured ones in place, and where its latest commit is thinnest.
-  Every figure is a commit's, pooled over the schemes that measured it, and
-  each commit opens on its own page (`TuistWeb.CoverageDetailLive`).
+  chosen period — its coverage now and over time — and the branches and pull
+  requests that gathered coverage in it. Every figure is a commit's, pooled
+  over the schemes that measured it; the default branch, each branch and each
+  pull request open on their own page (`TuistWeb.CoverageDetailLive`).
 
   Its settings live under the project's settings
   (`TuistWeb.ProjectCoverageSettingsLive`).
@@ -13,21 +13,17 @@ defmodule TuistWeb.CoverageLive do
   use Noora
 
   import TuistWeb.Coverage.Components
-  import TuistWeb.Helpers.TestLabels
 
   alias Tuist.FeatureFlags
-  alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.History
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
-  # Every list here is a glance at the head of something longer.
-  @commits_preview_size 5
-  @preview_size 5
+  @branches_page_size 10
 
-  @widgets ~w(coverage covered_lines executable_lines unmeasured_files)
+  @widgets ~w(coverage covered_lines executable_lines)
 
   # A run's coverage joins its commit's figure a few seconds after the run
   # lands (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads
@@ -93,6 +89,11 @@ defmodule TuistWeb.CoverageLive do
     {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> Query.drop(query, "page"))}
   end
 
+  def handle_event("search-branches", %{"search" => search}, socket) do
+    query = socket.assigns.uri.query |> Query.put("branches-search", search) |> Query.drop("branches-page")
+    {:noreply, push_patch(socket, to: socket.assigns.current_path <> "?" <> query, replace: true)}
+  end
+
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     widget = selected_widget(widget)
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
@@ -104,7 +105,7 @@ defmodule TuistWeb.CoverageLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
-  def handle_info({:test_created, %{git_branch: branch}}, %{assigns: %{branch: branch}} = socket) do
+  def handle_info({:test_created, _test_run}, socket) do
     {:noreply, schedule_reload(socket)}
   end
 
@@ -114,11 +115,10 @@ defmodule TuistWeb.CoverageLive do
 
   def handle_info(_event, socket), do: {:noreply, socket}
 
-  defp assign_page(socket, _query) do
+  defp assign_page(socket, query) do
     socket
     |> assign_analytics()
-    |> assign_commits()
-    |> assign_movements()
+    |> assign_branches(query)
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project, branch: branch}} = socket) do
@@ -131,49 +131,34 @@ defmodule TuistWeb.CoverageLive do
     |> assign(:trends, %{
       "coverage" => period_trend(points),
       "covered_lines" => count_trend(points, :covered_lines),
-      "executable_lines" => count_trend(points, :executable_lines),
-      "unmeasured_files" => count_trend(points, :unmeasured_files_count)
+      "executable_lines" => count_trend(points, :executable_lines)
     })
   end
 
-  defp assign_commits(%{assigns: %{selected_project: project, branch: branch}} = socket) do
+  # The branches and pull requests measured in the period, newest first.
+  defp assign_branches(%{assigns: %{selected_project: project}} = socket, query) do
+    search = query["branches-search"] || ""
+
     page =
-      History.commit_cursor_page(project, branch, Keyword.put(period_opts(socket), :page_size, @commits_preview_size))
+      History.refs(
+        project,
+        Keyword.merge(period_opts(socket),
+          search: search,
+          page: Query.bounded_page(query["branches-page"]),
+          page_size: @branches_page_size
+        )
+      )
 
     socket
-    |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
-    |> assign(:commits_ordered_by, page.ordered_by)
+    |> assign(:branches_search, search)
+    |> assign(:branch_rows, Enum.map(page.refs, &Map.put(&1, :id, "ref-" <> &1.name)))
+    |> assign(:branches_meta, %{current_page: page.page, total_pages: page.total_pages})
   end
 
-  # Where the coverage is thinnest at the branch's latest commit: the least
-  # covered files, and the tracked files no scheme measured at all.
-  defp assign_movements(%{assigns: %{selected_project: project, branch: branch}} = socket) do
-    head = History.head_commit(project, branch, period_opts(socket))
-
-    socket
-    |> assign(:head_commit, head)
-    |> assign_head_movements(head)
-  end
-
-  defp assign_head_movements(socket, nil) do
-    socket
-    |> assign(:least_covered_files, [])
-    |> assign(:unmeasured_files, [])
-  end
-
-  defp assign_head_movements(%{assigns: %{selected_project: project}} = socket, head) do
-    sha = head.git_commit_sha
-
-    [{files, _count}, unmeasured] =
-      Tuist.Tasks.parallel_tasks([
-        fn -> Commits.list_files(project.id, sha, 1, @preview_size) end,
-        fn -> Commits.unmeasured_files(project, sha, limit: @preview_size) end
-      ])
-
-    socket
-    |> assign(:least_covered_files, Enum.map(files, &Map.put(&1, :id, "gap-" <> &1.path)))
-    |> assign(:unmeasured_files, Enum.map(unmeasured, &%{id: "unmeasured-" <> &1, path: &1}))
-  end
+  # The period's parameters, so the default branch's page opens on the period
+  # shown here.
+  @doc false
+  def period_query(params), do: Map.filter(params, fn {key, _value} -> String.starts_with?(key, "coverage-") end)
 
   defp period_opts(%{assigns: %{coverage_period: period}}), do: DatePicker.period_opts(period)
 
