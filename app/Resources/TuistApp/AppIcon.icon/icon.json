@@ -3,73 +3,87 @@
     "linear-gradient" : [
       "display-p3:0.44314,0.20784,1.00000,1.00000",
       "srgb:0.23922,0.00000,0.64706,1.00000"
-    ]
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
   },
   "groups" : [
     {
       "layers" : [
         {
-          "blend-mode-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : "normal"
-            }
-          ],
-          "fill-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : {
-                "linear-gradient" : [
-                  "srgb:0.49187,0.27222,1.00000,1.00000",
-                  "display-p3:0.31100,0.18540,1.00000,1.00000"
-                ]
-              }
-            }
-          ],
-          "glass" : true,
+          "fill" : "none",
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "border.svg",
+          "name" : "border"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "grid.svg",
+          "name" : "grid"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "hidden" : false,
           "image-name" : "symbol.svg",
           "name" : "symbol",
           "position" : {
-            "scale" : 1.2,
+            "scale" : 1,
             "translation-in-points" : [
               0,
               0
             ]
           }
-        },
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "layers" : [
         {
-          "hidden" : true,
-          "image-name" : "texture.svg",
-          "name" : "texture",
-          "position" : {
-            "scale" : 1.5,
-            "translation-in-points" : [
-              0,
-              0
-            ]
-          }
-        },
-        {
-          "fill-specializations" : [
-            {
-              "value" : "none"
-            },
-            {
-              "appearance" : "dark",
-              "value" : "none"
-            }
-          ],
-          "glass" : true,
+          "glass" : false,
           "hidden" : false,
-          "image-name" : "base.svg",
-          "name" : "base",
-          "position" : {
-            "scale" : 1.2,
-            "translation-in-points" : [
-              0,
-              0
-            ]
-          }
+          "image-name" : "texture.svg",
+          "name" : "texture"
         }
       ],
       "shadow" : {
