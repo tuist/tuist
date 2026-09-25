@@ -16,11 +16,34 @@ defmodule Tuist.ClickHouse.Tables do
   cloned; this extends the same rule to the views that name a target.
   """
 
+  # Tables whose history is only partly carried across, in days before the
+  # backfill's cutoff. Nothing reads them over a longer span than this: they
+  # hold the detail of individual builds, which is looked at while a build is
+  # recent, and appear in no long-term chart.
+  #
+  # They are also the two largest tables by far, and copying them whole was
+  # most of the backfill's cost: `build_files` alone is 26 billion rows, and
+  # neither table is ordered by time, so every chunk of either reads the whole
+  # of it (or, for `build_steps`, its whole month) on the source.
+  @history_days %{"build_files" => 14, "build_steps" => 14}
+
+  @collapsing_families ["Replacing", "Collapsing", "Aggregating", "Summing"]
+
+  @doc """
+  How many days before the backfill's cutoff a table's history is copied for,
+  or `nil` when all of it is.
+
+  The backfill copies only that span, and parity compares only the span that
+  was copied. They read it from here so the two cannot disagree: if parity
+  compared more than the backfill copied, the gate before the cutover would
+  fail on rows the destination was never meant to hold.
+  """
+  def history_days(table), do: Map.get(@history_days, table)
+
   @doc """
   The tables to copy: everything on the destination that no materialized view
   writes into.
   """
-  @collapsing_families ["Replacing", "Collapsing", "Aggregating", "Summing"]
 
   def copied(target) do
     derived = view_targets(target)

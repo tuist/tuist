@@ -87,4 +87,12 @@ defmodule Tuist.ClickHouse.TablesTest do
       assert Tables.view_target(ddl, "tuist") == nil
     end
   end
+
+  describe "history_days/1" do
+    test "carries two weeks of the per-build detail tables across and all of every other" do
+      assert Tables.history_days("build_files") == 14
+      assert Tables.history_days("build_steps") == 14
+      assert Tables.history_days("test_case_runs") == nil
+    end
+  end
 end
