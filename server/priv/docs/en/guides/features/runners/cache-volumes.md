@@ -44,9 +44,6 @@ jobs:
       - run: ./gradlew test
 ```
 
-Always run Gradle, even on cache hits: it resolves dependencies and determines
-which tasks need to run.
-
 The action exposes a `cache-hit` output and also works in ordinary GitHub Actions
 container jobs, without privileged mode or extra workflow permissions. Native
 jobs and containers running as different users have separate volumes.
