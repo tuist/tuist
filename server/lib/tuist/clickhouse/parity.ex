@@ -196,12 +196,18 @@ defmodule Tuist.ClickHouse.Parity do
         {tables, []}
       end
 
+    # The kind of run sets the ceiling, not the table's window: a full
+    # comparison of a table whose window is its history's last two weeks
+    # still reads the whole table when that table is not ordered by time.
+    max_execution_time = if since, do: @windowed_max_execution_time, else: @full_max_execution_time
+
     {matching, differing} =
       comparable
       |> Enum.map(fn table ->
         ttl = ttl(target, table)
-        left = fingerprint(source, table, since, as_of, ttl)
-        right = fingerprint(target, table, since, as_of, ttl)
+        window = since || history_since(table, as_of)
+        left = fingerprint(source, table, window, as_of, ttl, max_execution_time)
+        right = fingerprint(target, table, window, as_of, ttl, max_execution_time)
 
         # Two fingerprints that failed identically are not a match. Without
         # this, a comparison where both sides timed out reports `differing:
@@ -234,9 +240,8 @@ defmodule Tuist.ClickHouse.Parity do
   # servers hold the same rows in different parts and add them in different
   # orders, so a float sum differs in its last bits for data that is identical.
   # Those are compared within a relative tolerance in `same_fingerprint?/2`.
-  defp fingerprint(endpoint, table, since, as_of, ttl) do
+  defp fingerprint(endpoint, table, since, as_of, ttl, max_execution_time) do
     {selects, statement} = fingerprint_statement(endpoint, table, since, as_of, ttl)
-    max_execution_time = if since, do: @windowed_max_execution_time, else: @full_max_execution_time
 
     %{rows: [values]} =
       endpoint.repo.query!(statement, [],
@@ -264,6 +269,17 @@ defmodule Tuist.ClickHouse.Parity do
       "SELECT #{Enum.join(selects, ", ")} FROM #{quote_ident(endpoint.database)}.#{quote_ident(table)}#{Tables.final_clause(endpoint, table)}#{window_clause(time, since, as_of, ttl)}"
 
     {selects, statement}
+  end
+
+  # A table whose history was deliberately not copied is compared only over
+  # the span that was; see `Tables.history_days/1`. Counted back from `as_of`
+  # rather than the cutoff, which parity does not know: every comparison runs
+  # after the cutoff, so this span always lies inside the copied one.
+  defp history_since(table, as_of) do
+    case Tables.history_days(table) do
+      nil -> nil
+      days -> DateTime.add(as_of, -days * 86_400, :second)
+    end
   end
 
   defp verified?(%{error: _}), do: false

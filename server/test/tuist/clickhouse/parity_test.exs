@@ -37,6 +37,45 @@ defmodule Tuist.ClickHouse.ParityTest do
     end
   end
 
+  describe "compare/1 in full" do
+    setup do
+      stub(Tuist.Environment, :clickhouse_bare_metal_url, fn -> "http://in-cluster:8123" end)
+      :ok
+    end
+
+    test "compares a table whose history was not copied only over the span that was" do
+      test = self()
+
+      fingerprint = fn sql, opts ->
+        send(test, {:fingerprint, sql, opts})
+        %{rows: [[1, 1.0, ~N[2026-09-25 05:00:04], ~N[2026-09-25 06:54:51]]]}
+      end
+
+      stub_server(Tuist.IngestRepo, 0, fingerprint)
+      stub_server(Tuist.ClickHouseRepo, 0, fingerprint)
+
+      assert {:ok, %{compared: 1, matching: ["build_files"], differing: []}} =
+               Parity.compare(
+                 source_repo: Tuist.IngestRepo,
+                 target_repo: Tuist.ClickHouseRepo,
+                 tables: ["build_files"],
+                 derived: [],
+                 as_of: ~U[2026-09-26 06:00:00Z]
+               )
+
+      assert_received {:fingerprint, sql, opts}
+
+      # Two weeks back from the comparison. Compared whole, the table would
+      # fail on every row older than that, which the destination was never
+      # meant to hold.
+      assert sql =~ "`inserted_at` >= toDateTime64('2026-09-12 06:00:00', 6)"
+
+      # Still a full comparison's ceiling: the table is not ordered by time,
+      # so two weeks of it still reads all of it.
+      assert opts |> Keyword.fetch!(:settings) |> Keyword.fetch!(:max_execution_time) == 1800
+    end
+  end
+
   describe "compare/1 over a window" do
     setup do
       stub(Tuist.Environment, :clickhouse_bare_metal_url, fn -> "http://in-cluster:8123" end)

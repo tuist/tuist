@@ -218,6 +218,48 @@ defmodule Tuist.ClickHouse.BackfillTest do
     end
   end
 
+  describe "slices/2" do
+    @window_start ~U[2026-09-10 21:51:55Z]
+    @window_end ~U[2026-09-24 21:51:55Z]
+
+    test "leaves a chunk under the limit whole" do
+      chunk = {:range, "inserted_at", @window_start, @window_end}
+
+      assert Backfill.slices(chunk, 299_999_999) == [chunk]
+      assert Backfill.slices(chunk, 0) == [chunk]
+    end
+
+    test "cuts a large chunk into contiguous spans that cover it exactly" do
+      slices = Backfill.slices({:range, "inserted_at", @window_start, @window_end}, 1_500_000_001)
+
+      assert length(slices) == 6
+      assert {:range, "inserted_at", @window_start, _} = List.first(slices)
+      assert {:range, "inserted_at", _, @window_end} = List.last(slices)
+
+      # A gap drops rows no later run looks for, because the ledger records
+      # the slices either side as done; an overlap copies rows twice.
+      slices
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.each(fn [{_, _, _, first_end}, {_, _, second_start, _}] -> assert first_end == second_start end)
+
+      # Bounds are rendered to the second, so a fractional one would put two
+      # slices on the same rendered instant.
+      Enum.each(slices, fn {_, _, from, to} ->
+        assert from.microsecond == {0, 0}
+        assert to.microsecond == {0, 0}
+      end)
+    end
+  end
+
+  describe "statement_options/0" do
+    test "lets the server give up first and never sends a statement twice" do
+      options = Backfill.statement_options()
+
+      assert options[:checkout_retries] == 0
+      assert options[:timeout] > to_timeout(second: Backfill.copy_settings()[:max_execution_time])
+    end
+  end
+
   describe "run/1" do
     test "refuses to start without a destination" do
       assert {:error, :no_target_configured} = Backfill.run()
