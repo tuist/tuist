@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -467,5 +468,53 @@ func TestRackLinuxMachineBacksOffOnTheSameDevice(t *testing.T) {
 
 	if len(h.runner.runs) != 0 {
 		t.Fatalf("ran %d scripts inside the backoff", len(h.runner.runs))
+	}
+}
+
+// emptyNameRefused refuses a Get with no name, as the API client does, rather
+// than answering NotFound as the fake client does.
+type emptyNameRefused struct{ client.Client }
+
+func (c emptyNameRefused) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if key.Name == "" {
+		return fmt.Errorf("resource name may not be empty")
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
+}
+
+// A RackLinuxMachine that names no host, such as one a pool of the earlier
+// model created, is let go without touching any host or Node: it has nothing to
+// leave.
+func TestRackLinuxMachineWithNoHostIsReleasedUntouched(t *testing.T) {
+	machine := edgeMachine()
+	machine.Spec.Host = ""
+	machine.Finalizers = []string{RackLinuxMachineFinalizer}
+	now := metav1.Now()
+	machine.DeletionTimestamp = &now
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"}, Spec: corev1.NodeSpec{ProviderID: "rack-linux://ber1/" + edgeUUID}}
+	objs := append(rackClusterObjects(true), claimedEdgeHost("dev-1"), machine, node)
+	h := newRackMachineHarness(t, "v1.34.8", objs...)
+	h.r.Client = emptyNameRefused{h.r.Client}
+
+	if m := h.reconcile(t); m != nil {
+		t.Fatalf("machine still present with finalizers %v", m.Finalizers)
+	}
+	if len(h.runner.runs) != 0 {
+		t.Fatal("reached a host for a machine that names none")
+	}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Name: "ber1-edge"}, &corev1.Node{}); err != nil {
+		t.Fatalf("the Node is gone: %v", err)
+	}
+}
+
+func TestRackLinuxMachineWithNoHostWaits(t *testing.T) {
+	machine := edgeMachine()
+	machine.Spec.Host = ""
+	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), machine)...)
+	h.r.Client = emptyNameRefused{h.r.Client}
+
+	m := h.reconcile(t)
+	if m == nil || m.Status.Phase != "NoHost" || len(h.runner.runs) != 0 {
+		t.Fatalf("machine %+v runs %d", m, len(h.runner.runs))
 	}
 }

@@ -567,8 +567,7 @@ func containsString(values []string, want string) bool {
 // hostOf reads the RackLinuxHost the machine is and sets the machine's
 // providerID from it.
 func (r *RackLinuxMachineReconciler) hostOf(ctx context.Context, machine *infrav1.RackLinuxMachine) (*infrav1.RackLinuxHost, ctrl.Result, error) {
-	host := &infrav1.RackLinuxHost{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Spec.Host}, host)
+	host, err := r.getHost(ctx, machine)
 	switch {
 	case apierrors.IsNotFound(err):
 		machine.Status.Phase = "NoHost"
@@ -584,13 +583,22 @@ func (r *RackLinuxMachineReconciler) hostOf(ctx context.Context, machine *infrav
 	return host, ctrl.Result{}, nil
 }
 
+// getHost reads the host the machine names. One that names none, such as one
+// a pool of the earlier model created, has no host to find.
+func (r *RackLinuxMachineReconciler) getHost(ctx context.Context, machine *infrav1.RackLinuxMachine) (*infrav1.RackLinuxHost, error) {
+	host := &infrav1.RackLinuxHost{}
+	if machine.Spec.Host == "" {
+		return host, apierrors.NewNotFound(infrav1.GroupVersion.WithResource("racklinuxhosts").GroupResource(), "")
+	}
+	return host, r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Spec.Host}, host)
+}
+
 // reconcileDelete stops the host's kubelet and drops its identity (bounded,
 // best effort), then deletes the Node, the egress Service and the host key
 // pins. An unreachable host keeps its kubelet.
 func (r *RackLinuxMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.RackLinuxMachine) (ctrl.Result, error) {
 	machine.Status.Phase = "Deleting"
-	host := &infrav1.RackLinuxHost{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Spec.Host}, host)
+	host, err := r.getHost(ctx, machine)
 	switch {
 	case err != nil && !apierrors.IsNotFound(err):
 		return ctrl.Result{}, err
