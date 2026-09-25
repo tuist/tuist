@@ -1,0 +1,120 @@
+{{- if .Values.cacheDNS.enabled }}
+{{- $dns := .Values.cacheDNS }}
+{{- $zone := required "cacheDNS.hostedZoneId is required" $dns.hostedZoneId }}
+{{- $owner := required "cacheDNS.ownerId must identify this cluster uniquely" $dns.ownerId }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cache-external-dns
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-cache-external-dns
+rules:
+  - apiGroups: [externaldns.k8s.io]
+    resources: [dnsendpoints]
+    verbs: [get, list, watch]
+  - apiGroups: [externaldns.k8s.io]
+    resources: [dnsendpoints/status]
+    verbs: [update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-cache-external-dns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-cache-external-dns
+subjects:
+  - kind: ServiceAccount
+    name: cache-external-dns
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-external-dns
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cache-external-dns
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cache-external-dns
+    spec:
+      serviceAccountName: cache-external-dns
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: external-dns
+          image: {{ $dns.image | quote }}
+          args:
+            - --provider=aws
+            - --source=crd
+            - --domain-filter=cache.tuist.dev
+            - --zone-id-filter={{ $zone }}
+            - --aws-zone-type=public
+            - --registry=txt
+            - --txt-owner-id={{ $owner }}
+            - --txt-prefix=_external-dns.
+            - --policy=sync
+            - --interval=30s
+            - --events
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_EC2_METADATA_DISABLED
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: {{ $dns.secretName }}
+          ports:
+            - name: metrics
+              containerPort: 7979
+          readinessProbe:
+            httpGet: {path: /healthz, port: metrics}
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+{{- if $dns.externalSecret.enabled }}
+{{- range $entry := list (dict "name" $dns.secretName "item" $dns.externalSecret.writerItem) (dict "name" $dns.solverSecretName "item" $dns.externalSecret.solverItem) }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $entry.name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ $dns.externalSecret.storeName }}
+    kind: ClusterSecretStore
+  target:
+    name: {{ $entry.name }}
+  data:
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteRef:
+        key: {{ printf "%s/AWS_ACCESS_KEY_ID" (required "cacheDNS external secret item is required" $entry.item) | quote }}
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteRef:
+        key: {{ printf "%s/AWS_SECRET_ACCESS_KEY" $entry.item | quote }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -2374,6 +2374,30 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "create_user/1" do
+    test "suffixes reserved email-derived handles and retries collisions" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      for {local, handle} <- [
+            {"ci.canary", "ci-canary"},
+            {"jane-staging", "jane-staging"},
+            {"TEAM_CANARY", "team-canary"}
+          ] do
+        assert {:ok, first} = Accounts.create_user("#{local}@first.example.com", password: valid_user_password())
+        assert first.account.name == handle <> "1"
+        assert {:ok, second} = Accounts.create_user("#{local}@second.example.com", password: valid_user_password())
+        assert second.account.name == handle <> "2"
+      end
+    end
+
+    test "still rejects an explicitly requested reserved handle" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      assert {:error, errors} =
+               Accounts.create_user(unique_user_email(), handle: "ci-canary", password: valid_user_password())
+
+      assert errors[:name] == ["must not end in -staging or -canary"]
+    end
+
     test "drops the hyphens a handle derived from the email would start or end with" do
       stub(Environment, :tuist_hosted?, fn -> false end)
       unique = TuistTestSupport.Utilities.unique_integer()
