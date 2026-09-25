@@ -12,7 +12,7 @@ inputs:
     required: true
 outputs:
   cache-hit:
-    description: Whether the cache volume restored a saved snapshot.
+    description: Whether compatible Mix build state was restored from the volume.
     value: ${{ steps.prepare.outputs.cache-hit }}
 runs:
   using: composite
