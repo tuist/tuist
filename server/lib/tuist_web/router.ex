@@ -893,6 +893,7 @@ defmodule TuistWeb.Router do
       get "/access", CacheController, :access
       get "/endpoints", CacheController, :endpoints
       post "/token", CacheController, :token
+      post "/demand", CacheController, :demand
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 

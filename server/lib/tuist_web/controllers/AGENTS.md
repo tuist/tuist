@@ -46,3 +46,5 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - The internal cache-volume image endpoint shares agent authentication and
   node-bound allocation lookup. It serves download/upload/retain/publication
   decisions using the macOS master protocol; never expose signed URLs publicly.
+
+- Cache endpoint discovery remains available but is deprecated. New hosted CLIs derive stable hostnames locally and use authenticated `POST /api/cache/demand` to record activity and trigger provisioning. Authorize the account (including retired handles) before recording demand; return no routing addresses.

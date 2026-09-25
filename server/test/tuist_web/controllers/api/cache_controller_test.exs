@@ -659,6 +659,102 @@ defmodule TuistWeb.API.CacheControllerTest do
     end
   end
 
+  describe "POST /api/cache/demand" do
+    test "wakes an account with no serving instance", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> post(~p"/api/cache/demand?#{[account_handle: user.account.name]}")
+
+      assert response(conn, 204) == ""
+      assert_enqueued(worker: Tuist.Kura.Workers.ProvisionOnDemandWorker, args: %{account_id: user.account.id})
+    end
+
+    test "requires authentication", %{conn: conn} do
+      conn = post(conn, ~p"/api/cache/demand?account_handle=tuist")
+      assert json_response(conn, 401)
+    end
+
+    test "registers project credentials against their owning account", %{conn: conn} do
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+
+      expect(Accounts, :get_cache_resolution_for_handle, fn handle, :kura, _origin ->
+        assert handle == account.name
+        %{endpoints: [], provisioning: true}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+        |> post(~p"/api/cache/demand?#{[account_handle: account.name]}")
+
+      assert response(conn, 204) == ""
+    end
+
+    test "registers retired handles against the canonical account", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      old_handle = user.account.name
+      {:ok, renamed} = Accounts.update_account(user.account, %{name: "renamed-#{user.account.id}"})
+
+      expect(Accounts, :get_cache_resolution_for_handle, fn handle, :kura, _origin ->
+        assert handle == renamed.name
+        %{endpoints: [], provisioning: true}
+      end)
+
+      conn = conn |> Authentication.put_current_user(user) |> post(~p"/api/cache/demand?#{[account_handle: old_handle]}")
+      assert response(conn, 204) == ""
+    end
+
+    test "refuses project credentials for another account", %{conn: conn} do
+      project = ProjectsFixtures.project_fixture()
+      owner = AccountsFixtures.user_fixture(preload: [:account])
+      reject(Accounts, :get_cache_resolution_for_handle, 3)
+
+      conn =
+        conn
+        |> Authentication.put_current_project(project)
+        |> post(~p"/api/cache/demand?#{[account_handle: owner.account.name]}")
+
+      assert json_response(conn, 403)["message"] =~ "cannot access"
+    end
+
+    test "records demand without returning endpoint addresses", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      expect(Accounts, :get_cache_resolution_for_handle, fn handle, :kura, _origin ->
+        assert handle == user.account.name
+        %{endpoints: [], provisioning: true}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> post(~p"/api/cache/demand?#{[account_handle: user.account.name]}")
+
+      assert response(conn, 204) == ""
+    end
+
+    test "does not register demand for an unauthorized account", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture(preload: [:account])
+      outsider = AccountsFixtures.user_fixture()
+      reject(Accounts, :get_cache_resolution_for_handle, 3)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(outsider)
+        |> post(~p"/api/cache/demand?#{[account_handle: owner.account.name]}")
+
+      assert json_response(conn, 403)["message"] =~ "not a member"
+    end
+  end
+
   describe "POST /api/cache/token free tier" do
     test "returns payment required when the scoped account is over the free tier", %{conn: conn} do
       # Given

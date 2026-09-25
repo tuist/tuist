@@ -34,10 +34,11 @@ public protocol APIProtocol: Sendable {
     func getGeneration(_ input: Operations.getGeneration.Input) async throws -> Operations.getGeneration.Output
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    @available(*, deprecated)
     func getCacheEndpoints(_ input: Operations.getCacheEndpoints.Input) async throws -> Operations.getCacheEndpoints.Output
     /// Get a runner job.
     ///
@@ -156,6 +157,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/get(listPreviews)`.
     func listPreviews(_ input: Operations.listPreviews.Input) async throws -> Operations.listPreviews.Output
+    /// Register demand for an account's cache.
+    ///
+    /// Records authenticated cache demand and starts provisioning when needed. Clients derive the cache URL locally; this operation returns no endpoint addresses.
+    ///
+    /// - Remark: HTTP `POST /api/cache/demand`.
+    /// - Remark: Generated from `#/paths//api/cache/demand/post(recordCacheDemand)`.
+    func recordCacheDemand(_ input: Operations.recordCacheDemand.Input) async throws -> Operations.recordCacheDemand.Output
     /// Get an automation alert by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/automations/alerts/{alert_id}`.
@@ -988,10 +996,11 @@ extension APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
+    @available(*, deprecated)
     public func getCacheEndpoints(
         query: Operations.getCacheEndpoints.Input.Query = .init(),
         headers: Operations.getCacheEndpoints.Input.Headers = .init()
@@ -1280,6 +1289,21 @@ extension APIProtocol {
     ) async throws -> Operations.listPreviews.Output {
         try await listPreviews(Operations.listPreviews.Input(
             path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Register demand for an account's cache.
+    ///
+    /// Records authenticated cache demand and starts provisioning when needed. Clients derive the cache URL locally; this operation returns no endpoint addresses.
+    ///
+    /// - Remark: HTTP `POST /api/cache/demand`.
+    /// - Remark: Generated from `#/paths//api/cache/demand/post(recordCacheDemand)`.
+    public func recordCacheDemand(
+        query: Operations.recordCacheDemand.Input.Query,
+        headers: Operations.recordCacheDemand.Input.Headers = .init()
+    ) async throws -> Operations.recordCacheDemand.Output {
+        try await recordCacheDemand(Operations.recordCacheDemand.Input(
             query: query,
             headers: headers
         ))
@@ -19341,7 +19365,7 @@ public enum Operations {
     }
     /// Get cache endpoints.
     ///
-    /// Returns cache endpoints for the requested account.
+    /// Deprecated for new clients. Derive hosted cache URLs as https://<account>.cache.tuist.dev (with -staging or -canary appended to the account in those environments). Self-hosted clients must configure an explicit cache endpoint. This route remains available for older clients.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -28977,6 +29001,224 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Register demand for an account's cache.
+    ///
+    /// Records authenticated cache demand and starts provisioning when needed. Clients derive the cache URL locally; this operation returns no endpoint addresses.
+    ///
+    /// - Remark: HTTP `POST /api/cache/demand`.
+    /// - Remark: Generated from `#/paths//api/cache/demand/post(recordCacheDemand)`.
+    public enum recordCacheDemand {
+        public static let id: Swift.String = "recordCacheDemand"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/demand/POST/query`.
+            public struct Query: Sendable, Hashable {
+                /// The account requesting cache capacity.
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/demand/POST/query/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account requesting cache capacity.
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var query: Operations.recordCacheDemand.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/demand/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.recordCacheDemand.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.recordCacheDemand.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.recordCacheDemand.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.recordCacheDemand.Input.Query,
+                headers: Operations.recordCacheDemand.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Cache demand was recorded.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/demand/post(recordCacheDemand)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.recordCacheDemand.Output.NoContent)
+            /// Cache demand was recorded.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/demand/post(recordCacheDemand)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.recordCacheDemand.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/demand/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/demand/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.recordCacheDemand.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.recordCacheDemand.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Authentication required
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/demand/post(recordCacheDemand)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.recordCacheDemand.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.recordCacheDemand.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/demand/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/demand/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.recordCacheDemand.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.recordCacheDemand.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Account access required
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/demand/post(recordCacheDemand)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.recordCacheDemand.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.recordCacheDemand.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

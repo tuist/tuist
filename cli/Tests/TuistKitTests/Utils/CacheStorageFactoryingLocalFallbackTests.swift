@@ -106,6 +106,8 @@ struct CacheStorageFactoryingLocalFallbackTests {
 
     @Test(arguments: [
         CacheURLStoreError.invalidURL("not a url") as Error,
+        CacheURLStoreError.invalidAccountHandle(nil),
+        CacheURLStoreError.missingEndpointOverride,
         RefreshAuthTokenServiceError.unauthorized("Invalid token"),
     ])
     func rethrows_errors_that_waiting_does_not_fix(error: Error) async throws {

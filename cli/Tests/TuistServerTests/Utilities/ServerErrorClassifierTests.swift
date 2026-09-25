@@ -15,11 +15,6 @@ struct ServerErrorClassifierTests {
                 RefreshAuthTokenServiceError.unknownError(statusCode)
             )
         )
-        #expect(
-            ServerErrorClassifier.isTransient(
-                GetCacheEndpointsServiceError.unknownError(statusCode)
-            )
-        )
     }
 
     @Test(
@@ -29,11 +24,6 @@ struct ServerErrorClassifierTests {
         #expect(
             !ServerErrorClassifier.isTransient(
                 RefreshAuthTokenServiceError.unknownError(statusCode)
-            )
-        )
-        #expect(
-            !ServerErrorClassifier.isTransient(
-                GetCacheEndpointsServiceError.unknownError(statusCode)
             )
         )
     }
@@ -47,11 +37,6 @@ struct ServerErrorClassifierTests {
         #expect(
             !ServerErrorClassifier.isTransient(
                 RefreshAuthTokenServiceError.badRequest
-            )
-        )
-        #expect(
-            !ServerErrorClassifier.isTransient(
-                GetCacheEndpointsServiceError.forbidden("Forbidden")
             )
         )
     }

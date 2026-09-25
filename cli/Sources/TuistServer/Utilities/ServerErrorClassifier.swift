@@ -22,9 +22,6 @@ public enum ServerErrorClassifier {
         case let error as RefreshAuthTokenServiceError:
             guard case let .unknownError(statusCode) = error else { return false }
             return isTransient(statusCode: statusCode)
-        case let error as GetCacheEndpointsServiceError:
-            guard case let .unknownError(statusCode) = error else { return false }
-            return isTransient(statusCode: statusCode)
         case let error as ClientError:
             return isTransient(error.underlyingError)
         default:

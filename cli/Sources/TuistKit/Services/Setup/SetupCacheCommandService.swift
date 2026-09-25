@@ -117,7 +117,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         cacheSocketService: CacheSocketServicing = CacheSocketService(),
         resourceLocator: ResourceLocating = ResourceLocator(),
         xcodeController: XcodeControlling = XcodeController.current,
-        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .forInteractiveCommands),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
         cacheDaemonStartupTimeout: Duration = .seconds(10)
     ) {
         self.launchAgentService = launchAgentService
@@ -135,13 +135,9 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
         self.cacheDaemonStartupTimeout = cacheDaemonStartupTimeout
     }
 
-    /// Resolves the account's endpoint before the proxy starts, waiting for an instance that is
-    /// being prepared, so the proxy launches against it rather than without a remote.
-    ///
-    /// Builds only ever talk to the proxy, which starts without a remote when none is ready and
-    /// adopts it once it serves, so setup is the one place that can say the cache is not ready yet, or
-    /// not available to the logged-in account.
-    private func waitForRemoteCache(fullHandle: String, serverURL: URL) async {
+    /// Registers hosted cache demand before starting the proxy. The proxy can start locally while
+    /// provisioning completes and use the stable hostname when DNS and the cache become ready.
+    private func prepareRemoteCache(fullHandle: String, serverURL: URL) async {
         let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
         do {
             _ = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
@@ -382,7 +378,7 @@ struct SetupCacheCommandService { // swiftlint:disable:this type_body_length
             upload: config.xcodeCache.upload,
             storeSizeLimit: config.xcodeCache.storeSizeLimit
         )
-        await waitForRemoteCache(fullHandle: fullHandle, serverURL: serverURL)
+        await prepareRemoteCache(fullHandle: fullHandle, serverURL: serverURL)
         let casPlugin = try await installCASPlugin()
         try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
 

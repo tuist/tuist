@@ -82,34 +82,10 @@ public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandS
         )
     }
 
-    /// Points `.bazelrc.tuist` at wherever the account's cache is now.
-    ///
-    /// Bazel reads the file once at startup and nothing in a build re-resolves,
-    /// so a cache placed in another region would otherwise strand the file:
-    /// the region it names serves for a drain window, is torn down, and its
-    /// hostname leaves DNS. This helper is the only Tuist code a build runs, so
-    /// it is the only thing positioned to notice. Bazel re-invokes it lazily on
-    /// the first request after the credential it returned expires, which makes
-    /// the token lifetime the refresh interval — no timer needed, and no work
-    /// on a build that is already authenticated.
-    ///
-    /// Bazel waits for this process to exit, not for its output, so emitting
-    /// the credential first does not make the rest free: whatever happens here
-    /// is on the path of the request that triggered the helper. Resolution
-    /// reaches the control plane and probes endpoints, and the store it goes
-    /// through is process-local, so every helper process pays it in full.
-    ///
-    /// It is therefore bounded, and the bound is the contract: past
-    /// `endpointResolutionTimeout` the refresh is abandoned and the build
-    /// proceeds on the endpoint it already had, which is the one it was just
-    /// given a working credential for. Only the resolution is inside the
-    /// bound; the file is read and written after it, so an abandoned refresh
-    /// can never leave a half-written `.bazelrc`.
-    ///
-    /// Best-effort throughout: an endpoint that cannot be resolved says
-    /// nothing about where the cache went, and a build should not fail because
-    /// its `.bazelrc` could not be tidied. The rewrite lands on the next
-    /// build, since this one read the file before we ran.
+    /// Migrates an existing regional cache URL to the account's stable hostname, or applies an explicit override.
+    /// Bazel reads this file at startup, so the change takes effect on the next build. The bounded lookup also
+    /// registers cache demand; a control-plane outage must not hold up credential delivery indefinitely.
+    /// Read and write the file after the lookup so cancellation cannot leave a partial configuration.
     private func refreshBazelrcEndpoint(
         directory: String?,
         bazelrcDirectory: String?

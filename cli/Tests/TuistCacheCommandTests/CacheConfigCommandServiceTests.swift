@@ -21,7 +21,6 @@ import TuistTesting
 struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
-    private let farCacheURL = URL(string: "https://far-cache.tuist.dev")!
     private func makeSubject(cacheURLError: CacheURLStoreError? = nil) -> (
         subject: CacheConfigCommandService,
         serverEnvironmentService: MockServerEnvironmentServicing,
@@ -61,10 +60,6 @@ struct CacheConfigCommandServiceTests {
                 .getCacheURL(for: .any, accountHandle: .any)
                 .willReturn(cacheURL)
         }
-
-        given(cacheURLStore)
-            .getCacheEndpoints(for: .any, accountHandle: .any)
-            .willReturn([cacheURL, farCacheURL])
 
         let subject = CacheConfigCommandService(
             serverEnvironmentService: serverEnvironmentService,
@@ -163,7 +158,7 @@ struct CacheConfigCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
-    func run_reports_every_endpoint_the_account_is_served_from() async throws {
+    func run_reports_only_the_resolved_endpoint() async throws {
         // Given
         let (
             subject,
@@ -191,7 +186,8 @@ struct CacheConfigCommandServiceTests {
         // Then
         let output = ui()
         #expect(output.contains("\"endpoints\""))
-        #expect(output.contains("far-cache.tuist.dev"))
+        let decoded = try #require(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        #expect(decoded["endpoints"] as? [String] == [cacheURL.absoluteString])
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)

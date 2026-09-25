@@ -90,11 +90,10 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
             }
             throw ExitCode(Self.endpointBeingPreparedExitCode)
         }
-        let endpoints = try await cacheURLStore.getCacheEndpoints(for: resolvedServerURL, accountHandle: accountHandle)
 
         let result = CacheConfiguration(
             url: cacheURL.absoluteString,
-            endpoints: endpoints.map(\.absoluteString),
+            endpoints: [cacheURL.absoluteString],
             token: token,
             accountHandle: accountHandle,
             projectHandle: projectHandle

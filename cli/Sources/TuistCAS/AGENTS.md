@@ -1,15 +1,13 @@
 # TuistCAS (CLI Module)
 
-This module resolves the cache endpoint the CLI and the compilation-cache proxy
-talk to. The Xcode compilation-cache transport itself lives in the Rust
-`cas-plugin/` crate and its `tuist-cas-proxy`.
+This module resolves cache URLs for the CLI and the compilation-cache proxy.
+The Xcode compilation-cache transport lives in `cas-plugin/`.
 
 ## Responsibilities
-- Resolve the cache URL for a server/account (`CacheURLStore`), honoring the
-  `TUIST_CACHE_ENDPOINT` override and the kura (REAPI) endpoints.
-- Wait for an endpoint the server reports as being provisioned, only when the
-  caller opts in with `CacheProvisioningWait.forInteractiveCommands`.
-- Pick the lowest-latency endpoint when several are returned (`EndpointLatencyService`).
+- Derive hosted cache URLs locally from the account handle: `<account>.cache.tuist.dev`, with `-staging` or `-canary` appended to the account in those environments.
+- Honor `TUIST_CACHE_ENDPOINT` first; self-hosted servers require this explicit override.
+- Validate account handles before composing a DNS name. Do not restore endpoint discovery, persisted endpoint choices, or client latency probes.
+- An authenticated demand-registration call wakes new or archived instances and records activity. It returns no URLs and has a two-second request budget; deduplicate it for five minutes, and back off failures for 30 seconds while allowing an already-serving cache to remain usable. Explicit overrides skip hosted demand registration. Authentication and authorization remain server responsibilities.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

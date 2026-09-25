@@ -9,8 +9,7 @@ extension CacheStorageFactorying {
     /// The cache storage for `config`, or one backed by the local cache alone when the remote cache
     /// can't be used right now.
     ///
-    /// Resolving the endpoint already waits a bounded time for a cache instance that is being
-    /// prepared. A remote cache that is still not ready after that, has no endpoint, is not available
+    /// A remote cache that is not ready, has no endpoint, is not available
     /// to the logged-in account, or is temporarily unreachable never fails the command: a cache miss
     /// is always safe, so the run continues on the local cache and says why. Rejected credentials and
     /// a malformed endpoint are rethrown.
@@ -42,7 +41,7 @@ extension CacheStorageFactorying {
             return temporarilyUnavailableWarning
         case let .forbidden(message):
             return .alert("\(message)", takeaway: "This run uses the local cache.")
-        case .invalidURL, nil:
+        case .invalidURL, .invalidAccountHandle, .missingEndpointOverride, nil:
             return ServerErrorClassifier.isTransient(error) ? temporarilyUnavailableWarning : nil
         }
     }

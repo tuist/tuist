@@ -158,7 +158,7 @@ public struct BazelSetupCommandService {
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(provisioningWait: .forInteractiveCommands),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
         remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
@@ -282,7 +282,7 @@ public struct BazelSetupCommandService {
                     "The remote cache is temporarily unavailable.",
                     takeaway: "Bazel builds run without the Tuist remote cache and build insights. \(rerun)"
                 )
-            case .noEndpointsAvailable, .invalidURL, .forbidden:
+            case .noEndpointsAvailable, .invalidURL, .invalidAccountHandle, .missingEndpointOverride, .forbidden:
                 .alert(
                     "No remote cache endpoint is available.",
                     takeaway: "Bazel builds run without the Tuist remote cache and build insights."
