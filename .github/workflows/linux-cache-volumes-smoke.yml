@@ -47,7 +47,10 @@ jobs:
     container: ${{ matrix.container }}
     timeout-minutes: 15
     steps:
-      - uses: tuist/tuist/.github/actions/cache-volume@07f5e5ac8403a676bf1d7f2e35ee8f1c7c7a7a97
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions/cache-volume
+      - uses: ./.github/actions/cache-volume
         id: cache
         with:
           key: ${{ inputs.cache_key }}-${{ matrix.mode }}

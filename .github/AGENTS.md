@@ -29,6 +29,16 @@ Cache-volume distribution recovery uses the original immutable source commit fro
 a partial release; finish that version before dispatching a release of newer main
 changes. Never substitute new contents beneath an existing distribution tag.
 
+Linux Gradle tests and runner-controller tests use repository-local cache-volume
+actions with stable keys and isolated paths outside checkout. Disable archive
+caching for those same paths; keep Go test result reuse disabled with `-count=1`.
+The manual Linux Cache Volume Benchmark compares baseline, cold and warm runs
+at an identical source SHA/profile. Warm runs must prove mounted volume hits and
+retained source markers; never count the client's cold fallback as a warm result.
+Run cold/warm from the default branch so successful cold jobs can publish, and
+wait for publication before starting warm jobs. Keep benchmark keys separate
+from normal CI, and record attachment and workload times separately.
+
 ## Tuist Elixir package
 
 `tuist-ex.yml` runs separate compilation, documentation, test, formatting,
