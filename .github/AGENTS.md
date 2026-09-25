@@ -60,13 +60,19 @@ Bazel performs idle disk-cache GC with a 12 GiB target and seven-day age limit;
 this is a soft cleanup target within the 20 GB volume, not a build-time quota.
 See [the action instructions](actions/setup-bazel-volumes/AGENTS.md).
 
-`actions/setup-mix-volumes/` keeps deps and _build together, keyed by project/job,
-Elixir/ERTS versions and exact mix.lock hash. Install tools first and attach before
+`actions/setup-mix-volumes/` keeps deps and _build together under readable project/job
+keys. An internal identity marker checks Elixir/ERTS versions and the exact lockfile
+hash; incompatible private build state is discarded before reuse. Install tools first and attach before
 fetching dependencies. Never retain ~/.hex or authentication configuration.
 Preserve setup-server-mix's explicit restore-mix-cache=false callers.
 See [the action instructions](actions/setup-mix-volumes/AGENTS.md).
 
 `workflows/linux-build-cache-benchmark.yml` compares fixed-source Kura binary and
 Registry production builds with identical helpers/profile across baseline, cold
-and warm phases. It deliberately disables remote Bazel caching to measure local
-reuse; do not describe these numbers as an improvement over a warm remote cache.
+and warm phases. Remote caching is opt-in. Without it, these numbers only measure
+local reuse. To compare against remote caching, seed with remote_cache=true and
+phase=cold, then run baseline (remote-only, empty local state) and warm (remote
+plus volumes). Remote setup must succeed; the remote-only build must report hits.
+The benchmark mirror uses its existing tuist/mastodon OIDC project on the same
+account's cache service. Keep credentials and generated .bazelrc.tuist outside
+volumes. Record remote/disk action hits and attachment overhead separately.

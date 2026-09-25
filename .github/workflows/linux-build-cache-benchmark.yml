@@ -3,6 +3,10 @@ name: Linux Build Cache Benchmark
 on:
   workflow_dispatch:
     inputs:
+      remote_cache:
+        description: Enable Kura remote caching; run cold to seed it before baseline and warm comparisons
+        type: boolean
+        default: false
       workload:
         description: Workload to measure
         type: choice
@@ -26,6 +30,8 @@ env:
   SOURCE_SHA: 92ad9c2d908ca7c2aa12aa1f9559f86e9992f894
   MISE_GITHUB_TOKEN: ${{ github.token }}
   MISE_CEILING_PATHS: ${{ github.workspace }}
+  # The benchmark excludes parent mise configs; select the CLI pinned by SOURCE_SHA explicitly.
+  MISE_TUIST_VERSION: 4.211.0-canary.21
 
 concurrency:
   group: build-cache-benchmark-${{ inputs.cache_key }}
@@ -33,6 +39,9 @@ concurrency:
 
 jobs:
   benchmark:
+    permissions:
+      contents: read
+      id-token: write
     name: ${{ matrix.workload }} / ${{ inputs.phase }}
     runs-on: tuist-linux-large
     timeout-minutes: 60
@@ -43,6 +52,7 @@ jobs:
     env:
       PHASE: ${{ inputs.phase }}
       WORKLOAD: ${{ matrix.workload }}
+      REMOTE_CACHE: ${{ inputs.remote_cache && matrix.workload == 'kura' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,8 +69,21 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mise
         with:
-          install_args: ${{ matrix.workload == 'kura' && 'rust bazel' || 'erlang elixir' }}
+          install_args: ${{ matrix.workload == 'kura' && (inputs.remote_cache && 'rust bazel tuist' || 'rust bazel') || 'erlang elixir' }}
           working_directory: ${{ matrix.workload }}
+      - name: Configure and require the remote cache
+        if: inputs.remote_cache && matrix.workload == 'kura'
+        working-directory: kura
+        env:
+          BENCHMARK_REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$BENCHMARK_REPOSITORY" = tuist/runners-benchmark ]; then
+            # This repository already has OIDC access to the benchmark project.
+            printf 'project = "tuist/mastodon"\n' > tuist.toml
+          fi
+          tuist auth login
+          tuist bazel setup
+          grep -q '^build --remote_cache=.' .bazelrc.tuist
       - name: Install native build prerequisites
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
       - name: Start attachment timer
@@ -111,8 +134,19 @@ jobs:
           set -euo pipefail
           start=$(date +%s%N)
           if [ "$WORKLOAD" = kura ]; then
-            ../.github/scripts/retry-bazel-command.sh bazel build //:kura
+            args=()
+            if [ "$REMOTE_CACHE" = true ] && [ "$PHASE" = baseline ]; then
+              args+=(--disk_cache=)
+            fi
+            ../.github/scripts/retry-bazel-command.sh bazel build //:kura "${args[@]}" 2>&1 | tee "$RUNNER_TEMP/bazel-build.log"
             test -x bazel-bin/kura
+            remote_hits=$(grep -Eo '[0-9]+ remote cache hit' "$RUNNER_TEMP/bazel-build.log" | tail -1 | cut -d' ' -f1 || true)
+            disk_hits=$(grep -Eo '[0-9]+ disk cache hit' "$RUNNER_TEMP/bazel-build.log" | tail -1 | cut -d' ' -f1 || true)
+            echo "REMOTE_HITS=${remote_hits:-0}" >> "$GITHUB_ENV"
+            echo "DISK_HITS=${disk_hits:-0}" >> "$GITHUB_ENV"
+            if [ "$REMOTE_CACHE" = true ] && [ "$PHASE" = baseline ]; then
+              test "${remote_hits:-0}" -gt 0
+            fi
           else
             mix local.hex --force
             mix local.rebar --force
@@ -132,15 +166,19 @@ jobs:
           bytes=$(du -sbL "$CACHE_PATH" | cut -f1)
           jq -n --arg source "$SOURCE_SHA" --arg phase "$PHASE" --arg workload "$WORKLOAD" \
             --arg hit "$CACHE_HIT" --argjson cache_ms "$CACHE_MS" --argjson workload_ms "$WORKLOAD_MS" \
-            --argjson bytes "$bytes" \
-            '{source:$source, phase:$phase, workload:$workload, hit:$hit, cache_ms:$cache_ms, workload_ms:$workload_ms, bytes:$bytes}' \
+            --argjson bytes "$bytes" --argjson remote_cache "$REMOTE_CACHE" \
+            --argjson remote_hits "${REMOTE_HITS:-0}" --argjson disk_hits "${DISK_HITS:-0}" \
+            '{source:$source, phase:$phase, workload:$workload, hit:$hit, cache_ms:$cache_ms, workload_ms:$workload_ms, bytes:$bytes,
+              remote_cache:$remote_cache, remote_hits:$remote_hits, disk_hits:$disk_hits}' \
             > "$RUNNER_TEMP/build-cache-results/$WORKLOAD-$PHASE.json"
           {
             echo '| Workload | Phase | Attachment (ms) | Build (ms) | Cache hit |'
             echo '| --- | --- | ---: | ---: | --- |'
             echo "| $WORKLOAD | $PHASE | $CACHE_MS | $WORKLOAD_MS | $CACHE_HIT |"
             echo
-            echo 'Same source and tuist-linux-large profile. Empty-cache baseline; no remote Bazel cache.'
+            echo "Same source and tuist-linux-large profile. Remote cache enabled: $REMOTE_CACHE."
+            echo "Remote action hits: ${REMOTE_HITS:-0}; local disk hits: ${DISK_HITS:-0}."
+            echo 'With remote caching enabled, seed with the cold phase first; baseline measures remote-only with empty local state.'
             echo 'Timing excludes checkout, tools, native prerequisite installation, queueing and post-job publication.'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

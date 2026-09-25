@@ -38,6 +38,14 @@ env:
   MISE_CEILING_PATHS: ${{ github.workspace }}
 
 jobs:
+  mix-cache-setup:
+    name: Mix cache setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/actions/setup-mix-volumes/prepare_test.sh
+        working-directory: ${{ github.workspace }}
   format:
     name: Format
     runs-on: tuist-linux

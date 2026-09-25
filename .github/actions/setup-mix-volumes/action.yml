@@ -13,7 +13,7 @@ inputs:
 outputs:
   cache-hit:
     description: Whether the cache volume restored a saved snapshot.
-    value: ${{ steps.volume.outputs.cache-hit }}
+    value: ${{ steps.prepare.outputs.cache-hit }}
 runs:
   using: composite
   steps:
@@ -28,18 +28,14 @@ runs:
       if: inputs.enabled == 'true'
       id: volume
       with:
-        key: ${{ inputs.key }}-${{ steps.toolchain.outputs.version }}-${{ hashFiles(format('{0}/mix.lock', inputs.working-directory)) }}
+        key: ${{ inputs.key }}
         path: ${{ runner.temp }}/mix-cache
     - name: Connect Mix cache directories
+      id: prepare
       working-directory: ${{ inputs.working-directory }}
       shell: bash
-      run: |
-        for directory in deps _build; do
-          mkdir -p "$RUNNER_TEMP/mix-cache/$directory"
-          if [ -d "$directory" ] && [ ! -L "$directory" ]; then rmdir "$directory"; fi
-          test ! -e "$directory" && test ! -L "$directory"
-          ln -s "$RUNNER_TEMP/mix-cache/$directory" "$directory"
-        done
-        cache_root=$(readlink -f "$RUNNER_TEMP/mix-cache")
-        echo "MIX_DEPS_PATH=$cache_root/deps" >> "$GITHUB_ENV"
-        echo "MIX_BUILD_ROOT=$cache_root/_build" >> "$GITHUB_ENV"
+      env:
+        MIX_CACHE_IDENTITY: v1-${{ steps.toolchain.outputs.version }}-${{ hashFiles(format('{0}/mix.lock', inputs.working-directory)) }}
+        MIX_VOLUME_HIT: ${{ steps.volume.outputs.cache-hit }}
+        MIX_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$MIX_ACTION_PATH/prepare.sh"
