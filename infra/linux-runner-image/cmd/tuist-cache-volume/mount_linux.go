@@ -173,12 +173,15 @@ func mountWorker() error {
 	runtime.LockOSThread()
 	// This subprocess exits immediately afterward: never return its switched
 	// thread to Go's thread pool or switch the long-lived broker's namespace.
+	if err := unix.Unshare(unix.CLONE_FS); err != nil {
+		return fmt.Errorf("unshare filesystem context: %w", err)
+	}
 	if err := unix.Setns(5, unix.CLONE_NEWNS); err != nil {
-		return err
+		return fmt.Errorf("enter mount namespace: %w", err)
 	}
 	fd, err := unix.Openat(4, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("open mount target: %w", err)
 	}
 	target := os.NewFile(uintptr(fd), "target")
 	entries, err := target.Readdirnames(1)
@@ -193,8 +196,11 @@ func mountWorker() error {
 	// namespace cannot see this worker's PID (ordinary Docker containers).
 	tree, err := unix.OpenTree(3, "", unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC|unix.AT_EMPTY_PATH)
 	if err != nil {
-		return err
+		return fmt.Errorf("clone mount tree: %w", err)
 	}
 	defer unix.Close(tree)
-	return unix.MoveMount(tree, "", 4, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH)
+	if err := unix.MoveMount(tree, "", 4, "", unix.MOVE_MOUNT_F_EMPTY_PATH|unix.MOVE_MOUNT_T_EMPTY_PATH); err != nil {
+		return fmt.Errorf("attach mount tree: %w", err)
+	}
+	return nil
 }
