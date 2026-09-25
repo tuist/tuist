@@ -783,6 +783,11 @@ rackFleet:
   enabled: true
   pool: ber1-staging
   site: ber1
+  # The rack omits replicas: it defaults to the declared host count, so
+  # inventory is the fleet and adding a host scales it. This pin keeps the
+  # prototype declared while it is offline; remove it, and clear the host's
+  # status.quarantined, once the box answers SSH again.
+  replicas: 0
   # FORCED (no service node): the subnet router is an operator laptop on the
   # same home LAN, and this is its address there. The rack's service nodes
   # replace it, one entry each. It needs a DHCP reservation for the same reason
