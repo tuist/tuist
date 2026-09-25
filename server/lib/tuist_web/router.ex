@@ -1423,6 +1423,7 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs/:build_run_id/tasks/:task_id", GradleTaskExecutionLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/builds/invocations/:invocation_id", BazelBuildInvocationLive
+      live "/builds/mix-builds/:build_id", MixBuildLive
       live "/previews", PreviewsLive
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download

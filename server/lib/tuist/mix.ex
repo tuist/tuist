@@ -7,8 +7,11 @@ defmodule Tuist.Mix do
   pipeline used for Gradle and Xcode analytics.
   """
 
+  import Ecto.Query
+
   alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.Builds.BuildMachineMetric
+  alias Tuist.ClickHouseRepo
   alias Tuist.Mix.Build
   alias Tuist.Mix.Diagnostic
 
@@ -42,6 +45,54 @@ defmodule Tuist.Mix do
     * `{:ok, build_id}` on success
     * `{:error, reason}` when the custom metadata is invalid
   """
+  @doc """
+  Fetches a Mix build by id, scoped to a project when `:project_id` is given.
+  """
+  def get_build(id, opts \\ []) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} ->
+        query = from(b in Build, where: b.id == ^uuid, limit: 1)
+
+        query =
+          case Keyword.get(opts, :project_id) do
+            nil -> query
+            project_id -> from(b in query, where: b.project_id == ^project_id)
+          end
+
+        case ClickHouseRepo.one(query) do
+          nil -> {:error, :not_found}
+          build -> {:ok, build}
+        end
+
+      :error ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Returns every diagnostic recorded for a build, oldest first.
+  """
+  def list_diagnostics(build_id) do
+    ClickHouseRepo.all(
+      from(d in Diagnostic,
+        where: d.build_id == ^build_id,
+        order_by: [asc: d.severity, asc: d.file, asc: d.line]
+      )
+    )
+  end
+
+  @doc """
+  Returns every machine-metric sample recorded for a build, oldest first.
+  """
+  def list_machine_metrics(build_id) do
+    ClickHouseRepo.all(
+      from(m in BuildMachineMetric,
+        where: m.mix_build_id == ^build_id,
+        order_by: [asc: m.timestamp]
+      )
+    )
+  end
+
   def create_build(attrs) do
     with :ok <-
            BuildRun.validate_custom_metadata(
