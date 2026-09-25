@@ -561,11 +561,7 @@ defmodule Tuist.Tests do
       create_run_changed_files(test, Map.get(attrs, :changed_files, []))
       StressNewTests.insert_candidates(test, stress_new_tests)
       expected_shards = (shard_plan && shard_plan.shard_count) || 1
-      Coverage.publish(test, xcode_coverage, shard_index, expected_shards)
-      enqueue_coverage_publish(test, attrs, shard_index, expected_shards)
-
-      Enumeration.record(test, Map.get(attrs, :enumerated_tests))
-      Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
+      record_coverage_data(test, attrs, xcode_coverage, shard_index, expected_shards)
 
       {test_case_ids_with_flaky_run, test_case_runs} =
         create_test_modules(
@@ -684,10 +680,32 @@ defmodule Tuist.Tests do
 
   defp create_run_changed_files(_test, _files), do: :ok
 
-  defp enqueue_coverage_publish(test, attrs, shard_index, expected_shards) do
+  # Coverage, the enumerated tests and the evidence enrich a run: a failure
+  # storing one of them costs that data, not the run's test cases, which are
+  # written after them and which a retry with the same id would never add.
+  defp record_coverage_data(test, attrs, xcode_coverage, shard_index, expected_shards) do
+    enrich(test, "coverage", fn -> Coverage.publish(test, xcode_coverage, shard_index, expected_shards) end)
+
     if storage_key = Map.get(attrs, :xcode_coverage_storage_key) do
-      Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
+      enrich(test, "uploaded coverage", fn ->
+        Coverage.enqueue_publish(test, storage_key, Map.get(attrs, :xcode_coverage_partial), shard_index, expected_shards)
+      end)
     end
+
+    enrich(test, "enumerated tests", fn -> Enumeration.record(test, Map.get(attrs, :enumerated_tests)) end)
+
+    enrich(test, "coverage evidence", fn ->
+      Coverage.Evidence.record(test, Map.get(attrs, :coverage_evidence), shard_index)
+    end)
+  end
+
+  defp enrich(test, what, fun) do
+    fun.()
+  rescue
+    error ->
+      Logger.error("Failed to store the #{what} of test run #{test.id}: #{Exception.message(error)}")
+      Sentry.capture_exception(error, stacktrace: __STACKTRACE__, extra: %{test_run_id: test.id, data: what})
+      :error
   end
 
   defp insert_run_changed_files(%Test{id: test_run_id, project_id: project_id}, files) do
@@ -871,10 +889,7 @@ defmodule Tuist.Tests do
           StressNewTests.insert_candidates(existing_test, stress_new_tests)
 
           xcode_coverage = Coverage.rows(project_id, Map.get(attrs, :xcode_coverage))
-          Coverage.publish(existing_test, xcode_coverage, shard_index, expected_shard_count)
-          enqueue_coverage_publish(existing_test, attrs, shard_index, expected_shard_count)
-          Enumeration.record(existing_test, Map.get(attrs, :enumerated_tests))
-          Coverage.Evidence.record(existing_test, Map.get(attrs, :coverage_evidence), shard_index)
+          record_coverage_data(existing_test, attrs, xcode_coverage, shard_index, expected_shard_count)
 
           updated_test =
             merged_test
