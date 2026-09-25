@@ -1,0 +1,269 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: racklinuxhosts.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: RackLinuxHost
+    listKind: RackLinuxHostList
+    plural: racklinuxhosts
+    shortNames:
+      - rlh
+    singular: racklinuxhost
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.pool
+          name: Pool
+          type: string
+        - jsonPath: .spec.role
+          name: Role
+          type: string
+        - jsonPath: .status.tailnet.address
+          name: Tailnet
+          type: string
+        - jsonPath: .status.tailnet.connected
+          name: Connected
+          type: boolean
+        - jsonPath: .status.claimedBy
+          name: ClaimedBy
+          type: string
+        - jsonPath: .spec.location.site
+          name: Site
+          priority: 1
+          type: string
+        - jsonPath: .status.tailnet.deviceID
+          name: Device
+          priority: 1
+          type: string
+        - jsonPath: .status.install.keyID
+          name: Install
+          priority: 1
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: RackLinuxHost is one x86 Linux machine in a rack we operate.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                RackLinuxHostSpec is one x86 Linux machine we own, in a rack we operate. The
+                host joins the tailnet by itself from its install, netbooted or from a
+                stick, so it is found by its name and tags rather than dialled at an
+                address.
+              properties:
+                bootMAC:
+                  description: |-
+                    BootMAC is the MAC address of the NIC the host netboots from, on the rack's
+                    management segment. The operator publishes an install for it while the
+                    host is not on the tailnet, and when the tuist.dev/reinstall annotation
+                    requests one. An edge host runs the netboot server, so it is installed
+                    from a stick instead.
+                  pattern: ^([0-9a-f]{2}:){5}[0-9a-f]{2}$
+                  type: string
+                location:
+                  description: Location is where the box is. `site` composes the providerID.
+                  properties:
+                    positionU:
+                      description: PositionU is the lowest rack unit the mount occupies.
+                      type: integer
+                    rack:
+                      description: Rack identifies the rack within the site.
+                      type: string
+                    shelf:
+                      description: |-
+                        Shelf identifies the mount within the rack (a 3-up tray, in the BER1
+                        build).
+                      type: string
+                    site:
+                      description: |-
+                        Site is the rack site (e.g. `ber1`). Load-bearing: it composes the
+                        providerID, so it must be stable for the life of the host.
+                      type: string
+                  type: object
+                pool:
+                  description: |-
+                    Pool is the claim marker and the environment boundary: a
+                    RackLinuxMachine claims a free host whose pool equals its adoptPool.
+                  type: string
+                role:
+                  description: |-
+                    Role decides the disk layout the install lays down and which
+                    MachineDeployment claims the host.
+                  enum:
+                    - edge
+                    - services
+                    - storage
+                  type: string
+                sshUser:
+                  default: tuist
+                  description: |-
+                    SSHUser is the account the install creates, with the rack's fleet key
+                    and passwordless sudo.
+                  type: string
+                tailnet:
+                  description: Tailnet is the identity the host joins the tailnet as.
+                  properties:
+                    tags:
+                      description: |-
+                        Tags the host's device must carry, the tags its install key is minted
+                        with. A device with the host's name and without all of them is not this
+                        host.
+                      items:
+                        type: string
+                      type: array
+                  type: object
+              type: object
+            status:
+              description: RackLinuxHostStatus is the observed state of one host.
+              properties:
+                claimedAt:
+                  description: ClaimedAt is when the current claim was taken.
+                  format: date-time
+                  type: string
+                claimedBy:
+                  description: ClaimedBy is the RackLinuxMachine holding this host.
+                  type: string
+                conditions:
+                  description: Conditions provide observations of the operational state of a Cluster API resource.
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          Last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          A human readable message indicating details about the transition.
+                          This field may be empty.
+                        type: string
+                      reason:
+                        description: |-
+                          The reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
+                install:
+                  description: |-
+                    Install is the install published for the host to netboot, until a new
+                    tailnet device shows it has run.
+                  properties:
+                    bootMAC:
+                      description: BootMAC is the MAC address the install is published for.
+                      type: string
+                    expiresAt:
+                      description: |-
+                        ExpiresAt is when the join key expires; an install still needed then is
+                        published again with a new key.
+                      format: date-time
+                      type: string
+                    keyID:
+                      description: KeyID is the ID of the single-use join key the install carries.
+                      type: string
+                    offeredAt:
+                      format: date-time
+                      type: string
+                    previousDeviceID:
+                      description: |-
+                        PreviousDeviceID is the host's tailnet device when the install was
+                        published; a different device is the install having run.
+                      type: string
+                    triggeredAt:
+                      description: |-
+                        TriggeredAt is when the operator set the running host to netboot once
+                        and rebooted it, for a requested reinstall.
+                      format: date-time
+                      type: string
+                  required:
+                    - bootMAC
+                    - expiresAt
+                    - keyID
+                    - offeredAt
+                  type: object
+                tailnet:
+                  description: |-
+                    Tailnet is the host's current tailnet device. Every install registers a
+                    new device, so a new deviceID means the box was reinstalled.
+                  properties:
+                    address:
+                      description: |-
+                        Address is the device's tailnet IPv4 address: what the operator dials
+                        and what the kubelet advertises as the node's InternalIP.
+                      type: string
+                    connected:
+                      description: Connected reports whether the device is connected to the tailnet now.
+                      type: boolean
+                    created:
+                      description: Created is when the device registered.
+                      format: date-time
+                      type: string
+                    deviceID:
+                      description: DeviceID is the Tailscale device ID.
+                      type: string
+                    lastSeen:
+                      description: LastSeen is when the device was last connected.
+                      format: date-time
+                      type: string
+                    name:
+                      description: Name is the device's MagicDNS name.
+                      type: string
+                  type: object
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

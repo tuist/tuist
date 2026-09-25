@@ -838,7 +838,48 @@ rackFleet:
     enabled: true
     item: BER1_FLEET_SSH
 
+rackLinuxFleet:
+  enabled: true
+  pool: ber1-staging
+  site: ber1
+  sshExternalSecret:
+    enabled: true
+    item: BER1_FLEET_SSH
+  tailscale:
+    externalSecret:
+      enabled: true
+      item: TAILSCALE_RACK_NODES
+  roles:
+    edge:
+      nodeLabels:
+        tuist.dev/rack-edge: ber1
+      nodeTaints:
+        - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
+  hosts:
+    # The two edges, each netbooting from the other. ber1-edge-a is preferred.
+    - name: ber1-edge-a
+      role: edge
+      tailnetTags: [tag:tuist-rack-edge]
+      # Its i226-LM, on ber1-mgmt port 1.
+      bootMAC: "38:05:25:38:b5:b5"
+    - name: ber1-edge-b
+      role: edge
+      tailnetTags: [tag:tuist-rack-edge]
+      # Its i226-LM, on ber1-mgmt port 2.
+      bootMAC: "38:05:25:3a:de:d3"
+  authorizedKeys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
+  boot:
+    enabled: true
+    address: 192.168.50.1
+    image:
+      tag: sha-0c8b663d8559
+
 macosFleet:
+  # The cluster's own tag, for a proxy the Tailscale operator runs for one
+  # Service (values.yaml).
+  tailscaleEgress:
+    proxyTags: tag:tuist-k8s-staging
   enabled: true
   replicas: 1
   # The minis drop inbound :22 from everything except the tailnet, loopback

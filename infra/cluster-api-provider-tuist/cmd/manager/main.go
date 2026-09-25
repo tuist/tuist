@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -109,6 +111,7 @@ func main() {
 		egressNamespace      string
 		egressProxyGroup     string
 		egressMagicDNSSuffix string
+		egressProxyTags      string
 
 		defaultAdoptPoolPrefix       string
 		orphanReclaimClaimNamePrefix string
@@ -279,6 +282,22 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	var rackLinuxTailscaleSecretName string
+	flag.StringVar(&rackLinuxTailscaleSecretName, "rack-linux-tailscale-secret-name", "",
+		"Secret in the operator namespace holding the Tailscale OAuth client (client-id, client-secret) "+
+			"the RackLinuxHost controller finds hosts on the tailnet with. Empty leaves rack Linux hosts unreachable.")
+	var rackLinuxFleetName, rackLinuxInstallServerURL string
+	var rackLinuxAuthorizedKeys []string
+	flag.StringVar(&rackLinuxFleetName, "rack-linux-fleet-name", "",
+		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
+	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
+		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	flag.Func("rack-linux-authorized-key",
+		"An SSH public key every netbooted install authorizes beside the fleet key. Repeatable.",
+		func(v string) error {
+			rackLinuxAuthorizedKeys = append(rackLinuxAuthorizedKeys, v)
+			return nil
+		})
 	var rackHostQuarantineRetryAfter time.Duration
 	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
 		"How long a RackHost stays out of the claim pool after bootstrap exhaustion. "+
@@ -339,6 +358,13 @@ func main() {
 			"ProxyGroup into. The operator needs `services` get/list/watch/"+
 			"create/update/patch/delete here — granted via a namespaced Role "+
 			"+ RoleBinding rendered by the main tuist chart.")
+	flag.StringVar(&egressProxyTags, "tailscale-egress-proxy-tags",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_PROXY_TAGS", ""),
+		"Comma-separated tags for a proxy the Tailscale operator runs for one "+
+			"Service outside the ProxyGroup, such as a rack Linux host's kubelet "+
+			"proxy: the cluster's own tag (`tag:tuist-k8s-<env>`), which the "+
+			"Tailscale operator's credential can mint. Empty leaves the "+
+			"operator's default, tag:k8s.")
 	flag.StringVar(&egressMagicDNSSuffix, "tailscale-egress-magicdns-suffix",
 		envOrDefault("CAPI_TAILSCALE_EGRESS_MAGICDNS_SUFFIX", ""),
 		"MagicDNS suffix of the tailnet the Mac minis register under "+
@@ -646,6 +672,45 @@ func main() {
 		os.Exit(1)
 	}
 
+	var rackTailnet linux.TailnetAPI
+	if rackLinuxTailscaleSecretName != "" {
+		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
+	}
+	var rackInstall *linux.RackInstall
+	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
+		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
+	}
+	if err := (&linux.RackLinuxHostReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		Recorder:           mgr.GetEventRecorderFor("racklinuxhost-controller"),
+		Tailnet:            rackTailnet,
+		Install:            rackInstall,
+		CredentialsManager: credsManager,
+		EgressNamespace:    egressNamespace,
+		EgressProxyGroup:   egressProxyGroup,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackLinuxHostReconciler")
+		os.Exit(1)
+	}
+
+	if err := (&linux.RackLinuxMachineReconciler{
+		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
+		Scheme:              mgr.GetScheme(),
+		Recorder:            mgr.GetEventRecorderFor("racklinuxmachine-controller"),
+		CredentialsManager:  credsManager,
+		APIServerURL:        apiServerURL,
+		KubernetesMinor:     "v1.34",
+		ControlPlaneVersion: controlPlaneVersion(restConfig),
+		EgressNamespace:     egressNamespace,
+		EgressProxyGroup:    egressProxyGroup,
+		EgressProxyTags:     egressProxyTags,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackLinuxMachineReconciler")
+		os.Exit(1)
+	}
+
 	// Elastic Metal (bare-metal) machines: the kura runner-cache pool. Same
 	// provider, separate reconciler from Apple Silicon: bare-metal servers
 	// ordered through the Baremetal API that pass through an OS-install wait,
@@ -927,4 +992,31 @@ func discoverAPIServerURL(restConfig *rest.Config) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("cluster-info kubeconfig has no cluster.server entry")
+}
+
+// controlPlaneVersion reads the API server's gitVersion, at most once a
+// minute.
+func controlPlaneVersion(cfg *rest.Config) func(context.Context) (string, error) {
+	var (
+		mu      sync.Mutex
+		version string
+		readAt  time.Time
+	)
+	return func(context.Context) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if version != "" && time.Since(readAt) < time.Minute {
+			return version, nil
+		}
+		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+		if err != nil {
+			return "", err
+		}
+		info, err := dc.ServerVersion()
+		if err != nil {
+			return "", err
+		}
+		version, readAt = info.GitVersion, time.Now()
+		return version, nil
+	}
 }

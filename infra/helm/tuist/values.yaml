@@ -1710,6 +1710,76 @@ rackFleet:
       username: username
       password: password
 
+# Rack-owned x86 Linux machines (the BER1 edge, services and storage nodes).
+# `hosts` is inventory, one RackLinuxHost each; each role present among them
+# gets a MachineDeployment claiming from `<pool>-<role>`, with that role's node
+# labels and taints from `roles`. A host joins the tailnet from its install
+# stick (mise run rack:write-install-usb) and the operator joins it to the
+# cluster from there.
+rackLinuxFleet:
+  enabled: false
+  name: ""             # default: <release>-rack-linux
+  pool: ""             # required; the environment boundary between racks
+  site: ""             # default site; composes the providerID
+  sshUser: tuist
+
+  # The rack's fleet key item (`private-key`, `public-key`).
+  sshExternalSecret:
+    enabled: false
+    item: ""
+
+  # A Tailscale OAuth client (`client-id`, `client-secret`) with the Auth Keys
+  # and Devices Core scopes, restricted to the hosts' tailnet tags.
+  tailscale:
+    externalSecret:
+      enabled: false
+      item: ""
+
+  #   edge:
+  #     nodeLabels:
+  #       tuist.dev/rack-edge: ber1
+  #     nodeTaints:
+  #       - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
+  roles: {}
+
+  #   - name: ber1-edge-a        # hostname, tailnet name and Node name
+  #     role: edge             # edge | services | storage
+  #     tailnetTags: [tag:tuist-rack-edge]
+  #     site: ber1
+  #     bootMAC: 38:05:25:38:b5:b5   # the NIC it netboots from; see boot
+  #     rack: r1
+  #     positionU: 10
+  hosts: []
+
+  # People's SSH keys every netbooted install authorizes beside the fleet key.
+  authorizedKeys: []
+
+  # The rack's boot server, on its edge node. The operator publishes an install
+  # for each host with a bootMAC that is not on the tailnet, or carries
+  # tuist.dev/reinstall=true, and the host installs itself when it netboots.
+  # The site definition's management.edge.netboot points the edge node's DHCP
+  # here.
+  boot:
+    enabled: false
+    site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
+    # The site's provisioning address (management.edge.provisioning), which the
+    # rack-edge pod puts on the edge node's switch port.
+    address: ""
+    httpPort: 8480
+    image:
+      # The rack-edge image, which carries iPXE.
+      repository: ghcr.io/tuist/rack-edge
+      tag: ""
+    iso:
+      url: https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso
+      sha256: 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 512Mi
+
 macosFleet:
   enabled: false
   name: ""             # default: <release>-macos-fleet
@@ -1993,6 +2063,12 @@ macosFleet:
     # device, e.g. `taild6d7bb.ts.net`. Per-env overlays set the
     # actual value.
     magicDNSSuffix: ""
+    # Tags for a proxy the Tailscale operator runs for one Service
+    # outside the ProxyGroup (a rack Linux host's kubelet proxy): the
+    # cluster's own `tag:tuist-k8s-<env>`, the only tag the
+    # operator's credential mints. Required when enabled; per-env
+    # overlays set it.
+    proxyTags: ""
   # Runner-cache carve-out in the Mac minis' VM egress firewall
   # (infra/macos-host-bootstrap installVMEgressFirewall). By default
   # Tart VMs are blocked from all RFC1918 destinations; these knobs

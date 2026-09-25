@@ -2,8 +2,9 @@ name: Rack Edge Image
 
 # PR validation and main-branch image build for the rack-edge DaemonSet
 # (infra/helm/rack-edge): the path from a rack's switches into the tailnet and
-# their DHCP, run on the rack's edge node. The image carries only the tools the
-# rendered files call (infra/rack-switch-fleet/edge/Dockerfile).
+# their DHCP, run on the rack's edge node, and for the rack boot server the
+# tuist chart runs there. The image carries only the tools their scripts call
+# and Ubuntu's build of iPXE (infra/rack-switch-fleet/edge/Dockerfile).
 #
 # A push to main that changes the image's inputs publishes `sha-<12 sha>` and
 # `latest`; omada-deployment.yml waits for the sha tag and deploys it. Pull
