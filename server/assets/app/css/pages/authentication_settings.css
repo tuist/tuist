@@ -298,6 +298,7 @@
     align-items: center;
 
     @media (max-width: 768px) {
+      flex-wrap: nowrap;
       align-items: stretch;
     }
 
@@ -349,8 +350,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-5);
+    margin-left: auto;
     padding-top: var(--noora-spacing-7);
-    width: 100%;
+    width: calc(60% - var(--noora-spacing-8));
+
+    @media (max-width: 768px) {
+      width: 100%;
+    }
 
     & > [data-part="domain-verification-error"].phx-click-loading {
       display: none;
