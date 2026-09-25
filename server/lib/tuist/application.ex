@@ -35,6 +35,7 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
+  alias Tuist.Tests.TestRunChangedFile
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestRunError
   alias Tuist.Tests.TestRunStressCandidate
@@ -325,6 +326,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(Test.Buffer, id: Test.Buffer),
         Supervisor.child_spec(TestRunDestination.Buffer, id: TestRunDestination.Buffer),
         Supervisor.child_spec(TestRunError.Buffer, id: TestRunError.Buffer),
+        Supervisor.child_spec(TestRunChangedFile.Buffer, id: TestRunChangedFile.Buffer),
         Supervisor.child_spec(TestRunStressCandidate.Buffer, id: TestRunStressCandidate.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),

@@ -3,7 +3,9 @@ defmodule TuistWeb.API.TestsController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
+  alias Tuist.GitHistory
   alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.Tests.TestRunQuery
   alias Tuist.Tests.XcresultProcessing
   alias Tuist.VCS.RemoteURL
@@ -273,6 +275,66 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The git remote URL origin."
            },
+           base_branch: %Schema{
+             type: :string,
+             description:
+               "The branch the run's commit will merge into: the pull request's base, or the project's default branch."
+           },
+           merge_base_sha: %Schema{
+             type: :string,
+             description: "The merge base between the run's commit and the base branch, when the client could resolve it."
+           },
+           is_pull_request: %Schema{type: :boolean, description: "Whether the run was for a pull or merge request."},
+           pull_request_number: %Schema{type: :integer, description: "The pull or merge request number, when known."},
+           git_object_format: %Schema{
+             type: :string,
+             enum: ["sha1", "sha256"],
+             description: "The repository's Git object format."
+           },
+           history_source: %Schema{
+             type: :string,
+             enum: ["client", "none"],
+             description:
+               "Whether the client collected the run's Git history (merge base, changed files, commit graph) or could not (`none`). The server may complete it from the VCS provider afterwards."
+           },
+           history_fallback_reason: %Schema{
+             type: :string,
+             description:
+               "Why the client could not collect part of the Git history, for example a shallow clone that could not be deepened in time."
+           },
+           changed_files: %Schema{
+             type: :array,
+             description:
+               "The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 path: %Schema{type: :string, description: "The path at the head, relative to the repository root."},
+                 previous_path: %Schema{type: :string, nullable: true, description: "The path before a rename."},
+                 status: %Schema{type: :string, enum: ["added", "modified", "deleted", "renamed"]},
+                 git_blob_id: %Schema{
+                   type: :string,
+                   nullable: true,
+                   description: "The file's Git blob at the head; absent for a deleted file."
+                 },
+                 hunks: %Schema{
+                   type: :array,
+                   description: "The changed line ranges in the file at the head, inclusive.",
+                   items: %Schema{
+                     type: :object,
+                     properties: %{start: %Schema{type: :integer}, end: %Schema{type: :integer}},
+                     required: [:start, :end]
+                   }
+                 },
+                 truncated: %Schema{
+                   type: :boolean,
+                   description:
+                     "Whether the client stopped listing this file's hunks because the diff exceeded its limits."
+                 }
+               },
+               required: [:path, :status]
+             }
+           },
            build_run_id: %Schema{
              type: :string,
              description: "The UUID of an associated build run."
@@ -320,7 +382,92 @@ defmodule TuistWeb.API.TestsController do
            },
            build_system: BuildSystem.schema(),
            stress_new_tests: StressNewTestsResult,
+           git_dirty: %Schema{
+             type: :boolean,
+             description:
+               "Whether the checkout had uncommitted changes. A dirty run measured code that is not the commit's, so its coverage stays with the run and never joins the commit's."
+           },
+           execution_mode: %Schema{
+             type: :string,
+             enum: ["parallel", "serial"],
+             description:
+               "Whether the run executed tests in parallel or serially, from the xcodebuild arguments and the xctestrun; absent when unknown."
+           },
+           enumerated_tests: %Schema{
+             type: :array,
+             description:
+               "The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 module: %Schema{type: :string, description: "The test target."},
+                 suite: %Schema{
+                   type: :string,
+                   description:
+                     "The suite that declares the test, the innermost one when suites nest; empty outside any suite."
+                 },
+                 name: %Schema{type: :string, description: "The test's name as the run reports it, `testExample()`."},
+                 function: %Schema{
+                   type: :string,
+                   description:
+                     "The test's function, `map()`, when `name` is the display name the run reports it under (Swift Testing's `@Test(\"…\")`)."
+                 },
+                 enabled: %Schema{
+                   type: :boolean,
+                   description: "False when the scheme or the test plan disables the test."
+                 }
+               },
+               required: [:module, :name]
+             }
+           },
+           coverage_evidence: %Schema{
+             type: :object,
+             description:
+               "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.",
+             properties: %{
+               paths: %Schema{type: :array, items: %Schema{type: :string}},
+               scopes: %Schema{
+                 type: :array,
+                 items: %Schema{
+                   type: :object,
+                   properties: %{
+                     kind: %Schema{
+                       type: :string,
+                       enum: ["test", "suite", "target"],
+                       description:
+                         "`test`: what one test executed. `suite`: what ran around a suite's tests and belongs to none. `target`: everything the target's processes executed."
+                     },
+                     module: %Schema{type: :string, description: "The test target."},
+                     suite: %Schema{type: :string, description: "Empty for a target and for a test outside any suite."},
+                     name: %Schema{type: :string, description: "The test's name; empty unless the scope is a test."},
+                     files: %Schema{type: :array, items: %Schema{type: :integer}, description: "Indices into `paths`."},
+                     lines: %Schema{
+                       type: :array,
+                       items: %Schema{type: :array, items: %Schema{type: :integer}},
+                       description:
+                         "The lines the scope ran in each of `files`, in the same order, as inclusive ranges flattened (`[3, 5, 9, 9]` is lines 3 to 5 and line 9); empty for a file without line evidence. Left out when the scope has none."
+                     }
+                   },
+                   required: [:kind, :module, :files]
+                 }
+               },
+               unattributed_tests: %Schema{
+                 type: :integer,
+                 description: "Tests that overlapped another of their process, so nothing could be attributed to them."
+               }
+             },
+             required: [:paths, :scopes]
+           },
            xcode_coverage: XcodeCoverage,
+           xcode_coverage_storage_key: %Schema{
+             type: :string,
+             description:
+               "The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; used instead of `xcode_coverage` when the coverage is too large to send inline."
+           },
+           xcode_coverage_partial: %Schema{
+             type: :boolean,
+             description: "With `xcode_coverage_storage_key`: whether the run left tests out on purpose."
+           },
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",
@@ -339,6 +486,11 @@ defmodule TuistWeb.API.TestsController do
                  duration: %Schema{
                    type: :integer,
                    description: "The duration of the test module in milliseconds."
+                 },
+                 execution_mode: %Schema{
+                   type: :string,
+                   enum: ["parallel", "serial"],
+                   description: "Whether the module's tests executed in parallel or serially; absent when unknown."
                  },
                  test_suites: %Schema{
                    type: :array,
@@ -636,7 +788,16 @@ defmodule TuistWeb.API.TestsController do
             :ok
           end
 
+        selected_project
+        |> Tuist.Repo.preload(vcs_connection: :github_app_installation)
+        |> GitHistory.enqueue_completion(test_run)
+
         respond_to_test_creation(conn, test_run, selected_project, processing_result)
+
+      {:error, :invalid_coverage_storage_key} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "xcode_coverage_storage_key must be the key createCoverageUpload returned for this run's id"})
 
       {:error, _changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
@@ -748,7 +909,19 @@ defmodule TuistWeb.API.TestsController do
              total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
              failed_test_count: %Schema{type: :integer, description: "Number of failed test cases."},
              flaky_test_count: %Schema{type: :integer, description: "Number of flaky test cases."},
-             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."}
+             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."},
+             enumerated_test_count: %Schema{
+               type: :integer,
+               nullable: true,
+               description:
+                 "How many tests the run could have executed, as the client listed them without running any; null when it listed none."
+             },
+             not_run_test_count: %Schema{
+               type: :integer,
+               nullable: true,
+               description:
+                 "How many of the enabled tests the run could have executed it left out; null when none were listed."
+             }
            },
            required: [
              :id,
@@ -772,6 +945,7 @@ defmodule TuistWeb.API.TestsController do
     case Tests.get_test(test_run_id) do
       {:ok, %{project_id: project_id} = run} when project_id == selected_project.id ->
         test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
+        enumeration = Tests.Enumeration.summary(run)
 
         json(conn, %{
           id: run.id,
@@ -789,7 +963,9 @@ defmodule TuistWeb.API.TestsController do
           total_test_count: test_metrics.total_count,
           failed_test_count: test_metrics.failed_count,
           flaky_test_count: test_metrics.flaky_count,
-          avg_test_duration: test_metrics.avg_duration
+          avg_test_duration: test_metrics.avg_duration,
+          enumerated_test_count: enumeration && enumeration.enumerated,
+          not_run_test_count: enumeration && enumeration.not_run
         })
 
       _error ->
@@ -810,6 +986,24 @@ defmodule TuistWeb.API.TestsController do
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
+    with :ok <- validate_coverage_storage_key(params, test_id) do
+      get_or_create_test(params, test_id)
+    end
+  end
+
+  # An uploaded coverage file is only ever read back under the run's own key
+  # (`Tuist.Tests.Coverage.storage_key/2`), so a run cannot point at another's.
+  defp validate_coverage_storage_key(params, test_id) do
+    case Map.get(params, :xcode_coverage_storage_key) do
+      nil ->
+        :ok
+
+      key ->
+        if key == Coverage.storage_key(params.project, test_id), do: :ok, else: {:error, :invalid_coverage_storage_key}
+    end
+  end
+
+  defp get_or_create_test(params, test_id) do
     case Tests.get_test(test_id, preload: [test_case_runs: [arguments: &Tests.list_test_case_run_arguments/1]]) do
       {:ok, %{project_id: project_id} = test_run} when project_id == params.project.id ->
         {:ok, test_run}
@@ -832,6 +1026,17 @@ defmodule TuistWeb.API.TestsController do
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
           git_ref: Map.get(params, :git_ref),
+          base_branch: Map.get(params, :base_branch),
+          merge_base_sha: Map.get(params, :merge_base_sha),
+          is_pull_request: Map.get(params, :is_pull_request),
+          pull_request_number: Map.get(params, :pull_request_number),
+          git_object_format: Map.get(params, :git_object_format),
+          history_source: Map.get(params, :history_source),
+          history_fallback_reason: Map.get(params, :history_fallback_reason),
+          changed_files: Map.get(params, :changed_files, []),
+          git_dirty: Map.get(params, :git_dirty),
+          git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+          execution_mode: Map.get(params, :execution_mode),
           ran_at: Map.get(params, :ran_at, NaiveDateTime.utc_now()),
           ci_run_id: Map.get(params, :ci_run_id),
           ci_project_handle: Map.get(params, :ci_project_handle),
@@ -847,7 +1052,11 @@ defmodule TuistWeb.API.TestsController do
           only_test_identifiers: Map.get(params, :only_test_identifiers, []),
           skip_test_identifiers: Map.get(params, :skip_test_identifiers, []),
           stress_new_tests: Map.get(params, :stress_new_tests),
-          xcode_coverage: Map.get(params, :xcode_coverage)
+          enumerated_tests: Map.get(params, :enumerated_tests),
+          coverage_evidence: Map.get(params, :coverage_evidence),
+          xcode_coverage: Map.get(params, :xcode_coverage),
+          xcode_coverage_storage_key: Map.get(params, :xcode_coverage_storage_key),
+          xcode_coverage_partial: Map.get(params, :xcode_coverage_partial)
         })
     end
   end

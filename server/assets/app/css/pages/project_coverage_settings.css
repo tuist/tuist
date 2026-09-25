@@ -1,0 +1,155 @@
+#project-coverage-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  .noora-tab-menu-horizontal {
+    padding: var(--noora-spacing-0);
+  }
+
+  & > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+  }
+
+  & > [data-part="subtitle"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="gates-card-section"],
+  & > [data-part="tracked-files-card-section"],
+  & > [data-part="excluded-paths-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: flex-start;
+
+      & > [data-part="title-group"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+    }
+  }
+
+  & [data-part="setting-row"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+    border-bottom: 1px solid var(--noora-surface-border-primary);
+    padding: var(--noora-spacing-4) 0;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="title"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+      }
+
+      & > [data-part="toggle"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+        }
+      }
+
+      & > [data-part="description"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="tags"] {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: var(--noora-spacing-3);
+      }
+    }
+
+    & > [data-part="row-content"] {
+      display: flex;
+      flex-direction: row;
+      flex-shrink: 0;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & .noora-modal {
+    & [data-part="content"] {
+      max-width: 500px;
+    }
+
+    & [data-part="content"] > [data-part="body"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+      min-width: 420px;
+    }
+  }
+
+  & [data-part="modal-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    padding: var(--noora-spacing-9) var(--noora-spacing-0);
+
+    & [data-part="schedule-row"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & [data-part="schedule-label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & .noora-text-input {
+        width: 250px;
+      }
+    }
+  }
+}

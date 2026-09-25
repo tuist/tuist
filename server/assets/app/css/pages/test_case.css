@@ -718,3 +718,12 @@
     }
   }
 }
+
+/* The covered code's line ranges explain themselves on hover, above the
+   row's link overlay (see the coverage pages). */
+#test-case [data-part="test-case-coverage-section"] [data-part="cell"][title] {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  cursor: help;
+}

@@ -164,33 +164,28 @@
         empty={@failed_test_runs_analytics.ok? && @failed_test_runs_analytics.result.count == 0}
       />
       <.widget
-        :if={@coverage_enabled}
-        title={dgettext("dashboard_tests", "Line coverage")}
-        legend_color="tertiary"
+        :if={@coverage_analytics}
+        title={dgettext("dashboard_tests", "Code coverage")}
+        legend_color="primary"
         description={
           dgettext(
             "dashboard_tests",
-            "Share of executable lines covered across the test runs that gathered code coverage."
+            "Share of executable lines covered at the latest measured commit of %{branch} in the period, as the Code Coverage page reads it.",
+            branch: @selected_project.default_branch
           )
         }
         value={
-          if @test_runs_coverage_analytics.ok?,
-            do: "#{@test_runs_coverage_analytics.result.coverage}%"
+          if @coverage_analytics.ok? && @coverage_analytics.result.latest,
+            do: "#{@coverage_analytics.result.latest.coverage}%"
         }
-        loading={!@test_runs_coverage_analytics.ok?}
+        loading={!@coverage_analytics.ok?}
         id="widget-coverage"
         phx_click="select_widget"
         phx_value_widget="coverage"
         selected={@analytics_selected_widget == "coverage"}
-        trend_value={
-          if @test_runs_coverage_analytics.ok?, do: @test_runs_coverage_analytics.result.trend
-        }
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-        empty={
-          @test_runs_coverage_analytics.ok? &&
-            @test_runs_coverage_analytics.result.runs_count == 0
-        }
+        trend_value={if @coverage_analytics.ok?, do: @coverage_analytics.result.trend}
+        trend_label={dgettext("dashboard_tests", "over the period")}
+        empty={@coverage_analytics.ok? && is_nil(@coverage_analytics.result.latest)}
         empty_label={dgettext("dashboard_tests", "No coverage yet")}
       />
       <.percentile_dropdown_widget
@@ -269,11 +264,38 @@
       />
     </div>
     <.card_section
-      :if={!@test_runs_analytics.ok?}
+      :if={!@test_runs_analytics.ok? and @analytics_selected_widget != "coverage"}
       data-part="analytics-card-chart-section"
     >
       <.skeleton_chart />
     </.card_section>
+    <%!-- The Code Coverage page's chart, over the date picker's period --%>
+    <.card_section
+      :if={
+        (@analytics_selected_widget == "coverage" and @coverage_analytics) &&
+          (!@coverage_analytics.ok? or @coverage_analytics.result.points != [])
+      }
+      data-part="analytics-card-chart-section"
+    >
+      <.skeleton_chart :if={!@coverage_analytics.ok?} />
+      <TuistWeb.Coverage.Components.coverage_trend_chart
+        :if={@coverage_analytics.ok?}
+        id="coverage-chart"
+        points={@coverage_analytics.result.points}
+      />
+    </.card_section>
+    <TuistWeb.Coverage.Components.coverage_empty
+      :if={
+        ((@analytics_selected_widget == "coverage" and @coverage_analytics) &&
+           @coverage_analytics.ok?) and @coverage_analytics.result.points == []
+      }
+      title={
+        dgettext("dashboard_tests", "No measured commit on %{branch} in this period",
+          branch: @selected_project.default_branch
+        )
+      }
+      get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+    />
     <.card_section
       :if={
         @test_runs_analytics.ok? and
@@ -284,9 +306,7 @@
              (@analytics_selected_widget == "flaky_test_run_count" and
                 @flaky_test_runs_analytics.result.count != 0) or
              (@analytics_selected_widget == "failed_test_run_count" and
-                @failed_test_runs_analytics.result.count != 0) or
-             (@analytics_selected_widget == "coverage" and
-                @test_runs_coverage_analytics.result.runs_count != 0))
+                @failed_test_runs_analytics.result.count != 0))
       }
       data-part="analytics-card-chart-section"
     >
@@ -643,78 +663,10 @@
         ]}
         y_axis_min={0}
       />
-      <.chart
-        :if={@coverage_enabled and @analytics_selected_widget == "coverage"}
-        id="coverage-chart"
-        type="line"
-        extra_options={
-          %{
-            grid: %{
-              width: "97%",
-              left: "0.4%",
-              height: "88%",
-              top: "5%"
-            },
-            xAxis: %{
-              boundaryGap: false,
-              type: "category",
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary",
-                formatter: "fn:toLocaleDate",
-                customValues: [
-                  @analytics_chart_data.result.dates |> List.first(),
-                  @analytics_chart_data.result.dates |> List.last()
-                ],
-                padding: [10, 0, 0, 0]
-              }
-            },
-            yAxis: %{
-              splitNumber: 4,
-              splitLine: %{
-                lineStyle: %{
-                  color: "var:noora-chart-lines"
-                }
-              },
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary",
-                formatter: "{value}%"
-              }
-            },
-            legend: %{
-              show: false
-            },
-            tooltip:
-              if @analytics_preset == "last-24-hours" do
-                %{dateFormat: "hour", valueFormat: "{value}%"}
-              else
-                %{valueFormat: "{value}%"}
-              end
-          }
-        }
-        series={[
-          %{
-            color: "var:noora-chart-tertiary",
-            data:
-              Enum.zip(
-                @analytics_chart_data.result.dates,
-                @analytics_chart_data.result.values
-              )
-              |> Enum.map(&Tuple.to_list/1),
-            name: dgettext("dashboard_tests", "Line coverage"),
-            type: "line",
-            smooth: 0.1,
-            symbol: "circle",
-            symbolSize: 4,
-            connectNulls: true
-          }
-        ]}
-        y_axis_min={0}
-        y_axis_max={100}
-      />
     </.card_section>
     <.empty_card_section
       :if={
-        @test_runs_analytics.ok? &&
+        @test_runs_analytics.ok? && @analytics_selected_widget != "coverage" &&
           @test_runs_duration_analytics.result.total_average_duration == 0
       }
       title={dgettext("dashboard_tests", "No data yet")}

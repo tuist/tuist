@@ -18,6 +18,7 @@ alias Tuist.Cache.CASEvent
 alias Tuist.CommandEvents.Event
 alias Tuist.CommandEvents.ModuleCacheOutput
 alias Tuist.Environment
+alias Tuist.GitHistory
 alias Tuist.Gradle.Build, as: GradleBuild
 alias Tuist.Gradle.CacheEvent, as: GradleCacheEvent
 alias Tuist.Gradle.Task, as: GradleTask
@@ -38,6 +39,7 @@ alias Tuist.Shards.ShardPlanTestSuite
 alias Tuist.Shards.ShardRun
 alias Tuist.Slack.Installation
 alias Tuist.Tests
+alias Tuist.Tests.Coverage.Commits
 alias Tuist.Tests.Test
 alias Tuist.Tests.TestCase
 alias Tuist.Tests.TestCaseEvent
@@ -2234,7 +2236,7 @@ existing_events_with_xcode =
 events_needing_xcode =
   from(e in Event,
     where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
-    select: %{id: e.id, name: e.name, ran_at: e.ran_at},
+    select: %{id: e.id, name: e.name, ran_at: e.ran_at, project_id: e.project_id},
     order_by: [desc: e.ran_at],
     limit: 200
   )
@@ -3912,6 +3914,18 @@ end
 # =============================================================================
 
 runner_jobs_account_id = organization.account.id
+
+# The jobs below have fixed ids, and a job with a recorded completion refuses
+# to be claimed again, so a re-seed starts from the account's lifecycle rows
+# gone rather than stopping at the first job it already finished.
+for schema <- [
+      Tuist.Runners.JobCompletion,
+      Tuist.Runners.Claim,
+      Tuist.Runners.WorkflowJob,
+      RunnerSession
+    ] do
+  Repo.delete_all(from(row in schema, where: row.account_id == ^runner_jobs_account_id))
+end
 
 runner_jobs_repos = [
   "tuist/tuist",
@@ -5750,6 +5764,538 @@ kura_events
 end)
 
 IO.puts("  - kura usage events: #{length(kura_events)}")
+
+# =============================================================================
+# Code coverage
+# =============================================================================
+#
+# Coverage is a property of a commit: a run measures one scheme of it and the
+# commit's figure is the union of its runs, so dev data needs the whole chain —
+# the repository's commit graph, each commit's file listing, runs carrying
+# coverage, and the per-commit totals every coverage surface reads.
+#
+# What this seeds, all inside the page's default 30-day window:
+#   - `main`, a commit a day, measured by the `App` and `Networking` schemes;
+#     its two newest commits by four, so the schemes column has some to fold
+#   - a commit nobody measured, and one measured by a single scheme, so the
+#     history shows a gap and a commit that stays off the trend
+#   - a merged pull request's branch and the merge commit on `main`
+#   - an open pull request (#4321) whose head drops coverage, measured by a
+#     partial run and never signalled, so its gate sits pending
+#   - listings holding sources no scheme compiles: the unmeasured gap
+
+coverage_repository_url = "https://github.com/tuist/tuist"
+coverage_repository_key = GitHistory.repository_key(coverage_repository_url)
+
+# Re-seeding starts from a clean graph: dropping the repository cascades to its
+# commits, parents, refs and listings, and the runs that named it go with it,
+# so the trend is never two seedings deep.
+coverage_previous_repository_id =
+  Repo.one(
+    from(r in GitHistory.Repository,
+      where: r.account_id == ^organization.account.id and r.key == ^coverage_repository_key,
+      select: r.id
+    )
+  )
+
+if coverage_previous_repository_id do
+  IngestRepo.query!("DELETE FROM git_commit_files WHERE repository_id = {repository_id:Int64}", %{
+    repository_id: coverage_previous_repository_id
+  })
+
+  Repo.delete_all(from(r in GitHistory.Repository, where: r.id == ^coverage_previous_repository_id))
+end
+
+for table <- ["coverage_files", "coverage_runs"] do
+  IngestRepo.query!("DELETE FROM #{table} WHERE project_id = {project_id:Int64}", %{project_id: tuist_project.id})
+end
+
+Repo.delete_all(from(c in Tuist.Tests.CoverageCommit, where: c.project_id == ^tuist_project.id))
+
+# A mutation rather than a lightweight delete: `test_runs` carries projections,
+# which lightweight deletes refuse to touch.
+IngestRepo.query!(
+  "ALTER TABLE test_runs DELETE WHERE project_id = {project_id:Int64} AND git_repository_id > 0",
+  %{project_id: tuist_project.id}
+)
+
+coverage_repository_id = GitHistory.repository_id(organization.account.id, coverage_repository_url)
+
+{:ok, tuist_project} =
+  Projects.update_project(tuist_project, %{
+    coverage_gates_enabled: true,
+    coverage_gate_min_patch_coverage: 80.0,
+    coverage_gate_max_total_drop: 1.0,
+    tracked_file_globs: ["Sources/**/*.swift", "Tests/**/*.swift"],
+    coverage_excluded_path_globs: ["Sources/Generated/**"]
+  })
+
+# The repository's sources: path, the target that compiles it, and its
+# executable lines.
+coverage_sources = [
+  {"Sources/App/AppDelegate.swift", "App", 64},
+  {"Sources/App/RootView.swift", "App", 188},
+  {"Sources/App/Navigation/Router.swift", "App", 142},
+  {"Sources/App/Features/Onboarding/OnboardingView.swift", "App", 214},
+  {"Sources/App/Features/Onboarding/OnboardingViewModel.swift", "App", 96},
+  {"Sources/App/Features/Projects/ProjectListView.swift", "App", 176},
+  {"Sources/App/Features/Projects/ProjectDetailView.swift", "App", 232},
+  {"Sources/App/Features/Settings/SettingsView.swift", "App", 118},
+  {"Sources/App/Features/Settings/SettingsStore.swift", "App", 87},
+  {"Sources/DesignSystem/Button.swift", "DesignSystem", 74},
+  {"Sources/DesignSystem/Card.swift", "DesignSystem", 61},
+  {"Sources/DesignSystem/Theme.swift", "DesignSystem", 133},
+  {"Sources/DesignSystem/Typography.swift", "DesignSystem", 48},
+  {"Sources/Networking/APIClient.swift", "Networking", 246},
+  {"Sources/Networking/Endpoint.swift", "Networking", 92},
+  {"Sources/Networking/RequestBuilder.swift", "Networking", 154},
+  {"Sources/Networking/ResponseDecoder.swift", "Networking", 128},
+  {"Sources/Networking/Retry/RetryPolicy.swift", "Networking", 103},
+  {"Sources/Networking/Cache/ResponseCache.swift", "Networking", 167},
+  {"Sources/Networking/Auth/TokenStore.swift", "Networking", 111},
+  {"Tests/AppTests/RootViewTests.swift", "AppTests", 142},
+  {"Tests/AppTests/OnboardingViewModelTests.swift", "AppTests", 96},
+  {"Tests/NetworkingTests/APIClientTests.swift", "NetworkingTests", 204}
+]
+
+# Which scheme compiles each target: a run measures one scheme, and the commit's
+# coverage merges the schemes that measured it.
+coverage_scheme_of = %{
+  "App" => "App",
+  "AppTests" => "App",
+  "DesignSystem" => "App",
+  "Networking" => "Networking",
+  "NetworkingTests" => "Networking"
+}
+
+# Sources Git knows that no scheme compiles: the page counts them as the
+# unmeasured gap. `Sources/Generated` is also excluded from every figure.
+coverage_unmeasured_paths = [
+  "Sources/App/Legacy/UIKitBridge.swift",
+  "Sources/Networking/Deprecated/LegacyClient.swift",
+  "Sources/Generated/Assets.swift",
+  "Sources/Generated/Strings.swift"
+]
+
+coverage_listing_paths =
+  Enum.map(coverage_sources, fn {path, _target, _lines} -> path end) ++
+    coverage_unmeasured_paths ++ ["Package.swift", "README.md", ".gitignore"]
+
+coverage_commit_sha = fn label ->
+  :sha |> :crypto.hash("tuist-coverage-seed/" <> label) |> Base.encode16(case: :lower)
+end
+
+coverage_blob_id = fn path, sha ->
+  {path, sha} |> :erlang.phash2() |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(40, "0")
+end
+
+coverage_at = fn days_ago, hour ->
+  Date.utc_today() |> Date.add(-days_ago) |> DateTime.new!(Time.new!(hour, 0, 0))
+end
+
+# A file's own coverage plus the commit's drift, so the trend rises over the
+# month instead of being flat or random.
+coverage_ratio = fn path, drift ->
+  base = 0.52 + rem(:erlang.phash2({:coverage, path}), 40) / 100
+  base |> Kernel.+(drift) |> max(0.05) |> min(1.0)
+end
+
+# A file's functions: named after what the file is, splitting its lines
+# between them, each covering the lines of its own span that ran.
+coverage_function_names = %{
+  "View" => ["body", "header", "content(for:)", "emptyState", "toolbarItems"],
+  "ViewModel" => ["init(service:)", "load()", "refresh()", "select(_:)", "handle(_:)"],
+  "Store" => ["init(defaults:)", "value(for:)", "set(_:for:)", "reset()"],
+  "Client" => ["init(session:)", "send(_:)", "decode(_:from:)", "validate(_:)", "retry(_:after:)"],
+  "Policy" => ["init(maxAttempts:)", "delay(for:)", "shouldRetry(_:)"],
+  "Cache" => ["init(capacity:)", "value(for:)", "insert(_:for:)", "evict()"],
+  "Tests" => ["setUp()", "tearDown()"]
+}
+
+coverage_functions = fn path, counts ->
+  stem = Path.basename(path, ".swift")
+
+  names =
+    Enum.find_value(coverage_function_names, fn {suffix, names} ->
+      if String.ends_with?(stem, suffix), do: names
+    end) ||
+      ["init()", "#{String.downcase(String.first(stem))}#{String.slice(stem, 1..-1//1)}()", "update(_:)", "describe()"]
+
+  lines = length(counts)
+  names = Enum.take(names, max(2, min(length(names), div(lines, 24))))
+  span = div(lines, length(names))
+
+  names
+  |> Enum.with_index()
+  |> Enum.map(fn {name, index} ->
+    first = index * span
+    last = if index == length(names) - 1, do: lines, else: first + span
+    own = Enum.slice(counts, first, last - first)
+    covered = Enum.count(own, &(&1 > 0))
+
+    %{
+      name: name,
+      line_number: first + 1,
+      execution_count: if(covered > 0, do: 1 + rem(:erlang.phash2({path, name}), 24), else: 0),
+      covered_lines: covered,
+      executable_lines: length(own)
+    }
+  end)
+end
+
+coverage_file = fn {path, target, lines}, sha, drift ->
+  target_lines = round(lines * coverage_ratio.(path, drift))
+
+  uncovered =
+    MapSet.new(for i <- 1..(lines - target_lines)//1, do: rem(i * 13 + :erlang.phash2(path), lines) + 1)
+
+  counts = Enum.map(1..lines, fn line -> if MapSet.member?(uncovered, line), do: 0, else: 3 end)
+  covered = Enum.count(counts, &(&1 > 0))
+
+  %{
+    path: path,
+    git_blob_id: coverage_blob_id.(path, sha),
+    targets: [target],
+    is_test: String.starts_with?(path, "Tests/"),
+    covered_lines: covered,
+    executable_lines: lines,
+    line_numbers: Enum.to_list(1..lines),
+    execution_counts: counts,
+    functions: coverage_functions.(path, counts)
+  }
+end
+
+# Schemes added late in the month that re-measure targets the first two
+# already cover: the union is unchanged, the commit just has more runs.
+coverage_extra_scheme_targets = %{
+  "DesignSystem" => ["DesignSystem"],
+  "AppIntegration" => ["App", "Networking"]
+}
+
+# The tests behind a scheme's files: a suite per source file, named after it
+# in its target's test module, whose tests split the lines the file's
+# coverage says ran, so each file page lists the tests that executed it and
+# the lines each one ran. What the CLI sends as the run's evidence.
+coverage_test_names = ["test_default()", "test_update()", "test_failure()", "test_empty()"]
+
+coverage_tests_for_files = fn files ->
+  files
+  |> Enum.reject(& &1.is_test)
+  |> Enum.with_index()
+  |> Enum.flat_map(fn {file, index} ->
+    module = hd(file.targets) <> "Tests"
+    suite = Path.basename(file.path, ".swift") <> "Tests"
+    ran = for {line, count} <- Enum.zip(file.line_numbers, file.execution_counts), count > 0, do: line
+    tests = Enum.take(coverage_test_names, 2 + rem(:erlang.phash2(file.path), 3))
+    chunk = max(1, ceil(length(ran) / length(tests)))
+
+    tests
+    |> Enum.zip(Enum.chunk_every(ran, chunk))
+    |> Enum.map(fn {name, lines} ->
+      ranges =
+        lines
+        |> Enum.chunk_while(
+          nil,
+          fn
+            line, nil -> {:cont, {line, line}}
+            line, {first, last} when line == last + 1 -> {:cont, {first, line}}
+            line, range -> {:cont, range, {line, line}}
+          end,
+          fn
+            nil -> {:cont, nil}
+            range -> {:cont, range, nil}
+          end
+        )
+        |> Enum.flat_map(fn {first, last} -> [first, last] end)
+
+      %{module: module, suite: suite, name: name, file: index, lines: ranges}
+    end)
+  end)
+end
+
+coverage_evidence_for_files = fn files ->
+  sources = Enum.reject(files, & &1.is_test)
+  tests = coverage_tests_for_files.(sources)
+
+  %{
+    paths: Enum.map(sources, & &1.path),
+    scopes:
+      Enum.map(tests, fn test ->
+        %{kind: "test", module: test.module, suite: test.suite, name: test.name, files: [test.file], lines: [test.lines]}
+      end)
+  }
+end
+
+coverage_test_modules_for_files = fn files ->
+  files
+  |> Enum.reject(& &1.is_test)
+  |> coverage_tests_for_files.()
+  |> Enum.group_by(& &1.module)
+  |> Enum.map(fn {module, tests} ->
+    %{
+      name: module,
+      status: "success",
+      duration: 1000 * length(tests),
+      test_cases:
+        Enum.map(tests, fn test ->
+          %{
+            name: test.name,
+            test_suite_name: test.suite,
+            status: "success",
+            duration: 40 + rem(:erlang.phash2(test), 400)
+          }
+        end)
+    }
+  end)
+end
+
+coverage_files_for_scheme = fn scheme, sha, drift ->
+  coverage_sources
+  |> Enum.filter(fn {_path, target, _lines} ->
+    case coverage_extra_scheme_targets do
+      %{^scheme => targets} -> target in targets
+      _ -> Map.fetch!(coverage_scheme_of, target) == scheme
+    end
+  end)
+  |> Enum.map(&coverage_file.(&1, sha, drift))
+end
+
+# `main`, oldest first: a commit a day, its coverage drifting up over the month
+# with a dip in the middle so the trend has a shape to investigate.
+coverage_main_days = Enum.to_list(28..6//-1)
+
+coverage_main =
+  coverage_main_days
+  |> Enum.with_index()
+  |> Enum.map(fn {days_ago, index} ->
+    dip = if index in 9..12, do: -0.05, else: 0.0
+
+    schemes =
+      case index do
+        # Nobody measured this commit: the history keeps it in place, the
+        # trend steps over it.
+        17 ->
+          []
+
+        # Only the `App` scheme measured this one, so its measured set never
+        # matches the commit before it and it stays off the trend.
+        19 ->
+          [{"App", false}]
+
+        _ ->
+          [{"App", false}, {"Networking", false}]
+      end
+
+    %{
+      sha: coverage_commit_sha.("main-#{index}"),
+      parents: if(index == 0, do: [], else: [coverage_commit_sha.("main-#{index - 1}")]),
+      committed_at: coverage_at.(days_ago, 9),
+      branch: "main",
+      drift: index * 0.004 + dip,
+      schemes: schemes,
+      # Completion comes from the client's signal; the single-scheme commit
+      # never gets one, so it is both incomplete and unchained.
+      signal: index not in [17, 19],
+      pull_request: nil,
+      changed_files: []
+    }
+  end)
+
+coverage_main_head_index = length(coverage_main_days) - 1
+
+# A merged pull request's branch, off `main` twelve days back, and the merge
+# commit that brought it in: the first-parent walk keeps its commits with the
+# pull request and `main`'s trend unbroken.
+coverage_merged_branch =
+  Enum.map([{0, 12}, {1, 11}], fn {index, days_ago} ->
+    %{
+      sha: coverage_commit_sha.("retries-#{index}"),
+      parents: [
+        if(index == 0, do: coverage_commit_sha.("main-14"), else: coverage_commit_sha.("retries-#{index - 1}"))
+      ],
+      committed_at: coverage_at.(days_ago, 14),
+      branch: "feature/networking-retries",
+      drift: 0.02 + index * 0.01,
+      schemes: [{"App", false}, {"Networking", false}],
+      signal: true,
+      measured: true,
+      pull_request: %{number: 4299, ref: "refs/pull/4299/merge", merge_base_sha: coverage_commit_sha.("main-14")},
+      changed_files: []
+    }
+  end)
+
+coverage_merge_commit = %{
+  sha: coverage_commit_sha.("main-merge"),
+  parents: [coverage_commit_sha.("main-#{coverage_main_head_index}"), coverage_commit_sha.("retries-1")],
+  committed_at: coverage_at.(5, 10),
+  branch: "main",
+  drift: 0.1,
+  schemes: [{"App", false}, {"Networking", false}],
+  signal: true,
+  measured: true,
+  pull_request: nil,
+  changed_files: []
+}
+
+coverage_main_tail =
+  Enum.map(
+    [{23, 4, coverage_commit_sha.("main-merge"), true}, {24, 3, coverage_commit_sha.("main-23"), false}],
+    fn {index, days_ago, parent, signal} ->
+      %{
+        sha: coverage_commit_sha.("main-#{index}"),
+        parents: [parent],
+        committed_at: coverage_at.(days_ago, 11),
+        branch: "main",
+        drift: 0.105 + (index - 23) * 0.005,
+        schemes: [{"App", false}, {"Networking", false}, {"DesignSystem", false}, {"AppIntegration", false}],
+        # The newest commit's pipeline has not signalled yet: measured, pending.
+        signal: signal,
+        measured: true,
+        pull_request: nil,
+        changed_files: []
+      }
+    end
+  )
+
+coverage_pull_request_changed_files = fn sha ->
+  Enum.map(
+    [
+      {"Sources/App/Features/Projects/ProjectDetailView.swift", "modified", [%{start: 40, end: 96}]},
+      {"Sources/Networking/Retry/RetryPolicy.swift", "modified", [%{start: 12, end: 48}]},
+      {"Sources/App/Features/Settings/SettingsStore.swift", "added", [%{start: 1, end: 87}]}
+    ],
+    fn {path, status, hunks} ->
+      %{path: path, status: status, git_blob_id: coverage_blob_id.(path, sha), hunks: hunks}
+    end
+  )
+end
+
+# The open pull request: its head drops coverage, was measured by a partial run
+# (selective testing left tests out) and never signalled, so the gate is pending
+# and the comparison has something to say.
+coverage_open_branch =
+  Enum.map(
+    [
+      {0, 2, 0.09, [{"App", false}, {"Networking", false}], true},
+      {1, 1, -0.06, [{"App", true}, {"Networking", false}], false}
+    ],
+    fn {index, days_ago, drift, schemes, signal} ->
+      sha = coverage_commit_sha.("coverage-page-#{index}")
+
+      %{
+        sha: sha,
+        parents: [
+          if(index == 0,
+            do: coverage_commit_sha.("main-24"),
+            else: coverage_commit_sha.("coverage-page-#{index - 1}")
+          )
+        ],
+        committed_at: coverage_at.(days_ago, 15),
+        branch: "feature/coverage-page",
+        drift: drift,
+        schemes: schemes,
+        signal: signal,
+        measured: true,
+        pull_request: %{number: 4321, ref: "refs/pull/4321/merge", merge_base_sha: coverage_commit_sha.("main-24")},
+        changed_files: coverage_pull_request_changed_files.(sha)
+      }
+    end
+  )
+
+coverage_plan =
+  coverage_main ++ coverage_merged_branch ++ [coverage_merge_commit] ++ coverage_main_tail ++ coverage_open_branch
+
+GitHistory.record_commits(
+  coverage_repository_id,
+  "sha1",
+  Enum.map(coverage_plan, &Map.take(&1, [:sha, :parents, :committed_at]))
+)
+
+for {branch, sha} <- [
+      {"main", coverage_commit_sha.("main-24")},
+      {"feature/networking-retries", coverage_commit_sha.("retries-1")},
+      {"feature/coverage-page", coverage_commit_sha.("coverage-page-1")}
+    ] do
+  GitHistory.record_branch_head(coverage_repository_id, branch, sha, tuist_project.default_branch)
+end
+
+# Each commit's file listing, as the CLI uploads it from a clean checkout: the
+# tracked files, and with them the sources no scheme measured.
+for commit <- coverage_plan do
+  files =
+    Enum.map(coverage_listing_paths, fn path ->
+      %{path: path, git_blob_id: coverage_blob_id.(path, commit.sha), mode: 0o100644}
+    end)
+
+  GitHistory.record_listing(coverage_repository_id, commit.sha, files, files_count: length(files))
+end
+
+coverage_run_count =
+  Enum.reduce(coverage_plan, 0, fn commit, count ->
+    Enum.each(commit.schemes, fn {scheme, partial} ->
+      files = coverage_files_for_scheme.(scheme, commit.sha, commit.drift)
+
+      ran_at =
+        commit.committed_at
+        |> DateTime.add(Enum.random(600..5400), :second)
+        |> DateTime.to_naive()
+        |> NaiveDateTime.truncate(:second)
+
+      {:ok, _run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: tuist_project.id,
+          account_id: organization.account.id,
+          duration: Enum.random(120_000..420_000),
+          status: "success",
+          is_ci: true,
+          ci_provider: "github",
+          ci_project_handle: "tuist/tuist",
+          ci_run_id: "#{Enum.random(19_000_000_000..20_000_000_000)}",
+          macos_version: "26.0",
+          xcode_version: "26.1",
+          scheme: scheme,
+          ran_at: ran_at,
+          git_branch: commit.branch,
+          git_commit_sha: commit.sha,
+          git_ref: (commit.pull_request && commit.pull_request.ref) || "refs/heads/#{commit.branch}",
+          git_remote_url_origin: coverage_repository_url,
+          base_branch: commit.pull_request && "main",
+          merge_base_sha: commit.pull_request && commit.pull_request.merge_base_sha,
+          is_pull_request: commit.pull_request != nil,
+          pull_request_number: commit.pull_request && commit.pull_request.number,
+          git_object_format: "sha1",
+          history_source: "client",
+          test_modules: coverage_test_modules_for_files.(files),
+          coverage_evidence: coverage_evidence_for_files.(files),
+          changed_files: commit.changed_files,
+          xcode_coverage: %{partial: partial, files: files}
+        })
+    end)
+
+    count + length(commit.schemes)
+  end)
+
+# The runs and their changed files ride the ingestion buffers, and a commit's
+# totals are the union of the runs stored for it, so both have to be in
+# ClickHouse before the totals are published.
+Tuist.Tests.Test.Buffer.flush()
+Tuist.Tests.TestRunChangedFile.Buffer.flush()
+
+coverage_published =
+  Enum.count(coverage_plan, fn commit ->
+    published =
+      if commit.signal do
+        Commits.signal_complete(tuist_project, commit.sha)
+      else
+        Commits.recompute(tuist_project, commit.sha)
+      end
+
+    published != nil
+  end)
+
+IO.puts("  - coverage commits: #{coverage_published} published over #{coverage_run_count} runs")
+IO.puts("  - coverage pull request: /#{organization.account.name}/tuist/tests/coverage/pull-requests/4321")
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

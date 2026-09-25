@@ -3,7 +3,7 @@ defmodule Tuist.Tests.TestCaseCurrentState do
   Ecto schema for the `test_case_current_states` ClickHouse table.
 
   AggregatingMergeTree keyed on `(project_id, test_case_id)` holding `argMaxIf`
-  aggregate states for `state` and `is_flaky`, maintained by
+  aggregate states for `state`, `is_flaky` and `is_unskippable`, maintained by
   `test_case_current_states_mv` off the `test_case_states` ledger. It is the
   pre-aggregated form of the per-column-nullable resolution the readers in
   `Tuist.Tests` used to compute at query time against the raw ledger.

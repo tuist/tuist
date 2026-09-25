@@ -12,7 +12,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
-  alias Tuist.Tests.XcodeCoverage
+  alias Tuist.Tests.Coverage
   alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -140,12 +140,30 @@ defmodule TuistWeb.TestRunLiveTest do
             ]),
             file.("Sources/Calculator/Untested.swift", [{2, 0}, {3, 0}], [])
           ]
+        },
+        enumerated_tests: [
+          %{module: "CalculatorTests", suite: "AddTests", name: "testAdd()"},
+          %{module: "CalculatorTests", suite: "AddTests", name: "testOverflow()"}
+        ],
+        coverage_evidence: %{
+          paths: ["Sources/Calculator/Add.swift"],
+          scopes: [
+            %{kind: "test", module: "CalculatorTests", suite: "AddTests", name: "testAdd()", files: [0]},
+            %{kind: "target", module: "CalculatorTests", suite: "", name: "", files: [0]}
+          ]
         }
       })
 
     base = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+    # The tab's lists are read once, when the socket connects.
+    html = conn |> get("#{base}?tab=coverage") |> html_response(200)
+    assert html =~ ~s(data-part="coverage-loading")
+    refute html =~ "coverage-targets-table"
+
     {:ok, lv, _html} = live(conn, "#{base}?tab=coverage")
 
+    refute has_element?(lv, "[data-part='coverage-loading']")
     assert has_element?(lv, "#widget-coverage-percentage", "33.3%")
     refute has_element?(lv, "#coverage-partial-run")
     assert has_element?(lv, "#coverage-targets-table", "Calculator")
@@ -155,11 +173,24 @@ defmodule TuistWeb.TestRunLiveTest do
     add = files_html |> :binary.match("Add.swift") |> elem(0)
     assert untested < add
 
-    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage&coverage-file=Sources/Calculator/Add.swift")
+    assert has_element?(lv, "#widget-coverage-tests-left-out", "2")
+    assert has_element?(lv, "#widget-coverage-tests-with-evidence", "1")
+    assert has_element?(lv, "#coverage-files-table a[href='#{base}/files/Sources/Calculator/Add.swift']")
 
-    assert has_element?(lv, "#coverage-file", "Sources/Calculator/Add.swift")
+    # A file opens on a page of its own, scoped by the run and leading back to it.
+    {:ok, lv, _html} = live(conn, "#{base}/files/Sources/Calculator/Add.swift")
+
+    assert has_element?(lv, "#coverage-file-page h1", "Add.swift")
+    assert has_element?(lv, "[data-part='back-button'][href='#{base}?tab=coverage']")
+    assert has_element?(lv, "#coverage-file-targets", "Calculator")
     assert has_element?(lv, "#coverage-file-uncovered-lines", "3–4")
     assert has_element?(lv, "#coverage-functions-table", "add(_:_:)")
+    assert has_element?(lv, "#coverage-file-tests-table", "testAdd()")
+    assert has_element?(lv, "#coverage-file-test-targets", "CalculatorTests")
+
+    {:ok, lv, _html} = live(conn, "#{base}/files/Sources/Calculator/Untested.swift")
+    assert has_element?(lv, "#coverage-file-no-tests")
+    refute has_element?(lv, "#coverage-file-tests-table")
   end
 
   test "shows a file without line data with its reported counts and its uncovered lines as unavailable", %{
@@ -200,7 +231,7 @@ defmodule TuistWeb.TestRunLiveTest do
     {:ok, lv, _html} =
       live(
         conn,
-        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Legacy.swift"
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}/files/Sources/Calculator/Legacy.swift"
       )
 
     assert has_element?(lv, "#widget-coverage-file-percentage", "80.0%")
@@ -248,12 +279,12 @@ defmodule TuistWeb.TestRunLiveTest do
       })
 
     {:ok, stored} = Tuist.Tests.get_test(test_run.id)
-    XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([0, 1])), 1)
+    Coverage.publish(stored, Coverage.rows(project.id, shard.([0, 1])), 1)
 
     {:ok, lv, _html} =
       live(
         conn,
-        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Add.swift"
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}/files/Sources/Calculator/Add.swift"
       )
 
     assert has_element?(lv, "#widget-coverage-file-lines", "2 / 2")

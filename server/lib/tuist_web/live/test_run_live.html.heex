@@ -2236,7 +2236,37 @@
       icon="chart_arcs"
       data-part="coverage-summary-card"
     >
+      <:actions>
+        <.button
+          :if={@run.git_commit_sha not in [nil, ""] and not @run.git_dirty}
+          label={
+            dgettext("dashboard_tests", "Coverage of %{sha}",
+              sha: String.slice(@run.git_commit_sha, 0, 7)
+            )
+          }
+          variant="secondary"
+          size="medium"
+          navigate={
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/commits/#{@run.git_commit_sha}"
+          }
+        >
+          <:icon_right><.icon name="arrow_right" /></:icon_right>
+        </.button>
+      </:actions>
       <.card_section data-part="coverage-summary-section">
+        <.alert
+          :if={@run.git_dirty}
+          id="coverage-dirty-checkout"
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_tests",
+              "This run measured a checkout with uncommitted changes, so its coverage is the run's own and is left out of its commit's."
+            )
+          }
+        />
         <.alert
           :if={@coverage_summary.partial}
           id="coverage-partial-run"
@@ -2252,14 +2282,14 @@
         />
         <div data-part="widgets">
           <.widget
-            title={dgettext("dashboard_tests", "Line coverage")}
+            title={dgettext("dashboard_tests", "Code coverage")}
             description={
               dgettext(
                 "dashboard_tests",
                 "Share of executable lines the tests ran at least once, counting each source file once."
               )
             }
-            value={"#{XcodeCoverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
+            value={"#{Coverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
             id="widget-coverage-percentage"
           />
           <.widget
@@ -2280,147 +2310,111 @@
           />
         </div>
       </.card_section>
-      <.card_section data-part="coverage-targets-section">
+      <.card_section
+        :if={@coverage_evidence || @coverage_enumeration}
+        data-part="coverage-evidence-section"
+      >
+        <div data-part="widgets">
+          <.widget
+            :if={@coverage_enumeration}
+            title={dgettext("dashboard_tests", "Tests left out")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Enabled tests the run could have executed and did not, out of the %{count} it listed before running.",
+                count: format_number(@coverage_enumeration.enumerated)
+              )
+            }
+            value={format_number(@coverage_enumeration.not_run)}
+            id="widget-coverage-tests-left-out"
+          />
+          <.widget
+            :if={@coverage_evidence}
+            title={dgettext("dashboard_tests", "Tests with evidence")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Tests whose covered files were recorded one by one: what test selection plans over. %{count} ran without evidence of their own.",
+                count: format_number(@coverage_evidence.tests_without_evidence)
+              )
+            }
+            value={format_number(@coverage_evidence.tests)}
+            id="widget-coverage-tests-with-evidence"
+          />
+          <.widget
+            :if={@coverage_evidence}
+            title={dgettext("dashboard_tests", "Files per test")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "The median number of files a test executes; the widest test executes %{count}.",
+                count: format_number(@coverage_evidence.max_files_per_test)
+              )
+            }
+            value={format_number(@coverage_evidence.median_files_per_test)}
+            id="widget-coverage-files-per-test"
+          />
+        </div>
+      </.card_section>
+    </.card>
+
+    <div :if={@coverage_loading} data-part="coverage-loading">
+      <.skeleton_box width="100%" height="200px" />
+      <.skeleton_box width="100%" height="320px" />
+    </div>
+
+    <.card
+      :if={not @coverage_loading}
+      title={dgettext("dashboard_tests", "Targets")}
+      icon="stack_2"
+      data-part="coverage-targets-card"
+    >
+      <.card_section :if={@coverage_targets != []} data-part="coverage-targets-section">
         <.table id="coverage-targets-table" rows={@coverage_targets}>
           <:col :let={target} label={dgettext("dashboard_tests", "Target")}>
             <.text_cell label={target.name} />
           </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
-            <.text_cell label={format_number(target.files_count)} />
-          </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Lines")}>
-            <.text_cell label={"#{format_number(target.covered_lines)} / #{format_number(target.executable_lines)}"} />
-          </:col>
           <:col :let={target} label={dgettext("dashboard_tests", "Coverage")}>
             <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
           </:col>
-        </.table>
-      </.card_section>
-    </.card>
-
-    <.card
-      :if={@coverage_file}
-      title={@coverage_file.path}
-      icon="file"
-      data-part="coverage-file-card"
-      id="coverage-file"
-    >
-      <:actions>
-        <.button
-          label={dgettext("dashboard_tests", "Close")}
-          variant="secondary"
-          size="medium"
-          patch={"?#{Query.drop(@uri.query, "coverage-file")}"}
-        />
-      </:actions>
-      <.card_section data-part="coverage-file-section">
-        <div data-part="widgets">
-          <.widget
-            title={dgettext("dashboard_tests", "Line coverage")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Share of the file's executable lines the tests ran at least once."
-              )
-            }
-            value={"#{XcodeCoverage.percentage(@coverage_file.covered_lines, @coverage_file.executable_lines)}%"}
-            id="widget-coverage-file-percentage"
-          />
-          <.widget
-            title={dgettext("dashboard_tests", "Covered lines")}
-            description={
-              dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
-            }
-            value={"#{format_number(@coverage_file.covered_lines)} / #{format_number(@coverage_file.executable_lines)}"}
-            id="widget-coverage-file-lines"
-          />
-          <.widget
-            title={dgettext("dashboard_tests", "Functions")}
-            description={
-              dgettext("dashboard_tests", "Functions the compiler instrumented in the file.")
-            }
-            value={length(@coverage_file.functions)}
-            id="widget-coverage-file-functions"
-          />
-        </div>
-        <dl data-part="coverage-file-details">
-          <div :if={@coverage_file.git_blob_id != ""}>
-            <dt>{dgettext("dashboard_tests", "Git blob")}</dt>
-            <dd><code>{@coverage_file.git_blob_id}</code></dd>
-          </div>
-          <div :if={@coverage_file.targets != []}>
-            <dt>{dgettext("dashboard_tests", "Targets")}</dt>
-            <dd>{Enum.join(@coverage_file.targets, ", ")}</dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard_tests", "Uncovered lines")}</dt>
-            <dd id="coverage-file-uncovered-lines">
-              {case @coverage_file.uncovered_ranges do
-                nil -> dgettext("dashboard_tests", "Unavailable")
-                [] -> dgettext("dashboard_tests", "None")
-                ranges -> coverage_line_ranges(ranges)
-              end}
-            </dd>
-          </div>
-        </dl>
-      </.card_section>
-      <.card_section :if={@coverage_file_functions != []} data-part="coverage-functions-section">
-        <.table id="coverage-functions-table" rows={@coverage_file_functions}>
-          <:col :let={function} label={dgettext("dashboard_tests", "Function")}>
-            <.text_cell label={function.name} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Line")}>
-            <.text_cell label={Integer.to_string(function.line_number)} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Executions")}>
-            <.text_cell label={format_number(function.execution_count)} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Coverage")}>
-            <.text_cell
-              :if={is_nil(function.covered_lines)}
-              label={dgettext("dashboard_tests", "Unavailable")}
-            />
-            <.coverage_cell
-              :if={function.covered_lines}
-              covered={function.covered_lines}
-              executable={function.executable_lines}
-            />
+          <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
+            <.text_cell label={format_number(target.files_count)} />
           </:col>
         </.table>
       </.card_section>
+      <TuistWeb.Coverage.Components.coverage_empty
+        :if={@coverage_targets == []}
+        title={dgettext("dashboard_tests", "No target was measured in this run")}
+        image="table"
+      />
     </.card>
 
     <.card
+      :if={not @coverage_loading}
       title={dgettext("dashboard_tests", "Files")}
       icon="file"
       data-part="coverage-files-card"
     >
-      <.card_section data-part="coverage-files-section">
-        <.table id="coverage-files-table" rows={@coverage_files}>
-          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <div data-part="cell" data-type="text">
-              <.link
-                data-part="coverage-file-link"
-                patch={"?#{Query.put(@uri.query, "coverage-file", file.path)}"}
-              >
-                {file.path}
-              </.link>
-            </div>
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
-            <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
-          </:col>
-        </.table>
-        <.pagination_group
-          :if={@coverage_files_meta.total_pages > 1}
-          current_page={@coverage_files_meta.current_page}
-          number_of_pages={@coverage_files_meta.total_pages}
+      <.card_section :if={@coverage_files != []} data-part="coverage-files-section">
+        <TuistWeb.Coverage.Components.coverage_files_table
+          rows={@coverage_files}
+          file_href={
+            &TuistWeb.Coverage.Components.coverage_file_href(
+              @selected_account.name,
+              @selected_project.name,
+              &1,
+              %{test_run: @run.id}
+            )
+          }
+          meta={@coverage_files_meta}
           page_patch={fn page -> "?#{Query.put(@uri.query, "coverage-page", page)}" end}
         />
       </.card_section>
+      <TuistWeb.Coverage.Components.coverage_empty
+        :if={@coverage_files == []}
+        title={dgettext("dashboard_tests", "No file was measured in this run")}
+        image="table"
+      />
     </.card>
   </div>
 

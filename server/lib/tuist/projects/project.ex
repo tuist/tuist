@@ -54,6 +54,15 @@ defmodule Tuist.Projects.Project do
     # the project has none. The suffix (`.png` / `.jpg` / `.webp`) doubles as
     # the content-type hint when serving.
     field :logo_storage_key, :string
+    # Git history overrides; nil means the server default (see `Tuist.GitHistory.settings/1`).
+    field :git_history_window_days, :integer
+    field :git_history_window_commits, :integer
+    field :coverage_gates_enabled, :boolean, default: false
+    field :coverage_gate_min_patch_coverage, :float
+    field :coverage_gate_max_total_drop, :float
+    field :tracked_file_globs, {:array, :string}
+    # Coverage leaves these paths out of every figure (see `Tuist.Tests.Coverage.ExcludedPaths`).
+    field :coverage_excluded_path_globs, {:array, :string}
 
     belongs_to :account, Account
 
@@ -111,8 +120,19 @@ defmodule Tuist.Projects.Project do
       :auto_mark_flaky_threshold,
       :flaky_cooldown_days,
       :build_system,
-      :bundle_size_approval_policy
+      :bundle_size_approval_policy,
+      :git_history_window_days,
+      :git_history_window_commits,
+      :coverage_gates_enabled,
+      :coverage_gate_min_patch_coverage,
+      :coverage_gate_max_total_drop,
+      :tracked_file_globs,
+      :coverage_excluded_path_globs
     ])
+    |> validate_number(:git_history_window_days, greater_than: 0)
+    |> validate_number(:git_history_window_commits, greater_than: 0)
+    |> validate_number(:coverage_gate_min_patch_coverage, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
+    |> validate_number(:coverage_gate_max_total_drop, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
     |> validate_name()
     |> validate_length(:default_branch, max: 255)
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)

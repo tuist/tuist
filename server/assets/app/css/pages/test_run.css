@@ -279,7 +279,7 @@
 
   & [data-part="test-details"],
   & [data-part="coverage-summary-section"],
-  & [data-part="coverage-file-section"] {
+  & [data-part="coverage-evidence-section"] {
     & [data-part="widgets"] {
       display: flex;
       flex-direction: row;
@@ -914,11 +914,39 @@
     flex-direction: column;
     gap: var(--noora-spacing-6);
 
+    & [data-part="coverage-loading"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+    }
+
     & [data-part="coverage-files-section"],
     & [data-part="coverage-file-section"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-5);
+    }
+
+    /* The files list is the one a subject's Files tab shows. */
+    & [data-part="files-table"] {
+      display: flex;
+      flex-direction: column;
+
+      & .noora-pagination-group {
+        margin-top: var(--noora-spacing-7);
+      }
+    }
+
+    & [data-part="cell"][data-type="badge"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-body-medium);
+      }
     }
 
     & [data-part="coverage-file-link"] {

@@ -710,7 +710,8 @@ base_queues = [
   vcs_comments: 20,
   webhooks: 20,
   storage_retention: 1,
-  kura_provisioning: 10
+  kura_provisioning: 10,
+  git_history: 5
 ]
 
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}

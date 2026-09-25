@@ -76,6 +76,18 @@
           <.icon name="alert_triangle" />
         </:icon>
       </.badge>
+      <.badge
+        :if={!@can_update_test_case and @test_case_detail.is_unskippable}
+        label={dgettext("dashboard_tests", "Unskippable")}
+        color="information"
+        style="light-fill"
+        size="large"
+        title={dgettext("dashboard_tests", "Test selection always runs this test.")}
+      >
+        <:icon>
+          <.icon name="lock" />
+        </:icon>
+      </.badge>
       <.dropdown
         :if={@can_update_test_case}
         id="test-case-state-dropdown"
@@ -143,6 +155,35 @@
           <.icon name="alert_triangle" />
         </:icon_left>
       </.button>
+      <.button
+        :if={@can_update_test_case and @test_case_detail.is_unskippable}
+        label={dgettext("dashboard_tests", "Unmark as unskippable")}
+        variant="secondary"
+        size="medium"
+        phx-click="unmark-as-unskippable"
+        title={dgettext("dashboard_tests", "Test selection always runs this test.")}
+      >
+        <:icon_left>
+          <.icon name="lock_open_2" />
+        </:icon_left>
+      </.button>
+      <.button
+        :if={@can_update_test_case and !@test_case_detail.is_unskippable}
+        label={dgettext("dashboard_tests", "Mark as unskippable")}
+        variant="secondary"
+        size="medium"
+        phx-click="mark-as-unskippable"
+        title={
+          dgettext(
+            "dashboard_tests",
+            "Test selection will always run this test, whatever evidence it has."
+          )
+        }
+      >
+        <:icon_left>
+          <.icon name="lock" />
+        </:icon_left>
+      </.button>
     </div>
   </div>
 
@@ -161,6 +202,13 @@
       label={dgettext("dashboard_tests", "Flaky Runs")}
       selected={@selected_tab == "flaky-runs"}
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      :if={@coverage_evidence}
+      label={dgettext("dashboard_tests", "Coverage")}
+      selected={@selected_tab == "coverage"}
+      patch={"?#{Query.put(@uri.query, "tab", "coverage")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
@@ -913,6 +961,54 @@
           </div>
         </div>
       </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@selected_tab == "coverage" and @coverage_evidence}
+    title={dgettext("dashboard_tests", "Code it covers")}
+    icon="file"
+    data-part="test-case-coverage-card"
+    id="test-case-coverage"
+  >
+    <:actions>
+      <.button
+        label={dgettext("dashboard_tests", "View run")}
+        variant="secondary"
+        size="medium"
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{@coverage_evidence.test_run_id}?tab=coverage"
+        }
+      />
+    </:actions>
+    <.card_section data-part="test-case-coverage-section">
+      <.table
+        id="test-case-coverage-table"
+        rows={Enum.map(@coverage_evidence.files, &Map.put(&1, :id, &1.path))}
+        row_navigate={
+          fn file ->
+            TuistWeb.Coverage.Components.coverage_file_href(
+              @selected_project.account.name,
+              @selected_project.name,
+              file.path,
+              %{test_run: @coverage_evidence.test_run_id}
+            )
+          end
+        }
+      >
+        <:col :let={file} label={dgettext("dashboard_tests", "File")}>
+          <.text_and_description_cell
+            label={Path.basename(file.path)}
+            description={Path.dirname(file.path)}
+          />
+        </:col>
+        <:col :let={file} label={dgettext("dashboard_tests", "Executed by")}>
+          <.text_cell label={TuistWeb.Coverage.Components.evidence_scope_label(file.scope)} />
+        </:col>
+        <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
+          <TuistWeb.Coverage.Components.line_ranges_cell ranges={file.lines} />
+        </:col>
+      </.table>
     </.card_section>
   </.card>
 

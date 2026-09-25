@@ -44,6 +44,68 @@ defmodule TuistWeb.TestCaseLiveTest do
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
     end
 
+    test "lists the code the test covered the last time a run recorded it", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          coverage_evidence: %{
+            paths: ["Sources/Math.swift", "Sources/Boot.swift"],
+            scopes: [
+              %{
+                kind: "test",
+                module: "AppTests",
+                suite: "MathTests",
+                name: "testAdd()",
+                files: [0],
+                lines: [[3, 5, 9, 9, 12, 14]]
+              },
+              %{kind: "target", module: "AppTests", suite: "", name: "", files: [0, 1]}
+            ]
+          },
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [
+                %{name: "testAdd()", test_suite_name: "MathTests", status: "success", duration: 1},
+                %{name: "testNone()", test_suite_name: "MathTests", status: "success", duration: 1}
+              ]
+            }
+          ]
+        )
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      id = fn name -> Enum.find(test_run.test_case_runs, &(&1.name == name)).test_case_id end
+
+      path = ~p"/#{account.name}/#{project.name}/tests/test-cases/#{id.("testAdd()")}"
+      {:ok, lv, _html} = live(conn, path)
+      refute has_element?(lv, "#test-case-coverage-table")
+
+      # The evidence is read once, when the socket connects.
+      refute conn |> get(path <> "?tab=coverage") |> html_response(200) =~ "test-case-coverage-table"
+
+      {:ok, lv, _html} = live(conn, path <> "?tab=coverage")
+      assert has_element?(lv, "#test-case-coverage-table", "Math.swift")
+      assert has_element?(lv, "#test-case-coverage-table [title='3–5, 9, 12–14']", "3–5, 9, …")
+      assert has_element?(lv, "#test-case-coverage-table", "Its target")
+
+      assert has_element?(
+               lv,
+               "#test-case-coverage-table a[href='/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}/files/Sources/Math.swift']"
+             )
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{id.("testNone()")}?tab=coverage")
+
+      refute html =~ "test-case-coverage-table"
+    end
+
     test "scopes test case runs to the selected project", %{
       conn: conn,
       account: account,
@@ -849,6 +911,30 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
       assert fetched.is_flaky == false
+    end
+
+    test "mark and unmark as unskippable buttons flip the flag", %{conn: conn, account: account, project: project} do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      assert html =~ "Mark as unskippable"
+
+      html = lv |> element(~s|button[phx-click="mark-as-unskippable"]|) |> render_click()
+      assert html =~ "Unmark as unskippable"
+      assert html =~ "Marked as unskippable"
+
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
+      assert fetched.is_unskippable == true
+
+      html = lv |> element(~s|button[phx-click="unmark-as-unskippable"]|) |> render_click()
+      assert html =~ "Mark as unskippable"
+
+      {:ok, fetched} = Tests.get_test_case_by_id(test_case_run.test_case_id)
+      assert fetched.is_unskippable == false
     end
 
     test "unmuting a test case via set-state", %{

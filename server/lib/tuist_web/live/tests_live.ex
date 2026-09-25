@@ -16,6 +16,8 @@ defmodule TuistWeb.TestsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+  alias Tuist.Tests.Coverage.History
+  alias TuistWeb.Coverage.Components, as: CoverageComponents
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -90,8 +92,7 @@ defmodule TuistWeb.TestsLive do
           socket.assigns.test_runs_analytics.result,
           socket.assigns.flaky_test_runs_analytics.result,
           socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result,
-          socket.assigns.test_runs_coverage_analytics.result
+          socket.assigns.test_runs_duration_analytics.result
         )
 
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
@@ -123,8 +124,7 @@ defmodule TuistWeb.TestsLive do
           socket.assigns.test_runs_analytics.result,
           socket.assigns.flaky_test_runs_analytics.result,
           socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result,
-          socket.assigns.test_runs_coverage_analytics.result
+          socket.assigns.test_runs_duration_analytics.result
         )
 
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
@@ -209,7 +209,6 @@ defmodule TuistWeb.TestsLive do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_test_scheme = params["analytics-test-scheme"] || "any"
     coverage_enabled = FeatureFlags.xcode_coverage_enabled?(socket.assigns.selected_account)
-
     analytics_selected_widget = selected_analytics_widget(params["analytics-selected-widget"], coverage_enabled)
 
     selected_duration_type = params["duration-type"] || "avg"
@@ -237,14 +236,13 @@ defmodule TuistWeb.TestsLive do
 
     socket
     |> assign_test_run_duration_chart(duration_chart_type, scatter_group_by_atom, opts)
-    |> assign(:coverage_enabled, coverage_enabled)
+    |> assign_coverage_analytics(coverage_enabled, period)
     |> assign_async(
       [
         :test_runs_analytics,
         :flaky_test_runs_analytics,
         :failed_test_runs_analytics,
         :test_runs_duration_analytics,
-        :test_runs_coverage_analytics,
         :analytics_chart_data
       ],
       fn ->
@@ -258,18 +256,12 @@ defmodule TuistWeb.TestsLive do
 
         test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
 
-        test_runs_coverage_analytics =
-          if coverage_enabled,
-            do: Analytics.test_run_coverage_analytics(project.id, opts),
-            else: %{coverage: 0.0, runs_count: 0, trend: nil, dates: [], values: []}
-
         {:ok,
          %{
            test_runs_analytics: test_runs_analytics,
            flaky_test_runs_analytics: flaky_test_runs_analytics,
            failed_test_runs_analytics: failed_test_runs_analytics,
            test_runs_duration_analytics: test_runs_duration_analytics,
-           test_runs_coverage_analytics: test_runs_coverage_analytics,
            analytics_chart_data:
              analytics_chart_data(
                analytics_selected_widget,
@@ -277,8 +269,7 @@ defmodule TuistWeb.TestsLive do
                test_runs_analytics,
                flaky_test_runs_analytics,
                failed_test_runs_analytics,
-               test_runs_duration_analytics,
-               test_runs_coverage_analytics
+               test_runs_duration_analytics
              )
          }}
       end
@@ -406,8 +397,29 @@ defmodule TuistWeb.TestsLive do
     end)
   end
 
-  # The coverage widget is hidden from accounts without coverage, so a link that selects it
-  # falls back to the default widget.
+  # The Code Coverage page's figure over the date picker's period alone: the
+  # default branch's latest chained commit, how far it moved, and the chart's
+  # points, grouped as that page groups them. The environment and scheme
+  # filters are about test runs, and coverage is a commit's.
+  defp assign_coverage_analytics(%{assigns: %{selected_project: project}} = socket, true, period) do
+    assign_async(socket, :coverage_analytics, fn ->
+      points = History.branch_points(project, project.default_branch, DatePicker.period_opts(period))
+
+      {:ok,
+       %{
+         coverage_analytics: %{
+           latest: List.last(points),
+           trend: CoverageComponents.period_trend(points),
+           points: CoverageComponents.chart_points(points, period)
+         }
+       }}
+    end)
+  end
+
+  defp assign_coverage_analytics(socket, false, _period), do: assign(socket, :coverage_analytics, nil)
+
+  # The coverage widget is hidden from accounts without coverage, so a link
+  # that selects it falls back to the default widget.
   defp selected_analytics_widget("coverage", false), do: "test_run_count"
   defp selected_analytics_widget(nil, _coverage_enabled), do: "test_run_count"
   defp selected_analytics_widget(widget, _coverage_enabled), do: widget
@@ -418,15 +430,11 @@ defmodule TuistWeb.TestsLive do
          test_runs_analytics,
          flaky_test_runs_analytics,
          failed_test_runs_analytics,
-         test_runs_duration_analytics,
-         test_runs_coverage_analytics
+         test_runs_duration_analytics
        ) do
     case analytics_selected_widget do
       "test_run_count" ->
         %{dates: test_runs_analytics.dates, values: test_runs_analytics.values}
-
-      "coverage" ->
-        %{dates: test_runs_coverage_analytics.dates, values: test_runs_coverage_analytics.values}
 
       "flaky_test_run_count" ->
         %{dates: flaky_test_runs_analytics.dates, values: flaky_test_runs_analytics.values}

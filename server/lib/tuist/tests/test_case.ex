@@ -60,6 +60,9 @@ defmodule Tuist.Tests.TestCase do
     field :last_ran_at_ci, Ch, type: "Nullable(DateTime64(6))"
     field :last_ran_at_local, Ch, type: "Nullable(DateTime64(6))"
     field :is_flaky, :boolean, default: false
+    # Resolved from the state ledger, never stored on this table: a test
+    # selection must always run, whatever evidence it has.
+    field :is_unskippable, :boolean, default: false, virtual: true
     field :last_run_id, Ch, type: "Nullable(UUID)"
     field :state, Ch, type: "LowCardinality(String)"
     field :inserted_at, Ch, type: "DateTime64(6)"

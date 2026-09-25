@@ -1,0 +1,106 @@
+<div id="coverage-branches">
+  <.button
+    label={dgettext("dashboard_tests", "Code coverage")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <.card
+    title={dgettext("dashboard_tests", "Branches")}
+    icon="git_branch"
+    data-part="branches"
+  >
+    <.card_section data-part="branches-section">
+      <div data-part="filters">
+        <.form
+          for={%{}}
+          id="coverage-branches-filter-form"
+          phx-change="search-branches"
+          phx-debounce="200"
+        >
+          <.text_input
+            type="search"
+            id="search-coverage-branches"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@search}
+          />
+        </.form>
+      </div>
+      <div :if={@branch_rows != []} data-part="branches-table">
+        <.table
+          id="coverage-branches-table"
+          rows={@branch_rows}
+          row_navigate={
+            fn branch ->
+              if branch.pull_request_number > 0,
+                do:
+                  url(
+                    ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/pull-requests/#{branch.pull_request_number}"
+                  ),
+                else:
+                  url(
+                    ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage/branches/#{branch.name}"
+                  )
+            end
+          }
+        >
+          <:col :let={branch} label={dgettext("dashboard_tests", "Branch")}>
+            <.text_cell label={branch.name} />
+          </:col>
+          <:col :let={branch} label={dgettext("dashboard_tests", "Pull request")}>
+            <.badge_cell
+              :if={branch.pull_request_number > 0}
+              style="light-fill"
+              color="information"
+              label={"##{branch.pull_request_number}"}
+            />
+            <.text_cell :if={branch.pull_request_number == 0} label="—" />
+          </:col>
+          <:col :let={branch} label={dgettext("dashboard_tests", "Coverage")}>
+            <.coverage_cell covered={branch.covered_lines} executable={branch.executable_lines} />
+          </:col>
+          <:col :let={branch} label={"#{scheme_label(@selected_project)}s"}>
+            <.measured_by_cell commit={branch} />
+          </:col>
+          <:col :let={branch} label={dgettext("dashboard_tests", "Status")}>
+            <.badge_cell
+              style="light-fill"
+              color={ref_status_color(branch)}
+              label={ref_status_label(branch)}
+              title={ref_status_title(branch)}
+            />
+          </:col>
+          <:col :let={branch} label={dgettext("dashboard_tests", "Measured")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(branch.ran_at)} />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@branches_meta.total_pages > 1}
+          current_page={@branches_meta.current_page}
+          number_of_pages={@branches_meta.total_pages}
+          page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
+        />
+      </div>
+      <.coverage_empty
+        :if={@branch_rows == [] and @search != ""}
+        title={dgettext("dashboard_tests", "No branch matches %{search}", search: @search)}
+        image="table"
+        data-part="empty-branches"
+      />
+      <.coverage_empty
+        :if={@branch_rows == [] and @search == ""}
+        title={dgettext("dashboard_tests", "No branch gathered coverage yet")}
+        get_started_href="https://docs.tuist.dev/en/guides/features/tests"
+        image="table"
+        data-part="empty-branches"
+      />
+    </.card_section>
+  </.card>
+</div>

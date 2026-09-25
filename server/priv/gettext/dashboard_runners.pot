@@ -1516,7 +1516,7 @@ msgstr ""
 msgid "Volume"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:430
+#: lib/tuist_web/components/app_layout_components.ex:454
 #: lib/tuist_web/live/runner_job_live.ex:152
 #: lib/tuist_web/live/runner_volumes_live.ex:26
 #: lib/tuist_web/live/runner_volumes_live.ex:390
