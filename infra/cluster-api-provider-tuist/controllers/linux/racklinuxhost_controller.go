@@ -65,7 +65,7 @@ type RackLinuxHostReconciler struct {
 	// AMT is nil when the operator activates no AMT.
 	AMT *RackAMT
 	// AMTPower is overridden in tests.
-	AMTPower AMTPowerFunc
+	AMTPower amtPowerFunc
 
 	CredentialsManager *credentials.Manager
 	EgressNamespace    string
