@@ -189,6 +189,35 @@ defmodule Tuist.ClickHouse.BackfillTest do
     end
   end
 
+  describe "copy_settings/0" do
+    # ClickHouse's own defaults, which are what a copy runs with when these
+    # are missing and what cost production three chunks of a wide table.
+    @clickhouse_default_insert_block_rows 1_048_576
+    @clickhouse_default_insert_block_bytes 268_435_456
+
+    test "caps one statement below the memory the destination server has" do
+      settings = Backfill.copy_settings()
+
+      # The replicas run with a 32Gi container limit, of which ClickHouse
+      # takes 90% as its server-wide ceiling. A single chunk has to fail on
+      # its own well before that, because live shadow writes allocate against
+      # the same tracker.
+      assert settings[:max_memory_usage] < trunc(0.9 * 32 * 1024 * 1024 * 1024)
+    end
+
+    test "reads and writes in smaller blocks than ClickHouse would by default" do
+      settings = Backfill.copy_settings()
+
+      assert settings[:max_insert_block_size] < @clickhouse_default_insert_block_rows
+      assert settings[:min_insert_block_size_rows] < @clickhouse_default_insert_block_rows
+      assert settings[:min_insert_block_size_bytes] < @clickhouse_default_insert_block_bytes
+    end
+
+    test "bounds the reading threads, which the container's missing CPU limit does not" do
+      assert Backfill.copy_settings()[:max_threads] in 1..8
+    end
+  end
+
   describe "run/1" do
     test "refuses to start without a destination" do
       assert {:error, :no_target_configured} = Backfill.run()
