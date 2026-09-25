@@ -13,8 +13,8 @@ machine kinds:
   cluster's own inventory rather than a vendor API, and its reboot is
   a PDU outlet. See "Rack-owned hosts" below.
 - `RackLinuxMachine`: x86 Linux machines **we own** in the same rack (the
-  BER1 edge, services and storage nodes), claimed from `RackLinuxHost`
-  inventory, joined over their own tailnet address with a kubeadm
+  BER1 edge, services and storage nodes), one per `RackLinuxHost`, which the
+  operator creates with its CAPI Machine, joined over their own tailnet address with a kubeadm
   `system:node` identity and kept converged. See "Rack-owned Linux hosts"
   below.
 - `ScalewayElasticMetalMachine` — Scaleway Linux bare metal (e.g. the
@@ -49,8 +49,8 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `RackAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
-| `RackLinuxMachine` (+ `…Template`) | One rack Linux node: node labels, taints, `adoptPool`, `fleetName`. No host identity. |
-| `RackLinuxHost` | One x86 Linux machine we own: pool, role, site, the tailnet tags its install joins it with, the MAC it netboots from, and whether to activate its AMT. Status carries its current tailnet device, a published install and AMT's state. |
+| `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
+| `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`) and its AMT. Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, the `bootMAC` to declare (its i226-LM), the edge that heard it, and the host that declares it, if any. The operator keeps it; nothing else writes it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
@@ -590,101 +590,108 @@ fault, and no fleet changes across the restart.
 
 `RackLinuxMachine` joins x86 Linux machines we own (the BER1 MS-01s) and keeps
 them converged. Its inventory is `RackLinuxHost`, rendered from
-`rackLinuxFleet.hosts`, one MachineDeployment per role. How a box is installed
-is in [`infra/rack-nodes/AGENTS.md`](../rack-nodes/AGENTS.md).
+`rackLinuxFleet.hosts` and named after each machine's SMBIOS UUID; the name the
+host runs under is `spec.hostname`. How a box is installed is in
+[`infra/rack-nodes/AGENTS.md`](../rack-nodes/AGENTS.md).
+
+**A host is its own Machine** (`racklinuxhost_machine.go`). With
+`--rack-linux-cluster-name` and `--rack-linux-bootstrap-secret-name` set, the
+host controller keeps a CAPI Machine and the `RackLinuxMachine` it owns under
+the host's name, labelled with its role. A box is one host and upgrades in
+place, so there is no MachineDeployment claiming boxes from a pool. The
+machine's providerID is `rack-linux://<site>/<host UUID>`, so it survives a
+rename.
+
+**A host goes through `status.provisioning.state`**: `Registering` (declared,
+with no install it can be given yet), `Provisioning` (an install is published
+and it has not run it), `Provisioned` (on the tailnet, running the install its
+`spec.reinstallGeneration` asks for) and `Deprovisioning` (deleted, being
+retired). `status.provisioning.message` says what it waits for.
 
 **The first dial is the host's own tailnet address.** The install joins the
 host to the tailnet with a single-use tagged key, so no subnet router is
 involved: `RackLinuxHostReconciler` finds the device through the Tailscale API
-(its OS hostname is the host's name and it carries every tag in
-`spec.tailnet.tags`), and the machine reconciler dials it through an egress
-Service, `rack-linux-<host>` in the egress namespace, annotated
-`tailscale.com/tailnet-ip`. The operator reads the OAuth client from
+(the device it recorded, or one whose OS hostname is `spec.hostname` and that
+carries every tag in `spec.tailnet.tags`), and the machine reconciler dials it
+through an egress Service, `rack-linux-<host UUID>` in the egress namespace,
+annotated `tailscale.com/tailnet-ip`. The operator reads the OAuth client from
 `--rack-linux-tailscale-secret-name` (`client-id`, `client-secret`, Devices Core
-and Auth Keys scopes on the rack tags); its device list is not filtered by tag. The operator never touches tailscaled, so a session
-over the host's own tailnet identity is safe.
+and Auth Keys scopes on the rack tags); its device list is not filtered by tag.
+The operator never touches tailscaled, so a session over the host's own tailnet
+identity is safe.
 
 **Every install registers a new device.** Once the newest device is connected
-and an older one with the same name and tags is not, the host controller deletes
-the older one and renames the newest to the host's name. Two connected devices
-are left alone and reported as `DuplicateDevices`. The machine reconciler keys
-reinstalls off the device ID: a new one re-pins the SSH host key.
+and an older one of the host is not, the host controller deletes the older one
+and renames the newest to the hostname. Two connected devices are left alone
+and reported as `DuplicateDevices`. The machine reconciler keys reinstalls off
+the device ID: a new one re-pins the SSH host key.
 
 **The host controller publishes installs** (`racklinuxhost_install.go`,
 rendered by `internal/rackinstall`) when `--rack-linux-fleet-name` and
-`--rack-linux-install-server-url` are set. For a host with `spec.bootMAC` that
-is not on the tailnet, or that carries `tuist.dev/reinstall=true`, it mints a
-join key for the host's tags (a day's lifetime, renewed six hours before it
-expires), and writes the autoinstall seed and an iPXE script under the MAC to
-the `<fleet>-boot` Secret, which the rack boot server serves, again whenever the
-Secret lost them; `status.install` records the key, the MAC and the device the
-install replaces. The fleet key's public half and `--rack-linux-authorized-key`
-are authorized, and the console password is minted once per host into
-`<fleet>-console`. The host controller reads each host through the manager's
-uncached `APIReader`: CAPI's patch helper writes conditions before the rest of
-the status, and a reconcile that read the host from the cache in between would
-mint a second key. A host's installer is its install stick, which fetches the
-seed for its MAC from the boot server (`rackinstall.StickUserData`), or a
-netboot. A reinstall of a connected host sets `BootNext` over SSH, two minutes
-after publishing, and reboots it, once: to a boot entry the script creates for
-a USB disk carrying `nocloud/tuist-install-stick`, or else to the PXE entry for
-the MAC.
-A new device other than the replaced one withdraws the install and removes the
-annotation. An `edge` host gets an install only while another `edge` of the
-same `spec.location.site` is connected to the tailnet to serve it, or once it
-was rebooted into it; otherwise its install is withdrawn and it is installed
-from a stick. `storage` has no layout yet. The `Installed` condition says which
-step a host is on. The same controller scales the MachineDeployment labelled
-`tuist.dev/rack-pool=<pool>` up to the number of the pool's hosts on the
-tailnet, not counting hosts being deleted, and never down, so the chart can
-declare a host before it is installed.
+`--rack-linux-install-server-url` are set: for a host with no tailnet device
+yet, and for one whose `spec.reinstallGeneration` is above
+`status.provisioning.installedGeneration`. It mints a join key for the host's
+tags (a day's lifetime, renewed six hours before it expires), and writes the
+autoinstall seed and an iPXE script under the boot MAC to the `<fleet>-boot`
+Secret, which the rack boot server serves, again whenever the Secret lost them,
+with the host's UUID beside them for a network boot from another NIC.
+`status.install` records the key, the MAC, the generation and the device the
+install replaces. The boot MAC is `spec.bootMAC`, or the management port the
+machine announced (its `RackLinuxCandidate`, below), in `status.bootMAC`; a
+host with neither is `Registering` until its stick announces it. The fleet
+key's public half and `--rack-linux-authorized-key` are authorized, and the
+console password is minted once per host into `<fleet>-console`. The host
+controller reads each host through the manager's uncached `APIReader`: CAPI's
+patch helper writes conditions before the rest of the status, and a reconcile
+that read the host from the cache in between would mint a second key. A host's
+installer is its install stick, which fetches the seed for its MAC from the boot
+server (`rackinstall.StickUserData`), or a netboot. A reinstall of a connected
+host sets `BootNext` over SSH, two minutes after publishing, and reboots it,
+once: to a boot entry the script creates for a USB disk carrying
+`nocloud/tuist-install-stick`, or else to the PXE entry for the MAC; one of a
+host off the tailnet power-cycles it through AMT into its network boot (below).
+A host with `spec.online: false` is not rebooted into an install. A new device
+other than the replaced one withdraws the install and records its generation as
+installed; one that comes back on its old install reports `ReinstallDidNotBoot`
+after half an hour, and raising the generation again retries. Lowering the
+generation back cancels a reinstall. An `edge` host gets an install only while
+another `edge` of the same `spec.location.site` is connected to the tailnet to
+serve it, or once it was rebooted into it; otherwise its install is withdrawn
+and it is installed from a stick. `storage` has no layout yet. The `Installed`
+condition says which step a host is on.
 
-**Machines nobody declared announce themselves** (`racklinux_discovery.go`).
-While nothing is published for it, a machine's install stick posts its SMBIOS
-UUID, serial, product and NICs to the boot server's `cgi-bin/announce`
-(`files/rack-boot.sh`), which keeps each under its UUID in
-`/var/lib/tuist-rack-boot/announced` for a day. Once a minute the discovery
-reads every connected edge's announcements over SSH, the same way the
-reinstall reaches a host, and keeps one `RackLinuxCandidate` per machine with
-the newest announcement. It marks a candidate with the `RackLinuxHost` whose
-`bootMAC` is one of its NICs and drops one no edge has heard from for a week.
+**Machines announce themselves** (`racklinux_discovery.go`). While nothing is
+published for it, a machine's install stick posts its SMBIOS UUID, serial,
+product and NICs to the boot server's `cgi-bin/announce` (`files/rack-boot.sh`),
+which keeps each under its UUID in `/var/lib/tuist-rack-boot/announced` for a
+day. Once a minute the discovery reads every connected edge's announcements over
+SSH, the same way the reinstall reaches a host, and keeps one
+`RackLinuxCandidate` per machine with the newest announcement and the boot MAC
+it names (its i226-LM). It marks a candidate with the hostname of the
+`RackLinuxHost` named after its UUID, and drops an undeclared one no edge has
+heard from for a week; a declared one stays, since its host takes its boot MAC
+and model (`status.hardware`) from it.
 
-**A box is its `bootMAC`** (`racklinuxhost_takeover.go`). Hosts declaring the
-same MAC are one box under several names, and the one created last is what the
-box becomes. An older one yields while a newer one has an install published or
-is on the tailnet: it publishes nothing for the MAC, withdraws its own install,
-and reports `Installed` False with `Replaced`. The newest publishes its install
-like any host not on the tailnet. While an older one is connected, two minutes
-after publishing it sets `BootNext` over SSH through the older host, the system
-the box runs, and reboots the box, once (`status.install.triggeredAt`); a box
-that comes back as the older host reports `ReinstallDidNotBoot` after half an
-hour. Once the newest is on the tailnet with its install withdrawn, it deletes
-every older one that is not connected. An install is withdrawn from the boot
-Secret only while no other host has one published for the MAC. An `edge`
-declaring the same MAC, or one being deleted, is not another edge serving the
-netboot.
+**A rename is a new `spec.hostname`.** The host keeps its UUID, its Machine and
+its providerID. The host controller finds the host's recorded device although
+its OS hostname is still the old one, and renames it; the machine reconciler
+deletes the Node the host joined under (only one with the host's providerID)
+and converges with the rejoin: the new OS hostname, the kubelet's identity
+dropped, and a bootstrap token for the new name. `status.nodeName` on the
+`RackLinuxMachine` records the name it joined under. An edge's rename also
+needs the site definition's edge entries (`infra/rack-switch-fleet`) renamed.
 
 **Deleting a `RackLinuxHost` retires it** (`racklinuxhost_retire.go`, finalizer
 `racklinuxhost.cluster.x-k8s.io/finalizer`). The controller withdraws its
-install. A host a machine holds has that machine's Machine removed: while the
-pool's MachineDeployment has more replicas than the pool's other hosts keep
-(those on the tailnet, and those off it still holding a machine), the Machine
-is annotated `cluster.x-k8s.io/delete-machine=true` and the MachineDeployment
-scaled down to them; otherwise the Machine is deleted and its replacement claims
-another host. The controller waits for the machine's delete to release the
-claim, so the kubelet is stopped over the tailnet first. Then it deletes the
-host's egress Service, its tailnet devices (the recorded one and any other with
-its name and tags) with their host key pins, and its key in `<fleet>-console`,
-and drops the finalizer. A step that fails keeps the finalizer and is retried.
+install and deletes its Machine, and waits for the Machine to go: its
+`RackLinuxMachine` stops the kubelet over the tailnet and deletes the Node
+first. Then it deletes the host's egress Service, its tailnet devices (the
+recorded one and any other with its hostname and tags) with their host key
+pins, and its key in `<fleet>-console`, and drops the finalizer. A step that
+fails keeps the finalizer and is retried. The host's AMT Secret stays: it
+belongs to the box, whose AMT keeps the password.
 
-**An empty pool is retired.** A MachineDeployment of `RackLinuxMachine`s
-labelled `tuist.dev/rack-pool` whose pool has no `RackLinuxHost`, at zero
-replicas, with no Machines and older than ten minutes (Helm creates it before
-the pool's hosts), is deleted, and so is the `RackLinuxMachineTemplate` it names
-unless another MachineDeployment names it. Every host reconcile checks, and so
-does the reconcile that follows a host's deletion.
-
-**The kubelet's identity is `system:node:<host>`, not an operator-minted
+**The kubelet's identity is `system:node:<hostname>`, not an operator-minted
 ServiceAccount.** The converge script exits 42 when the kubelet has no valid
 client certificate; the reconciler then deletes a stale Node of that name (only
 one with this host's providerID, or none), mints a one-hour kubeadm bootstrap
@@ -692,7 +699,7 @@ token labelled `tuist.dev/bootstrap-node`, runs the script again with a
 bootstrap kubeconfig, and deletes the token once the kubelet holds its
 certificate. kubeadm's bindings approve the CSR and later rotations. The labels
 (`node.cluster.x-k8s.io/instance-type=rack`, `cilium.io/no-schedule=true`, the
-role's), the taints, the providerID (`rack-linux://<site>/<host>`) and the local
+role's), the taints, the providerID (`rack-linux://<site>/<host UUID>`) and the local
 CNI (`10.254.254.0/24`) are all in place before the kubelet first starts.
 
 **One script does the join, the drift repair and the upgrades**
@@ -710,16 +717,18 @@ minor other than the operator's `KubernetesMinor` holds converges
 refuses while `kube-system/cilium` would schedule onto a node carrying
 `cilium.io/no-schedule=true`.
 
-**AMT is activated only on hosts that ask for it** (`racklinuxhost_amt.go`).
-A host with `spec.amt.activate` (the chart's `rackLinuxFleet.hosts[].amt`) and
-a connected tailnet device gets, over SSH, the pinned `rpc` (the Device
+**AMT is activated on the hardware the fleet lists** (`racklinuxhost_amt.go`).
+A host whose model (`status.hardware.product`) is one of
+`--rack-linux-amt-product` (the chart's `rackLinuxFleet.amt.products`), or that
+sets `spec.amt.activate: true`, and that has a connected tailnet device, gets
+(`spec.amt.activate: false` opts a host out), over SSH, the pinned `rpc` (the Device
 Management Toolkit's AMT client, installed at `/usr/local/lib/tuist/rpc-<version>`
 from the release tarball's digest), which reads AMT's state and, while AMT is
 pre-provisioned, runs `rpc activate --acm`. The provisioning certificate
 comes from `--rack-linux-amt-provisioning-secret-name` (`pfx`, `password`,
 synced from 1Password `AMT_PROVISIONING_CERT`). The admin password is generated
-and stored in the Secret `<host>-amt` before the first attempt, and that Secret
-outlives the host: AMT keeps the password. Secrets reach `rpc` through its
+and stored in the Secret `<host UUID>-amt` before the first attempt, and that
+Secret outlives the host: AMT keeps the password. Secrets reach `rpc` through its
 environment, exported by the script on the SSH session's stdin, so they are on
 no command line and in no file on the host. A failed attempt is recorded in
 `status.amt.activationError` and retried after an hour; an activated host is
@@ -736,9 +745,13 @@ MS-01. Each `rpc` run is bounded by `timeout`.
 
 Activated AMT is then configured, in the same run or the next: MEBx's factory
 password is replaced with one generated and kept as `mebx-password` in the
-`<host>-amt` Secret (`status.amt.mebxPasswordSet`), and a host declaring
-`spec.amt.address` (with its prefix length) and `spec.amt.gateway` has AMT moved
-to that static address, so AMT keeps one address whatever happens to the host.
+`<host UUID>-amt` Secret (`status.amt.mebxPasswordSet`), and AMT is moved to a
+static address, so it keeps one whatever happens to the host:
+`spec.amt.address` (with its prefix length) and `spec.amt.gateway`, or one from
+`--rack-linux-amt-address-range` with `--rack-linux-amt-gateway` (the segment's
+gateway with its prefix length, which the address carries). A range address is
+recorded in `status.amt.assignedAddress` and kept: the one given before, else
+AMT's current one when it is in the range and free, else the lowest free one.
 Staging puts the edges' AMT on the provisioning segment outside its DHCP range.
 AMT reports its old address for a while after it is given one, and none while
 its link is down, so the address is given again at most every two minutes and
@@ -746,9 +759,14 @@ never while AMT reports its link down. A failed configuration is recorded in
 `status.amt.configurationError` and retried after an hour; it does not take
 `AMTActivated` down.
 
-**`tuist.dev/amt-power` powers a host through AMT** (`racklinuxhost_amt_power.go`):
-`on`, `off` (hard), `cycle` (hard power cycle), `reset`, or `pxe` (a power cycle
-into the network boot: the boot order cleared, the boot settings written back,
+**`spec.online` is the host's power state, and `tuist.dev/reboot` a one-off
+reboot** (`racklinuxhost_amt_power.go`). A host on the tailnet is on; for one
+that is not, AMT is asked every ten minutes (`status.power`). A host that
+should be off is shut down from its own OS while it is on the tailnet and
+powered off through AMT otherwise, one that should be on and is off is powered
+on, and changes are five minutes apart (`PowerMatchesOnline`). The annotation
+takes `cycle` (hard power cycle), `reset`, or `pxe` (a power cycle into the
+network boot: the boot order cleared, the boot settings written back,
 the configuration made the next one, and Force PXE Boot chosen, which boots the
 firmware's first network entry). The operator makes
 the change once, records it in `status.amt.lastPowerAction` and removes the
@@ -756,8 +774,8 @@ annotation. AMT answers on the management segment, where only the active edge
 (the one holding the site's floating addresses) has an address, so the operator
 tries the connected edges of the host's site (other edges first, the host itself
 last), takes the first whose `ip route get` puts AMT's address on a link of its
-own, and sends WS-MAN with digest authentication to AMT's address (`status.amt.address`) on its TLS port, 16993, through it: an activated AMT serves WS-MAN only there, with a self-signed certificate. The first power change pins that certificate's SHA-256 as `tls-sha256` in the `<host>-amt` Secret, and later ones hold AMT to it; a reactivated AMT needs the key deleted.
-It needs AMT activated and the host's `<host>-amt` Secret, not the host itself:
+own, and sends WS-MAN with digest authentication to AMT's address (`status.amt.address`) on its TLS port, 16993, through it: an activated AMT serves WS-MAN only there, with a self-signed certificate. The first power change pins that certificate's SHA-256 as `tls-sha256` in the `<host UUID>-amt` Secret, and later ones hold AMT to it; a reactivated AMT needs the key deleted.
+It needs AMT activated and the host's `<host UUID>-amt` Secret, not the host itself:
 a host that is off the tailnet is powered too. The MS-01's firmware keeps a fixed
 boot order, the installed disk first, and rewrites `BootOrder` at every boot, so
 a power cycle boots the disk; a reinstall requested for a host off the tailnet
@@ -767,29 +785,28 @@ serves it to whichever NIC netboots. That needs the host's firmware set up to
 netboot (network stack on); Secure Boot can stay on.
 
 ```bash
-kubectl patch rlh <host> --type merge -p '{"spec":{"amt":{"activate":true}}}'
-kubectl get rlh <host> -o jsonpath='{.status.amt}'
-kubectl annotate rlh <host> tuist.dev/amt-power=cycle
+kubectl get rlh <uuid> -o jsonpath='{.status.amt}'
+kubectl annotate rlh <uuid> tuist.dev/reboot=cycle
+kubectl patch rlh <uuid> --type merge -p '{"spec":{"online":false}}'   # power it off
 ```
 
 **Deleting a Machine** stops the host's kubelet and removes its certificate over
 SSH (bounded, best effort), then deletes the Node, the egress Service and the
-host key pin, and releases the claim. A host that is off keeps its kubelet and
-re-registers its Node when it returns; reinstall it to retire it. The
-MachineDeployment's replacement claims the same host and joins it afresh, which
-is how to force a re-join.
+host key pins. A host that is off keeps its kubelet and re-registers its Node
+when it returns; reinstall it to retire it. The host controller creates the
+Machine again, which joins the host afresh: that is how to force a re-join.
 
 ```bash
-kubectl get rlh                     # hosts: pool, role, tailnet address, connected, claim
-kubectl get rlh -o wide             # plus the device and a published install's key
-kubectl annotate rlh <host> tuist.dev/reinstall=true   # boot a new install
-kubectl delete rlh <host>           # retire a host the chart no longer declares
-kubectl get rlm -o wide             # machines: host, phase, last converge
+kubectl get rlh                     # hosts: hostname, role, state, tailnet address, power
+kubectl get rlh -o wide             # plus the boot MAC, the device and a published install's key
+kubectl patch rlh <uuid> --type merge -p '{"spec":{"reinstallGeneration":2}}'   # reinstall
+kubectl delete rlh <uuid>           # retire a host the chart no longer declares
+kubectl get rlm -o wide             # machines: node name, phase, last converge
 kubectl describe rlm <name>         # HostConverged / TailnetReady / NodeReady, events
 ```
 
 **Logs and exec.** The API server cannot reach a tailnet address, so each host
-also gets a kubelet egress Service, `rack-linux-<host>-kubelet`, outside the
+also gets a kubelet egress Service, `rack-linux-<host UUID>-kubelet`, outside the
 ProxyGroup. The Tailscale operator runs a proxy Pod of its own for it, which
 forwards every port to the host's tailnet address. The kubelet runs with
 `--cloud-provider=external` and leaves the Node's addresses to the operator

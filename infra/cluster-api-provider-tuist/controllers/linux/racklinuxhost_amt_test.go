@@ -33,7 +33,8 @@ func amtInfoJSON(mode, link, address string) string {
 
 func amtEdge() *infrav1.RackLinuxHost {
 	h := edgeHost()
-	h.Spec.AMT = &infrav1.RackLinuxHostAMT{Activate: true}
+	activate := true
+	h.Spec.AMT = infrav1.RackLinuxHostAMT{Activate: &activate}
 	return h
 }
 
@@ -65,7 +66,7 @@ func (h *installHarness) amtRuns() []scriptRun {
 func (h *installHarness) amtPassword(t *testing.T) string {
 	t.Helper()
 	secret := &corev1.Secret{}
-	err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge-amt"}, secret)
+	err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: edgeUUID + "-amt"}, secret)
 	if apierrors.IsNotFound(err) {
 		return ""
 	}
@@ -82,7 +83,7 @@ func TestRackAMTActivatesAPreProvisionedHostWhenAsked(t *testing.T) {
 			amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	runs := h.amtRuns()
 	if len(runs) != 1 {
@@ -125,7 +126,7 @@ func TestRackAMTRecordsAFailedActivationAndBacksOff(t *testing.T) {
 			amtInfoJSON("not activated", "up", "0.0.0.0")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	amt := got.Status.AMT
 	if amt == nil || amt.ControlMode != "pre-provisioning" || !strings.Contains(amt.ActivationError, "exit 102") ||
@@ -138,13 +139,13 @@ func TestRackAMTRecordsAFailedActivationAndBacksOff(t *testing.T) {
 	password := h.amtPassword(t)
 
 	h.now = h.now.Add(30 * time.Minute)
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	if n := len(h.amtRuns()); n != 1 {
 		t.Fatalf("tried again after 30 minutes (%d runs)", n)
 	}
 
 	h.now = h.now.Add(31 * time.Minute)
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	runs := h.amtRuns()
 	if len(runs) != 2 {
 		t.Fatalf("did not try again after the backoff (%d runs)", len(runs))
@@ -157,7 +158,7 @@ func TestRackAMTRecordsAFailedActivationAndBacksOff(t *testing.T) {
 func TestRackAMTLeavesAHostThatDoesNotAskForIt(t *testing.T) {
 	h := newAMTHarness(t, edgeHost(), provisioningSecret())
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	if len(h.amtRuns()) != 0 || h.amtPassword(t) != "" || got.Status.AMT != nil || conditions.Get(got, AMTActivatedCondition) != nil {
 		t.Fatalf("touched AMT on a host that did not ask: status %+v", got.Status.AMT)
@@ -167,7 +168,7 @@ func TestRackAMTLeavesAHostThatDoesNotAskForIt(t *testing.T) {
 func TestRackAMTWaitsForTheProvisioningCertificate(t *testing.T) {
 	h := newAMTHarness(t, amtEdge())
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	if len(h.amtRuns()) != 0 || h.amtPassword(t) != "" {
 		t.Fatal("tried to activate without a provisioning certificate")
@@ -181,7 +182,7 @@ func TestRackAMTWaitsForTheHostToBeOnline(t *testing.T) {
 	h := newAMTHarness(t, amtEdge(), provisioningSecret())
 	h.api.devices[0].ConnectedToControl = false
 
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 
 	if len(h.amtRuns()) != 0 {
 		t.Fatal("dialled a host that is not on the tailnet")
@@ -197,13 +198,13 @@ func TestRackAMTLooksAtAnActivatedHostOnlyNowAndThen(t *testing.T) {
 		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	if len(h.amtRuns()) != 0 {
 		t.Fatal("looked again 10 minutes after the last look")
 	}
 
 	h.now = h.now.Add(time.Hour)
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 	runs := h.amtRuns()
 	if len(runs) != 1 {
 		t.Fatalf("ran %d AMT scripts after an hour, want 1", len(runs))
@@ -265,7 +266,7 @@ func TestRackAMTLooksAgainSoonForTheAddressOfAFreshlyActivatedAMT(t *testing.T) 
 		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	if len(h.amtRuns()) != 1 || got.Status.AMT.Address != "192.168.50.112" {
 		t.Fatalf("runs %d status %+v, want AMT's address read again", len(h.amtRuns()), got.Status.AMT)
@@ -300,7 +301,7 @@ func TestRackAMTUpgradesAHostInClientControlMode(t *testing.T) {
 			amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	runs := h.amtRuns()
 	if len(runs) != 1 || !strings.Contains(runs[0].script, "amt_password='Stored-Pa55!'") {
@@ -321,7 +322,7 @@ func adminEdge(address string, mebxSet bool) *infrav1.RackLinuxHost {
 func (h *installHarness) amtSecretData(t *testing.T) map[string][]byte {
 	t.Helper()
 	secret := &corev1.Secret{}
-	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge-amt"}, secret); err != nil {
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: edgeUUID + "-amt"}, secret); err != nil {
 		t.Fatal(err)
 	}
 	return secret.Data
@@ -335,7 +336,7 @@ func TestRackAMTSetsTheMEBxPasswordOfAnActivatedHost(t *testing.T) {
 		return "--- mebx\n{\"status\":\"success\"}\n--- mebx exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	data := h.amtSecretData(t)
 	mebx := string(data["mebx-password"])
@@ -353,7 +354,7 @@ func TestRackAMTSetsTheMEBxPasswordOfAnActivatedHost(t *testing.T) {
 	}
 
 	h.now = h.now.Add(10 * time.Minute)
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	if n := len(h.amtRuns()); n != 1 {
 		t.Fatalf("configured again (%d runs)", n)
 	}
@@ -368,7 +369,7 @@ func TestRackAMTGivesAMTItsStaticAddress(t *testing.T) {
 		return "--- wired\n{\"status\":\"success\"}\n--- wired exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.21")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	runs := h.amtRuns()
 	if len(runs) != 1 {
@@ -395,14 +396,14 @@ func TestRackAMTWaitsBeforeGivingAMTItsAddressAgain(t *testing.T) {
 		return "--- wired\n{\"status\":\"success\"}\n--- wired exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	h.now = h.now.Add(10 * time.Second)
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	if n := len(h.amtRuns()); n != 1 {
 		t.Fatalf("configured AMT %d times within seconds", n)
 	}
 	h.now = h.now.Add(amtAddressInterval)
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	if n := len(h.amtRuns()); n != 2 {
 		t.Fatalf("did not configure AMT again after %s (%d runs)", amtAddressInterval, n)
 	}
@@ -418,7 +419,7 @@ func TestRackAMTLeavesTheAddressOfAMTWithoutALink(t *testing.T) {
 		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "down", "0.0.0.0")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	runs := h.amtRuns()
 	if len(runs) != 1 || strings.Contains(runs[0].script, "static_address='192.168.50.21'") {
@@ -435,7 +436,7 @@ func TestRackAMTBacksOffAFailedConfiguration(t *testing.T) {
 		return "--- mebx\n{\"error\":\"SetMEBXPasswordFailed\"}\n--- mebx exit 1\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 	if got.Status.AMT.MEBxPasswordSet || !strings.Contains(got.Status.AMT.ConfigurationError, "SetMEBXPasswordFailed") {
 		t.Fatalf("status %+v", got.Status.AMT)
 	}
@@ -444,12 +445,12 @@ func TestRackAMTBacksOffAFailedConfiguration(t *testing.T) {
 	}
 
 	h.now = h.now.Add(30 * time.Minute)
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	if n := len(h.amtRuns()); n != 1 {
 		t.Fatalf("tried again after 30 minutes (%d runs)", n)
 	}
 	h.now = h.now.Add(31 * time.Minute)
-	h.reconcile(t, "ber1-edge")
+	h.reconcile(t, edgeUUID)
 	if n := len(h.amtRuns()); n != 2 {
 		t.Fatalf("did not try again after the backoff (%d runs)", n)
 	}
@@ -465,7 +466,7 @@ func TestRackAMTKeepsTheLastPowerActionAcrossReads(t *testing.T) {
 		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	if len(h.amtRuns()) != 1 || got.Status.AMT.LastPowerAction == nil || got.Status.AMT.LastPowerAction.Via != "ber1-edge-b" {
 		t.Fatalf("status %+v", got.Status.AMT)
@@ -483,7 +484,7 @@ func TestRackAMTDropsTheErrorOfAnActivationAMTNoLongerNeeds(t *testing.T) {
 		return "--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
 	}
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	if got.Status.AMT.ActivationError != "" || got.Status.AMT.LastActivation == nil {
 		t.Fatalf("status %+v", got.Status.AMT)
@@ -495,9 +496,89 @@ func TestRackAMTRefusesAGatewayOutsideTheAddress(t *testing.T) {
 	host.Spec.AMT.Address, host.Spec.AMT.Gateway = "192.168.50.21/24", "192.168.0.1"
 	h := newAMTHarness(t, host, provisioningSecret(), amtSecret("Stored-Pa55!"))
 
-	got := h.reconcile(t, "ber1-edge")
+	got := h.reconcile(t, edgeUUID)
 
 	if c := conditions.Get(got, AMTActivatedCondition); len(h.amtRuns()) != 0 || c == nil || c.Reason != "InvalidAddress" {
 		t.Fatalf("runs %d condition %+v", len(h.amtRuns()), c)
+	}
+}
+
+const ms01Product = "Micro Computer (HK) Tech Limited Venus Series"
+
+// A host whose hardware the fleet lists has its AMT activated without asking,
+// and one that says no keeps it as it is.
+func TestRackAMTActivatesTheAMTOfTheModelsTheFleetLists(t *testing.T) {
+	announced := &infrav1.RackLinuxCandidate{
+		ObjectMeta: metav1.ObjectMeta{Name: edgeUUID, Namespace: rackTestNamespace},
+		Status:     infrav1.RackLinuxCandidateStatus{UUID: edgeUUID, Product: ms01Product},
+	}
+	reply := func(_, _ string) string {
+		return "--- activate\n{\"status\":\"success\"}\n--- activate exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", "192.168.50.112")
+	}
+
+	h := newAMTHarness(t, edgeHost(), announced, provisioningSecret())
+	h.r.AMT.Products = []string{ms01Product}
+	h.runner.reply = reply
+	got := h.reconcile(t, edgeUUID)
+	if len(h.amtRuns()) != 1 || !conditions.IsTrue(got, AMTActivatedCondition) {
+		t.Fatalf("runs %d status %+v; a listed model is activated", len(h.amtRuns()), got.Status.AMT)
+	}
+
+	declined := edgeHost()
+	no := false
+	declined.Spec.AMT.Activate = &no
+	h = newAMTHarness(t, declined, announced, provisioningSecret())
+	h.r.AMT.Products = []string{ms01Product}
+	h.runner.reply = reply
+	h.reconcile(t, edgeUUID)
+	if len(h.amtRuns()) != 0 {
+		t.Fatal("activated the AMT of a host that said no")
+	}
+
+	h = newAMTHarness(t, edgeHost(), announced, provisioningSecret())
+	h.r.AMT.Products = []string{"Some Other Box"}
+	h.runner.reply = reply
+	h.reconcile(t, edgeUUID)
+	if len(h.amtRuns()) != 0 {
+		t.Fatal("activated the AMT of a model the fleet does not list")
+	}
+}
+
+// Without spec.amt.address, AMT gets a static address from the fleet's range:
+// the one it has when that is free, the lowest free one otherwise, and the
+// same one from then on.
+func TestRackAMTTakesAStaticAddressFromTheFleetsRange(t *testing.T) {
+	taken := otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true)
+	taken.Status.AMT = &infrav1.RackLinuxHostAMTStatus{AssignedAddress: "192.168.50.17/24"}
+	for name, tc := range map[string]struct{ current, want string }{
+		"AMT's own address is free": {current: "192.168.50.21", want: "192.168.50.21/24"},
+		"AMT has a DHCP address":    {current: "192.168.50.112", want: "192.168.50.18/24"},
+		"AMT has another's address": {current: "192.168.50.17", want: "192.168.50.18/24"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newAMTHarness(t, adminEdge(tc.current, true), taken.DeepCopy(), provisioningSecret(), amtSecret("Stored-Pa55!"))
+			h.r.AMT.AddressRange, h.r.AMT.Gateway = "192.168.50.16/28", "192.168.50.1/24"
+			ip := strings.Split(tc.want, "/")[0]
+			h.runner.reply = func(_, _ string) string {
+				return "--- wired\n{\"status\":\"success\"}\n--- wired exit 0\n--- amtinfo\n" + amtInfoJSON("admin control mode", "up", ip)
+			}
+
+			got := h.reconcile(t, edgeUUID)
+
+			if got.Status.AMT.AssignedAddress != tc.want {
+				t.Fatalf("assigned %q, want %q", got.Status.AMT.AssignedAddress, tc.want)
+			}
+			if tc.current != ip {
+				runs := h.amtRuns()
+				if len(runs) != 1 || !strings.Contains(runs[0].script, "static_address='"+ip+"'") || !strings.Contains(runs[0].script, "static_mask='255.255.255.0'") {
+					t.Fatalf("runs %d, want AMT given %s", len(runs), ip)
+				}
+			}
+
+			h.now = h.now.Add(2 * time.Hour)
+			if again := h.reconcile(t, edgeUUID); again.Status.AMT.AssignedAddress != tc.want {
+				t.Fatalf("reassigned %q", again.Status.AMT.AssignedAddress)
+			}
+		})
 	}
 }

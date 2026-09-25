@@ -237,8 +237,10 @@ func candidateBootMAC(nics []infrav1.RackLinuxCandidateNIC) string {
 	return ""
 }
 
-// tidy marks each candidate with the host that declares it and drops the ones
-// no edge has heard from for a week.
+// tidy marks each candidate with the hostname of the RackLinuxHost that
+// declares it, by its UUID, and drops an undeclared one no edge has heard from
+// for a week. A declared candidate stays: it is what the machine said about
+// itself, which its host reads its boot MAC and model from.
 func (d *RackLinuxDiscovery) tidy(ctx context.Context, hosts []infrav1.RackLinuxHost) error {
 	cands := &infrav1.RackLinuxCandidateList{}
 	if err := d.List(ctx, cands); err != nil {
@@ -246,13 +248,13 @@ func (d *RackLinuxDiscovery) tidy(ctx context.Context, hosts []infrav1.RackLinux
 	}
 	for i := range cands.Items {
 		cand := &cands.Items[i]
-		if cand.Status.LastSeen != nil && d.now().Sub(cand.Status.LastSeen.Time) > rackCandidateLifetime {
+		declared := declaringHost(hosts, cand)
+		if declared == "" && cand.Status.LastSeen != nil && d.now().Sub(cand.Status.LastSeen.Time) > rackCandidateLifetime {
 			if err := d.Delete(ctx, cand); client.IgnoreNotFound(err) != nil {
 				return err
 			}
 			continue
 		}
-		declared := declaringHost(hosts, cand)
 		if declared == cand.Status.DeclaredAs {
 			continue
 		}
@@ -264,16 +266,12 @@ func (d *RackLinuxDiscovery) tidy(ctx context.Context, hosts []infrav1.RackLinux
 	return nil
 }
 
+// declaringHost is the hostname of the host named after the candidate's UUID.
 func declaringHost(hosts []infrav1.RackLinuxHost, cand *infrav1.RackLinuxCandidate) string {
 	for i := range hosts {
 		h := &hosts[i]
-		if h.Namespace != cand.Namespace || h.Spec.BootMAC == "" || !h.DeletionTimestamp.IsZero() {
-			continue
-		}
-		for _, n := range cand.Status.NICs {
-			if strings.EqualFold(n.MAC, h.Spec.BootMAC) {
-				return h.Name
-			}
+		if h.Namespace == cand.Namespace && h.Name == cand.Name && h.DeletionTimestamp.IsZero() {
+			return h.Spec.Hostname
 		}
 	}
 	return ""

@@ -68,6 +68,10 @@ func (f *fakeRunner) run(_ context.Context, _, host string, _ []byte, script str
 
 func claimedEdgeHost(device string) *infrav1.RackLinuxHost {
 	h := edgeHost()
+	h.Spec.Node = infrav1.RackLinuxHostNode{
+		Labels: map[string]string{"tuist.dev/rack-edge": "ber1"},
+		Taints: []corev1.Taint{{Key: "tuist.dev/rack-edge", Value: "ber1", Effect: corev1.TaintEffectNoSchedule}},
+	}
 	h.Status.Tailnet = &infrav1.RackLinuxHostTailnetStatus{
 		DeviceID:  device,
 		Name:      "ber1-edge.example.ts.net",
@@ -79,13 +83,8 @@ func claimedEdgeHost(device string) *infrav1.RackLinuxHost {
 
 func edgeMachine() *infrav1.RackLinuxMachine {
 	return &infrav1.RackLinuxMachine{
-		ObjectMeta: metav1.ObjectMeta{Name: "edge-0", Namespace: rackTestNamespace},
-		Spec: infrav1.RackLinuxMachineSpec{
-			AdoptPool:  "ber1-staging-edge",
-			FleetName:  rackTestFleet,
-			NodeLabels: map[string]string{"tuist.dev/rack-edge": "ber1"},
-			NodeTaints: []corev1.Taint{{Key: "tuist.dev/rack-edge", Value: "ber1", Effect: corev1.TaintEffectNoSchedule}},
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: edgeUUID, Namespace: rackTestNamespace},
+		Spec:       infrav1.RackLinuxMachineSpec{Host: edgeUUID},
 	}
 }
 
@@ -143,6 +142,7 @@ func newRackMachineHarness(t *testing.T, cpVersion string, objs ...runtime.Objec
 		APIReader:          c,
 		Recorder:           record.NewFakeRecorder(50),
 		CredentialsManager: &credentials.Manager{Client: c, Namespace: rackTestNamespace},
+		FleetName:          rackTestFleet,
 		KubernetesMinor:    "v1.34",
 		ControlPlaneVersion: func(context.Context) (string, error) {
 			return cpVersion, nil
@@ -157,11 +157,11 @@ func newRackMachineHarness(t *testing.T, cpVersion string, objs ...runtime.Objec
 
 func (h *rackMachineHarness) reconcile(t *testing.T) *infrav1.RackLinuxMachine {
 	t.Helper()
-	if _, err := h.r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: rackTestNamespace, Name: "edge-0"}}); err != nil {
+	if _, err := h.r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: rackTestNamespace, Name: edgeUUID}}); err != nil {
 		t.Fatalf("Reconcile: %v", err)
 	}
 	m := &infrav1.RackLinuxMachine{}
-	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "edge-0"}, m); err != nil {
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: edgeUUID}, m); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
@@ -196,7 +196,7 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 	if len(h.runner.runs) != 2 {
 		t.Fatalf("ran %d scripts, want a converge then a bootstrap", len(h.runner.runs))
 	}
-	if h.runner.runs[0].host != "rack-linux-ber1-edge.tailscale-operator.svc.cluster.local" {
+	if h.runner.runs[0].host != "rack-linux-"+edgeUUID+".tailscale-operator.svc.cluster.local" {
 		t.Fatalf("dialled %q, want the egress Service", h.runner.runs[0].host)
 	}
 	if strings.Contains(h.runner.runs[0].script, "token:") {
@@ -214,8 +214,8 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 	if err := h.c.Get(context.Background(), types.NamespacedName{Name: "ber1-edge"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("stale Node not deleted: %v", err)
 	}
-	if m.Status.RackLinuxHost != "ber1-edge" || m.Spec.ProviderID == nil || *m.Spec.ProviderID != "rack-linux://ber1/ber1-edge" {
-		t.Fatalf("claim %q providerID %v", m.Status.RackLinuxHost, m.Spec.ProviderID)
+	if m.Status.NodeName != "ber1-edge" || m.Spec.ProviderID == nil || *m.Spec.ProviderID != "rack-linux://ber1/"+edgeUUID {
+		t.Fatalf("node %q providerID %v", m.Status.NodeName, m.Spec.ProviderID)
 	}
 	if m.Status.TailnetDeviceID != "dev-1" || m.Status.HostConfigHash == "" || m.Status.LastConvergeTime == nil {
 		t.Fatalf("status %+v", m.Status)
@@ -224,7 +224,7 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 		t.Fatal("HostConverged is not True")
 	}
 	svc := &corev1.Service{}
-	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: "tailscale-operator", Name: "rack-linux-ber1-edge"}, svc); err != nil {
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: "tailscale-operator", Name: "rack-linux-" + edgeUUID}, svc); err != nil {
 		t.Fatalf("egress Service: %v", err)
 	}
 	if svc.Annotations["tailscale.com/tailnet-ip"] != "100.64.0.7" {
@@ -235,7 +235,7 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 // The converge keeps the port AMT shares, the host's boot MAC, up.
 func TestRackLinuxMachineKeepsTheManagementPortUp(t *testing.T) {
 	host := claimedEdgeHost("dev-1")
-	host.Spec.BootMAC = "38:05:25:38:b5:b5"
+	host.Status.BootMAC = "38:05:25:38:b5:b5"
 	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, edgeMachine())...)
 
 	h.reconcile(t)
@@ -294,12 +294,10 @@ func TestRackLinuxMachineHoldsWhenTheControlPlaneIsOnAnotherMinor(t *testing.T) 
 
 func TestRackLinuxMachineLeavesAConvergedHostAlone(t *testing.T) {
 	host := claimedEdgeHost("dev-1")
-	host.Status.ClaimedBy = "edge-0"
 	machine := edgeMachine()
-	machine.Status.RackLinuxHost = "ber1-edge"
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"},
-		Spec:       corev1.NodeSpec{ProviderID: "rack-linux://ber1/ber1-edge"},
+		Spec:       corev1.NodeSpec{ProviderID: "rack-linux://ber1/" + edgeUUID},
 		Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}},
 	}
 	objs := append(rackClusterObjects(true), host, machine, node)
@@ -326,14 +324,12 @@ func TestRackLinuxMachineLeavesAConvergedHostAlone(t *testing.T) {
 
 func TestRackLinuxMachinePinsAReinstalledHostAfresh(t *testing.T) {
 	host := claimedEdgeHost("dev-2")
-	host.Status.ClaimedBy = "edge-0"
 	machine := edgeMachine()
-	machine.Status.RackLinuxHost = "ber1-edge"
 	machine.Status.TailnetDeviceID = "dev-1"
 	objs := append(rackClusterObjects(true), host, machine)
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 	ctx := context.Background()
-	if err := h.r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey("ber1-edge", "dev-1"), "SHA256:old"); err != nil {
+	if err := h.r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey(edgeUUID, "dev-1"), "SHA256:old"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -342,7 +338,7 @@ func TestRackLinuxMachinePinsAReinstalledHostAfresh(t *testing.T) {
 	if len(h.runner.runs) != 1 || h.runner.runs[0].pinned != "" {
 		t.Fatalf("runs %+v; the reinstalled host must be trusted on first use", h.runner.runs)
 	}
-	if creds, err := h.r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey("ber1-edge", "dev-1")); err != nil || creds != nil {
+	if creds, err := h.r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey(edgeUUID, "dev-1")); err != nil || creds != nil {
 		t.Fatalf("the previous install's pin is still there: %+v %v", creds, err)
 	}
 	if m.Status.TailnetDeviceID != "dev-2" {
@@ -352,14 +348,12 @@ func TestRackLinuxMachinePinsAReinstalledHostAfresh(t *testing.T) {
 
 func TestRackLinuxMachineKeepsAPinPerInstall(t *testing.T) {
 	host := claimedEdgeHost("dev-2")
-	host.Status.ClaimedBy = "edge-0"
 	machine := edgeMachine()
-	machine.Status.RackLinuxHost = "ber1-edge"
 	objs := append(rackClusterObjects(true), host, machine)
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 	ctx := context.Background()
 	for device, pin := range map[string]string{"dev-1": "SHA256:first-install", "dev-2": "SHA256:second-install"} {
-		if err := h.r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey("ber1-edge", device), pin); err != nil {
+		if err := h.r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey(edgeUUID, device), pin); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -371,15 +365,14 @@ func TestRackLinuxMachineKeepsAPinPerInstall(t *testing.T) {
 	}
 }
 
-func TestRackLinuxMachineDeleteReleasesTheHost(t *testing.T) {
+func TestRackLinuxMachineDeleteStopsTheKubeletAndRemovesTheNode(t *testing.T) {
 	host := claimedEdgeHost("dev-1")
-	host.Status.ClaimedBy = "edge-0"
 	machine := edgeMachine()
-	machine.Status.RackLinuxHost = "ber1-edge"
+	machine.Status.NodeName = "ber1-edge"
 	machine.Finalizers = []string{RackLinuxMachineFinalizer}
 	now := metav1.Now()
 	machine.DeletionTimestamp = &now
-	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"}, Spec: corev1.NodeSpec{ProviderID: "rack-linux://ber1/ber1-edge"}}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"}, Spec: corev1.NodeSpec{ProviderID: "rack-linux://ber1/" + edgeUUID}}
 	objs := append(rackClusterObjects(true), host, machine, node)
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 
@@ -392,12 +385,43 @@ func TestRackLinuxMachineDeleteReleasesTheHost(t *testing.T) {
 	if err := h.c.Get(context.Background(), types.NamespacedName{Name: "ber1-edge"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("Node not deleted: %v", err)
 	}
-	got := &infrav1.RackLinuxHost{}
-	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge"}, got); err != nil {
-		t.Fatal(err)
+}
+
+// A host whose hostname changed joins again under the new name: the Node it
+// joined under goes, and the converge drops the kubelet's identity and
+// bootstraps it afresh.
+func TestRackLinuxMachineRejoinsARenamedHost(t *testing.T) {
+	host := claimedEdgeHost("dev-1")
+	host.Spec.Hostname = "ber1-edge-c"
+	machine := edgeMachine()
+	machine.Status.NodeName = "ber1-edge"
+	machine.Status.TailnetDeviceID = "dev-1"
+	old := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge"}, Spec: corev1.NodeSpec{ProviderID: "rack-linux://ber1/" + edgeUUID}}
+	objs := append(rackClusterObjects(true), host, machine, old)
+	h := newRackMachineHarness(t, "v1.34.8", objs...)
+	h.runner.results = []error{&scriptExitError{status: rackConvergeNeedsBootstrap, err: errors.New("exit 42")}, nil}
+
+	m := h.reconcile(t)
+
+	if err := h.c.Get(context.Background(), types.NamespacedName{Name: "ber1-edge"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("the Node the host joined under before its rename is still there: %v", err)
 	}
-	if got.Status.ClaimedBy != "" {
-		t.Fatalf("host still claimed by %q", got.Status.ClaimedBy)
+	if len(h.runner.runs) != 2 {
+		t.Fatalf("ran %d scripts, want a converge then a bootstrap", len(h.runner.runs))
+	}
+	for i, run := range h.runner.runs {
+		if !strings.Contains(run.script, "rm -rf /var/lib/kubelet/pki /var/lib/kubelet/kubeconfig") ||
+			!strings.Contains(run.script, "name='ber1-edge-c'") || !strings.Contains(run.script, "--hostname-override=ber1-edge-c") {
+			t.Fatalf("run %d does not rejoin the host as ber1-edge-c:\n%s", i, run.script)
+		}
+	}
+	if m.Status.NodeName != "ber1-edge-c" {
+		t.Fatalf("node name %q", m.Status.NodeName)
+	}
+
+	h.reconcile(t)
+	if len(h.runner.runs) != 2 {
+		t.Fatal("rejoined the host again")
 	}
 }
 
@@ -411,7 +435,7 @@ func TestConvergeBackoff(t *testing.T) {
 
 func failingMachine(device string, failures int32, lastAttempt time.Duration) *infrav1.RackLinuxMachine {
 	m := edgeMachine()
-	m.Status.RackLinuxHost = "ber1-edge"
+	m.Status.NodeName = "ber1-edge"
 	m.Status.TailnetDeviceID = device
 	m.Status.ConvergeFailures = failures
 	at := metav1.NewTime(time.Now().Add(-lastAttempt))
@@ -421,7 +445,6 @@ func failingMachine(device string, failures int32, lastAttempt time.Duration) *i
 
 func TestRackLinuxMachineConvergesANewDeviceWithoutWaitingOutTheBackoff(t *testing.T) {
 	host := claimedEdgeHost("dev-2")
-	host.Status.ClaimedBy = "edge-0"
 	objs := append(rackClusterObjects(true), host, failingMachine("dev-1", 7, time.Minute))
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 
@@ -437,7 +460,6 @@ func TestRackLinuxMachineConvergesANewDeviceWithoutWaitingOutTheBackoff(t *testi
 
 func TestRackLinuxMachineBacksOffOnTheSameDevice(t *testing.T) {
 	host := claimedEdgeHost("dev-1")
-	host.Status.ClaimedBy = "edge-0"
 	objs := append(rackClusterObjects(true), host, failingMachine("dev-1", 3, time.Minute))
 	h := newRackMachineHarness(t, "v1.34.8", objs...)
 

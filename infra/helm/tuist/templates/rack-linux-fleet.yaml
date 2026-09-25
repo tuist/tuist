@@ -1,40 +1,42 @@
 {{- if and .Values.capi.enabled .Values.rackLinuxFleet.enabled }}
 {{- $fleetName := include "tuist.rackLinuxFleetName" . }}
-{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
-{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
-{{- $poolPrefix := required "rackLinuxFleet.pool is required; it prefixes each role's claim pool and is the environment boundary between racks" .Values.rackLinuxFleet.pool }}
 {{- /*
 Rack-owned Linux machines: one RackLinuxHost per box, rendered from
-`rackLinuxFleet.hosts`, and one MachineDeployment per role claiming from the
-pool `<pool>-<role>`. A role's labels and taints come from
-`rackLinuxFleet.roles.<role>` and reach the Node at its first registration.
+`rackLinuxFleet.hosts` and named after the machine's SMBIOS UUID, which
+`kubectl get rlc` lists once the box's install stick has announced it. The
+operator keeps a CAPI Machine for each host, which makes it a node. A role's
+labels and taints come from `rackLinuxFleet.roles.<role>` and reach the Node at
+its first registration.
 */ -}}
-{{- $roles := dict }}
 {{- range $host := .Values.rackLinuxFleet.hosts }}
-{{- $hostName := required "each rackLinuxFleet.hosts entry needs a name" $host.name }}
-{{- $role := required (printf "rackLinuxFleet.hosts[%s].role is required" $hostName) $host.role }}
-{{- $_ := set $roles $role (add1 (get $roles $role | default 0)) }}
-{{- if empty $host.tailnetTags }}
-{{- fail (printf "rackLinuxFleet.hosts[%s].tailnetTags is required: a device is only this host when it carries them" $hostName) }}
+{{- $uuid := lower (required "each rackLinuxFleet.hosts entry needs the machine's uuid" $host.uuid) }}
+{{- if not (regexMatch "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" $uuid) }}
+{{- fail (printf "rackLinuxFleet.hosts[].uuid %q is not an SMBIOS UUID" $host.uuid) }}
+{{- end }}
+{{- $hostname := required (printf "rackLinuxFleet.hosts[%s].hostname is required" $uuid) $host.hostname }}
+{{- $role := required (printf "rackLinuxFleet.hosts[%s].role is required" $hostname) $host.role }}
+{{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
+{{- $tags := $host.tailnetTags | default $roleConfig.tailnetTags | default $.Values.rackLinuxFleet.tailnetTags }}
+{{- if empty $tags }}
+{{- fail (printf "rackLinuxFleet.hosts[%s].tailnetTags (or its role's, or rackLinuxFleet.tailnetTags) is required: a device is only this host when it carries them" $hostname) }}
 {{- end }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: RackLinuxHost
 metadata:
-  name: {{ $hostName }}
+  name: {{ $uuid }}
   namespace: {{ $.Release.Namespace }}
   annotations:
     helm.sh/resource-policy: keep
   labels:
     {{- include "tuist.labels" $ | nindent 4 }}
     app.kubernetes.io/component: rack-linux-fleet
-    tuist.dev/rack-pool: {{ printf "%s-%s" $poolPrefix $role }}
 spec:
-  pool: {{ printf "%s-%s" $poolPrefix $role }}
+  hostname: {{ $hostname }}
   role: {{ $role }}
   sshUser: {{ $host.sshUser | default $.Values.rackLinuxFleet.sshUser | default "tuist" }}
   location:
-    site: {{ required (printf "rackLinuxFleet.hosts[%s].site is required; it composes the providerID" $hostName) (coalesce $host.site $.Values.rackLinuxFleet.site) | quote }}
+    site: {{ required (printf "rackLinuxFleet.hosts[%s].site is required; it composes the providerID" $hostname) (coalesce $host.site $.Values.rackLinuxFleet.site) | quote }}
     {{- with $host.rack }}
     rack: {{ . | quote }}
     {{- end }}
@@ -43,90 +45,37 @@ spec:
     {{- end }}
   tailnet:
     tags:
-      {{- toYaml $host.tailnetTags | nindent 6 }}
+      {{- toYaml $tags | nindent 6 }}
   {{- with $host.bootMAC }}
   bootMAC: {{ lower . | quote }}
   {{- end }}
-  {{- if and $host.amt $host.amt.activate }}
-  amt:
-    activate: true
-    {{- with $host.amt.address }}
-    address: {{ . | quote }}
-    gateway: {{ required (printf "rackLinuxFleet.hosts[%s].amt.gateway is required with amt.address" $hostName) $host.amt.gateway | quote }}
+  {{- if or $roleConfig.nodeLabels $roleConfig.nodeTaints }}
+  node:
+    {{- with $roleConfig.nodeLabels }}
+    labels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $roleConfig.nodeTaints }}
+    taints:
+      {{- toYaml . | nindent 6 }}
     {{- end }}
   {{- end }}
-{{- end }}
-{{- range $role := keys $roles | sortAlpha }}
-{{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
-{{- $machineSpec := dict "adoptPool" (printf "%s-%s" $poolPrefix $role) "fleetName" $fleetName }}
-{{- with $roleConfig.nodeLabels }}
-{{- $_ := set $machineSpec "nodeLabels" . }}
-{{- end }}
-{{- with $roleConfig.nodeTaints }}
-{{- $_ := set $machineSpec "nodeTaints" . }}
-{{- end }}
-{{- $deploymentName := printf "%s-%s" $fleetName $role }}
-{{- $templateName := printf "%s-%s" $deploymentName (toYaml $machineSpec | sha256sum | trunc 8) }}
----
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: RackLinuxMachineTemplate
-metadata:
-  name: {{ $templateName }}
-  namespace: {{ $.Release.Namespace }}
-  annotations:
-    helm.sh/resource-policy: keep
-  labels:
-    {{- include "tuist.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: rack-linux-fleet
-    tuist.dev/fleet: {{ $deploymentName }}
-spec:
-  template:
-    spec:
-      {{- toYaml $machineSpec | nindent 6 }}
----
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: MachineDeployment
-metadata:
-  name: {{ $deploymentName }}
-  namespace: {{ $.Release.Namespace }}
-  # A chart revision without the rack (a rollback, another branch's deploy)
-  # leaves its nodes joined.
-  annotations:
-    helm.sh/resource-policy: keep
-  labels:
-    {{- include "tuist.labels" $ | nindent 4 }}
-    app.kubernetes.io/component: rack-linux-fleet
-    tuist.dev/fleet: {{ $deploymentName }}
-    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
-    tuist.dev/rack-pool: {{ printf "%s-%s" $poolPrefix $role }}
-spec:
-  clusterName: {{ $clusterName }}
-  # The operator scales it up as the pool's hosts come onto the tailnet, so a
-  # host declared before it is installed does not hold up a deploy; the chart
-  # keeps whatever it scaled to.
-  {{- $live := lookup "cluster.x-k8s.io/v1beta1" "MachineDeployment" $.Release.Namespace $deploymentName }}
-  replicas: {{ if $live }}{{ $live.spec.replicas | default 0 }}{{ else }}0{{ end }}
-  # A host is re-joined by deleting its Machine; the replacement claims the
-  # same box.
-  strategy:
-    type: OnDelete
-  selector:
-    matchLabels:
-      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
-      tuist.dev/fleet: {{ $deploymentName }}
-  template:
-    metadata:
-      labels:
-        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
-        tuist.dev/fleet: {{ $deploymentName }}
-    spec:
-      clusterName: {{ $clusterName }}
-      bootstrap:
-        dataSecretName: {{ $bootstrapSecret }}
-      infrastructureRef:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-        kind: RackLinuxMachineTemplate
-        name: {{ $templateName }}
+  online: {{ ternary $host.online true (hasKey $host "online") }}
+  {{- with $host.reinstallGeneration }}
+  reinstallGeneration: {{ . }}
+  {{- end }}
+  {{- with $host.amt }}
+  amt:
+    {{- if hasKey . "activate" }}
+    activate: {{ .activate }}
+    {{- end }}
+    {{- with .address }}
+    address: {{ . | quote }}
+    {{- end }}
+    {{- with .gateway }}
+    gateway: {{ . | quote }}
+    {{- end }}
+  {{- end }}
 {{- end }}
 {{- if .Values.rackLinuxFleet.sshExternalSecret.enabled }}
 ---

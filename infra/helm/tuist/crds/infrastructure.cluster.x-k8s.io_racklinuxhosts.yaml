@@ -21,11 +21,14 @@ spec:
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .spec.pool
-          name: Pool
+        - jsonPath: .spec.hostname
+          name: Hostname
           type: string
         - jsonPath: .spec.role
           name: Role
+          type: string
+        - jsonPath: .status.provisioning.state
+          name: State
           type: string
         - jsonPath: .status.tailnet.address
           name: Tailnet
@@ -33,11 +36,15 @@ spec:
         - jsonPath: .status.tailnet.connected
           name: Connected
           type: boolean
-        - jsonPath: .status.claimedBy
-          name: ClaimedBy
+        - jsonPath: .status.power.state
+          name: Power
           type: string
         - jsonPath: .spec.location.site
           name: Site
+          priority: 1
+          type: string
+        - jsonPath: .status.bootMAC
+          name: BootMAC
           priority: 1
           type: string
         - jsonPath: .status.tailnet.deviceID
@@ -79,43 +86,53 @@ spec:
               type: object
             spec:
               description: |-
-                RackLinuxHostSpec is one x86 Linux machine we own, in a rack we operate. The
-                host joins the tailnet by itself from its install, netbooted or from a
-                stick, so it is found by its name and tags rather than dialled at an
-                address.
+                RackLinuxHostSpec is one x86 Linux machine we own, in a rack we operate. It
+                is named after the machine's SMBIOS UUID, so the object is the box whatever
+                it is called; the name it runs under is spec.hostname. The host joins the
+                tailnet by itself from its install, netbooted or from a stick, and the
+                operator makes it a node through the CAPI Machine it keeps for it.
               properties:
                 amt:
                   description: |-
                     AMT is what the operator does with the host's Intel AMT, which shares
-                    the management port and can power-cycle a host whose OS is gone.
+                    the management port and can power a host whose OS is gone.
                   properties:
                     activate:
                       description: |-
                         Activate has the operator activate AMT in admin control mode, with the
-                        fleet's provisioning certificate and an admin password it generates
-                        and keeps in the Secret <host>-amt. Turning it off does not deactivate
-                        AMT.
+                        fleet's provisioning certificate and an admin password it generates and
+                        keeps in the Secret <name>-amt. Unset, the operator activates the AMT of
+                        the hardware models the fleet lists (--rack-linux-amt-products).
+                        Turning it off does not deactivate AMT.
                       type: boolean
                     address:
                       description: |-
                         Address is the static IPv4 address, with its prefix length, the
                         operator gives activated AMT on the management segment, so AMT keeps
-                        one address whatever happens to the host. Unset, AMT takes one by DHCP.
+                        one address whatever happens to the host. Unset, the operator takes
+                        one from the fleet's AMT address range.
                       pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$
                       type: string
                     gateway:
-                      description: Gateway is the segment's gateway, which a static address needs.
+                      description: |-
+                        Gateway is the segment's gateway, which a static address needs. Unset,
+                        the fleet's is used.
                       pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
                       type: string
                   type: object
                 bootMAC:
                   description: |-
-                    BootMAC is the MAC address of the NIC the host netboots from, on the rack's
-                    management segment. The operator publishes an install for it while the
-                    host is not on the tailnet, and when the tuist.dev/reinstall annotation
-                    requests one. An edge host runs the netboot server, so it is installed
-                    from a stick instead.
+                    BootMAC is the MAC address of the NIC the host netboots from, on the
+                    rack's management segment. Unset, the operator takes the one the
+                    machine announced as its management port (status.bootMAC).
                   pattern: ^([0-9a-f]{2}:){5}[0-9a-f]{2}$
+                  type: string
+                hostname:
+                  description: |-
+                    Hostname is the name the host runs under: its operating system's, its
+                    tailnet device's and its Node's. Changing it rejoins the host under the
+                    new name.
+                  pattern: ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$
                   type: string
                 location:
                   description: Location is where the box is. `site` composes the providerID.
@@ -137,15 +154,63 @@ spec:
                         providerID, so it must be stable for the life of the host.
                       type: string
                   type: object
-                pool:
+                node:
+                  description: Node is what the host's Node registers with.
+                  properties:
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Labels are registered on top of the labels every rack Linux node
+                        carries.
+                      type: object
+                    taints:
+                      description: Taints are registered with the Node.
+                      items:
+                        description: |-
+                          The node this Taint is attached to has the "effect" on
+                          any pod that does not tolerate the Taint.
+                        properties:
+                          effect:
+                            description: |-
+                              Required. The effect of the taint on pods
+                              that do not tolerate the taint.
+                              Valid effects are NoSchedule, PreferNoSchedule and NoExecute.
+                            type: string
+                          key:
+                            description: Required. The taint key to be applied to a node.
+                            type: string
+                          timeAdded:
+                            description: |-
+                              TimeAdded represents the time at which the taint was added.
+                              It is only written for NoExecute taints.
+                            format: date-time
+                            type: string
+                          value:
+                            description: The taint value corresponding to the taint key.
+                            type: string
+                        required:
+                          - effect
+                          - key
+                        type: object
+                      type: array
+                  type: object
+                online:
+                  default: true
                   description: |-
-                    Pool is the claim marker and the environment boundary: a
-                    RackLinuxMachine claims a free host whose pool equals its adoptPool.
-                  type: string
+                    Online is whether the host should be powered on. The operator powers it
+                    on or off through AMT to match.
+                  type: boolean
+                reinstallGeneration:
+                  description: |-
+                    ReinstallGeneration reinstalls the host whenever it is raised above
+                    status.provisioning.installedGeneration, which records the generation
+                    the host's current install ran for.
+                  format: int64
+                  minimum: 0
+                  type: integer
                 role:
-                  description: |-
-                    Role decides the disk layout the install lays down and which
-                    MachineDeployment claims the host.
+                  description: Role decides the disk layout the install lays down.
                   enum:
                     - edge
                     - services
@@ -163,12 +228,21 @@ spec:
                     tags:
                       description: |-
                         Tags the host's device must carry, the tags its install key is minted
-                        with. A device with the host's name and without all of them is not this
-                        host.
+                        with. A device with the host's hostname and without all of them is not
+                        this host.
                       items:
                         type: string
+                      minItems: 1
                       type: array
+                  required:
+                    - tags
                   type: object
+              required:
+                - hostname
+                - location
+                - online
+                - role
+                - tailnet
               type: object
             status:
               description: RackLinuxHostStatus is the observed state of one host.
@@ -181,6 +255,11 @@ spec:
                       type: string
                     address:
                       description: Address is AMT's own IPv4 address on the management port.
+                      type: string
+                    assignedAddress:
+                      description: |-
+                        AssignedAddress is the static address the operator gives AMT, with its
+                        prefix length: spec.amt.address, or one from the fleet's range.
                       type: string
                     configurationError:
                       type: string
@@ -204,7 +283,7 @@ spec:
                       description: LastPowerAction is the last power change the operator asked AMT for.
                       properties:
                         action:
-                          description: 'Action is the tuist.dev/amt-power value: on, off, cycle or reset.'
+                          description: 'Action is on, off, or a tuist.dev/reboot value: cycle, reset or pxe.'
                           type: string
                         at:
                           description: At is when the operator asked.
@@ -233,20 +312,16 @@ spec:
                       format: date-time
                       type: string
                     uuid:
-                      description: |-
-                        UUID is the machine's SMBIOS UUID as AMT reports it, which the install
-                        is also published under for a network boot from any NIC.
+                      description: UUID is the machine's SMBIOS UUID as AMT reports it.
                       type: string
                     version:
                       description: Version is the AMT firmware's.
                       type: string
                   type: object
-                claimedAt:
-                  description: ClaimedAt is when the current claim was taken.
-                  format: date-time
-                  type: string
-                claimedBy:
-                  description: ClaimedBy is the RackLinuxMachine holding this host.
+                bootMAC:
+                  description: |-
+                    BootMAC is the boot MAC in effect: spec.bootMAC, or the management port
+                    the machine announced.
                   type: string
                 conditions:
                   description: Conditions provide observations of the operational state of a Cluster API resource.
@@ -292,10 +367,20 @@ spec:
                       - type
                     type: object
                   type: array
+                hardware:
+                  description: Hardware is what the machine announced about itself.
+                  properties:
+                    product:
+                      description: Product is the machine's SMBIOS vendor and product name.
+                      type: string
+                    serial:
+                      description: Serial is the machine's SMBIOS serial number.
+                      type: string
+                  type: object
                 install:
                   description: |-
-                    Install is the install published for the host to netboot, until a new
-                    tailnet device shows it has run.
+                    Install is the install published for the host, until a new tailnet
+                    device shows it has run.
                   properties:
                     bootMAC:
                       description: BootMAC is the MAC address the install is published for.
@@ -305,6 +390,15 @@ spec:
                         ExpiresAt is when the join key expires; an install still needed then is
                         published again with a new key.
                       format: date-time
+                      type: string
+                    generation:
+                      description: Generation is the reinstallGeneration the install is for.
+                      format: int64
+                      type: integer
+                    hostKeyFingerprint:
+                      description: |-
+                        HostKeyFingerprint is the SHA-256 fingerprint of the SSH host key the
+                        install gives the host, which the operator trusts the new install by.
                       type: string
                     keyID:
                       description: KeyID is the ID of the single-use join key the install carries.
@@ -317,10 +411,24 @@ spec:
                         PreviousDeviceID is the host's tailnet device when the install was
                         published; a different device is the install having run.
                       type: string
-                    triggeredAt:
+                    servableAt:
                       description: |-
-                        TriggeredAt is when the operator set the running host to netboot once
-                        and rebooted it, for a requested reinstall.
+                        ServableAt is when a boot server holding the site's provisioning address
+                        first served the install's boot script.
+                      format: date-time
+                      type: string
+                    servedAt:
+                      description: |-
+                        ServedAt is when a boot server handed the install's seed out, which it
+                        does once, to the machine whose DHCP lease is on one of the host's
+                        NICs.
+                      format: date-time
+                      type: string
+                    servedTo:
+                      description: ServedTo is the address and MAC the seed went to.
+                      type: string
+                    triggeredAt:
+                      description: TriggeredAt is when the operator rebooted the host into the install.
                       format: date-time
                       type: string
                   required:
@@ -328,6 +436,39 @@ spec:
                     - expiresAt
                     - keyID
                     - offeredAt
+                  type: object
+                power:
+                  description: Power is the host's power state as AMT reports it.
+                  properties:
+                    observedAt:
+                      description: ObservedAt is when AMT reported it.
+                      format: date-time
+                      type: string
+                    state:
+                      description: State is On or Off.
+                      type: string
+                  type: object
+                provisioning:
+                  description: |-
+                    Provisioning is where the host is in its life: registering,
+                    provisioning an install, provisioned, or deprovisioning.
+                  properties:
+                    installedGeneration:
+                      description: |-
+                        InstalledGeneration is the reinstallGeneration the host's current
+                        install ran for.
+                      format: int64
+                      type: integer
+                    lastTransitionTime:
+                      description: LastTransitionTime is when State last changed.
+                      format: date-time
+                      type: string
+                    message:
+                      description: Message says what the host is waiting for.
+                      type: string
+                    state:
+                      description: State is Registering, Provisioning, Provisioned or Deprovisioning.
+                      type: string
                   type: object
                 tailnet:
                   description: |-
@@ -359,6 +500,11 @@ spec:
                   type: object
               type: object
           type: object
+          x-kubernetes-validations:
+            - message: a RackLinuxHost is named after the machine's SMBIOS UUID, in lowercase
+              rule: self.metadata.name.matches('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+            - message: spec.location.site is required; it composes the providerID
+              rule: self.spec.location.site != ''
       served: true
       storage: true
       subresources:

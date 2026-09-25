@@ -13,7 +13,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,14 +29,6 @@ const (
 	// InstalledCondition reports whether the host runs the install it should.
 	// It is False while an install is published for the host to boot.
 	InstalledCondition clusterv1.ConditionType = "Installed"
-
-	// RackReinstallAnnotation set to "true" on a RackLinuxHost reinstalls it
-	// over the network. The operator removes it once the new install is on the
-	// tailnet.
-	RackReinstallAnnotation = "tuist.dev/reinstall"
-
-	// RackPoolLabel marks the MachineDeployment that claims a pool's hosts.
-	RackPoolLabel = "tuist.dev/rack-pool"
 
 	rackInstallKeyLifetime = 24 * time.Hour
 	rackInstallRenewBefore = 6 * time.Hour
@@ -69,72 +60,67 @@ type RackInstall struct {
 func rackBootSecretName(fleet string) string    { return fleet + "-boot" }
 func rackConsoleSecretName(fleet string) string { return fleet + "-console" }
 
-// reconcileInstall publishes an install for a host that has never joined the
-// tailnet, or whose reinstall was requested, and withdraws it once a new
-// device shows the install ran. An edge's install is published only while
-// another edge of its site is connected to serve it, or once the edge was
-// rebooted into it. A requested reinstall of a running host is started by
-// setting its firmware to boot its installer once and rebooting it. A host
-// declaring the boot MAC of a host declared before it takes that box over
-// (racklinuxhost_takeover.go). It returns how soon to look again, zero for the
-// usual interval.
+// reconcileInstall publishes an install for a host that has no tailnet device
+// yet, or whose spec.reinstallGeneration is above the generation its current
+// install ran for, and withdraws it once a new device shows the install ran,
+// recording the install's generation. An edge's install is published only
+// while another edge of its site is connected to serve it, or once the edge
+// was rebooted into it. The reinstall of a running host is started by setting
+// its firmware to boot its installer once and rebooting it, and that of a
+// host off the tailnet by power-cycling it through AMT into its network boot.
+// It records where the host is in status.provisioning, and returns how soon to
+// look again, zero for the usual interval.
 func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *infrav1.RackLinuxHost) (time.Duration, error) {
+	now := r.now()
+	device := host.Status.Tailnet
 	if r.Install == nil {
+		if device != nil {
+			setProvisioningState(host, infrav1.RackLinuxHostProvisioned, "", now)
+		} else {
+			setProvisioningState(host, infrav1.RackLinuxHostRegistering, "the operator publishes no installs; install the host from a stick", now)
+		}
 		return 0, nil
 	}
+	mac := host.Status.BootMAC
 	inst := host.Status.Install
-	device := host.Status.Tailnet
-	if inst != nil && inst.BootMAC != host.Spec.BootMAC {
+	generation := host.Spec.ReinstallGeneration
+	if inst != nil && inst.BootMAC != mac {
 		if err := r.withdrawInstall(ctx, host); err != nil {
 			return 0, err
 		}
 		inst = nil
-	}
-	if host.Spec.BootMAC == "" {
-		conditions.Delete(host, InstalledCondition)
-		return 0, nil
-	}
-
-	twins, err := r.bootMACTwins(ctx, host, host.Spec.BootMAC)
-	if err != nil {
-		return 0, err
-	}
-	if next := successor(host, twins); next != nil {
-		if inst != nil {
-			if err := r.withdrawInstall(ctx, host); err != nil {
-				return 0, err
-			}
-			r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallWithdrawn",
-				"Withdrew install %s: %s declares bootMAC %s after %s", inst.KeyID, next.Name, host.Spec.BootMAC, host.Name)
-		}
-		conditions.MarkFalse(host, InstalledCondition, "Replaced", clusterv1.ConditionSeverityInfo,
-			"%s declares bootMAC %s after %s, so the box becomes %s; %s is deleted once %s is on the tailnet and %s is not",
-			next.Name, host.Spec.BootMAC, host.Name, next.Name, host.Name, next.Name, host.Name)
-		return 0, nil
 	}
 
 	if inst != nil && device != nil && device.DeviceID != inst.PreviousDeviceID {
 		if err := r.withdrawInstall(ctx, host); err != nil {
 			return 0, err
 		}
+		host.Status.Provisioning.InstalledGeneration = inst.Generation
 		r.Recorder.Eventf(host, corev1.EventTypeNormal, "Installed",
-			"%s ran install %s and joined the tailnet as %s", host.Name, inst.KeyID, device.DeviceID)
-		delete(host.Annotations, RackReinstallAnnotation)
+			"%s ran install %s (generation %d) and joined the tailnet as %s", host.Spec.Hostname, inst.KeyID, inst.Generation, device.DeviceID)
 		conditions.MarkTrue(host, InstalledCondition)
-		return 0, r.retireReplaced(ctx, host, twins)
+		setProvisioningState(host, infrav1.RackLinuxHostProvisioned, "", now)
+		return 0, nil
 	}
 
-	reinstall := host.Annotations[RackReinstallAnnotation] == "true"
-	if device != nil && !reinstall {
+	if device != nil && generation <= host.Status.Provisioning.InstalledGeneration {
 		if inst != nil {
 			if err := r.withdrawInstall(ctx, host); err != nil {
 				return 0, err
 			}
 			r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallWithdrawn",
-				"Withdrew install %s: the %s annotation is gone", inst.KeyID, RackReinstallAnnotation)
+				"Withdrew install %s: generation %d is installed", inst.KeyID, host.Status.Provisioning.InstalledGeneration)
 		}
 		conditions.MarkTrue(host, InstalledCondition)
-		return 0, r.retireReplaced(ctx, host, twins)
+		setProvisioningState(host, infrav1.RackLinuxHostProvisioned, "", now)
+		return 0, nil
+	}
+
+	if mac == "" {
+		conditions.MarkFalse(host, InstalledCondition, "NoBootMAC", clusterv1.ConditionSeverityInfo,
+			"no boot MAC: the machine has not announced itself and spec.bootMAC is unset; boot its install stick once")
+		setProvisioningState(host, infrav1.RackLinuxHostRegistering, "waiting for the machine to announce itself from its install stick", now)
+		return 0, nil
 	}
 	switch host.Spec.Role {
 	case "edge":
@@ -142,100 +128,110 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		if err != nil {
 			return 0, err
 		}
-		if served || (inst != nil && inst.TriggeredAt != nil) {
-			break
-		}
-		if inst != nil {
-			if err := r.withdrawInstall(ctx, host); err != nil {
-				return 0, err
+		if !served && (inst == nil || inst.TriggeredAt == nil) {
+			if inst != nil {
+				if err := r.withdrawInstall(ctx, host); err != nil {
+					return 0, err
+				}
+				r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallWithdrawn",
+					"Withdrew install %s: no other edge of site %s is on the tailnet to serve it", inst.KeyID, host.Spec.Location.Site)
 			}
-			r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallWithdrawn",
-				"Withdrew install %s: no other edge of site %s is on the tailnet to serve it", inst.KeyID, host.Spec.Location.Site)
+			conditions.MarkFalse(host, InstalledCondition, "ServesTheNetboot", clusterv1.ConditionSeverityWarning,
+				"no other edge of site %s is on the tailnet to serve %s's netboot; install it from a stick written by rack:write-install-usb",
+				host.Spec.Location.Site, host.Spec.Hostname)
+			setProvisioningState(host, infrav1.RackLinuxHostRegistering, "waiting for another edge of the site to serve the install, or for the stick", now)
+			return 0, nil
 		}
-		conditions.MarkFalse(host, InstalledCondition, "ServesTheNetboot", clusterv1.ConditionSeverityWarning,
-			"no other edge of site %s is on the tailnet to serve %s's netboot; install it from a stick written by rack:write-install-usb",
-			host.Spec.Location.Site, host.Name)
-		return 0, nil
 	case "storage":
 		conditions.MarkFalse(host, InstalledCondition, "NoStorageLayout", clusterv1.ConditionSeverityWarning,
-			"the storage role's disk layout is not implemented, so no install is published for %s", host.Name)
+			"the storage role's disk layout is not implemented, so no install is published for %s", host.Spec.Hostname)
+		setProvisioningState(host, infrav1.RackLinuxHostRegistering, "the storage role has no install", now)
 		return 0, nil
 	}
 
-	now := r.now()
-	if inst == nil || now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore)) || !r.installServed(ctx, inst) {
+	if inst == nil || inst.Generation != generation || now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore)) || !r.installServed(ctx, inst) {
 		previous := ""
 		var triggered *metav1.Time
-		if inst != nil {
+		switch {
+		case inst != nil && inst.Generation == generation:
 			previous, triggered = inst.PreviousDeviceID, inst.TriggeredAt
-		} else if device != nil {
+		case device != nil:
 			previous = device.DeviceID
 		}
 		if err := r.publishInstall(ctx, host, previous, triggered, now); err != nil {
 			conditions.MarkFalse(host, InstalledCondition, "InstallNotPublished", clusterv1.ConditionSeverityWarning, "%v", err)
+			setProvisioningState(host, infrav1.RackLinuxHostProvisioning, fmt.Sprintf("could not publish the install: %v", err), now)
 			return time.Minute, nil
 		}
 		inst = host.Status.Install
-	} else if err := r.publishInstallUUID(ctx, host, inst); err != nil {
-		return 0, err
 	}
 
 	if device == nil {
-		if running := runningPredecessor(host, twins); running != nil || inst.TriggeredAt != nil {
-			return r.takeOver(ctx, host, running, now)
-		}
 		conditions.MarkFalse(host, InstalledCondition, "WaitingForNetboot", clusterv1.ConditionSeverityInfo,
-			"install %s is published for %s; the host installs itself when it boots its install stick or netboots, which it does on its own with an empty disk (otherwise pick either boot entry once)",
-			inst.KeyID, host.Spec.BootMAC)
+			"install %s is published for %s; the host installs itself when it boots its install stick or netboots, which it does on its own with an empty disk",
+			inst.KeyID, mac)
+		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "waiting for the host to boot its install stick or netboot", now)
 		return 0, nil
 	}
 	if inst.TriggeredAt != nil {
 		if device.Connected && now.Sub(inst.TriggeredAt.Time) > rackReinstallBootTimeout {
 			conditions.MarkFalse(host, InstalledCondition, "ReinstallDidNotBoot", clusterv1.ConditionSeverityWarning,
-				"%s was rebooted into its installer at %s and came back on its old install; check its install stick or network boot entry and the boot server, then remove the %s annotation and set it again",
-				host.Name, inst.TriggeredAt.UTC().Format(time.RFC3339), RackReinstallAnnotation)
+				"%s was rebooted into its installer at %s and came back on its old install; check its install stick or network boot entry and the boot server, then raise spec.reinstallGeneration again",
+				host.Spec.Hostname, inst.TriggeredAt.UTC().Format(time.RFC3339))
+			setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "the host came back on its old install", now)
 			return 0, nil
 		}
 		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-			"%s was rebooted into its installer for install %s", host.Name, inst.KeyID)
+			"%s was rebooted into its installer for install %s", host.Spec.Hostname, inst.KeyID)
+		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "rebooted into the installer", now)
+		return 0, nil
+	}
+	if !host.Spec.Online {
+		conditions.MarkFalse(host, InstalledCondition, "Offline", clusterv1.ConditionSeverityInfo,
+			"install %s is published, but spec.online is false, so %s is not rebooted into it", inst.KeyID, host.Spec.Hostname)
+		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "spec.online is false", now)
 		return 0, nil
 	}
 	if !device.Connected && !r.amtCanPower(host) {
 		conditions.MarkFalse(host, InstalledCondition, "WaitingForNetboot", clusterv1.ConditionSeverityWarning,
 			"install %s is published, but %s is offline and its AMT is not activated, so the operator cannot reboot it into it; boot its install stick or network entry by hand",
-			inst.KeyID, host.Name)
+			inst.KeyID, host.Spec.Hostname)
+		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "offline, and AMT cannot reboot it", now)
 		return 0, nil
 	}
 	if wait := inst.OfferedAt.Add(rackBootPropagation).Sub(now); wait > 0 {
 		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-			"rebooting %s into install %s once the boot server serves it", host.Name, inst.KeyID)
+			"rebooting %s into install %s once the boot server serves it", host.Spec.Hostname, inst.KeyID)
+		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "waiting for the boot server to serve the install", now)
 		return wait, nil
 	}
 	if !device.Connected {
 		// AMT boots the firmware's first network entry, which finds the install
 		// by the machine's UUID when it is not the boot MAC's.
 		if err := r.recordAMTPower(ctx, host, "pxe"); err != nil {
-			r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not power-cycle %s through AMT into its network boot: %v", host.Name, err)
+			r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not power-cycle %s through AMT into its network boot: %v", host.Spec.Hostname, err)
 			conditions.MarkFalse(host, InstalledCondition, "ReinstallNotStarted", clusterv1.ConditionSeverityWarning, "%v", err)
 			return time.Minute, nil
 		}
 		triggered := metav1.NewTime(now)
 		inst.TriggeredAt = &triggered
-		r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Power-cycled %s through AMT into its network boot, for install %s", host.Name, inst.KeyID)
+		r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Power-cycled %s through AMT into its network boot, for install %s", host.Spec.Hostname, inst.KeyID)
 		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-			"%s was power-cycled through AMT into its network boot for install %s", host.Name, inst.KeyID)
+			"%s was power-cycled through AMT into its network boot for install %s", host.Spec.Hostname, inst.KeyID)
+		setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "power-cycled into the network boot", now)
 		return 0, nil
 	}
 	if err := r.bootInstallerOnce(ctx, host); err != nil {
-		r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not reboot %s into its installer: %v", host.Name, err)
+		r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not reboot %s into its installer: %v", host.Spec.Hostname, err)
 		conditions.MarkFalse(host, InstalledCondition, "ReinstallNotStarted", clusterv1.ConditionSeverityWarning, "%v", err)
 		return time.Minute, nil
 	}
 	triggered := metav1.NewTime(now)
 	inst.TriggeredAt = &triggered
-	r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Rebooted %s into its installer once, for install %s", host.Name, inst.KeyID)
+	r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Rebooted %s into its installer once, for install %s", host.Spec.Hostname, inst.KeyID)
 	conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
-		"%s was rebooted into its installer for install %s", host.Name, inst.KeyID)
+		"%s was rebooted into its installer for install %s", host.Spec.Hostname, inst.KeyID)
+	setProvisioningState(host, infrav1.RackLinuxHostProvisioning, "rebooted into the installer", now)
 	return 0, nil
 }
 
@@ -260,12 +256,12 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	if err != nil {
 		return err
 	}
-	key, err := r.Tailnet.CreateAuthKey(ctx, host.Spec.Tailnet.Tags, rackInstallKeyLifetime, "netboot install of "+host.Name)
+	key, err := r.Tailnet.CreateAuthKey(ctx, host.Spec.Tailnet.Tags, rackInstallKeyLifetime, "install of "+host.Spec.Hostname+" ("+host.Name+")")
 	if err != nil {
 		return err
 	}
 	seed := rackinstall.Seed{
-		Host:           host.Name,
+		Host:           host.Spec.Hostname,
 		Role:           host.Spec.Role,
 		User:           firstNonEmpty(host.Spec.SSHUser, "tuist"),
 		PasswordHash:   hash,
@@ -280,7 +276,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		return err
 	}
 
-	mac := rackinstall.MACPath(host.Spec.BootMAC)
+	mac := rackinstall.MACPath(host.Status.BootMAC)
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: rackBootSecretName(r.Install.FleetName), Namespace: r.CredentialsManager.Namespace}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
 		if secret.Labels == nil {
@@ -293,12 +289,8 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		}
 		secret.Data[mac+".user-data"] = []byte(userData)
 		secret.Data[mac+".meta-data"] = []byte(rackinstall.MetaData(seed))
-		secret.Data[mac+".ipxe"] = []byte(rackinstall.IPXEScript(r.Install.ServerURL, host.Spec.BootMAC))
-		if host.Status.AMT != nil && smbiosUUIDPattern.MatchString(host.Status.AMT.UUID) {
-			secret.Data[mac+".uuid"] = []byte(host.Status.AMT.UUID)
-		} else {
-			delete(secret.Data, mac+".uuid")
-		}
+		secret.Data[mac+".ipxe"] = []byte(rackinstall.IPXEScript(r.Install.ServerURL, host.Status.BootMAC))
+		secret.Data[mac+".uuid"] = []byte(host.Name)
 		return nil
 	}); err != nil {
 		return fmt.Errorf("write the install to Secret %s: %w", secret.Name, err)
@@ -310,7 +302,8 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	}
 	host.Status.Install = &infrav1.RackLinuxHostInstallStatus{
 		KeyID:            key.ID,
-		BootMAC:          host.Spec.BootMAC,
+		BootMAC:          host.Status.BootMAC,
+		Generation:       host.Spec.ReinstallGeneration,
 		PreviousDeviceID: previous,
 		OfferedAt:        metav1.NewTime(now),
 		ExpiresAt:        metav1.NewTime(expires),
@@ -318,15 +311,14 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 	}
 	r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstallPublished",
 		"Published install %s for %s to boot from %s, with a single-use join key tagged %s valid until %s",
-		key.ID, host.Name, host.Spec.BootMAC, strings.Join(host.Spec.Tailnet.Tags, ","), expires.UTC().Format(time.RFC3339))
-	log.FromContext(ctx).Info("published a rack host install", "host", host.Name, "key", key.ID)
+		key.ID, host.Spec.Hostname, host.Status.BootMAC, strings.Join(host.Spec.Tailnet.Tags, ","), expires.UTC().Format(time.RFC3339))
+	log.FromContext(ctx).Info("published a rack host install", "host", host.Name, "hostname", host.Spec.Hostname, "key", key.ID)
 	return nil
 }
 
 // anotherEdgeServes reports whether another edge of the host's site is
 // connected to the tailnet, so its boot server can serve the host's netboot.
-// An edge with the host's boot MAC is the same box, and one being deleted is
-// going away.
+// One being deleted is going away.
 func (r *RackLinuxHostReconciler) anotherEdgeServes(ctx context.Context, host *infrav1.RackLinuxHost) (bool, error) {
 	hosts := &infrav1.RackLinuxHostList{}
 	if err := r.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
@@ -334,7 +326,7 @@ func (r *RackLinuxHostReconciler) anotherEdgeServes(ctx context.Context, host *i
 	}
 	for i := range hosts.Items {
 		h := &hosts.Items[i]
-		if h.Name == host.Name || !h.DeletionTimestamp.IsZero() || sameBox(h, host) {
+		if h.Name == host.Name || !h.DeletionTimestamp.IsZero() {
 			continue
 		}
 		if h.Spec.Role == "edge" && h.Spec.Location.Site == host.Spec.Location.Site &&
@@ -358,26 +350,14 @@ func (r *RackLinuxHostReconciler) installServed(ctx context.Context, inst *infra
 }
 
 // withdrawInstall removes the host's published install, whose join key the
-// boot server would otherwise keep handing out. While another host has an
-// install published for the same MAC, the boot Secret serves that one, and it
-// stays.
+// boot server would otherwise keep handing out.
 func (r *RackLinuxHostReconciler) withdrawInstall(ctx context.Context, host *infrav1.RackLinuxHost) error {
 	inst := host.Status.Install
 	if inst == nil {
 		return nil
 	}
-	twins, err := r.bootMACTwins(ctx, host, inst.BootMAC)
-	if err != nil {
-		return err
-	}
-	for i := range twins {
-		if t := twins[i].Status.Install; t != nil && strings.EqualFold(t.BootMAC, inst.BootMAC) {
-			host.Status.Install = nil
-			return nil
-		}
-	}
 	secret := &corev1.Secret{}
-	err = r.Get(ctx, types.NamespacedName{Namespace: r.CredentialsManager.Namespace, Name: rackBootSecretName(r.Install.FleetName)}, secret)
+	err := r.Get(ctx, types.NamespacedName{Namespace: r.CredentialsManager.Namespace, Name: rackBootSecretName(r.Install.FleetName)}, secret)
 	switch {
 	case apierrors.IsNotFound(err):
 	case err != nil:
@@ -450,7 +430,7 @@ func randomPassword(n int) (string, error) {
 // it.
 func (r *RackLinuxHostReconciler) bootInstallerOnce(ctx context.Context, host *infrav1.RackLinuxHost) error {
 	out, err := runOnRackHost(ctx, r.Client, r.CredentialsManager, r.Install.FleetName, r.egress(), r.RunScript,
-		host, renderBootInstallerOnceScript(host.Spec.BootMAC), rackBootInstallerTimeout)
+		host, renderBootInstallerOnceScript(host.Status.BootMAC), rackBootInstallerTimeout)
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(out))
 	}
@@ -576,71 +556,3 @@ var findInstallStickShell = `find_install_stick() {
   return 1
 }
 `
-
-// scaleUpPool raises the replicas of the MachineDeployment claiming the host's
-// pool to the number of the pool's hosts on the tailnet, so a host joins the
-// cluster once it is installed, and a MachineDeployment is never waiting on a
-// host that is not there yet. It never scales down: a host that drops off the
-// tailnet keeps its node. A host being deleted does not count.
-func (r *RackLinuxHostReconciler) scaleUpPool(ctx context.Context, host *infrav1.RackLinuxHost) error {
-	if host.Spec.Pool == "" || host.Status.Tailnet == nil || !host.Status.Tailnet.Connected {
-		return nil
-	}
-	hosts := &infrav1.RackLinuxHostList{}
-	if err := r.List(ctx, hosts, client.InNamespace(host.Namespace)); err != nil {
-		return err
-	}
-	var joined int32
-	for i := range hosts.Items {
-		h := &hosts.Items[i]
-		if h.Name == host.Name {
-			h = host
-		}
-		if h.Spec.Pool == host.Spec.Pool && h.DeletionTimestamp.IsZero() && h.Status.Tailnet != nil && h.Status.Tailnet.Connected {
-			joined++
-		}
-	}
-	deployments := &clusterv1.MachineDeploymentList{}
-	if err := r.List(ctx, deployments, client.InNamespace(host.Namespace), client.MatchingLabels{RackPoolLabel: host.Spec.Pool}); err != nil {
-		return err
-	}
-	for i := range deployments.Items {
-		md := &deployments.Items[i]
-		if md.Spec.Replicas != nil && *md.Spec.Replicas >= joined {
-			continue
-		}
-		base := md.DeepCopy()
-		md.Spec.Replicas = ptr.To(joined)
-		if err := r.Patch(ctx, md, client.MergeFrom(base)); err != nil {
-			return fmt.Errorf("scale MachineDeployment %s to %d: %w", md.Name, joined, err)
-		}
-		r.Recorder.Eventf(host, corev1.EventTypeNormal, "PoolScaledUp",
-			"Scaled MachineDeployment %s to %d: %d host(s) of pool %s are on the tailnet", md.Name, joined, joined, host.Spec.Pool)
-	}
-	return nil
-}
-
-// publishInstallUUID publishes the machine's UUID beside an install published
-// before AMT reported it, so a network boot from another NIC finds it.
-func (r *RackLinuxHostReconciler) publishInstallUUID(ctx context.Context, host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallStatus) error {
-	if host.Status.AMT == nil || !smbiosUUIDPattern.MatchString(host.Status.AMT.UUID) {
-		return nil
-	}
-	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: r.CredentialsManager.Namespace, Name: rackBootSecretName(r.Install.FleetName)}, secret)
-	if apierrors.IsNotFound(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	mac := rackinstall.MACPath(inst.BootMAC)
-	if _, ok := secret.Data[mac+".ipxe"]; !ok || string(secret.Data[mac+".uuid"]) == host.Status.AMT.UUID {
-		return nil
-	}
-	secret.Data[mac+".uuid"] = []byte(host.Status.AMT.UUID)
-	if err := r.Update(ctx, secret); err != nil {
-		return fmt.Errorf("publish %s's UUID beside install %s: %w", host.Name, inst.KeyID, err)
-	}
-	return nil
-}

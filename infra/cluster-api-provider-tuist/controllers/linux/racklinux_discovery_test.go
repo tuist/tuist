@@ -109,13 +109,12 @@ func TestRackLinuxDiscoveryListsAnAnnouncedMachine(t *testing.T) {
 	}
 }
 
-// A machine that a host already declares by one of its MACs is marked with
-// that host.
+// A machine a host declares by its UUID is marked with the host's hostname.
 func TestRackLinuxDiscoveryMarksADeclaredMachine(t *testing.T) {
 	declared := edgeHost()
-	declared.Name = "ber1-store-a"
+	declared.Name = ms01UUID
+	declared.Spec.Hostname = "ber1-store-a"
 	declared.Spec.Role = "storage"
-	declared.Spec.BootMAC = "38:05:25:38:B5:B5"
 	h := newDiscoveryHarness(t, map[string]string{"100.64.0.7": ms01Announcement(discoveryEpoch)},
 		connectedEdge("ber1-edge-a", "dev-a", "100.64.0.7"), declared)
 	if err := h.d.scan(context.Background()); err != nil {
@@ -197,5 +196,24 @@ func TestRackLinuxDiscoveryDropsAMachineNotSeenForAWeek(t *testing.T) {
 	err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: ms01UUID}, &infrav1.RackLinuxCandidate{})
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("stale candidate: %v", err)
+	}
+}
+
+// A declared machine stays however long it has been quiet: its host takes its
+// boot MAC and model from it.
+func TestRackLinuxDiscoveryKeepsADeclaredMachine(t *testing.T) {
+	quiet := &infrav1.RackLinuxCandidate{
+		ObjectMeta: metav1.ObjectMeta{Name: ms01UUID, Namespace: rackTestNamespace},
+		Status:     infrav1.RackLinuxCandidateStatus{UUID: ms01UUID, LastSeen: &metav1.Time{Time: discoveryEpoch.Add(-60 * 24 * time.Hour)}},
+	}
+	declared := edgeHost()
+	declared.Name = ms01UUID
+	declared.Spec.Hostname = "ber1-store-a"
+	h := newDiscoveryHarness(t, nil, connectedEdge("ber1-edge-a", "dev-a", "100.64.0.7"), quiet, declared)
+	if err := h.d.scan(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.candidate(t).Status.DeclaredAs; got != "ber1-store-a" {
+		t.Fatalf("declaredAs %q", got)
 	}
 }

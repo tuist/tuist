@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -77,8 +76,9 @@ func (e *scriptExitError) Error() string { return e.err.Error() }
 
 func (e *scriptExitError) Unwrap() error { return e.err }
 
-// RackLinuxMachineReconciler claims a RackLinuxHost, dials it over the tailnet
-// and runs the converge script on it: on the first run with a one-hour
+// RackLinuxMachineReconciler makes the RackLinuxHost a machine is named after
+// a node: it dials the host over the tailnet and runs the converge script on
+// it, on the first run with a one-hour
 // bootstrap token so the kubelet gets its own system:node certificate, and
 // afterwards whenever the rendered configuration or the host's tailnet device
 // changes, while its Node is NotReady, and on ConvergeInterval.
@@ -88,6 +88,9 @@ type RackLinuxMachineReconciler struct {
 	Scheme             *runtime.Scheme
 	Recorder           record.EventRecorder
 	CredentialsManager *credentials.Manager
+
+	// FleetName names the <fleet>-ssh Secret whose key the installs authorize.
+	FleetName string
 
 	// APIServerURL is what the kubelet bootstraps against; empty takes the
 	// server from kube-public/cluster-info.
@@ -166,25 +169,26 @@ func (r *RackLinuxMachineReconciler) Reconcile(ctx context.Context, req ctrl.Req
 }
 
 func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machine *infrav1.RackLinuxMachine) (ctrl.Result, error) {
-	host, result, err := r.claimHost(ctx, machine)
+	host, result, err := r.hostOf(ctx, machine)
 	if host == nil || err != nil {
 		return result, err
 	}
+	nodeName := host.Spec.Hostname
 
 	tn := host.Status.Tailnet
 	if tn == nil || tn.Address == "" {
 		machine.Status.Phase = "WaitingForTailnet"
 		conditions.MarkFalse(machine, RackTailnetReadyCondition, "HostNotOnTailnet", clusterv1.ConditionSeverityInfo,
-			"%s is not on the tailnet; install it from a stick written by rack:write-install-usb", host.Name)
+			"%s is not on the tailnet; it installs itself when it boots its install stick or netboots", nodeName)
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 	machine.Status.Addresses = []clusterv1.MachineAddress{
 		{Type: clusterv1.MachineInternalIP, Address: tn.Address},
-		{Type: clusterv1.MachineHostName, Address: host.Name},
+		{Type: clusterv1.MachineHostName, Address: nodeName},
 	}
 
 	node := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: host.Name}, node); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
@@ -200,13 +204,13 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 	conditions.MarkTrue(machine, RackTailnetReadyCondition)
 
 	if err := r.egress().ensure(ctx, r.Client, host); err != nil {
-		return ctrl.Result{}, fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
+		return ctrl.Result{}, fmt.Errorf("reconcile egress Service for %s: %w", nodeName, err)
 	}
 	if err := r.reconcileNodeAddresses(ctx, host, node); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	opts, holdReason, err := r.convergeOptions(ctx, machine, host)
+	opts, holdReason, err := r.convergeOptions(ctx, host)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -216,17 +220,48 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 	}
 
 	desired := rackConfigHash(opts)
+	renamed := machine.Status.NodeName != "" && machine.Status.NodeName != nodeName
 	due, wait := r.convergeDue(machine, host, node, desired)
-	if !due {
+	if !due && !renamed {
 		return ctrl.Result{RequeueAfter: wait}, nil
+	}
+	if renamed {
+		if err := r.retireRenamedNode(ctx, machine, host); err != nil {
+			return ctrl.Result{}, err
+		}
+		opts.Rejoin = true
 	}
 	if err := r.converge(ctx, machine, host, node, opts, desired); err != nil {
 		machine.Status.ConvergeFailures++
 		conditions.MarkFalse(machine, HostConvergedCondition, "ConvergeFailed", clusterv1.ConditionSeverityWarning, "%v", err)
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ConvergeFailed", "%s: %v", host.Name, err)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ConvergeFailed", "%s: %v", nodeName, err)
 		return ctrl.Result{RequeueAfter: convergeBackoff(machine.Status.ConvergeFailures)}, nil
 	}
+	machine.Status.NodeName = nodeName
 	return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+}
+
+// retireRenamedNode deletes the Node the host joined under before its hostname
+// changed, when it is still this machine's, so the host joins again under the
+// new name.
+func (r *RackLinuxMachineReconciler) retireRenamedNode(ctx context.Context, machine *infrav1.RackLinuxMachine, host *infrav1.RackLinuxHost) error {
+	old := &corev1.Node{}
+	err := r.Get(ctx, types.NamespacedName{Name: machine.Status.NodeName}, old)
+	switch {
+	case apierrors.IsNotFound(err):
+		return nil
+	case err != nil:
+		return err
+	}
+	if old.Spec.ProviderID != "" && old.Spec.ProviderID != rackLinuxProviderID(host) {
+		return nil
+	}
+	if err := r.Delete(ctx, old); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete Node %s, which %s joined under before its rename: %w", old.Name, host.Spec.Hostname, err)
+	}
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "RenamedNodeDeleted",
+		"Deleted Node %s: the host is now %s and joins again under that name", old.Name, host.Spec.Hostname)
+	return nil
 }
 
 // observeNode derives readiness from the Node the host registered.
@@ -296,7 +331,7 @@ func convergeBackoff(failures int32) time.Duration {
 
 // convergeOptions renders the desired configuration. A non-empty reason means
 // converging has to wait for the cluster rather than the host.
-func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, machine *infrav1.RackLinuxMachine, host *infrav1.RackLinuxHost) (rackConvergeOptions, string, error) {
+func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *infrav1.RackLinuxHost) (rackConvergeOptions, string, error) {
 	cpVersion, err := r.ControlPlaneVersion(ctx)
 	if err != nil {
 		return rackConvergeOptions{}, "", fmt.Errorf("read the control plane version: %w", err)
@@ -321,16 +356,16 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, machin
 		server = r.APIServerURL
 	}
 	return rackConvergeOptions{
-		NodeName:       host.Name,
+		NodeName:       host.Spec.Hostname,
 		NodeIP:         host.Status.Tailnet.Address,
 		ProviderID:     rackLinuxProviderID(host),
 		KubeletVersion: kubeletVersion,
 		K8sMinor:       minor,
 		ClusterCAPEM:   ca,
 		ClusterDNS:     clusterDNS,
-		NodeLabels:     machine.Spec.NodeLabels,
-		NodeTaints:     machine.Spec.NodeTaints,
-		ManagementMAC:  host.Spec.BootMAC,
+		NodeLabels:     host.Spec.Node.Labels,
+		NodeTaints:     host.Spec.Node.Taints,
+		ManagementMAC:  host.Status.BootMAC,
 		APIServerURL:   server,
 	}, "", nil
 }
@@ -382,7 +417,7 @@ func (r *RackLinuxMachineReconciler) converge(
 		if previous != "" {
 			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "HostReinstalled",
 				"%s is on tailnet device %s, not %s: it was reinstalled, so its SSH host key is pinned afresh",
-				host.Name, host.Status.Tailnet.DeviceID, previous)
+				host.Spec.Hostname, host.Status.Tailnet.DeviceID, previous)
 			if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, rackLinuxPinKey(host.Name, previous)); err != nil {
 				logger.Error(err, "delete the previous install's host key pin", "host", host.Name)
 			}
@@ -393,7 +428,7 @@ func (r *RackLinuxMachineReconciler) converge(
 		return err
 	}
 
-	key, err := r.CredentialsManager.ReadFleetSSHKey(ctx, machine.Spec.FleetName)
+	key, err := r.CredentialsManager.ReadFleetSSHKey(ctx, r.FleetName)
 	if err != nil {
 		return err
 	}
@@ -424,7 +459,7 @@ func (r *RackLinuxMachineReconciler) converge(
 	switch exitStatus(err) {
 	case 0:
 	case rackConvergeForeignJoin:
-		return fmt.Errorf("%s was joined by kubeadm; reinstall it from a stick written by rack:write-install-usb", host.Name)
+		return fmt.Errorf("%s was joined by kubeadm; reinstall it from a stick written by rack:write-install-usb", host.Spec.Hostname)
 	case rackConvergeNeedsBootstrap:
 		if node != nil {
 			if node.Spec.ProviderID != "" && node.Spec.ProviderID != opts.ProviderID {
@@ -436,7 +471,7 @@ func (r *RackLinuxMachineReconciler) converge(
 			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "StaleNodeDeleted",
 				"Deleted Node %s: its kubelet has no identity, so it registers afresh", node.Name)
 		}
-		secretName, token, err := r.CredentialsManager.MintNodeBootstrapToken(ctx, host.Name)
+		secretName, token, err := r.CredentialsManager.MintNodeBootstrapToken(ctx, host.Spec.Hostname)
 		if err != nil {
 			return err
 		}
@@ -450,14 +485,14 @@ func (r *RackLinuxMachineReconciler) converge(
 		if err != nil {
 			return err
 		}
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Joined", "%s joined the cluster as Node %s", host.Name, host.Name)
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Joined", "%s joined the cluster as Node %s", host.Spec.Hostname, opts.NodeName)
 	default:
 		return err
 	}
 
 	summary := convergeSummary(out)
 	if !strings.Contains(summary, "changed=none restarted=none") {
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Converged", "%s: %s", host.Name, summary)
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Converged", "%s: %s", host.Spec.Hostname, summary)
 	}
 	logger.Info("converged rack host", "host", host.Name, "summary", summary)
 
@@ -528,111 +563,55 @@ func containsString(values []string, want string) bool {
 	return false
 }
 
-// claimHost binds this machine to a free host in its pool, or confirms the
-// binding it has. The claim is a status Update, so two racing claims cannot
-// both win.
-func (r *RackLinuxMachineReconciler) claimHost(ctx context.Context, machine *infrav1.RackLinuxMachine) (*infrav1.RackLinuxHost, ctrl.Result, error) {
-	if name := machine.Status.RackLinuxHost; name != "" {
-		host := &infrav1.RackLinuxHost{}
-		err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: name}, host)
-		switch {
-		case err != nil && !apierrors.IsNotFound(err):
-			return nil, ctrl.Result{}, err
-		case err == nil && host.Status.ClaimedBy == machine.Name:
-			return host, ctrl.Result{}, nil
-		}
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ClaimLost", "No longer holding rack host %s", name)
-		machine.Status.RackLinuxHost = ""
-		machine.Status.TailnetDeviceID = ""
-		machine.Status.HostConfigHash = ""
-		machine.Spec.ProviderID = nil
-	}
-
-	if machine.Spec.AdoptPool == "" {
-		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAdoptPool", clusterv1.ConditionSeverityError,
-			"no adoptPool; refusing to claim an arbitrary rack host")
-		return nil, ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
-	}
-	machine.Status.Phase = "Adopting"
-
-	hosts := &infrav1.RackLinuxHostList{}
-	if err := r.List(ctx, hosts, client.InNamespace(machine.Namespace)); err != nil {
-		return nil, ctrl.Result{}, fmt.Errorf("list rack Linux hosts: %w", err)
-	}
-	var candidates []infrav1.RackLinuxHost
-	for _, h := range hosts.Items {
-		if h.Spec.Pool != machine.Spec.AdoptPool || !h.DeletionTimestamp.IsZero() || h.Spec.Location.Site == "" {
-			continue
-		}
-		if h.Status.ClaimedBy == "" || h.Status.ClaimedBy == machine.Name {
-			candidates = append(candidates, h)
-		}
-	}
-	if len(candidates) == 0 {
-		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAvailableHost", clusterv1.ConditionSeverityWarning,
-			"no free RackLinuxHost with a location.site in pool %q", machine.Spec.AdoptPool)
+// hostOf reads the RackLinuxHost the machine is and sets the machine's
+// providerID from it.
+func (r *RackLinuxMachineReconciler) hostOf(ctx context.Context, machine *infrav1.RackLinuxMachine) (*infrav1.RackLinuxHost, ctrl.Result, error) {
+	host := &infrav1.RackLinuxHost{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Spec.Host}, host)
+	switch {
+	case apierrors.IsNotFound(err):
+		machine.Status.Phase = "NoHost"
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoHost", clusterv1.ConditionSeverityWarning,
+			"no RackLinuxHost %q", machine.Spec.Host)
 		return nil, ctrl.Result{RequeueAfter: time.Minute}, nil
+	case err != nil:
+		return nil, ctrl.Result{}, err
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		iMine, jMine := candidates[i].Status.ClaimedBy == machine.Name, candidates[j].Status.ClaimedBy == machine.Name
-		if iMine != jMine {
-			return iMine
-		}
-		return candidates[i].Name < candidates[j].Name
-	})
-
-	host := &candidates[0]
-	host.Status.ClaimedBy = machine.Name
-	host.Status.ClaimedAt = &metav1.Time{Time: time.Now()}
-	if err := r.Status().Update(ctx, host); err != nil {
-		if apierrors.IsConflict(err) {
-			return nil, ctrl.Result{Requeue: true}, nil
-		}
-		return nil, ctrl.Result{}, fmt.Errorf("claim rack Linux host %s: %w", host.Name, err)
-	}
-	machine.Status.RackLinuxHost = host.Name
 	providerID := rackLinuxProviderID(host)
 	machine.Spec.ProviderID = &providerID
 	conditions.MarkTrue(machine, shared.ProvisionedCondition)
-	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted", "Claimed rack host %s (%s)", host.Name, host.Spec.Role)
 	return host, ctrl.Result{}, nil
 }
 
 // reconcileDelete stops the host's kubelet and drops its identity (bounded,
-// best effort), then deletes the Node, the egress Service and the host key pin
-// and releases the claim. An unreachable host keeps its kubelet.
+// best effort), then deletes the Node, the egress Service and the host key
+// pins. An unreachable host keeps its kubelet.
 func (r *RackLinuxMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.RackLinuxMachine) (ctrl.Result, error) {
 	machine.Status.Phase = "Deleting"
-	name := machine.Status.RackLinuxHost
-	if name != "" {
-		host := &infrav1.RackLinuxHost{}
-		err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: name}, host)
-		switch {
-		case err != nil && !apierrors.IsNotFound(err):
-			return ctrl.Result{}, err
-		case err == nil && host.Status.ClaimedBy == machine.Name:
-			r.leave(ctx, machine, host)
-			if err := r.deleteNode(ctx, host); err != nil {
+	host := &infrav1.RackLinuxHost{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Spec.Host}, host)
+	switch {
+	case err != nil && !apierrors.IsNotFound(err):
+		return ctrl.Result{}, err
+	case err == nil:
+		r.leave(ctx, machine, host)
+		for _, name := range []string{machine.Status.NodeName, host.Spec.Hostname} {
+			if err := r.deleteNode(ctx, host, name); err != nil {
 				return ctrl.Result{}, err
 			}
-			if err := r.egress().remove(ctx, r.Client, host.Name); err != nil {
-				return ctrl.Result{}, err
-			}
-			for _, device := range []string{machine.Status.TailnetDeviceID, tailnetDeviceID(host)} {
-				if device == "" {
-					continue
-				}
-				if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, rackLinuxPinKey(host.Name, device)); err != nil {
-					return ctrl.Result{}, err
-				}
-			}
-			host.Status.ClaimedBy = ""
-			host.Status.ClaimedAt = nil
-			if err := r.Status().Update(ctx, host); err != nil {
-				return ctrl.Result{}, fmt.Errorf("release rack Linux host %s: %w", host.Name, err)
-			}
-			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Released", "Released rack host %s", host.Name)
 		}
+		if err := r.egress().remove(ctx, r.Client, host.Name); err != nil {
+			return ctrl.Result{}, err
+		}
+		for _, device := range []string{machine.Status.TailnetDeviceID, tailnetDeviceID(host)} {
+			if device == "" {
+				continue
+			}
+			if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, rackLinuxPinKey(host.Name, device)); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Left", "%s left the cluster", host.Spec.Hostname)
 	}
 	controllerutil.RemoveFinalizer(machine, RackLinuxMachineFinalizer)
 	return ctrl.Result{}, nil
@@ -646,10 +625,10 @@ rm -rf /var/lib/kubelet/pki /var/lib/kubelet/kubeconfig /var/lib/kubelet/bootstr
 func (r *RackLinuxMachineReconciler) leave(ctx context.Context, machine *infrav1.RackLinuxMachine, host *infrav1.RackLinuxHost) {
 	if host.Status.Tailnet == nil || !host.Status.Tailnet.Connected {
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "LeaveSkipped",
-			"%s is not on the tailnet, so its kubelet keeps running and re-registers its Node when it returns; reinstall it to retire it", host.Name)
+			"%s is not on the tailnet, so its kubelet keeps running and re-registers its Node when it returns; reinstall it to retire it", host.Spec.Hostname)
 		return
 	}
-	key, err := r.CredentialsManager.ReadFleetSSHKey(ctx, machine.Spec.FleetName)
+	key, err := r.CredentialsManager.ReadFleetSSHKey(ctx, r.FleetName)
 	if err == nil {
 		known := ""
 		if creds, pinErr := r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey(host.Name, tailnetDeviceID(host))); pinErr == nil && creds != nil {
@@ -663,13 +642,16 @@ func (r *RackLinuxMachineReconciler) leave(ctx context.Context, machine *infrav1
 	}
 	if err != nil {
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "LeaveFailed",
-			"Could not stop %s's kubelet, so it re-registers its Node: %v", host.Name, err)
+			"Could not stop %s's kubelet, so it re-registers its Node: %v", host.Spec.Hostname, err)
 	}
 }
 
-func (r *RackLinuxMachineReconciler) deleteNode(ctx context.Context, host *infrav1.RackLinuxHost) error {
+func (r *RackLinuxMachineReconciler) deleteNode(ctx context.Context, host *infrav1.RackLinuxHost, name string) error {
+	if name == "" {
+		return nil
+	}
 	node := &corev1.Node{}
-	if err := r.Get(ctx, types.NamespacedName{Name: host.Name}, node); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: name}, node); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
@@ -725,24 +707,12 @@ func rackLinuxMachineForCAPIMachine(_ context.Context, o client.Object) []reconc
 	}}}
 }
 
-// machinesForHost wakes the host's holder, and every machine waiting on its
-// pool, when the host changes.
-func (r *RackLinuxMachineReconciler) machinesForHost(ctx context.Context, o client.Object) []reconcile.Request {
+// machinesForHost wakes a host's machine, which has the host's name, when the
+// host changes.
+func (r *RackLinuxMachineReconciler) machinesForHost(_ context.Context, o client.Object) []reconcile.Request {
 	host, ok := o.(*infrav1.RackLinuxHost)
 	if !ok {
 		return nil
 	}
-	machines := &infrav1.RackLinuxMachineList{}
-	if err := r.List(ctx, machines, client.InNamespace(host.Namespace)); err != nil {
-		log.FromContext(ctx).Error(err, "list rack Linux machines for a host event", "host", host.Name)
-		return nil
-	}
-	var requests []reconcile.Request
-	for i := range machines.Items {
-		m := &machines.Items[i]
-		if m.Status.RackLinuxHost == host.Name || (m.Status.RackLinuxHost == "" && m.Spec.AdoptPool == host.Spec.Pool) {
-			requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: m.Namespace, Name: m.Name}})
-		}
-	}
-	return requests
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Name}}}
 }

@@ -54,7 +54,6 @@ rules:
       - rackhosts
       - racklinuxhosts
       - racklinuxmachines
-      - racklinuxmachinetemplates
       - racklinuxcandidates
       - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
@@ -80,7 +79,8 @@ rules:
       - rackhosts/status
       - racklinuxhosts/status
       # The RackLinuxHost controller holds a deleted host with a finalizer
-      # until it retired the host's machine, tailnet device and console key.
+      # until it retired the host's Machine, tailnet devices and console key,
+      # and owns the Machine it keeps for the host.
       - racklinuxhosts/finalizers
       - racklinuxmachines/status
       - racklinuxmachines/finalizers
@@ -91,18 +91,11 @@ rules:
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
     verbs: [get, list, watch]
-  # The RackLinuxHost controller scales a rack pool's MachineDeployment up as
-  # the pool's hosts come onto the tailnet and down as they are deleted, and
-  # deletes it once the pool has no hosts and no Machines.
-  - apiGroups: ["cluster.x-k8s.io"]
-    resources: [machinedeployments]
-    verbs: [patch, delete]
-  # A deleted rack host's Machine is marked for its MachineSet to delete
-  # (cluster.x-k8s.io/delete-machine) when the pool shrinks, and deleted
-  # outright when another host takes its place.
+  # The RackLinuxHost controller keeps one Machine per rack Linux host, and
+  # deletes it when the host is retired.
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines]
-    verbs: [patch, delete]
+    verbs: [create, update, patch, delete]
   # The SASC reconciler marks the parent Cluster's
   # ControlPlaneInitialized condition True (externally-managed
   # control plane: Mac minis join an existing Hetzner cluster, so
@@ -388,14 +381,27 @@ spec:
             {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
             - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
             {{- end }}
-            {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.boot.enabled }}
+            {{- if .Values.rackLinuxFleet.enabled }}
             - --rack-linux-fleet-name={{ include "tuist.rackLinuxFleetName" . }}
+            - --rack-linux-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
+            - --rack-linux-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+            {{- if .Values.rackLinuxFleet.boot.enabled }}
             - --rack-linux-install-server-url=http://{{ .Values.rackLinuxFleet.boot.address }}:{{ .Values.rackLinuxFleet.boot.httpPort }}
             {{- range .Values.rackLinuxFleet.authorizedKeys }}
             - {{ printf "--rack-linux-authorized-key=%s" . | quote }}
             {{- end }}
+            {{- end }}
             {{- if .Values.rackLinuxFleet.amt.provisioningExternalSecret.enabled }}
             - --rack-linux-amt-provisioning-secret-name={{ include "tuist.rackLinuxFleetName" . }}-amt-provisioning
+            {{- range .Values.rackLinuxFleet.amt.products }}
+            - {{ printf "--rack-linux-amt-product=%s" . | quote }}
+            {{- end }}
+            {{- with .Values.rackLinuxFleet.amt.addressRange }}
+            - --rack-linux-amt-address-range={{ . }}
+            {{- end }}
+            {{- with .Values.rackLinuxFleet.amt.gateway }}
+            - --rack-linux-amt-gateway={{ . }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}

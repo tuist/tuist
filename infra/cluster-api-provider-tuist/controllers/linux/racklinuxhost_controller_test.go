@@ -21,6 +21,12 @@ import (
 
 const rackTestNamespace = "tuist-staging"
 
+// The test hosts, named after their machines' SMBIOS UUIDs.
+const (
+	edgeUUID = "44312e80-1dc6-11f1-853e-8f903547d200"
+	svcUUID  = "04450c00-63f4-11f1-81f4-3582298d5c00"
+)
+
 type fakeTailnet struct {
 	devices   []tailnet.Device
 	deleted   []string
@@ -62,9 +68,10 @@ func rackTestScheme(t *testing.T) *runtime.Scheme {
 
 func edgeHost() *infrav1.RackLinuxHost {
 	return &infrav1.RackLinuxHost{
-		ObjectMeta: metav1.ObjectMeta{Name: "ber1-edge", Namespace: rackTestNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: edgeUUID, Namespace: rackTestNamespace},
 		Spec: infrav1.RackLinuxHostSpec{
-			Pool:     "ber1-staging-edge",
+			Hostname: "ber1-edge",
+			Online:   true,
 			Role:     "edge",
 			Location: infrav1.RackHostLocation{Site: "ber1"},
 			SSHUser:  "tuist",
@@ -90,11 +97,11 @@ func reconcileHost(t *testing.T, api *fakeTailnet, objs ...runtime.Object) *infr
 	c := fake.NewClientBuilder().WithScheme(rackTestScheme(t)).WithRuntimeObjects(objs...).
 		WithStatusSubresource(&infrav1.RackLinuxHost{}).Build()
 	r := &RackLinuxHostReconciler{Client: c, Recorder: record.NewFakeRecorder(20), Tailnet: api}
-	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge"}}); err != nil {
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: rackTestNamespace, Name: edgeUUID}}); err != nil {
 		t.Fatalf("Reconcile: %v", err)
 	}
 	host := &infrav1.RackLinuxHost{}
-	if err := c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-edge"}, host); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: edgeUUID}, host); err != nil {
 		t.Fatal(err)
 	}
 	return host
@@ -171,12 +178,21 @@ func TestRackLinuxHostNotOnTailnet(t *testing.T) {
 	}
 }
 
-func TestRackLinuxHostReleasesAClaimWhoseMachineIsGone(t *testing.T) {
+// A renamed host is found by the device it was last seen as, which keeps its
+// old OS hostname until the host is converged, and the device is renamed.
+func TestRackLinuxHostKeepsItsDeviceAcrossARename(t *testing.T) {
 	h := edgeHost()
-	h.Status.ClaimedBy = "gone"
-	host := reconcileHost(t, &fakeTailnet{}, h)
-	if host.Status.ClaimedBy != "" {
-		t.Fatalf("claim %q not released", host.Status.ClaimedBy)
+	h.Spec.Hostname = "ber1-edge-c"
+	h.Status.Tailnet = &infrav1.RackLinuxHostTailnetStatus{DeviceID: "live"}
+	api := &fakeTailnet{devices: []tailnet.Device{edgeDevice("live", "ber1-edge", "2026-09-21T10:00:00Z", true, "100.124.227.31")}}
+
+	host := reconcileHost(t, api, h)
+
+	if host.Status.Tailnet == nil || host.Status.Tailnet.DeviceID != "live" || host.Status.Tailnet.Name != "ber1-edge-c.example.ts.net" {
+		t.Fatalf("tailnet status %+v", host.Status.Tailnet)
+	}
+	if api.renamed["live"] != "ber1-edge-c" || len(api.deleted) != 0 {
+		t.Fatalf("renamed %v deleted %v", api.renamed, api.deleted)
 	}
 }
 

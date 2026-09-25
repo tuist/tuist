@@ -28,7 +28,7 @@ const cloudProviderUninitializedTaint = "node.cloudprovider.kubernetes.io/uninit
 // is up yet.
 func (r *RackLinuxMachineReconciler) reconcileNodeAddresses(ctx context.Context, host *infrav1.RackLinuxHost, node *corev1.Node) error {
 	if err := r.egress().ensureKubelet(ctx, r.Client, host); err != nil {
-		return fmt.Errorf("reconcile kubelet egress Service for %s: %w", host.Name, err)
+		return fmt.Errorf("reconcile kubelet egress Service for %s: %w", host.Spec.Hostname, err)
 	}
 	if node == nil {
 		return nil
@@ -42,7 +42,7 @@ func (r *RackLinuxMachineReconciler) reconcileNodeAddresses(ctx context.Context,
 	if proxy != "" {
 		addresses = append(addresses, corev1.NodeAddress{Type: corev1.NodeExternalIP, Address: proxy})
 	}
-	addresses = append(addresses, corev1.NodeAddress{Type: corev1.NodeHostName, Address: host.Name})
+	addresses = append(addresses, corev1.NodeAddress{Type: corev1.NodeHostName, Address: host.Spec.Hostname})
 	if !equality.Semantic.DeepEqual(node.Status.Addresses, addresses) {
 		before := node.DeepCopy()
 		node.Status.Addresses = addresses
@@ -67,8 +67,8 @@ func (r *RackLinuxMachineReconciler) reconcileNodeAddresses(ctx context.Context,
 	return nil
 }
 
-// machineForKubeletProxy wakes the machine holding a host when the host's
-// kubelet proxy Pod changes, since the node's ExternalIP follows the Pod.
+// machineForKubeletProxy wakes a host's machine, which has the host's name,
+// when the host's kubelet proxy Pod changes, since the node's ExternalIP follows the Pod.
 func (r *RackLinuxMachineReconciler) machineForKubeletProxy(ctx context.Context, o client.Object) []reconcile.Request {
 	parent := o.GetLabels()["tailscale.com/parent-resource"]
 	if o.GetNamespace() != r.EgressNamespace || o.GetLabels()["tailscale.com/parent-resource-type"] != "svc" ||
@@ -83,8 +83,8 @@ func (r *RackLinuxMachineReconciler) machineForKubeletProxy(ctx context.Context,
 	var requests []reconcile.Request
 	for i := range hosts.Items {
 		host := &hosts.Items[i]
-		if host.Name == hostName && host.Status.ClaimedBy != "" {
-			requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Status.ClaimedBy}})
+		if host.Name == hostName {
+			requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Name}})
 		}
 	}
 	return requests

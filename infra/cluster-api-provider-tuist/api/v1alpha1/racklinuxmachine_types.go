@@ -1,35 +1,20 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-// RackLinuxMachineSpec is the workload shape of one rack Linux node. The box
-// comes from the RackLinuxHost it claims, so a MachineDeployment can clone it.
+// RackLinuxMachineSpec is one rack Linux host as a node. The operator creates
+// it, and the CAPI Machine that owns it, for each RackLinuxHost, under the
+// host's name.
 type RackLinuxMachineSpec struct {
-	// ProviderID is rack-linux://<site>/<host>, set once a host is claimed.
+	// ProviderID is rack-linux://<site>/<host UUID>.
 	// +optional
 	ProviderID *string `json:"providerID,omitempty"`
 
-	// AdoptPool is the RackLinuxHost pool this machine claims from.
-	// +optional
-	AdoptPool string `json:"adoptPool,omitempty"`
-
-	// FleetName names the `<fleetName>-ssh` Secret holding the key the
-	// install stick authorizes. It is read, never minted.
-	// +optional
-	FleetName string `json:"fleetName,omitempty"`
-
-	// NodeLabels are registered with the Node on top of the labels every rack
-	// Linux node carries.
-	// +optional
-	NodeLabels map[string]string `json:"nodeLabels,omitempty"`
-
-	// NodeTaints are registered with the Node.
-	// +optional
-	NodeTaints []corev1.Taint `json:"nodeTaints,omitempty"`
+	// Host is the RackLinuxHost this machine is.
+	Host string `json:"host"`
 }
 
 // RackLinuxMachineStatus is the observed state of one rack Linux node.
@@ -41,9 +26,11 @@ type RackLinuxMachineStatus struct {
 	// +optional
 	Phase string `json:"phase,omitempty"`
 
-	// RackLinuxHost is the host this machine holds.
+	// NodeName is the name the host joined the cluster under: its hostname
+	// when it joined. A host whose hostname changed joins again under the
+	// new one.
 	// +optional
-	RackLinuxHost string `json:"rackLinuxHost,omitempty"`
+	NodeName string `json:"nodeName,omitempty"`
 
 	// +optional
 	Addresses []clusterv1.MachineAddress `json:"addresses,omitempty"`
@@ -78,7 +65,7 @@ type RackLinuxMachineStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=racklinuxmachines,scope=Namespaced,categories=cluster-api,shortName=rlm
-// +kubebuilder:printcolumn:name="Host",type=string,JSONPath=".status.rackLinuxHost"
+// +kubebuilder:printcolumn:name="Node",type=string,JSONPath=".status.nodeName"
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=".status.ready"
 // +kubebuilder:printcolumn:name="LastConverge",type="date",JSONPath=".status.lastConvergeTime"
