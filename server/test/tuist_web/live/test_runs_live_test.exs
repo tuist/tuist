@@ -57,6 +57,29 @@ defmodule TuistWeb.TestRunsLiveTest do
       assert has_element?(lv, "[data-part='test-runs-table']")
     end
 
+    test "shows the run count chart for an analytics widget it does not know", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          ran_at: ~N[2024-04-30 10:19:30]
+        )
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?analytics-selected-widget=coverage"
+        )
+
+      render_async(lv)
+
+      assert has_element?(lv, "#test-runs-analytics-chart")
+    end
+
     test "lists Bazel invocations using the shared test runs page", %{
       conn: conn,
       organization: organization
