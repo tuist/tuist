@@ -50,7 +50,7 @@ Linux kinds share. Until it exists, the `sa-west` box is hand-joined.
 | `RackAppleSiliconMachine` (+ `…Template`) | One Mac mini we own. Carries only workload shape (sizing, fleet, kubelet version) plus the `adoptPool` it claims from: no host identity at all, which is what lets one template be cloned N times. |
 | `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, claimed/free. Pure inventory: nothing running on the host reads it. |
 | `RackLinuxMachine` (+ `…Template`) | One rack Linux node: node labels, taints, `adoptPool`, `fleetName`. No host identity. |
-| `RackLinuxHost` | One x86 Linux machine we own: pool, role, site, the tailnet tags its install joins it with, and the MAC it netboots from. Status carries its current tailnet device and a published install. |
+| `RackLinuxHost` | One x86 Linux machine we own: pool, role, site, the tailnet tags its install joins it with, the MAC it netboots from, and whether to activate its AMT. Status carries its current tailnet device, a published install and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, the `bootMAC` to declare (its i226-LM), the edge that heard it, and the host that declares it, if any. The operator keeps it; nothing else writes it. |
 | `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
 | `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-west): adopts a pre-prepped box by tag, `fleetName`. Reinstall-on-release. |
@@ -706,6 +706,32 @@ minor other than the operator's `KubernetesMinor` holds converges
 (`ConvergeHeld`) until the operator renders for it. Before any converge it
 refuses while `kube-system/cilium` would schedule onto a node carrying
 `cilium.io/no-schedule=true`.
+
+**AMT is activated only on hosts that ask for it** (`racklinuxhost_amt.go`).
+A host with `spec.amt.activate` (the chart's `rackLinuxFleet.hosts[].amt`) and
+a connected tailnet device gets, over SSH, the pinned `rpc` (the Device
+Management Toolkit's AMT client, installed at `/usr/local/lib/tuist/rpc-<version>`
+from the release tarball's digest), which reads AMT's state and, while AMT is
+pre-provisioned, runs `rpc activate -local -acm`. The provisioning certificate
+comes from `--rack-linux-amt-provisioning-secret-name` (`pfx`, `password`,
+synced from 1Password `AMT_PROVISIONING_CERT`). The admin password is generated
+and stored in the Secret `<host>-amt` before the first attempt, and that Secret
+outlives the host: AMT keeps the password. Secrets reach `rpc` through its
+environment, exported by the script on the SSH session's stdin, so they are on
+no command line and in no file on the host. A failed attempt is recorded in
+`status.amt.activationError` and retried after an hour; an activated host is
+read hourly. `AMTActivated` reports the outcome. Turning the switch off does not
+deactivate AMT. AMT checks the certificate's domain against the DHCP domain
+(option 15, `management.edge.domain`) or MEBx's PKI DNS suffix; pre-provisioned
+AMT on an MS-01 sends no DHCP of its own and did not learn option 15 from the
+host's lease, so an activation that fails on the domain needs the suffix set in
+MEBx.
+
+```bash
+kubectl patch rlh <host> --type merge -p '{"spec":{"amt":{"activate":true}}}'
+kubectl get rlh <host> -o jsonpath='{.status.amt}'
+| base64 -d
+```
 
 **Deleting a Machine** stops the host's kubelet and removes its certificate over
 SSH (bounded, best effort), then deletes the Node, the egress Service and the

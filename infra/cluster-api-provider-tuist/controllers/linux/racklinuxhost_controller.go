@@ -60,7 +60,11 @@ type RackLinuxHostReconciler struct {
 	Tailnet TailnetAPI
 
 	// Install is nil when the operator publishes no installs.
-	Install            *RackInstall
+	Install *RackInstall
+
+	// AMT is nil when the operator activates no AMT.
+	AMT *RackAMT
+
 	CredentialsManager *credentials.Manager
 	EgressNamespace    string
 	EgressProxyGroup   string
@@ -127,6 +131,9 @@ func (r *RackLinuxHostReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, err
 		}
 		if after > 0 && after < requeue {
+			requeue = after
+		}
+		if after := r.reconcileAMT(ctx, host); after > 0 && after < requeue {
 			requeue = after
 		}
 		if err := r.scaleUpPool(ctx, host); err != nil {

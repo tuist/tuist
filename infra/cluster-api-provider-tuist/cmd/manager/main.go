@@ -292,6 +292,10 @@ func main() {
 		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
 	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
 		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	var rackLinuxAMTProvisioningSecretName string
+	flag.StringVar(&rackLinuxAMTProvisioningSecretName, "rack-linux-amt-provisioning-secret-name", "",
+		"Secret in the operator namespace holding the AMT provisioning certificate (pfx, password) the RackLinuxHost controller "+
+			"activates the AMT of hosts that ask for it with. Empty, or no --rack-linux-fleet-name, activates none.")
 	flag.Func("rack-linux-authorized-key",
 		"An SSH public key every netbooted install authorizes beside the fleet key. Repeatable.",
 		func(v string) error {
@@ -680,12 +684,17 @@ func main() {
 	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
 		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
 	}
+	var rackAMT *linux.RackAMT
+	if rackLinuxFleetName != "" && rackLinuxAMTProvisioningSecretName != "" {
+		rackAMT = &linux.RackAMT{FleetName: rackLinuxFleetName, ProvisioningSecret: rackLinuxAMTProvisioningSecretName}
+	}
 	if err := (&linux.RackLinuxHostReconciler{
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
 		Recorder:           mgr.GetEventRecorderFor("racklinuxhost-controller"),
 		Tailnet:            rackTailnet,
 		Install:            rackInstall,
+		AMT:                rackAMT,
 		CredentialsManager: credsManager,
 		EgressNamespace:    egressNamespace,
 		EgressProxyGroup:   egressProxyGroup,

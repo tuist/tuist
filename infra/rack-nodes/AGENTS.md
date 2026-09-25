@@ -111,7 +111,8 @@ send network packet" on both i226 ports), so it never reads its menu.
 An edge serves the segment from its i226-V (ber1-mgmt port 48 for `ber1-edge-a`,
 47 for `ber1-edge-b`), not its i226-LM: an i226-LM with vPro never puts a DHCP
 offer it sends on the wire, while the daemon logs it and a capture on the host
-shows it. An edge's i226-LM carries only AMT, and the host leaves it down.
+shows it. An edge's i226-LM carries only AMT, and the host keeps it up with
+nothing of its own on it.
 
 The installer can get its default route from its provisioning lease, through
 the edge, as well as from the uplinks' DHCP, so each edge translates the

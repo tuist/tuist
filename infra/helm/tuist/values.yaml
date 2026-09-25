@@ -1749,7 +1749,19 @@ rackLinuxFleet:
   #     bootMAC: 38:05:25:38:b5:b5   # the NIC it netboots from; see boot
   #     rack: r1
   #     positionU: 10
+  #     amt:
+  #       activate: true       # activate its AMT; see amt below
   hosts: []
+
+  # Intel AMT's provisioning certificate (`pfx`, a base64 PKCS#12 carrying the
+  # chain to its root, and `pfx-password`). The operator activates the AMT of a
+  # host with `amt.activate` in admin control mode with it, and keeps the admin
+  # password it sets in the Secret `<host>-amt`. The certificate's domain must
+  # match the DHCP domain the site's edge hands out (management.edge.domain).
+  amt:
+    provisioningExternalSecret:
+      enabled: false
+      item: ""
 
   # People's SSH keys every netbooted install authorizes beside the fleet key.
   authorizedKeys: []

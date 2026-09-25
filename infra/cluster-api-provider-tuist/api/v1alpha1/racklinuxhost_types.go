@@ -42,6 +42,21 @@ type RackLinuxHostSpec struct {
 	// +kubebuilder:validation:Pattern=`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`
 	// +optional
 	BootMAC string `json:"bootMAC,omitempty"`
+
+	// AMT is what the operator does with the host's Intel AMT, which shares
+	// the management port and can power-cycle a host whose OS is gone.
+	// +optional
+	AMT *RackLinuxHostAMT `json:"amt,omitempty"`
+}
+
+// RackLinuxHostAMT is what the operator does with a host's Intel AMT.
+type RackLinuxHostAMT struct {
+	// Activate has the operator activate AMT in admin control mode, with the
+	// fleet's provisioning certificate and an admin password it generates
+	// and keeps in the Secret <host>-amt. Turning it off does not deactivate
+	// AMT.
+	// +optional
+	Activate bool `json:"activate,omitempty"`
 }
 
 // RackLinuxHostTailnet is the identity a host's install key joins it as.
@@ -73,6 +88,10 @@ type RackLinuxHostStatus struct {
 	// +optional
 	Install *RackLinuxHostInstallStatus `json:"install,omitempty"`
 
+	// AMT is the host's Intel AMT as rpc reports it on the host.
+	// +optional
+	AMT *RackLinuxHostAMTStatus `json:"amt,omitempty"`
+
 	// +optional
 	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
@@ -100,6 +119,38 @@ type RackLinuxHostInstallStatus struct {
 	// and rebooted it, for a requested reinstall.
 	// +optional
 	TriggeredAt *metav1.Time `json:"triggeredAt,omitempty"`
+}
+
+// RackLinuxHostAMTStatus is the host's Intel AMT.
+type RackLinuxHostAMTStatus struct {
+	// ControlMode is AMT's activation state: pre-provisioning, client or
+	// admin.
+	// +optional
+	ControlMode string `json:"controlMode,omitempty"`
+
+	// Version is the AMT firmware's.
+	// +optional
+	Version string `json:"version,omitempty"`
+
+	// Link is the wired link AMT sees on the management port: up or down.
+	// +optional
+	Link string `json:"link,omitempty"`
+
+	// Address is AMT's own IPv4 address on the management port.
+	// +optional
+	Address string `json:"address,omitempty"`
+
+	// ObservedAt is when the operator last read AMT's state.
+	// +optional
+	ObservedAt *metav1.Time `json:"observedAt,omitempty"`
+
+	// LastActivation is when the operator last tried to activate AMT.
+	// +optional
+	LastActivation *metav1.Time `json:"lastActivation,omitempty"`
+
+	// ActivationError is why that attempt failed.
+	// +optional
+	ActivationError string `json:"activationError,omitempty"`
 }
 
 // RackLinuxHostTailnetStatus is one tailnet device.
@@ -141,6 +192,7 @@ type RackLinuxHostTailnetStatus struct {
 // +kubebuilder:printcolumn:name="Site",type=string,priority=1,JSONPath=".spec.location.site"
 // +kubebuilder:printcolumn:name="Device",type=string,priority=1,JSONPath=".status.tailnet.deviceID"
 // +kubebuilder:printcolumn:name="Install",type=string,priority=1,JSONPath=".status.install.keyID"
+// +kubebuilder:printcolumn:name="AMT",type=string,priority=1,JSONPath=".status.amt.controlMode"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // RackLinuxHost is one x86 Linux machine in a rack we operate.

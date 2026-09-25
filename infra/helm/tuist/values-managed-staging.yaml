@@ -854,6 +854,10 @@ rackLinuxFleet:
     externalSecret:
       enabled: true
       item: TAILSCALE_RACK_NODES
+  amt:
+    provisioningExternalSecret:
+      enabled: true
+      item: AMT_PROVISIONING_CERT
   roles:
     edge:
       nodeLabels:
