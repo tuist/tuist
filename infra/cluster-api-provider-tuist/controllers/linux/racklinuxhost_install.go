@@ -198,9 +198,9 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			"%s was rebooted into its installer for install %s", host.Name, inst.KeyID)
 		return 0, nil
 	}
-	if !device.Connected {
+	if !device.Connected && !r.amtCanPower(host) {
 		conditions.MarkFalse(host, InstalledCondition, "WaitingForNetboot", clusterv1.ConditionSeverityWarning,
-			"install %s is published, but %s is offline, so the operator cannot reboot it into it; boot its install stick or network entry by hand",
+			"install %s is published, but %s is offline and its AMT is not activated, so the operator cannot reboot it into it; boot its install stick or network entry by hand",
 			inst.KeyID, host.Name)
 		return 0, nil
 	}
@@ -208,6 +208,21 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
 			"rebooting %s into install %s once the boot server serves it", host.Name, inst.KeyID)
 		return wait, nil
+	}
+	if !device.Connected {
+		// The MS-01 boots its install stick first, so a power cycle boots the
+		// installer.
+		if err := r.recordAMTPower(ctx, host, "cycle"); err != nil {
+			r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not power-cycle %s through AMT into its installer: %v", host.Name, err)
+			conditions.MarkFalse(host, InstalledCondition, "ReinstallNotStarted", clusterv1.ConditionSeverityWarning, "%v", err)
+			return time.Minute, nil
+		}
+		triggered := metav1.NewTime(now)
+		inst.TriggeredAt = &triggered
+		r.Recorder.Eventf(host, corev1.EventTypeNormal, "ReinstallStarted", "Power-cycled %s through AMT into its installer, for install %s", host.Name, inst.KeyID)
+		conditions.MarkFalse(host, InstalledCondition, "Reinstalling", clusterv1.ConditionSeverityInfo,
+			"%s was power-cycled through AMT into its installer for install %s", host.Name, inst.KeyID)
+		return 0, nil
 	}
 	if err := r.bootInstallerOnce(ctx, host); err != nil {
 		r.Recorder.Eventf(host, corev1.EventTypeWarning, "ReinstallNotStarted", "Could not reboot %s into its installer: %v", host.Name, err)
@@ -440,32 +455,60 @@ func (r *RackLinuxHostReconciler) bootInstallerOnce(ctx context.Context, host *i
 // the key its current device first presented.
 func runOnRackHost(ctx context.Context, c client.Client, creds *credentials.Manager, fleet string, egress rackEgress, run RunRackScript,
 	host *infrav1.RackLinuxHost, script string, timeout time.Duration) (string, error) {
-	if err := egress.ensure(ctx, c, host); err != nil {
-		return "", fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
-	}
-	key, err := creds.ReadFleetSSHKey(ctx, fleet)
+	key, hk, persistPin, err := prepareRackHostSSH(ctx, c, creds, fleet, egress, host)
 	if err != nil {
 		return "", err
+	}
+	defer persistPin()
+	if run == nil {
+		run = runRackScriptOverSSH
+	}
+	return run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key, script, timeout, hk)
+}
+
+// withRackHostSSH calls fn with an SSH client to a connected rack Linux host,
+// reached as runOnRackHost reaches it, for at most timeout.
+func withRackHostSSH(ctx context.Context, c client.Client, creds *credentials.Manager, fleet string, egress rackEgress,
+	host *infrav1.RackLinuxHost, timeout time.Duration, fn func(*ssh.Client) error) error {
+	key, hk, persistPin, err := prepareRackHostSSH(ctx, c, creds, fleet, egress, host)
+	if err != nil {
+		return err
+	}
+	defer persistPin()
+	sshClient, closeSSH, err := dialSSH(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key, timeout, hk)
+	if err != nil {
+		return err
+	}
+	defer closeSSH()
+	return fn(sshClient)
+}
+
+// prepareRackHostSSH ensures host's egress Service and reads the fleet key and
+// the host key pin; persistPin records the key the host presented first.
+func prepareRackHostSSH(ctx context.Context, c client.Client, creds *credentials.Manager, fleet string, egress rackEgress,
+	host *infrav1.RackLinuxHost) (key []byte, hk *bootstrap.HostKeyState, persistPin func(), err error) {
+	if err := egress.ensure(ctx, c, host); err != nil {
+		return nil, nil, nil, fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
+	}
+	key, err = creds.ReadFleetSSHKey(ctx, fleet)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	pinKey := rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
 	known := ""
 	if pin, err := creds.GetMachineBootstrap(ctx, pinKey); err != nil {
-		return "", fmt.Errorf("read the host key pin: %w", err)
+		return nil, nil, nil, fmt.Errorf("read the host key pin: %w", err)
 	} else if pin != nil {
 		known = pin.HostFingerprint
 	}
-	hk := bootstrap.NewHostKeyState(known)
-	defer func() {
+	hk = bootstrap.NewHostKeyState(known)
+	return key, hk, func() {
 		if observed := hk.Observed(); observed != "" && observed != known {
 			if err := creds.SetMachineHostFingerprint(ctx, pinKey, observed); err != nil {
 				log.FromContext(ctx).Error(err, "persist the host key pin", "host", host.Name)
 			}
 		}
-	}()
-	if run == nil {
-		run = runRackScriptOverSSH
-	}
-	return run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key, script, timeout, hk)
+	}, nil
 }
 
 // renderBootInstallerOnceScript sets BootNext to the host's installer and

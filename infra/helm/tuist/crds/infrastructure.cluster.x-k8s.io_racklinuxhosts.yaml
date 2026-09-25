@@ -180,6 +180,26 @@ spec:
                       description: LastActivation is when the operator last tried to activate AMT.
                       format: date-time
                       type: string
+                    lastPowerAction:
+                      description: LastPowerAction is the last power change the operator asked AMT for.
+                      properties:
+                        action:
+                          description: 'Action is the tuist.dev/amt-power value: on, off, cycle or reset.'
+                          type: string
+                        at:
+                          description: At is when the operator asked.
+                          format: date-time
+                          type: string
+                        error:
+                          description: Error is why the change was not made.
+                          type: string
+                        via:
+                          description: Via is the host whose SSH session reached AMT.
+                          type: string
+                      required:
+                        - action
+                        - at
+                      type: object
                     link:
                       description: 'Link is the wired link AMT sees on the management port: up or down.'
                       type: string
