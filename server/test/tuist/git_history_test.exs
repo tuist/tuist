@@ -271,6 +271,31 @@ defmodule Tuist.GitHistoryTest do
       assert GitHistory.position(repository, "d") == nil
     end
 
+    test "never move a branch back on a late report of a commit the default branch took over", %{
+      repository: repository
+    } do
+      seed(repository)
+
+      GitHistory.record_commits(repository, "sha1", [
+        commit("f1", ["d"], 10),
+        commit("f2", ["f1"], 11),
+        commit("f3", ["f2"], 12),
+        commit("f4", ["f3"], 13)
+      ])
+
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      GitHistory.advance_ref(repository, "develop", "main", "f4")
+      GitHistory.advance_ref(repository, "main", nil, "f2")
+      assert owned(repository, "develop") == [{"f3", 7}, {"f4", 8}]
+
+      # f1's run reported develop, and a refold advances develop to it again.
+      GitHistory.advance_ref(repository, "develop", "main", "f1", only_forward: true)
+
+      assert owned(repository, "develop") == [{"f3", 7}, {"f4", 8}]
+      assert CoverageFixtures.branch_head(repository, "develop") == "f4"
+      assert GitHistory.ref(repository, "develop").fork_position == 6
+    end
+
     test "take a fast-forwarded pull request's commits onto the default branch", %{repository: repository} do
       seed(repository)
       GitHistory.record_commits(repository, "sha1", [commit("p1", ["d"], 10), commit("p2", ["p1"], 11)])

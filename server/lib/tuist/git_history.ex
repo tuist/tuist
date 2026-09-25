@@ -402,8 +402,9 @@ defmodule Tuist.GitHistory do
   sibling's commit forks where the sibling does and owns only what it added.
 
   `parent` names the ref this one forks from (nil for the default branch).
-  With `only_forward: true` a head the ref already owns leaves it as it is:
-  a late report of an older commit does not move the ref back. The walk is
+  With `only_forward: true` a head the ref already owns, or an ancestor of
+  its current head, leaves it as it is: a late report of an older commit
+  does not move the ref back, even once another ref took that commit over. The walk is
   bounded by `:max_depth` (the default `window_commits`). A head the graph
   does not know yet is recorded without positions.
   """
@@ -419,7 +420,7 @@ defmodule Tuist.GitHistory do
             not known?(repository_id, head_sha) ->
               Repo.update_all(from(r in Ref, where: r.id == ^ref.id), set: [head_sha: head_sha, updated_at: now()])
 
-            Keyword.get(opts, :only_forward, false) and position_ref(repository_id, head_sha) == ref.id ->
+            Keyword.get(opts, :only_forward, false) and behind?(repository_id, ref, head_sha) ->
               :ok
 
             true ->
@@ -433,6 +434,14 @@ defmodule Tuist.GitHistory do
       )
 
     :ok
+  end
+
+  # The ref already holds the commit, or had it in its history before
+  # another ref took it over (a fast-forward of the default branch).
+  defp behind?(repository_id, ref, head_sha) do
+    position_ref(repository_id, head_sha) == ref.id or
+      (is_binary(ref.head_sha) and ref.head_sha != head_sha and
+         not is_nil(nearest_ancestor(repository_id, ref.head_sha, [head_sha])))
   end
 
   defp position_ref(repository_id, sha) do
