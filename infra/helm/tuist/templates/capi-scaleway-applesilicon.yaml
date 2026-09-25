@@ -398,6 +398,9 @@ spec:
             {{- range .Values.rackLinuxFleet.authorizedKeys }}
             - {{ printf "--rack-linux-authorized-key=%s" . | quote }}
             {{- end }}
+            {{- if .Values.rackLinuxFleet.amt.provisioningExternalSecret.enabled }}
+            - --rack-linux-amt-provisioning-secret-name={{ include "tuist.rackLinuxFleetName" . }}-amt-provisioning
+            {{- end }}
             {{- end }}
             {{- with .Values.macosFleet.apiServerURL }}
             - --api-server-url={{ . }}

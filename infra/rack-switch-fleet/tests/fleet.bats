@@ -3156,3 +3156,20 @@ STUB
     run fleet_sh "printf '%s' '$users' | fleet_leaked_line '' ''"
     [ -z "$output" ]
 }
+
+@test "the edge hands every machine on the segment the domain AMT's provisioning certificate is issued under" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_dhcp "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    # DHCP option 15, which AMT checks against its provisioning certificate
+    [[ "$output" == *$'\ndhcp-option=option:domain-name,rack.tuist.dev\n'* ]]
+    site="$BATS_TEST_TMPDIR/nodomain.json"
+    jq 'del(.management.edge.domain)' "$SITE_FILE" > "$site"
+    run fleet_edge_dhcp "$site"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"domain-name"* ]]
+    jq '.management.edge.domain = "rack.tuist.dev;evil"' "$SITE_FILE" > "$site"
+    run fleet_edge_dhcp "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"management.edge.domain"* ]]
+}

@@ -47,6 +47,10 @@ spec:
   {{- with $host.bootMAC }}
   bootMAC: {{ lower . | quote }}
   {{- end }}
+  {{- if and $host.amt $host.amt.activate }}
+  amt:
+    activate: true
+  {{- end }}
 {{- end }}
 {{- range $role := keys $roles | sortAlpha }}
 {{- $roleConfig := get $.Values.rackLinuxFleet.roles $role | default dict }}
@@ -173,6 +177,35 @@ spec:
     - secretKey: client-secret
       remoteRef:
         key: "{{ .Values.rackLinuxFleet.tailscale.externalSecret.item }}/client-secret"
+{{- end }}
+{{- if .Values.rackLinuxFleet.amt.provisioningExternalSecret.enabled }}
+---
+# Intel AMT's provisioning certificate, which the operator activates the AMT of
+# a host setting amt.activate with, in admin control mode. The key stays in
+# 1Password and here; hosts receive it only for the activation, through rpc's
+# environment.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $fleetName }}-amt-provisioning
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rack-linux-fleet
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  target:
+    name: {{ $fleetName }}-amt-provisioning
+    creationPolicy: Owner
+  data:
+    - secretKey: pfx
+      remoteRef:
+        key: "{{ required "rackLinuxFleet.amt.provisioningExternalSecret.item is required when enabled" .Values.rackLinuxFleet.amt.provisioningExternalSecret.item }}/pfx"
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.rackLinuxFleet.amt.provisioningExternalSecret.item }}/pfx-password"
 {{- end }}
 {{- if .Values.rackLinuxFleet.boot.enabled }}
 {{- $boot := .Values.rackLinuxFleet.boot }}

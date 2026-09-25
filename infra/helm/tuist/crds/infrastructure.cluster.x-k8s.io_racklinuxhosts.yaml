@@ -48,6 +48,10 @@ spec:
           name: Install
           priority: 1
           type: string
+        - jsonPath: .status.amt.controlMode
+          name: AMT
+          priority: 1
+          type: string
         - jsonPath: .metadata.creationTimestamp
           name: Age
           type: date
@@ -80,6 +84,19 @@ spec:
                 stick, so it is found by its name and tags rather than dialled at an
                 address.
               properties:
+                amt:
+                  description: |-
+                    AMT is what the operator does with the host's Intel AMT, which shares
+                    the management port and can power-cycle a host whose OS is gone.
+                  properties:
+                    activate:
+                      description: |-
+                        Activate has the operator activate AMT in admin control mode, with the
+                        fleet's provisioning certificate and an admin password it generates
+                        and keeps in the Secret <host>-amt. Turning it off does not deactivate
+                        AMT.
+                      type: boolean
+                  type: object
                 bootMAC:
                   description: |-
                     BootMAC is the MAC address of the NIC the host netboots from, on the rack's
@@ -145,6 +162,35 @@ spec:
             status:
               description: RackLinuxHostStatus is the observed state of one host.
               properties:
+                amt:
+                  description: AMT is the host's Intel AMT as rpc reports it on the host.
+                  properties:
+                    activationError:
+                      description: ActivationError is why that attempt failed.
+                      type: string
+                    address:
+                      description: Address is AMT's own IPv4 address on the management port.
+                      type: string
+                    controlMode:
+                      description: |-
+                        ControlMode is AMT's activation state: pre-provisioning, client or
+                        admin.
+                      type: string
+                    lastActivation:
+                      description: LastActivation is when the operator last tried to activate AMT.
+                      format: date-time
+                      type: string
+                    link:
+                      description: 'Link is the wired link AMT sees on the management port: up or down.'
+                      type: string
+                    observedAt:
+                      description: ObservedAt is when the operator last read AMT's state.
+                      format: date-time
+                      type: string
+                    version:
+                      description: Version is the AMT firmware's.
+                      type: string
+                  type: object
                 claimedAt:
                   description: ClaimedAt is when the current claim was taken.
                   format: date-time

@@ -232,6 +232,19 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 	}
 }
 
+// The converge keeps the port AMT shares, the host's boot MAC, up.
+func TestRackLinuxMachineKeepsTheManagementPortUp(t *testing.T) {
+	host := claimedEdgeHost("dev-1")
+	host.Spec.BootMAC = "38:05:25:38:b5:b5"
+	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, edgeMachine())...)
+
+	h.reconcile(t)
+
+	if len(h.runner.runs) == 0 || !strings.Contains(h.runner.runs[0].script, "MACAddress=38:05:25:38:b5:b5\n") {
+		t.Fatal("the converge does not keep the boot MAC's port up")
+	}
+}
+
 func TestRackLinuxMachineRefusesWhileCiliumWouldScheduleOntoTheNode(t *testing.T) {
 	objs := append(rackClusterObjects(false), claimedEdgeHost("dev-1"), edgeMachine())
 	h := newRackMachineHarness(t, "v1.34.8", objs...)

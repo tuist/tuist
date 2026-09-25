@@ -177,3 +177,33 @@ func TestRackConvergeScriptKeepsTheBluetoothDriverOut(t *testing.T) {
 		t.Fatal("the converge does not keep btusb out")
 	}
 }
+
+// AMT shares the management port with the host, and a port the host does not
+// configure stays down, taking AMT's link with it. The converge keeps the port
+// up with no address and no ARP of the host's on it.
+func TestRackConvergeScriptKeepsTheManagementPortUpForAMT(t *testing.T) {
+	opts := edgeConvergeOptions()
+	opts.ManagementMAC = "38:05:25:38:b5:b5"
+	script := renderRackConvergeScript(opts)
+	want := "put /etc/systemd/network/10-tuist-management.network 0644 network <<'TUIST_EOF'\n" +
+		"[Match]\nMACAddress=38:05:25:38:b5:b5\n\n" +
+		"[Link]\nARP=no\nActivationPolicy=always-up\nRequiredForOnline=no\n\n" +
+		"[Network]\nLinkLocalAddressing=no\nIPv6AcceptRA=no\n" +
+		"TUIST_EOF\n"
+	if !strings.Contains(script, want) {
+		t.Fatalf("the converge does not keep the management port up:\n%s", script)
+	}
+	if !strings.Contains(script, `if [ -n "${dirty[network]:-}" ]; then networkctl reload; fi`) {
+		t.Fatal("a changed management port configuration is not applied")
+	}
+}
+
+func TestRackConvergeScriptDropsTheManagementPortWithoutABootMAC(t *testing.T) {
+	script := renderRackConvergeScript(edgeConvergeOptions())
+	if strings.Contains(script, "\nput /etc/systemd/network/10-tuist-management.network") {
+		t.Fatal("wrote a management port configuration without a MAC to match")
+	}
+	if !strings.Contains(script, "unput /etc/systemd/network/10-tuist-management.network network\n") {
+		t.Fatal("a host whose boot MAC was removed keeps its management port configuration")
+	}
+}

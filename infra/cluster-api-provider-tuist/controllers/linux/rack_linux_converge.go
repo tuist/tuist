@@ -53,6 +53,10 @@ type rackConvergeOptions struct {
 	NodeLabels   map[string]string
 	NodeTaints   []corev1.Taint
 
+	// ManagementMAC is the management port's, the one AMT shares with the
+	// host: the host's boot MAC.
+	ManagementMAC string
+
 	// APIServerURL and BootstrapToken, when the token is set, make the run
 	// write a bootstrap kubeconfig and wait for the kubelet's certificate.
 	// Neither is part of the configuration hash.
@@ -210,6 +214,14 @@ put() {
   changed+=("$path")
   dirty[$group]=1
 }
+unput() {
+  local path=$1 group=$2
+  if [ -e "$path" ]; then
+    rm -f "$path"
+    changed+=("-$path")
+    dirty[$group]=1
+  fi
+}
 apt_get() {
   DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 -y -qq "$@"
 }
@@ -235,6 +247,13 @@ sed -ri '/\sswap\s/s/^([^#])/#\1/' /etc/fstab
 	b.WriteString(heredoc("/etc/sysctl.d/99-tuist-k8s.conf", "0644", "sysctl", sysctlContent))
 	b.WriteString(heredoc("/etc/sysctl.d/99-tuist-hardening.conf", "0644", "sysctl", kernelHardeningSysctlContent))
 	b.WriteString("sysctl -q -p /etc/sysctl.d/99-tuist-k8s.conf\nsysctl -q -p /etc/sysctl.d/99-tuist-hardening.conf 2>/dev/null || true\n")
+	if o.ManagementMAC != "" {
+		b.WriteString(heredoc(rackManagementNetworkPath, "0644", "network", rackManagementNetwork(o.ManagementMAC)))
+	} else {
+		b.WriteString("unput " + rackManagementNetworkPath + " network\n")
+	}
+	b.WriteString(`if [ -n "${dirty[network]:-}" ]; then networkctl reload; fi
+`)
 	b.WriteString(heredoc("/etc/systemd/system.conf.d/10-tuist-watchdog.conf", "0644", "systemd", watchdogDropInContent))
 	b.WriteString(`if [ -n "${dirty[systemd]:-}" ]; then systemctl daemon-reexec; fi
 
@@ -329,4 +348,25 @@ printf '%%s\n' %[4]s > %[3]s
 echo "tuist-converge: changed=${changed[*]:-none} restarted=${restarted[*]:-none}"
 `, rackConvergeNeedsBootstrap, rackBootstrapKubeconfigPath, rackAppliedHashPath, shellSingleQuote(hash))
 	return b.String()
+}
+
+const rackManagementNetworkPath = "/etc/systemd/network/10-tuist-management.network"
+
+// rackManagementNetwork keeps the management port up for AMT, which shares
+// it, with nothing of the host's on it: no address, no IPv6 link-local and no
+// ARP, so the host does not answer on the management segment for addresses it
+// holds elsewhere.
+func rackManagementNetwork(mac string) string {
+	return fmt.Sprintf(`[Match]
+MACAddress=%s
+
+[Link]
+ARP=no
+ActivationPolicy=always-up
+RequiredForOnline=no
+
+[Network]
+LinkLocalAddressing=no
+IPv6AcceptRA=no
+`, mac)
 }
