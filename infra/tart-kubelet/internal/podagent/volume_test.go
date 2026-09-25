@@ -51,6 +51,9 @@ type fakeBackend struct {
 	// LOCAL failure to measure an image (the read-only attach failed), which is
 	// not evidence about the image's contents.
 	digestErr error
+	// perStagingFile, when set, is the space each file under the convergence
+	// staging dir takes, modelling a partial master download on disk.
+	perStagingFile uint64
 	// growErr, when set, fails every grow.
 	growErr error
 	// grown records every grow: the image's content at the time and the size
@@ -122,6 +125,16 @@ func (f *fakeBackend) isMounted(string) (bool, error) {
 	return !f.notMounted, nil
 }
 
+func (f *fakeBackend) capacityBytes(string) (uint64, error) { return f.totalBytes, nil }
+
+// allocatedBytes models a master image as the provisioned cap, like freeBytes.
+func (f *fakeBackend) allocatedBytes(path string) (uint64, error) {
+	if _, err := os.Stat(path); err != nil {
+		return 0, err
+	}
+	return f.perMaster, nil
+}
+
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 	var masters uint64
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
@@ -134,7 +147,16 @@ func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 		}
 		return nil
 	})
-	used := masters * f.perMaster
+	var staged uint64
+	if f.perStagingFile > 0 {
+		_ = filepath.Walk(filepath.Join(root, convergeDirName), func(_ string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() {
+				staged++
+			}
+			return nil
+		})
+	}
+	used := masters*f.perMaster + staged*f.perStagingFile
 	if used > f.totalBytes {
 		return 0, nil
 	}
@@ -1030,11 +1052,11 @@ func TestInstallMasterFastForwardsAndRefusesRegression(t *testing.T) {
 // content into the convergence staging dir and returns its path.
 func stageConvergeImage(t *testing.T, m *VolumeManager, vm, content string) string {
 	t.Helper()
-	staging := m.ConvergeStagingDir(vm)
+	staging := m.ConvergeStagingDir(vm, ReservedTuistCacheVolume)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	img := filepath.Join(staging, convergeImageName)
+	img := filepath.Join(staging, "head.sparseimage")
 	if err := os.WriteFile(img, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1174,7 +1196,7 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 // it would be counted against capacity and could be evicted as one.
 func TestConvergeStagingIsNotAMaster(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	staging := m.ConvergeStagingDir("vmX")
+	staging := m.ConvergeStagingDir("42", ReservedTuistCacheVolume)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1789,7 +1811,7 @@ func TestDeclinedMaterializeDoesNotConverge(t *testing.T) {
 
 	store := NewStore()
 	store.Put("ns", "pod", &Entry{VMName: "vm-declined", Volume: att, VolumeStatusDir: statusDir})
-	r := &Reconciler{Store: store, Volumes: m, ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
+	r := &Reconciler{Store: store, Volumes: m, Converge: startTestConvergeWorker(t, m), ConvergeHeadWaitInterval: time.Millisecond, ConvergeHeadWaitAttempts: 1}
 	r.maybeMaterializeVolume(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Namespace: "ns", Name: "pod", Labels: map[string]string{runnerAccountLabel: "42"},
 	}})

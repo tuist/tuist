@@ -285,6 +285,7 @@ defmodule Tuist do
       Runners.RunnerSessions,
       Runners.PromExPlugin,
       Runners.Telemetry,
+      Runners.VolumePrefetch,
       Kubernetes.Client
     ]
 end
