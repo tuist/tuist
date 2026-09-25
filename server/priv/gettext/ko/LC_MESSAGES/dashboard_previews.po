@@ -6,7 +6,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/preview_live.html.heex:67
+#: lib/tuist_web/live/preview_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
 msgstr "%{app_name} 아이콘"
@@ -16,8 +16,8 @@ msgstr "%{app_name} 아이콘"
 msgid "%{display_name} · Tuist"
 msgstr "%{display_name} · Tuist"
 
-#: lib/tuist_web/live/preview_live.html.heex:152
-#: lib/tuist_web/live/previews_live.ex:174
+#: lib/tuist_web/live/preview_live.html.heex:154
+#: lib/tuist_web/live/previews_live.ex:175
 #: lib/tuist_web/live/previews_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -28,28 +28,28 @@ msgstr "브랜치"
 msgid "Built at"
 msgstr "빌드 시간"
 
-#: lib/tuist_web/live/preview_live.html.heex:133
+#: lib/tuist_web/live/preview_live.html.heex:135
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
 msgstr "번들 식별자"
 
-#: lib/tuist_web/live/preview_live.html.heex:159
+#: lib/tuist_web/live/preview_live.html.heex:161
 #: lib/tuist_web/live/previews_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr "커밋 SHA"
 
-#: lib/tuist_web/live/preview_live.html.heex:123
+#: lib/tuist_web/live/preview_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Created by"
 msgstr "생성자"
 
-#: lib/tuist_web/live/preview_live.html.heex:41
+#: lib/tuist_web/live/preview_live.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Delete preview"
 msgstr "미리보기 삭제"
 
-#: lib/tuist_web/live/preview_live.html.heex:109
+#: lib/tuist_web/live/preview_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Details"
 msgstr "세부정보"
@@ -59,13 +59,13 @@ msgstr "세부정보"
 msgid "Don't have the Tuist app installed?"
 msgstr "Tuist 앱이 설치되어 있지 않으신가요?"
 
-#: lib/tuist_web/live/preview_live.html.heex:23
-#: lib/tuist_web/live/preview_live.html.heex:87
+#: lib/tuist_web/live/preview_live.html.heex:24
+#: lib/tuist_web/live/preview_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr "다운로드"
 
-#: lib/tuist_web/live/preview_live.html.heex:179
+#: lib/tuist_web/live/preview_live.html.heex:181
 #, elixir-autogen, elixir-format
 msgid "Install App"
 msgstr "앱 설치"
@@ -80,13 +80,13 @@ msgstr "최신 앱 미리보기"
 msgid "Name"
 msgstr "이름"
 
-#: lib/tuist_web/live/preview_live.html.heex:155
-#: lib/tuist_web/live/previews_live.ex:182
+#: lib/tuist_web/live/preview_live.html.heex:157
+#: lib/tuist_web/live/previews_live.ex:183
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr "없음"
 
-#: lib/tuist_web/live/preview_live.html.heex:276
+#: lib/tuist_web/live/preview_live.html.heex:288
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
 msgstr "또는 CLI를 사용하여 실행하세요"
@@ -96,7 +96,7 @@ msgstr "또는 CLI를 사용하여 실행하세요"
 msgid "Platforms"
 msgstr "플랫폼"
 
-#: lib/tuist_web/live/preview_live.html.heex:29
+#: lib/tuist_web/live/preview_live.html.heex:30
 #: lib/tuist_web/live/previews_live.ex:25
 #: lib/tuist_web/live/previews_live.html.heex:19
 #: lib/tuist_web/live/previews_live.html.heex:33
@@ -104,13 +104,13 @@ msgstr "플랫폼"
 msgid "Previews"
 msgstr "미리보기"
 
-#: lib/tuist_web/live/preview_live.html.heex:203
-#: lib/tuist_web/live/preview_live.html.heex:249
+#: lib/tuist_web/live/preview_live.html.heex:205
+#: lib/tuist_web/live/preview_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "QR code"
 msgstr "QR 코드"
 
-#: lib/tuist_web/live/preview_live.html.heex:141
+#: lib/tuist_web/live/preview_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Ran at"
 msgstr "실행 시간"
@@ -120,7 +120,7 @@ msgstr "실행 시간"
 msgid "Ran by"
 msgstr "실행자"
 
-#: lib/tuist_web/live/preview_live.html.heex:98
+#: lib/tuist_web/live/preview_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "Run"
 msgstr "실행"
@@ -130,13 +130,13 @@ msgstr "실행"
 msgid "Run the following command to share app preview."
 msgstr "앱 미리보기를 공유하려면 다음 명령어를 실행하세요."
 
-#: lib/tuist_web/live/preview_live.html.heex:190
-#: lib/tuist_web/live/preview_live.html.heex:236
+#: lib/tuist_web/live/preview_live.html.heex:192
+#: lib/tuist_web/live/preview_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
 msgstr "QR 코드 스캔"
 
-#: lib/tuist_web/live/preview_live.html.heex:239
+#: lib/tuist_web/live/preview_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
 msgstr "이 앱 버전을 설치하려면 iOS 기기에서 이 QR 코드를 스캔하세요"
@@ -146,17 +146,17 @@ msgstr "이 앱 버전을 설치하려면 iOS 기기에서 이 QR 코드를 스�
 msgid "Share app previews in one click"
 msgstr "한 번의 클릭으로 앱 미리보기 공유"
 
-#: lib/tuist_web/live/preview_live.html.heex:115
+#: lib/tuist_web/live/preview_live.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr "지원되는 플랫폼"
 
-#: lib/tuist_web/live/preview_live.html.heex:269
+#: lib/tuist_web/live/preview_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
 msgstr "이 미리보기는 시뮬레이터에서만 지원되며 실제 기기에는 설치할 수 없습니다"
 
-#: lib/tuist_web/live/preview_live.html.heex:263
+#: lib/tuist_web/live/preview_live.html.heex:275
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
 msgstr "이 미리보기는 기기 설치가 불가능합니다"
@@ -166,7 +166,7 @@ msgstr "이 미리보기는 기기 설치가 불가능합니다"
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
 msgstr "브라우저에서 바로 미리보기를 실행하려면 Tuist macOS 앱을 다운로드하고 설치하세요"
 
-#: lib/tuist_web/live/preview_live.html.heex:81
+#: lib/tuist_web/live/preview_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "V %{version}"
 msgstr "버전 %{version}"
@@ -181,29 +181,29 @@ msgstr "필터"
 msgid "Search..."
 msgstr "검색..."
 
-#: lib/tuist_web/live/preview_live.html.heex:167
-#: lib/tuist_web/live/previews_live.ex:166
+#: lib/tuist_web/live/preview_live.html.heex:169
+#: lib/tuist_web/live/previews_live.ex:167
 #: lib/tuist_web/live/previews_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Track"
 msgstr "추적"
 
-#: lib/tuist_web/live/preview_live.html.heex:131
+#: lib/tuist_web/live/preview_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Package name"
 msgstr "패키지 이름"
 
-#: lib/tuist_web/live/preview_live.html.heex:193
+#: lib/tuist_web/live/preview_live.html.heex:195
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
 msgstr "이 앱 버전을 다운로드하고 설치하려면 Android 기기에서 이 QR 코드를 스캔하세요"
 
-#: lib/tuist_web/live/preview_live.html.heex:221
+#: lib/tuist_web/live/preview_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
 msgstr "이 미리보기용 APK 파일을 더 이상 사용할 수 없습니다"
 
-#: lib/tuist_web/live/preview_live.html.heex:215
+#: lib/tuist_web/live/preview_live.html.heex:217
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for download"
 msgstr "이 미리보기는 다운로드할 수 없습니다"
