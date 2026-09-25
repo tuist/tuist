@@ -1090,6 +1090,23 @@ ovhFleet:
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped
 # from cluster-production.yaml).
 ovhFleets:
+  # EU West migration: keep the existing pool selector while OVH and Dedibox
+  # coexist. Hosts must be installed, verified and marked before adoption.
+  # Raise to three only after the gates in kura-controller/eu-west-ovh-migration.md.
+  eu-west:
+    enabled: true
+    replicas: 0
+    endpoint: ovh-us
+    nodePool: kura-dedibox
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-west
+      offer: "ADVANCE-1 | AMD EPYC 4244P"
+      datacenter: gra
+      os: ubuntu_24.04
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
   # EU East (Warsaw). OVH sells bare metal here, so the region reuses the
   # OVHDedicatedMachine kind and its unmetered bandwidth rather than adding a
   # metered provider where an unmetered one is available.
