@@ -600,7 +600,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	rollout, err := r.rolloutStatus(ctx, instance)
+	rollout, err := r.rolloutStatus(ctx, instance, pods)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -3799,7 +3799,7 @@ type rolloutState struct {
 	message       string
 }
 
-func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance) (rolloutState, error) {
+func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) (rolloutState, error) {
 	sts := &appsv1.StatefulSet{}
 	err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts)
 	if apierrors.IsNotFound(err) {
@@ -3813,14 +3813,13 @@ func (r *KuraInstanceReconciler) rolloutStatus(ctx context.Context, instance *ku
 	if err != nil {
 		return rolloutState{}, err
 	}
-	return rolloutStatusFromStatefulSet(instance, sts), nil
+	return rolloutStatusFromStatefulSet(instance, sts, pods), nil
 }
 
-func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *appsv1.StatefulSet) rolloutState {
+func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *appsv1.StatefulSet, pods []corev1.Pod) rolloutState {
 	replicas := replicas(instance)
 	readyReplicas := sts.Status.ReadyReplicas
 	updatedReplicas := sts.Status.UpdatedReplicas
-	observedImage := instance.Status.ObservedImage
 	observedGeneration := sts.Status.ObservedGeneration >= sts.Generation
 	revisionsMatch := sts.Status.UpdateRevision != "" && sts.Status.CurrentRevision == sts.Status.UpdateRevision
 	// Kubernetes advances currentRevision only for RollingUpdate. Under OnDelete,
@@ -3830,10 +3829,14 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	if sts.Spec.UpdateStrategy.Type == appsv1.OnDeleteStatefulSetStrategyType {
 		revisionReady = sts.Status.UpdateRevision != "" && sts.Status.Replicas == replicas && updatedReplicas == replicas
 	}
+	// The StatefulSet comes from the informer cache, which can still hold the
+	// object from before this reconcile wrote a new template: its status is then
+	// complete for the previous template and every counter above passes. The
+	// pods are what settle the image.
+	observedImage := observedPodImage(instance, pods)
 
-	if observedGeneration && revisionReady && readyReplicas >= replicas && updatedReplicas >= replicas {
-		observedImage = instance.Spec.Image
-
+	if observedGeneration && revisionReady && readyReplicas >= replicas && updatedReplicas >= replicas &&
+		observedImage == instance.Spec.Image && podsReadyOnRevision(pods, sts.Status.UpdateRevision, replicas) {
 		return rolloutState{
 			phase:         "Ready",
 			observedImage: observedImage,
@@ -3856,6 +3859,70 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 			revisionsMatch,
 		),
 	}
+}
+
+// observedPodImage reports the Kura image the instance's pods run, which the
+// server takes as the rollout having converged. A full, ready set on a single
+// image reports that image whatever the spec or update strategy says, so an
+// operator-paused StatefulSet shows the image it is held on. Otherwise the
+// last converged image is kept, except that the spec image is never kept
+// while a pod still runs another one.
+func observedPodImage(instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) string {
+	previous := instance.Status.ObservedImage
+	images := map[string]bool{}
+	live := int32(0)
+	allReady := true
+	for i := range pods {
+		pod := &pods[i]
+		if !podLive(pod) {
+			continue
+		}
+		live++
+		images[podKuraImage(pod)] = true
+		if !podReady(pod) {
+			allReady = false
+		}
+	}
+	if len(images) == 1 && allReady && live >= replicas(instance) {
+		for image := range images {
+			if image != "" {
+				return image
+			}
+		}
+	}
+	if previous != instance.Spec.Image {
+		return previous
+	}
+	var others []string
+	for image := range images {
+		if image != "" && image != instance.Spec.Image {
+			others = append(others, image)
+		}
+	}
+	if len(others) == 0 {
+		return previous
+	}
+	sort.Strings(others)
+	return others[0]
+}
+
+func podsReadyOnRevision(pods []corev1.Pod, revision string, replicas int32) bool {
+	live := int32(0)
+	for i := range pods {
+		pod := &pods[i]
+		if !podLive(pod) {
+			continue
+		}
+		if !podReady(pod) || pod.Labels[appsv1.StatefulSetRevisionLabel] != revision {
+			return false
+		}
+		live++
+	}
+	return live >= replicas
+}
+
+func podLive(pod *corev1.Pod) bool {
+	return pod.DeletionTimestamp == nil && pod.Status.Phase != corev1.PodFailed && pod.Status.Phase != corev1.PodSucceeded
 }
 
 // ceilingBudgetAdvertised reports whether a node this instance can land on

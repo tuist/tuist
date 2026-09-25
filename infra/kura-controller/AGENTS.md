@@ -24,6 +24,8 @@ This module contains the Kubernetes controller that reconciles Kura account endp
 
 For an `OnDelete` deployment, Kubernetes may retain the original `currentRevision` after every pod has been manually replaced. Rollout observation must accept an observed generation with a nonempty update revision and the complete replica set updated and Ready, while preserving the pause. Partial replacements, extra old replicas and stale observations must remain pending.
 
+`status.observedImage` is what the server treats as a converged rollout, so it comes from the pods, never from `spec.image` plus StatefulSet counters: the StatefulSet read comes from the informer cache and can predate the template this reconcile just wrote, with a status that is complete for the previous template. A full set of live, Ready pods on one Kura image reports that image, whatever the spec or an operator pause says. Otherwise the last converged image is kept, except that the spec image is never kept while a live pod runs another one. `phase: Ready` additionally requires every live pod Ready on the update revision.
+
 ## Deployment Topology
 
 - **Cache traffic (HTTPS)**: each `KuraInstance` with `spec.publicHost` set gets an nginx Ingress on `spec.ingressClassName` (managed regions default to dedicated shared regional Kura ingress controllers). ingress-nginx terminates TLS and streams uploads/downloads to the instance's internal ClusterIP Service on the runtime's plain HTTP port (`4000`). The backend Service is not a Hetzner `LoadBalancer`.
