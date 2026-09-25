@@ -864,14 +864,22 @@ struct GitControllerTests {
         #expect(isInGitRepository == false)
     }
 
-    @Test(.inTemporaryDirectory) func commitFiles_lists_the_index_with_blobs_and_modes_up_to_the_limit() async throws {
+    @Test(.inTemporaryDirectory) func commitFiles_lists_the_commits_tree_with_blobs_and_modes_up_to_the_limit() async throws {
+        // The commit's tree, not the index: on a pull request's merge checkout the run reports
+        // HEAD^2, and the index is the merge commit's.
         let path = try #require(FileSystem.temporaryTestDirectory)
         commandRunner.succeedCommand(
-            ["git", "-C", path.pathString, "ls-files", "--stage", "-z"],
-            output: "100644 aaa 0\tPackage.resolved\0100755 bbb 0\tScripts/run.sh\0100644 ccc 1\tTuist/Conflict.swift\0160000 ddd 0\tVendor/Submodule\0100644 eee 0\tTuist/Package.swift\0"
+            ["git", "-C", path.pathString, "ls-tree", "-r", "-z", "--full-tree", "tip"],
+            output: [
+                "100644 blob aaa\tPackage.resolved",
+                "100755 blob bbb\tScripts/run.sh",
+                "120000 blob ccc\tSources/Link.swift",
+                "160000 commit ddd\tVendor/Submodule",
+                "100644 blob eee\tTuist/Package.swift",
+            ].joined(separator: "\0") + "\0"
         )
 
-        let listing = try await subject.commitFiles(workingDirectory: path, limit: 2)
+        let listing = try await subject.commitFiles(workingDirectory: path, sha: "tip", limit: 2)
 
         #expect(listing.files == [
             GitCommitFile(path: "Package.resolved", blobId: "aaa", mode: 0o100644),
@@ -879,8 +887,9 @@ struct GitControllerTests {
         ])
         #expect(listing.truncated)
 
-        let whole = try await subject.commitFiles(workingDirectory: path, limit: 10)
-        #expect(whole.files.map(\.path) == ["Package.resolved", "Scripts/run.sh", "Tuist/Package.swift"])
+        let whole = try await subject.commitFiles(workingDirectory: path, sha: "tip", limit: 10)
+        #expect(whole.files.map(\.path) == ["Package.resolved", "Scripts/run.sh", "Sources/Link.swift", "Tuist/Package.swift"])
+        #expect(whole.files[2].mode == 0o120000)
         #expect(!whole.truncated)
     }
 }

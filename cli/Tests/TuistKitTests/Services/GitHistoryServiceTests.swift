@@ -104,7 +104,7 @@ struct GitHistoryServiceTests {
             repositoryURL: .any,
             shas: .any
         ).called(0)
-        verify(gitController).commitFiles(workingDirectory: .any, limit: .any).called(0)
+        verify(gitController).commitFiles(workingDirectory: .any, sha: .any, limit: .any).called(0)
     }
 
     @Test(.withMockedEnvironment())
@@ -133,7 +133,7 @@ struct GitHistoryServiceTests {
             .findMissingCommitListings(fullHandle: .any, serverURL: .any, repositoryURL: .any, shas: .value(["head"]))
             .willReturn(["head"])
         given(gitController)
-            .commitFiles(workingDirectory: .value(workingDirectory), limit: .value(3))
+            .commitFiles(workingDirectory: .value(workingDirectory), sha: .value("head"), limit: .value(3))
             .willReturn(GitCommitFiles(
                 files: [
                     GitCommitFile(path: "Package.resolved", blobId: "aaa", mode: 0o100644),
@@ -222,7 +222,7 @@ struct GitHistoryServiceTests {
         )
         await subject.upload(collected, workingDirectory: workingDirectory, fullHandle: "tuist/tuist", serverURL: serverURL)
 
-        verify(gitController).commitFiles(workingDirectory: .any, limit: .any).called(0)
+        verify(gitController).commitFiles(workingDirectory: .any, sha: .any, limit: .any).called(0)
         verify(uploadListingService)
             .uploadCommitListing(
                 fullHandle: .any,

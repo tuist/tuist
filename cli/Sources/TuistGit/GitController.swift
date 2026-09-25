@@ -90,9 +90,9 @@ public protocol GitControlling {
         limits: GitHistoryLimits
     ) async throws -> GitHistory
 
-    /// Every file of the index with the blob it has, at most `limit` of them in path order: a
-    /// clean checkout's index is the commit's tree, which is what the server keys the listing by.
-    func commitFiles(workingDirectory: AbsolutePath, limit: Int) async throws -> GitCommitFiles
+    /// Every file of the commit's tree with the blob it has, at most `limit` of them in path order,
+    /// which is what the server keys the listing by.
+    func commitFiles(workingDirectory: AbsolutePath, sha: String, limit: Int) async throws -> GitCommitFiles
 
     /// The Git blob object id of every source file with one of `pathExtensions`, keyed by its path
     /// relative to `workingDirectory`, which must be the repository's top level. Tracked files the
