@@ -785,7 +785,9 @@ defmodule Tuist.Tests.Coverage do
       group_by: f.path,
       select: %{
         path: f.path,
-        git_blob_id: fragment("any(?)", f.git_blob_id),
+        # The newest report's blob: `any` let two reads of one commit pick
+        # different blobs when its runs disagreed.
+        git_blob_id: fragment("argMaxIf(?, ?, ? != '')", f.git_blob_id, f.inserted_at, f.git_blob_id),
         targets: fragment("groupUniqArrayArray(?)", f.targets),
         executable_lines:
           fragment(
