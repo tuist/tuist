@@ -151,6 +151,27 @@ type RackLinuxHostAMTStatus struct {
 	// ActivationError is why that attempt failed.
 	// +optional
 	ActivationError string `json:"activationError,omitempty"`
+
+	// LastPowerAction is the last power change the operator asked AMT for.
+	// +optional
+	LastPowerAction *RackLinuxHostAMTPowerAction `json:"lastPowerAction,omitempty"`
+}
+
+// RackLinuxHostAMTPowerAction is one power change asked of a host's AMT.
+type RackLinuxHostAMTPowerAction struct {
+	// Action is the tuist.dev/amt-power value: on, off, cycle or reset.
+	Action string `json:"action"`
+
+	// At is when the operator asked.
+	At metav1.Time `json:"at"`
+
+	// Via is the host whose SSH session reached AMT.
+	// +optional
+	Via string `json:"via,omitempty"`
+
+	// Error is why the change was not made.
+	// +optional
+	Error string `json:"error,omitempty"`
 }
 
 // RackLinuxHostTailnetStatus is one tailnet device.

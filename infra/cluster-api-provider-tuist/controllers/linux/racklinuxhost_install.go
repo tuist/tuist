@@ -440,32 +440,60 @@ func (r *RackLinuxHostReconciler) bootInstallerOnce(ctx context.Context, host *i
 // the key its current device first presented.
 func runOnRackHost(ctx context.Context, c client.Client, creds *credentials.Manager, fleet string, egress rackEgress, run RunRackScript,
 	host *infrav1.RackLinuxHost, script string, timeout time.Duration) (string, error) {
-	if err := egress.ensure(ctx, c, host); err != nil {
-		return "", fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
-	}
-	key, err := creds.ReadFleetSSHKey(ctx, fleet)
+	key, hk, persistPin, err := prepareRackHostSSH(ctx, c, creds, fleet, egress, host)
 	if err != nil {
 		return "", err
+	}
+	defer persistPin()
+	if run == nil {
+		run = runRackScriptOverSSH
+	}
+	return run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key, script, timeout, hk)
+}
+
+// withRackHostSSH calls fn with an SSH client to a connected rack Linux host,
+// reached as runOnRackHost reaches it, for at most timeout.
+func withRackHostSSH(ctx context.Context, c client.Client, creds *credentials.Manager, fleet string, egress rackEgress,
+	host *infrav1.RackLinuxHost, timeout time.Duration, fn func(*ssh.Client) error) error {
+	key, hk, persistPin, err := prepareRackHostSSH(ctx, c, creds, fleet, egress, host)
+	if err != nil {
+		return err
+	}
+	defer persistPin()
+	sshClient, closeSSH, err := dialSSH(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key, timeout, hk)
+	if err != nil {
+		return err
+	}
+	defer closeSSH()
+	return fn(sshClient)
+}
+
+// prepareRackHostSSH ensures host's egress Service and reads the fleet key and
+// the host key pin; persistPin records the key the host presented first.
+func prepareRackHostSSH(ctx context.Context, c client.Client, creds *credentials.Manager, fleet string, egress rackEgress,
+	host *infrav1.RackLinuxHost) (key []byte, hk *bootstrap.HostKeyState, persistPin func(), err error) {
+	if err := egress.ensure(ctx, c, host); err != nil {
+		return nil, nil, nil, fmt.Errorf("reconcile egress Service for %s: %w", host.Name, err)
+	}
+	key, err = creds.ReadFleetSSHKey(ctx, fleet)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	pinKey := rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
 	known := ""
 	if pin, err := creds.GetMachineBootstrap(ctx, pinKey); err != nil {
-		return "", fmt.Errorf("read the host key pin: %w", err)
+		return nil, nil, nil, fmt.Errorf("read the host key pin: %w", err)
 	} else if pin != nil {
 		known = pin.HostFingerprint
 	}
-	hk := bootstrap.NewHostKeyState(known)
-	defer func() {
+	hk = bootstrap.NewHostKeyState(known)
+	return key, hk, func() {
 		if observed := hk.Observed(); observed != "" && observed != known {
 			if err := creds.SetMachineHostFingerprint(ctx, pinKey, observed); err != nil {
 				log.FromContext(ctx).Error(err, "persist the host key pin", "host", host.Name)
 			}
 		}
-	}()
-	if run == nil {
-		run = runRackScriptOverSSH
-	}
-	return run(ctx, firstNonEmpty(host.Spec.SSHUser, "tuist"), egress.dialTarget(host), key, script, timeout, hk)
+	}, nil
 }
 
 // renderBootInstallerOnceScript sets BootNext to the host's installer and

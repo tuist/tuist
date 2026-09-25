@@ -13,7 +13,10 @@ require (
 	sigs.k8s.io/controller-runtime v0.20.0
 )
 
-require gopkg.in/ini.v1 v1.67.0 // indirect
+require (
+	github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.3 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
+)
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -57,7 +60,7 @@ require (
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/term v0.43.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.7.0 // indirect

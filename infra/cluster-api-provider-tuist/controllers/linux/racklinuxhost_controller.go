@@ -64,6 +64,8 @@ type RackLinuxHostReconciler struct {
 
 	// AMT is nil when the operator activates no AMT.
 	AMT *RackAMT
+	// AMTPower is overridden in tests.
+	AMTPower AMTPowerFunc
 
 	CredentialsManager *credentials.Manager
 	EgressNamespace    string
@@ -133,6 +135,7 @@ func (r *RackLinuxHostReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if after > 0 && after < requeue {
 			requeue = after
 		}
+		r.reconcileAMTPower(ctx, host)
 		if after := r.reconcileAMT(ctx, host); after > 0 && after < requeue {
 			requeue = after
 		}
