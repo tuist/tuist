@@ -37,13 +37,6 @@ Linux Gradle tests and runner-controller tests use the released `tuist/cache-vol
 action with stable keys and isolated paths outside checkout. Gradle uses one
 home volume mounted at GRADLE_USER_HOME. Disable archive
 caching for those same paths; keep Go test result reuse disabled with `-count=1`.
-The manual Linux Cache Volume Benchmark compares baseline, cold and warm runs
-at an identical reviewed source SHA/profile pinned in the workflow (never a
-dispatch-selected code ref that could publish untrusted cache contents). Warm runs must prove mounted volume hits and
-retained source markers; never count the client's cold fallback as a warm result.
-Run cold/warm from the default branch so successful cold jobs can publish, and
-wait for publication before starting warm jobs. Keep benchmark keys separate
-from normal CI, and record attachment and workload times separately.
 
 ## Tuist Elixir package
 
@@ -68,13 +61,3 @@ add lockfile-hash keys, compatibility-marker scripts or physical-path rewrites.
 Always run dependency resolution and compilation on hits. Never retain ~/.hex
 or authentication configuration. Preserve setup-server-mix's explicit
 restore-mix-cache=false callers. Do not add volume-specific composite wrappers.
-
-`workflows/linux-build-cache-benchmark.yml` compares fixed-source Kura binary and
-Registry production builds with identical cache configuration/profile across baseline, cold
-and warm phases. Remote caching is opt-in. Without it, these numbers only measure
-local reuse. To compare against remote caching, seed with remote_cache=true and
-phase=cold, then run baseline (remote-only, empty local state) and warm (remote
-plus volumes). Remote setup must succeed; the remote-only build must report hits.
-The benchmark mirror uses its existing tuist/mastodon OIDC project on the same
-account's cache service. Keep credentials and generated .bazelrc.tuist outside
-volumes. Record remote/disk action hits and attachment overhead separately.

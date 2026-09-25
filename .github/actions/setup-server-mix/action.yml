@@ -6,10 +6,6 @@ inputs:
     description: Tools to install via mise (passed to install_args)
     required: false
     default: erlang elixir
-  mix-cache-key:
-    description: Namespace for the job-specific Mix volume.
-    required: false
-    default: mix
   restore-mix-cache:
     description: Restore the cached server deps + _build state before fetching dependencies
     required: false
@@ -39,12 +35,12 @@ runs:
       if: ${{ inputs['restore-mix-cache'] == 'true' }}
       with:
         path: server/deps
-        key: ci-server-${{ github.job }}-${{ inputs.mix-cache-key }}-deps-v2
+        key: ci-server-${{ github.job }}-deps-v2
     - uses: tuist/cache-volume@v1
       if: ${{ inputs['restore-mix-cache'] == 'true' }}
       with:
         path: server/_build
-        key: ci-server-${{ github.job }}-${{ inputs.mix-cache-key }}-build-v2
+        key: ci-server-${{ github.job }}-build-v2
     - uses: ./.github/actions/mix-deps-get
       with:
         working-directory: server
