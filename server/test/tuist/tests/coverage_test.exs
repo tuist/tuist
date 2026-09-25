@@ -563,4 +563,15 @@ defmodule Tuist.Tests.CoverageTest do
       assert Coverage.id_chunks([1, 2], 10_000) == [[1], [2]]
     end
   end
+
+  test "apply_retention sets the time-to-live of every table the coverage retention governs" do
+    tables =
+      IngestRepo
+      |> Ecto.Adapters.SQL.Sandbox.unboxed_run(fn -> Coverage.apply_retention() end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.sort()
+
+    assert tables ==
+             ~w(coverage_files coverage_runs git_commit_files test_run_changed_files test_run_enumerated_tests)
+  end
 end

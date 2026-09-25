@@ -645,7 +645,10 @@ defmodule Tuist.Tests.Coverage do
     end
   end
 
-  @retention_tables %{files: ["coverage_files", "git_commit_files"], runs: ["coverage_runs"]}
+  @retention_tables %{
+    files: ["coverage_files", "git_commit_files", "test_run_changed_files", "test_run_enumerated_tests"],
+    runs: ["coverage_runs"]
+  }
 
   @doc """
   Sets each coverage table's time-to-live to the configured retention (see
