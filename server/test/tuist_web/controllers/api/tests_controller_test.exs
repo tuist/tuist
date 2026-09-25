@@ -1068,6 +1068,66 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
     end
 
+    test "keeps the run's Git history once the processor replaces a remotely processed run", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{
+        id: test_run_id,
+        duration: 0,
+        is_ci: true,
+        status: "processing",
+        test_modules: [],
+        git_branch: "feature",
+        git_commit_sha: String.duplicate("a", 40),
+        git_remote_url_origin: "https://github.com/tuist/app",
+        base_branch: "main",
+        merge_base_sha: String.duplicate("b", 40),
+        is_pull_request: true,
+        pull_request_number: 42,
+        git_object_format: "sha1",
+        history_source: "none",
+        history_fallback_reason: "shallow clone",
+        git_dirty: true,
+        execution_mode: "serial"
+      })
+      |> json_response(:ok)
+
+      [job] = all_enqueued(worker: ProcessXcresultWorker)
+
+      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
+
+      expect(Tuist.Processor.XCResultProcessor, :process_local, fn _path, _opts ->
+        {:ok, %{"status" => "success", "duration" => 10, "test_modules" => []}}
+      end)
+
+      assert :ok = perform_job(ProcessXcresultWorker, job.args)
+
+      {:ok, run} = Tests.get_test(test_run_id)
+
+      assert %{
+               status: "success",
+               base_branch: "main",
+               merge_base_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+               is_pull_request: true,
+               pull_request_number: 42,
+               git_object_format: "sha1",
+               history_source: "none",
+               history_fallback_reason: "shallow clone",
+               git_dirty: true,
+               execution_mode: "serial"
+             } = run
+
+      assert run.git_repository_id == Tuist.GitHistory.repository_id(user.account.id, "https://github.com/tuist/app")
+      assert run.git_repository_id > 0
+    end
+
     test "passes a locally processed run's coverage on", %{conn: conn, user: user, project: project} do
       conn = Authentication.put_current_user(conn, user)
 

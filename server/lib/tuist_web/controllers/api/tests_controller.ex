@@ -752,7 +752,8 @@ defmodule TuistWeb.API.TestsController do
               storage_key: storage_key,
               stress_storage_key: stress_storage_key,
               # The worker replaces this row once the bundle is parsed, from the
-              # attributes it carries, so the gate's verdict rides along or is lost.
+              # attributes it carries, so the gate's verdict and the run's Git
+              # history ride along or are lost.
               stress_mode: test_run.stress_mode,
               stress_outcome: test_run.stress_outcome,
               stress_skip_reason: test_run.stress_skip_reason,
@@ -760,6 +761,16 @@ defmodule TuistWeb.API.TestsController do
               stress_stressed_count: test_run.stress_stressed_count,
               stress_excluded_count: test_run.stress_excluded_count,
               stress_known_count: test_run.stress_known_count,
+              base_branch: test_run.base_branch,
+              merge_base_sha: test_run.merge_base_sha,
+              is_pull_request: test_run.is_pull_request,
+              pull_request_number: test_run.pull_request_number,
+              git_object_format: test_run.git_object_format,
+              history_source: test_run.history_source,
+              history_fallback_reason: test_run.history_fallback_reason,
+              git_repository_id: test_run.git_repository_id,
+              git_dirty: test_run.git_dirty,
+              execution_mode: test_run.execution_mode,
               account_id: test_run.account_id,
               project_id: selected_project.id,
               account_handle: selected_project.account.name,

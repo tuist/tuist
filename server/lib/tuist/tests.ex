@@ -612,6 +612,9 @@ defmodule Tuist.Tests do
   # the repository's graph.
   # A run only joins a repository, and only records the files it changed, while
   # coverage is on for its account: both exist for coverage and test selection.
+  # The xcresult processor carries the id the run resolved when it was reported.
+  defp repository_id(%{git_repository_id: id}) when is_integer(id) and id > 0, do: id
+
   defp repository_id(attrs) do
     with url when is_binary(url) and url != "" <- Map.get(attrs, :git_remote_url_origin),
          %Project{account_id: account_id, account: account} <-
