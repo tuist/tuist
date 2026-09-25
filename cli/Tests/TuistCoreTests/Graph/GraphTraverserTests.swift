@@ -44,6 +44,78 @@ struct GraphTraverserPackageProductTests {
         #expect(packageProducts == [.packageProduct(product: "SwiftProtobuf")])
         #expect(directPackageProducts == [.packageProduct(product: "SwiftProtobuf")])
     }
+
+    @Test func packageProductsLinkedThroughStaticTargetsIncludesProductsBehindCachedXCFrameworks() throws {
+        // Given
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [feature])
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let staticXCFramework = GraphDependency.testXCFramework(path: "/cache/ServicesMockSupport.xcframework", linking: .static)
+        let dynamicXCFramework = GraphDependency.testXCFramework(path: "/cache/Services.xcframework", linking: .dynamic)
+        let analytics = GraphDependency.packageProduct(path: "/path/support", product: "Analytics", type: .runtime)
+        let networking = GraphDependency.packageProduct(path: "/path/services", product: "Networking", type: .runtime)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                featureDependency: [staticXCFramework],
+                staticXCFramework: [dynamicXCFramework, analytics],
+                dynamicXCFramework: [networking],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: featureDependency, to: staticXCFramework): try #require(.when([.ios])),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.packageProductsLinkedThroughStaticTargets(path: project.path, name: feature.name)
+
+        // Then
+        #expect(got == [
+            .packageProduct(product: "Analytics", condition: .when([.ios])),
+            .packageProduct(product: "Networking", condition: .when([.ios])),
+        ])
+    }
+
+    @Test func linkableDependenciesLinksProductsBehindStaticXCFrameworksOnly() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, feature])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let staticXCFramework = GraphDependency.testXCFramework(path: "/cache/ServicesMockSupport.xcframework", linking: .static)
+        let dynamicXCFramework = GraphDependency.testXCFramework(path: "/cache/Services.xcframework", linking: .dynamic)
+        let analytics = GraphDependency.packageProduct(path: "/path/support", product: "Analytics", type: .runtime)
+        let networking = GraphDependency.packageProduct(path: "/path/services", product: "Networking", type: .runtime)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [featureDependency],
+                featureDependency: [staticXCFramework, dynamicXCFramework],
+                staticXCFramework: [analytics],
+                dynamicXCFramework: [networking],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let featurePackageProducts = subject.packageProductsLinkedThroughStaticTargets(
+            path: project.path,
+            name: feature.name
+        )
+        let appDependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        #expect(featurePackageProducts == [
+            .packageProduct(product: "Analytics"),
+            .packageProduct(product: "Networking"),
+        ])
+        #expect(
+            appDependencies.filter { if case .packageProduct = $0 { true } else { false } }
+                == [.packageProduct(product: "Analytics")]
+        )
+    }
 }
 
 final class GraphTraverserTests: TuistUnitTestCase {
