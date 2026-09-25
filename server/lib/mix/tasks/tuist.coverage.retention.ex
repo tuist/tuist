@@ -9,9 +9,13 @@ defmodule Mix.Tasks.Tuist.Coverage.Retention do
   `TUIST_COVERAGE_RUN_RETENTION_DAYS` (run totals). Changing either variable
   afterwards changes nothing on its own; run this task to alter the tables to
   the values now in effect. It also drops the commits' coverage past its own
-  retention (`Tuist.Tests.Coverage.Commits.prune/1`).
+  retention (`Tuist.Tests.Coverage.Commits.prune/1`), which
+  `Tuist.Tests.Coverage.Workers.RetentionWorker` otherwise does daily.
 
       mix tuist.coverage.retention
+
+  A release has no Mix; it runs `Tuist.Release.apply_coverage_retention/0`
+  instead.
   """
   use Mix.Task
   use Boundary, classify_to: Tuist.Mix

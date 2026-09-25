@@ -350,7 +350,8 @@ defmodule Tuist.Environment do
   How long coverage rows are kept in ClickHouse, in days: `files` for the
   per-file detail (`coverage_files`) and `runs` for the run totals the trend
   reads (`coverage_runs`). The tables' time-to-live is set from these when
-  they are created or `mix tuist.coverage.retention` re-applies them.
+  they are created, or when `mix tuist.coverage.retention` (in a release,
+  `Tuist.Release.apply_coverage_retention/0`) re-applies them.
   """
   def coverage_retention_days(environment \\ System.get_env()) when is_map(environment) do
     Map.new(@coverage_retention_defaults, fn {kind, default} ->
