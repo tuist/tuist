@@ -447,3 +447,35 @@ func TestRackInstallPublishesUnderTheMachinesUUID(t *testing.T) {
 		t.Fatal("the UUID stayed published after the install ran")
 	}
 }
+
+// An install published before AMT reported the machine's UUID gets it once
+// AMT has.
+func TestRackInstallAddsTheUUIDToAPublishedInstall(t *testing.T) {
+	host := svcHost()
+	host.Annotations = map[string]string{RackReinstallAnnotation: "true"}
+	h := newInstallHarness(t, host)
+	h.api.devices = []tailnet.Device{svcDevice("old", "2026-09-01T00:00:00Z", true)}
+	h.reconcile(t, "ber1-svc")
+	if _, ok := h.boot(t)[svcMACPath+".uuid"]; ok {
+		t.Fatal("published a UUID AMT has not reported")
+	}
+	minted := len(h.api.minted)
+
+	got := &infrav1.RackLinuxHost{}
+	if err := h.c.Get(context.Background(), types.NamespacedName{Namespace: rackTestNamespace, Name: "ber1-svc"}, got); err != nil {
+		t.Fatal(err)
+	}
+	got.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", UUID: "04450c00-63f4-11f1-81f4-3582298d5c00"}
+	if err := h.c.Status().Update(context.Background(), got); err != nil {
+		t.Fatal(err)
+	}
+	h.now = h.now.Add(time.Minute)
+	h.reconcile(t, "ber1-svc")
+
+	if uuid := string(h.boot(t)[svcMACPath+".uuid"]); uuid != "04450c00-63f4-11f1-81f4-3582298d5c00" {
+		t.Fatalf("published UUID %q", uuid)
+	}
+	if len(h.api.minted) != minted {
+		t.Fatal("published the install again, with a new key, to add the UUID")
+	}
+}
