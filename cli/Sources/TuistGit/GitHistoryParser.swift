@@ -89,7 +89,7 @@ enum GitHistoryParser {
                 header = false
                 path = headerPath(line.dropFirst(4))
             } else if line.hasPrefix("@@ "), let path,
-                      let match = line.firstMatch(of: /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/)
+                      let match = line.firstMatch(of: #/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/#)
             {
                 let start = Int(match.1) ?? 0
                 let count = match.2.flatMap { Int($0) } ?? 1
