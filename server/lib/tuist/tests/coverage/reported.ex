@@ -882,64 +882,69 @@ defmodule Tuist.Tests.Coverage.Reported do
     end)
   end
 
-  # The files the nearest measured ancestor counted, in the schemes measured
-  # here, that no run at the commit compiled. Unchanged, they keep their
-  # executable lines; what the ancestor covered in them has to have been
-  # carried in full, or the file is a gap: some of its coverage came from tests
-  # the commit's runs never listed (a target pruned from the workspace) or
-  # from code that ran outside any test. Changed, they are a gap; gone from
-  # the listing, they are gone.
+  # The files the nearest ancestor that measured one of the schemes measured
+  # here counted in them, that no run at the commit compiled. Unchanged, they
+  # keep their executable lines; what the ancestor covered in them has to have
+  # been carried in full, or the file is a gap: some of its coverage came from
+  # tests the commit's runs never listed (a target pruned from the workspace)
+  # or from code that ran outside any test. Changed, they are a gap; gone from
+  # the listing, they are gone. With no such ancestor, what the runs did not
+  # build is unknown, which is a gap too.
+  defp add_unbuilt_files(files, %{repository_id: repository_id}, _schemes) when repository_id in [nil, 0], do: {files, 0}
+
+  defp add_unbuilt_files(files, _context, []), do: {files, 0}
+
   defp add_unbuilt_files(files, context, schemes) do
-    with repository_id when repository_id not in [nil, 0] <- context.repository_id,
-         {:ok, basis} <- basis(context),
-         [_ | _] = basis_run_ids <- basis_run_ids(context.project.id, basis, schemes) do
-      missing =
-        from(f in subquery(Coverage.merged_files_query_for_runs(context.project.id, basis_run_ids, nil)))
-        |> ClickHouseRepo.all()
-        |> Enum.reject(&(Map.has_key?(context.observed, &1.path) or ExcludedPaths.excluded?(context.excluded, &1.path)))
-
-      now = GitHistory.blobs_at(repository_id, context.sha, Enum.map(missing, & &1.path))
-      listed? = GitHistory.listing_stored?(repository_id, context.sha)
-
-      Enum.reduce(missing, {files, 0}, fn file, {files, gaps} ->
-        cond do
-          not listed? ->
-            {files, gaps + 1}
-
-          not Map.has_key?(now, file.path) ->
-            {Map.delete(files, file.path), gaps}
-
-          now[file.path] != file.git_blob_id or file.git_blob_id == "" ->
-            {Map.delete(files, file.path), gaps + 1}
-
-          true ->
-            carried = Map.get(files, file.path, %{covered_lines: 0}).covered_lines
-
-            {Map.put(files, file.path, %{
-               git_blob_id: file.git_blob_id,
-               source_run_ids: basis_run_ids,
-               targets: file.targets,
-               covered_lines: carried,
-               executable_lines: file.executable_lines
-             }), if(carried < file.covered_lines, do: gaps + 1, else: gaps)}
-        end
-      end)
-    else
-      _ -> {files, 0}
+    case basis_run_ids(context, schemes) do
+      [] -> {files, 1}
+      basis_run_ids -> add_unbuilt_files(files, context, context.repository_id, basis_run_ids)
     end
   end
 
-  defp basis_run_ids(project_id, basis, schemes) do
-    project_id
-    |> Commits.runs(basis)
-    |> Enum.filter(&(&1.scheme in schemes))
-    |> Enum.map(& &1.test_run_id)
+  defp add_unbuilt_files(files, context, repository_id, basis_run_ids) do
+    missing =
+      from(f in subquery(Coverage.merged_files_query_for_runs(context.project.id, basis_run_ids, nil)))
+      |> ClickHouseRepo.all()
+      |> Enum.reject(&(Map.has_key?(context.observed, &1.path) or ExcludedPaths.excluded?(context.excluded, &1.path)))
+
+    now = GitHistory.blobs_at(repository_id, context.sha, Enum.map(missing, & &1.path))
+    listed? = GitHistory.listing_stored?(repository_id, context.sha)
+
+    Enum.reduce(missing, {files, 0}, fn file, {files, gaps} ->
+      cond do
+        not listed? ->
+          {files, gaps + 1}
+
+        not Map.has_key?(now, file.path) ->
+          {Map.delete(files, file.path), gaps}
+
+        now[file.path] != file.git_blob_id or file.git_blob_id == "" ->
+          {Map.delete(files, file.path), gaps + 1}
+
+        true ->
+          carried = Map.get(files, file.path, %{covered_lines: 0}).covered_lines
+
+          {Map.put(files, file.path, %{
+             git_blob_id: file.git_blob_id,
+             source_run_ids: basis_run_ids,
+             targets: file.targets,
+             covered_lines: carried,
+             executable_lines: file.executable_lines
+           }), if(carried < file.covered_lines, do: gaps + 1, else: gaps)}
+      end
+    end)
   end
 
-  defp basis(context) do
-    case Commits.nearest_measured_ancestor(context.project.id, context.repository_id, context.sha) do
-      {sha, _distance} -> {:ok, sha}
-      nil -> :none
+  defp basis_run_ids(context, schemes) do
+    case Commits.nearest_measured_ancestor(context.project.id, context.repository_id, context.sha, schemes) do
+      {basis, _distance} ->
+        context.project.id
+        |> Commits.runs(basis)
+        |> Enum.filter(&(&1.scheme in schemes))
+        |> Enum.map(& &1.test_run_id)
+
+      nil ->
+        []
     end
   end
 end
