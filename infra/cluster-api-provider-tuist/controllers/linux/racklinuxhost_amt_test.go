@@ -191,7 +191,7 @@ func TestRackAMTWaitsForTheHostToBeOnline(t *testing.T) {
 func TestRackAMTLooksAtAnActivatedHostOnlyNowAndThen(t *testing.T) {
 	host := amtEdge()
 	observed := metav1.NewTime(installEpoch.Add(-10 * time.Minute))
-	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", ObservedAt: &observed}
+	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", Address: "192.168.50.112", ObservedAt: &observed}
 	h := newAMTHarness(t, host, provisioningSecret())
 	h.runner.reply = func(_, _ string) string {
 		return "--- amtinfo\n" + amtInfoJSON("activated in admin control mode", "up", "192.168.50.112")
@@ -251,5 +251,23 @@ func TestAMTPasswordsFollowAMTsRules(t *testing.T) {
 		if validAMTPassword(bad) {
 			t.Fatalf("accepted %q", bad)
 		}
+	}
+}
+
+// AMT takes its address by DHCP after the activation, so an activated AMT
+// without one is looked at again soon rather than in an hour.
+func TestRackAMTLooksAgainSoonForTheAddressOfAFreshlyActivatedAMT(t *testing.T) {
+	host := amtEdge()
+	observed := metav1.NewTime(installEpoch.Add(-3 * time.Minute))
+	host.Status.AMT = &infrav1.RackLinuxHostAMTStatus{ControlMode: "admin", Address: "0.0.0.0", ObservedAt: &observed}
+	h := newAMTHarness(t, host, provisioningSecret())
+	h.runner.reply = func(_, _ string) string {
+		return "--- amtinfo\n" + amtInfoJSON("activated in admin control mode", "up", "192.168.50.112")
+	}
+
+	got := h.reconcile(t, "ber1-edge")
+
+	if len(h.amtRuns()) != 1 || got.Status.AMT.Address != "192.168.50.112" {
+		t.Fatalf("runs %d status %+v, want AMT's address read again", len(h.amtRuns()), got.Status.AMT)
 	}
 }
