@@ -205,7 +205,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
 
       session_fixture(quiet, fleet_name: "another-fleet", repository: "quiet/app")
 
-      assert [first | rest] = RunnerSessions.recent_demand(fleet, since, 10)
+      assert [first | rest] = RunnerSessions.recent_demand([fleet], since, 10)
       assert first == %{account_id: busy.id, repository: "busy/app"}
 
       assert MapSet.new(rest) ==
@@ -214,7 +214,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
                  %{account_id: quiet.id, repository: "quiet/app"}
                ])
 
-      assert [%{account_id: busy.id, repository: "busy/app"}] == RunnerSessions.recent_demand(fleet, since, 1)
+      assert [%{account_id: busy.id, repository: "busy/app"}] == RunnerSessions.recent_demand([fleet], since, 1)
     end
   end
 
