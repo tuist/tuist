@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
 )
 
 const (
@@ -228,6 +230,7 @@ sed -ri '/\sswap\s/s/^([^#])/#\1/' /etc/fstab
 `, rackConvergeForeignJoin, rackAppliedHashPath, shellSingleQuote(hash))
 
 	b.WriteString(heredoc("/etc/modules-load.d/tuist-k8s.conf", "0644", "modules", modulesLoadContent))
+	b.WriteString(heredoc(rackinstall.ModprobePath, "0644", "modules", rackinstall.ModprobeConf))
 	b.WriteString("modprobe overlay\nmodprobe br_netfilter\n")
 	b.WriteString(heredoc("/etc/sysctl.d/99-tuist-k8s.conf", "0644", "sysctl", sysctlContent))
 	b.WriteString(heredoc("/etc/sysctl.d/99-tuist-hardening.conf", "0644", "sysctl", kernelHardeningSysctlContent))

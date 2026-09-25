@@ -30,6 +30,15 @@ type Seed struct {
 	Built        time.Time
 }
 
+// ModprobePath holds ModprobeConf, which keeps the MS-01's Bluetooth driver
+// out: on a warm boot of the 6.8 kernel it dereferences NULL in hci_power_on,
+// and a node's panic_on_oops turns that into a reboot loop. Rack nodes use no
+// Bluetooth. The install writes it, and the operator's converge keeps it.
+const (
+	ModprobePath = "/etc/modprobe.d/tuist-rack.conf"
+	ModprobeConf = "blacklist btusb\n"
+)
+
 var (
 	hostPattern         = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	keyIDPattern        = regexp.MustCompile(`^[A-Za-z0-9]+$`)
@@ -184,9 +193,14 @@ autoinstall:
     - |
       printf 'node=%%s\nrole=%%s\nbuilt=%%s\ntailnet_key=%%s\n' '%[1]s' '%[8]s' '%[9]s' '%[7]s' > /target/etc/tuist-rack-node
       chmod 444 /target/etc/tuist-rack-node
+    - |
+      mkdir -p /target/etc/modprobe.d
+      cat > /target%[11]s <<'TUIST_EOF'
+%[12]s      TUIST_EOF
 `, s.Host, s.User, s.PasswordHash, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
-			"this installer already installed "+s.Host), "      ")), nil
+			"this installer already installed "+s.Host), "      "),
+		ModprobePath, indent(ModprobeConf, "      ")), nil
 }
 
 // handover boots the rack install on this machine's disks that match selects

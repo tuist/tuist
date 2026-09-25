@@ -168,3 +168,12 @@ func TestRackConvergeScriptLeavesTheNodeAddressesToTheOperator(t *testing.T) {
 		t.Fatal("the kubelet would overwrite the addresses the operator sets")
 	}
 }
+
+// A node installed before the seed kept the Bluetooth driver out gets the
+// same blacklist from its converge.
+func TestRackConvergeScriptKeepsTheBluetoothDriverOut(t *testing.T) {
+	script := renderRackConvergeScript(edgeConvergeOptions())
+	if !strings.Contains(script, "put /etc/modprobe.d/tuist-rack.conf 0644 modules <<'TUIST_EOF'\nblacklist btusb\nTUIST_EOF\n") {
+		t.Fatal("the converge does not keep btusb out")
+	}
+}
