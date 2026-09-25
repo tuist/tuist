@@ -601,6 +601,27 @@ struct GitControllerTests {
         #expect(!commandRunner.called(git + ["fetch", "--no-tags", "--deepen=100", "origin"]))
     }
 
+    @Test(.inTemporaryDirectory) func gitHistory_leaves_out_a_shallow_clones_boundary_commits() async throws {
+        // `git log` lists a shallow clone's boundary commit with no parents, which it has.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("boundary\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head mid 1700000200\nmid boundary 1700000100\nboundary  1700000000\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.commits.map(\.sha) == ["head", "mid"])
+        #expect(history.commits.map(\.parents) == [["mid"], ["boundary"]])
+    }
+
     @Test(.inTemporaryDirectory) func gitHistory_explains_a_missing_base_branch() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]

@@ -39,14 +39,7 @@ extension GitController {
             reasons.append("no base branch is known")
         }
 
-        let commits = GitHistoryParser.parseCommits(
-            try await capture(
-                arguments: git + [
-                    "log", "--format=%H %P %ct", "--max-count=\(limits.windowCommits)",
-                    "--since=\(limits.windowDays).days.ago", head,
-                ]
-            )
-        )
+        let commits = try await windowCommits(git: git, workingDirectory: workingDirectory, head: head, limits: limits)
 
         var changedFiles: [GitChangedFile] = []
         if let mergeBase {
@@ -77,6 +70,33 @@ extension GitController {
             changedFiles: changedFiles,
             fallbackReason: reasons.isEmpty ? nil : reasons.joined(separator: "; ")
         )
+    }
+
+    /// The commits reachable from the head within the window, less a shallow clone's boundary
+    /// commits (its `shallow` file): `git log` lists them without the parents they have, which
+    /// the server would store as roots for good, while leaving them out lets a deeper checkout
+    /// upload them.
+    private func windowCommits(
+        git: [String],
+        workingDirectory: AbsolutePath,
+        head: String,
+        limits: GitHistoryLimits
+    ) async throws -> [GitHistoryCommit] {
+        let output = try await capture(
+            arguments: git + [
+                "log", "--format=%H %P %ct", "--max-count=\(limits.windowCommits)",
+                "--since=\(limits.windowDays).days.ago", head,
+            ]
+        )
+        guard let shallowFile = try? await capture(arguments: git + ["rev-parse", "--git-path", "shallow"]),
+              let path = try? AbsolutePath(
+                  validating: shallowFile.trimmingCharacters(in: .whitespacesAndNewlines),
+                  relativeTo: workingDirectory
+              ),
+              let boundary = try? String(contentsOfFile: path.pathString, encoding: .utf8)
+        else { return GitHistoryParser.parseCommits(output) }
+        let boundarySHAs = Set(boundary.split(whereSeparator: \.isNewline).map(String.init))
+        return GitHistoryParser.parseCommits(output).filter { !boundarySHAs.contains($0.sha) }
     }
 
     /// The merge base between the head and the base branch, fetching the base ref when the
