@@ -8,6 +8,7 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
   alias Tuist.Tests.Coverage.Workers.CommitWorker
+  alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -224,6 +225,92 @@ defmodule Tuist.Tests.Coverage.CommitsTest do
 
       assert Coverage.refold_after_selective_testing(%{test_run_id: nil, project_id: project.id}, graph("local")) ==
                :skipped
+    end
+  end
+
+  describe "nearest_measured_ancestor/3" do
+    # main: a → b → c → m → d, where m merges the feature branch b → f1 → f2;
+    # x is a commit on top of d that no ref placed yet.
+    setup %{account: account} do
+      repository_id =
+        CoverageFixtures.seed_history(
+          account,
+          [
+            CoverageFixtures.commit("a", [], 0),
+            CoverageFixtures.commit("b", ["a"], 1),
+            CoverageFixtures.commit("c", ["b"], 2),
+            CoverageFixtures.commit("f1", ["b"], 3),
+            CoverageFixtures.commit("f2", ["f1"], 4),
+            CoverageFixtures.commit("m", ["c", "f2"], 5),
+            CoverageFixtures.commit("d", ["m"], 6),
+            CoverageFixtures.commit("x", ["d"], 7)
+          ],
+          branch_heads: [feature: "f2", main: "d"]
+        )
+
+      %{repository_id: repository_id}
+    end
+
+    defp measure(project, repository_id, shas) do
+      for sha <- shas do
+        {ref_id, position} = GitHistory.position(repository_id, sha) || {nil, nil}
+
+        Repo.insert!(%CoverageCommit{
+          project_id: project.id,
+          git_commit_sha: sha,
+          repository_id: repository_id,
+          ref_id: ref_id,
+          position: position,
+          committed_at: ~U[2026-09-01 00:00:00.000000Z],
+          ran_at: ~U[2026-09-01 00:00:00.000000Z],
+          covered_lines: 1,
+          executable_lines: 1
+        })
+      end
+    end
+
+    test "is the nearest measured first parent, across the refs' segments", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      measure(project, repository_id, ["a"])
+
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"a", 4}
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "f2") == {"a", 3}
+    end
+
+    test "is a commit merged in closer than the nearest measured first parent", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      measure(project, repository_id, ["a", "f2"])
+
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"f2", 2}
+    end
+
+    test "leaves the commit itself out", %{project: project, repository_id: repository_id} do
+      measure(project, repository_id, ["d"])
+
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == nil
+    end
+
+    test "walks the first parents of a commit no ref placed down to a segment", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      measure(project, repository_id, ["c"])
+
+      assert GitHistory.position(repository_id, "x") == nil
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "x") == {"c", 3}
+    end
+
+    test "walks the whole ancestry when no first parent was measured", %{
+      project: project,
+      repository_id: repository_id
+    } do
+      measure(project, repository_id, ["f1"])
+
+      assert Commits.nearest_measured_ancestor(project.id, repository_id, "d") == {"f1", 3}
     end
   end
 end
