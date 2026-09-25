@@ -741,6 +741,7 @@ msgstr ""
 msgid "Canada"
 msgstr ""
 
+#: lib/tuist_web/components/oidc_scope_rules.ex:120
 #: lib/tuist_web/live/ops_account_live.html.heex:884
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -1347,6 +1348,8 @@ msgid "Webhooks"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:418
+#: lib/tuist_web/components/oidc_scope_rules.ex:34
+#: lib/tuist_web/components/oidc_scope_rules.ex:80
 #, elixir-autogen, elixir-format
 msgid "Workflows"
 msgstr ""
@@ -2886,4 +2889,111 @@ msgstr ""
 #: lib/tuist_web/controllers/auth_controller.ex:841
 #, elixir-autogen, elixir-format
 msgid "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:184
+#, elixir-autogen, elixir-format
+msgid " and "
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:152
+#, elixir-autogen, elixir-format
+msgid "%{providers} runs lose write access when a rule applies"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:289
+#, elixir-autogen, elixir-format
+msgid "Account-wide cache uploads"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:269
+#, elixir-autogen, elixir-format
+msgid "Any"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:31
+#: lib/tuist_web/components/oidc_scope_rules.ex:67
+#, elixir-autogen, elixir-format
+msgid "Branches and tags"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:287
+#, elixir-autogen, elixir-format
+msgid "Build insights"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:285
+#, elixir-autogen, elixir-format
+msgid "Bundle uploads"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:283
+#, elixir-autogen, elixir-format
+msgid "Cache uploads"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:288
+#, elixir-autogen, elixir-format
+msgid "Command runs"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:37
+#: lib/tuist_web/components/oidc_scope_rules.ex:93
+#, elixir-autogen, elixir-format
+msgid "Environments"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:228
+#, elixir-autogen, elixir-format
+msgid "OIDC rule removed."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:210
+#, elixir-autogen, elixir-format
+msgid "OIDC rule saved."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:173
+#, elixir-autogen, elixir-format
+msgid "OIDC tokens from CircleCI or Bitrise lose write access for every permission that has a rule. Reads keep working."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:57
+#, elixir-autogen, elixir-format
+msgid "OIDC tokens from GitHub Actions can use %{scope} only when every field you fill in matches; other runs keep read access. Separate patterns with commas. * matches within a path segment and ** across segments."
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:28
+#, elixir-autogen, elixir-format
+msgid "Permission"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:284
+#, elixir-autogen, elixir-format
+msgid "Preview uploads"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:111
+#, elixir-autogen, elixir-format
+msgid "Remove rule"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:171
+#, elixir-autogen, elixir-format
+msgid "Rules only match GitHub Actions tokens"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:127
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:286
+#, elixir-autogen, elixir-format
+msgid "Test results"
+msgstr ""
+
+#: lib/tuist_web/components/oidc_scope_rules.ex:157
+#, elixir-autogen, elixir-format
+msgid "This %{subject} received OIDC tokens from %{providers} in the last 30 days. Rules only match GitHub Actions tokens, so those runs lose write access for every permission that has a rule. Reads keep working."
 msgstr ""
