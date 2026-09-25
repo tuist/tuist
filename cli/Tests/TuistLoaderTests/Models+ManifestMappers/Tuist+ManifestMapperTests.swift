@@ -32,4 +32,29 @@ struct TuistManifestMapperTests {
         // Then
         #expect(got.xcodeCache.storeSizeLimit == nil)
     }
+
+    @Test func from_mapsDependencyInspectionOptions() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let manifest = ProjectDescription.Config(
+            inspectOptions: .options(
+                implicitDependencies: .implicitDependencies(
+                    ignoreDependencies: ["App": ["GeneratedModule"]]
+                ),
+                redundantDependencies: .redundantDependencies(
+                    ignoreTagsMatching: ["Generated"],
+                    ignoreDependencies: ["App": ["RuntimeOnlyModule"]]
+                )
+            ),
+            project: .tuist(generationOptions: .options())
+        )
+
+        // When
+        let got = try await TuistConfig.Tuist.from(manifest: manifest, rootDirectory: path, at: path)
+
+        // Then
+        #expect(got.inspectOptions.implicitDependencies.ignoreDependencies == ["App": ["GeneratedModule"]])
+        #expect(got.inspectOptions.redundantDependencies.ignoreTagsMatching == ["Generated"])
+        #expect(got.inspectOptions.redundantDependencies.ignoreDependencies == ["App": ["RuntimeOnlyModule"]])
+    }
 }
