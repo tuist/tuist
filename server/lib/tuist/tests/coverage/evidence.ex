@@ -38,16 +38,21 @@ defmodule Tuist.Tests.Coverage.Evidence do
   @separator "\x1F"
   @insert_chunk_size 5_000
   @scopes ~w(test suite target)
+  # The lines a report's ranges may expand to, over all its scopes and files.
+  # Ranges cost the client a few bytes whatever they span, so past this a
+  # file's evidence keeps only that the scope ran it.
+  @line_budget 10_000_000
 
   @doc """
   Stores a run's evidence. `evidence` is the request's `coverage_evidence`,
   atom or string keyed; nil, or coverage turned off for the project, stores
-  nothing.
+  nothing. `:line_budget` caps the lines the report's ranges expand to; a file
+  whose lines would exceed what is left keeps only its path.
   """
-  def record(test, evidence, shard_index \\ nil)
-  def record(_test, nil, _shard_index), do: :ok
+  def record(test, evidence, shard_index \\ nil, opts \\ [])
+  def record(_test, nil, _shard_index, _opts), do: :ok
 
-  def record(%{id: test_run_id, project_id: project_id} = test, evidence, shard_index) do
+  def record(%{id: test_run_id, project_id: project_id} = test, evidence, shard_index, opts) do
     paths = evidence |> value(:paths, []) |> List.to_tuple()
     scopes = value(evidence, :scopes, [])
 
@@ -70,7 +75,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
       }
 
       scopes
-      |> Stream.flat_map(&rows(&1, paths, base))
+      |> Stream.transform(Keyword.get(opts, :line_budget, @line_budget), &rows(&1, paths, base, &2))
       |> Stream.chunk_every(@insert_chunk_size)
       |> Enum.each(&IngestRepo.insert_all(CoverageFile, &1))
     end
@@ -130,7 +135,7 @@ defmodule Tuist.Tests.Coverage.Evidence do
     |> Enum.reverse()
   end
 
-  defp rows(scope, paths, base) do
+  defp rows(scope, paths, base, budget) do
     kind = value(scope, :kind, "")
     module_name = value(scope, :module, "")
     suite_name = value(scope, :suite, "")
@@ -145,40 +150,56 @@ defmodule Tuist.Tests.Coverage.Evidence do
       |> Enum.zip(Stream.concat(lines, Stream.repeatedly(fn -> [] end)))
       |> Enum.filter(fn {index, _ranges} -> valid_file_index?(index, tuple_size(paths)) end)
       |> Enum.uniq_by(&elem(&1, 0))
-      |> Enum.map(fn {index, ranges} ->
-        line_numbers = line_numbers(ranges)
+      |> Enum.map_reduce(budget, fn {index, ranges}, budget ->
+        {line_numbers, budget} = line_numbers(ranges, budget)
 
-        Map.merge(base, %{
-          id: UUIDv7.generate(),
-          scope_kind: kind,
-          scope_id: scope_id,
-          path: elem(paths, index),
-          line_numbers: line_numbers,
-          covered_lines: length(line_numbers)
-        })
+        row =
+          Map.merge(base, %{
+            id: UUIDv7.generate(),
+            scope_kind: kind,
+            scope_id: scope_id,
+            path: elem(paths, index),
+            line_numbers: line_numbers,
+            covered_lines: length(line_numbers)
+          })
+
+        {row, budget}
       end)
     else
-      _ -> []
+      _ -> {[], budget}
     end
   end
 
   # Inclusive ranges flattened: `[3, 5, 9, 9]` is lines 3 to 5 and line 9.
-  defp line_numbers(ranges) when is_list(ranges) do
-    ranges
-    |> Enum.chunk_every(2, 2, :discard)
-    |> Enum.flat_map(fn
-      [first, last]
-      when is_integer(first) and is_integer(last) and first > 0 and last >= first and last - first < 100_000 ->
-        Enum.to_list(first..last)
+  # Overlapping ranges are merged before anything is expanded, so repeating a
+  # range adds nothing.
+  defp line_numbers(ranges, budget) when is_list(ranges) do
+    merged =
+      ranges
+      |> Enum.chunk_every(2, 2, :discard)
+      |> Enum.filter(fn [first, last] ->
+        is_integer(first) and is_integer(last) and first > 0 and last >= first and last - first < 100_000
+      end)
+      |> Enum.sort()
+      |> Enum.reduce([], fn
+        [first, last], [[merged_first, merged_last] | rest] when first <= merged_last + 1 ->
+          [[merged_first, max(last, merged_last)] | rest]
 
-      _ ->
-        []
-    end)
-    |> Enum.uniq()
-    |> Enum.sort()
+        range, merged ->
+          [range | merged]
+      end)
+      |> Enum.reverse()
+
+    count = Enum.sum_by(merged, fn [first, last] -> last - first + 1 end)
+
+    if count <= budget do
+      {Enum.flat_map(merged, fn [first, last] -> Enum.to_list(first..last) end), budget - count}
+    else
+      {[], budget}
+    end
   end
 
-  defp line_numbers(_ranges), do: []
+  defp line_numbers(_ranges, budget), do: {[], budget}
 
   defp scope_id("test", _module_name, _suite_name, ""), do: nil
   defp scope_id("test", module_name, suite_name, name), do: test_scope_id(module_name, suite_name, name)

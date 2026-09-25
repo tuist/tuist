@@ -151,6 +151,7 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              maxItems: 200000
               type: array
               x-struct:
               x-validate:
@@ -163,6 +164,7 @@ components:
                       type: integer
                       x-struct:
                       x-validate:
+                    maxItems: 200000
                     type: array
                     x-struct:
                     x-validate:
@@ -182,9 +184,11 @@ components:
                         type: integer
                         x-struct:
                         x-validate:
+                      maxItems: 200000
                       type: array
                       x-struct:
                       x-validate:
+                    maxItems: 200000
                     type: array
                     x-struct:
                     x-validate:
@@ -210,6 +214,7 @@ components:
                 type: object
                 x-struct:
                 x-validate:
+              maxItems: 500000
               type: array
               x-struct:
               x-validate:
@@ -340,6 +345,7 @@ components:
             type: object
             x-struct:
             x-validate:
+          maxItems: 500000
           type: array
           x-struct:
           x-validate:
@@ -382,6 +388,7 @@ components:
                   type: object
                   x-struct:
                   x-validate:
+                maxItems: 1000
                 type: array
                 x-struct:
                 x-validate:
@@ -416,6 +423,7 @@ components:
             type: object
             x-struct:
             x-validate:
+          maxItems: 10000
           type: array
           x-struct:
           x-validate:
@@ -1479,7 +1487,8 @@ components:
           x-validate:
         shas:
           items:
-            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+            pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
             type: string
             x-struct:
             x-validate:
@@ -2854,7 +2863,8 @@ components:
       properties:
         missing:
           items:
-            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+            pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
             type: string
             x-struct:
             x-validate:
@@ -5454,7 +5464,8 @@ components:
                 x-struct:
                 x-validate:
               sha:
-                description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                 type: string
                 x-struct:
                 x-validate:
@@ -5464,6 +5475,7 @@ components:
             type: object
             x-struct:
             x-validate:
+          maxItems: 100
           type: array
           x-struct:
           x-validate:
@@ -5479,15 +5491,18 @@ components:
               parents:
                 description: The parent SHAs, first parent first.
                 items:
-                  description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                  description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                  pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                   type: string
                   x-struct:
                   x-validate:
+                maxItems: 128
                 type: array
                 x-struct:
                 x-validate:
               sha:
-                description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                 type: string
                 x-struct:
                 x-validate:
@@ -6710,7 +6725,8 @@ components:
           x-struct:
           x-validate:
         sha:
-          description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+          description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+          pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
           type: string
           x-struct:
           x-validate:
@@ -8026,7 +8042,8 @@ components:
       properties:
         missing:
           items:
-            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+            pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
             type: string
             x-struct:
             x-validate:
@@ -9168,7 +9185,8 @@ components:
           x-validate:
         shas:
           items:
-            description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+            pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
             type: string
             x-struct:
             x-validate:
@@ -13035,6 +13053,7 @@ paths:
                         type: string
                         x-struct:
                         x-validate:
+                      maxItems: 200000
                       type: array
                       x-struct:
                       x-validate:
@@ -13047,6 +13066,7 @@ paths:
                               type: integer
                               x-struct:
                               x-validate:
+                            maxItems: 200000
                             type: array
                             x-struct:
                             x-validate:
@@ -13066,9 +13086,11 @@ paths:
                                 type: integer
                                 x-struct:
                                 x-validate:
+                              maxItems: 200000
                               type: array
                               x-struct:
                               x-validate:
+                            maxItems: 200000
                             type: array
                             x-struct:
                             x-validate:
@@ -13094,6 +13116,7 @@ paths:
                         type: object
                         x-struct:
                         x-validate:
+                      maxItems: 500000
                       type: array
                       x-struct:
                       x-validate:
@@ -13224,6 +13247,7 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  maxItems: 500000
                   type: array
                   x-struct:
                   x-validate:
@@ -13266,6 +13290,7 @@ paths:
                           type: object
                           x-struct:
                           x-validate:
+                        maxItems: 1000
                         type: array
                         x-struct:
                         x-validate:
@@ -13300,6 +13325,7 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  maxItems: 10000
                   type: array
                   x-struct:
                   x-validate:
@@ -19443,7 +19469,8 @@ paths:
                   x-validate:
                 shas:
                   items:
-                    description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                    description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                    pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                     type: string
                     x-struct:
                     x-validate:
@@ -19468,7 +19495,8 @@ paths:
                 properties:
                   missing:
                     items:
-                      description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                      description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                      pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                       type: string
                       x-struct:
                       x-validate:
@@ -23293,7 +23321,8 @@ paths:
                         x-struct:
                         x-validate:
                       sha:
-                        description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                        pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                         type: string
                         x-struct:
                         x-validate:
@@ -23303,6 +23332,7 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  maxItems: 100
                   type: array
                   x-struct:
                   x-validate:
@@ -23318,15 +23348,18 @@ paths:
                       parents:
                         description: The parent SHAs, first parent first.
                         items:
-                          description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                          description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                          pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                           type: string
                           x-struct:
                           x-validate:
+                        maxItems: 128
                         type: array
                         x-struct:
                         x-validate:
                       sha:
-                        description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                        pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                         type: string
                         x-struct:
                         x-validate:
@@ -25579,7 +25612,8 @@ paths:
                   x-struct:
                   x-validate:
                 sha:
-                  description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                  description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                  pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                   type: string
                   x-struct:
                   x-validate:
@@ -28203,7 +28237,8 @@ paths:
                   x-validate:
                 shas:
                   items:
-                    description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                    description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                    pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                     type: string
                     x-struct:
                     x-validate:
@@ -28228,7 +28263,8 @@ paths:
                 properties:
                   missing:
                     items:
-                      description: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                      description: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
+                      pattern: ^[0-9a-f]{40}([0-9a-f]{24})?$
                       type: string
                       x-struct:
                       x-validate:

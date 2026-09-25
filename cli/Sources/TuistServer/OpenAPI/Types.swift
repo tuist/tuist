@@ -11641,7 +11641,7 @@ public enum Components {
             public struct branch_headsPayloadPayload: Codable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload/branch`.
                 public var branch: Swift.String
-                /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                /// A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                 ///
                 /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/branch_headsPayload/sha`.
                 public var sha: Swift.String
@@ -11649,7 +11649,7 @@ public enum Components {
                 ///
                 /// - Parameters:
                 ///   - branch:
-                ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                ///   - sha: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                 public init(
                     branch: Swift.String,
                     sha: Swift.String
@@ -11680,7 +11680,7 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/commitsPayload/parents`.
                 public var parents: [Swift.String]
-                /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                /// A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                 ///
                 /// - Remark: Generated from `#/components/schemas/UploadCommitsRequest/commitsPayload/sha`.
                 public var sha: Swift.String
@@ -11689,7 +11689,7 @@ public enum Components {
                 /// - Parameters:
                 ///   - committed_at: The committer date.
                 ///   - parents: The parent SHAs, first parent first.
-                ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                ///   - sha: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                 public init(
                     committed_at: Foundation.Date,
                     parents: [Swift.String],
@@ -13435,7 +13435,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/UploadCommitListingRequest/repository_url`.
             public var repository_url: Swift.String
-            /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            /// A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
             ///
             /// - Remark: Generated from `#/components/schemas/UploadCommitListingRequest/sha`.
             public var sha: Swift.String
@@ -13450,7 +13450,7 @@ public enum Components {
             ///   - files:
             ///   - files_count: How many files the whole listing has, sent with the last request.
             ///   - repository_url: The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped.
-            ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+            ///   - sha: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
             ///   - truncated: Whether the client stopped at the limit.
             public init(
                 complete: Swift.Bool? = nil,
@@ -57222,7 +57222,7 @@ public enum Operations {
                     public struct branch_headsPayloadPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_headsPayload/branch`.
                         public var branch: Swift.String
-                        /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        /// A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/branch_headsPayload/sha`.
                         public var sha: Swift.String
@@ -57230,7 +57230,7 @@ public enum Operations {
                         ///
                         /// - Parameters:
                         ///   - branch:
-                        ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        ///   - sha: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                         public init(
                             branch: Swift.String,
                             sha: Swift.String
@@ -57261,7 +57261,7 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/commitsPayload/parents`.
                         public var parents: [Swift.String]
-                        /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        /// A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/commits/POST/requestBody/json/commitsPayload/sha`.
                         public var sha: Swift.String
@@ -57270,7 +57270,7 @@ public enum Operations {
                         /// - Parameters:
                         ///   - committed_at: The committer date.
                         ///   - parents: The parent SHAs, first parent first.
-                        ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                        ///   - sha: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                         public init(
                             committed_at: Foundation.Date,
                             parents: [Swift.String],
@@ -64846,7 +64846,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/listings/POST/requestBody/json/repository_url`.
                     public var repository_url: Swift.String
-                    /// A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                    /// A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/git-history/listings/POST/requestBody/json/sha`.
                     public var sha: Swift.String
@@ -64861,7 +64861,7 @@ public enum Operations {
                     ///   - files:
                     ///   - files_count: How many files the whole listing has, sent with the last request.
                     ///   - repository_url: The repository's remote URL (`git remote get-url origin`), which identifies the commit graph: several projects can share one repository and a fork has its own. Credentials in the URL are stripped.
-                    ///   - sha: A commit SHA (40 hex digits, or 64 in a SHA-256 repository).
+                    ///   - sha: A commit SHA (40 lowercase hex digits, or 64 in a SHA-256 repository).
                     ///   - truncated: Whether the client stopped at the limit.
                     public init(
                         complete: Swift.Bool? = nil,

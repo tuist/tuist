@@ -303,6 +303,7 @@ defmodule TuistWeb.API.TestsController do
            },
            changed_files: %Schema{
              type: :array,
+             maxItems: 10_000,
              description:
                "The files changed between the merge base and the run's commit, with the changed line ranges of each at the head. Empty when the merge base is unknown.",
              items: %Schema{
@@ -318,6 +319,7 @@ defmodule TuistWeb.API.TestsController do
                  },
                  hunks: %Schema{
                    type: :array,
+                   maxItems: 1_000,
                    description: "The changed line ranges in the file at the head, inclusive.",
                    items: %Schema{
                      type: :object,
@@ -394,6 +396,7 @@ defmodule TuistWeb.API.TestsController do
            },
            enumerated_tests: %Schema{
              type: :array,
+             maxItems: 500_000,
              description:
                "The tests the run could have executed, listed without running any (`xcodebuild -enumerate-tests`). The run's filters do not narrow the list, so on a selective run it says which candidates were left out.",
              items: %Schema{
@@ -424,9 +427,10 @@ defmodule TuistWeb.API.TestsController do
              description:
                "Which files each test of the run executed, as the client's coverage observer recorded it: what test selection plans over. Paths are repository-relative, listed once; scopes refer to them by index.",
              properties: %{
-               paths: %Schema{type: :array, items: %Schema{type: :string}},
+               paths: %Schema{type: :array, maxItems: 200_000, items: %Schema{type: :string}},
                scopes: %Schema{
                  type: :array,
+                 maxItems: 500_000,
                  items: %Schema{
                    type: :object,
                    properties: %{
@@ -439,10 +443,16 @@ defmodule TuistWeb.API.TestsController do
                      module: %Schema{type: :string, description: "The test target."},
                      suite: %Schema{type: :string, description: "Empty for a target and for a test outside any suite."},
                      name: %Schema{type: :string, description: "The test's name; empty unless the scope is a test."},
-                     files: %Schema{type: :array, items: %Schema{type: :integer}, description: "Indices into `paths`."},
+                     files: %Schema{
+                       type: :array,
+                       maxItems: 200_000,
+                       items: %Schema{type: :integer},
+                       description: "Indices into `paths`."
+                     },
                      lines: %Schema{
                        type: :array,
-                       items: %Schema{type: :array, items: %Schema{type: :integer}},
+                       maxItems: 200_000,
+                       items: %Schema{type: :array, maxItems: 200_000, items: %Schema{type: :integer}},
                        description:
                          "The lines the scope ran in each of `files`, in the same order, as inclusive ranges flattened (`[3, 5, 9, 9]` is lines 3 to 5 and line 9); empty for a file without line evidence. Left out when the scope has none."
                      }
