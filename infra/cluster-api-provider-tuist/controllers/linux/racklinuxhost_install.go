@@ -176,6 +176,8 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			return time.Minute, nil
 		}
 		inst = host.Status.Install
+	} else if err := r.publishInstallUUID(ctx, host, inst); err != nil {
+		return 0, err
 	}
 
 	if device == nil {
@@ -614,6 +616,31 @@ func (r *RackLinuxHostReconciler) scaleUpPool(ctx context.Context, host *infrav1
 		}
 		r.Recorder.Eventf(host, corev1.EventTypeNormal, "PoolScaledUp",
 			"Scaled MachineDeployment %s to %d: %d host(s) of pool %s are on the tailnet", md.Name, joined, joined, host.Spec.Pool)
+	}
+	return nil
+}
+
+// publishInstallUUID publishes the machine's UUID beside an install published
+// before AMT reported it, so a network boot from another NIC finds it.
+func (r *RackLinuxHostReconciler) publishInstallUUID(ctx context.Context, host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallStatus) error {
+	if host.Status.AMT == nil || !smbiosUUIDPattern.MatchString(host.Status.AMT.UUID) {
+		return nil
+	}
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: r.CredentialsManager.Namespace, Name: rackBootSecretName(r.Install.FleetName)}, secret)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	mac := rackinstall.MACPath(inst.BootMAC)
+	if _, ok := secret.Data[mac+".ipxe"]; !ok || string(secret.Data[mac+".uuid"]) == host.Status.AMT.UUID {
+		return nil
+	}
+	secret.Data[mac+".uuid"] = []byte(host.Status.AMT.UUID)
+	if err := r.Update(ctx, secret); err != nil {
+		return fmt.Errorf("publish %s's UUID beside install %s: %w", host.Name, inst.KeyID, err)
 	}
 	return nil
 }
