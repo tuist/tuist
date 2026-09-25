@@ -3,6 +3,8 @@ defmodule Tuist.GitHistoryTest do
 
   alias Tuist.GitHistory
   alias Tuist.Projects
+  alias Tuist.Repo
+  alias Tuist.Tests.CoverageCommit
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -15,7 +17,7 @@ defmodule Tuist.GitHistoryTest do
 
   defp generations(repository) do
     from(c in GitHistory.Commit, where: c.repository_id == ^repository, select: {c.sha, c.generation})
-    |> Tuist.Repo.all()
+    |> Repo.all()
     |> Map.new()
   end
 
@@ -66,17 +68,14 @@ defmodule Tuist.GitHistoryTest do
     test "stores commits once, with generation numbers from their parents", %{repository: repository} do
       seed(repository)
 
-      assert GitHistory.missing_shas(repository, ["a", "d", "zzz"]) == ["zzz"]
+      assert GitHistory.missing_shas(repository, ["b", "d", "zzz"]) == ["zzz"]
       assert GitHistory.known?(repository, "c")
 
       # Repeating an upload changes nothing.
       assert GitHistory.record_commits(repository, "sha1", [commit("d", ["c"], 3)]) == :ok
       assert GitHistory.missing_shas(repository, ["d"]) == []
 
-      generations =
-        Tuist.Repo.all(from(c in GitHistory.Commit, where: c.repository_id == ^repository, select: {c.sha, c.generation}))
-
-      assert Map.new(generations) == %{"a" => 1, "b" => 2, "c" => 3, "d" => 4, "e" => 3, "m" => 5}
+      assert generations(repository) == %{"a" => 1, "b" => 2, "c" => 3, "d" => 4, "e" => 3, "m" => 5}
     end
 
     test "numbers parents before their children whatever order and dates they come in", %{repository: repository} do
@@ -298,6 +297,61 @@ defmodule Tuist.GitHistoryTest do
       GitHistory.advance_ref(repository, "main", nil, "d")
       assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}]
       assert owned(repository, "pull/1") == [{"p1", 5}]
+    end
+  end
+
+  describe "shallow clones" do
+    defp measure(project, repository, shas) do
+      for sha <- shas do
+        Repo.insert!(%CoverageCommit{
+          project_id: project.id,
+          git_commit_sha: sha,
+          repository_id: repository,
+          committed_at: ~U[2026-09-01 00:00:00.000000Z],
+          ran_at: ~U[2026-09-01 00:00:00.000000Z]
+        })
+      end
+    end
+
+    defp coverage_places(project) do
+      Repo.all(
+        from(c in CoverageCommit,
+          where: c.project_id == ^project.id,
+          order_by: c.git_commit_sha,
+          select: {c.git_commit_sha, c.ref_id, c.position}
+        )
+      )
+    end
+
+    test "keep what the default branch owns when its head arrives without its parents", %{
+      project: project,
+      repository: repository
+    } do
+      seed(repository)
+      measure(project, repository, ["c", "d"])
+      GitHistory.advance_ref(repository, "main", nil, "d")
+      main = GitHistory.ref(repository, "main")
+      assert coverage_places(project) == [{"c", main.id, 3}, {"d", main.id, 4}]
+
+      # A depth-1 checkout lists its head as a root.
+      GitHistory.record_commits(repository, "sha1", [commit("h", [], 10)])
+      GitHistory.record_branch_head(repository, "main", "h", "main")
+
+      assert owned(repository, "main") == [{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"h", 5}]
+      assert coverage_places(project) == [{"c", main.id, 3}, {"d", main.id, 4}]
+    end
+
+    test "ask again for a commit stored without its parents, and repair its edge", %{repository: repository} do
+      seed(repository)
+      GitHistory.record_commits(repository, "sha1", [commit("h", [], 10)])
+      assert GitHistory.missing_shas(repository, ["h", "d"]) == ["h"]
+
+      # A deeper checkout later sends the commits in between and the head again.
+      GitHistory.record_commits(repository, "sha1", [commit("g", ["d"], 9), commit("h", ["g"], 10)])
+
+      assert GitHistory.missing_shas(repository, ["h", "d"]) == []
+      assert GitHistory.nearest_ancestor(repository, "h", ["c"]) == {"c", 3}
+      assert %{"g" => 5, "h" => 6} = generations(repository)
     end
   end
 

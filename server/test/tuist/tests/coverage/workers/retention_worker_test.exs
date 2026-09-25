@@ -39,10 +39,10 @@ defmodule Tuist.Tests.Coverage.Workers.RetentionWorkerTest do
 
     assert :ok = perform_job(RetentionWorker, %{})
 
-    assert GitHistory.missing_shas(repository, ["day40", "day20", "today"]) == ["day40"]
+    assert Enum.reject(["day40", "day20", "today"], &GitHistory.known?(repository, &1)) == ["day40"]
     # The default window (365 days) applies where no project narrows it.
-    assert GitHistory.missing_shas(other_repository, ["day40"]) == []
-    assert GitHistory.missing_shas(projectless_repository, ["day400", "day40"]) == ["day400"]
+    assert GitHistory.known?(other_repository, "day40")
+    assert Enum.reject(["day400", "day40"], &GitHistory.known?(projectless_repository, &1)) == ["day400"]
   end
 
   test "drops the commits' coverage past its retention" do
