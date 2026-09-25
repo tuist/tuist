@@ -138,6 +138,64 @@ defmodule TuistWeb.OnceOverviewLiveTest do
     assert render(view) =~ "4242"
   end
 
+  test "the Analytics card filters on environment", %{conn: conn, path: path, project: project} do
+    at = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+    # A CI test run with a duration nothing else uses, so the Avg. test run
+    # duration widget is unambiguous.
+    {:ok, ci_run} =
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "test",
+        command_display: "once test",
+        is_ci: true,
+        started_at: at
+      })
+
+    {:ok, _} =
+      OnceEvents.finalize_run(ci_run, %{
+        finalization: "finalized",
+        exit_status: 0,
+        wall_ms: 5432,
+        finalized_at: at
+      })
+
+    {:ok, view, _} = live(conn, path <> "?analytics-environment=ci")
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#once-overview-analytics-environment-dropdown")
+    assert render(view) =~ "5.4s"
+
+    # Local must exclude the CI run, not just re-render the card.
+    {:ok, view, _} = live(conn, path <> "?analytics-environment=local")
+    render_async(view, 2_000)
+    refute render(view) =~ "5.4s"
+
+    # An unknown value falls back to unfiltered. Asserted as equivalence with
+    # an explicit "any" rather than against the CI-only figure: unfiltered
+    # averages the CI run together with the setup's local one, so it is
+    # neither 5.4s nor absent.
+    {:ok, any_view, _} = live(conn, path <> "?analytics-environment=any")
+    render_async(any_view, 2_000)
+    any_duration = rendered_test_duration(any_view)
+
+    {:ok, bogus_view, _} = live(conn, path <> "?analytics-environment=bogus")
+    render_async(bogus_view, 2_000)
+
+    assert rendered_test_duration(bogus_view) == any_duration
+    refute any_duration == "5.4s"
+  end
+
+  defp rendered_test_duration(view) do
+    view
+    |> render()
+    |> Floki.parse_fragment!()
+    |> Floki.find("#once-average-test-run-time [data-part=value]")
+    |> Floki.text()
+    |> String.trim()
+  end
+
   test "changing the period keeps the overview rendered", %{conn: conn, path: path} do
     {:ok, view, _} = live(conn, path)
     # The card fans out to several `assign_async` queries, which do not

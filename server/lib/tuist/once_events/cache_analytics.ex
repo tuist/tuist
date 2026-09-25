@@ -156,6 +156,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
       Run
       |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
       |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> maybe_filter_environment(opts)
       |> where([r], r.total_actions > 0)
       |> order_by([r], desc: r.started_at)
       |> limit(^@scatter_data_limit)
@@ -237,6 +238,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
       |> where([a], a.project_id == ^project_id and a.capability != "_phase")
       |> join(:inner, [a], r in Run, on: r.id == a.once_run_id)
       |> where([_, r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> maybe_filter_run_environment(opts)
       |> group_by([a, r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
       |> select([a, r], %{
         bucket: fragment("min(?)", r.started_at),
@@ -385,7 +387,7 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
       target_patterns: [],
       duration_ms: run.wall_ms || 0,
       finished_at: run.finalized_at || run.started_at,
-      is_ci: false,
+      is_ci: run.is_ci || false,
       account_handle: nil,
       cache: %{
         hit_rate: hit_rate,
@@ -461,6 +463,23 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
   defp to_int(n) when is_integer(n), do: n
   defp to_int(n) when is_float(n), do: round(n)
   defp to_int(_), do: 0
+
+  # `:is_ci` is the opt `Tuist.OnceEvents.Analytics` filters on, so the
+  # Environment control means the same thing on every Once card.
+  defp maybe_filter_environment(query, opts) do
+    case Keyword.get(opts, :is_ci) do
+      is_ci when is_boolean(is_ci) -> where(query, [r], r.is_ci == ^is_ci)
+      _ -> query
+    end
+  end
+
+  # Same filter where the run is the joined binding rather than the first.
+  defp maybe_filter_run_environment(query, opts) do
+    case Keyword.get(opts, :is_ci) do
+      is_ci when is_boolean(is_ci) -> where(query, [_, r], r.is_ci == ^is_ci)
+      _ -> query
+    end
+  end
 
   defp to_float(%Decimal{} = d), do: Decimal.to_float(d)
   defp to_float(n) when is_number(n), do: n * 1.0

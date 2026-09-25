@@ -34,6 +34,7 @@ defmodule TuistWeb.OnceOverviewLive do
     %{preset: builds_preset, period: builds_period} =
       DatePicker.date_picker_params(params, "builds")
 
+    analytics_environment = environment(params["analytics-environment"])
     builds_environment = params["builds-environment"] || "any"
     builds_opts = opts(builds_period, @build_commands, builds_environment)
 
@@ -41,6 +42,8 @@ defmodule TuistWeb.OnceOverviewLive do
     |> assign(
       uri: uri,
       uri_path: uri_path,
+      analytics_environment: analytics_environment,
+      analytics_environment_label: environment_label(analytics_environment),
       builds_environment: builds_environment,
       builds_environment_label: environment_label(builds_environment),
       analytics_preset: analytics_preset,
@@ -52,10 +55,14 @@ defmodule TuistWeb.OnceOverviewLive do
       builds_granularity: time_series_granularity(builds_period)
     )
     |> assign_async(:cache_summary, fn ->
-      {:ok, %{cache_summary: cache_summary_with_trend(project.id, analytics_period)}}
+      {:ok, %{cache_summary: cache_summary_with_trend(project.id, analytics_period, analytics_environment)}}
     end)
     |> assign_async([:cache_hit_rate_analytics, :has_any_cache_observations], fn ->
-      analytics = CacheAnalytics.analytics(project.id, period_opts(analytics_period))
+      analytics =
+        CacheAnalytics.analytics(
+          project.id,
+          analytics_period |> period_opts() |> put_environment(analytics_environment)
+        )
 
       {:ok,
        %{
@@ -77,8 +84,8 @@ defmodule TuistWeb.OnceOverviewLive do
     |> assign_async([:test_summary, :recent_test_runs], fn ->
       {:ok,
        %{
-         test_summary: summary_with_trends(project.id, analytics_period, @test_commands),
-         recent_test_runs: recent_runs(project, opts(analytics_period, @test_commands))
+         test_summary: summary_with_trends(project.id, analytics_period, @test_commands, analytics_environment),
+         recent_test_runs: recent_runs(project, opts(analytics_period, @test_commands, analytics_environment))
        }}
     end)
   end
@@ -92,6 +99,21 @@ defmodule TuistWeb.OnceOverviewLive do
         data-part="analytics"
       >
         <:actions>
+          <.dropdown
+            id="once-overview-analytics-environment-dropdown"
+            label={@analytics_environment_label}
+            secondary_text={dgettext("dashboard_projects", "Environment:")}
+          >
+            <.dropdown_item
+              :for={environment <- ~w(any ci local)}
+              value={environment}
+              label={environment_label(environment)}
+              patch={"?#{Query.put(@uri.query, "analytics-environment", environment)}"}
+              data-selected={@analytics_environment == environment}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
           <.date_picker
             id="once-overview-date-range-picker"
             name="analytics-date-range"
@@ -581,10 +603,10 @@ defmodule TuistWeb.OnceOverviewLive do
     }
   end
 
-  defp summary_with_trends(project_id, {start_dt, end_dt} = period, commands) do
-    current = Analytics.summary(project_id, opts(period, commands))
+  defp summary_with_trends(project_id, {start_dt, end_dt} = period, commands, environment \\ "any") do
+    current = Analytics.summary(project_id, opts(period, commands, environment))
     {prev_start, prev_end} = previous_period(start_dt, end_dt)
-    previous = Analytics.summary(project_id, opts({prev_start, prev_end}, commands))
+    previous = Analytics.summary(project_id, opts({prev_start, prev_end}, commands, environment))
 
     Map.put(
       current,
@@ -595,10 +617,20 @@ defmodule TuistWeb.OnceOverviewLive do
 
   # The per-run hit rate, which is what the Once cache page charts, rather
   # than `CacheAnalytics.summary/2`, which reports transfer and latency.
-  defp cache_summary_with_trend(project_id, {start_dt, end_dt} = period) do
-    current = CacheAnalytics.invocation_hit_rate_metrics(project_id, period_opts(period))
+  defp cache_summary_with_trend(project_id, {start_dt, end_dt} = period, environment \\ "any") do
+    current =
+      CacheAnalytics.invocation_hit_rate_metrics(
+        project_id,
+        period |> period_opts() |> put_environment(environment)
+      )
+
     {prev_start, prev_end} = previous_period(start_dt, end_dt)
-    previous = CacheAnalytics.invocation_hit_rate_metrics(project_id, period_opts({prev_start, prev_end}))
+
+    previous =
+      CacheAnalytics.invocation_hit_rate_metrics(
+        project_id,
+        {prev_start, prev_end} |> period_opts() |> put_environment(environment)
+      )
 
     %{
       hit_rate: if(current.sample_count > 0, do: current.avg),
@@ -611,9 +643,14 @@ defmodule TuistWeb.OnceOverviewLive do
   # Same translation `TuistWeb.XcodeOverviewLive` applies, so the dropdown
   # means the same thing on both build systems. "Any" leaves `:is_ci` unset
   # rather than passing a value the analytics layer would filter on.
-  defp opts(period, commands, "ci"), do: period |> opts(commands) |> Keyword.put(:is_ci, true)
-  defp opts(period, commands, "local"), do: period |> opts(commands) |> Keyword.put(:is_ci, false)
-  defp opts(period, commands, _any), do: opts(period, commands)
+  defp opts(period, commands, environment), do: period |> opts(commands) |> put_environment(environment)
+
+  defp put_environment(opts, "ci"), do: Keyword.put(opts, :is_ci, true)
+  defp put_environment(opts, "local"), do: Keyword.put(opts, :is_ci, false)
+  defp put_environment(opts, _any), do: opts
+
+  defp environment(value) when value in ~w(any local ci), do: value
+  defp environment(_unknown), do: "any"
 
   defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
   defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
