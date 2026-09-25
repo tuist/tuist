@@ -10,6 +10,8 @@ defmodule Atlas.Slack.InteractionsTest do
   alias Atlas.Repo
   alias Atlas.Slack.API
   alias Atlas.Slack.Interactions
+  alias Atlas.Tasks
+  alias Atlas.Tasks.SlackNotifier, as: TasksSlackNotifier
   alias Atlas.Users.User
 
   setup :verify_on_exit!
@@ -125,5 +127,34 @@ defmodule Atlas.Slack.InteractionsTest do
     assert {:ok, "Next step marked complete."} = Interactions.handle_interaction(payload, :company)
     assert Repo.get!(Recommendation, recommendation.id).status == "completed"
     assert Repo.get!(Recommendation, recommendation.id).reviewed_by_id == user.id
+  end
+
+  test "snoozes a task reminder from Slack and reschedules the reminder" do
+    user =
+      %User{}
+      |> User.changeset(%{email: "reminder-owner@tuist.dev", name: "Reminder Owner"})
+      |> Repo.insert!()
+
+    past = DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second)
+    {:ok, task} = Tasks.create_task(%{title: "Ship spec", assignee_id: user.id, remind_at: past}, user)
+    original_version = task.reminder_version
+
+    payload = %{
+      "type" => "block_actions",
+      "user" => %{"name" => "reminder-owner", "profile" => %{"email" => user.email}},
+      "actions" => [
+        %{
+          "action_id" => TasksSlackNotifier.snooze_action_id(:tomorrow),
+          "value" => task.id
+        }
+      ]
+    }
+
+    assert {:ok, message} = Interactions.handle_interaction(payload, :company)
+    assert message =~ "snoozed until tomorrow"
+
+    reloaded = Tasks.get_task(task.id)
+    assert reloaded.reminder_version == original_version + 1
+    assert DateTime.to_date(reloaded.remind_at) == Date.add(Date.utc_today(), 1)
   end
 end
